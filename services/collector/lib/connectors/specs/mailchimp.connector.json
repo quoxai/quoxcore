@@ -1,0 +1,241 @@
+{
+  "spec_version": 1,
+  "id": "mailchimp",
+  "name": "Mailchimp",
+  "category": "marketing_email",
+  "credentialType": "mailchimp",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://mailchimp.com/developer/marketing/api/",
+  "base_url": {
+    "template": "https://{{suffix api_key -}}.api.mailchimp.com",
+    "_probe": {
+      "api_key": "probekeybody-us1"
+    }
+  },
+  "auth": {
+    "type": "basic",
+    "userLiteral": "anystring",
+    "passField": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/3.0/ping"
+  },
+  "tools_source": "https://mailchimp.com/developer/marketing/api/",
+  "tools": [
+    {
+      "name": "ping",
+      "description": "Check that the Mailchimp API key is valid and the account's datacenter is reachable",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/3.0/ping"
+      },
+      "response": {
+        "pick": {
+          "health_status": "health_status"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_audiences",
+      "description": "List Mailchimp audiences (lists) with their member counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Max audiences to return (default 10, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/3.0/lists",
+        "query": {
+          "count": "{{clamp input.count 10 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "lists[]": {
+            "id": "id",
+            "name": "name",
+            "date_created": "date_created",
+            "member_count": "stats.member_count",
+            "unsubscribe_count": "stats.unsubscribe_count",
+            "open_rate": "stats.open_rate",
+            "click_rate": "stats.click_rate"
+          },
+          "total_items": "total_items"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_campaigns",
+      "description": "List Mailchimp campaigns, optionally filtered by status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Max campaigns to return (default 10, max 50)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "save",
+              "paused",
+              "schedule",
+              "sending",
+              "sent"
+            ],
+            "description": "Optional campaign status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/3.0/campaigns",
+        "query": {
+          "count": "{{clamp input.count 10 50}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "campaigns[]": {
+            "id": "id",
+            "type": "type",
+            "status": "status",
+            "send_time": "send_time",
+            "emails_sent": "emails_sent",
+            "title": "settings.title",
+            "subject_line": "settings.subject_line",
+            "list_id": "recipients.list_id",
+            "recipient_count": "recipients.recipient_count"
+          },
+          "total_items": "total_items"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_members",
+      "description": "List members of one Mailchimp audience, optionally filtered by subscription status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "list_id": {
+            "type": "string",
+            "description": "Mailchimp audience (list) ID, as returned by list_audiences"
+          },
+          "count": {
+            "type": "number",
+            "description": "Max members to return (default 10, max 50)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "subscribed",
+              "unsubscribed",
+              "cleaned",
+              "pending",
+              "transactional",
+              "archived"
+            ],
+            "description": "Optional subscription status to filter by"
+          }
+        },
+        "required": [
+          "list_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/3.0/lists/{{input.list_id}}/members",
+        "query": {
+          "count": "{{clamp input.count 10 50}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "members[]": {
+            "id": "id",
+            "email_address": "email_address",
+            "status": "status",
+            "timestamp_signup": "timestamp_signup",
+            "last_changed": "last_changed"
+          },
+          "list_id": "list_id",
+          "total_items": "total_items"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_campaign",
+      "description": "Get one Mailchimp campaign by ID, including its settings and send stats",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "campaign_id": {
+            "type": "string",
+            "description": "Mailchimp campaign ID, as returned by list_campaigns"
+          }
+        },
+        "required": [
+          "campaign_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/3.0/campaigns/{{input.campaign_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "type": "type",
+          "status": "status",
+          "send_time": "send_time",
+          "emails_sent": "emails_sent",
+          "title": "settings.title",
+          "subject_line": "settings.subject_line",
+          "from_name": "settings.from_name",
+          "reply_to": "settings.reply_to",
+          "list_id": "recipients.list_id",
+          "recipient_count": "recipients.recipient_count"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "medium",
+    "needs_review": [
+      "UNBLOCKED by two Spec v1.1 runtime features, both re-read in the code rather than taken on trust. (1) base_url uses {{suffix api_key -}}, which renders ONLY the part of the key after its last hyphen, so a key ending -us21 routes to us21.api.mailchimp.com exactly as integrationTypeRegistry's own testEndpoint does (api_key.split('-').pop()). declarativeRuntime suffixOf returns undefined when the value has no separator, and never falls back to the whole field, so the key body cannot reach a hostname, a DNS query or a TLS SNI record. (2) auth uses userLiteral 'anystring' with passField api_key, which is the documented scheme verbatim (curl -u \"anystring:APIKEY\"). No vault change was needed: the mailchimp type's single api_key field carries the datacenter itself.",
+      "an earlier revision of this draft recorded these as BLOCKERS and shipped zero tools. That was correct against the runtime as it stood when first read and is now stale: specSchema checkToken accepts {{suffix <credentialField> <sep>}} in base_url.template, and checkAuth accepts userLiteral as the exclusive alternative to userField. The reversal is recorded here rather than silently overwritten.",
+      "base_url._probe is an object of CREDENTIAL-FIELD overrides used only when rendering base_url for a blind probe ({\"api_key\": \"probekeybody-us1\"} makes the suffix helper yield us1), NOT a host or URL string. connector-shapeproof.mjs baseUrlProbeValues iterates Object.entries(_probe) and strips a cred. prefix, so a string there would enumerate into per-character keys, leave api_key unfilled, and the spec would come back unprobeable. The probe value is a throwaway literal with no key body in it.",
+      "PROVEN by this run (mailchimp.proof.json, overall SHAPE_PROVEN): the suffix helper renders a real Mailchimp datacenter host, us1.api.mailchimp.com resolves and serves TLS, and the modelled routes answer with Mailchimp's own structured error JSON (type/title/status/detail), distinguishable from the control probe at a bogus path on the same host. The basic-auth wire format is accepted as a wall, not as a malformed request.",
+      "UNPROVEN, and it stays unproven until a real key runs: every response pick. The probe fires a dummy credential, so no 2xx body was ever data, and picks are taken from the official Marketing API reference pages (ping health_status; lists[] with nested stats.member_count / open_rate / click_rate; campaigns[] with nested settings.title, settings.subject_line and recipients.list_id; lists/{list_id}/members[]; the single-campaign object). A wrong pick source yields silently empty output rather than an error, so the first real run must confirm the field names.",
+      "UNPROVEN: that 'anystring' is accepted as the username. Mailchimp documents it, and the wall answered structurally, but a dummy key is rejected under any username, so this run cannot distinguish a username Mailchimp accepts from one it ignores.",
+      "count is clamped 10 default / 50 max on all three list tools, below Mailchimp's documented 1000 ceiling, to keep one tool result inside the 2000-char truncate. Callers cannot page: offset is deliberately not exposed, so these tools answer 'what does this account look like' and never enumerate an audience.",
+      "READ-ONLY: no tool is marked write:true, and every request is a GET. Mailchimp's POST/PATCH/PUT/DELETE surface (members, campaigns, automations, sending) is extensive and none of it is modelled; adding any of it needs an explicit write review.",
+      "rate limit 30 requests per 60s is a self-imposed connector budget, not Mailchimp's published limit (Mailchimp documents 10 concurrent connections per key and does not publish a fixed per-minute cap)."
+    ]
+  }
+}

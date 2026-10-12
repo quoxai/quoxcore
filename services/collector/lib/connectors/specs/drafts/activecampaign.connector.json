@@ -1,0 +1,31 @@
+{
+  "spec_version": 1,
+  "id": "activecampaign",
+  "name": "ActiveCampaign",
+  "category": "crm",
+  "credentialType": "activecampaign",
+  "requiredFields": [
+    "base_url",
+    "api_key"
+  ],
+  "docs": "https://developers.activecampaign.com/reference/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "Api-Token",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/3/users/me"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "chief-enterprise",
+  "type": "team-pack",
+  "version": "1.0.0",
+  "displayName": "Chief Team — Enterprise",
+  "description": "Full-scale enterprise executive suite with 51 chiefs. Regional leadership for EMEA, APAC, and Americas. Specialised CTO, CLO, and CISO variants. VP-level execution leaders. Complete multinational C-suite coverage.",
+  "author": "Quox",
+  "tier": "tier_c",
+  "price": 15,
+  "priceModel": "one-time",
+  "teams": ["chief-enterprise"],
+  "tags": ["business", "executive", "strategy", "enterprise", "c-suite", "multinational", "global"],
+  "icon": "globe",
+  "accentColor": "#1e293b"
+}

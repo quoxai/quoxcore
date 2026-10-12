@@ -1,0 +1,192 @@
+{
+  "name": "x",
+  "version": "1.0.0",
+  "displayName": "Quox X Publisher",
+  "tagline": "Governed X Publishing from QuoxCORE",
+  "description": "Draft posts and threads to X (Twitter) through owner approval: HITL-gated publishing enforced in the collector, a hard org posting budget, image media attachments, and a live account-health check over vault OAuth 1.0a credentials.",
+  "shortDescription": "HITL-gated X publishing with a hard posting budget.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 10,
+  "priceDisplay": "$10",
+  "priceModel": "one-time",
+  "tier": "tier_a",
+  "featured": false,
+  "badge": "NEW",
+  "icon": "x",
+  "heroGradient": "linear-gradient(135deg, #000000 0%, #2F3336 100%)",
+  "accentColor": "#000000",
+  "accentColorFallback": "#E7E9EA",
+  "infoUrl": "https://quox.ai/plugins/x",
+  "docsUrl": "https://quox.ai/docs/plugins/x",
+  "route": "/x",
+  "marketingPoints": [
+    "Draft posts and threads — published only after owner approval",
+    "Hard posting budget (daily and monthly) enforced server-side",
+    "Attach up to 4 images from the org media library",
+    "Every claim tracked in a durable, org-scoped ledger",
+    "Live account-health check against the X API",
+    "OAuth 1.0a credentials held in the encrypted vault"
+  ],
+  "features": {
+    "hitlPublishing": {
+      "name": "HITL-Gated Publishing",
+      "description": "x_post and x_thread never post directly — every draft files an owner approval card and publishes only on approval, enforced in the collector gate.",
+      "icon": "shield",
+      "highlight": true
+    },
+    "postingBudget": {
+      "name": "Posting Budget",
+      "description": "A hard daily and monthly post budget per org, checked at draft AND at approval time. An approval that would exceed the budget is refused server-side.",
+      "icon": "bar-chart",
+      "highlight": true
+    },
+    "threads": {
+      "name": "Threads",
+      "description": "Compose ordered multi-post threads with per-post character counts; the whole thread goes through one approval.",
+      "icon": "list"
+    },
+    "mediaUpload": {
+      "name": "Image Media",
+      "description": "Attach up to 4 images per post from the org's media root; every path is containment-checked server-side.",
+      "icon": "image"
+    },
+    "activityLedger": {
+      "name": "Activity Ledger",
+      "description": "Every claim and every published tweet lands in durable org-scoped tables (x_post_claims, x_post_ledger) — the Activity tab reads the same rows the budget enforces against.",
+      "icon": "archive",
+      "highlight": true
+    },
+    "accountHealth": {
+      "name": "Account Health",
+      "description": "Live verify_credentials check through the vault OAuth 1.0a quad, showing the connected @handle.",
+      "icon": "activity"
+    }
+  },
+  "specialist": {
+    "name": "HERALD",
+    "description": "HERALD, the Herald social suite voice. Drafts posts and files them for human approval, never posts directly. X is its first channel.",
+    "avatar": "/assets/agents/xtwitter.svg",
+    "capabilities": [
+      "Draft posts and threads for owner approval",
+      "Attach org media images to drafts",
+      "Report the live posting budget",
+      "List pending claims and published posts",
+      "Verify vault credentials against the X API"
+    ]
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "X developer app in a Pay Per Use project with an OAuth 1.0a key quad (stored in vault, type: twitter)"
+  },
+  "integration": {
+    "connector": "twitter",
+    "view": "src/pages/views/XView.jsx",
+    "agent": "xtwitter"
+  },
+  "permissions": [
+    "vault:read",
+    "network:external"
+  ],
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "configSchema": {
+    "setupComplete": {
+      "type": "boolean",
+      "label": "Setup Complete",
+      "description": "Set by the setup wizard after a successful live credential verification.",
+      "default": false
+    },
+    "handle": {
+      "type": "string",
+      "label": "Connected Handle",
+      "description": "The @handle verified at setup (display only — the vault credential is authoritative).",
+      "required": false,
+      "placeholder": "@yourhandle"
+    }
+  },
+  "safety": {
+    "destructiveActions": [
+      "x_post",
+      "x_thread",
+      "x_delete"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": true,
+    "enforcementNote": "Unlike legacy safety blocks that only DECLARE gating, enforcement here is REAL and server-side: x_post/x_thread/x_delete file an HITL Inbox approval card and return awaiting_approval; the collector approval gate re-validates media containment and the posting budget before anything reaches the X API (services/collector/lib/xTools.js + xPostingStore.js)."
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "hitlPublishing": false,
+      "postingBudget": false,
+      "threads": false,
+      "mediaUpload": false,
+      "activityLedger": false,
+      "accountHealth": false
+    },
+    "tier_a": {
+      "name": "X ($2)",
+      "hitlPublishing": true,
+      "postingBudget": true,
+      "threads": true,
+      "mediaUpload": true,
+      "activityLedger": true,
+      "accountHealth": true
+    }
+  },
+  "limits": {
+    "free": {
+      "accounts": 0,
+      "features": []
+    },
+    "starter": {
+      "accounts": 1,
+      "features": [
+        "hitlPublishing",
+        "postingBudget",
+        "threads",
+        "mediaUpload",
+        "activityLedger",
+        "accountHealth"
+      ]
+    },
+    "professional": {
+      "accounts": 3,
+      "features": [
+        "hitlPublishing",
+        "postingBudget",
+        "threads",
+        "mediaUpload",
+        "activityLedger",
+        "accountHealth",
+        "autoApprove",
+        "analyticsExport"
+      ]
+    }
+  },
+  "futureFeatures": [
+    "Auto-approve rules for pre-approved content types",
+    "Cross-platform scheduling via Herald supervisor",
+    "Engagement analytics per published tweet"
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-09-11",
+      "changes": [
+        "Initial release",
+        "HITL-gated x_post / x_thread / x_delete with collector-enforced approval",
+        "Org posting budget (daily + monthly) with durable ledger",
+        "Compose panel with thread mode and image picker",
+        "Activity tab over x_post_claims / x_post_ledger",
+        "Budget tab with live usage bars",
+        "Account-health tab driving verify_credentials",
+        "Vault-integrated OAuth 1.0a credentials (type: twitter)"
+      ]
+    }
+  },
+  "category": "Communication"
+}

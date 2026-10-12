@@ -1,0 +1,90 @@
+{
+  "spec_id": "sendgrid",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:16.491Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.sendgrid.com/quox-shapeproof-control-9f4d422f",
+      "status": 404,
+      "latency_ms": 391,
+      "classification": "CONTROL",
+      "body_sha256": "453e07ab2078c91e4b3074a482b1a19324a721835855173454d64184e36741db",
+      "body_excerpt": "<html>\n  <head>\n    <title>SendGrid - 404 Not Found</title>\n    <style>@import url(\"https://fonts.googleapis.com/css?family=Dosis:300,400,700,800\");/** Styles for the 403 Page **/.particle-error,.perm",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.sendgrid.com/v3/user/profile",
+      "status": 401,
+      "latency_ms": 268,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "8cb1d5afe9b8babe3b0b4b823c18f6dc6bd38a16814912aed13eb217e146dbb7",
+      "body_excerpt": "{\"errors\":[{\"field\":null,\"message\":\"unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_profile",
+      "method": "GET",
+      "url": "https://api.sendgrid.com/v3/user/profile",
+      "status": 401,
+      "latency_ms": 202,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "8cb1d5afe9b8babe3b0b4b823c18f6dc6bd38a16814912aed13eb217e146dbb7",
+      "body_excerpt": "{\"errors\":[{\"field\":null,\"message\":\"unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_templates",
+      "method": "GET",
+      "url": "https://api.sendgrid.com/v3/templates?generations=dynamic&page_size=20",
+      "status": 403,
+      "latency_ms": 189,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1d837e85e4c1b235c7e5096fed4e2efc51c6108ba8d8361d4e84b7dd087a4d98",
+      "body_excerpt": "{\"errors\":[{\"field\":null,\"message\":\"access forbidden\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "email_stats",
+      "method": "GET",
+      "url": "https://api.sendgrid.com/v3/stats?start_date=quoxprobe&end_date=quoxprobe&aggregated_by=quoxprobe",
+      "status": 403,
+      "latency_ms": 197,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1d837e85e4c1b235c7e5096fed4e2efc51c6108ba8d8361d4e84b7dd087a4d98",
+      "body_excerpt": "{\"errors\":[{\"field\":null,\"message\":\"access forbidden\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_suppressions",
+      "method": "GET",
+      "url": "https://api.sendgrid.com/v3/suppression/bounces?limit=20&start_time=1",
+      "status": 401,
+      "latency_ms": 251,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "8cb1d5afe9b8babe3b0b4b823c18f6dc6bd38a16814912aed13eb217e146dbb7",
+      "body_excerpt": "{\"errors\":[{\"field\":null,\"message\":\"unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

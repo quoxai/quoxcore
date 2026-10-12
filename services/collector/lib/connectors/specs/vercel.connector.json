@@ -1,0 +1,215 @@
+{
+  "spec_version": 1,
+  "id": "vercel",
+  "name": "Vercel",
+  "category": "developer",
+  "credentialType": "vercel",
+  "requiredFields": [
+    "token"
+  ],
+  "docs": "https://vercel.com/docs/rest-api",
+  "base_url": "https://api.vercel.com",
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/user"
+  },
+  "tools_source": "https://vercel.com/docs/rest-api/reference/endpoints",
+  "tools": [
+    {
+      "name": "get_user",
+      "description": "Get the Vercel account the access token belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/user"
+      },
+      "response": {
+        "pick": {
+          "id": "user.id",
+          "username": "user.username",
+          "email": "user.email",
+          "name": "user.name",
+          "created_at": "user.createdAt",
+          "version": "user.version"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_projects",
+      "description": "List Vercel projects, optionally filtered by a name search term",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max projects to return (default 20, max 50)"
+          },
+          "search": {
+            "type": "string",
+            "description": "Optional project name search term"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v10/projects",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "search": "{{input.search}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "projects[]": {
+            "id": "id",
+            "name": "name",
+            "framework": "framework",
+            "account_id": "accountId",
+            "node_version": "nodeVersion",
+            "created_at": "createdAt",
+            "updated_at": "updatedAt"
+          },
+          "pagination_count": "pagination.count",
+          "pagination_next": "pagination.next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_deployments",
+      "description": "List recent Vercel deployments, optionally filtered to one project",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max deployments to return (default 20, max 50)"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Optional Vercel project ID to filter by (e.g. prj_123)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v6/deployments",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "projectId": "{{input.projectId}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "deployments[]": {
+            "uid": "uid",
+            "name": "name",
+            "url": "url",
+            "state": "state",
+            "ready_state": "readyState",
+            "target": "target",
+            "project_id": "projectId",
+            "created": "created",
+            "creator": "creator.username",
+            "inspector_url": "inspectorUrl"
+          },
+          "pagination_count": "pagination.count",
+          "pagination_next": "pagination.next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_deployment",
+      "description": "Get one Vercel deployment by ID or deployment URL",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "description": "Vercel deployment ID (e.g. dpl_123) or deployment URL hostname"
+          }
+        },
+        "required": [
+          "deployment_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v13/deployments/{{input.deployment_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "url": "url",
+          "status": "status",
+          "ready_state": "readyState",
+          "target": "target",
+          "project_id": "projectId",
+          "created_at": "createdAt",
+          "ready": "ready",
+          "creator": "creator.username",
+          "inspector_url": "inspectorUrl",
+          "regions": "regions"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_domains",
+      "description": "List domains registered on the Vercel account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max domains to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v5/domains",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "domains[]": {
+            "id": "id",
+            "name": "name",
+            "service_type": "serviceType",
+            "verified": "verified",
+            "created_at": "createdAt",
+            "expires_at": "expiresAt",
+            "bought_at": "boughtAt",
+            "ns_verified_at": "nsVerifiedAt"
+          },
+          "pagination_count": "pagination.count",
+          "pagination_next": "pagination.next"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

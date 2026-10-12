@@ -1,0 +1,152 @@
+{
+  "spec_version": 1,
+  "id": "openrouter",
+  "name": "OpenRouter",
+  "category": "data_ai",
+  "credentialType": "openrouter",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Read-only OpenRouter access: the account's key limits and usage, the full catalogue of 300+ routable models with pricing, and the prepaid credit balance. Sending a chat completion is a billable POST against those same credits, so it is modelled as write:true and HITL-gated rather than fired here; every other Quox agent tool for governed model routing sits on top of this connector unchanged.",
+  "docs": "https://openrouter.ai/docs",
+  "base_url": "https://openrouter.ai/api/v1",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/key"
+  },
+  "tools_source": "https://openrouter.ai/docs/api-reference/limits",
+  "tools": [
+    {
+      "name": "get_key",
+      "description": "Get the OpenRouter API key's own account info: label, current usage, credit limit and whether it is a free-tier key. The cheap balance/limits read and the spec's auth-proving call",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/key"
+      },
+      "response": {
+        "pick": {
+          "label": "data.label",
+          "usage": "data.usage",
+          "limit": "data.limit",
+          "is_free_tier": "data.is_free_tier"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_models",
+      "description": "List every model routable through OpenRouter's 300+ model catalogue, with context length and per-token pricing. Publicly readable, this endpoint answers even without a valid key",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/models"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "context_length": "context_length",
+            "prompt_price": "pricing.prompt",
+            "completion_price": "pricing.completion"
+          }
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_credits",
+      "description": "Get the OpenRouter account's prepaid credit balance: total credits purchased and total credits used so far",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/credits"
+      },
+      "response": {
+        "pick": {
+          "total_credits": "data.total_credits",
+          "total_usage": "data.total_usage"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "chat_completion",
+      "description": "Send a chat completion to any OpenRouter-routed model. This spends the account's prepaid credits, so it is HITL-gated and never fired by the shape-proof harness (write:true means blind proof always SKIPs it; a real credential would also need --include-writes)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "OpenRouter model id to route to (e.g. openai/gpt-4o, anthropic/claude-3.5-sonnet), from list_models"
+          },
+          "messages": {
+            "type": "array",
+            "description": "OpenAI-format chat messages array: [{role, content}, ...]"
+          },
+          "max_tokens": {
+            "type": "number",
+            "description": "Optional cap on completion tokens"
+          }
+        },
+        "required": [
+          "model",
+          "messages"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/chat/completions",
+        "body": {
+          "model": "{{input.model}}",
+          "messages": "{{input.messages}}",
+          "max_tokens": "{{input.max_tokens}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "model": "model",
+          "choices": "choices",
+          "usage": "usage"
+        },
+        "truncate": 2000
+      },
+      "write": true
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-16, viral-AI-tools tranche flagship (project_viral_ai_build_plan_2026_09_16)",
+    "confidence": "high",
+    "needs_review": [
+      "NO LIVE CREDENTIAL AT AUTHORING TIME: this spec is shape-proved blind only. LIVE_PROVEN needs one real sk-or- key against /key, /models and /credits, all zero-spend authed reads per the build plan.",
+      "TEMPLATE SEED: this spec is the intended template for the sibling OpenAI-compatible gateways (Groq, Together, Fireworks, xAI, DeepSeek), which share the same Authorization: Bearer + GET /v1/models shape and can inherit this structure near-verbatim.",
+      "list_models is expected to answer even with a dummy/invalid bearer (it is OpenRouter's public model catalogue), which the shape-proof harness would classify as SHAPE_PROVEN via the public_endpoint (2xx + parseable JSON) rule rather than the auth-wall rule that /key and /credits earn.",
+      "chat_completion is the only write:true tool: it is modelled for completeness (per the build plan) but deliberately carries no _probe and is skipped by the shape-proof harness by default (writes_not_included), and even with --include-writes it only fires if the test call already proved an auth gate."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

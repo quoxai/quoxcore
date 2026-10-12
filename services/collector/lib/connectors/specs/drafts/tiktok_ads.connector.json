@@ -1,0 +1,298 @@
+{
+  "spec_version": 1,
+  "id": "tiktok_ads",
+  "name": "TikTok Ads",
+  "category": "marketing_email",
+  "credentialType": "tiktok_ads",
+  "requiredFields": [
+    "access_token",
+    "advertiser_id"
+  ],
+  "docs": "https://business-api.tiktok.com/portal/docs",
+  "base_url": "https://business-api.tiktok.com",
+  "auth": {
+    "type": "header",
+    "header": "Access-Token",
+    "template": "{{access_token}}"
+  },
+  "static_headers": {
+    "Accept": "application/json"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/open_api/v1.3/user/info/"
+  },
+  "tools_source": "https://business-api.tiktok.com/portal/docs?id=1740302242405889",
+  "tools": [
+    {
+      "name": "get_user_info",
+      "description": "Get the TikTok Business account the stored access token belongs to. Check the returned code: 0 means success, any other value is an API error carried in an HTTP 200 body",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/open_api/v1.3/user/info/"
+      },
+      "response": {
+        "pick": {
+          "code": "code",
+          "message": "message",
+          "core_user_id": "data.core_user_id",
+          "display_name": "data.display_name",
+          "email": "data.email",
+          "create_time": "data.create_time"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_advertiser_info",
+      "description": "Get the advertiser account held in the stored credential (name, status, currency, timezone). Check the returned code: 0 means success",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/open_api/v1.3/advertiser/info/",
+        "query": {
+          "advertiser_ids": "[\"{{advertiser_id}}\"]"
+        }
+      },
+      "response": {
+        "pick": {
+          "code": "code",
+          "message": "message",
+          "data.list[]": {
+            "advertiser_id": "advertiser_id",
+            "name": "name",
+            "status": "status",
+            "role": "role",
+            "currency": "currency",
+            "timezone": "timezone",
+            "display_timezone": "display_timezone",
+            "company": "company",
+            "country": "country",
+            "balance": "balance"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_campaigns",
+      "description": "List campaigns in the advertiser account held in the stored credential, with objective, budget and delivery status. Check the returned code: 0 means success",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max campaigns to return per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number, 1-based (default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/open_api/v1.3/campaign/get/",
+        "query": {
+          "advertiser_id": "{{advertiser_id}}",
+          "page_size": "{{clamp input.page_size 20 100}}",
+          "page": "{{clamp input.page 1 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "code": "code",
+          "message": "message",
+          "data.list[]": {
+            "campaign_id": "campaign_id",
+            "campaign_name": "campaign_name",
+            "objective_type": "objective_type",
+            "budget": "budget",
+            "budget_mode": "budget_mode",
+            "operation_status": "operation_status",
+            "secondary_status": "secondary_status",
+            "create_time": "create_time",
+            "modify_time": "modify_time"
+          },
+          "total_number": "data.page_info.total_number"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_adgroups",
+      "description": "List ad groups in the advertiser account held in the stored credential, with campaign, budget, bidding and delivery status. Check the returned code: 0 means success",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max ad groups to return per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number, 1-based (default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/open_api/v1.3/adgroup/get/",
+        "query": {
+          "advertiser_id": "{{advertiser_id}}",
+          "page_size": "{{clamp input.page_size 20 100}}",
+          "page": "{{clamp input.page 1 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "code": "code",
+          "message": "message",
+          "data.list[]": {
+            "adgroup_id": "adgroup_id",
+            "adgroup_name": "adgroup_name",
+            "campaign_id": "campaign_id",
+            "budget": "budget",
+            "budget_mode": "budget_mode",
+            "optimization_goal": "optimization_goal",
+            "bid_price": "bid_price",
+            "operation_status": "operation_status",
+            "secondary_status": "secondary_status",
+            "create_time": "create_time"
+          },
+          "total_number": "data.page_info.total_number"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_ads",
+      "description": "List ads in the advertiser account held in the stored credential, with their ad group, campaign and delivery status. Check the returned code: 0 means success",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max ads to return per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number, 1-based (default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/open_api/v1.3/ad/get/",
+        "query": {
+          "advertiser_id": "{{advertiser_id}}",
+          "page_size": "{{clamp input.page_size 20 100}}",
+          "page": "{{clamp input.page 1 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "code": "code",
+          "message": "message",
+          "data.list[]": {
+            "ad_id": "ad_id",
+            "ad_name": "ad_name",
+            "adgroup_id": "adgroup_id",
+            "campaign_id": "campaign_id",
+            "operation_status": "operation_status",
+            "secondary_status": "secondary_status",
+            "create_time": "create_time",
+            "modify_time": "modify_time"
+          },
+          "total_number": "data.page_info.total_number"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_campaign_report",
+      "description": "Get a basic per-campaign performance report (spend, impressions, clicks, CTR, CPC) for a date range in the advertiser account held in the stored credential. Check the returned code: 0 means success",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "description": "First day of the report window, YYYY-MM-DD, in the advertiser's timezone"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Last day of the report window, YYYY-MM-DD, in the advertiser's timezone"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Max rows to return per page (default 20, max 100)"
+          }
+        },
+        "required": [
+          "start_date",
+          "end_date"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/open_api/v1.3/report/integrated/get/",
+        "query": {
+          "advertiser_id": "{{advertiser_id}}",
+          "report_type": "BASIC",
+          "data_level": "AUCTION_CAMPAIGN",
+          "dimensions": "[\"campaign_id\"]",
+          "metrics": "[\"spend\",\"impressions\",\"clicks\",\"ctr\",\"cpc\"]",
+          "start_date": "{{input.start_date}}",
+          "end_date": "{{input.end_date}}",
+          "page_size": "{{clamp input.page_size 20 100}}"
+        }
+      },
+      "_probe": {
+        "input.start_date": "2026-09-01",
+        "input.end_date": "2026-09-02"
+      },
+      "response": {
+        "pick": {
+          "code": "code",
+          "message": "message",
+          "data.list[]": {
+            "campaign_id": "dimensions.campaign_id",
+            "spend": "metrics.spend",
+            "impressions": "metrics.impressions",
+            "clicks": "metrics.clicks",
+            "ctr": "metrics.ctr",
+            "cpc": "metrics.cpc"
+          },
+          "total_number": "data.page_info.total_number"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "READ THIS BEFORE READING THE PROOF FILE. TikTok Business answers EVERY call with HTTP 200 and carries the real outcome in the body's code field, so the shape-proof harness (which classifies on status first, by design) flags each probe no_auth_required + public_endpoint and classes the spec SHAPE_PROVEN. THOSE TWO FLAGS ARE WRONG: these endpoints are not public and auth IS enforced. The verbatim bodies from the 2026-09-12 authoring probes, each returned with HTTP 200: GET /open_api/v1.3/user/info/ -> {\"code\":40105,\"message\":\"Access token is incorrect or has been revoked.\",\"request_id\":\"2026091211303580A49213BFDAAE5DD752\"} · GET /open_api/v1.3/adgroup/get/?advertiser_id=123 -> {\"code\": 40105, \"message\": \"Access token is incorrect or has been revoked.\", \"request_id\": \"2026091211323223B2360CD3C841D7A31D\", \"data\": {}} · GET /open_api/v1.3/ad/get/?advertiser_id=123 -> {\"code\": 40105, \"message\": \"Access token is incorrect or has been revoked.\", \"request_id\": \"20260912113233DC91E785230CE268F1FF\", \"data\": {}}. Read the overall class as AMBIGUOUS: host, TLS, base_url, the Access-Token header name and the paths are evidenced, and auth rejection is evidenced IN THE BODY, but the harness's status-based matrix cannot express that and no classification here was hand-edited.",
+      "Where the dummy credential is not a valid integer, TikTok's own parameter validation answers first, still with HTTP 200: GET /open_api/v1.3/campaign/get/?advertiser_id=QUOXSHAPEPROOFDUMMYADVERTISERID -> {\"code\": 40002, \"message\": \"advertiser_id: Not a valid integer or integer-string.\", \"request_id\": \"2026091211323155EC9DDBBA68A43682F7\", \"data\": {}} and GET /open_api/v1.3/advertiser/info/?advertiser_ids=[\"QUOXSHAPEPROOFDUMMYADVERTISERID\"] -> {\"code\": 40002, \"message\": \"advertiser_ids.0: Not a valid integer or integer-string.\", \"request_id\": \"20260912113230C6D033D7618573218330\", \"data\": {}}. A per-endpoint parameter error proves the request reached that endpoint's own handler. The control path answers HTTP 404 with an nginx-style HTML page (<center><h1>404 Not Found</h1></center> ... <center>TLB</center>), so routed API paths ARE distinguishable from unrouted ones here; that distinction is documented rather than claimed as a class. No advertiser_id _probe hint can help, because _probe may only substitute tool inputs, never a credential field, and inventing a stranger's real advertiser ID would be worse.",
+      "Because the transport status is always 200, every tool picks code and message into its output and every description tells the caller to check code: 0. Without that an API-level failure would reach an agent as an empty-looking success, which is the same defect class as an error body read as data.",
+      "Scaffolded auth (header Access-Token, no Bearer prefix) and the scaffolded test block both stand unchanged, and the header name is PROVEN to be the one TikTok reads: the same call with the token under a different header name, and with no token header at all, both answer {\"code\":40104,\"message\":\"The access_token is empty.\"} (HTTP 200), while the token under Access-Token reaches the token check itself and answers code 40105 'Access token is incorrect or has been revoked.' The 40104 / 40105 split is what distinguishes a header TikTok read from one it never saw. static_headers carries only Accept: application/json (GET reads send no body).",
+      "READ-ONLY by design: no tool is marked write:true. /campaign/create/, /campaign/update/, /adgroup/create/ and /ad/status/update/ are all POST endpoints on the same host and are deliberately not modelled.",
+      "No response body was ever data: the proof stops at TikTok's auth and parameter errors, so every path, query parameter and picked field name comes from the Marketing API v1.3 reference, not from a live 2xx. Field naming is the softest part: advertiser/info/ returns the account name as name in v1.3 (it was advertiser_name in v1.2), and report rows nest their values under dimensions.* and metrics.*. A wrong pick source yields an empty value silently, so the first run with a real token must confirm them.",
+      "get_campaign_report carries a _probe hint (start_date 2026-09-01, end_date 2026-09-02) so the blind probe sends real-shaped dates and reaches the auth check instead of stopping at a date-format error. Report windows, dimensions and metrics are fixed to a basic per-campaign set: report_type BASIC, data_level AUCTION_CAMPAIGN, dimensions [campaign_id], metrics spend/impressions/clicks/ctr/cpc. Lifetime queries, hourly granularity and audience dimensions are not exposed.",
+      "page is clamped 1 to 100 and page_size 20 to 100 (TikTok documents a page_size ceiling of 1000; the lower cap is a deliberate response-size guard, paired with truncate 2000). rateLimit 30/min is a local courtesy and spend guard chosen here, not a documented TikTok ceiling: TikTok rate limits per app and per endpoint rather than publishing one per-minute number."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

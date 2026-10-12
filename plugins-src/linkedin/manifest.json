@@ -1,0 +1,31 @@
+{
+  "id": "linkedin",
+  "name": "linkedin",
+  "displayName": "LinkedIn",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "communication",
+  "accentColor": "#0A66C2",
+  "description": "Post content, track engagement, and monitor your LinkedIn presence for member and organisation pages. Vault-stored access token with tracked 60-day expiry, human approval on every publish, content feed, compose-and-publish panel, and engagement analytics.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/linkedin",
+      "label": "LinkedIn",
+      "icon": "linkedin",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/linkedin": "LinkedInView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

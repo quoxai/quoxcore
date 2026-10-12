@@ -1,0 +1,144 @@
+{
+  "name": "files",
+  "version": "1.0.0",
+  "displayName": "Files",
+  "tagline": "Your AI's Shared Memory",
+  "description": "Upload, organize, and reference files in conversations. Images, PDFs, text files - all searchable and integrated with QUOX's memory.",
+  "shortDescription": "File management with memory integration.",
+  "author": "QUOX",
+  "license": "free",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "free",
+  "tier": "free",
+  "featured": false,
+  "icon": "folder",
+  "accentColor": "#60a5fa",
+  "infoUrl": "https://quox.ai/plugins/files",
+  "docsUrl": "https://quox.ai/docs/plugins/files",
+  "marketingPoints": [
+    "Browse every file your org has uploaded — from any plugin",
+    "Upload images, PDFs, text files, and JSON documents",
+    "Preview files directly in the dashboard",
+    "Attach files to conversations for context",
+    "Track storage usage with visual indicators",
+    "Premium: Search file content by meaning",
+    "Premium: Files become searchable entities in memory"
+  ],
+  "features": {
+    "fileUpload": {
+      "name": "File Upload",
+      "description": "Upload images, PDFs, text files, and JSON documents with drag-and-drop or file picker.",
+      "icon": "upload",
+      "highlight": true
+    },
+    "preview": {
+      "name": "File Preview",
+      "description": "Preview images and read text files directly in the dashboard without downloading.",
+      "icon": "eye",
+      "highlight": true
+    },
+    "chatAttachments": {
+      "name": "Chat Attachments",
+      "description": "Attach files to conversations to give QUOX visual and document context.",
+      "icon": "paperclip",
+      "highlight": true
+    },
+    "storageTracking": {
+      "name": "Storage Tracking",
+      "description": "Monitor storage usage with visual indicators. 50MB included free.",
+      "icon": "database"
+    },
+    "exportImport": {
+      "name": "Export & Import",
+      "description": "Backup all your files as JSON and restore them anytime.",
+      "icon": "download"
+    },
+    "semanticSearch": {
+      "name": "Semantic File Search",
+      "description": "Search file content by meaning. Find documents about 'deployments' even if they don't contain that word.",
+      "icon": "search",
+      "highlight": true,
+      "premiumOnly": true
+    },
+    "memoryIntegration": {
+      "name": "Memory Integration",
+      "description": "Files become searchable entities in QUOX's memory. Referenced files appear in Working Set Memory.",
+      "icon": "brain",
+      "premiumOnly": true
+    },
+    "textExtraction": {
+      "name": "Text Extraction",
+      "description": "Automatically extract and index text from PDFs and documents for AI context.",
+      "icon": "file-text",
+      "premiumOnly": true
+    }
+  },
+  "limits": {
+    "free": {
+      "maxFileSize": 5242880,
+      "maxFileSizeDisplay": "5MB",
+      "maxTotalStorage": 52428800,
+      "maxTotalStorageDisplay": "50MB",
+      "hasSemanticSearch": false,
+      "hasMemoryIntegration": false,
+      "hasTextExtraction": false
+    },
+    "premium": {
+      "maxFileSize": 10485760,
+      "maxFileSizeDisplay": "10MB",
+      "maxTotalStorage": 209715200,
+      "maxTotalStorageDisplay": "200MB",
+      "hasSemanticSearch": true,
+      "hasMemoryIntegration": true,
+      "hasTextExtraction": true
+    }
+  },
+  "comparison": {
+    "free": {
+      "storage": "50MB",
+      "fileSize": "5MB per file",
+      "preview": true,
+      "chatAttachments": true,
+      "semanticSearch": false,
+      "memoryIntegration": false
+    },
+    "premium": {
+      "storage": "200MB",
+      "fileSize": "10MB per file",
+      "preview": true,
+      "chatAttachments": true,
+      "semanticSearch": true,
+      "memoryIntegration": true
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "integration": {
+    "service": "src/services/fileStorage.js",
+    "coreClient": "src/services/fileObjectsClient.js",
+    "picker": "src/components/files/shared/FilePicker.jsx",
+    "dropZone": "src/components/files/shared/FileDropZone.jsx",
+    "uploadHook": "src/hooks/useFileUpload.js",
+    "memoryBridge": "src/services/fileMemoryBridge.js",
+    "panel": "src/components/files/FileManager.jsx",
+    "view": "src/pages/views/FilesView.jsx"
+  },
+  "premiumRequires": "advanced-memory",
+  "changelog": {
+    "1.0.0": {
+      "date": "2025-01-25",
+      "changes": [
+        "Initial release as free plugin",
+        "File upload with drag-and-drop",
+        "Image and document preview",
+        "Chat file attachments",
+        "Storage tracking and export/import",
+        "Memory integration (premium)",
+        "Semantic file search (premium)"
+      ]
+    }
+  },
+  "category": "Productivity"
+}

@@ -1,0 +1,33 @@
+{
+  "spec_version": 1,
+  "id": "flagsmith",
+  "name": "Flagsmith",
+  "category": "developer",
+  "credentialType": "flagsmith",
+  "requiredFields": [
+    "api_key",
+    "base_url"
+  ],
+  "docs": "https://docs.flagsmith.com/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "X-Environment-Key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/flags/"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:41:54.106Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:base_url"
+    ]
+  }
+}

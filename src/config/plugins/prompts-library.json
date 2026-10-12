@@ -1,0 +1,107 @@
+{
+  "name": "prompts-library",
+  "version": "2.0.0",
+  "displayName": "Prompts Library",
+  "tagline": "Your own prompt workspace — saved, versioned, deployed.",
+  "description": "Save, organise, and deploy your own prompts. Versioned, searchable, and deployable to chat composer and slash commands. All prompts are stored server-side and sync across devices.",
+  "shortDescription": "Save, version, and deploy your own prompts.",
+  "author": "QUOX",
+  "license": "free",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "free",
+  "tier": "free",
+  "requiresActivation": false,
+  "featured": true,
+  "icon": "📝",
+  "accentColor": "#8b5cf6",
+  "infoUrl": "https://quox.ai/plugins/prompts-library",
+  "docsUrl": "https://quox.ai/docs/plugins/prompts-library",
+  "docUrl": "/docs/prompts-library",
+  "marketingPoints": [
+    "Save any prompt you write — stored on the server, never in your browser",
+    "Full version history with restore to any prior version",
+    "Organise with tags, categories, and free-text search",
+    "Deploy a prompt to the chat composer in one click",
+    "Import / export your prompt collection as JSON",
+    "Shared visibility controls: private or org-wide"
+  ],
+  "features": {
+    "save": {
+      "name": "Save & Version",
+      "description": "Every edit is auto-versioned. Restore any prior version instantly.",
+      "icon": "save",
+      "highlight": true
+    },
+    "search": {
+      "name": "Search & Filter",
+      "description": "Full-text search by name, description, body, or tags. Filter by category or visibility.",
+      "icon": "search",
+      "highlight": true
+    },
+    "deploy": {
+      "name": "Deploy to Composer",
+      "description": "Push any prompt directly into the chat composer or register as a slash command.",
+      "icon": "send",
+      "highlight": true
+    },
+    "exportImport": {
+      "name": "Export & Import",
+      "description": "Back up your prompts as JSON or import from another Quox org.",
+      "icon": "download"
+    },
+    "sharing": {
+      "name": "Org Sharing",
+      "description": "Mark prompts as org-visible to share with teammates without copy-paste.",
+      "icon": "users"
+    }
+  },
+  "limits": {
+    "free": {
+      "maxPrompts": -1,
+      "hasSearch": true,
+      "hasExport": true,
+      "hasImport": true,
+      "hasDeploy": true,
+      "hasVersionHistory": true
+    }
+  },
+  "comparison": {
+    "free": {
+      "savePrompts": true,
+      "versionHistory": true,
+      "searchFilter": true,
+      "exportImport": true,
+      "orgSharing": true,
+      "deployToComposer": true
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "integration": {
+    "view": "src/pages/views/PromptsLibraryView.jsx",
+    "draftService": "src/services/promptDraftService.js",
+    "apiRoutes": "services/auth/routes/prompts.js",
+    "schema": "services/auth/db/index.js (P7.E.1 migration)"
+  },
+  "changelog": {
+    "2.0.0": {
+      "date": "2026-05-06",
+      "changes": [
+        "P7.E.1: Replaced scraped third-party prompt corpus with user-owned library",
+        "All prompts now stored server-side (auth service SQLite)",
+        "Full version history per prompt",
+        "REST API: CRUD + search + import/export + migration from localStorage",
+        "Removed 75 scraped/leaked system prompts from Anthropic, GitHub Copilot, Cursor, Devin, Windsurf, Replit (legal/optical risk)"
+      ]
+    },
+    "1.0.0": {
+      "date": "2026-01-31",
+      "changes": [
+        "Initial release (DEPRECATED - used scraped third-party prompts)"
+      ]
+    }
+  },
+  "category": "Productivity"
+}

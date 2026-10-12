@@ -1,0 +1,238 @@
+{
+  "spec_version": 1,
+  "id": "rollbar",
+  "name": "Rollbar",
+  "category": "developer",
+  "credentialType": "rollbar",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://docs.rollbar.com/reference/",
+  "base_url": "https://api.rollbar.com",
+  "auth": {
+    "type": "header",
+    "header": "X-Rollbar-Access-Token",
+    "template": "{{access_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/1/projects"
+  },
+  "tools_source": "https://docs.rollbar.com/reference/",
+  "tools": [
+    {
+      "name": "list_items",
+      "description": "List Rollbar items (deduplicated errors) for the project, optionally filtered by status, level, environment or a search string",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "resolved",
+              "muted",
+              "archived"
+            ],
+            "description": "Optional item status to filter by (default is Rollbar's own, which includes active items)"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "debug",
+              "info",
+              "warning",
+              "error",
+              "critical"
+            ],
+            "description": "Optional minimum-severity level to filter by"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Optional environment name to filter by (e.g. production)"
+          },
+          "query": {
+            "type": "string",
+            "description": "Optional free-text search matched against the item title"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number, 1-based (default 1). Rollbar fixes the page size itself"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/1/items",
+        "query": {
+          "status": "{{input.status}}",
+          "level": "{{input.level}}",
+          "environment": "{{input.environment}}",
+          "query": "{{input.query}}",
+          "page": "{{clamp input.page 1 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "result.items[]": {
+            "id": "id",
+            "counter": "counter",
+            "title": "title",
+            "level": "level",
+            "status": "status",
+            "environment": "environment",
+            "framework": "framework",
+            "total_occurrences": "total_occurrences",
+            "unique_occurrences": "unique_occurrences",
+            "first_occurrence_timestamp": "first_occurrence_timestamp",
+            "last_occurrence_timestamp": "last_occurrence_timestamp",
+            "project_id": "project_id"
+          },
+          "page": "result.page",
+          "total_count": "result.total_count",
+          "err": "err"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_item",
+      "description": "Get one Rollbar item by its item ID, with status, level, occurrence counts and first and last seen timestamps",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "description": "Rollbar item ID, the numeric `id` from list_items (not the per-project `counter`)"
+          }
+        },
+        "required": [
+          "item_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/1/item/{{input.item_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "result.id",
+          "counter": "result.counter",
+          "title": "result.title",
+          "level": "result.level",
+          "status": "result.status",
+          "environment": "result.environment",
+          "framework": "result.framework",
+          "total_occurrences": "result.total_occurrences",
+          "unique_occurrences": "result.unique_occurrences",
+          "first_occurrence_timestamp": "result.first_occurrence_timestamp",
+          "last_occurrence_timestamp": "result.last_occurrence_timestamp",
+          "project_id": "result.project_id",
+          "public_item_id": "result.public_item_id",
+          "assigned_user_id": "result.assigned_user_id",
+          "err": "err"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_deploys",
+      "description": "List deploys recorded for the Rollbar project (revision, environment, who deployed it, start and finish times)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "description": "Page number, 1-based (default 1). Rollbar fixes the page size itself"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/1/deploys",
+        "query": {
+          "page": "{{clamp input.page 1 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "result.deploys[]": {
+            "id": "id",
+            "project_id": "project_id",
+            "environment": "environment",
+            "revision": "revision",
+            "comment": "comment",
+            "local_username": "local_username",
+            "user_id": "user_id",
+            "start_time": "start_time",
+            "finish_time": "finish_time",
+            "status": "status"
+          },
+          "page": "result.page",
+          "err": "err"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "top_active_items",
+      "description": "Get the Rollbar items with the most occurrences recently (the noisiest errors right now), with their per-period counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "string",
+            "description": "Optional environment name to restrict the report to (e.g. production)"
+          },
+          "item_count": {
+            "type": "number",
+            "description": "Max items to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/1/reports/top_active_items",
+        "query": {
+          "environment": "{{input.environment}}",
+          "item_count": "{{clamp input.item_count 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "item_id": "item.id",
+            "counter": "item.counter",
+            "title": "item.title",
+            "level": "item.level",
+            "status": "item.status",
+            "environment": "item.environment",
+            "total_occurrences": "item.total_occurrences",
+            "last_occurrence_timestamp": "item.last_occurrence_timestamp",
+            "counts": "counts"
+          },
+          "err": "err"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Rollbar access tokens are PER PROJECT and per scope, so this connector is scoped to one project by the credential itself, not by a tool input. A `read` scope token is what these four calls need; a `write` or `post_server_item` token will be refused by the API. There is deliberately no project_id input: the token picks the project.",
+      "Every Rollbar response is enveloped as {\"err\": 0, \"result\": ...}, so every pick carries `err` through. Rollbar can answer 200 with a non-zero `err`, and dropping it would shape a refusal into an empty list and read as 'no items' (a silent-fallback falsehood).",
+      "top_active_items answers with `result` as a BARE ARRAY of {item, counts} pairs, so its pick uses the `result[]` array form and flattens the nested item fields; the other list tools nest their arrays under result.items / result.deploys.",
+      "list_items and list_deploys expose `page` rather than a limit because the Rollbar list endpoints take a page number and fix the page size themselves; the clamp helper is used on page (default 1, cap 100) purely to keep a caller from requesting an absurd offset. top_active_items is the one endpoint with a genuine count argument, so item_count is clamped to default 20 / max 50.",
+      "One request per tool (v1 limit) means no automatic paging: a caller pages by passing `page` back in, and the connector never loops.",
+      "Field presence is taken from the Rollbar API reference, not from a live 2xx: no Rollbar project token was held, so the proof below covers wiring only, never payload shape. Fields absent from a real payload simply drop out of the shaped result rather than appearing as nulls.",
+      "get_item takes the item `id`, which is the account-wide identifier, not the per-project `counter` shown in the Rollbar UI. The counter lookup is a different endpoint (/api/1/item_by_counter/{counter}) and is not exposed here."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

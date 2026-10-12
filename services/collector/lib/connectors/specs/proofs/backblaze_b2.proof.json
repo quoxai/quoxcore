@@ -1,0 +1,38 @@
+{
+  "spec_id": "backblaze_b2",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:44:54.402Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.backblazeb2.com/quox-shapeproof-control-bbbad168",
+      "status": 404,
+      "latency_ms": 1381,
+      "classification": "CONTROL",
+      "body_sha256": "3fb963f9586e259a7a6d457659d7a09c695fc870283018b981d4d9b0aabb2c9f",
+      "body_excerpt": "{\n  \"code\": \"not_found\",\n  \"status\": 404\n}\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.backblazeb2.com/b2api/v3/b2_authorize_account",
+      "status": 401,
+      "latency_ms": 357,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "2c403968a6a77ebc43a903b6b6b27f7687e3b097748f49c151bdaca252fd466c",
+      "body_excerpt": "{\n  \"code\": \"bad_auth_token\",\n  \"message\": \"\",\n  \"status\": 401\n}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

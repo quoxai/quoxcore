@@ -1,0 +1,204 @@
+{
+  "spec_version": 1,
+  "id": "neon",
+  "name": "Neon",
+  "category": "data_ai",
+  "credentialType": "neon",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Read-only Neon control-plane access: the projects an API key can see, one project in detail, the branches in a project and the databases on a branch. Connection strings and role passwords are never fetched.",
+  "docs": "https://api-docs.neon.tech/reference/",
+  "base_url": "https://console.neon.tech",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/projects"
+  },
+  "tools_source": "https://api-docs.neon.tech/reference/",
+  "tools": [
+    {
+      "name": "list_projects",
+      "description": "List the Neon projects this API key can see, with region, Postgres version, proxy host and ownership",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max projects to return (default 20, max 100; the API itself allows 1 to 400)"
+          },
+          "search": {
+            "type": "string",
+            "description": "Optional partial project name or id to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/projects",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "search": "{{input.search}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "projects[]": {
+            "id": "id",
+            "name": "name",
+            "region_id": "region_id",
+            "pg_version": "pg_version",
+            "provisioner": "provisioner",
+            "proxy_host": "proxy_host",
+            "org_id": "org_id",
+            "owner_id": "owner_id",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_project",
+      "description": "Get one Neon project by ID, with region, Postgres version, history retention and storage size",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "Neon project ID (e.g. cool-forest-12345678)"
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/projects/{{input.project_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "project.id",
+          "name": "project.name",
+          "region_id": "project.region_id",
+          "pg_version": "project.pg_version",
+          "provisioner": "project.provisioner",
+          "proxy_host": "project.proxy_host",
+          "org_id": "project.org_id",
+          "owner_id": "project.owner_id",
+          "history_retention_seconds": "project.history_retention_seconds",
+          "synthetic_storage_size": "project.synthetic_storage_size",
+          "created_at": "project.created_at",
+          "updated_at": "project.updated_at"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_branches",
+      "description": "List the branches in one Neon project, with state, parent branch, logical size and default or protected status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "Neon project ID (e.g. cool-forest-12345678)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max branches to return (default 20, max 100; the API itself allows 1 to 10000)"
+          },
+          "search": {
+            "type": "string",
+            "description": "Optional partial branch name or id to filter by"
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/projects/{{input.project_id}}/branches",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "search": "{{input.search}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "branches[]": {
+            "id": "id",
+            "name": "name",
+            "project_id": "project_id",
+            "parent_id": "parent_id",
+            "current_state": "current_state",
+            "default": "default",
+            "protected": "protected",
+            "logical_size": "logical_size",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_databases",
+      "description": "List the databases on one branch of a Neon project, with owning role and creation time",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "Neon project ID (e.g. cool-forest-12345678)"
+          },
+          "branch_id": {
+            "type": "string",
+            "description": "Neon branch ID (e.g. br-aged-salad-637688)"
+          }
+        },
+        "required": [
+          "project_id",
+          "branch_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/projects/{{input.project_id}}/branches/{{input.branch_id}}/databases"
+      },
+      "response": {
+        "pick": {
+          "databases[]": {
+            "id": "id",
+            "name": "name",
+            "branch_id": "branch_id",
+            "owner_name": "owner_name",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "spec_id": "heygen",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:21:38.271Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.heygen.com/quox-shapeproof-control-5ffdc8c7",
+      "status": 404,
+      "latency_ms": 804,
+      "classification": "CONTROL",
+      "body_sha256": "e9639e3c4681ce85f852fbac48e2eeee5ba51296dbfec57c200d59b76237ab80",
+      "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>404 Not Found</title>\n<h1>Not Found</h1>\n<p>The requested URL was not found on the server. If you entered the URL manually please check your spelling and try agai",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.heygen.com/v3/users/me",
+      "status": 401,
+      "latency_ms": 1768,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a52220601428777a36dec3b345606d6fcddf6cf6f2a9d068a94de75294642d7b",
+      "body_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"doc_url\":\"https://developers.heygen.com/docs/error-codes#unauthorized\",\"message\":\"Unauthorized\"}}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_account",
+      "method": "GET",
+      "url": "https://api.heygen.com/v3/users/me",
+      "status": 401,
+      "latency_ms": 414,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a52220601428777a36dec3b345606d6fcddf6cf6f2a9d068a94de75294642d7b",
+      "body_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"doc_url\":\"https://developers.heygen.com/docs/error-codes#unauthorized\",\"message\":\"Unauthorized\"}}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_avatars",
+      "method": "GET",
+      "url": "https://api.heygen.com/v3/avatars?ownership=quoxprobe&limit=20&token=quoxprobe",
+      "status": 401,
+      "latency_ms": 481,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a52220601428777a36dec3b345606d6fcddf6cf6f2a9d068a94de75294642d7b",
+      "body_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"doc_url\":\"https://developers.heygen.com/docs/error-codes#unauthorized\",\"message\":\"Unauthorized\"}}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_voices",
+      "method": "GET",
+      "url": "https://api.heygen.com/v3/voices?type=quoxprobe&engine=quoxprobe&language=quoxprobe&gender=quoxprobe&limit=20&token=quoxprobe",
+      "status": 401,
+      "latency_ms": 1093,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a52220601428777a36dec3b345606d6fcddf6cf6f2a9d068a94de75294642d7b",
+      "body_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"doc_url\":\"https://developers.heygen.com/docs/error-codes#unauthorized\",\"message\":\"Unauthorized\"}}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_videos",
+      "method": "GET",
+      "url": "https://api.heygen.com/v3/videos?limit=20&token=quoxprobe&folder_id=quoxprobe&title=quoxprobe",
+      "status": 401,
+      "latency_ms": 242,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a52220601428777a36dec3b345606d6fcddf6cf6f2a9d068a94de75294642d7b",
+      "body_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"doc_url\":\"https://developers.heygen.com/docs/error-codes#unauthorized\",\"message\":\"Unauthorized\"}}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_video",
+      "method": "GET",
+      "url": "https://api.heygen.com/v3/videos/quoxprobe",
+      "status": 401,
+      "latency_ms": 290,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a52220601428777a36dec3b345606d6fcddf6cf6f2a9d068a94de75294642d7b",
+      "body_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"doc_url\":\"https://developers.heygen.com/docs/error-codes#unauthorized\",\"message\":\"Unauthorized\"}}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

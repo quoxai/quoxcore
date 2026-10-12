@@ -1,0 +1,30 @@
+{
+  "spec_version": 1,
+  "id": "uptimerobot",
+  "name": "UptimeRobot",
+  "category": "monitoring",
+  "credentialType": "uptimerobot",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://uptimerobot.com/api/",
+  "base_url": "https://api.uptimerobot.com",
+  "auth": null,
+  "static_headers": {
+    "Content-Type": "application/json"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/v2/getAccountDetails",
+    "body": "{\"api_key\":\"{{api_key}}\"}"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "no_auth_detected"
+    ]
+  }
+}

@@ -1,0 +1,80 @@
+/**
+ * AgentProfileBadges — stat cluster styles.
+ *
+ * Reuses existing .qx-pill / .qx-pill--sm tokens.
+ * Only defines structural layout + zero-state modifier not already in
+ * qx-components.css. No custom hex colours — all token-based.
+ *
+ * QSKL-AP-2
+ */
+
+.ac__stat-cluster {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  margin: 4px 0;
+  font-size: 11px;
+}
+
+.ac__stat-cluster--loading {
+  min-height: 24px;
+  opacity: 0.4;
+}
+
+.ac__stat-cluster--detail {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+/* Zero-state: muted but visible — signals "author something here" */
+.qx-pill--zero {
+  opacity: 0.45;
+}
+
+.qx-pill__label {
+  font-weight: 400;
+  margin-left: 2px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.qx-pill__cta {
+  margin-left: 6px;
+  font-weight: 500;
+  text-decoration: underline;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  color: inherit;
+}
+
+/* detail variant: top skills sub-row */
+.ac__stat-detail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 10px;
+  opacity: 0.85;
+}
+
+.ac__stat-detail-label {
+  opacity: 0.65;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ac__stat-detail-item {
+  text-decoration: underline;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.ac__stat-detail-item:hover {
+  color: #fff;
+}

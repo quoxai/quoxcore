@@ -1,0 +1,241 @@
+{
+  "spec_version": 1,
+  "id": "trello",
+  "name": "Trello",
+  "category": "project_management",
+  "credentialType": "trello",
+  "requiredFields": [
+    "api_key",
+    "token"
+  ],
+  "description": "Read-only Trello access: member identity, boards, lists and cards",
+  "docs": "https://developer.atlassian.com/cloud/trello/",
+  "base_url": "https://api.trello.com",
+  "auth": {
+    "type": "query",
+    "param": "key",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/1/members/me",
+    "query": {
+      "token": "{{token}}"
+    }
+  },
+  "tools_source": "https://developer.atlassian.com/cloud/trello/rest/",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the Trello member the credential belongs to (username, full name, member URL)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/1/members/me",
+        "query": {
+          "token": "{{token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "username": "username",
+          "fullName": "fullName",
+          "initials": "initials",
+          "url": "url",
+          "memberType": "memberType",
+          "confirmed": "confirmed"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_boards",
+      "description": "List the Trello boards the credential's member can see, optionally filtered by board state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "enum": [
+              "all",
+              "closed",
+              "members",
+              "open",
+              "organization",
+              "public",
+              "starred"
+            ],
+            "description": "Optional board filter (default all)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/1/members/me/boards",
+        "query": {
+          "token": "{{token}}",
+          "filter": "{{input.filter}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "closed": "closed",
+            "url": "url",
+            "shortUrl": "shortUrl",
+            "idOrganization": "idOrganization",
+            "dateLastActivity": "dateLastActivity"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_lists",
+      "description": "List the lists (columns) on one Trello board",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "board_id": {
+            "type": "string",
+            "description": "Trello board ID or shortLink (e.g. 5f2e8c1a3b4d5e6f7a8b9c0d)"
+          },
+          "filter": {
+            "type": "string",
+            "enum": [
+              "all",
+              "closed",
+              "none",
+              "open"
+            ],
+            "description": "Optional list filter (default open lists as returned by Trello)"
+          }
+        },
+        "required": [
+          "board_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/1/boards/{{input.board_id}}/lists",
+        "query": {
+          "token": "{{token}}",
+          "filter": "{{input.filter}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "closed": "closed",
+            "pos": "pos",
+            "idBoard": "idBoard",
+            "subscribed": "subscribed"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_cards",
+      "description": "List the cards in one Trello list",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "list_id": {
+            "type": "string",
+            "description": "Trello list ID (e.g. 5f2e8c1a3b4d5e6f7a8b9c0d)"
+          }
+        },
+        "required": [
+          "list_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/1/lists/{{input.list_id}}/cards",
+        "query": {
+          "token": "{{token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "closed": "closed",
+            "due": "due",
+            "idList": "idList",
+            "idBoard": "idBoard",
+            "shortUrl": "shortUrl",
+            "dateLastActivity": "dateLastActivity"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_card",
+      "description": "Get one Trello card by ID (name, description, due date, labels, parent list and board)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "description": "Trello card ID or shortLink (e.g. 5f2e8c1a3b4d5e6f7a8b9c0d)"
+          }
+        },
+        "required": [
+          "card_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/1/cards/{{input.card_id}}",
+        "query": {
+          "token": "{{token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "desc": "desc",
+          "closed": "closed",
+          "due": "due",
+          "idList": "idList",
+          "idBoard": "idBoard",
+          "shortUrl": "shortUrl",
+          "dateLastActivity": "dateLastActivity",
+          "labels[]": {
+            "id": "id",
+            "name": "name",
+            "color": "color"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "medium",
+    "needs_review": [
+      "DUAL-QUERY AUTH WORKAROUND (documented pattern, reusable): Trello authenticates with TWO query parameters, key and token, per its own OpenAPI securitySchemes (APIKey in=query name=key, APIToken in=query name=token at https://developer.atlassian.com/cloud/trello/swagger.v3.json). Spec v1 auth.type 'query' carries exactly ONE parameter, so the key rides in auth ({type: query, param: key, field: api_key}) and the token rides as a \"token\": \"{{token}}\" placeholder in the request.query of EVERY tool and in test.query. Both placeholder names are the real vault field names from integrationTypeRegistry.js key trello (api_key, token), so no field mapping is involved. Placeholders referencing requiredFields are legal in query values, so this is inside the contract rather than an escape hatch; any future two-parameter query API should copy it. The cost: the second parameter is per-tool, so a new tool that omits \"token\" will fail at runtime with a 401 rather than at validation time.",
+      "NO PAGING OR LIMIT INPUTS: none of the five read routes documents a limit, page or page_size parameter in the Trello OpenAPI (/members/{id}, /members/{id}/boards, /boards/{id}/lists, /lists/{id}/cards, /cards/{id}), so no clamp helper is used. Volume is bounded by response.truncate 2000 only. Trello's optional 'fields' parameter is documented on several of these routes but is deliberately not exposed: response.pick already selects the fields, and a caller-supplied fields list would silently empty those picks.",
+      "BLIND SHAPE PROOF ONLY: no Trello account is held, so board, list and card identifiers are opaque and cannot be probed. No _probe hints are supplied, because a made-up identifier cannot route; the proof file records what the dummy credential actually returned rather than guessing."
+    ]
+  }
+}

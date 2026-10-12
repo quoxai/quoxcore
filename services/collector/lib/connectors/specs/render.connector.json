@@ -1,0 +1,236 @@
+{
+  "spec_version": 1,
+  "id": "render",
+  "name": "Render",
+  "category": "cloud_hosting",
+  "credentialType": "render",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://api-docs.render.com/",
+  "base_url": "https://api.render.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/owners"
+  },
+  "tools_source": "https://api-docs.render.com/reference/list-services",
+  "tools": [
+    {
+      "name": "list_services",
+      "description": "List Render services the API key can see (id, name, type, repo, branch, suspended state), newest filters optional",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max services to return (default 20, max 100)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional service name to filter by"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "static_site",
+              "web_service",
+              "private_service",
+              "background_worker",
+              "cron_job"
+            ],
+            "description": "Optional service type to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/services",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "name": "{{input.name}}",
+          "type": "{{input.type}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "service.id",
+            "name": "service.name",
+            "type": "service.type",
+            "repo": "service.repo",
+            "branch": "service.branch",
+            "suspended": "service.suspended",
+            "dashboardUrl": "service.dashboardUrl",
+            "updatedAt": "service.updatedAt",
+            "cursor": "cursor"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_service",
+      "description": "Get one Render service by its service id (type, repo, branch, root dir, auto-deploy and suspended state)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "description": "Render service id from list_services (e.g. srv-abc123def456ghi789jk)"
+          }
+        },
+        "required": [
+          "service_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/services/{{input.service_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "type": "type",
+          "slug": "slug",
+          "ownerId": "ownerId",
+          "environmentId": "environmentId",
+          "repo": "repo",
+          "branch": "branch",
+          "rootDir": "rootDir",
+          "autoDeploy": "autoDeploy",
+          "suspended": "suspended",
+          "dashboardUrl": "dashboardUrl",
+          "createdAt": "createdAt",
+          "updatedAt": "updatedAt"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_deploys",
+      "description": "List deploys for one Render service, newest first (status, trigger, commit, timings)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "description": "Render service id from list_services (e.g. srv-abc123def456ghi789jk)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max deploys to return (default 20, max 100)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "created",
+              "queued",
+              "build_in_progress",
+              "update_in_progress",
+              "live",
+              "deactivated",
+              "build_failed",
+              "update_failed",
+              "canceled",
+              "pre_deploy_in_progress",
+              "pre_deploy_failed"
+            ],
+            "description": "Optional deploy status to filter by"
+          }
+        },
+        "required": [
+          "service_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/services/{{input.service_id}}/deploys",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "deploy.id",
+            "status": "deploy.status",
+            "trigger": "deploy.trigger",
+            "commit_id": "deploy.commit.id",
+            "commit_message": "deploy.commit.message",
+            "createdAt": "deploy.createdAt",
+            "startedAt": "deploy.startedAt",
+            "finishedAt": "deploy.finishedAt",
+            "cursor": "cursor"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_owners",
+      "description": "List the Render workspaces (owners) the API key can see, which supplies the ownerId other filters take",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max workspaces to return (default 20, max 100)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional exact workspace name to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/owners",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "name": "{{input.name}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "owner.id",
+            "name": "owner.name",
+            "email": "owner.email",
+            "type": "owner.type",
+            "twoFactorAuthEnabled": "owner.twoFactorAuthEnabled",
+            "cursor": "cursor"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Field names and query parameters are taken from the OpenAPI document Render embeds in its own api-docs.render.com reference pages (schemas serviceWithCursor, deployWithCursor, ownerWithCursor, service, deploy), not from a live 2xx: no Render account was held, so the proof below covers wiring only, never payload shape.",
+      "Every Render list endpoint answers with a TOP-LEVEL array of envelope objects ([{ service, cursor }], [{ deploy, cursor }], [{ owner, cursor }]), so the three list tools use the spec v1.1 root-array pick {\"[]\": ...} and reach inside the envelope with dotted sources (service.id, deploy.commit.message). The netlify spec in this repo predates that pick form and is truncate-only for the same shape; these tools do not need to be.",
+      "The scaffolded bearer auth stands: Render's own securitySchemes block is { BearerAuth: { type: http, scheme: bearer } }, and a dummy bearer draws a structured 401 {\"message\":\"Unauthorized\"} from /v1/owners, /v1/services and /v1/services/{id}/deploys alike. Nothing in the live evidence or the docs contradicts the scaffold, so nothing was changed.",
+      "One request per tool (spec v1 limit) means no pagination: every list tool returns each row's `cursor` but there is no next-page tool to spend it on, and limit is capped at Render's documented ceiling of 100 (its own default is 20).",
+      "serviceDetails is deliberately NOT picked. It is a polymorphic block (a different object per service type: static site, web service, private service, background worker, cron job) and flattening it would need a per-type pick that spec v1 pick cannot express. The type-independent identity, repo, branch and suspended fields are picked instead.",
+      "No _probe hints are set. Render has no public service or owner id to hint with, and none is needed: the 401 lands before any identifier is looked up, so a made-up srv- id and a real one are indistinguishable to a blind probe.",
+      "What the shape-proof can and cannot say here: Render answers the deliberately bogus control path with a plain-text 404 and every real /v1 path with a structured JSON 401, so the differential proves host, TLS, base_url, path and the Authorization header name per tool. It proves nothing about response fields, and a real key is what would flip those same calls to 2xx."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

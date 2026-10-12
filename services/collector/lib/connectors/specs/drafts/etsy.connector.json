@@ -1,0 +1,34 @@
+{
+  "spec_version": 1,
+  "id": "etsy",
+  "name": "Etsy",
+  "category": "ecommerce",
+  "credentialType": "etsy",
+  "requiredFields": [
+    "api_key",
+    "oauth_token"
+  ],
+  "docs": "https://developers.etsy.com/documentation/",
+  "base_url": "https://openapi.etsy.com",
+  "auth": {
+    "type": "header",
+    "header": "x-api-key",
+    "template": "{{api_key}}"
+  },
+  "static_headers": {
+    "Authorization": "Bearer {{oauth_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v3/application/users/me"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "multi_auth_headers"
+    ]
+  }
+}

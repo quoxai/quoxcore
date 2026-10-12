@@ -1,0 +1,27 @@
+{
+  "spec_version": 1,
+  "id": "openai",
+  "name": "OpenAI",
+  "category": "uncategorized",
+  "credentialType": "openai",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://platform.openai.com/docs/api-reference",
+  "base_url": "https://api.openai.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/models"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

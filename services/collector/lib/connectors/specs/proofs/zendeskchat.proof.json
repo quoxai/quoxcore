@@ -1,0 +1,246 @@
+{
+  "spec_id": "zendeskchat",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:55:23.324Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/quox-shapeproof-control-4f88ba14",
+      "status": 404,
+      "latency_ms": 525,
+      "classification": "CONTROL",
+      "body_sha256": "5e056ff1ffef95971b1031227a12d7a9dabee49c6d72d7e63dfc089f54d8bc22",
+      "body_excerpt": "{\"error\":\"Not Found\",\"description\":\"The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/account",
+      "status": 401,
+      "latency_ms": 243,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_account",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/account",
+      "status": 401,
+      "latency_ms": 179,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_current_agent",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/agents/me",
+      "status": 401,
+      "latency_ms": 213,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_agents",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/agents",
+      "status": 401,
+      "latency_ms": 381,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_agent",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/agents/1",
+      "status": 401,
+      "latency_ms": 338,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_chats",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/chats?cursor=quoxprobe",
+      "status": 401,
+      "latency_ms": 254,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_chat",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/chats/quoxprobe",
+      "status": 401,
+      "latency_ms": 770,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "search_chats",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/chats/search?q=quoxprobe",
+      "status": 401,
+      "latency_ms": 356,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_departments",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/departments",
+      "status": 401,
+      "latency_ms": 232,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_department",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/departments/1",
+      "status": 401,
+      "latency_ms": 286,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_goals",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/goals",
+      "status": 401,
+      "latency_ms": 281,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_triggers",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/triggers",
+      "status": 401,
+      "latency_ms": 305,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_shortcuts",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/shortcuts",
+      "status": 401,
+      "latency_ms": 242,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_bans",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/bans",
+      "status": 401,
+      "latency_ms": 298,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_roles",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/roles",
+      "status": 401,
+      "latency_ms": 241,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_skills",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/skills",
+      "status": 401,
+      "latency_ms": 353,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "incremental_chats",
+      "method": "GET",
+      "url": "https://www.zopim.com/api/v2/incremental/chats?start_time=1&fields=quoxprobe",
+      "status": 401,
+      "latency_ms": 204,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fbc2097242cfd8e1653498979cd60111ddb471e5e5d383f8b6e975d9161181b1",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"description\":\"The server could not verify that you are authorized to access the requested resource\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

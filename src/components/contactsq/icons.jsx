@@ -1,0 +1,61 @@
+/** Inline SVG icons for ContactsQ (every button carries one). */
+const base = {
+  width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor',
+  strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
+};
+const mk = (children) => function Icon({ size = 14 }) {
+  return <svg {...base} width={size} height={size}>{children}</svg>;
+};
+export const UsersIcon = mk(<><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" /></>);
+export const PlusIcon = mk(<path d="M12 5v14M5 12h14" />);
+export const SearchIcon = mk(<><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></>);
+export const EyeIcon = mk(<><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>);
+export const EyeOffIcon = mk(<><path d="M17.9 17.9A10 10 0 0 1 12 19c-6 0-10-7-10-7a18 18 0 0 1 5-5.9M9.9 4.2A9 9 0 0 1 12 4c6 0 10 7 10 7a18 18 0 0 1-2.2 3.2" /><path d="M1 1l22 22" /></>);
+export const EditIcon = mk(<><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></>);
+export const SaveIcon = mk(<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><path d="M17 21v-8H7v8M7 3v5h8" /></>);
+export const ArchiveIcon = mk(<><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" /></>);
+export const CheckIcon = mk(<path d="M20 6L9 17l-5-5" />);
+export const XIcon = mk(<path d="M18 6L6 18M6 6l12 12" />);
+export const ShieldIcon = mk(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />);
+export const BanIcon = mk(<><circle cx="12" cy="12" r="10" /><path d="M4.9 4.9l14.2 14.2" /></>);
+export const KeyIcon = mk(<><circle cx="8" cy="15" r="4" /><path d="M10.8 12.2L21 2M16 7l3 3" /></>);
+export const GearIcon = mk(<><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></>);
+export const PhoneIcon = mk(<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />);
+export const ChevronLeftIcon = mk(<path d="M15 18l-6-6 6-6" />);
+export const ChevronRightIcon = mk(<path d="M9 18l6-6-6-6" />);
+export const RefreshIcon = mk(<><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></>);
+export const HistoryIcon = mk(<><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></>);
+export const TrashIcon = mk(<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />);
+export const LinkIcon = mk(<><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" /><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" /></>);
+export const ClockIcon = mk(<><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>);
+export const DownloadIcon = mk(<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5M12 15V3" /></>);
+export const FlaskIcon = mk(<><path d="M9 3h6M10 3v6L4 19a2 2 0 0 0 1.8 3h12.4A2 2 0 0 0 20 19l-6-10V3" /></>);
+export const PlayIcon = mk(<path d="M6 4l14 8-14 8z" />);
+export const UploadIcon = mk(<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 8l-5-5-5 5M12 3v12" /></>);
+export const MergeIcon = mk(<><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path d="M6 21V9a9 9 0 0 0 9 9" /></>);
+export const UndoIcon = mk(<><path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-15-6.7L3 13" /></>);
+export const NoteIcon = mk(<><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6M8 13h8M8 17h5" /></>);
+export const ChevronDownIcon = mk(<path d="M6 9l6 6 6-6" />);
+export const MoreIcon = mk(<><circle cx="5" cy="12" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="19" cy="12" r="1.2" /></>);
+export const FlagIcon = mk(<><path d="M4 22V4" /><path d="M4 4h13l-2 4 2 4H4" /></>);
+export const CopyIcon = mk(<><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>);
+export const CameraIcon = mk(<><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></>);
+export const MailIcon = mk(<><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M22 7l-10 6L2 7" /></>);
+export const ChatIcon = mk(<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />);
+export const MegaphoneIcon = mk(<><path d="M3 11v2a1 1 0 0 0 1 1h3l8 5V5L7 10H4a1 1 0 0 0-1 1z" /><path d="M19 9a4 4 0 0 1 0 6" /></>);
+export const BotIcon = mk(<><rect x="4" y="8" width="16" height="12" rx="3" /><path d="M12 8V4M8 14h.01M16 14h.01M9 18h6" /><circle cx="12" cy="3" r="1" /></>);
+export const StarIcon = mk(<path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z" />);
+export const LockIcon = mk(<><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>);
+export const ChildIcon = mk(<><circle cx="12" cy="7" r="3" /><path d="M8 21v-5a4 4 0 0 1 8 0v5M9 11.5L7 14M15 11.5l2 2.5" /></>);
+export const FlowerIcon = mk(<><circle cx="12" cy="12" r="2.2" /><path d="M12 9.8C12 6 14 3 12 2 10 3 12 6 12 9.8zM14.2 12c3.8 0 6.8-2 7.8 0-1 2-4 0-7.8 0zM12 14.2C12 18 10 21 12 22c2-1 0-4 0-7.8zM9.8 12C6 12 3 14 2 12c1-2 4 0 7.8 0z" /></>);
+export const AlertIcon = mk(<><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" /></>);
+export const InfoIcon = mk(<><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></>);
+export const UserIcon = mk(<><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>);
+export const PhoneOffIcon = mk(<><path d="M10.7 13.3a16 16 0 0 0 3.3 2.5l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3.1 5.2 2 2 0 0 1 5.1 3h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1" /><path d="M1 1l22 22" /></>);
+export const MailOffIcon = mk(<><path d="M2 4h18a2 2 0 0 1 2 2v12M2 4a2 2 0 0 0-.1 1L12 13l1.5-.9M2 7v11a2 2 0 0 0 2 2h14" /><path d="M1 1l22 22" /></>);
+export const ChatOffIcon = mk(<><path d="M21 15a2 2 0 0 1-2 2h-3M7 17l-4 4V5a2 2 0 0 1 2-2h3M9 3h10a2 2 0 0 1 2 2" /><path d="M1 1l22 22" /></>);
+export const SplitIcon = mk(<><path d="M16 3h5v5M8 3H3v5M21 3l-7.5 7.5M3 3l7.5 7.5M12 22v-8" /></>);
+export const SparklesIcon = mk(<><path d="M12 3l1.8 4.8L18.6 9.6 13.8 11.4 12 16.2 10.2 11.4 5.4 9.6 10.2 7.8z" /><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" /></>);
+export const SidebarIcon = mk(<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M15 3v18" /></>);
+export const BookIcon = mk(<><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></>);
+export const BuildingIcon = mk(<><rect x="4" y="2" width="16" height="20" rx="2" /><path d="M9 22v-4h6v4M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01" /></>);

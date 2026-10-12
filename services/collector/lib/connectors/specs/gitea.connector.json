@@ -1,0 +1,335 @@
+{
+  "spec_version": 1,
+  "id": "gitea",
+  "name": "Gitea",
+  "category": "developer",
+  "credentialType": "gitea",
+  "requiredFields": [
+    "token",
+    "base_url"
+  ],
+  "docs": "https://docs.gitea.com/development/api-usage",
+  "tools_source": "https://docs.gitea.com/api/1.22/",
+  "description": "Self-hosted Gitea reads: instance version, token identity, repositories the token can see, one repository's metadata, its issues, and repository search. Read-only; every issue, PR, release and file write endpoint on the same API is deliberately absent.",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "token {{token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/version"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "get_version",
+      "description": "Get the version of the Gitea instance this credential points at",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/version"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "version": "version"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_user",
+      "description": "Identify the Gitea account the stored access token belongs to",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/user"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "login": "login",
+          "full_name": "full_name",
+          "email": "email",
+          "is_admin": "is_admin",
+          "active": "active",
+          "restricted": "restricted",
+          "created": "created",
+          "last_login": "last_login"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_repos",
+      "description": "List the repositories the authenticated Gitea account can access",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/user/repos",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "page": "{{input.page}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max repositories to return (default 20, capped at 50 by this connector)"
+          },
+          "page": {
+            "type": "number",
+            "description": "1-based page number"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "full_name": "full_name",
+            "description": "description",
+            "private": "private",
+            "fork": "fork",
+            "empty": "empty",
+            "default_branch": "default_branch",
+            "html_url": "html_url",
+            "stars_count": "stars_count",
+            "open_issues_count": "open_issues_count",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.limit": 5
+      }
+    },
+    {
+      "name": "get_repo",
+      "description": "Get one Gitea repository's metadata by owner and repository name",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/repos/{{input.owner}}/{{input.repo}}"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Repository owner: a username or an organization name"
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name, without the owner prefix"
+          }
+        },
+        "required": [
+          "owner",
+          "repo"
+        ]
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "full_name": "full_name",
+          "description": "description",
+          "owner": "owner.login",
+          "private": "private",
+          "fork": "fork",
+          "empty": "empty",
+          "archived": "archived",
+          "size": "size",
+          "language": "language",
+          "default_branch": "default_branch",
+          "html_url": "html_url",
+          "stars_count": "stars_count",
+          "forks_count": "forks_count",
+          "open_issues_count": "open_issues_count",
+          "has_issues": "has_issues",
+          "created_at": "created_at",
+          "updated_at": "updated_at"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.owner": "quoxproof",
+        "input.repo": "quoxproof-live"
+      }
+    },
+    {
+      "name": "list_issues",
+      "description": "List issues on one Gitea repository, optionally filtered by state, labels or a search term",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/repos/{{input.owner}}/{{input.repo}}/issues",
+        "query": {
+          "state": "{{input.state}}",
+          "labels": "{{input.labels}}",
+          "q": "{{input.q}}",
+          "limit": "{{clamp input.limit 20 50}}",
+          "page": "{{input.page}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Repository owner: a username or an organization name"
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name, without the owner prefix"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed",
+              "all"
+            ],
+            "description": "Issue state filter (Gitea defaults to open)"
+          },
+          "labels": {
+            "type": "string",
+            "description": "Comma-separated label names to filter by"
+          },
+          "q": {
+            "type": "string",
+            "description": "Search term matched against issue titles and bodies"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max issues to return (default 20, capped at 50 by this connector)"
+          },
+          "page": {
+            "type": "number",
+            "description": "1-based page number"
+          }
+        },
+        "required": [
+          "owner",
+          "repo"
+        ]
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "number": "number",
+            "title": "title",
+            "body": "body",
+            "state": "state",
+            "author": "user.login",
+            "comments": "comments",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "closed_at": "closed_at",
+            "due_date": "due_date",
+            "html_url": "html_url"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.owner": "quoxproof",
+        "input.repo": "quoxproof-live",
+        "input.state": "all",
+        "input.limit": 5
+      }
+    },
+    {
+      "name": "search_repos",
+      "description": "Search repositories on the Gitea instance by keyword",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/repos/search",
+        "query": {
+          "q": "{{input.q}}",
+          "limit": "{{clamp input.limit 20 50}}",
+          "page": "{{input.page}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "description": "Keyword matched against repository names"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max repositories to return (default 20, capped at 50 by this connector)"
+          },
+          "page": {
+            "type": "number",
+            "description": "1-based page number"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "ok": "ok",
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "full_name": "full_name",
+            "description": "description",
+            "private": "private",
+            "empty": "empty",
+            "html_url": "html_url",
+            "stars_count": "stars_count",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.q": "quoxproof-live",
+        "input.limit": 5
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, AND THE DOCS SAY THE SAME THING: API Usage (https://docs.gitea.com/development/api-usage) documents the token header form 'Authorization: token 65eaa9c8ef52460d22a93307fe0aee76289dc675' for a personal access token, so {type: header, header: Authorization, template: 'token {{token}}'} is unchanged. The vault entry (integrationTypeRegistry.gitea) already sends the identical header in testHeaders, and its testEndpoint is base_url + /api/v1/version, which is this spec's test block verbatim. Gitea also accepts the same token under the Bearer scheme; the documented 'token' form is used because it is what the vault already proves against.",
+      "BASE URL IS CUSTOMER-SUPPLIED, SO NOTHING HERE IS PROVABLE BLIND: Gitea is self-hosted, base_url comes from the credential ({fromCredential: 'base_url'}), and there is no vendor-run host to shape-prove against. This spec is NOT SHAPE_PROVEN by a blind 401 sweep; it is marked for the live harness, which stands up an ephemeral Gitea container, creates the admin user 'quoxproof' and a repository named 'quoxproof-live', and drives every tool against it.",
+      "CATEGORY: the scaffold wrote 'developer', which is already one of the twelve values in use across this spec directory (cloud_hosting, commerce_finance, communication, crm_sales, data_ai, developer, files_knowledge, hr_hiring, marketing_email, media, monitoring, project_management), and it puts Gitea next to the other source and delivery control planes (github, gitlab, bitbucket, circleci). The vault entry says 'devops', which is not a spec-directory value; 'developer' is its equivalent. Unchanged.",
+      "PROBES RESOLVE ON A FRESH INSTANCE, BY CONSTRUCTION: get_version and get_user need no resource at all and carry an empty _probe. list_repos and search_repos answer on an instance with one repository. get_repo and list_issues are the only tools that need an existing resource, and both probe owner='quoxproof' / repo='quoxproof-live', the exact names the live provisioner creates. list_issues probes state='all' so it returns the empty array rather than relying on an issue existing.",
+      "LIMIT CLAMP IS OURS AND MATCHES GITEA'S OWN DEFAULT CEILING: Gitea's config cheat sheet documents api.DEFAULT_PAGING_NUM = 30 and api.MAX_RESPONSE_ITEMS = 50, and MAX_RESPONSE_ITEMS is the server-side cap on any paged API response. The 20/50 clamp therefore never asks for more than a default instance will return. It is server-configurable, so the input descriptions say the cap is this connector's, not a hard Gitea fact.",
+      "READ-ONLY BY CONSTRUCTION, AND THE OMISSIONS ARE THE POINT: all six tools are GETs. The same API exposes POST/PATCH on issues, pull requests, releases, repository contents, hooks, teams and org membership, plus DELETE on repositories. None is wired here. Nothing in this connector may be described as managing a Gitea instance.",
+      "RESPONSE SHAPES COME FROM THE SWAGGER MODELS: picked fields are Repository (id, name, full_name, description, private, fork, empty, archived, size, language, default_branch, html_url, stars_count, forks_count, open_issues_count, has_issues, created_at, updated_at, owner), User (id, login, full_name, email, is_admin, active, restricted, created, last_login), Issue (id, number, title, body, state, user, comments, created_at, updated_at, closed_at, due_date, html_url) and SearchResults (ok, data[]). /api/v1/user/repos and .../issues answer with a TOP-LEVEL array, hence the '[]' root pick; /api/v1/repos/search wraps its array in {ok, data}. The live harness is what confirms these field names against a real instance."
+    ]
+  }
+}

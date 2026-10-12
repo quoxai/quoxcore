@@ -1,0 +1,27 @@
+/**
+ * LLM-FAILOVER: self-contained badge styling.
+ *
+ * views.css is imported per-view, not globally, so a ChatEngine surface on a
+ * route that never loads it (e.g. /quoxplan, which loads only quoxplan.css)
+ * would render this badge as unstyled text. The recipe mirrors
+ * .message-badge--failover in views.css and uses the same global tokens, so
+ * the two agree wherever both are present.
+ */
+.failover-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--status-amber-bg, rgba(255, 191, 0, 0.08));
+  border: 1px solid var(--status-amber-muted, rgba(255, 191, 0, 0.15));
+  color: var(--status-amber-soft, #ffd040);
+}

@@ -1,0 +1,52 @@
+{
+  "name": "quoxseo",
+  "version": "0.1.0",
+  "displayName": "QuoxSEO",
+  "tagline": "SEO intelligence with a witnessed history no other tool can offer.",
+  "description": "First-party SEO and AI-visibility intelligence on the Quox evidence substrate. A daily org-scoped crawl of your site joins Google Search Console data, internal link graph and orphan detection into one URL warehouse; every crawl is hash-anchored and WARD-witnessed on an append-only chain, and consecutive crawls diff into signed change events, so 'that deploy noindexed 183 URLs' is a tamper-evident dated fact, not a dashboard impression.",
+  "shortDescription": "Witnessed SEO warehouse: crawl + GSC + change evidence",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 199,
+  "priceDisplay": "$199",
+  "priceModel": "one-time",
+  "tier": "tier_b",
+  "propertyLimit": 5,
+  "featured": false,
+  "icon": "trending-up",
+  "accentColor": "#34d399",
+  "infoUrl": "https://quox.ai/solutions/quoxseo",
+  "docsUrl": "https://quox.ai/docs/plugins/quoxseo",
+  "marketingPoints": [
+    "One warehouse record per URL: crawl health, search performance, inlinks, orphan status",
+    "WARD-witnessed history: every crawl signed onto an append-only hash chain",
+    "Signed change events: noindex transitions, canonical and schema changes, added and removed pages",
+    "Independent verification: recompute the chain, signatures and root hashes yourself",
+    "Free-data first: GSC and your own crawl; paid data only ever behind budget gates"
+  ],
+  "features": {
+    "warehouse": {
+      "name": "URL Warehouse",
+      "description": "Every URL as one entity: status, metadata, structured data, word count, internal links, orphan flag, and Search Console impressions, clicks and position.",
+      "icon": "database",
+      "highlight": true
+    },
+    "witnessedHistory": {
+      "name": "Witnessed History",
+      "description": "Each crawl appends to a WARD chain signed with a pinned key. Deleted or skipped runs are visible as sequence gaps to anyone.",
+      "icon": "shield",
+      "highlight": true
+    },
+    "changeEvents": {
+      "name": "Signed Change Events",
+      "description": "Consecutive crawls diff into discrete events: noindexed, title changed, canonical moved, page added or removed. Deploy regressions become dated facts.",
+      "icon": "activity",
+      "highlight": true
+    },
+    "verification": {
+      "name": "Independent Verify",
+      "description": "One click re-verifies chain integrity, tip signatures and per-crawl root hashes against the warehouse rows.",
+      "icon": "check-circle"
+    }
+  }
+}

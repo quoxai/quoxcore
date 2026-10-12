@@ -1,0 +1,15 @@
+{
+  "name": "happy-path",
+  "input": {
+    "db_path": "/data/quox-memory/memory.db",
+    "source": "memories",
+    "output_format": "csv",
+    "output_path": "/tmp/memories_export.csv",
+    "batch_size": 5000,
+    "include_header": true
+  },
+  "expects": {
+    "contains": ["output_path", "rows_exported", "output_format", "schema_summary", "db_path"],
+    "not_contains": ["error"]
+  }
+}

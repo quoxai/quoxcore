@@ -1,0 +1,35 @@
+{
+  "spec_version": 1,
+  "id": "wechat",
+  "name": "WeChat Official",
+  "category": "communication",
+  "credentialType": "wechat",
+  "requiredFields": [
+    "app_id",
+    "app_secret"
+  ],
+  "docs": "https://developers.weixin.qq.com/doc/offiaccount/en/Getting_Started/Overview.html",
+  "base_url": "https://api.weixin.qq.com",
+  "auth": {
+    "type": "query",
+    "param": "appid",
+    "field": "app_id"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/cgi-bin/token",
+    "query": {
+      "grant_type": "client_credential",
+      "secret": "{{app_secret}}"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "multi_query_auth"
+    ]
+  }
+}

@@ -1,0 +1,290 @@
+/* ProxmoxView — 3-column NOC layout */
+
+/* Override app-shell__content padding + scroll for full-bleed NOC layout */
+.app-shell__content:has(.proxmox-view) {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Hide feedback FAB on the proxmox view — it overlaps the chat sidebar */
+body:has(.proxmox-view) .feedback-fab {
+  display: none !important;
+}
+
+.proxmox-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ── Header bar ── */
+.pxv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  background: transparent;
+}
+
+.pxv-header__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pxv-header__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pxv-header__title svg {
+  stroke: #ff6b30;
+}
+
+.pxv-cluster-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+.pxv-cluster-badge--ok {
+  background: rgba(48, 255, 144, 0.08);
+  color: #30ff90;
+}
+.pxv-cluster-badge--warn {
+  background: rgba(255, 176, 48, 0.08);
+  color: #ffb030;
+}
+
+.pxv-cluster-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.pxv-header__stats {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.pxv-header__stat-value {
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+
+.pxv-header__right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pxv-header__refresh {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+.pxv-header__refresh svg {
+  stroke: rgba(255, 255, 255, 0.45);
+}
+.pxv-header__refresh:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.04);
+}
+.pxv-header__refresh:hover svg {
+  stroke: rgba(255, 255, 255, 0.8);
+}
+.pxv-header__refresh svg.spinning {
+  animation: spin 1s linear infinite;
+}
+
+.pxv-sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: all 0.15s;
+}
+.pxv-sidebar-toggle svg {
+  stroke: rgba(255, 255, 255, 0.45);
+}
+.pxv-sidebar-toggle:hover svg {
+  stroke: rgba(255, 255, 255, 0.8);
+}
+.pxv-sidebar-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+.pxv-sidebar-toggle--active {
+  border-color: rgba(255, 107, 48, 0.3);
+  background: rgba(255, 107, 48, 0.06);
+}
+.pxv-sidebar-toggle--active svg {
+  stroke: #ff6b30;
+}
+
+/* ── 3-column body ── */
+.pxv-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.pxv-actions {
+  width: 280px;
+  flex-shrink: 0;
+  transition: width 0.2s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+.pxv-actions--collapsed {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pxv-centre {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  /* Mirror NOC's .nv-centre containment: clip any child overflow (wide
+   * filter bar, dense table) at the column boundary instead of letting it
+   * bleed into the .pxv-chat sidebar's screen space. ProxmoxTable manages
+   * its own internal scroll (.pxt-table-wrap), so this only clips overflow —
+   * it doesn't add a second scrollbar. */
+  overflow: hidden;
+}
+
+.pxv-chat {
+  width: 380px;
+  flex-shrink: 0;
+  transition: width 0.2s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+.pxv-chat--collapsed {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Stale notice (in header area) ── */
+.pxv-stale {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255, 176, 48, 0.7);
+}
+
+.pxv-stale__retry {
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 176, 48, 0.3);
+  background: transparent;
+  color: #ffb030;
+  font-size: 10px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.pxv-stale__retry:hover {
+  background: rgba(255, 176, 48, 0.1);
+}
+
+/* ── Auth error banner ── */
+.pxv-auth-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255, 68, 68, 0.85);
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 68, 68, 0.25);
+  border-radius: 4px;
+  background: rgba(255, 68, 68, 0.08);
+}
+
+.pxv-auth-error__btn {
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  background: transparent;
+  color: #ff6b6b;
+  font-size: 10px;
+  cursor: pointer;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.pxv-auth-error__btn:hover {
+  background: rgba(255, 68, 68, 0.15);
+}
+
+/* ── View mode toggle (table / topology) ── */
+.pxv-view-toggle {
+  display: flex;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.pxv-view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pxv-view-btn svg {
+  stroke: rgba(255, 255, 255, 0.4);
+}
+
+.pxv-view-btn:hover svg {
+  stroke: rgba(255, 255, 255, 0.7);
+}
+
+.pxv-view-btn--active {
+  background: rgba(255, 107, 48, 0.1);
+}
+
+.pxv-view-btn--active svg {
+  stroke: #ff6b30;
+}
+
+.pxv-view-btn + .pxv-view-btn {
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

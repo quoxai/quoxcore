@@ -1,0 +1,258 @@
+{
+  "spec_version": 1,
+  "id": "canva",
+  "name": "Canva",
+  "category": "media",
+  "credentialType": "canva",
+  "requiredFields": [
+    "client_id",
+    "client_secret",
+    "refresh_token"
+  ],
+  "docs": "https://www.canva.dev/docs/connect/",
+  "base_url": "https://api.canva.com",
+  "auth": {
+    "type": "oauth2_refresh",
+    "token_url": "https://api.canva.com/rest/v1/oauth/token",
+    "clientIdField": "client_id",
+    "clientSecretField": "client_secret",
+    "refreshTokenField": "refresh_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/rest/v1/users/me"
+  },
+  "tools_source": "https://www.canva.dev/docs/connect/api-reference/",
+  "tools": [
+    {
+      "name": "get_current_user",
+      "description": "Get the Canva user ID and team ID of the account the access token belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/v1/users/me"
+      },
+      "response": {
+        "pick": {
+          "user_id": "team_user.user_id",
+          "team_id": "team_user.team_id"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_user_profile",
+      "description": "Get the display name of the current Canva user (requires the profile:read scope)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/v1/users/me/profile"
+      },
+      "response": {
+        "pick": {
+          "display_name": "profile.display_name"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_designs",
+      "description": "List metadata for the current user's Canva designs, optionally filtered by a search term, ownership or sort order",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Optional search term to filter designs by (max 255 characters)"
+          },
+          "ownership": {
+            "type": "string",
+            "enum": [
+              "any",
+              "owned",
+              "shared"
+            ],
+            "description": "Filter by the user's ownership of the design (default any)"
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": [
+              "relevance",
+              "modified_descending",
+              "modified_ascending",
+              "title_descending",
+              "title_ascending"
+            ],
+            "description": "Sort order for the returned designs (default relevance)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max designs to return (default 25, max 100)"
+          },
+          "continuation": {
+            "type": "string",
+            "description": "Optional continuation token from a previous response, to fetch the next page"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/v1/designs",
+        "query": {
+          "query": "{{input.query}}",
+          "ownership": "{{input.ownership}}",
+          "sort_by": "{{input.sort_by}}",
+          "limit": "{{clamp input.limit 25 100}}",
+          "continuation": "{{input.continuation}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "title": "title",
+            "design_types": "design_types",
+            "page_count": "page_count",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "owner_user_id": "owner.user_id",
+            "owner_team_id": "owner.team_id"
+          },
+          "continuation": "continuation"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_folder",
+      "description": "Get the name and timestamps of one Canva folder by folder ID (use 'root' for the top level of the user's library, 'uploads' for the Uploads folder)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "folder_id": {
+            "type": "string",
+            "description": "The Canva folder ID, or 'root' for the top level of the library"
+          }
+        },
+        "required": [
+          "folder_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/v1/folders/{{input.folder_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "folder.id",
+          "name": "folder.name",
+          "created_at": "folder.created_at",
+          "updated_at": "folder.updated_at"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.folder_id": "root"
+      }
+    },
+    {
+      "name": "list_folder_items",
+      "description": "List the designs, folders and image assets inside one Canva folder (use 'root' for the top level of the user's library)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "folder_id": {
+            "type": "string",
+            "description": "The Canva folder ID, or 'root' for the top level of the library"
+          },
+          "item_types": {
+            "type": "string",
+            "description": "Optional comma-delimited item types to return: design, folder, image, brand_template (defaults to design,folder,image)"
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": [
+              "created_ascending",
+              "created_descending",
+              "modified_ascending",
+              "modified_descending",
+              "title_ascending",
+              "title_descending"
+            ],
+            "description": "Sort order for the returned items (default modified_descending)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max items to return (default 50, max 100)"
+          },
+          "continuation": {
+            "type": "string",
+            "description": "Optional continuation token from a previous response, to fetch the next page"
+          }
+        },
+        "required": [
+          "folder_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/v1/folders/{{input.folder_id}}/items",
+        "query": {
+          "item_types": "{{input.item_types}}",
+          "sort_by": "{{input.sort_by}}",
+          "limit": "{{clamp input.limit 50 100}}",
+          "continuation": "{{input.continuation}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "type": "type",
+            "folder_id": "folder.id",
+            "folder_name": "folder.name",
+            "design_id": "design.id",
+            "design_title": "design.title",
+            "image_id": "image.id",
+            "image_name": "image.name"
+          },
+          "continuation": "continuation"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.folder_id": "root"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH SWAP APPLIED, AND THE LIFECYCLE BLOCKER IS ONLY PARTLY LIFTED. READ THIS BEFORE PROMOTING. auth.type is now 'oauth2_refresh' against token_url https://api.canva.com/rest/v1/oauth/token, clientIdField client_id, clientSecretField client_secret, refreshTokenField refresh_token, and the vault half was unblocked by ADDITIVE optional fields: services/auth/config/integrationTypeRegistry.js 'canva' now carries client_id, client_secret and refresh_token alongside the existing api_key, and the generated copies (src/config/integrationTypes.js, services/auth/config/integration-types.export.json) were regenerated by scripts/sync-integration-types.mjs, which a drift test enforces. What is NOT fixed: https://www.canva.dev/docs/connect/authentication/ states verbatim that 'Each refresh token can only be used once' and that a successful exchange returns 'another refresh token'. declarativeRuntime.js getRefreshedToken holds the minted access token in PROCESS MEMORY and never writes the rotated refresh token back to the vault, so the stored refresh_token is spent by the first exchange. One collector process therefore gets one access-token lifetime (Canva documents about 4 hours), and the next refresh, or the first refresh after a restart, fails with a token refresh error. That is better than the pasted-token form it replaces, which had no renewal at all, but it is NOT a self-sustaining credential, so this spec stays in drafts/.",
+      "what would actually close it: vault WRITE-BACK of the rotated refresh_token after every exchange (the runtime would have to persist data.refresh_token through the credential store, which no auth type does today), or a non-rotating Canva refresh token, which the docs do not offer. This is a RUNTIME plus VAULT gap, not a spec gap: no Connector Spec v1 auth type can express single-use rotating refresh tokens. Named here so nobody reads the oauth2_refresh block as proof the connector runs unattended.",
+      "existing stored credentials need the new fields filled before this connector can run at all. The vault still collects api_key as its only REQUIRED field and still uses it for its own live test call against https://api.canva.com/rest/v1/users/me, so an old canva credential keeps testing green in the vault UI while every tool here fails with a missing-credential error naming client_id, client_secret or refresh_token. api_key is deliberately NOT in this spec's requiredFields: after the swap the connector mints its own bearer and never reads it.",
+      "the WIRE format of the exchange: declarativeRuntime.js posts grant_type=refresh_token plus client_id, client_secret and refresh_token as application/x-www-form-urlencoded body parameters. Canva documents basic access authentication as RECOMMENDED while explicitly supporting 'client_id and client_secret body parameters' as the alternative, so the runtime's method is a documented one rather than a guess. It remains UNPROVEN by any run here: no real refresh token exists on this box.",
+      "scope caveat on the refresh itself: Canva documents that a refreshed token carries the same or a smaller scope than the token it came from, so a refresh token minted without profile:read, design:meta:read and folder:read can never grow into one that satisfies the tools below, however many times it is exchanged.",
+      "base_url and test path are UNCHANGED from the scaffold: https://api.canva.com plus GET /rest/v1/users/me is both the registry testEndpoint and the documented 'Get details of the current user' endpoint, so there was nothing to correct.",
+      "paths, query parameters and every picked field name are taken verbatim from the official reference pages (connect/api-reference/users/users-me, users/users-profile, designs/list-designs, folders/get-folder, folders/list-folder-items), NOT from a live 2xx: the shape-proof stops at 401, so no response body was ever data. A wrong pick source yields empty output silently, so the first run with a real token must confirm them.",
+      "SCOPES are per endpoint and a green connector test does not imply the tools will work: /rest/v1/users/me needs no specific scope, /users/me/profile needs profile:read, /designs needs design:meta:read, and both folder endpoints need folder:read. A token minted without those scopes passes the test call and then 403s on the individual tools.",
+      "_probe 'root' on folder_id is a DOCUMENTED PUBLIC CONSTANT, not a credential: the folders overview page states that the top level of the user's content library is the folder with the ID root, and the Uploads folder is the ID uploads. No credential is ever hinted.",
+      "list_folder_items flattens the FolderItemSummary union into one flat row shape: each item carries exactly one of folder, design or image (plus brand_template when explicitly requested), so five of the seven picked keys are null for any given row. brand_template items are not picked at all, and Canva documents that video assets are currently not returned by this endpoint.",
+      "clamps come from the documented ranges: designs limit is default 25 / max 100, folder items limit is default 50 / max 100. Both are always sent, because the clamp helper renders its default when the caller omits the input.",
+      "rateLimit 30/min is a LOCAL courtesy and spend guard, not a Canva number, and it sits ABOVE the tightest documented limit: Canva rate limits /users/me and /users/me/profile to 10 requests per minute per user of the integration, while /designs and the folder endpoints allow 100 per minute. A caller hammering the two profile tools can therefore hit Canva's own 429 before this limiter trips.",
+      "READ-ONLY by design: no tool is marked write:true. The Connect API also has create/update/delete endpoints for designs, folders, assets, comments, exports, autofills and brand templates, plus the folder move operation; none is modelled.",
+      "shape-proof 2026-09-12, re-run after the auth swap, is overall AUTH_WALL, runner line verbatim: 'canva  AUTH_WALL  proven=0 authwall=6 ambiguous=0 failed=0 inconclusive=0 skipped=0'. The harness note is verbatim: 'oauth2_refresh auth: probed with a dummy bearer token; the token-acquisition flow is NOT proven by this run.' api.canva.com answers the byte-identical structured 401 {\"code\":\"invalid_access_token\",\"message\":\"Access token is invalid\"} at all five real paths AND at the deliberately bogus control path, so the auth wall sits in front of routing: host, TLS, base_url and the bearer header name are proven, the PATHS are NOT proven by this run (they rest on the documentary provenance above), and every result carries the harness flag token_flow_untested because the refresh exchange cannot be fired blind. AUTH_WALL is the honest ceiling for this API without a real credential; nothing in the spec can lift it."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

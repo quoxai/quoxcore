@@ -1,0 +1,90 @@
+{
+  "spec_id": "unsplash",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:30.857Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.unsplash.com/quox-shapeproof-control-6e204575",
+      "status": 404,
+      "latency_ms": 914,
+      "classification": "CONTROL",
+      "body_sha256": "0823a2f5fa961f158dcf604aeb2fe6c43c31718750c522670621f014889942c3",
+      "body_excerpt": "{\"errors\":[\"Not found\"]}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.unsplash.com/photos?per_page=1",
+      "status": 401,
+      "latency_ms": 179,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "cc3e1403b1304534e130163dd1cb3606e0dec60ea9f4eee37bd4ff91fdd0fda0",
+      "body_excerpt": "{\"errors\":[\"OAuth error: The access token is invalid\"]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "search_photos",
+      "method": "GET",
+      "url": "https://api.unsplash.com/search/photos?query=quoxprobe&page=1&per_page=10&orientation=quoxprobe",
+      "status": 401,
+      "latency_ms": 187,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "cc3e1403b1304534e130163dd1cb3606e0dec60ea9f4eee37bd4ff91fdd0fda0",
+      "body_excerpt": "{\"errors\":[\"OAuth error: The access token is invalid\"]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_photo",
+      "method": "GET",
+      "url": "https://api.unsplash.com/photos/quoxprobe",
+      "status": 401,
+      "latency_ms": 136,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "cc3e1403b1304534e130163dd1cb3606e0dec60ea9f4eee37bd4ff91fdd0fda0",
+      "body_excerpt": "{\"errors\":[\"OAuth error: The access token is invalid\"]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_photos",
+      "method": "GET",
+      "url": "https://api.unsplash.com/photos?page=1&per_page=10&order_by=quoxprobe",
+      "status": 401,
+      "latency_ms": 118,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "cc3e1403b1304534e130163dd1cb3606e0dec60ea9f4eee37bd4ff91fdd0fda0",
+      "body_excerpt": "{\"errors\":[\"OAuth error: The access token is invalid\"]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_topics",
+      "method": "GET",
+      "url": "https://api.unsplash.com/topics?page=1&per_page=10&order_by=quoxprobe",
+      "status": 401,
+      "latency_ms": 125,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "cc3e1403b1304534e130163dd1cb3606e0dec60ea9f4eee37bd4ff91fdd0fda0",
+      "body_excerpt": "{\"errors\":[\"OAuth error: The access token is invalid\"]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

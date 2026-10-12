@@ -1,0 +1,90 @@
+{
+  "spec_id": "klaviyo",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:48.719Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://a.klaviyo.com/quox-shapeproof-control-5879f104",
+      "status": 404,
+      "latency_ms": 306,
+      "classification": "CONTROL",
+      "body_sha256": "e7b30459ae375a28ff7191a844e3940a6de7c3023b02091133004e09eb253a21",
+      "body_excerpt": "{\"errors\": [{\"id\": \"4c10269c-a25b-4e69-a64a-afefdb12a456\", \"status\": 404, \"code\": \"not_found\", \"title\": \"Not found\", \"detail\": \"The path /quox-shapeproof-control-5879f104 could not be found\"}]}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://a.klaviyo.com/api/accounts/",
+      "status": 401,
+      "latency_ms": 166,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "94f68e55ac66de266cf6a576035d91cb8b982b7224d9f00c372ec8d31fa5f564",
+      "body_excerpt": "{\"errors\":[{\"id\":\"890eaf84-4157-435f-b68b-de62872d0240\",\"status\":401,\"code\":\"not_authenticated\",\"title\":\"Authentication credentials were not provided.\",\"detail\":\"Missing or invalid private key.\",\"sour",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_lists",
+      "method": "GET",
+      "url": "https://a.klaviyo.com/api/lists/",
+      "status": 401,
+      "latency_ms": 2163,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "34b47ffc58c0971549970f5c3695471d53c0fbf8db7bb39f901966ce4ab82000",
+      "body_excerpt": "{\"errors\":[{\"id\":\"ad5f1f2d-defd-43c2-9824-8f3ecae26fc4\",\"status\":401,\"code\":\"not_authenticated\",\"title\":\"Authentication credentials were not provided.\",\"detail\":\"Missing or invalid private key.\",\"sour",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_campaigns",
+      "method": "GET",
+      "url": "https://a.klaviyo.com/api/campaigns/?filter=equals%28messages.channel%2C%27email%27%29",
+      "status": 401,
+      "latency_ms": 161,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9c3c74b83861ad502f0ea233824de39d1f0bc732d35fd708d5dd1f40b5cf5dd9",
+      "body_excerpt": "{\"errors\":[{\"id\":\"ebe3fec5-5662-46a4-8fb6-b3c9af66fd00\",\"status\":401,\"code\":\"not_authenticated\",\"title\":\"Authentication credentials were not provided.\",\"detail\":\"Missing or invalid private key.\",\"sour",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_metrics",
+      "method": "GET",
+      "url": "https://a.klaviyo.com/api/metrics/",
+      "status": 401,
+      "latency_ms": 159,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "436fd94b8190a328ee7cf2048419554c7ae30edb88d1970e430495a7321ad30a",
+      "body_excerpt": "{\"errors\":[{\"id\":\"ccc1a56d-8f3a-442a-9cc3-6f370bff2c6f\",\"status\":401,\"code\":\"not_authenticated\",\"title\":\"Authentication credentials were not provided.\",\"detail\":\"Missing or invalid private key.\",\"sour",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_profiles",
+      "method": "GET",
+      "url": "https://a.klaviyo.com/api/profiles/?page%5Bsize%5D=20",
+      "status": 401,
+      "latency_ms": 158,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1c35a58a412f048ccb3cb202b4d37353bcbfeb04ed6f0b7df8275a2a2759c6ab",
+      "body_excerpt": "{\"errors\":[{\"id\":\"6375a903-2217-41b2-a2f8-d7073bb13dd2\",\"status\":401,\"code\":\"not_authenticated\",\"title\":\"Authentication credentials were not provided.\",\"detail\":\"Missing or invalid private key.\",\"sour",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

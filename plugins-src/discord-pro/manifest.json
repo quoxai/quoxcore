@@ -1,0 +1,31 @@
+{
+  "id": "discord-pro",
+  "name": "Quox Discord Pro",
+  "displayName": "Quox Discord Pro",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "paid",
+  "badge": "PAID",
+  "category": "communication",
+  "accentColor": "#5865F2",
+  "description": "A dedicated daemon that runs the Quox Discord community server: build and GitHub feeds posted straight into channels, AutoMod covering the baseline moderation load, and grounded support answers drawn from the same corpus Quox uses everywhere else. Replies that go beyond a grounded answer are governed and approval-gated, never sent unsupervised.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/discord-pro",
+      "label": "Discord Pro",
+      "icon": "messageSquare",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/discord-pro": "DiscordProView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

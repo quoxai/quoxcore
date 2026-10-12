@@ -1,0 +1,256 @@
+{
+  "spec_version": 1,
+  "id": "adobecc",
+  "name": "Adobe Creative Cloud",
+  "category": "media",
+  "credentialType": "adobecc",
+  "requiredFields": [
+    "client_id",
+    "client_secret",
+    "refresh_token"
+  ],
+  "docs": "https://developer.adobe.com/creative-cloud-libraries/docs/",
+  "base_url": "https://cc-libraries.adobe.io",
+  "auth": {
+    "type": "oauth2_refresh",
+    "token_url": "https://ims-na1.adobelogin.com/ims/token/v3",
+    "clientIdField": "client_id",
+    "clientSecretField": "client_secret",
+    "refreshTokenField": "refresh_token"
+  },
+  "static_headers": {
+    "x-api-key": "{{client_id}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/libraries"
+  },
+  "tools_source": "https://developer.adobe.com/creative-cloud-libraries/docs/api/ (official OpenAPI: https://raw.githubusercontent.com/AdobeDocs/cc-libraries-api-spec/main/openapi.json)",
+  "tools": [
+    {
+      "name": "list_libraries",
+      "description": "List the current user's Creative Cloud Libraries, optionally filtered by ownership and sorted",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "enum": [
+              "private",
+              "incoming",
+              "public",
+              "all"
+            ],
+            "description": "Which libraries to include: private (owned), incoming (shared with the user), public (followed), all (default, everything except public)"
+          },
+          "order_by": {
+            "type": "string",
+            "description": "Sort vector: name or modified_date, prefixed with - for descending (default -modified_date)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/libraries",
+        "query": {
+          "owner": "{{input.owner}}",
+          "orderBy": "{{input.order_by}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_count": "total_count",
+          "libraries[]": {
+            "id": "id",
+            "name": "name",
+            "ownership": "ownership",
+            "elements_count": "elements_count",
+            "storage_used": "storage_used",
+            "created_date": "created_date",
+            "modified_date": "modified_date"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_library",
+      "description": "Get metadata for one Creative Cloud Library by library ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "library_id": {
+            "type": "string",
+            "description": "The Creative Cloud Library ID (a UUID, as returned by list_libraries)"
+          }
+        },
+        "required": [
+          "library_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/libraries/{{input.library_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "ownership": "ownership",
+          "elements_count": "elements_count",
+          "storage_used": "storage_used",
+          "created_date": "created_date",
+          "modified_date": "modified_date",
+          "version": "version",
+          "region": "region"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_library_elements",
+      "description": "List the elements (colours, character styles, images, patterns and so on) inside one Creative Cloud Library",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "library_id": {
+            "type": "string",
+            "description": "The Creative Cloud Library ID (a UUID, as returned by list_libraries)"
+          },
+          "type": {
+            "type": "string",
+            "description": "Optional element mimetype to filter by (for example application/vnd.adobe.element.color+dcx)"
+          },
+          "order_by": {
+            "type": "string",
+            "description": "Sort vector: name or modified_date, prefixed with - for descending (default -modified_date)"
+          },
+          "start": {
+            "type": "number",
+            "description": "Zero-based index of the first element to return (default 0)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max elements to return (default 10, max 100)"
+          }
+        },
+        "required": [
+          "library_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/libraries/{{input.library_id}}/elements",
+        "query": {
+          "type": "{{input.type}}",
+          "orderBy": "{{input.order_by}}",
+          "start": "{{clamp input.start 0 10000}}",
+          "limit": "{{clamp input.limit 10 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_count": "total_count",
+          "elements[]": {
+            "id": "id",
+            "name": "name",
+            "type": "type",
+            "element_type": "element_type",
+            "storage_used": "storage_used",
+            "created_date": "created_date",
+            "modified_date": "modified_date"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_library_element",
+      "description": "Get metadata for one element inside a Creative Cloud Library",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "library_id": {
+            "type": "string",
+            "description": "The Creative Cloud Library ID (a UUID, as returned by list_libraries)"
+          },
+          "element_id": {
+            "type": "string",
+            "description": "The element ID (a UUID, as returned by list_library_elements)"
+          }
+        },
+        "required": [
+          "library_id",
+          "element_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/libraries/{{input.library_id}}/elements/{{input.element_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "type": "type",
+          "element_type": "element_type",
+          "storage_used": "storage_used",
+          "created_date": "created_date",
+          "modified_date": "modified_date"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_library_bookmarks",
+      "description": "List the current user's Creative Cloud Library bookmarks (libraries shared with or followed by the user)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/libraries/bookmarks"
+      },
+      "response": {
+        "pick": {
+          "bookmarks[]": {
+            "id": "id",
+            "type": "type",
+            "urn": "urn",
+            "url": "url",
+            "role": "role",
+            "can_share": "can_share",
+            "can_comment": "can_comment",
+            "created": "created"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "base_url and test path CHANGED from the scaffold on DOCUMENTARY evidence. The registry gave base_url https://ims-na1.adobelogin.com and testEndpoint /ims/profile/v1. Two problems. (1) ims-na1.adobelogin.com is Adobe's IDENTITY host, not an API surface: its own https://ims-na1.adobelogin.com/ims/.well-known/openid-configuration advertises exactly authorize/v2, token/v3, userinfo/v2, revoke and keys, so a connector rooted there can read no Creative Cloud content at all. (2) /ims/profile/v1 does not appear anywhere in Adobe's current User Authentication API reference (developer-console/docs/guides/authentication/UserAuthentication/ims), which documents /ims/userinfo/v2 as THE user-info endpoint. The vault entry's own docs field points at the Creative Cloud Libraries API, whose documented host is cc-libraries.adobe.io (the swagger 'host' field of Adobe's published spec), so that is the surface modelled here. Honest caveat: this run never fired at /ims/profile/v1, so the old path is not proven dead, only undocumented.",
+      "AUTH SWAP APPLIED: auth.type is now 'oauth2_refresh' against token_url https://ims-na1.adobelogin.com/ims/token/v3 (the token_endpoint Adobe's own https://ims-na1.adobelogin.com/ims/.well-known/openid-configuration advertises, and the endpoint its refresh-token section curls), clientIdField client_id, clientSecretField client_secret, refreshTokenField refresh_token. The vault half was unblocked by ONE additive optional field: services/auth/config/integrationTypeRegistry.js 'adobecc' already collected client_id, client_secret and access_token, and now also carries refresh_token, with the generated copies (src/config/integrationTypes.js, services/auth/config/integration-types.export.json) regenerated by scripts/sync-integration-types.mjs, which a drift test enforces. This closes the LIFECYCLE gap the earlier draft named: the connector now mints and re-mints its own bearer instead of relying on a pasted access_token that dies when it expires. static_headers x-api-key: {{client_id}} is UNCHANGED and still mandatory on every Libraries call.",
+      "two honest caveats on the exchange, neither provable here. (1) WIRE format: declarativeRuntime.js posts grant_type, client_id, client_secret and refresh_token as form body parameters (client_secret_post). Adobe's refresh-token documentation shows the CONFIDENTIAL-client curl using a Basic Authorization header instead, and its parameter table marks client_id as 'Only for PUBLIC clients'. Adobe's discovery document advertises token_endpoint_auth_methods_supported as client_secret_basic AND client_secret_post, so the runtime's method is an advertised one, but the refresh exchange itself has NOT been driven with a real credential. (2) AVAILABILITY: Adobe issues a refresh token only when the offline_access scope was requested at authorize time, and warns in the same section that 'not all APIs and Services support the offline_access scope for security reasons'. Whether Creative Cloud Libraries grants it is unverified here, so this spec stays in drafts/ until someone completes a real 3-legged authorization and fills the field.",
+      "existing stored credentials need the new field filled. The vault still collects access_token as a REQUIRED field and still uses it for its own live test call, so an old adobecc credential keeps testing green in the vault UI while every tool here fails with a missing-credential error naming refresh_token. access_token is deliberately NOT in this spec's requiredFields any more: after the swap the connector mints its own bearer and never reads it. client_id is still required, because the x-api-key header carries it.",
+      "Adobe's response returns a new refresh_token alongside each access_token, and the runtime does not persist it. Unlike Canva, Adobe does NOT document its refresh tokens as single-use, so re-presenting the stored one is expected to keep working; that expectation is UNVERIFIED, and if IMS does rotate-and-invalidate, this connector will fail on the second exchange exactly as the canva draft does. Worth checking on the first real credential.",
+      "client_secret is collected by the vault and is UNUSED by this spec: it is only needed for the token exchange this spec deliberately does not perform (see the client_credentials note above). Its presence in requiredFields is not evidence of a token flow.",
+      "paths, query parameters and every picked field name are taken verbatim from Adobe's official OpenAPI (https://raw.githubusercontent.com/AdobeDocs/cc-libraries-api-spec/main/openapi.json, the document the API reference page at creative-cloud-libraries/docs/api/ loads), NOT from a live 2xx: the shape-proof stops at 401, so no response body was ever data. A wrong pick source yields empty output silently, so the first run with a real token must confirm them. Definitions used: LibrariesInfo, DbLibraryInfo, LibraryElementsInfo, DbLibraryElementData, DbLibraryBookmark.",
+      "that published spec self-titles 'Adobe CC Libraries APIs Test', version 0.1. It is nonetheless the artefact Adobe's own documentation site renders as its API reference, and the only machine-readable source, so it is what these tools are built from. Field names could drift without the title changing.",
+      "list_libraries exposes NO limit or start, unlike list_library_elements. Adobe documents limit for GET /api/v1/libraries as Min 1, Max 10, default 10, and the clamp helper's first argument is both its default AND its floor, so '1 to 10, default 10' cannot be expressed: clamp 10 10 would pin every call to 10, and clamp 1 10 would silently make 1 the default. Leaving the parameter off lets Adobe apply its own default of 10, which equals the documented maximum anyway. The elements endpoint (default 10, max 100) clamps cleanly, and its start is always sent because Adobe documents start as required whenever limit is specified.",
+      "the selector parameter is not exposed on any tool: the default projection is what the picks above were written against, while details, collaboration, groups and rendition_grid change the response shape and would be clipped by truncate 2000.",
+      "READ-ONLY by design: no tool is marked write:true. The API has create/update/delete endpoints for libraries and elements, batch operations, element representation uploads and bookmark writes; none is modelled. The /api/v1/public/libraries/* read endpoints are also not modelled, because they are addressed by a linkId share token rather than by a user's own library list.",
+      "rateLimit 30/min is a local courtesy and spend guard chosen here; Adobe publishes no single request-per-minute number for the Libraries API.",
+      "shape-proof 2026-09-12, re-run after the auth swap, is overall SHAPE_PROVEN, runner line verbatim: 'adobecc  SHAPE_PROVEN  proven=6 authwall=0 ambiguous=0 failed=0 inconclusive=0 skipped=0'. The harness note is verbatim: 'oauth2_refresh auth: probed with a dummy bearer token; the token-acquisition flow is NOT proven by this run.' All six fired calls (the test block plus all five tools) answer 401 with Adobe's structured {\"error_code\":\"401013\",\"message\":\"Oauth token is not valid\"}, while the deliberately bogus control path answers a 404 openresty HTML page, so host, TLS, base_url, the bearer header, the x-api-key header and every route are proven distinct from the control. Every result carries the harness flag token_flow_untested. What the proof does NOT cover: the token exchange and the offline_access question above, and no response body was ever data."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

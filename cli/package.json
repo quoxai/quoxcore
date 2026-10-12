@@ -1,0 +1,51 @@
+{
+  "name": "quoxcli",
+  "version": "0.1.0",
+  "description": "CLI for QuoxCORE platform — manage agents, workflows, memory, fleet, and more from the terminal",
+  "type": "module",
+  "bin": {
+    "quox": "./bin/quox.js",
+    "quoxcli": "./bin/quox.js"
+  },
+  "scripts": {
+    "start": "node bin/quox.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "TEST_INTEGRATION=true vitest run test/integration.test.js",
+    "test:live": "node test/live/contract.mjs"
+  },
+  "dependencies": {
+    "@inkjs/ui": "^2.0.0",
+    "chalk": "^5.4.1",
+    "cli-table3": "^0.6.5",
+    "commander": "^13.1.0",
+    "figlet": "^1.8.0",
+    "fullscreen-ink": "^0.1.0",
+    "ink": "^6.0.0",
+    "inquirer": "^12.4.0",
+    "js-yaml": "^4.3.0",
+    "jszip": "^3.10.1",
+    "ora": "^8.1.1",
+    "react": "^19.0.0",
+    "tsx": "^4.21.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "esbuild": "^0.27.3",
+    "ink-testing-library": "^4.0.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "quox",
+    "quoxcore",
+    "cli",
+    "agents",
+    "fleet",
+    "orchestration"
+  ],
+  "license": "UNLICENSED"
+}

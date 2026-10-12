@@ -1,0 +1,137 @@
+{
+  "spec_id": "outreach",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:50:15.773Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.outreach.io/quox-shapeproof-control-a68e36f1",
+      "status": 401,
+      "latency_ms": 5487,
+      "classification": "CONTROL",
+      "body_sha256": "5020d4621be8ed817535e7421502c14951f26cd40c0a55a28bbc91ad9beec6b3",
+      "body_excerpt": "{\"error\":\"Invalid JWT token.\",\"description\":\"The JWT token could not be decoded.\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.outreach.io/api/v2/users?page%5Bsize%5D=1",
+      "status": 401,
+      "latency_ms": 109,
+      "classification": "AUTH_WALL",
+      "body_sha256": "5020d4621be8ed817535e7421502c14951f26cd40c0a55a28bbc91ad9beec6b3",
+      "body_excerpt": "{\"error\":\"Invalid JWT token.\",\"description\":\"The JWT token could not be decoded.\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_users",
+      "method": "GET",
+      "url": "https://api.outreach.io/api/v2/users?page%5Blimit%5D=25&page%5Boffset%5D=1",
+      "status": 401,
+      "latency_ms": 96,
+      "classification": "AUTH_WALL",
+      "body_sha256": "5020d4621be8ed817535e7421502c14951f26cd40c0a55a28bbc91ad9beec6b3",
+      "body_excerpt": "{\"error\":\"Invalid JWT token.\",\"description\":\"The JWT token could not be decoded.\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_prospects",
+      "method": "GET",
+      "url": "https://api.outreach.io/api/v2/prospects?page%5Blimit%5D=25&page%5Boffset%5D=1&filter%5Bemails%5D=quoxprobe",
+      "status": 401,
+      "latency_ms": 105,
+      "classification": "AUTH_WALL",
+      "body_sha256": "5020d4621be8ed817535e7421502c14951f26cd40c0a55a28bbc91ad9beec6b3",
+      "body_excerpt": "{\"error\":\"Invalid JWT token.\",\"description\":\"The JWT token could not be decoded.\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_prospect",
+      "method": "GET",
+      "url": "https://api.outreach.io/api/v2/prospects/quoxprobe",
+      "status": 401,
+      "latency_ms": 215,
+      "classification": "AUTH_WALL",
+      "body_sha256": "5020d4621be8ed817535e7421502c14951f26cd40c0a55a28bbc91ad9beec6b3",
+      "body_excerpt": "{\"error\":\"Invalid JWT token.\",\"description\":\"The JWT token could not be decoded.\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_sequences",
+      "method": "GET",
+      "url": "https://api.outreach.io/api/v2/sequences?page%5Blimit%5D=25&page%5Boffset%5D=1",
+      "status": 401,
+      "latency_ms": 112,
+      "classification": "AUTH_WALL",
+      "body_sha256": "5020d4621be8ed817535e7421502c14951f26cd40c0a55a28bbc91ad9beec6b3",
+      "body_excerpt": "{\"error\":\"Invalid JWT token.\",\"description\":\"The JWT token could not be decoded.\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_accounts",
+      "method": "GET",
+      "url": "https://api.outreach.io/api/v2/accounts?page%5Blimit%5D=25&page%5Boffset%5D=1&filter%5Bdomain%5D=quoxprobe",
+      "status": 401,
+      "latency_ms": 181,
+      "classification": "AUTH_WALL",
+      "body_sha256": "5020d4621be8ed817535e7421502c14951f26cd40c0a55a28bbc91ad9beec6b3",
+      "body_excerpt": "{\"error\":\"Invalid JWT token.\",\"description\":\"The JWT token could not be decoded.\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_mailings",
+      "method": "GET",
+      "url": "https://api.outreach.io/api/v2/mailings?page%5Blimit%5D=25&page%5Boffset%5D=1",
+      "status": 401,
+      "latency_ms": 457,
+      "classification": "AUTH_WALL",
+      "body_sha256": "5020d4621be8ed817535e7421502c14951f26cd40c0a55a28bbc91ad9beec6b3",
+      "body_excerpt": "{\"error\":\"Invalid JWT token.\",\"description\":\"The JWT token could not be decoded.\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

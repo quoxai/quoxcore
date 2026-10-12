@@ -1,0 +1,89 @@
+{
+  "spec_version": 1,
+  "id": "gotify",
+  "name": "Gotify",
+  "category": "communication",
+  "credentialType": "gotify",
+  "requiredFields": [
+    "server_url",
+    "app_token"
+  ],
+  "description": "Read a self-hosted Gotify server's own state: overall and database health, build version, and which login modes the server offers. Message and application reads are NOT here: Gotify's spec restricts every authenticated GET to a CLIENT token or basic auth, and this credential type holds an APPLICATION token (see _scaffold.needs_review).",
+  "docs": "https://gotify.net/api-docs",
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "base_url": {
+    "fromCredential": "server_url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "X-Gotify-Key",
+    "template": "{{app_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/health"
+  },
+  "tools_source": "https://raw.githubusercontent.com/gotify/server/v3.1.0/docs/spec.json",
+  "tools": [
+    {
+      "name": "health",
+      "description": "Check a Gotify server's health: the overall application state and its database connection (both 'green' when healthy)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/health"
+      },
+      "response": {
+        "pick": {
+          "health": "health",
+          "database": "database"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "version",
+      "description": "Get the Gotify server's build information: semantic version, git commit hash and build date",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/version"
+      },
+      "response": {
+        "pick": {
+          "version": "version",
+          "commit": "commit",
+          "buildDate": "buildDate"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "hand-authored from Gotify's own OpenAPI document, pinned at https://raw.githubusercontent.com/gotify/server/v3.1.0/docs/spec.json (v3.1.0 is the latest release, published 2026-08-27); rendered form at https://gotify.net/api-docs (CONNFAC)",
+    "confidence": "medium",
+    "needs_review": [
+      "READ-ONLY by design: no tool is marked write:true. POST /message is the ONLY endpoint the stored credential actually authenticates (securityDefinitions appTokenHeader / appTokenQuery / appTokenAuthorizationHeader appear on POST /message and nowhere else in the spec), and sending a push is deliberately out of this wave.",
+      "list_applications (GET /application) and list_messages (GET /message) were deliberately NOT authored. Gotify's spec lists EVERY authenticated GET (/application, /message, /application/{id}/message, /current/user, /client, /user, /user/{id}, /plugin, /plugin/{id}/config, /plugin/{id}/display, /stream) under clientTokenAuthorizationHeader, clientTokenHeader, clientTokenQuery and basicAuth ONLY. The vault field is `app_token` (label 'Application Token'), so those tools would 401 for the documented credential. Reading messages or applications needs a CLIENT token or a username/password pair, and integrationTypeRegistry.gotify has a field for neither.",
+      "All three tools call routes Gotify serves with NO `security` block at all (/health, /version, /gotifyinfo). The X-Gotify-Key header is still attached so the stored credential rides along and the connector stays forward-compatible with a client-token field later, but these tools CANNOT detect a wrong, revoked or empty token: they answer identically without one.",
+      "/gotifyinfo is Gotify v3.x only. It is absent from docs/spec.json at tags v2.6.3, v2.7.2 and v2.7.3, so get_server_info returns 404 against a v2 server. health and version are present in every 2.x and 3.x spec checked.",
+      "base_url comes from the `server_url` vault field verbatim (the runtime strips trailing slashes only). A customer who pastes a path, or omits the scheme, produces a malformed base URL; the field is not normalised anywhere today.",
+      "GET /health answers 200 AND 500 with the same Health body (500 when the database connection is unhealthy). The declarative runtime treats any non-2xx as an error, so a degraded server surfaces as a tool error string rather than a readable {health, database} report.",
+      "NOT LIVE-PROVEN. Gotify is a customer-supplied host with no public reference instance, so nothing here has been driven against a running server; the tool set is doc-derived only. Paths, response field names and the auth header shape come from the pinned OpenAPI document. The LIVE harness proves these against an ephemeral gotify/server container.",
+      "No tool-level _probe blocks: all three tools take zero inputs, so there is no placeholder for the shape-proof harness to substitute (the repo convention is that _probe appears only on input-bearing tools). The live harness needs no seeded application either, which is why the empty-instance reads were preferred.",
+      "get_server_info (GET /gotifyinfo) removed 2026-09-12: documented for v3+ but the live proof against gotify/server:2.5.0 returned 404 {\"error\":\"Not Found\",\"errorCode\":404}; re-add when v3 is the shipping release."
+    ]
+  }
+}

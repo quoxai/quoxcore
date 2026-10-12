@@ -1,0 +1,103 @@
+{
+  "spec_id": "mailchimp",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:53.100Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://us1.api.mailchimp.com/quox-shapeproof-control-d56d16d8",
+      "status": 404,
+      "latency_ms": 375,
+      "classification": "CONTROL",
+      "body_sha256": "511b5c63fd2cde5eced5a9d31b679d84c6eb71f6ca6f162c09a088b6a988cca7",
+      "body_excerpt": "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\n<html><head>\n<title>404 Not Found</title>\n</head><body>\n<h1>Not Found</h1>\n<p>The requested URL was not found on this server.</p>\n<hr>\n<address>Apach",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://us1.api.mailchimp.com/3.0/ping",
+      "status": 401,
+      "latency_ms": 189,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "809461cee2611d133352e07a76ee99048ab5dd9c6da75e6f8d3edc82181534bd",
+      "body_excerpt": "{\"type\":\"https://mailchimp.com/developer/marketing/docs/errors/\",\"title\":\"API Key Invalid\",\"status\":401,\"detail\":\"Your API key may be invalid, or you've attempted to access the wrong datacenter.\",\"ins",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "ping",
+      "method": "GET",
+      "url": "https://us1.api.mailchimp.com/3.0/ping",
+      "status": 401,
+      "latency_ms": 201,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0fcb8bbd38ae34c10a583169235ab8ccd9ece0c156136ce68ca9902158cc1b2a",
+      "body_excerpt": "{\"type\":\"https://mailchimp.com/developer/marketing/docs/errors/\",\"title\":\"API Key Invalid\",\"status\":401,\"detail\":\"Your API key may be invalid, or you've attempted to access the wrong datacenter.\",\"ins",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_audiences",
+      "method": "GET",
+      "url": "https://us1.api.mailchimp.com/3.0/lists?count=10",
+      "status": 401,
+      "latency_ms": 344,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "81f1841f1f05b52faa651623f0e9724aa405577952fa44382d2d2bf34fe18ac1",
+      "body_excerpt": "{\"type\":\"https://mailchimp.com/developer/marketing/docs/errors/\",\"title\":\"API Key Invalid\",\"status\":401,\"detail\":\"Your API key may be invalid, or you've attempted to access the wrong datacenter.\",\"ins",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_campaigns",
+      "method": "GET",
+      "url": "https://us1.api.mailchimp.com/3.0/campaigns?count=10&status=quoxprobe",
+      "status": 401,
+      "latency_ms": 389,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b2c4cb9dc09c4bbb2f013648163803469a820a0734eb96047e809230ee85d700",
+      "body_excerpt": "{\"type\":\"https://mailchimp.com/developer/marketing/docs/errors/\",\"title\":\"API Key Invalid\",\"status\":401,\"detail\":\"Your API key may be invalid, or you've attempted to access the wrong datacenter.\",\"ins",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_members",
+      "method": "GET",
+      "url": "https://us1.api.mailchimp.com/3.0/lists/quoxprobe/members?count=10&status=quoxprobe",
+      "status": 401,
+      "latency_ms": 580,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1a319f80a54b2aeef057fd3baa0bbf4da39b2fcd515877ce5e01dd6e22b17cb2",
+      "body_excerpt": "{\"type\":\"https://mailchimp.com/developer/marketing/docs/errors/\",\"title\":\"API Key Invalid\",\"status\":401,\"detail\":\"Your API key may be invalid, or you've attempted to access the wrong datacenter.\",\"ins",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_campaign",
+      "method": "GET",
+      "url": "https://us1.api.mailchimp.com/3.0/campaigns/quoxprobe",
+      "status": 401,
+      "latency_ms": 483,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dcbec38626a8e2507d15e046d79d663279d8b59e460b037353a2bb2f666f0768",
+      "body_excerpt": "{\"type\":\"https://mailchimp.com/developer/marketing/docs/errors/\",\"title\":\"API Key Invalid\",\"status\":401,\"detail\":\"Your API key may be invalid, or you've attempted to access the wrong datacenter.\",\"ins",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

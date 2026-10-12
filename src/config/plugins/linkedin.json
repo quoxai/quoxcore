@@ -1,0 +1,212 @@
+{
+  "name": "linkedin",
+  "version": "1.0.0",
+  "displayName": "LinkedIn",
+  "tagline": "Publish and Monitor LinkedIn from QuoxCORE",
+  "description": "Post content, track engagement, and monitor your LinkedIn presence for member and organisation pages. Vault-stored access token with tracked 60-day expiry, human approval on every publish, content feed, compose-and-publish panel, and engagement analytics.",
+  "shortDescription": "LinkedIn publishing and engagement monitoring.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 2,
+  "priceDisplay": "$2",
+  "priceModel": "one-time",
+  "tier": "tier_a",
+  "featured": false,
+  "badge": "NEW",
+  "icon": "linkedin",
+  "heroGradient": "linear-gradient(135deg, #0A66C2 0%, #004182 100%)",
+  "accentColor": "#0A66C2",
+  "infoUrl": "https://quox.ai/plugins/linkedin",
+  "docsUrl": "https://quox.ai/docs/plugins/linkedin",
+  "route": "/linkedin",
+  "marketingPoints": [
+    "Publish posts to member or organisation pages",
+    "Upload and attach images to posts",
+    "Track reactions, comments, and engagement",
+    "Content feed with engagement summary per post",
+    "Compose panel with preview and character count",
+    "Organisation page monitoring with follower stats"
+  ],
+  "features": {
+    "publishing": {
+      "name": "Post Publishing",
+      "description": "Publish text posts, image posts, and article links to your LinkedIn profile or company page directly from QuoxCORE.",
+      "icon": "send",
+      "highlight": true
+    },
+    "mediaUpload": {
+      "name": "Media Upload",
+      "description": "Upload images and attach them to posts. Two-step flow handles LinkedIn's upload API transparently.",
+      "icon": "image"
+    },
+    "engagementTracking": {
+      "name": "Engagement Tracking",
+      "description": "See reactions, comments, and engagement totals for every post. Per-post sparklines show performance at a glance.",
+      "icon": "bar-chart",
+      "highlight": true
+    },
+    "commentManagement": {
+      "name": "Comment Management",
+      "description": "Read comment threads on your posts and reply directly from the dashboard.",
+      "icon": "message-square"
+    },
+    "orgPage": {
+      "name": "Organisation Page",
+      "description": "Monitor your company page: follower count, page details, and org-level posting.",
+      "icon": "building",
+      "highlight": true
+    },
+    "contentFeed": {
+      "name": "Content Feed",
+      "description": "Chronological view of all published posts with engagement badges. Filter by member or organisation.",
+      "icon": "list"
+    }
+  },
+  "specialist": {
+    "name": "LINKEDIN",
+    "description": "LinkedIn publishing and engagement specialist",
+    "avatar": "/assets/agents/linkedin.svg",
+    "capabilities": [
+      "Publish posts to member or org pages",
+      "Upload media and attach to posts",
+      "Track engagement metrics",
+      "Read and reply to comments",
+      "Monitor organisation page stats"
+    ]
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "LinkedIn account with OAuth access token (stored in vault)"
+  },
+  "integration": {
+    "connector": "linkedin",
+    "view": "src/pages/views/LinkedInView.jsx",
+    "agent": "linkedin"
+  },
+  "permissions": [
+    "vault:read",
+    "network:external"
+  ],
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "configSchema": {
+    "authorUrn": {
+      "type": "string",
+      "label": "Author URN",
+      "description": "Your LinkedIn member URN (e.g. urn:li:person:abc123)",
+      "required": true,
+      "placeholder": "urn:li:person:..."
+    },
+    "orgId": {
+      "type": "string",
+      "label": "Organisation ID",
+      "description": "LinkedIn organisation ID for company page posting (optional)",
+      "required": false,
+      "placeholder": "e.g. 12345678"
+    },
+    "defaultVisibility": {
+      "type": "string",
+      "label": "Default Post Visibility",
+      "default": "PUBLIC",
+      "enum": [
+        "PUBLIC",
+        "CONNECTIONS"
+      ]
+    },
+    "defaultPostAs": {
+      "type": "string",
+      "label": "Default Post As",
+      "default": "member",
+      "enum": [
+        "member",
+        "org"
+      ]
+    }
+  },
+  "safety": {
+    "destructiveActions": [
+      "linkedin_publish_post",
+      "linkedin_create_comment"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": true
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "publishing": false,
+      "mediaUpload": false,
+      "engagementTracking": false,
+      "commentManagement": false,
+      "orgPage": false,
+      "contentFeed": "Dashboard preview only"
+    },
+    "tier_a": {
+      "name": "LinkedIn ($2)",
+      "publishing": true,
+      "mediaUpload": true,
+      "engagementTracking": true,
+      "commentManagement": true,
+      "orgPage": true,
+      "contentFeed": true
+    }
+  },
+  "limits": {
+    "free": {
+      "accounts": 0,
+      "features": []
+    },
+    "starter": {
+      "accounts": 1,
+      "orgPages": 1,
+      "features": [
+        "publishing",
+        "mediaUpload",
+        "engagementTracking",
+        "commentManagement",
+        "orgPage",
+        "contentFeed"
+      ]
+    },
+    "professional": {
+      "accounts": 3,
+      "orgPages": 3,
+      "features": [
+        "publishing",
+        "mediaUpload",
+        "engagementTracking",
+        "commentManagement",
+        "orgPage",
+        "contentFeed",
+        "leadGen",
+        "autoApprove",
+        "analyticsExport"
+      ]
+    }
+  },
+  "futureFeatures": [
+    "Lead gen form retrieval (Pro tier)",
+    "Auto-approve rules for pre-approved content types",
+    "Cross-platform scheduling via Herald supervisor",
+    "LinkedIn Analytics export"
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-03-17",
+      "changes": [
+        "Initial release",
+        "Publish posts to member and organisation pages",
+        "Upload and attach images",
+        "Content feed with engagement summary",
+        "Compose panel with preview",
+        "Comment reading and replying",
+        "Organisation page monitoring",
+        "Vault-stored access token credentials (60-day expiry, tracked)"
+      ]
+    }
+  },
+  "category": "Communication"
+}

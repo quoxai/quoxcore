@@ -1,0 +1,93 @@
+{
+  "spec_id": "directus",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T19:57:53.020Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/users/me",
+      "status": 200,
+      "latency_ms": 283,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "157010c576fb444ad4110b3176c2ba1717eb36989dd1093ba92e2483a48316c9",
+      "body_excerpt": "{\"data\":{\"id\":\"5874ccdf-9ee7-4f74-84b8-9210af00aca9\",\"first_name\":\"Admin\",\"last_name\":\"User\",\"email\":\"quoxproof@example.com\",\"password\":\"[REDACTED]\",\"location\":null,\"title\":null,\"description\":null,\"ta",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "server_info",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/server/info",
+      "status": 200,
+      "latency_ms": 23,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "fc3c3be5f355b63d3d25c03d2478c3c171515ddcc5e995e2b601c21b302754f6",
+      "body_excerpt": "{\"data\":{\"project\":{\"project_name\":\"Directus\",\"project_color\":\"#6644FF\",\"default_language\":\"en-US\",\"default_appearance\":\"auto\",\"public_registration\":false,\"public_registration_verify_email\":true},\"rat",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "server_health",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/server/health",
+      "status": 200,
+      "latency_ms": 27,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "d1aa79e630c09c69a578fd922ef7c136f4c9c311ffd2eb7fd45b79654331a642",
+      "body_excerpt": "{\"status\":\"ok\",\"releaseId\":\"11.3.5\",\"serviceId\":\"/\",\"checks\":{\"sqlite3:responseTime\":[{\"status\":\"ok\",\"componentType\":\"datastore\",\"observedUnit\":\"ms\",\"observedValue\":6.83,\"threshold\":150}],\"sqlite3:con",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_collections",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/collections",
+      "status": 200,
+      "latency_ms": 19,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "2dd69af4c5a78ae7aed8e077c88d5d93927b390cdd3c2fbac3906aa23a72378b",
+      "body_excerpt": "{\"data\":[{\"collection\":\"quoxproof-live\",\"meta\":{\"collection\":\"quoxproof-live\",\"icon\":null,\"note\":null,\"display_template\":null,\"hidden\":false,\"singleton\":false,\"translations\":null,\"archive_field\":null,",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_current_user",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/users/me",
+      "status": 200,
+      "latency_ms": 21,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "157010c576fb444ad4110b3176c2ba1717eb36989dd1093ba92e2483a48316c9",
+      "body_excerpt": "{\"data\":{\"id\":\"5874ccdf-9ee7-4f74-84b8-9210af00aca9\",\"first_name\":\"Admin\",\"last_name\":\"User\",\"email\":\"quoxproof@example.com\",\"password\":\"[REDACTED]\",\"location\":null,\"title\":null,\"description\":null,\"ta",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_items",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/items/quoxproof-live?limit=20",
+      "status": 200,
+      "latency_ms": 17,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "8fe32e407a1038ee38753b70e5374b3a46d6ae9d5f16cd5b73c53abaca8f5ed0",
+      "body_excerpt": "{\"data\":[]}",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:directus/directus:11.3.5"
+}

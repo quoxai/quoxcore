@@ -1,0 +1,77 @@
+{
+  "spec_id": "bandwidth",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T04:01:15.412Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://messaging.bandwidth.com/quox-shapeproof-control-2c7210c5",
+      "status": 503,
+      "latency_ms": 1324,
+      "classification": "CONTROL",
+      "body_sha256": "258c66556e2e065b0d04f6ae39a98fcf182e3e584cd0b7bdb20d0a395796347b",
+      "body_excerpt": "<html>\r\n<head><title>503 Service Temporarily Unavailable</title></head>\r\n<body>\r\n<center><h1>503 Service Temporarily Unavailable</h1></center>\r\n</body>\r\n</html>\r\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://messaging.bandwidth.com/api/v2/users/QUOXSHAPEPROOFDUMMYACCOUNTID/messages",
+      "status": 401,
+      "latency_ms": 216,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_messages",
+      "method": "GET",
+      "url": "https://messaging.bandwidth.com/api/v2/users/QUOXSHAPEPROOFDUMMYACCOUNTID/messages?limit=20&messageDirection=quoxprobe&messageStatus=quoxprobe&messageType=quoxprobe&sourceTn=quoxprobe&destinationTn=quoxprobe&carrierName=quoxprobe&errorCode=1&campaignId=quoxprobe&fromDateTime=quoxprobe&toDateTime=quoxprobe&sort=quoxprobe&pageToken=quoxprobe",
+      "status": 401,
+      "latency_ms": 183,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_message",
+      "method": "GET",
+      "url": "https://messaging.bandwidth.com/api/v2/users/QUOXSHAPEPROOFDUMMYACCOUNTID/messages?messageId=quoxprobe&limit=1",
+      "status": 401,
+      "latency_ms": 175,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_media",
+      "method": "GET",
+      "url": "https://messaging.bandwidth.com/api/v2/users/QUOXSHAPEPROOFDUMMYACCOUNTID/media",
+      "status": 401,
+      "latency_ms": 414,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "93852a6f212ba4da7d300fdbced647ebd5baa6e9c3937da6f028b1e25d9c8e9f",
+      "body_excerpt": "{\"description\":\"Authentication Failed\",\"type\":\"unauthorized\"}\n",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

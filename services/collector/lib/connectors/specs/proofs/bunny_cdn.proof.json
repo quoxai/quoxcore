@@ -1,0 +1,90 @@
+{
+  "spec_id": "bunny_cdn",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:12.681Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.bunny.net/quox-shapeproof-control-764b8585",
+      "status": 404,
+      "latency_ms": 968,
+      "classification": "CONTROL",
+      "body_sha256": "8d4259f622c2cd1f930241aabe434a42ffbb8f7a0d52797c0fea418b69322a04",
+      "body_excerpt": "<!DOCTYPE html>\r\n<html lang=\"en\">\r\n<head>\r\n    <meta charset=\"utf-8\">\r\n    <meta name=\"author\" content=\"bunny.net\">\r\n    <title>Page Not Found | BunnyCDN</title>\r\n\r\n    <meta name=\"viewport\" content=\"",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.bunny.net/user",
+      "status": 401,
+      "latency_ms": 184,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "5267b8f152b81ed1e4dcbf760722f41139fad9f737b0c92a734ea35e022aa7bf",
+      "body_excerpt": "{\"Message\":\"Authorization has been denied for this request.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_pullzones",
+      "method": "GET",
+      "url": "https://api.bunny.net/pullzone?perPage=20&page=1&search=quoxprobe",
+      "status": 401,
+      "latency_ms": 178,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "5267b8f152b81ed1e4dcbf760722f41139fad9f737b0c92a734ea35e022aa7bf",
+      "body_excerpt": "{\"Message\":\"Authorization has been denied for this request.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_pullzone",
+      "method": "GET",
+      "url": "https://api.bunny.net/pullzone/1",
+      "status": 401,
+      "latency_ms": 181,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "5267b8f152b81ed1e4dcbf760722f41139fad9f737b0c92a734ea35e022aa7bf",
+      "body_excerpt": "{\"Message\":\"Authorization has been denied for this request.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_storagezones",
+      "method": "GET",
+      "url": "https://api.bunny.net/storagezone?perPage=20&page=1&search=quoxprobe",
+      "status": 401,
+      "latency_ms": 180,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "5267b8f152b81ed1e4dcbf760722f41139fad9f737b0c92a734ea35e022aa7bf",
+      "body_excerpt": "{\"Message\":\"Authorization has been denied for this request.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_statistics",
+      "method": "GET",
+      "url": "https://api.bunny.net/statistics?dateFrom=quoxprobe&dateTo=quoxprobe&pullZone=1",
+      "status": 401,
+      "latency_ms": 181,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4a59be36e3c33be389284b19384b859b147e871b63889a81871752366916e373",
+      "body_excerpt": "{\"ErrorKey\":\"authentication.failed\",\"Field\":null,\"Message\":\"Authentication is required.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

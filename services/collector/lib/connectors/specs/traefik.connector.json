@@ -1,0 +1,188 @@
+{
+  "spec_version": 1,
+  "id": "traefik",
+  "name": "Traefik",
+  "category": "monitoring",
+  "credentialType": "traefik",
+  "requiredFields": [
+    "base_url"
+  ],
+  "docs": "https://doc.traefik.io/traefik/operations/api/",
+  "tools_source": "https://doc.traefik.io/traefik/operations/api/",
+  "description": "Traefik reverse proxy reads over its API: the HTTP/TCP/UDP overview, HTTP routers, services, middlewares, entrypoints and the running version. Read-only; no dynamic-config write is wired here. The API is unauthenticated by default (base_url is the only credential); Traefik's own docs recommend fronting it with auth or restricting it to a trusted network for anything beyond local access.",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "none"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/overview"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 60
+  },
+  "tools": [
+    {
+      "name": "overview",
+      "description": "Get Traefik's overview: HTTP/TCP/UDP router and service counts, enabled features and configured providers",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/overview"
+      },
+      "response": {
+        "pick": {
+          "http": "http",
+          "tcp": "tcp",
+          "udp": "udp",
+          "features": "features",
+          "providers": "providers"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_http_routers",
+      "description": "List the configured HTTP routers with their rule, target service, status, entrypoints, provider and priority",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/http/routers"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name",
+            "rule": "rule",
+            "service": "service",
+            "status": "status",
+            "entryPoints": "entryPoints",
+            "provider": "provider",
+            "priority": "priority"
+          }
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_http_services",
+      "description": "List the configured HTTP services with their status, provider, type and backing server status",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/http/services"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name",
+            "status": "status",
+            "provider": "provider",
+            "type": "type",
+            "serverStatus": "serverStatus"
+          }
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_http_middlewares",
+      "description": "List the configured HTTP middlewares with their status, provider and type",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/http/middlewares"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name",
+            "status": "status",
+            "provider": "provider",
+            "type": "type"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_entrypoints",
+      "description": "List the configured network entrypoints with their listen address",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/entrypoints"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name",
+            "address": "address"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "version",
+      "description": "Get the running Traefik version, codename and release date",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/version"
+      },
+      "response": {
+        "pick": {
+          "version": "Version",
+          "codename": "Codename",
+          "startDate": "startDate"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-13 observability tranche",
+    "confidence": "live",
+    "needs_review": [
+      "AUTH IS none BY DESIGN: Traefik's API is unauthenticated once enabled ([api] insecure or api@internal), so base_url is the only credential and auth.type is 'none'. Fronting the API with basic auth or a trusted network is a deployment concern documented by Traefik, not a spec one.",
+      "READ-ONLY: all six tools are GET, write:false. The API has no dynamic-config write surface; static/dynamic configuration is file- or label-driven, not settable through this endpoint.",
+      "list_http_routers/services/middlewares return an empty array with a 200 on a fresh instance with no routers defined via labels or file provider yet; that is a valid live proof, not a failure.",
+      "list_entrypoints reflects only entrypoints declared at startup (e.g. --entrypoints.web.address=:80); a minimal container may expose just one, which is still a valid non-empty proof.",
+      "LIVE-PROOF CONTRACT: every tool takes no input, so every _probe is {}. Proven against docker traefik:v3.1, then destroyed."
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "spec_version": 1,
+  "id": "ip_api",
+  "name": "ip-api",
+  "category": "uncategorized",
+  "credentialType": "ip_api",
+  "requiredFields": [],
+  "docs": "https://ip-api.com/docs",
+  "base_url": "http://ip-api.com",
+  "auth": null,
+  "test": {
+    "method": "GET",
+    "path": "/json/"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "no_auth_detected"
+    ]
+  }
+}

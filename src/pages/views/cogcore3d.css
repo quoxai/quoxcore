@@ -1,0 +1,262 @@
+/**
+ * Cognitive Core 3D — HUD overlays, paywall animations
+ * CC-0 scaffolding phase
+ */
+
+/* ─── Pulse dot animation ────────────────────────────── */
+.cc3d-pulse-dot {
+  animation: cc3d-pulse 2s ease-in-out infinite;
+}
+
+@keyframes cc3d-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ─── Controls hint fade ─────────────────────────────── */
+.cc3d-controls-hint {
+  animation: cc3d-fade-in 0.6s ease;
+}
+
+@keyframes cc3d-fade-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ─── Paywall background grid ────────────────────────── */
+.cc3d-paywall-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(139, 92, 246, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 92, 246, 0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: cc3d-grid-drift 20s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes cc3d-grid-drift {
+  from { transform: translate(0, 0); }
+  to   { transform: translate(60px, 60px); }
+}
+
+/* ─── Paywall octahedron wireframe (CSS 3D) ──────────── */
+.cc3d-paywall-octahedron {
+  width: 100px;
+  height: 100px;
+  perspective: 400px;
+  position: relative;
+  z-index: 1;
+}
+
+.cc3d-paywall-octahedron-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  animation: cc3d-octa-spin 12s linear infinite;
+}
+
+.cc3d-paywall-octahedron-inner::before,
+.cc3d-paywall-octahedron-inner::after {
+  content: '';
+  position: absolute;
+  inset: 10%;
+  border: 1.5px solid rgba(139, 92, 246, 0.5);
+  transform: rotate(45deg);
+}
+
+.cc3d-paywall-octahedron-inner::after {
+  transform: rotate(45deg) rotateX(60deg);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+@keyframes cc3d-octa-spin {
+  from { transform: rotateX(20deg) rotateY(0deg); }
+  to   { transform: rotateX(20deg) rotateY(360deg); }
+}
+
+/* ─── Elite HUD subtle glow animation ────────────────── */
+.cc3d-elite-hud {
+  animation: cc3d-hud-fade-in 1.5s ease;
+}
+
+@keyframes cc3d-hud-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ─── Scanline sweep animation ──────────────────────── */
+@keyframes cc3d-scanline-sweep {
+  0%   { top: 0; }
+  100% { top: 100%; }
+}
+
+/* ─── CC3D Design Tokens (V2-QFY-4) ────────────────── */
+:root {
+  --cc3d-glass-bg: rgba(5, 5, 16, 0.88);
+  --cc3d-glass-bg-heavy: rgba(5, 5, 16, 0.95);
+  --cc3d-glass-border: rgba(139, 92, 246, 0.12);
+  --cc3d-glass-border-active: rgba(139, 92, 246, 0.3);
+  --cc3d-brand-violet: #8b5cf6;
+  --cc3d-brand-indigo: #6366f1;
+  --cc3d-brand-cyan: #06b6d4;
+  --cc3d-text-primary: rgba(255, 255, 255, 0.85);
+  --cc3d-text-secondary: rgba(255, 255, 255, 0.6);
+  --cc3d-text-muted: rgba(255, 255, 255, 0.35);
+  --cc3d-text-dim: rgba(255, 255, 255, 0.2);
+  --cc3d-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --cc3d-sidebar-width: 40px;
+  --cc3d-panel-width: 280px;
+  --cc3d-scanner-size: 320px;
+}
+
+/* ─── Responsive Breakpoints (V2-QFY-4) ────────────── */
+
+/* Tablet: collapse sidebar, smaller panels */
+@media (max-width: 1024px) {
+  :root {
+    --cc3d-panel-width: 240px;
+    --cc3d-scanner-size: 220px;
+  }
+}
+
+/* Mobile: hide sidebar, slide-up panels, smaller scanner */
+@media (max-width: 768px) {
+  :root {
+    --cc3d-sidebar-width: 0px;
+    --cc3d-panel-width: 100vw;
+    --cc3d-scanner-size: 160px;
+  }
+
+  /* Hide sidebar rail on mobile */
+  .cc3d-sidebar-rail {
+    display: none !important;
+  }
+
+  /* Info panel becomes full-width bottom sheet */
+  .cc3d-info-panel {
+    position: fixed !important;
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-height: 50vh !important;
+    border-radius: 12px 12px 0 0 !important;
+  }
+
+  /* Bottom controls stack vertically */
+  .cc3d-bottom-controls {
+    flex-direction: column !important;
+    gap: 4px !important;
+  }
+
+  /* Touch targets minimum 44px */
+  .cc3d-touch-target {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+
+  /* Hide scanline animation (performance) */
+  .cc3d-scanline {
+    display: none !important;
+  }
+}
+
+/* ─── Reduced Motion (Accessibility) ───────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .cc3d-pulse-dot,
+  .cc3d-cockpit-glass::after {
+    animation: none !important;
+  }
+  .cc3d-scanline {
+    display: none !important;
+  }
+  /* Disable all CSS transitions */
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Screen Reader Only ───────────────────────────── */
+.cc3d-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ─── Custom crosshair cursor ───────────────────────── */
+.cc3d-scene {
+  cursor: crosshair;
+}
+.cc3d-scene canvas {
+  cursor: crosshair;
+}
+
+/* ─── Glass cockpit overlay ─────────────────────────── */
+.cc3d-cockpit-glass {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 8;
+  /* Subtle curved window frame edges */
+  border: 1px solid rgba(139, 92, 246, 0.04);
+  border-radius: 12px;
+  /* Glass reflection — very subtle diagonal highlight */
+  background:
+    linear-gradient(135deg,
+      rgba(255, 255, 255, 0.012) 0%,
+      transparent 30%,
+      transparent 70%,
+      rgba(255, 255, 255, 0.008) 100%
+    );
+  /* Inner shadow simulating glass curvature */
+  box-shadow:
+    inset 0 0 80px rgba(0, 0, 0, 0.15),
+    inset 0 0 200px rgba(0, 0, 0, 0.08),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.02),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.01);
+}
+
+/* Corner brackets glow on the cockpit frame */
+.cc3d-cockpit-glass::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(139, 92, 246, 0.03);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+/* Faint horizontal reflection line that drifts */
+.cc3d-cockpit-glass::after {
+  content: '';
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(255, 255, 255, 0.015) 20%,
+    rgba(255, 255, 255, 0.025) 50%,
+    rgba(255, 255, 255, 0.015) 80%,
+    transparent
+  );
+  animation: cc3d-glass-reflect 25s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes cc3d-glass-reflect {
+  0% { top: 15%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 85%; opacity: 0; }
+}

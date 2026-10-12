@@ -1,0 +1,28 @@
+{
+  "spec_version": 1,
+  "id": "discord_webhook",
+  "name": "Discord Webhook",
+  "category": "communication",
+  "credentialType": "discord_webhook",
+  "requiredFields": [
+    "webhook_url"
+  ],
+  "docs": "https://discord.com/developers/docs/resources/webhook#get-webhook",
+  "base_url": {
+    "fromCredential": "webhook_url"
+  },
+  "auth": null,
+  "test": {
+    "method": "GET",
+    "path": "/"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "no_auth_detected"
+    ]
+  }
+}

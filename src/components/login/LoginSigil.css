@@ -1,0 +1,13 @@
+/* LoginSigil — only animation: subtle scale breath on the glyph itself.
+   No backgrounds, no auras, no rings. */
+
+.login-sigil {
+    display: block;
+    transform-origin: center;
+    animation: login-sigil-breath 4.5s ease-in-out infinite;
+}
+
+@keyframes login-sigil-breath {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.025); }
+}

@@ -1,0 +1,103 @@
+{
+  "spec_id": "papertrail",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:05.679Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://papertrailapp.com/quox-shapeproof-control-4c7f0c66",
+      "status": 404,
+      "latency_ms": 1454,
+      "classification": "CONTROL",
+      "body_sha256": "4bebc145f2a138e63e84ef723ed3b275cddd422cf9143a8b873fe492cae3e47b",
+      "body_excerpt": "<!DOCTYPE html>\n<html>\n  <head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width\">\n    <title>Papertrail :: 404 Not Found</title>\n    <link href=\"/error_pages.css\" medi",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://papertrailapp.com/api/v1/systems.json",
+      "status": 401,
+      "latency_ms": 535,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "82cacc83f152a50c54f60e43a77794b0d80373216d94c18751f94e36fe93777a",
+      "body_excerpt": "HTTP Basic: Access denied.\n",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_systems",
+      "method": "GET",
+      "url": "https://papertrailapp.com/api/v1/systems.json",
+      "status": 401,
+      "latency_ms": 615,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "82cacc83f152a50c54f60e43a77794b0d80373216d94c18751f94e36fe93777a",
+      "body_excerpt": "HTTP Basic: Access denied.\n",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_system",
+      "method": "GET",
+      "url": "https://papertrailapp.com/api/v1/systems/0.json",
+      "status": 401,
+      "latency_ms": 400,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "82cacc83f152a50c54f60e43a77794b0d80373216d94c18751f94e36fe93777a",
+      "body_excerpt": "HTTP Basic: Access denied.\n",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_groups",
+      "method": "GET",
+      "url": "https://papertrailapp.com/api/v1/groups.json",
+      "status": 401,
+      "latency_ms": 366,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "82cacc83f152a50c54f60e43a77794b0d80373216d94c18751f94e36fe93777a",
+      "body_excerpt": "HTTP Basic: Access denied.\n",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "search_events",
+      "method": "GET",
+      "url": "https://papertrailapp.com/api/v1/events/search.json?q=quoxprobe&system_id=quoxprobe&group_id=quoxprobe&limit=100&min_time=quoxprobe&max_time=quoxprobe",
+      "status": 401,
+      "latency_ms": 356,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "82cacc83f152a50c54f60e43a77794b0d80373216d94c18751f94e36fe93777a",
+      "body_excerpt": "HTTP Basic: Access denied.\n",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_archives",
+      "method": "GET",
+      "url": "https://papertrailapp.com/api/v1/archives.json",
+      "status": 401,
+      "latency_ms": 377,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "82cacc83f152a50c54f60e43a77794b0d80373216d94c18751f94e36fe93777a",
+      "body_excerpt": "HTTP Basic: Access denied.\n",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,234 @@
+{
+  "spec_version": 1,
+  "id": "mapbox",
+  "name": "Mapbox",
+  "category": "data_ai",
+  "credentialType": "mapbox",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://docs.mapbox.com/api/",
+  "base_url": "https://api.mapbox.com",
+  "auth": {
+    "type": "query",
+    "param": "access_token",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/geocoding/v5/mapbox.places/London.json",
+    "query": {
+      "limit": "1"
+    }
+  },
+  "tools_source": "https://docs.mapbox.com/api/search/geocoding-v5/",
+  "tools": [
+    {
+      "name": "geocode_forward",
+      "description": "Forward geocode a place name or address with Mapbox (returns matching places with coordinates)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Place name or address to search for (e.g. 10 Downing Street, London)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max matches to return (default 5, max 10)"
+          },
+          "country": {
+            "type": "string",
+            "description": "Optional comma-separated ISO 3166-1 alpha-2 country codes to limit results to (e.g. gb,ie)"
+          },
+          "types": {
+            "type": "string",
+            "description": "Optional comma-separated feature types to limit results to (e.g. address,place,postcode)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/geocoding/v5/mapbox.places/{{input.query}}.json",
+        "query": {
+          "limit": "{{clamp input.limit 5 10}}",
+          "country": "{{input.country}}",
+          "types": "{{input.types}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "query": "query",
+          "attribution": "attribution",
+          "features[]": {
+            "id": "id",
+            "place_name": "place_name",
+            "text": "text",
+            "relevance": "relevance",
+            "place_type": "place_type",
+            "center": "center"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "geocode_reverse",
+      "description": "Reverse geocode a longitude and latitude with Mapbox (returns the places containing that point)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "longitude": {
+            "type": "string",
+            "description": "Longitude in decimal degrees, -180 to 180 (e.g. -0.1276)"
+          },
+          "latitude": {
+            "type": "string",
+            "description": "Latitude in decimal degrees, -90 to 90 (e.g. 51.5072)"
+          },
+          "types": {
+            "type": "string",
+            "description": "Optional comma-separated feature types to limit results to (e.g. address,place,postcode)"
+          }
+        },
+        "required": [
+          "longitude",
+          "latitude"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/geocoding/v5/mapbox.places/{{input.longitude}},{{input.latitude}}.json",
+        "query": {
+          "types": "{{input.types}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "query": "query",
+          "attribution": "attribution",
+          "features[]": {
+            "id": "id",
+            "place_name": "place_name",
+            "text": "text",
+            "place_type": "place_type",
+            "center": "center"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.longitude": "-0.1276",
+        "input.latitude": "51.5072"
+      }
+    },
+    {
+      "name": "list_styles",
+      "description": "List the Mapbox styles owned by one account (style id, name, visibility and modified time)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Mapbox account username that owns the styles (e.g. mapbox)"
+          }
+        },
+        "required": [
+          "username"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/styles/v1/{{input.username}}"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "owner": "owner",
+            "visibility": "visibility",
+            "version": "version",
+            "created": "created",
+            "modified": "modified"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.username": "mapbox"
+      }
+    },
+    {
+      "name": "get_driving_directions",
+      "description": "Get a Mapbox driving route between waypoints (distance, duration and per-leg summary)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "coordinates": {
+            "type": "string",
+            "description": "Semicolon-separated longitude,latitude pairs, 2 to 25 waypoints (e.g. -0.1276,51.5072;-0.1419,51.5014)"
+          }
+        },
+        "required": [
+          "coordinates"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/directions/v5/mapbox/driving/{{input.coordinates}}",
+        "query": {
+          "overview": "false",
+          "steps": "false"
+        }
+      },
+      "response": {
+        "pick": {
+          "code": "code",
+          "routes[]": {
+            "distance": "distance",
+            "duration": "duration",
+            "weight_name": "weight_name",
+            "legs[]": {
+              "summary": "summary",
+              "distance": "distance",
+              "duration": "duration"
+            }
+          },
+          "waypoints[]": {
+            "name": "name",
+            "location": "location"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.coordinates": "-0.1276,51.5072;-0.1419,51.5014"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Tools added 2026-09-12 from the official Mapbox API reference (Geocoding v5 https://docs.mapbox.com/api/search/geocoding-v5/, Styles https://docs.mapbox.com/api/maps/styles/, Directions v5 https://docs.mapbox.com/api/navigation/directions/): all four are GET reads, no write tool is declared.",
+      "No token-management tool is declared. The Tokens API (/tokens/v2/{username}) returns token metadata, so exposing it as an agent tool would put credential material in tool output; it is deliberately out of scope.",
+      "The scaffolded test path /tokens/v2 was replaced with a documented Geocoding v5 read. Evidence: /tokens/v2 with an invalid token answers HTTP 200 with body {\"code\":\"TokenMalformed\"}, so it cannot distinguish a working credential from a broken one, and it is a token endpoint (see above). The geocoding read answers 401 {\"message\":\"Not Authorized - Invalid Token\"} with a dummy token and 200 with a real one.",
+      "The scaffolded query auth (access_token query parameter) is unchanged: it is what every Mapbox endpoint above documents and what the live 401 bodies confirm.",
+      "Geocoding v5 is Mapbox's long-standing endpoint and remains live; Mapbox also ships a newer Geocoding v6 (/search/geocode/v6/forward). If v5 is retired, these two tools move to v6 paths, which have a different response envelope.",
+      "_probe hints are public values only: the Mapbox-owned username 'mapbox' for style listing and public central-London coordinates for the reverse-geocode and directions routes, because a dummy string cannot route those paths."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

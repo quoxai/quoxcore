@@ -1,0 +1,90 @@
+{
+  "spec_id": "hetzner",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:43.760Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.hetzner.cloud/quox-shapeproof-control-294aa8d7",
+      "status": 404,
+      "latency_ms": 5220,
+      "classification": "CONTROL",
+      "body_sha256": "5202ded2fe88754fa7195695b5b684407ab36f17b9c7e961f53c1ca5459111a2",
+      "body_excerpt": "{\n  \"error\": {\n    \"message\": \"api route not found\",\n    \"code\": \"not_found\",\n    \"details\": null\n  }\n}\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.hetzner.cloud/v1/datacenters",
+      "status": 401,
+      "latency_ms": 49,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "ca7cadaf78b592f0fca9cfd4c3b9d121ba9610cf10d4e23fdde614b898c37d50",
+      "body_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"details\":null,\"message\":\"the token you have provided is invalid\"}}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_servers",
+      "method": "GET",
+      "url": "https://api.hetzner.cloud/v1/servers?per_page=25&status=quoxprobe&name=quoxprobe",
+      "status": 401,
+      "latency_ms": 57,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "ca7cadaf78b592f0fca9cfd4c3b9d121ba9610cf10d4e23fdde614b898c37d50",
+      "body_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"details\":null,\"message\":\"the token you have provided is invalid\"}}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_server",
+      "method": "GET",
+      "url": "https://api.hetzner.cloud/v1/servers/1",
+      "status": 401,
+      "latency_ms": 78,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "ca7cadaf78b592f0fca9cfd4c3b9d121ba9610cf10d4e23fdde614b898c37d50",
+      "body_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"details\":null,\"message\":\"the token you have provided is invalid\"}}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_datacenters",
+      "method": "GET",
+      "url": "https://api.hetzner.cloud/v1/datacenters?name=quoxprobe",
+      "status": 401,
+      "latency_ms": 71,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "ca7cadaf78b592f0fca9cfd4c3b9d121ba9610cf10d4e23fdde614b898c37d50",
+      "body_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"details\":null,\"message\":\"the token you have provided is invalid\"}}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_images",
+      "method": "GET",
+      "url": "https://api.hetzner.cloud/v1/images?per_page=25&type=quoxprobe&architecture=quoxprobe&name=quoxprobe",
+      "status": 401,
+      "latency_ms": 74,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "ca7cadaf78b592f0fca9cfd4c3b9d121ba9610cf10d4e23fdde614b898c37d50",
+      "body_excerpt": "{\"error\":{\"code\":\"unauthorized\",\"details\":null,\"message\":\"the token you have provided is invalid\"}}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

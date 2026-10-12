@@ -1,0 +1,283 @@
+/**
+ * ChatInput — Glass Design System
+ *
+ * Shared input component used in all chat interfaces.
+ * Glass-compliant: backdrop blur, cyan focus, no grey text.
+ * Compact-friendly for sidebar use.
+ */
+
+.chat-input {
+    padding: 12px 16px 16px;
+    border-top: none;
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.chat-input__form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+
+.chat-input__row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    /* Near-opaque dark pill. NO backdrop-filter (would re-blur the already-
+       blurred blue orbs coming through the main panel's ::before pseudo).
+       Near-solid opacity (0.92) so the blue can't bleed through at all.
+       Reads as "glassy tone" via inset rim + border, not actual blur. */
+    background: linear-gradient(180deg,
+        rgba(22, 24, 36, 0.92) 0%,
+        rgba(16, 18, 28, 0.94) 100%);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: var(--qx-radius);
+    padding: 10px 14px;
+    position: relative;
+    transition: border-color 0.2s ease, background 0.2s ease;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.18),
+        inset 0 -1px 0 rgba(0,0,0,0.45);
+}
+
+.chat-input__row:focus-within {
+    border-color: rgba(56,189,248,0.3);
+    border-top-color: rgba(56,189,248,0.35);
+    box-shadow:
+        0 0 16px rgba(56,189,248,0.06),
+        inset 0 1px 1px rgba(56,189,248,0.05);
+}
+
+/* Textarea */
+.chat-input__textarea {
+    flex: 1;
+    min-width: 0;
+    min-height: 40px;
+    max-height: 120px;
+    padding: 4px 2px;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 20px;
+    color: #fff;
+    position: relative;
+    z-index: 1;
+}
+
+.chat-input__textarea::placeholder {
+    color: rgba(255,255,255,0.8);
+}
+
+.chat-input__textarea:disabled {
+    opacity: 0.5;
+}
+
+/* Buttons — override global button reset from index.css */
+.chat-input .chat-input__file-btn,
+.chat-input .chat-input__send-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    min-height: 28px;
+    max-height: 28px;
+    padding: 0;
+    background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(168,85,247,0.1));
+    border: 1px solid rgba(56,189,248,0.25);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+}
+
+.chat-input .chat-input__file-btn {
+    background: transparent;
+    border-color: transparent;
+}
+
+.chat-input .chat-input__file-btn:hover:not(:disabled) {
+    background: rgba(56,189,248,0.08);
+    border-color: rgba(56,189,248,0.2);
+}
+
+.chat-input .chat-input__send-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(56,189,248,0.25), rgba(168,85,247,0.15));
+    border-color: rgba(56,189,248,0.4);
+    box-shadow: 0 0 12px rgba(56,189,248,0.15);
+    transform: scale(1.05);
+}
+
+.chat-input .chat-input__send-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+}
+
+.chat-input__send-btn:active:not(:disabled) {
+    transform: scale(0.92);
+}
+
+/* Queue state — amber */
+.chat-input .chat-input__send-btn--queue {
+    background: linear-gradient(135deg, rgba(251,191,36,0.2), rgba(245,158,11,0.1));
+    border-color: rgba(251,191,36,0.3);
+}
+
+.chat-input .chat-input__send-btn--queue:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(251,191,36,0.3), rgba(245,158,11,0.15));
+    box-shadow: 0 0 12px rgba(251,191,36,0.15);
+}
+
+/* Stop button — replaces send when processing */
+.chat-input .chat-input__stop-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    min-height: 28px;
+    max-height: 28px;
+    padding: 0;
+    background: rgba(255, 70, 50, 0.12);
+    border: 1px solid rgba(255, 70, 50, 0.35);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+    flex-shrink: 0;
+    animation: stop-btn-pulse 1.5s ease-in-out infinite;
+}
+
+.chat-input .chat-input__stop-btn:hover {
+    background: rgba(255, 70, 50, 0.25);
+    border-color: rgba(255, 70, 50, 0.6);
+    box-shadow: 0 0 12px rgba(255, 70, 50, 0.2);
+    transform: scale(1.05);
+}
+
+.chat-input .chat-input__stop-btn:active {
+    transform: scale(0.92);
+}
+
+@keyframes stop-btn-pulse {
+    0%, 100% { border-color: rgba(255, 70, 50, 0.35); }
+    50% { border-color: rgba(255, 70, 50, 0.6); }
+}
+
+/* File badge */
+.chat-input__file-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    background: #38bdf8;
+    border-radius: 7px;
+    font-size: 9px;
+    font-weight: 700;
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Voice button */
+.chat-input__voice-btn {
+    border-radius: 8px;
+    width: 30px;
+    height: 30px;
+}
+
+/* Hints */
+.chat-input__hints {
+    display: flex;
+    gap: 12px;
+    padding: 0 4px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.8);
+}
+
+.chat-input__hints kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 14px;
+    padding: 0 3px;
+    margin-right: 3px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 9px;
+    color: rgba(255,255,255,0.8);
+}
+
+/* Processing state */
+.chat-input--processing .chat-input__row {
+    border-color: rgba(251,191,36,0.25);
+    border-top-color: rgba(251,191,36,0.3);
+}
+
+.chat-input--processing .chat-input__textarea::placeholder {
+    color: rgba(251,191,36,0.45);
+}
+
+/* Has files state */
+.chat-input--has-files .chat-input__row {
+    border-color: rgba(48,255,144,0.2);
+    border-top-color: rgba(48,255,144,0.25);
+}
+
+/* Disabled state */
+.chat-input--disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* Voice error */
+.chat-input__voice-error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    font-size: 11px;
+    color: #f87171;
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.12);
+    border-radius: 6px;
+    cursor: pointer;
+    animation: voice-error-in 0.2s ease;
+}
+
+.chat-input__voice-error svg {
+    flex-shrink: 0;
+    color: #f87171;
+}
+
+@keyframes voice-error-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .chat-input {
+        padding: 8px;
+    }
+
+    .chat-input__hints {
+        display: none;
+    }
+}

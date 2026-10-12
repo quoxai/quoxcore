@@ -1,0 +1,105 @@
+{
+  "spec_id": "pinecone",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:07.785Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.pinecone.io/quox-shapeproof-control-e2fde048",
+      "status": 401,
+      "latency_ms": 740,
+      "classification": "CONTROL",
+      "body_sha256": "62756230472bf7ca599bdd95873eac5d3c6a96a58ec92789f5d7f0fcd7333389",
+      "body_excerpt": "{\"error\":{\"code\":\"UNAUTHENTICATED\",\"message\":\"Invalid API key\"},\"status\":401}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.pinecone.io/indexes",
+      "status": 401,
+      "latency_ms": 204,
+      "classification": "AUTH_WALL",
+      "body_sha256": "62756230472bf7ca599bdd95873eac5d3c6a96a58ec92789f5d7f0fcd7333389",
+      "body_excerpt": "{\"error\":{\"code\":\"UNAUTHENTICATED\",\"message\":\"Invalid API key\"},\"status\":401}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_indexes",
+      "method": "GET",
+      "url": "https://api.pinecone.io/indexes",
+      "status": 401,
+      "latency_ms": 173,
+      "classification": "AUTH_WALL",
+      "body_sha256": "62756230472bf7ca599bdd95873eac5d3c6a96a58ec92789f5d7f0fcd7333389",
+      "body_excerpt": "{\"error\":{\"code\":\"UNAUTHENTICATED\",\"message\":\"Invalid API key\"},\"status\":401}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "describe_index",
+      "method": "GET",
+      "url": "https://api.pinecone.io/indexes/quoxprobe",
+      "status": 401,
+      "latency_ms": 29,
+      "classification": "AUTH_WALL",
+      "body_sha256": "62756230472bf7ca599bdd95873eac5d3c6a96a58ec92789f5d7f0fcd7333389",
+      "body_excerpt": "{\"error\":{\"code\":\"UNAUTHENTICATED\",\"message\":\"Invalid API key\"},\"status\":401}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_collections",
+      "method": "GET",
+      "url": "https://api.pinecone.io/collections",
+      "status": 401,
+      "latency_ms": 28,
+      "classification": "AUTH_WALL",
+      "body_sha256": "62756230472bf7ca599bdd95873eac5d3c6a96a58ec92789f5d7f0fcd7333389",
+      "body_excerpt": "{\"error\":{\"code\":\"UNAUTHENTICATED\",\"message\":\"Invalid API key\"},\"status\":401}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "describe_collection",
+      "method": "GET",
+      "url": "https://api.pinecone.io/collections/quoxprobe",
+      "status": 401,
+      "latency_ms": 32,
+      "classification": "AUTH_WALL",
+      "body_sha256": "62756230472bf7ca599bdd95873eac5d3c6a96a58ec92789f5d7f0fcd7333389",
+      "body_excerpt": "{\"error\":{\"code\":\"UNAUTHENTICATED\",\"message\":\"Invalid API key\"},\"status\":401}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

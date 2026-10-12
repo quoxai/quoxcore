@@ -1,0 +1,247 @@
+{
+  "spec_version": 1,
+  "id": "bandwidth",
+  "name": "Bandwidth",
+  "category": "communication",
+  "credentialType": "bandwidth",
+  "requiredFields": [
+    "api_token",
+    "api_secret",
+    "account_id"
+  ],
+  "docs": "https://dev.bandwidth.com/apis/messaging/",
+  "base_url": "https://messaging.bandwidth.com",
+  "auth": {
+    "type": "basic",
+    "userField": "api_token",
+    "passField": "api_secret"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/users/{{account_id}}/messages"
+  },
+  "tools_source": "https://dev.bandwidth.com/apis/messaging/",
+  "tools": [
+    {
+      "name": "list_messages",
+      "description": "Search the Bandwidth message log for the account (last 14 days), filtered by direction, status, type, numbers, carrier, error code, campaign or date range",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max messages to return (default 20, max 100)"
+          },
+          "message_direction": {
+            "type": "string",
+            "enum": [
+              "INBOUND",
+              "OUTBOUND"
+            ],
+            "description": "Optional direction to filter by"
+          },
+          "message_status": {
+            "type": "string",
+            "enum": [
+              "RECEIVED",
+              "QUEUED",
+              "SENDING",
+              "SENT",
+              "FAILED",
+              "DELIVERED",
+              "ACCEPTED",
+              "UNDELIVERED"
+            ],
+            "description": "Optional message status to filter by"
+          },
+          "message_type": {
+            "type": "string",
+            "enum": [
+              "sms",
+              "mms",
+              "rcs"
+            ],
+            "description": "Optional message type to filter by"
+          },
+          "source_tn": {
+            "type": "string",
+            "description": "Optional sending telephone number in E.164 (e.g. +19195551234)"
+          },
+          "destination_tn": {
+            "type": "string",
+            "description": "Optional receiving telephone number in E.164 (e.g. +19195551234)"
+          },
+          "carrier_name": {
+            "type": "string",
+            "description": "Optional carrier name to filter by"
+          },
+          "error_code": {
+            "type": "number",
+            "description": "Optional Bandwidth error code to filter by"
+          },
+          "campaign_id": {
+            "type": "string",
+            "description": "Optional 10DLC campaign ID to filter by"
+          },
+          "from_date_time": {
+            "type": "string",
+            "description": "Start of the receive-time range, ISO 8601 (the log only covers the last 14 days)"
+          },
+          "to_date_time": {
+            "type": "string",
+            "description": "End of the receive-time range, ISO 8601"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Field and direction to sort by, colon separated (e.g. receiveTime:desc)"
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Pagination token returned as pageInfo.nextPageToken by a previous call"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/users/{{account_id}}/messages",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "messageDirection": "{{input.message_direction}}",
+          "messageStatus": "{{input.message_status}}",
+          "messageType": "{{input.message_type}}",
+          "sourceTn": "{{input.source_tn}}",
+          "destinationTn": "{{input.destination_tn}}",
+          "carrierName": "{{input.carrier_name}}",
+          "errorCode": "{{input.error_code}}",
+          "campaignId": "{{input.campaign_id}}",
+          "fromDateTime": "{{input.from_date_time}}",
+          "toDateTime": "{{input.to_date_time}}",
+          "sort": "{{input.sort}}",
+          "pageToken": "{{input.page_token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "totalCount": "totalCount",
+          "nextPageToken": "pageInfo.nextPageToken",
+          "prevPageToken": "pageInfo.prevPageToken",
+          "messages[]": {
+            "messageId": "messageId",
+            "sourceTn": "sourceTn",
+            "destinationTn": "destinationTn",
+            "messageStatus": "messageStatus",
+            "messageDirection": "messageDirection",
+            "messageType": "messageType",
+            "errorCode": "errorCode",
+            "receiveTime": "receiveTime",
+            "carrierName": "carrierName",
+            "segmentCount": "segmentCount",
+            "messageSize": "messageSize",
+            "recipientCount": "recipientCount",
+            "campaignId": "campaignId"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_message",
+      "description": "Look up one Bandwidth message by its message ID (delivery status, error code, carrier, timing)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "description": "Bandwidth message ID (the messageId returned by list_messages)"
+          }
+        },
+        "required": [
+          "message_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/users/{{account_id}}/messages",
+        "query": {
+          "messageId": "{{input.message_id}}",
+          "limit": "1"
+        }
+      },
+      "response": {
+        "pick": {
+          "totalCount": "totalCount",
+          "messages[]": {
+            "messageId": "messageId",
+            "sourceTn": "sourceTn",
+            "destinationTn": "destinationTn",
+            "messageStatus": "messageStatus",
+            "messageDirection": "messageDirection",
+            "messageType": "messageType",
+            "errorCode": "errorCode",
+            "receiveTime": "receiveTime",
+            "carrierName": "carrierName",
+            "segmentCount": "segmentCount",
+            "messageSize": "messageSize",
+            "messageLength": "messageLength",
+            "attachmentCount": "attachmentCount",
+            "recipientCount": "recipientCount",
+            "campaignClass": "campaignClass",
+            "campaignId": "campaignId",
+            "bwLatency": "bwLatency",
+            "carrierLatency": "carrierLatency"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_media",
+      "description": "List the MMS media files stored in the Bandwidth account (name, size, download URL)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "continuation_token": {
+            "type": "string",
+            "description": "Continuation token from a previous call's Continuation-Token response header"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/users/{{account_id}}/media",
+        "headers": {
+          "Continuation-Token": "{{input.continuation_token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "mediaName": "mediaName",
+            "contentLength": "contentLength",
+            "content": "content"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH UNCHANGED from the scaffold: every Bandwidth API takes HTTP Basic with the API credential pair as username and password (their OpenAPI declares securitySchemes.Basic), which is auth.type basic + userField api_token + passField api_secret. The probe confirms the scheme: messaging.bandwidth.com answers a dummy pair with 401 and WWW-Authenticate: Basic realm=\"Realm\".",
+      "account_id is a CREDENTIAL rendered into the path, not a tool input, exactly as twilio.connector.json renders account_sid. Bandwidth is account-scoped at the URL level, so there is nothing for a caller to choose and no tenant slug to guess: the shape-proof harness substitutes the dummy credential and the route still resolves.",
+      "base_url moved from dashboard.bandwidth.com (scaffolded) to messaging.bandwidth.com. This is a FORMAT constraint, not a preference: dashboard.bandwidth.com is the legacy Numbers/Account API and speaks XML for both requests and responses, while declarativeRuntime.js parses every response with resp.json(), so any tool pointed there would throw on a successful call. messaging.bandwidth.com is JSON, per Bandwidth's own OpenAPI document (bandwidth.yml in Bandwidth/python-sdk). The registry's own testEndpoint still points at the dashboard host and is untouched by this spec.",
+      "ONE HOST PER SPEC, so the voice, MFA, toll-free-verification and number-lookup surfaces are out of scope here rather than silently half-wired. Two of them are also not blind-provable: voice.bandwidth.com sits behind a Cloudflare WAF that answers EVERY path, real or bogus, with an identical 403 text/html '404 - Not Found / Request not logged', and api.bandwidth.com answered /v2/accounts/{id}/endpoints and /v2/accounts/{id}/phoneNumberLookup/bulk/{id} with 404, so those two server URLs in Bandwidth's published OpenAPI are stale.",
+      "The read surface really is this small. Bandwidth's messaging API publishes exactly three GETs (list messages, list media, download one media file) and the media download returns a binary body, so it is deliberately absent: the runtime would try to JSON-parse an image. get_message is the documented messageId filter on the same log endpoint, not a separate route.",
+      "READ-ONLY by design: no tool is marked write:true. Send message, upload media and delete media are all absent.",
+      "Response picks are documentation-derived, not data-verified: a dummy credential never yields a success body. Field names and query-parameter names come from Bandwidth's published OpenAPI (bandwidth.yml, GET /users/{accountId}/messages and GET /users/{accountId}/media), including the totalCount + pageInfo envelope and the root-array media response.",
+      "PATH PROOF IS WEAKER HERE THAN THE CLASS LABEL SUGGESTS. messaging.bandwidth.com enforces auth in front of routing: /api/v2/users/{account}/quox-bogus-subpath and /api/v2/bogus-root both answer 401 {\"description\":\"Authentication Failed\",\"type\":\"unauthorized\"}, identical to the real paths. The harness control probe fires at the host root, where an AWS load balancer answers 503 rather than a 404, so the differential rests on a status difference against an infrastructure error page. Host, TLS, basic-auth handling and the credential-in-path rendering are proven by this run; the individual routes rest on Bandwidth's OpenAPI, and only a real account credential can confirm them."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

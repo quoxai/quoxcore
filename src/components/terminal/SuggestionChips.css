@@ -1,0 +1,58 @@
+/* SuggestionChips — horizontal pill row below assistant messages */
+
+.suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0 2px;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  contain: layout style;
+}
+
+.suggestion-chips--hidden {
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+}
+
+.suggestion-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #a1a1aa;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+  will-change: background, border-color, color;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.suggestion-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #e4e4e7;
+}
+
+.suggestion-chip__icon {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  line-height: 1;
+  opacity: 0.6;
+}
+
+.suggestion-chip:hover .suggestion-chip__icon {
+  opacity: 0.9;
+}
+
+.suggestion-chip__label {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

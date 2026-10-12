@@ -1,0 +1,166 @@
+/* MessageContextPanel — QCX-5i */
+
+.mcp {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  width: 480px;
+  max-width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mcp__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+.mcp__head h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+}
+.mcp__close {
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+}
+.mcp__close:hover { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.95); }
+
+.mcp__status,
+.mcp__empty,
+.mcp__error {
+  padding: 24px 16px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+}
+.mcp__empty-detail { font-size: 11px; opacity: 0.7; margin-top: 8px; }
+.mcp__error { color: #fca5a5; }
+
+.mcp__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding: 14px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.mcp__section h4 {
+  margin: 0 0 8px 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.mcp__meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+.mcp__meta dt {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+}
+.mcp__meta dd { margin: 0; }
+.mcp__mono { font-family: 'SF Mono', Menlo, Consolas, monospace; }
+
+.mcp__pre {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.mcp__messages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mcp__msg {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.mcp__msg--user      { border-left: 3px solid #00e5ff; }
+.mcp__msg--assistant { border-left: 3px solid #a855f7; }
+.mcp__msg--system    { border-left: 3px solid rgba(255, 255, 255, 0.3); font-style: italic; }
+.mcp__msg-role {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 4px;
+}
+.mcp__msg-content { white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+
+.mcp__chunks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.mcp__chunk {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.mcp__chunk[data-pinned="true"] { border-color: rgba(0, 229, 255, 0.4); }
+.mcp__chunk-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.mcp__pin { color: #00e5ff; }
+.mcp__chunk-source { font-family: 'SF Mono', Menlo, Consolas, monospace; font-weight: 600; }
+.mcp__chunk-section { color: rgba(255, 255, 255, 0.55); }
+.mcp__chunk-score {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.mcp__chunk-score--high { background: rgba(34, 197, 94, 0.20);  color: #86efac; }
+.mcp__chunk-score--med  { background: rgba(245, 158, 11, 0.20); color: #fcd34d; }
+.mcp__chunk-score--low  { background: rgba(239, 68, 68, 0.20);  color: #fca5a5; }
+.mcp__chunk-body {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mcp__hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+}

@@ -1,0 +1,1292 @@
+/**
+ * MATRIX-P5 — Scoped "Matrix-movie" phosphor-green theme for MatrixCommsView.
+ *
+ * SCOPING RULE: every selector below is prefixed with `.matrix-comms-theme`
+ * (the class applied ONLY to MatrixCommsView's root `.qx-view`). Nothing
+ * here touches global --qx-*/--m-*/--glass-* tokens or any other surface —
+ * it is a house-style-sanctioned exception (glass-design-system skill:
+ * "the ONE justified exception to no-per-page-CSS — a scoped
+ * theme-variable block") because (a) the owner wants Matrix features to
+ * read in a deliberately different phosphor green than the rest of Quox's
+ * cyan/purple palette, and (b) a few interactions here (pulse glow,
+ * hover-reveal timestamps, prefers-reduced-motion gating) need real CSS —
+ * they cannot be expressed as inline styles.
+ *
+ * Tune the green in ONE place: the custom properties below.
+ */
+
+.matrix-comms-theme {
+  --matrix-green: #39ff6a;
+  --matrix-green-soft: rgba(57, 255, 106, 0.14);
+  --matrix-green-border: rgba(57, 255, 106, 0.38);
+  --matrix-green-glow: rgba(57, 255, 106, 0.45);
+  --matrix-green-glow-soft: rgba(57, 255, 106, 0.22);
+}
+
+/* ── Witnessed pill: soft green glow + gentle pulse ─────────────────────── */
+.matrix-comms-theme .mc-witnessed-pill {
+  background: var(--matrix-green-soft) !important;
+  border-color: var(--matrix-green-border) !important;
+  color: var(--matrix-green) !important;
+  box-shadow: 0 0 10px var(--matrix-green-glow-soft);
+  animation: mc-witness-pulse 3.2s ease-in-out infinite;
+}
+@keyframes mc-witness-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(57, 255, 106, 0.22); }
+  50%      { box-shadow: 0 0 16px rgba(57, 255, 106, 0.5); }
+}
+
+/* ── Agent accents: chips, badges, avatars ──────────────────────────────── */
+.matrix-comms-theme .qx-chip--brand {
+  border-color: var(--matrix-green-border);
+  color: var(--matrix-green);
+}
+.matrix-comms-theme .qx-pill--info {
+  background: var(--matrix-green-soft);
+  border-color: var(--matrix-green-border);
+  color: var(--matrix-green);
+}
+.matrix-comms-theme .mc-agent-avatar {
+  background: linear-gradient(135deg, rgba(57, 255, 106, 0.32), rgba(57, 255, 106, 0.08));
+  border-color: var(--matrix-green-border);
+}
+.matrix-comms-theme .mc-group-agents {
+  color: var(--matrix-green);
+}
+
+/* ── Presence dots: online reads matrix-green in this view ─────────────── */
+.matrix-comms-theme .qx-dot--online,
+.matrix-comms-theme .qx-avatar__status {
+  --qx-dot-color: var(--matrix-green);
+}
+
+/* ── Selected room highlight ─────────────────────────────────────────────
+   Beats .glass-nav.active (0,2,0) via ancestor class (0,3,0) — no !important
+   needed, and it only applies inside this view. The inset left edge is the
+   mockup's active-room marker (ROOMS-GREEN, mcx-room.is-active parity). */
+.matrix-comms-theme .glass-nav.active {
+  background: linear-gradient(145deg, rgba(57, 255, 106, 0.16) 0%, rgba(57, 255, 106, 0.03) 100%);
+  border-top-color: var(--matrix-green-border);
+  border-left-color: var(--matrix-green-glow-soft);
+  box-shadow: inset 2px 0 0 var(--matrix-green);
+}
+
+/* Room-row hover glow (ROOMS-GREEN): a faint green wash instead of the
+   default white one. !important because RoomRow sets an inline transparent
+   background; :not(.active) keeps the selected gradient untouched. */
+.matrix-comms-theme .mc-room-row:not(.active):hover {
+  background: rgba(57, 255, 106, 0.055) !important;
+}
+
+/* ── Send button + header title accent ────────────────────────────────────
+   ROOMS-GREEN density pass: the enabled send button carries a standing
+   green fill + glow (mockup mcx-send), not just a hover state. */
+.matrix-comms-theme .mc-send-btn:not(:disabled) {
+  color: var(--matrix-green);
+  background: var(--matrix-green-soft);
+  border-top-color: var(--matrix-green-border);
+  box-shadow: 0 0 10px var(--matrix-green-glow-soft);
+}
+.matrix-comms-theme .mc-send-btn:not(:disabled):hover {
+  background: rgba(57, 255, 106, 0.24);
+  box-shadow: 0 0 18px var(--matrix-green-glow);
+}
+.matrix-comms-theme .mc-header-title {
+  text-shadow: 0 0 14px var(--matrix-green-glow-soft);
+}
+
+/* Room header underglow (ROOMS-GREEN): a soft green bleed under the header
+   edge, on top of the existing digital-rain sheen. */
+.matrix-comms-theme .mc-room-header {
+  box-shadow: 0 10px 26px -20px var(--matrix-green-glow);
+}
+
+/* ── Message row (bubble timeline) ────────────────────────────────────────
+   The old full-width Slack-style hover wash is gone (owner ask: "Telegram/
+   WhatsApp, not IRC"); the row hover now only reveals the trailing
+   affordances (add-reaction, shield) via the rules further down. The
+   .mc-msg-ts-hover rules are retired with the hover timestamp itself: the
+   time lives inside each bubble now (see .mc-bubble-ts below). */
+.matrix-comms-theme .mc-msg-row {
+  border-radius: 8px;
+}
+
+/* Fade-in for newly rendered message groups (mount-only, not continuous). */
+.matrix-comms-theme .mc-msg-group {
+  animation: mc-fade-in 0.22s ease;
+}
+@keyframes mc-fade-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Person row (people panel) hover ─────────────────────────────────────────
+   Row height/padding/gap (comfortable 2-line rhythm, M-P5 vertical-cramping
+   fix) live as inline styles on PeopleRow/RoomRow in MatrixCommsView.jsx,
+   matching this component's existing box-model convention — only the
+   hover/transition behaviour that inline styles can't express lives here. */
+.matrix-comms-theme .mc-person-row {
+  transition: background-color 0.15s ease;
+  cursor: default;
+}
+.matrix-comms-theme .mc-person-row:hover {
+  background: rgba(57, 255, 106, 0.055);
+}
+
+/* ── People panel + room-list panel smooth collapse ─────────────────────── */
+.matrix-comms-theme .mc-people-panel,
+.matrix-comms-theme .mc-room-list-panel {
+  transition: width 0.2s ease;
+}
+
+/* ── Room-select transition ──────────────────────────────────────────────── */
+.matrix-comms-theme .mc-room-content {
+  transition: opacity 0.15s ease;
+}
+
+/* ── Digital-rain sheen — room header ONLY, extremely subtle, low opacity ── */
+.matrix-comms-theme .mc-room-header {
+  position: relative;
+  isolation: isolate;
+}
+.matrix-comms-theme .mc-room-header::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 0%, rgba(57, 255, 106, 0.035) 45%, transparent 100%);
+  background-size: 100% 240%;
+  animation: mc-rain-sheen 16s linear infinite;
+}
+@keyframes mc-rain-sheen {
+  0%   { background-position: 0 -70%; }
+  100% { background-position: 0 70%; }
+}
+
+/* ── Empty states — static faint "falling code" columns, no animation ──── */
+.matrix-comms-theme .mc-empty-state {
+  position: relative;
+  isolation: isolate;
+}
+.matrix-comms-theme .mc-empty-state::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, rgba(57, 255, 106, 0.05) 0px, rgba(57, 255, 106, 0.05) 1px, transparent 1px, transparent 28px),
+    radial-gradient(circle at 50% 35%, rgba(57, 255, 106, 0.06), transparent 60%);
+}
+
+/* ── Reactions (MATRIX-P5b) ──────────────────────────────────────────────
+   Add-reaction affordance is hover-revealed like the message timestamp
+   (.mc-msg-ts-hover above); it stays visible while its own picker is open
+   so moving the pointer into the picker doesn't hide the trigger. Reaction
+   chips reuse the global .qx-chip/.qx-chip--xs primitives — the "you
+   reacted" state gets the scoped Matrix-green accent, matching every other
+   agent/witnessed accent in this view. */
+.matrix-comms-theme .mc-react-add-btn {
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.matrix-comms-theme .mc-msg-row:hover .mc-react-add-btn,
+.matrix-comms-theme .mc-react-add-btn--open {
+  opacity: 0.7;
+}
+.matrix-comms-theme .mc-react-add-btn:hover {
+  opacity: 1 !important;
+  color: var(--matrix-green);
+}
+
+.matrix-comms-theme .mc-reactions-row {
+  flex-wrap: wrap;
+}
+
+.matrix-comms-theme .mc-reaction-chip {
+  padding: 2px 7px;
+  gap: 4px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.matrix-comms-theme .mc-reaction-chip .mc-reaction-count {
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+.matrix-comms-theme .mc-reaction-chip--mine {
+  background: var(--matrix-green-soft);
+  border-color: var(--matrix-green-border);
+  color: var(--matrix-green);
+}
+.matrix-comms-theme .mc-reaction-chip--mine .mc-reaction-count {
+  opacity: 1;
+}
+
+.matrix-comms-theme .mc-reaction-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: 176px;
+}
+.matrix-comms-theme .mc-reaction-picker-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.matrix-comms-theme .mc-reaction-picker-emoji:hover {
+  background: var(--matrix-green-soft);
+  border-color: var(--matrix-green-border);
+}
+
+/* ── Day separators (MATRIX-P5c) ─────────────────────────────────────────── */
+.matrix-comms-theme .mc-day-separator-line {
+  flex: 1;
+  height: 1px;
+  background: var(--glass-edge-dim, rgba(255, 255, 255, 0.1));
+}
+.matrix-comms-theme .mc-day-separator-pill {
+  flex-shrink: 0;
+  opacity: 0.65;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* ── Typing indicator (MATRIX-P5c) ───────────────────────────────────────── */
+.matrix-comms-theme .mc-typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.matrix-comms-theme .mc-typing-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--matrix-green);
+  opacity: 0.4;
+  animation: mc-typing-bounce 1.2s ease-in-out infinite;
+}
+.matrix-comms-theme .mc-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.matrix-comms-theme .mc-typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes mc-typing-bounce {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30%           { opacity: 1;    transform: translateY(-2px); }
+}
+
+/* ── Scroll-to-bottom affordance (MATRIX-P5c) ────────────────────────────── */
+.matrix-comms-theme .mc-jump-bottom-pill {
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 6px 14px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), 0 0 10px var(--matrix-green-glow-soft);
+  animation: mc-jump-in 0.18s ease;
+}
+@keyframes mc-jump-in {
+  from { opacity: 0; transform: translate(-50%, 6px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ── Composer focus ring (MATRIX-P5c) ────────────────────────────────────── */
+.matrix-comms-theme .mc-composer-input:focus {
+  box-shadow: 0 0 0 2px var(--matrix-green-glow-soft);
+  border-color: var(--matrix-green-border);
+}
+
+/* ── @-mentions (chat-app polish) ─────────────────────────────────────────
+   `.mc-mention-pill` highlights a resolved @mention inside a message body
+   (see renderMessageBody in MatrixCommsView.jsx). `.mc-mentionable` is the
+   hover affordance on a clickable sender name in the timeline — People
+   panel rows reuse the existing `.mc-person-row` hover already defined
+   above, so they don't need a second class. */
+.matrix-comms-theme .mc-mention-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+  margin: 0 1px;
+  border-radius: 5px;
+  background: var(--matrix-green-soft);
+  color: var(--matrix-green);
+  font-weight: 700;
+  border: 1px solid var(--matrix-green-border);
+}
+.matrix-comms-theme .mc-mentionable:hover {
+  text-decoration: underline;
+  color: var(--matrix-green);
+}
+
+/* ── Mention autocomplete popover (composer) ─────────────────────────────── */
+.matrix-comms-theme .mc-mention-autocomplete {
+  position: absolute;
+  bottom: 100%;
+  left: 12px;
+  margin-bottom: 8px;
+  width: 220px;
+  max-height: 208px;
+  overflow-y: auto;
+  z-index: 26;
+  background: linear-gradient(160deg, rgba(10, 22, 15, 0.88), rgba(5, 12, 9, 0.94));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--matrix-green-border);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4), 0 0 16px var(--matrix-green-glow-soft);
+  border-radius: 10px;
+  padding: 6px;
+  animation: mc-popover-in 0.14s ease;
+}
+.matrix-comms-theme .mc-mention-autocomplete-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 7px;
+  text-align: left;
+  background: transparent;
+  margin-bottom: 2px;
+}
+.matrix-comms-theme .mc-mention-autocomplete-item:hover {
+  background: var(--matrix-green-soft);
+}
+
+/* ── Live per-agent thinking indicator ────────────────────────────────────
+   Reuses the typing indicator's dots/layout; the icon tints matrix-green to
+   read distinctly from a human's "is typing" row. */
+.matrix-comms-theme .mc-thinking-indicator svg {
+  stroke: var(--matrix-green);
+  opacity: 0.8;
+}
+
+/* ── Invite-agent popover: glass treatment + clean anchor ─────────────────
+   Backdrop-blur + translucent green-tinted background + green-edged border
+   + drop shadow, consistent with the rest of this view's glass language.
+   A small caret points back at the "Invite agent" trigger button so the
+   popover reads as anchored to it rather than floating ambiguously. */
+.matrix-comms-theme .mc-invite-popover {
+  background: linear-gradient(160deg, rgba(10, 22, 15, 0.85), rgba(5, 12, 9, 0.94));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--matrix-green-border);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45), 0 0 22px var(--matrix-green-glow-soft);
+  animation: mc-popover-in 0.16s ease;
+}
+.matrix-comms-theme .mc-invite-popover::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 22px;
+  width: 12px;
+  height: 12px;
+  background: rgba(8, 18, 12, 0.9);
+  border-left: 1px solid var(--matrix-green-border);
+  border-top: 1px solid var(--matrix-green-border);
+  transform: rotate(45deg);
+}
+
+@keyframes mc-popover-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Room-type tab bar (CORECOMM-UX #190) ─────────────────────────────────
+   Reuses the global .qx-tabs/.qx-tab pill primitives (see qx-components.css
+   §14 TABS), stretched into a full-width strip across the top of the view
+   (above the sidebar+message-pane row) rather than living inside the narrow
+   288px sidebar. Wraps onto a second row when several type tabs are
+   visible, and falls back to horizontal scrolling on very narrow widths so
+   it never pushes the view wider than the viewport. The active tab gets
+   this view's matrix-green accent instead of the global purple/cyan one,
+   matching every other active/selected state here (.qx-pill--info,
+   .glass-nav.active, above). */
+.matrix-comms-theme .mc-room-tabs {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+  overflow-x: auto;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 8px 4px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--glass-edge-dim);
+  border-radius: 0;
+  box-shadow: none;
+}
+.matrix-comms-theme .mc-room-tab {
+  padding: 4px 9px;
+  font-size: 11px;
+}
+.matrix-comms-theme .mc-room-tab-count {
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+.matrix-comms-theme .mc-room-tab.qx-tab--active {
+  background: linear-gradient(145deg, var(--matrix-green-soft), rgba(57, 255, 106, 0.03));
+  border-color: var(--matrix-green-border);
+  color: var(--matrix-green);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 12px var(--matrix-green-glow-soft);
+}
+.matrix-comms-theme .mc-room-tab.qx-tab--active .mc-room-tab-count {
+  opacity: 0.9;
+}
+
+/* Public tab (org-wide open rooms, not built yet), greyed, non-interactive
+   placeholder with a small "COMING SOON" pill. No onClick in the JSX,
+   aria-disabled, reduced opacity, and a not-allowed cursor so hovering makes
+   the deactivation obvious (pointer-events: none would suppress the cursor,
+   so the "never clickable" guarantee is the missing handler instead).
+
+   ROOT CAUSE of the owner-reported "active hover same as the rest": the tab
+   is a <span>, so the global `.qx-tab:disabled` grey never applies, and the
+   global `.qx-tab:hover:not(:disabled):not(.qx-tab--active)` hover wash has
+   specificity (0,4,0), so it BEAT the scoped (0,2,0) rules here and the tab
+   lit up on hover like a live one. The :hover/:active overrides below carry
+   (0,5,0) to win outright. */
+.matrix-comms-theme .mc-room-tab--soon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.4;
+  cursor: not-allowed;
+  user-select: none;
+}
+.matrix-comms-theme .mc-room-tabs .qx-tab.mc-room-tab--soon,
+.matrix-comms-theme .mc-room-tabs .qx-tab.mc-room-tab--soon:hover,
+.matrix-comms-theme .mc-room-tabs .qx-tab.mc-room-tab--soon:active {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  transform: none;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.matrix-comms-theme .mc-room-tab-soon-badge {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+/* Unread bubble: small filled accent pill next to a tab's room count,
+   only rendered when that bucket has >=1 unread room (CORECOMM-UX #190b). */
+/* Unread indicator: a dot, deliberately NOT a number. A numeric unread pill
+   sitting next to the room-count number read as a duplicate count (owner
+   report "double entries"). The count stays numeric; unread is presence. */
+.matrix-comms-theme .mc-room-tab-unread {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: var(--status-error, #ef4444);
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+  align-self: center;
+}
+
+/* ── Row actions: favourite star + kebab (ROOMS-FAV / ROOMS-CTX) ──────────
+   Hover-revealed trailing affordances on room / roster / people rows,
+   matching the .mc-react-add-btn hover-reveal convention. An active
+   (favourited) star stays visible in the amber status accent. */
+.matrix-comms-theme .mc-row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  opacity: 0;
+  cursor: pointer;
+  color: var(--glass-text-secondary, rgba(255, 255, 255, 0.65));
+  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+.matrix-comms-theme .mc-room-row:hover .mc-row-action,
+.matrix-comms-theme .mc-person-row:hover .mc-row-action,
+.matrix-comms-theme .mc-row-action:focus-visible {
+  opacity: 0.75;
+}
+.matrix-comms-theme .mc-row-action:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+.matrix-comms-theme .mc-room-star--active {
+  opacity: 1;
+  color: var(--status-amber, #d9a441);
+}
+.matrix-comms-theme .mc-room-star--active:hover {
+  color: var(--status-amber, #d9a441);
+}
+.matrix-comms-theme .mc-room-star:hover {
+  color: var(--status-amber, #d9a441);
+}
+
+/* Header favourite toggle: amber fill when the room is favourited. */
+.matrix-comms-theme .mc-fav-btn--active {
+  color: var(--status-amber, #d9a441);
+  border-top-color: rgba(217, 164, 65, 0.45);
+}
+.matrix-comms-theme .mc-fav-btn:hover {
+  color: var(--status-amber, #d9a441);
+}
+
+/* ── Row context flyout (ROOMS-CTX) ───────────────────────────────────────
+   Same glass treatment as the invite-agent popover / mention autocomplete,
+   but position: fixed and viewport-clamped by ContextFlyout in the JSX
+   (it anchors at the cursor or under a row's kebab, not to a parent). */
+.matrix-comms-theme .mc-context-flyout {
+  /* Owner ask: the agents menu read "crammed vertically". Wider flyout,
+     roomier item padding, uniform icon column (rules below). */
+  min-width: 200px;
+  background: linear-gradient(160deg, rgba(10, 22, 15, 0.88), rgba(5, 12, 9, 0.94));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--matrix-green-border);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), 0 0 18px var(--matrix-green-glow-soft);
+  border-radius: 10px;
+  animation: mc-popover-in 0.14s ease;
+}
+.matrix-comms-theme .mc-context-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  margin-bottom: 2px;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+/* Uniform icon column so labels align regardless of each glyph's intrinsic
+   size (the vertical-cramming fix's second half). */
+.matrix-comms-theme .mc-context-item svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+.matrix-comms-theme .mc-context-item:last-child {
+  margin-bottom: 0;
+}
+.matrix-comms-theme .mc-context-item:hover {
+  background: var(--matrix-green-soft);
+  color: var(--matrix-green);
+}
+.matrix-comms-theme .mc-context-item--active {
+  color: var(--status-amber, #d9a441);
+}
+.matrix-comms-theme .mc-context-item--active:hover {
+  background: rgba(217, 164, 65, 0.12);
+  color: var(--status-amber, #d9a441);
+}
+/* Destructive action (Remove chat) + its inline are-you-sure state. */
+.matrix-comms-theme .mc-context-item--danger:hover {
+  background: rgba(255, 125, 125, 0.1);
+  color: #ff8f8f;
+}
+.matrix-comms-theme .mc-context-item--confirming,
+.matrix-comms-theme .mc-context-item--confirming:hover {
+  background: rgba(255, 125, 125, 0.14);
+  color: #ff8f8f;
+}
+/* Stubbed items (Tags (soon)): visibly parked, never interactive. */
+.matrix-comms-theme .mc-context-item--disabled,
+.matrix-comms-theme .mc-context-item--disabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--glass-text-secondary, rgba(255, 255, 255, 0.65));
+}
+
+/* ── Section group headers (ROOMS-GREEN, mockup mcx-group parity) ─────────
+   The sidebar/people-panel group labels ("AGENT ROOMS", "AGENTS", ...) get
+   the mockup's letter-spaced dim-green treatment. Letter-spacing lives
+   inline on GroupHeader (box-model convention); colour lives here. The
+   existing .mc-group-agents accent still wins for the agents groups. */
+.matrix-comms-theme .mc-group-header {
+  color: rgba(57, 255, 106, 0.75);
+}
+
+/* ── Bridged-source pills (mockup mcx-bridge parity, exact colors) ──────── */
+.matrix-comms-theme .mc-bridge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.5;
+}
+.matrix-comms-theme .mc-bridge--telegram {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+.matrix-comms-theme .mc-bridge--slack {
+  color: #c084fc;
+  background: rgba(192, 132, 252, 0.12);
+  border: 1px solid rgba(192, 132, 252, 0.3);
+}
+
+/* ── Bridge tabs (Telegram / Slack, owner ask) ────────────────────────────
+   Small leading network dot on the room-type tab (inline SVG in the JSX,
+   fill = the mc-bridge--* pill color above). .qx-tab is inline-flex with a
+   6px gap, so the dot slots in as a normal child; just keep it from
+   shrinking on narrow tab bars. */
+.matrix-comms-theme .mc-room-tab-bridge-dot {
+  flex-shrink: 0;
+  align-self: center;
+}
+/* Empty bridge tab reads as informative, not broken: the dim-green
+   group-header treatment on the "No X-bridged rooms visible..." line. */
+.matrix-comms-theme .mc-empty-state--bridge {
+  color: rgba(57, 255, 106, 0.65);
+}
+
+/* ── Message-head tags: agent role + "you" (mcx-role / mcx-you parity) ──── */
+.matrix-comms-theme .mc-role {
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.matrix-comms-theme .mc-you {
+  font-size: 8.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--matrix-green);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(57, 255, 106, 0.3);
+}
+
+/* ── Per-message witnessed shield (mcx-msg-shield parity) ─────────────────
+   Sits at the far right of the message-group header row. */
+.matrix-comms-theme .mc-msg-shield {
+  font-size: 10px;
+  color: rgba(57, 255, 106, 0.55);
+  margin-left: auto;
+  cursor: default;
+  flex-shrink: 0;
+}
+
+/* ── System lines (mcx-sysline parity): centered, dim, mono-ish ─────────── */
+.matrix-comms-theme .mc-sysline {
+  text-align: center;
+  font-size: 10.5px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: rgba(57, 255, 106, 0.65);
+  padding: 6px 12px;
+  margin: 0 auto;
+  max-width: 92%;
+  border-top: 1px dashed rgba(57, 255, 106, 0.18);
+  border-bottom: 1px dashed rgba(57, 255, 106, 0.18);
+}
+
+/* ── HITL proposal card (mcx-proposal parity, wired to real reactions) ──── */
+.matrix-comms-theme .mc-proposal {
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: rgba(57, 255, 106, 0.05);
+  border: 1px solid rgba(57, 255, 106, 0.3);
+  box-shadow: inset 0 0 20px rgba(57, 255, 106, 0.04);
+}
+.matrix-comms-theme .mc-proposal--awaiting {
+  border-color: rgba(57, 255, 106, 0.55);
+  animation: mc-proposal-await-glow 2s ease-in-out infinite;
+}
+@keyframes mc-proposal-await-glow {
+  0%, 100% { box-shadow: inset 0 0 20px rgba(57, 255, 106, 0.05); }
+  50%      { box-shadow: inset 0 0 24px rgba(57, 255, 106, 0.09), 0 0 16px 0 rgba(57, 255, 106, 0.3); }
+}
+.matrix-comms-theme .mc-proposal--approved {
+  border-color: rgba(57, 255, 106, 0.5);
+  background: rgba(57, 255, 106, 0.07);
+}
+.matrix-comms-theme .mc-proposal--declined {
+  border-color: rgba(255, 125, 125, 0.45);
+  background: rgba(255, 125, 125, 0.05);
+  opacity: 0.85;
+}
+.matrix-comms-theme .mc-proposal-head {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffd166;
+  margin-bottom: 6px;
+}
+.matrix-comms-theme .mc-proposal-warn {
+  margin-right: 4px;
+}
+.matrix-comms-theme .mc-proposal-decided {
+  font-size: 12px;
+  font-weight: 700;
+}
+.matrix-comms-theme .mc-proposal-decided--yes { color: var(--matrix-green); }
+.matrix-comms-theme .mc-proposal-decided--no  { color: #ff8f8f; }
+.matrix-comms-theme .mc-proposal-action {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 10px;
+  overflow-wrap: anywhere;
+}
+.matrix-comms-theme .mc-proposal--approved .mc-proposal-action,
+.matrix-comms-theme .mc-proposal--declined .mc-proposal-action {
+  margin-bottom: 0;
+}
+.matrix-comms-theme .mc-proposal-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.matrix-comms-theme .mc-proposal-approve {
+  font-size: 11px;
+  font-weight: 700;
+  color: #04120a;
+  background: var(--matrix-green);
+  border: none;
+  padding: 5px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.matrix-comms-theme .mc-proposal-approve:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(57, 255, 106, 0.45);
+}
+.matrix-comms-theme .mc-proposal-decline {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  background: transparent;
+  padding: 5px 12px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+.matrix-comms-theme .mc-proposal-decline:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.matrix-comms-theme .mc-proposal-hint {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* ── QuoxChat (QUOXCHAT-PRO P2): incoming website chats ───────────────────
+   Teal accent family, deliberately distinct from telegram blue and slack
+   purple in the same mc-bridge pill system, and amber for the attention
+   surfaces (tab bubble, header waiting pill) matching the favourite-star
+   amber already used in this view. */
+.matrix-comms-theme {
+  --quoxchat-teal: #2dd4bf;
+  --quoxchat-teal-soft: rgba(45, 212, 191, 0.12);
+  --quoxchat-teal-border: rgba(45, 212, 191, 0.35);
+}
+
+/* Website-visitor origin pill: room header + timeline sender rows, same
+   mc-bridge base styling as the telegram/slack variants above. */
+.matrix-comms-theme .mc-bridge--quoxchat {
+  color: var(--quoxchat-teal);
+  background: var(--quoxchat-teal-soft);
+  border: 1px solid var(--quoxchat-teal-border);
+}
+
+/* Leading chat-bubble glyph on an avatar-less quoxchat room row (replaces
+   the RoomIcon/org-logo fallback only; real avatars stay untouched). */
+.matrix-comms-theme .mc-quoxchat-room-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--quoxchat-teal);
+  opacity: 0.85;
+}
+
+/* NUMERIC amber unread bubble on the QuoxChat tab. Unlike the other tabs'
+   red presence dot, this is a count: each unread here is a waiting
+   customer. Amber + offset so it never reads as a duplicate of the
+   adjacent room-count number. */
+.matrix-comms-theme .mc-quoxchat-tab-bubble {
+  flex-shrink: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin-left: 4px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #1a1206;
+  background: var(--status-amber, #d9a441);
+  box-shadow: 0 0 8px rgba(217, 164, 65, 0.5);
+  font-variant-numeric: tabular-nums;
+  align-self: center;
+}
+
+/* Compact "N waiting" pill next to the view title: visible from any tab
+   while a website customer waits on a reply. Gentle amber pulse, gated by
+   prefers-reduced-motion below like every other loop in this view. */
+.matrix-comms-theme .mc-quoxchat-waiting-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--status-amber, #d9a441);
+  background: rgba(217, 164, 65, 0.1);
+  border: 1px solid rgba(217, 164, 65, 0.4);
+  animation: mc-waiting-pulse 2.4s ease-in-out infinite;
+}
+@keyframes mc-waiting-pulse {
+  0%, 100% { box-shadow: 0 0 5px rgba(217, 164, 65, 0.18); }
+  50%      { box-shadow: 0 0 14px rgba(217, 164, 65, 0.45); }
+}
+
+/* ── Room-row unread bubble (mcx-unread parity) ─────────────────────────── */
+.matrix-comms-theme .mc-room-unread {
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #04120a;
+  background: var(--matrix-green);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── In-timeline typing row (mcx-typing parity) ─────────────────────────── */
+.matrix-comms-theme .mc-typing-row {
+  min-height: 28px;
+}
+
+/* ── Timeline scrollbar: green tint (mockup interactive-timeline parity) ── */
+.matrix-comms-theme .mc-timeline-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(57, 255, 106, 0.28) transparent;
+}
+.matrix-comms-theme .mc-timeline-scroll::-webkit-scrollbar { width: 8px; }
+.matrix-comms-theme .mc-timeline-scroll::-webkit-scrollbar-thumb {
+  background: rgba(57, 255, 106, 0.25);
+  border-radius: 4px;
+}
+.matrix-comms-theme .mc-timeline-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(57, 255, 106, 0.42);
+}
+.matrix-comms-theme .mc-timeline-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Reduced motion: kill every loop/mount animation in this view ──────────
+   (Typing dots freeze at their base 0.4 opacity: still visible, static.) */
+@media (prefers-reduced-motion: reduce) {
+  .matrix-comms-theme .mc-witnessed-pill,
+  .matrix-comms-theme .mc-room-header::after,
+  .matrix-comms-theme .mc-msg-group,
+  .matrix-comms-theme .mc-typing-dots span,
+  .matrix-comms-theme .mc-jump-bottom-pill,
+  .matrix-comms-theme .mc-mention-autocomplete,
+  .matrix-comms-theme .mc-invite-popover,
+  .matrix-comms-theme .mc-context-flyout,
+  .matrix-comms-theme .mc-proposal--awaiting,
+  .matrix-comms-theme .mc-quoxchat-waiting-pill {
+    animation: none;
+  }
+}
+
+/* ── Inline media attachments (ROOMS-MEDIA) ───────────────────────────────
+   m.image / m.video render as inline thumbnails (max 260x200, click opens
+   the in-app lightbox), m.file renders a download chip, uploads get a
+   paperclip button + drag-and-drop overlay.
+   Additive: nothing above this section changed. */
+/* Image THUMBNAIL (owner ask: thumbnails, not full size): fixed cover box
+   max 260x200, click opens the in-app lightbox. The wrap anchors the hover
+   download button. */
+.matrix-comms-theme .mc-media-thumb-wrap {
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+}
+.matrix-comms-theme .mc-media-image {
+  display: block;
+  width: min(260px, 100%);
+  height: 200px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-edge-dim, rgba(255, 255, 255, 0.12));
+  cursor: zoom-in;
+  object-fit: cover;
+}
+.matrix-comms-theme .mc-media-video {
+  display: block;
+  max-width: min(260px, 100%);
+  max-height: 200px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-edge-dim, rgba(255, 255, 255, 0.12));
+  background: rgba(0, 0, 0, 0.35);
+}
+/* Small icon buttons overlaying media: download on image (hover-revealed),
+   expand + download on video (always visible, top-right, clear of the
+   native controls at the bottom). */
+.matrix-comms-theme .mc-media-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 7px;
+  border: 1px solid var(--glass-edge-dim, rgba(255, 255, 255, 0.16));
+  background: rgba(10, 14, 11, 0.72);
+  color: var(--text-primary, #e6ffe9);
+  cursor: pointer;
+}
+.matrix-comms-theme .mc-media-icon-btn:hover {
+  background: rgba(57, 255, 106, 0.18);
+  border-color: var(--matrix-green-border, rgba(57, 255, 106, 0.4));
+}
+.matrix-comms-theme .mc-media-icon-btn--hover {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.matrix-comms-theme .mc-media-thumb-wrap:hover .mc-media-icon-btn--hover,
+.matrix-comms-theme .mc-media-icon-btn--hover:focus-visible {
+  opacity: 1;
+}
+.matrix-comms-theme .mc-media-btn-row {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  gap: 4px;
+}
+.matrix-comms-theme .mc-media-skeleton {
+  display: block;
+  width: min(240px, 100%);
+  height: 140px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-edge-dim, rgba(255, 255, 255, 0.12));
+  background: linear-gradient(
+    100deg,
+    rgba(57, 255, 106, 0.05) 30%,
+    rgba(57, 255, 106, 0.14) 50%,
+    rgba(57, 255, 106, 0.05) 70%
+  );
+  background-size: 200% 100%;
+  animation: mc-media-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes mc-media-shimmer {
+  from { background-position: 120% 0; }
+  to { background-position: -80% 0; }
+}
+.matrix-comms-theme .mc-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+}
+.matrix-comms-theme .mc-file-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.matrix-comms-theme .mc-file-chip-size {
+  font-size: 10px;
+  opacity: 0.55;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.matrix-comms-theme .mc-file-chip-dl {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+/* ── In-app media lightbox (owner ask: expand view, no new tab) ──────────
+   Fixed dim overlay, media centered at max 90vw x 85vh, filename caption
+   plus a Download button. Closed by Escape or a backdrop click. No mount
+   animation (reduced-motion safe by construction); the only transition is
+   the thumbnail download button's opacity, killed in the reduced-motion
+   block below. */
+.matrix-comms-theme .mc-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(2, 6, 3, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+}
+.matrix-comms-theme .mc-lightbox-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 90vw;
+  cursor: default;
+}
+.matrix-comms-theme .mc-lightbox-media {
+  display: block;
+  max-width: 90vw;
+  max-height: 85vh;
+  border-radius: 12px;
+  border: 1px solid var(--glass-edge-dim, rgba(255, 255, 255, 0.16));
+  object-fit: contain;
+  background: rgba(0, 0, 0, 0.4);
+}
+.matrix-comms-theme .mc-lightbox-caption {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 90vw;
+  min-width: 0;
+}
+.matrix-comms-theme .mc-lightbox-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-primary, #e6ffe9);
+  opacity: 0.85;
+}
+.matrix-comms-theme .mc-lightbox-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.matrix-comms-theme .mc-attach-pct {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.matrix-comms-theme .mc-drop-overlay {
+  position: absolute;
+  inset: 6px;
+  z-index: 20;
+  border: 1.5px dashed var(--matrix-green-border);
+  border-radius: 12px;
+  background: rgba(57, 255, 106, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.matrix-comms-theme .mc-drop-overlay-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--matrix-green);
+}
+@media (prefers-reduced-motion: reduce) {
+  .matrix-comms-theme .mc-media-skeleton {
+    animation: none;
+  }
+  .matrix-comms-theme .mc-media-icon-btn--hover {
+    transition: none;
+  }
+}
+
+/* ── Bubble timeline (owner ask: "Telegram/WhatsApp, not IRC") ────────────
+   Rounded message bubbles: own messages right-aligned in the scoped
+   green-tinted glass, everyone else left-aligned on panel glass. The
+   timestamp floats inside the bubble bottom-right (set after the text in
+   the JSX so it rides the last line when there is room). No new animations,
+   so nothing to add to the reduced-motion block. */
+.matrix-comms-theme .mc-bubble {
+  position: relative;
+  display: block;
+  min-width: 0;
+  max-width: min(560px, 82%);
+  padding: 7px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.matrix-comms-theme .mc-bubble--other {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.028));
+  border: 1px solid var(--glass-edge-dim, rgba(255, 255, 255, 0.1));
+  border-top-left-radius: 5px;
+}
+.matrix-comms-theme .mc-bubble--own {
+  background: linear-gradient(160deg, rgba(57, 255, 106, 0.16), rgba(57, 255, 106, 0.05));
+  border: 1px solid rgba(57, 255, 106, 0.28);
+  border-top-right-radius: 5px;
+}
+/* Media bubbles hug the thumbnail with a slimmer inset. */
+.matrix-comms-theme .mc-bubble--media {
+  padding: 5px;
+}
+.matrix-comms-theme .mc-bubble--media .mc-bubble-ts {
+  margin: 4px 4px 0 10px;
+}
+.matrix-comms-theme .mc-bubble-ts {
+  float: right;
+  font-size: 9.5px;
+  line-height: 1;
+  opacity: 0.5;
+  margin: 8px -4px 0 10px;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Own-message groups mirror to the right edge: group row reversed (no
+   avatar rendered for self), per-message row reversed so the hover
+   affordances sit to the bubble's left, reactions right-aligned. */
+.matrix-comms-theme .mc-msg-group--own {
+  flex-direction: row-reverse;
+}
+.matrix-comms-theme .mc-msg-group--own .mc-msg-row {
+  flex-direction: row-reverse;
+}
+.matrix-comms-theme .mc-msg-group--own .mc-reactions-row {
+  justify-content: flex-end;
+}
+/* Consecutive bubbles in a group sit tight (the group column already uses
+   a 2px gap); keep a hair of breathing room only between wrap blocks that
+   also carry a reactions row. */
+.matrix-comms-theme .mc-msg-wrap + .mc-msg-wrap {
+  margin-top: 1px;
+}
+
+/* ── Header wordmark (owner ask: "Quox MATRIX Rooms", PILOT dropped) ────── */
+.matrix-comms-theme .mc-wordmark-matrix {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-weight: 700;
+  font-size: 0.88em;
+  letter-spacing: 0.09em;
+  color: var(--matrix-green);
+  text-shadow: 0 0 10px var(--matrix-green-glow-soft), 0 0 24px var(--matrix-green-glow-soft);
+}
+
+/* ── Left-column polish (mockup mcx-room parity, owner ask) ───────────────
+   Boxed room glyph like the promo page's .mcx-room-icon; goes green when
+   the row is the active room. The RoomIcon svg carries an inline stroke, so
+   the active recolor needs !important (scoped, cosmetic only). */
+.matrix-comms-theme .mc-room-glyph-box {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.matrix-comms-theme .glass-nav.active .mc-room-glyph-box {
+  background: rgba(57, 255, 106, 0.08);
+  border-color: rgba(57, 255, 106, 0.4);
+}
+.matrix-comms-theme .glass-nav.active .mc-room-glyph-box svg {
+  stroke: var(--matrix-green) !important;
+}
+/* Mockup group headers are mono + letter-spaced (spacing lives inline on
+   GroupHeader; the face and dim green live here). */
+.matrix-comms-theme .mc-group-header {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+/* ── Discord bridge pill (badge helper, if discord puppets appear) ──────── */
+.matrix-comms-theme .mc-bridge--discord {
+  color: #818cf8;
+  background: rgba(129, 140, 248, 0.12);
+  border: 1px solid rgba(129, 140, 248, 0.3);
+}
+
+/* ── Person info flyout (people panel "View info" on humans) ────────────── */
+.matrix-comms-theme .mc-person-info-mxid {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 10.5px;
+  opacity: 0.6;
+  overflow-wrap: anywhere;
+}
+
+/* Room-type tab bar morphism (owner ask, matrix-comms polish 2026-09-19):
+   the top menu bar was the bare .qx-tabs strip (flat translucent fill, no
+   blur). Give it the house glass recipe — --m-bg-base + --qx-blur + the
+   4-edge shimmer, exactly as .qx-card/.qx-menu — as a full-width strip that
+   scrolls sideways rather than wrapping. Scoped under .matrix-comms-theme so
+   it never touches the global .qx-tabs used elsewhere. */
+.matrix-comms-theme .mc-room-tabs {
+  display: flex;
+  width: 100%;
+  gap: 4px;
+  padding: 6px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+  background: var(--m-bg-base);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+  border: 1px solid var(--m-border-default);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+  position: relative;
+}
+.matrix-comms-theme .mc-room-tabs::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  pointer-events: none;
+  z-index: 0;
+}
+.matrix-comms-theme .mc-room-tabs > * {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}

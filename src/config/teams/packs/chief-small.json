@@ -1,0 +1,15 @@
+{
+  "id": "chief-small",
+  "type": "team-pack",
+  "version": "1.0.0",
+  "displayName": "Chief Team — Small Business",
+  "description": "Your AI-powered C-suite. Six executive chiefs — CEO, COO, CFO, CMO, CTO, and CPO — working together to advise on strategy, operations, finance, marketing, technology, and people.",
+  "author": "Quox",
+  "tier": "tier_a",
+  "price": 5,
+  "priceModel": "one-time",
+  "teams": ["chief-small"],
+  "tags": ["business", "executive", "strategy", "small-business", "c-suite"],
+  "icon": "briefcase",
+  "accentColor": "#1e293b"
+}

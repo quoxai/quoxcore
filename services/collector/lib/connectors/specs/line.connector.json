@@ -1,0 +1,333 @@
+{
+  "spec_version": 1,
+  "id": "line",
+  "name": "LINE Messaging",
+  "category": "communication",
+  "credentialType": "line",
+  "requiredFields": [
+    "channel_access_token"
+  ],
+  "docs": "https://developers.line.biz/en/docs/messaging-api/",
+  "base_url": "https://api.line.me",
+  "auth": {
+    "type": "bearer",
+    "field": "channel_access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/bot/info"
+  },
+  "tools_source": "https://developers.line.biz/en/reference/messaging-api/",
+  "tools": [
+    {
+      "name": "get_bot_info",
+      "description": "Get the LINE Official Account the channel access token belongs to (who am I: user id, basic id, display name, chat mode)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/bot/info"
+      },
+      "response": {
+        "pick": {
+          "userId": "userId",
+          "basicId": "basicId",
+          "premiumId": "premiumId",
+          "displayName": "displayName",
+          "pictureUrl": "pictureUrl",
+          "chatMode": "chatMode",
+          "markAsReadMode": "markAsReadMode"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_message_quota",
+      "description": "Get the monthly message-sending target limit for this LINE channel (quota type and value)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/bot/message/quota"
+      },
+      "response": {
+        "pick": {
+          "type": "type",
+          "value": "value"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_message_quota_consumption",
+      "description": "Get the number of messages this LINE channel has sent in the current month against its quota",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/bot/message/quota/consumption"
+      },
+      "response": {
+        "pick": {
+          "totalUsage": "totalUsage"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_webhook_endpoint",
+      "description": "Get the webhook endpoint URL configured on this LINE channel and whether it is active",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/bot/channel/webhook/endpoint"
+      },
+      "response": {
+        "pick": {
+          "endpoint": "endpoint",
+          "active": "active"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_user_profile",
+      "description": "Get the profile of one LINE user who has added this Official Account as a friend (display name, language, status message)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "LINE user ID from a webhook event (e.g. U4af4980629...)"
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/bot/profile/{{input.user_id}}"
+      },
+      "response": {
+        "pick": {
+          "userId": "userId",
+          "displayName": "displayName",
+          "pictureUrl": "pictureUrl",
+          "statusMessage": "statusMessage",
+          "language": "language"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_group_summary",
+      "description": "Get the name and icon of one LINE group chat this Official Account is a member of",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "description": "LINE group ID from a webhook event (e.g. Ca56f94637...)"
+          }
+        },
+        "required": [
+          "group_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/bot/group/{{input.group_id}}/summary"
+      },
+      "response": {
+        "pick": {
+          "groupId": "groupId",
+          "groupName": "groupName",
+          "pictureUrl": "pictureUrl"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_rich_menus",
+      "description": "List the rich menus defined on this LINE channel (id, name, chat bar text, size)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/bot/richmenu/list"
+      },
+      "response": {
+        "pick": {
+          "richmenus[]": {
+            "richMenuId": "richMenuId",
+            "name": "name",
+            "chatBarText": "chatBarText",
+            "selected": "selected",
+            "width": "size.width",
+            "height": "size.height"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_follower_ids",
+      "description": "List the LINE user IDs that have added this Official Account as a friend (verified or premium accounts only)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max user IDs to return (default 300, max 1000)"
+          },
+          "start": {
+            "type": "string",
+            "description": "Continuation token from a previous call's 'next' value"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/bot/followers/ids",
+        "query": {
+          "limit": "{{clamp input.limit 300 1000}}",
+          "start": "{{input.start}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "userIds": "userIds",
+          "next": "next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_follower_insight",
+      "description": "Get follower statistics for this LINE Official Account on one date (followers, targeted reaches, blocks)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "Date in yyyyMMdd form, in UTC+9 (e.g. 20260101). Data is available from the day after."
+          }
+        },
+        "required": [
+          "date"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/bot/insight/followers",
+        "query": {
+          "date": "{{input.date}}"
+        }
+      },
+      "_probe": {
+        "input.date": "20260101"
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "followers": "followers",
+          "targetedReaches": "targetedReaches",
+          "blocks": "blocks"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_message_delivery_insight",
+      "description": "Get the number of messages this LINE channel delivered on one date, split by delivery route (broadcast, targeting, push, reply)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "Date in yyyyMMdd form, in UTC+9 (e.g. 20260101). Data is available from the day after."
+          }
+        },
+        "required": [
+          "date"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/bot/insight/message/delivery",
+        "query": {
+          "date": "{{input.date}}"
+        }
+      },
+      "_probe": {
+        "input.date": "20260101"
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "broadcast": "broadcast",
+          "targeting": "targeting",
+          "autoResponse": "autoResponse",
+          "welcomeResponse": "welcomeResponse",
+          "apiPush": "apiPush",
+          "apiMulticast": "apiMulticast",
+          "apiNarrowcast": "apiNarrowcast",
+          "apiReply": "apiReply"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_demographic_insight",
+      "description": "Get friend demographics for this LINE Official Account (gender, age and area percentage breakdowns)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/bot/insight/demographic"
+      },
+      "response": {
+        "pick": {
+          "available": "available",
+          "genders[]": {
+            "gender": "gender",
+            "percentage": "percentage"
+          },
+          "ages[]": {
+            "age": "age",
+            "percentage": "percentage"
+          },
+          "areas[]": {
+            "area": "area",
+            "percentage": "percentage"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "kind": "epistemic",
+  "prefixes": [
+    "epistemic:",
+    "repo:",
+    "plandocs:"
+  ],
+  "area": "none",
+  "derive": "",
+  "needs_rules": [
+    {
+      "when": {
+        "urgent": "true",
+        "class": "contradiction"
+      },
+      "is": "owner"
+    }
+  ],
+  "variants": [
+    {
+      "id": "input",
+      "when": {
+        "class": "input"
+      },
+      "urgency": [
+        {
+          "is": "fyi"
+        }
+      ],
+      "short": "{summary}",
+      "L0": "{summary}",
+      "L1": {
+        "who": "LUCID (an input to my cross-checks)",
+        "what": "{summary}",
+        "why": ""
+      },
+      "how": "Nothing to do.",
+      "measures": []
+    },
+    {
+      "id": "contradiction",
+      "when": {
+        "class": "contradiction"
+      },
+      "urgency": [
+        {
+          "when": {
+            "urgent": "true"
+          },
+          "is": "today"
+        },
+        {
+          "is": "fyi"
+        }
+      ],
+      "short": "{headline}",
+      "L0": "{headline}",
+      "L1": {
+        "who": "LUCID (I compared two things I was told)",
+        "what": "{what_line}",
+        "why": "{why_line}"
+      },
+      "how": "{how_line}",
+      "measures": [
+        "investigate"
+      ]
+    },
+    {
+      "id": "blind_spot",
+      "urgency": [
+        {
+          "is": "fyi"
+        }
+      ],
+      "short": "{headline}",
+      "L0": "{headline}",
+      "L1": {
+        "who": "LUCID (watching my own feeds)",
+        "what": "{what_line}",
+        "why": "{why_line}"
+      },
+      "how": "{how_line}",
+      "measures": [
+        "investigate"
+      ]
+    }
+  ]
+}

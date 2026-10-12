@@ -1,0 +1,174 @@
+{
+  "name": "instagram",
+  "version": "1.0.0",
+  "displayName": "Instagram",
+  "tagline": "Publish and Monitor Instagram from QuoxCORE",
+  "description": "Governed Instagram professional account publishing and monitoring: a single image, video, or reel by public https URL, media and account reads, media/account insights, comment reads, comment replies, and rolling 24-hour publishing quota. Instagram is its own plugin SKU on the SAME shared Meta credential the Facebook plugin uses: one vaulted long-lived Page access token powers both, discovered automatically from the linked Facebook Page.",
+  "shortDescription": "Instagram publishing, insights, and comment management on the shared Meta credential.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 2,
+  "priceDisplay": "$2",
+  "priceModel": "one-time",
+  "tier": "tier_a",
+  "featured": false,
+  "badge": "NEW",
+  "icon": "instagram",
+  "heroGradient": "linear-gradient(135deg, #E4405F 0%, #F77737 100%)",
+  "accentColor": "#E4405F",
+  "infoUrl": "https://quox.ai/plugins/instagram",
+  "docsUrl": "https://quox.ai/docs/plugins/instagram",
+  "route": "/instagram",
+  "marketingPoints": [
+    "Publish a single image, video, or reel with a governed, human-approved flow",
+    "One shared Meta credential powers both Facebook and Instagram",
+    "Read account and media insights: reach, saved, likes, comments, shares, views",
+    "Reply to comments with a human approval gate",
+    "Track the rolling 24-hour publishing quota before you hit the cap",
+    "Media grid dashboard with thumbnails and engagement counts"
+  ],
+  "features": {
+    "publishing": {
+      "name": "Media Publishing",
+      "description": "Publish a single image, video, or reel to an Instagram professional account by public https URL. Every publish files a human approval card first, then runs the create-container -> poll -> publish flow.",
+      "icon": "send",
+      "highlight": true
+    },
+    "discovery": {
+      "name": "Shared Credential Discovery",
+      "description": "Resolves the Instagram professional account linked to a Facebook Page automatically, off the same vaulted Meta token the Facebook plugin uses. No second credential to paste.",
+      "icon": "link"
+    },
+    "insights": {
+      "name": "Media & Account Insights",
+      "description": "Read per-media and account-level insights: reach, saved, likes, comments, shares, views, and follower count across day, week, or 28-day windows.",
+      "icon": "bar-chart",
+      "highlight": true
+    },
+    "comments": {
+      "name": "Comment Management",
+      "description": "Read comments on any media item and reply with a human approval gate.",
+      "icon": "message-circle",
+      "highlight": true
+    },
+    "quota": {
+      "name": "Publishing Quota Tracking",
+      "description": "Surfaces the rolling 24-hour API publishing quota (hard-capped at 100 posts by Meta) before you hit the limit.",
+      "icon": "activity"
+    }
+  },
+  "specialist": {
+    "name": "INSTAGRAM",
+    "description": "Instagram publishing and monitoring specialist on the shared Meta credential",
+    "avatar": "/assets/agents/instagram.svg",
+    "capabilities": [
+      "Publish a single image, video, or reel (human approval required)",
+      "Discover the linked Instagram professional account",
+      "Read media and account insights",
+      "Read and reply to comments (human approval required)",
+      "Track the rolling 24-hour publishing quota"
+    ]
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "A Meta app with a long-lived Facebook Page access token (stored in vault, shared with the Facebook plugin) and an Instagram professional account linked to that Page"
+  },
+  "integration": {
+    "connector": "instagram",
+    "view": "src/pages/views/InstagramView.jsx",
+    "agent": "instagram"
+  },
+  "permissions": [
+    "vault:read",
+    "network:external"
+  ],
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "configSchema": {
+    "igUserId": {
+      "type": "string",
+      "label": "Instagram Account ID",
+      "description": "The Instagram professional account ID, resolved by the setup wizard's discover_account step (not typed in by hand)",
+      "required": true,
+      "placeholder": "resolved automatically"
+    }
+  },
+  "safety": {
+    "destructiveActions": [
+      "instagram_publish_media",
+      "instagram_reply_comment"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": true
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "publishing": false,
+      "discovery": false,
+      "insights": false,
+      "comments": false,
+      "quota": false
+    },
+    "tier_a": {
+      "name": "Instagram ($2)",
+      "publishing": true,
+      "discovery": true,
+      "insights": true,
+      "comments": true,
+      "quota": true
+    }
+  },
+  "limits": {
+    "free": {
+      "accounts": 0,
+      "features": []
+    },
+    "starter": {
+      "accounts": 1,
+      "features": [
+        "publishing",
+        "discovery",
+        "insights",
+        "comments",
+        "quota"
+      ]
+    },
+    "professional": {
+      "accounts": 3,
+      "features": [
+        "publishing",
+        "discovery",
+        "insights",
+        "comments",
+        "quota",
+        "autoApprove",
+        "analyticsExport"
+      ]
+    }
+  },
+  "futureFeatures": [
+    "Carousel (multi-item) posts",
+    "Instagram Stories",
+    "Post scheduling via Herald supervisor",
+    "Meta Ads insights and management (separate META-ADS plugin)",
+    "OAuth broker sign-in (credentials are a pasted long-lived token by design for now, shared with Facebook)"
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-09-18",
+      "changes": [
+        "Initial release",
+        "Governed single image/video/reel publishing (human approval required)",
+        "Shared Meta credential discovery via the linked Facebook Page",
+        "Media and account insights",
+        "Comment reads and governed replies",
+        "Rolling 24-hour publishing quota tracking"
+      ]
+    }
+  },
+  "category": "social"
+}

@@ -1,0 +1,105 @@
+{
+  "spec_version": 1,
+  "id": "mistral",
+  "name": "Mistral AI",
+  "category": "data_ai",
+  "credentialType": "mistral",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Read-only Mistral AI access: the account's catalogue of available Mistral and Mixtral models. Sending a chat completion is a billable POST against the account's usage, so it is modelled as write:true and HITL-gated rather than fired here; this is an OpenAI-compatible template child of the openai/groq/deepseek connector shape, and the EU frontier-lab fit for sovereignty-minded buyers.",
+  "docs": "https://docs.mistral.ai/",
+  "base_url": "https://api.mistral.ai/v1",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/models"
+  },
+  "tools_source": "https://docs.mistral.ai/api/#tag/models/operation/list_models_v1_models_get",
+  "tools": [
+    {
+      "name": "list_models",
+      "description": "List the Mistral and Mixtral models available to this API key, with capabilities and context length",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/models"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "owned_by": "owned_by",
+            "max_context_length": "max_context_length"
+          }
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "chat_completion",
+      "description": "Send a chat completion to a Mistral-hosted model. This spends the account's token usage, so it is HITL-gated and never fired by the shape-proof harness (write:true means blind proof always SKIPs it; a real credential would also need --include-writes)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Mistral model id to route to (e.g. mistral-large-latest), from list_models"
+          },
+          "messages": {
+            "type": "array",
+            "description": "OpenAI-format chat messages array: [{role, content}, ...]"
+          },
+          "max_tokens": {
+            "type": "number",
+            "description": "Optional cap on completion tokens"
+          }
+        },
+        "required": [
+          "model",
+          "messages"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/chat/completions",
+        "body": {
+          "model": "{{input.model}}",
+          "messages": "{{input.messages}}",
+          "max_tokens": "{{input.max_tokens}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "model": "model",
+          "choices": "choices",
+          "usage": "usage"
+        },
+        "truncate": 2000
+      },
+      "write": true
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-16, frontier-LLM gap fill (project_ai_tools_coverage_gaps_2026_09_16)",
+    "confidence": "high",
+    "needs_review": [
+      "NO LIVE CREDENTIAL AT AUTHORING TIME: this spec is shape-proved blind only. LIVE_PROVEN needs one real key against /models, a zero-spend authed read per the coverage-gap plan.",
+      "TEMPLATE CHILD: this spec inherits the openrouter.connector.json Authorization: Bearer + GET /models shape near-verbatim, per the coverage-gap plan's template-child list.",
+      "chat_completion is the only write:true tool: it is modelled for completeness but deliberately carries no _probe and is skipped by the shape-proof harness by default (writes_not_included), and even with --include-writes it only fires if the test call already proved an auth gate."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

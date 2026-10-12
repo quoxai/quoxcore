@@ -1,0 +1,57 @@
+{
+  "name": "failure-mode",
+  "cases": [
+    {
+      "name": "non-select-rejected",
+      "input": {
+        "connection_string": "<connection_string>",
+        "query": "DELETE FROM users WHERE id = $1",
+        "params": ["user_001"],
+        "schema": "public"
+      },
+      "expects": {
+        "contains": ["error", "non-select-rejected"],
+        "not_contains": ["rows"]
+      }
+    },
+    {
+      "name": "cross-schema-rejected",
+      "input": {
+        "connection_string": "<connection_string>",
+        "query": "SELECT u.id FROM public.users u JOIN analytics.events e ON u.id = e.user_id WHERE u.org_id = $1",
+        "params": ["org_abc123"],
+        "schema": "public"
+      },
+      "expects": {
+        "contains": ["error", "cross-schema-rejected"],
+        "not_contains": ["rows"]
+      }
+    },
+    {
+      "name": "system-table-join-rejected",
+      "input": {
+        "connection_string": "<connection_string>",
+        "query": "SELECT u.id, c.relname FROM public.users u JOIN pg_class c ON c.relname = 'users' WHERE u.org_id = $1",
+        "params": ["org_abc123"],
+        "schema": "public"
+      },
+      "expects": {
+        "contains": ["error", "system-table-join-rejected"],
+        "not_contains": ["rows"]
+      }
+    },
+    {
+      "name": "param-count-mismatch",
+      "input": {
+        "connection_string": "<connection_string>",
+        "query": "SELECT id FROM users WHERE org_id = $1 AND status = $2",
+        "params": ["org_abc123"],
+        "schema": "public"
+      },
+      "expects": {
+        "contains": ["error", "param-count-mismatch"],
+        "not_contains": ["rows"]
+      }
+    }
+  ]
+}

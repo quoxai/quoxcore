@@ -1,0 +1,550 @@
+/* ==========================================================================
+   Mission Control — Unified agentic experience layout
+   UX-4: Status strip + Tab bar + Detail drawer
+   Glass pass 2026-04-16
+   ========================================================================== */
+
+/* Keep app-shell gutter, hide breadcrumbs so the glass card owns chrome */
+.app-shell__content:has(.mc-container) { overflow: hidden; }
+.app-shell__content:has(.mc-container) .breadcrumbs { display: none; }
+
+.mc-container {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  background: var(--m-bg-base, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.18));
+  border-radius: var(--qx-radius, 20px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.mc-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--qx-edges);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+}
+
+/* ── Status Strip (Depth 0) ─────────────────────────────────────────────── */
+
+.mc-status-strip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border-bottom: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.14));
+  flex-shrink: 0;
+  font-size: 12px;
+  min-height: 44px;
+  backdrop-filter: var(--qx-blur, blur(16px));
+  -webkit-backdrop-filter: var(--qx-blur, blur(16px));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.mc-status-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.78);
+  font-variant-numeric: tabular-nums;
+}
+
+.mc-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mc-status-dot--active { background: var(--m-success, #4ade80); }
+.mc-status-dot--stale { background: var(--m-warning, #fbbf24); }
+.mc-status-dot--stuck { background: var(--m-error, #f87171); }
+.mc-status-dot--idle { background: var(--m-text-tertiary, rgba(255, 255, 255, 0.52)); opacity: 0.5; }
+
+.mc-status-count {
+  font-weight: 600;
+  color: var(--m-text-primary, #fff);
+}
+
+.mc-status-label {
+  opacity: 0.7;
+}
+
+.mc-status-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* ── Tab Bar ────────────────────────────────────────────────────────────── */
+
+.mc-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.12));
+  flex-shrink: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+  min-height: 44px;
+}
+
+.mc-tab {
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.58);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 8px 8px 0 0;
+}
+
+.mc-tab:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mc-tab--active {
+  color: var(--m-coral, #ff8a6b);
+  border-bottom-color: var(--m-coral, #ff8a6b);
+  background: rgba(255, 138, 107, 0.06);
+}
+
+.mc-tab__count {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.68);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.mc-tab--active .mc-tab__count {
+  background: rgba(255, 138, 107, 0.18);
+  color: var(--m-coral, #ff8a6b);
+}
+
+/* ── Tab Content ────────────────────────────────────────────────────────── */
+
+.mc-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.mc-tab-content {
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Normalise child views when embedded in Mission Control —
+   they set their own height for standalone mode, which conflicts here.
+   Also strip inner glass shells to avoid card-in-card (they're already
+   inside the mc-container glass shell). */
+.mc-tab-content > .objectives-view,
+.mc-tab-content > div {
+  height: 100% !important;
+  max-height: 100% !important;
+}
+
+/* Strip embedded views' glass shells (border, radius, ::before, shadow) */
+.mc-tab-content > .objectives-view,
+.mc-tab-content > .page-section.teams-overview-view {
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+.mc-tab-content > .objectives-view::before,
+.mc-tab-content > .page-section.teams-overview-view .teams-overview-view__body::before {
+  display: none !important;
+}
+/* Also strip the teams body border when nested */
+.mc-tab-content .teams-overview-view__body {
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 16px 20px !important;
+}
+
+/* ── Detail Drawer (Depth 2) ────────────────────────────────────────────── */
+
+.mc-drawer-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 100;
+  animation: mc-fade-in 0.15s ease;
+}
+
+.mc-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 520px;
+  max-width: 90vw;
+  background: var(--m-bg-base, rgba(255, 255, 255, 0.06));
+  border-left: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.22));
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  animation: mc-slide-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow:
+    -12px 0 40px rgba(0, 0, 0, 0.55),
+    inset 1px 0 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+}
+
+.mc-drawer__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.14));
+  flex-shrink: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.mc-drawer__title {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--m-text-primary, #fff);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-drawer__close {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.mc-drawer__close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.mc-drawer__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.mc-drawer__kbd {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.58);
+  font-family: var(--m-font-mono, monospace);
+  margin-left: 4px;
+}
+
+/* Wide drawer variant (for team detail) */
+.mc-drawer--wide {
+  width: min(80vw, 1200px);
+  max-width: 95vw;
+}
+
+/* Item 2: Embedded AgenticTeamView — fill drawer body, strip backgrounds, no black rect.
+   The drawer body is flex-column with flex:1 min-height:0, so the child must also be
+   flex-column with flex:1 to fill without overflowing. */
+.mc-drawer__body .agentic-team-view--embedded {
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  background: transparent !important;
+}
+
+.mc-drawer__body .agentic-team-view--embedded .app-shell__content {
+  padding: 0;
+}
+
+/* Any qx-glass-card or similar containers inside the embedded drawer should be transparent */
+.mc-drawer__body .agentic-team-view--embedded > [class*="glass"],
+.mc-drawer__body .agentic-team-view--embedded > [class*="card"] {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* ── Tab Content Transitions ───────────────────────────────────────────── */
+
+.mc-tab-content {
+  animation: mc-tab-fade-in 0.15s ease-out;
+}
+
+@keyframes mc-tab-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── Status Dot Breathing (active/running) ─────────────────────────────── */
+
+.mc-status-dot--active {
+  animation: mc-dot-breathe 2s ease-in-out infinite;
+}
+
+@keyframes mc-dot-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+/* ── Animations ─────────────────────────────────────────────────────────── */
+
+@keyframes mc-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes mc-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── Reduced Motion ────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .mc-tab-content,
+  .mc-drawer,
+  .mc-drawer-overlay,
+  .mc-skeleton-row {
+    animation: none;
+  }
+  .mc-status-dot--active {
+    animation: none;
+  }
+  .mc-tab {
+    transition: none;
+  }
+}
+
+/* ── Skeleton Loading ───────────────────────────────────────────────────── */
+
+.mc-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  margin-bottom: 8px;
+  min-height: 48px;
+  animation: mc-skeleton-pulse 1.5s ease-in-out infinite;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Item 7: First skeleton row shows immediately; subsequent rows stagger at 0.05s */
+.mc-skeleton-row:first-child {
+  animation-delay: 0s;
+}
+
+.mc-skeleton-bar {
+  height: 12px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+@keyframes mc-skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+/* ── Schedules Panel (extracted from inline styles) ────────────────────── */
+
+.mc-schedules {
+  padding: 20px 24px;
+  max-width: 1000px;
+}
+
+.mc-schedules__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mc-schedules__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.mc-schedules__count {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.65);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.mc-schedules__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mc-schedule-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: background 0.15s, border-color 0.15s;
+  min-height: 52px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.mc-schedule-row:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.mc-schedule-row--disabled {
+  opacity: 0.5;
+}
+
+.mc-schedule-row__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mc-schedule-row__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-schedule-row__template {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.52);
+  margin-top: 2px;
+}
+
+.mc-schedule-row__cron {
+  font-family: var(--m-font-mono, 'SF Mono', monospace);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.mc-schedule-row__countdown {
+  font-family: var(--m-font-mono, 'SF Mono', monospace);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.72);
+  flex-shrink: 0;
+  min-width: 70px;
+  text-align: right;
+}
+
+.mc-schedule-row__team {
+  font-size: 10px;
+  color: #a78bfa;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  flex-shrink: 0;
+}
+
+.mc-schedule-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Embedded view sidebar consistency ────────────────────────────────── */
+
+/* Both Objectives + Teams sidebars get consistent width + no double border */
+.mc-tab-content .obj-layout > div:last-child,
+.mc-tab-content .teams-overview-view__sidebar {
+  width: 380px;
+  flex-shrink: 0;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .mc-drawer,
+  .mc-drawer--wide {
+    width: 100vw;
+    max-width: 100vw;
+  }
+
+  .mc-tab {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}

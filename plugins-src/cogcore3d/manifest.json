@@ -1,0 +1,31 @@
+{
+  "id": "cogcore3d",
+  "name": "Cognitive Core 3D",
+  "displayName": "Cognitive Core 3D",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "professional",
+  "license": "commercial",
+  "badge": "PREMIUM",
+  "category": "operations",
+  "accentColor": "#8b5cf6",
+  "description": "Fullscreen immersive 3D visualiser of the entire QuoxCORE cognitive architecture. Fly through nested shells containing agents, objectives, memory crystals, and cognitive implants rendered as spatial objects.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/cogcore3d",
+      "label": "Cognitive Core 3D",
+      "icon": "box",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/cogcore3d": "CognitiveCore3DView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

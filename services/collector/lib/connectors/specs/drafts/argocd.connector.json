@@ -1,0 +1,30 @@
+{
+  "spec_version": 1,
+  "id": "argocd",
+  "name": "ArgoCD",
+  "category": "uncategorized",
+  "credentialType": "argocd",
+  "requiredFields": [
+    "server_url",
+    "auth_token"
+  ],
+  "docs": "https://argo-cd.readthedocs.io/en/stable/developer-guide/api-docs/",
+  "base_url": {
+    "fromCredential": "server_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "auth_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/applications"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

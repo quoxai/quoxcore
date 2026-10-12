@@ -1,0 +1,139 @@
+/* FileApplyConfirmModal — strict mode confirmation for file ops */
+
+.file-apply-confirm__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.file-apply-confirm__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.file-apply-confirm__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ui-text-muted, rgba(255, 255, 255, 0.52));
+}
+
+.file-apply-confirm__path {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  color: var(--ui-text-primary, white);
+  word-break: break-all;
+}
+
+.file-apply-confirm__row {
+  display: flex;
+  gap: 2rem;
+}
+
+.file-apply-confirm__action-badge,
+.file-apply-confirm__severity-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Warning bar */
+.file-apply-confirm__warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  background: rgba(255, 176, 48, 0.1);
+  border-radius: 6px;
+  border-left: 3px solid #ffb030;
+  font-size: 0.8rem;
+  color: #ffb030;
+}
+
+.file-apply-confirm__warning svg {
+  flex-shrink: 0;
+  fill: #ffb030;
+}
+
+/* Content preview */
+.file-apply-confirm__preview {
+  margin: 0;
+  padding: 0.625rem 0.875rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  max-height: 160px;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.file-apply-confirm__preview code {
+  font-family: 'JetBrains Mono', monospace;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: pre;
+}
+
+.file-apply-confirm__truncated {
+  display: block;
+  color: rgba(255, 255, 255, 0.52);
+  font-style: italic;
+  margin-top: 0.25rem;
+}
+
+/* ── Batch file list ──────────────────────────────────────────────── */
+
+.file-apply-confirm__batch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.file-apply-confirm__batch-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+}
+
+.file-apply-confirm__batch-icon {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+}
+
+.file-apply-confirm__batch-path {
+  flex: 1;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.file-apply-confirm__batch-action {
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.file-apply-confirm__batch-severity {
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  opacity: 0.8;
+}

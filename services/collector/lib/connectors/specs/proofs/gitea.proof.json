@@ -1,0 +1,106 @@
+{
+  "spec_id": "gitea",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T18:04:17.722Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/version",
+      "status": 200,
+      "latency_ms": 301,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "e42fb6655309e470dc505e13a727cee3f509ffeec0460fc17fc42dccb376fddf",
+      "body_excerpt": "{\"version\":\"1.22.6\"}\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_version",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/version",
+      "status": 200,
+      "latency_ms": 26,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "e42fb6655309e470dc505e13a727cee3f509ffeec0460fc17fc42dccb376fddf",
+      "body_excerpt": "{\"version\":\"1.22.6\"}\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_user",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/user",
+      "status": 200,
+      "latency_ms": 26,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "15b3b1b369ca19636b5005894140a115b697c9806f05bf39210c507c5461f18e",
+      "body_excerpt": "{\"id\":1,\"login\":\"quoxproof\",\"login_name\":\"\",\"source_id\":0,\"full_name\":\"\",\"email\":\"q@quoxproof.local\",\"avatar_url\":\"http://localhost:3000/avatars/cc8761caf2657c11c745dd31dbed3bea\",\"html_url\":\"http://lo",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_repos",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/user/repos?limit=20",
+      "status": 200,
+      "latency_ms": 34,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "1adcd600a4591745f8d82a02fa1c9b005f8ce09eb777fd798d8ad17a3f79d8e7",
+      "body_excerpt": "[{\"id\":1,\"owner\":{\"id\":1,\"login\":\"quoxproof\",\"login_name\":\"\",\"source_id\":0,\"full_name\":\"\",\"email\":\"q@quoxproof.local\",\"avatar_url\":\"http://localhost:3000/avatars/cc8761caf2657c11c745dd31dbed3bea\",\"htm",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_repo",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/repos/quoxproof/quoxproof-live",
+      "status": 200,
+      "latency_ms": 38,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "1fa9014f2104b1d56b01abb9553ef91b0918c27ecacfacc67568742110b79bcd",
+      "body_excerpt": "{\"id\":1,\"owner\":{\"id\":1,\"login\":\"quoxproof\",\"login_name\":\"\",\"source_id\":0,\"full_name\":\"\",\"email\":\"q@quoxproof.local\",\"avatar_url\":\"http://localhost:3000/avatars/cc8761caf2657c11c745dd31dbed3bea\",\"html",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_issues",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/repos/quoxproof/quoxproof-live/issues?state=all&limit=20",
+      "status": 200,
+      "latency_ms": 32,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "body_excerpt": "[]\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "search_repos",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/repos/search?q=quoxproof-live&limit=20",
+      "status": 200,
+      "latency_ms": 34,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "3f42cdf1298f5e39d9bfe84d11bc5a2da18314742561bfa757dd2a4d49b3a407",
+      "body_excerpt": "{\"ok\":true,\"data\":[{\"id\":1,\"owner\":{\"id\":1,\"login\":\"quoxproof\",\"login_name\":\"\",\"source_id\":0,\"full_name\":\"\",\"email\":\"q@quoxproof.local\",\"avatar_url\":\"http://localhost:3000/avatars/cc8761caf2657c11c745",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:gitea/gitea:1.22"
+}

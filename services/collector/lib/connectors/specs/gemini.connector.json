@@ -1,0 +1,101 @@
+{
+  "spec_version": 1,
+  "id": "gemini",
+  "name": "Google Gemini",
+  "category": "data_ai",
+  "credentialType": "gemini",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Read-only Gemini access: the account's catalogue of available Gemini models. Sending a generateContent request is a billable POST against the account's usage, so it is modelled as write:true and HITL-gated rather than fired here. Auth uses the x-goog-api-key header (preferred over the ?key= query param, which would otherwise land the secret in a logged URL).",
+  "docs": "https://ai.google.dev/docs",
+  "base_url": "https://generativelanguage.googleapis.com/v1beta",
+  "auth": {
+    "type": "header",
+    "header": "x-goog-api-key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/models"
+  },
+  "tools_source": "https://ai.google.dev/api/models",
+  "tools": [
+    {
+      "name": "list_models",
+      "description": "List the Gemini models available to this API key, with their display name, supported generation methods and token limits",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/models"
+      },
+      "response": {
+        "pick": {
+          "models[]": {
+            "name": "name",
+            "displayName": "displayName",
+            "supportedGenerationMethods": "supportedGenerationMethods",
+            "inputTokenLimit": "inputTokenLimit",
+            "outputTokenLimit": "outputTokenLimit"
+          }
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "generate_content",
+      "description": "Generate content from a Gemini model. This spends the account's token usage, so it is HITL-gated and never fired by the shape-proof harness (write:true means blind proof always SKIPs it; a real credential would also need --include-writes)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Gemini model id to route to (e.g. gemini-1.5-flash), from list_models"
+          },
+          "contents": {
+            "type": "array",
+            "description": "Gemini-format contents array: [{role, parts: [{text}]}, ...]"
+          }
+        },
+        "required": [
+          "model",
+          "contents"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/models/{{input.model}}:generateContent",
+        "body": {
+          "contents": "{{input.contents}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "candidates": "candidates",
+          "usageMetadata": "usageMetadata"
+        },
+        "truncate": 2000
+      },
+      "write": true
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-16, frontier-LLM gap fill batch B (project_ai_tools_coverage_gaps_2026_09_16)",
+    "confidence": "high",
+    "needs_review": [
+      "NO LIVE CREDENTIAL AT AUTHORING TIME: this spec is shape-proved blind only. LIVE_PROVEN needs one real AIza... key against /v1beta/models, a zero-spend authed read per the coverage-gap plan.",
+      "generate_content is the only write:true tool: it is modelled for completeness but deliberately carries no _probe and is skipped by the shape-proof harness by default (writes_not_included), and even with --include-writes it only fires if the test call already proved an auth gate.",
+      "credentialType 'gemini' reuses the PRE-EXISTING vault type in integrationTypeRegistry.js (api_key field), whose own testEndpoint targets v1/models; this connector spec deliberately targets v1beta/models instead, per the coverage-gap plan's frontier-trio scope. No vault change needed for this connector.",
+      "SHAPE-PROOF FINDING (2026-09-16 run, real network, dummy key): GET /v1beta/models is AUTH-GATED, not keyless. It answers a dummy key with a structured 400 {\"error\":{\"code\":400,\"status\":\"INVALID_ARGUMENT\",\"message\":\"API key not valid. Please pass a valid API key.\"}}, which differs from the control probe's 404 (differential_path_proof), proving both the route and the auth gate. A real key would flip this to 2xx."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

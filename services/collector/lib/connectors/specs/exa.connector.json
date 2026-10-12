@@ -1,0 +1,166 @@
+{
+  "spec_version": 1,
+  "id": "exa",
+  "name": "Exa",
+  "category": "data_ai",
+  "credentialType": "exa",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Neural web search for agent grounding: search the live web, fetch the cleaned full text of specific URLs Exa already indexed, and find pages similar to a given URL. Every call here is a POST but none of them mutate anything server-side, so all three are modelled write:false; this connector has no billable generation endpoint to gate.",
+  "docs": "https://docs.exa.ai",
+  "base_url": "https://api.exa.ai",
+  "auth": {
+    "type": "header",
+    "header": "x-api-key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/search",
+    "body": {
+      "query": "quox governed ai platform",
+      "numResults": 3
+    }
+  },
+  "tools_source": "https://docs.exa.ai/reference/search",
+  "tools": [
+    {
+      "name": "search",
+      "description": "Run a neural web search and return ranked results with title, url, publish date and a relevance score. A non-mutating POST, so write:false; this is also the spec's auth-proving test call",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query text"
+          },
+          "numResults": {
+            "type": "number",
+            "description": "Max results to return (default 10)"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "neural",
+              "keyword",
+              "auto"
+            ],
+            "description": "Search type (default auto)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/search",
+        "body": {
+          "query": "{{input.query}}",
+          "numResults": "{{input.numResults}}",
+          "type": "{{input.type}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "title": "title",
+            "url": "url",
+            "publishedDate": "publishedDate",
+            "score": "score"
+          },
+          "requestId": "requestId"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.query": "quox governed ai platform"
+      }
+    },
+    {
+      "name": "get_contents",
+      "description": "Fetch the cleaned full text of specific URLs (get the URLs from search results). A non-mutating POST, write:false",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "urls": {
+            "type": "array",
+            "description": "URLs to fetch content for, from search results"
+          }
+        },
+        "required": [
+          "urls"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/contents",
+        "body": {
+          "urls": "{{input.urls}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "url": "url",
+            "title": "title",
+            "text": "text"
+          }
+        },
+        "truncate": 3000
+      },
+      "write": false
+    },
+    {
+      "name": "find_similar",
+      "description": "Find pages similar to a given URL, ranked by relevance. A non-mutating POST, write:false",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "URL to find similar pages for"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/findSimilar",
+        "body": {
+          "url": "{{input.url}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "title": "title",
+            "url": "url",
+            "score": "score"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.url": "https://quox.ai"
+      }
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-16, viral-AI-tools tranche grounding pair (project_viral_ai_build_plan_2026_09_16)",
+    "confidence": "high",
+    "needs_review": [
+      "NO LIVE CREDENTIAL AT AUTHORING TIME: this spec is shape-proved blind only. LIVE_PROVEN needs one real Exa api_key; a live /search costs roughly $0.005/call, trivial against the $20 signup credit.",
+      "Exa has no cheap authed GET for account balance, so the vault type's testEndpoint is null and validateCredentials checks key length only (format-only test depth); this spec's own /search POST carries the real auth proof."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

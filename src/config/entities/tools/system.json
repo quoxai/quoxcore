@@ -1,0 +1,332 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "system",
+
+  "name": "System Tools",
+  "description": "Core system administration tools for services, processes, and disk management",
+  "category": "system",
+  "subcategory": "administration",
+  "provider": "quox",
+  "version": "1.0.0",
+
+  "risk_level": "medium",
+  "sandbox_profile": "standard",
+
+  "tools": [
+    {
+      "id": "system.services",
+      "name": "Service Status",
+      "description": "List systemd services with their status",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "localhost"
+        },
+        "filter": {
+          "type": "string",
+          "required": false,
+          "enum": ["running", "failed", "all"],
+          "default": "all"
+        },
+        "pattern": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by service name pattern"
+        }
+      },
+      "instructions": {
+        "summary": "Check status of systemd services",
+        "when_to_use": [
+          "User asks about service status",
+          "Checking if a service is running",
+          "Finding failed services"
+        ]
+      }
+    },
+    {
+      "id": "system.service_restart",
+      "name": "Restart Service",
+      "description": "Restart a systemd service",
+      "accessLevel": "managers+",
+      "defconLevel": "YELLOW",
+      "requiresApproval": true,
+      "parameters": {
+        "service": {
+          "type": "string",
+          "required": true,
+          "description": "Service name (e.g., 'nginx', 'docker')"
+        },
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "localhost"
+        }
+      },
+      "instructions": {
+        "summary": "Restart a system service",
+        "when_to_use": [
+          "User asks to restart a service",
+          "Service is unhealthy",
+          "After configuration changes"
+        ]
+      }
+    },
+    {
+      "id": "system.sudo_setup",
+      "name": "Passwordless Sudo Setup",
+      "description": "Configure passwordless sudo for a user via /etc/sudoers.d/ drop-in file, validated with visudo before applying. Proxies to QuoxBastion's native sudo-setup tool.",
+      "accessLevel": "admin",
+      "defconLevel": "RED",
+      "requiresApproval": true,
+      "also_grant": ["quox"],
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": true,
+          "description": "Target host ID"
+        },
+        "user": {
+          "type": "string",
+          "required": false,
+          "default": "control",
+          "description": "Username to grant passwordless sudo to"
+        }
+      },
+      "instructions": {
+        "summary": "Grant a user passwordless sudo access, gated by visudo validation and HITL approval",
+        "when_to_use": [
+          "A host needs non-interactive sudo for automation (e.g. before quoxagent.install)",
+          "User explicitly asks to configure passwordless sudo on a host"
+        ],
+        "when_not_to_use": [
+          "The host already has passwordless sudo (check with system.services or a direct check first)",
+          "User wants a one-off privileged command — use ssh_exec/quoxagent.execute instead"
+        ]
+      }
+    },
+    {
+      "id": "system.processes",
+      "name": "Process List",
+      "description": "List running processes sorted by resource usage",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "localhost"
+        },
+        "sort_by": {
+          "type": "string",
+          "required": false,
+          "enum": ["cpu", "memory", "pid"],
+          "default": "cpu"
+        },
+        "limit": {
+          "type": "number",
+          "required": false,
+          "default": 20
+        },
+        "filter": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by process name"
+        }
+      },
+      "instructions": {
+        "summary": "List processes by CPU or memory usage",
+        "when_to_use": [
+          "User asks what's using CPU/memory",
+          "Diagnosing high resource usage",
+          "Finding a specific process"
+        ]
+      }
+    },
+    {
+      "id": "system.disk_usage",
+      "name": "Disk Usage",
+      "description": "Show disk usage by filesystem or directory",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "localhost"
+        },
+        "path": {
+          "type": "string",
+          "required": false,
+          "description": "Specific path to analyze (omit for all filesystems)"
+        },
+        "depth": {
+          "type": "number",
+          "required": false,
+          "default": 1,
+          "description": "Directory depth for breakdown"
+        }
+      },
+      "instructions": {
+        "summary": "Check disk space usage",
+        "when_to_use": [
+          "User asks about disk space",
+          "Finding what's using disk",
+          "Capacity planning"
+        ]
+      }
+    },
+    {
+      "id": "system.uptime",
+      "name": "System Uptime",
+      "description": "Get system uptime and load averages",
+      "accessLevel": "all",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "localhost"
+        }
+      },
+      "instructions": {
+        "summary": "Check how long the system has been running",
+        "when_to_use": [
+          "User asks about uptime",
+          "Checking if system was rebooted",
+          "System health overview"
+        ]
+      }
+    },
+    {
+      "id": "system.logs",
+      "name": "System Logs",
+      "description": "Query systemd journal logs with filtering",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "localhost"
+        },
+        "unit": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by systemd unit (e.g., 'nginx', 'sshd')"
+        },
+        "priority": {
+          "type": "string",
+          "required": false,
+          "enum": ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"],
+          "description": "Minimum priority level"
+        },
+        "since": {
+          "type": "string",
+          "required": false,
+          "default": "1h",
+          "description": "Time range (e.g., '1h', '30m', 'today')"
+        },
+        "grep": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by pattern"
+        },
+        "lines": {
+          "type": "number",
+          "required": false,
+          "default": 100
+        }
+      },
+      "instructions": {
+        "summary": "Query system logs from journald",
+        "when_to_use": [
+          "User asks for system logs",
+          "Troubleshooting service issues",
+          "Finding error messages"
+        ]
+      }
+    },
+    {
+      "id": "system.cron",
+      "name": "Cron Jobs",
+      "description": "List scheduled cron jobs",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "localhost"
+        },
+        "user": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by user (omit for all)"
+        }
+      },
+      "instructions": {
+        "summary": "List scheduled cron jobs",
+        "when_to_use": [
+          "User asks about scheduled tasks",
+          "Auditing cron jobs",
+          "Troubleshooting scheduled operations"
+        ]
+      }
+    },
+    {
+      "id": "system.memory",
+      "name": "Memory Info",
+      "description": "Detailed memory usage breakdown",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "localhost"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "string" },
+          "used": { "type": "string" },
+          "free": { "type": "string" },
+          "available": { "type": "string" },
+          "buffers": { "type": "string" },
+          "cached": { "type": "string" },
+          "swap_total": { "type": "string" },
+          "swap_used": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Get detailed memory usage statistics",
+        "when_to_use": [
+          "User asks about memory usage",
+          "Diagnosing memory issues",
+          "Checking swap usage"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {"base": "internal", "api": "bastion_ssh"},
+
+  "agent_hints": {
+    "primary_agent": "nova",
+    "secondary_agents": ["beacon"],
+    "delegation_keywords": ["service", "systemctl", "process", "disk", "uptime", "logs", "journalctl", "cron", "memory", "ram"]
+  }
+}

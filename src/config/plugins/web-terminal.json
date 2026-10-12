@@ -1,0 +1,117 @@
+{
+  "name": "web-terminal",
+  "version": "1.1.0",
+  "displayName": "Web Terminal",
+  "tagline": "Your Infrastructure, One Click Away",
+  "description": "Full-featured browser-based terminal with multi-pane workspaces, SSH bastion access, AI chat assistant, and AEE audit trail. Manage your entire infrastructure without leaving QuoxCORE.",
+  "shortDescription": "Browser-based terminal with multi-pane workspaces and AI assistant.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 20,
+  "priceDisplay": "$20",
+  "priceModel": "one-time",
+  "tier": "standard",
+  "featured": true,
+  "icon": "terminal",
+  "accentColor": "#22c55e",
+  "infoUrl": "https://quox.ai/solutions/quoxterminal",
+  "docsUrl": "https://quox.ai/docs/plugins/web-terminal",
+  "configSchema": {
+    "defaultShell": {
+      "label": "Default Shell",
+      "description": "Shell to launch when opening a new terminal session.",
+      "type": "string",
+      "placeholder": "/bin/bash",
+      "default": "/bin/bash"
+    },
+    "scrollbackLines": {
+      "label": "Scrollback Lines",
+      "description": "Number of lines to keep in scrollback buffer.",
+      "type": "number",
+      "default": 5000
+    }
+  },
+  "marketingPoints": [
+    "Full terminal in your browser — no SSH client needed",
+    "Multi-pane workspaces — up to 4 terminals side by side",
+    "SSH to any host via bastion — password and key auth",
+    "AI chat assistant — ask questions alongside your terminal",
+    "Workspace tabs — organize sessions by project or task",
+    "Complete AEE audit trail for all terminal activity",
+    "xterm.js-powered with 256-color support and auto-fit"
+  ],
+  "features": {
+    "webShell": {
+      "name": "Web Shell",
+      "description": "Full interactive shell in the browser with xterm.js rendering, 256-color support, clickable links, and auto-fit to viewport.",
+      "icon": "terminal",
+      "highlight": true
+    },
+    "multiPane": {
+      "name": "Multi-Pane Layouts",
+      "description": "Split your terminal into 2 or 4 panes with 8 layout presets. Each pane runs an independent session.",
+      "icon": "layout",
+      "highlight": true
+    },
+    "sshBastion": {
+      "name": "SSH via Bastion",
+      "description": "SSH into any registered host through the bastion gateway. Supports password and key-based authentication.",
+      "icon": "lock",
+      "highlight": true
+    },
+    "aiChat": {
+      "name": "AI Chat Assistant",
+      "description": "Overlay chat panel powered by ChatEngine with full AEE audit trail, memory context, and Smart Router bypass.",
+      "icon": "message-square"
+    },
+    "workspaceTabs": {
+      "name": "Workspace Tabs",
+      "description": "Organize terminal sessions into named workspace tabs. Each workspace has its own layout and pane configuration.",
+      "icon": "folder"
+    },
+    "sessionPersistence": {
+      "name": "Session Persistence",
+      "description": "Terminal sessions survive page refreshes and network interruptions. Reconnect and pick up where you left off.",
+      "icon": "refresh-cw"
+    },
+    "auditTrail": {
+      "name": "Audit Trail",
+      "description": "Every terminal session is logged to the AEE audit system with open/close timestamps and AOCL layer tracking.",
+      "icon": "shield"
+    },
+    "terminalCommands": {
+      "name": "Terminal Command Execution",
+      "description": "Let QUOX agents read terminal output and suggest or execute commands programmatically.",
+      "icon": "cpu",
+      "comingSoon": true
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "Collector service with node-pty and ssh2 support"
+  },
+  "integration": {
+    "client": "components/terminal/TerminalEmbed.jsx",
+    "panel": "pages/views/TerminalView.jsx",
+    "chat": "components/terminal/TerminalChat.jsx",
+    "pane": "components/terminal/TerminalPane.jsx"
+  },
+  "capabilities": {
+    "aeeIntents": [
+      "quox.terminal.open",
+      "quox.terminal.close",
+      "quox.terminal.command",
+      "quox.terminal.ssh"
+    ],
+    "toolAccess": "managers+"
+  },
+  "safety": {
+    "destructiveActions": [
+      "terminal.command"
+    ],
+    "requiresApproval": [],
+    "aeeRequired": true,
+    "killSwitchEnabled": true
+  },
+  "category": "Infrastructure"
+}

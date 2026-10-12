@@ -1,0 +1,142 @@
+.terminal-embed {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 200px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #0a0e14;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.terminal-embed__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  min-height: 32px;
+}
+
+.terminal-embed__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.terminal-embed__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.terminal-embed__dot--connected {
+  background: #91b362;
+  box-shadow: 0 0 6px rgba(145, 179, 98, 0.4);
+}
+
+.terminal-embed__dot--connecting {
+  background: #f9af4f;
+  animation: terminal-pulse 1s ease-in-out infinite;
+}
+
+.terminal-embed__dot--reconnecting {
+  background: #53bdfa;
+  animation: terminal-pulse 1s ease-in-out infinite;
+}
+
+.terminal-embed__dot--disconnected {
+  background: #686868;
+}
+
+.terminal-embed__dot--error {
+  background: #ea6c73;
+  box-shadow: 0 0 6px rgba(234, 108, 115, 0.4);
+}
+
+.terminal-embed__dot--observing {
+  background: #53bdfa;
+  box-shadow: 0 0 6px rgba(83, 189, 250, 0.4);
+}
+
+.terminal-embed__observer-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(83, 189, 250, 0.15);
+  color: #53bdfa;
+  letter-spacing: 0.5px;
+}
+
+.terminal-embed__watcher-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 3px;
+  background: rgba(145, 179, 98, 0.15);
+  color: #91b362;
+  letter-spacing: 0.3px;
+  user-select: none;
+}
+
+@keyframes terminal-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.terminal-embed__status-text {
+  user-select: none;
+}
+
+.terminal-embed__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.terminal-embed__btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.terminal-embed__btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.terminal-embed__terminal {
+  flex: 1;
+  min-height: 0;
+  padding: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* xterm.js container fills available space */
+.terminal-embed__terminal .xterm {
+  height: 100%;
+}
+
+.terminal-embed__terminal .xterm-screen {
+  height: 100% !important;
+}
+
+.terminal-embed__terminal .xterm-viewport {
+  overflow-y: auto !important;
+}

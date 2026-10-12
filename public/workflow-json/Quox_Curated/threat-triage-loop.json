@@ -1,0 +1,114 @@
+{
+  "id": "wf-quox-threat-triage-loop",
+  "name": "Threat Triage Loop",
+  "description": "Receives a Wazuh security alert via webhook, checks severity, has SENTINEL investigate confirmed threats, and requires human approval before auto-quarantine.",
+  "source": "quox-curated",
+  "category": "security",
+  "tags": ["security", "wazuh", "threat", "triage", "sentinel", "webhook", "human-in-the-loop", "quarantine"],
+  "nodes": [
+    {
+      "id": "trig",
+      "type": "trigger:webhook",
+      "name": "Wazuh Alert",
+      "category": "trigger",
+      "config": {
+        "method": "POST",
+        "path": "/alerts/wazuh",
+        "authentication": "bearer"
+      },
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "severity-check",
+      "type": "flow:condition",
+      "name": "Severity > 5?",
+      "category": "logic",
+      "config": {
+        "expression": "(input.rule && input.rule.level > 5) || (input.severity > 5)",
+        "trueLabel": "High Severity",
+        "falseLabel": "Low — Skip"
+      },
+      "position": { "x": 400, "y": 300 }
+    },
+    {
+      "id": "investigate",
+      "type": "agent:agentic",
+      "name": "SENTINEL: Investigate",
+      "category": "action",
+      "config": {
+        "agent": "sentinel",
+        "goal": "Investigate this security alert: ${JSON.stringify(input)}. Determine: (1) Is this a real threat or false positive? (2) What is the affected host/service? (3) What is the recommended remediation? Return structured JSON with fields: verdict (threat|false_positive), confidence, affectedHost, severity, remediation.",
+        "model": "claude-haiku-4-5",
+        "maxIterations": 8
+      },
+      "position": { "x": 700, "y": 200 }
+    },
+    {
+      "id": "threat-check",
+      "type": "flow:condition",
+      "name": "Confirmed Threat?",
+      "category": "logic",
+      "config": {
+        "expression": "nodes['investigate'].output.verdict === 'threat'",
+        "trueLabel": "Threat",
+        "falseLabel": "False Positive"
+      },
+      "position": { "x": 1000, "y": 200 }
+    },
+    {
+      "id": "approval",
+      "type": "human:task",
+      "name": "Approve Quarantine",
+      "category": "human",
+      "config": {
+        "title": "Threat Confirmed — Approve Quarantine?",
+        "message": "SENTINEL has confirmed a threat on **${nodes['investigate'].output.affectedHost}**.\n\nSeverity: ${nodes['investigate'].output.severity}\nRemediation: ${nodes['investigate'].output.remediation}\n\nApprove to auto-quarantine, or reject to investigate manually.",
+        "assignTo": ["team-security"],
+        "priority": "urgent",
+        "actions": [
+          { "action": "approve", "label": "Quarantine", "style": "danger" },
+          { "action": "reject", "label": "Investigate Manually", "style": "secondary" }
+        ]
+      },
+      "position": { "x": 1300, "y": 200 }
+    },
+    {
+      "id": "quarantine",
+      "type": "call",
+      "name": "Auto-Quarantine Host",
+      "category": "action",
+      "config": {
+        "url": "{{BASTION_URL}}/api/quarantine",
+        "method": "POST",
+        "timeout": 30000
+      },
+      "position": { "x": 1600, "y": 200 }
+    },
+    {
+      "id": "false-positive",
+      "type": "notification:deliver",
+      "name": "False Positive Notice",
+      "category": "notification",
+      "config": {
+        "title": "Alert Cleared: False Positive",
+        "message": "The Wazuh alert for ${input.agentName || 'unknown host'} was assessed as a false positive.",
+        "assignTo": ["team-security"],
+        "priority": "low"
+      },
+      "position": { "x": 700, "y": 400 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trig", "target": "severity-check" },
+    { "id": "e2", "source": "severity-check", "target": "investigate", "label": "High Severity" },
+    { "id": "e3", "source": "investigate", "target": "threat-check" },
+    { "id": "e4", "source": "threat-check", "target": "approval", "label": "Threat" },
+    { "id": "e5", "source": "threat-check", "target": "false-positive", "label": "False Positive" },
+    { "id": "e6", "source": "approval", "target": "quarantine" }
+  ],
+  "meta": {
+    "version": "1.0.0",
+    "createdBy": "quox-curated",
+    "estimatedRuntime": "1-5 min"
+  }
+}

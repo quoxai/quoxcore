@@ -1,0 +1,191 @@
+{
+  "spec_version": 1,
+  "id": "typeform",
+  "name": "Typeform",
+  "category": "marketing_email",
+  "credentialType": "typeform",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://developer.typeform.com/",
+  "base_url": "https://api.typeform.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/me"
+  },
+  "tools_source": "https://developer.typeform.com/create/reference/retrieve-forms/",
+  "tools": [
+    {
+      "name": "list_forms",
+      "description": "List Typeform forms in the account, optionally filtered by a title search term",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max forms to return (default 20, max 50)"
+          },
+          "search": {
+            "type": "string",
+            "description": "Optional search term matched against form titles"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/forms",
+        "query": {
+          "page_size": "{{clamp input.page_size 20 50}}",
+          "search": "{{input.search}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_items": "total_items",
+          "page_count": "page_count",
+          "items[]": {
+            "id": "id",
+            "title": "title",
+            "type": "type",
+            "last_updated_at": "last_updated_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_form",
+      "description": "Get one Typeform form definition by ID, including its fields",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "Typeform form ID (e.g. abc123XY)"
+          }
+        },
+        "required": [
+          "form_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/forms/{{input.form_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "title": "title",
+          "type": "type",
+          "workspace_href": "workspace.href",
+          "display_link": "_links.display",
+          "fields[]": {
+            "id": "id",
+            "ref": "ref",
+            "title": "title",
+            "type": "type"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_responses",
+      "description": "List submitted responses for one Typeform form (metadata only, answer payloads are not returned)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "Typeform form ID (e.g. abc123XY)"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Max responses to return (default 20, max 50)"
+          },
+          "completed": {
+            "type": "boolean",
+            "description": "Optional filter: true for completed responses only, false for partial ones"
+          }
+        },
+        "required": [
+          "form_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/forms/{{input.form_id}}/responses",
+        "query": {
+          "page_size": "{{clamp input.page_size 20 50}}",
+          "completed": "{{input.completed}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_items": "total_items",
+          "page_count": "page_count",
+          "items[]": {
+            "response_id": "response_id",
+            "landed_at": "landed_at",
+            "submitted_at": "submitted_at",
+            "response_type": "response_type"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "description": "List Typeform workspaces in the account, optionally filtered by a name search term",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max workspaces to return (default 20, max 50)"
+          },
+          "search": {
+            "type": "string",
+            "description": "Optional search term matched against workspace names"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/workspaces",
+        "query": {
+          "page_size": "{{clamp input.page_size 20 50}}",
+          "search": "{{input.search}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_items": "total_items",
+          "page_count": "page_count",
+          "items[]": {
+            "id": "id",
+            "name": "name",
+            "default": "default",
+            "shared": "shared",
+            "forms_count": "forms.count"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

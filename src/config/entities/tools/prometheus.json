@@ -1,0 +1,315 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "prometheus",
+
+  "name": "Prometheus Tools",
+  "description": "Prometheus monitoring tools for metrics querying and alert management",
+  "category": "infrastructure",
+  "subcategory": "monitoring",
+  "provider": "prometheus",
+  "version": "1.0.0",
+
+  "risk_level": "low",
+  "sandbox_profile": "standard",
+  "requires_license": null,
+
+  "tools": [
+    {
+      "id": "prometheus.query",
+      "name": "PromQL Query",
+      "description": "Execute a PromQL query to retrieve current metric values",
+      "aeeIntent": "quox.noc.prometheus.query",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "query": {
+          "type": "string",
+          "required": true,
+          "description": "PromQL query expression"
+        },
+        "time": {
+          "type": "string",
+          "required": false,
+          "description": "Evaluation timestamp (RFC3339 or Unix timestamp)"
+        },
+        "timeout": {
+          "type": "string",
+          "required": false,
+          "default": "30s",
+          "description": "Query timeout duration"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "resultType": { "type": "string" },
+              "result": { "type": "array" }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Execute instant PromQL queries for current metric values",
+        "when_to_use": [
+          "User asks about current CPU, memory, disk, or network metrics",
+          "User wants to check current service health or latency",
+          "User asks 'how is X performing right now?'",
+          "User wants a single point-in-time metric value"
+        ],
+        "when_not_to_use": [
+          "User wants historical data over time (use prometheus.range instead)",
+          "User wants to see trends or graphs (use prometheus.range)",
+          "User wants to modify alerting rules"
+        ],
+        "output_interpretation": {
+          "success": "Returns { status: 'success', data: { resultType: 'vector'|'scalar', result: [...] } }",
+          "empty": "Empty result[] means no data matches - verify metric name exists",
+          "error": "status: 'error' with errorType and error message explaining the issue"
+        },
+        "error_recovery": [
+          { "error": "bad_data", "meaning": "Invalid PromQL syntax", "action": "Check query syntax, verify metric names, escape special characters" },
+          { "error": "timeout", "meaning": "Query execution exceeded timeout", "action": "Simplify query or increase timeout parameter" },
+          { "error": "execution", "meaning": "Server-side error during execution", "action": "Retry once, check Prometheus server health" }
+        ]
+      }
+    },
+    {
+      "id": "prometheus.range",
+      "name": "Range Query",
+      "description": "Execute a range query for time-series data over a period",
+      "aeeIntent": "quox.noc.prometheus.range",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "query": {
+          "type": "string",
+          "required": true,
+          "description": "PromQL query expression"
+        },
+        "start": {
+          "type": "string",
+          "required": true,
+          "description": "Start timestamp (RFC3339 or Unix)"
+        },
+        "end": {
+          "type": "string",
+          "required": true,
+          "description": "End timestamp (RFC3339 or Unix)"
+        },
+        "step": {
+          "type": "string",
+          "required": false,
+          "default": "15s",
+          "description": "Query resolution step (e.g., '15s', '1m', '5m')"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "resultType": { "type": "string" },
+              "result": { "type": "array" }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Query metrics over a time range for trends and graphs",
+        "when_to_use": [
+          "User asks about metrics over the last hour/day/week",
+          "User wants to see trends or patterns",
+          "User asks 'show me CPU usage over the last 24 hours'",
+          "User wants data for graphing or analysis"
+        ],
+        "when_not_to_use": [
+          "User only needs current/latest value (use prometheus.query)",
+          "Time range exceeds retention period"
+        ]
+      }
+    },
+    {
+      "id": "prometheus.alerts",
+      "name": "Alert Status",
+      "description": "Get current firing and pending alerts from Prometheus",
+      "aeeIntent": "quox.noc.prometheus.alerts.query",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {},
+      "returns": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "alerts": { "type": "array" }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Check for active alerts and their status",
+        "when_to_use": [
+          "User asks 'are there any alerts?'",
+          "User wants to check system health",
+          "User asks about problems or issues",
+          "Start of troubleshooting session"
+        ],
+        "when_not_to_use": [
+          "User wants to create or modify alert rules",
+          "User needs AlertManager features (silences, inhibitions)"
+        ]
+      }
+    },
+    {
+      "id": "prometheus.targets",
+      "name": "Scrape Targets",
+      "description": "Get health status of all scrape targets",
+      "aeeIntent": "quox.noc.prometheus.targets.list",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {},
+      "returns": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "activeTargets": { "type": "array" },
+              "droppedTargets": { "type": "array" }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Check which targets are being scraped and their health",
+        "when_to_use": [
+          "User asks about monitored hosts/services",
+          "User suspects metrics are missing",
+          "User asks 'what is Prometheus monitoring?'",
+          "Debugging missing metrics"
+        ],
+        "when_not_to_use": [
+          "User wants to add new scrape targets"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {
+    "base": "internal",
+    "api": "prometheus"
+  },
+
+  "instructions": {
+    "summary": "Query Prometheus for infrastructure metrics, alerts, and target health",
+    "when_to_use": [
+      "User asks about CPU, memory, disk, or network metrics",
+      "User wants to check service health or performance",
+      "User asks 'how is X performing?' or 'show me metrics for Y'",
+      "User wants to see current alerts or problems",
+      "User needs infrastructure monitoring data"
+    ],
+    "when_not_to_use": [
+      "User wants to modify alerting rules (not supported via API)",
+      "User needs historical data older than Prometheus retention (typically 15 days)",
+      "User wants application-level logs (use log tools instead)"
+    ],
+    "usage_pattern": {
+      "format": "prometheus.<tool>(params)",
+      "common_queries": [
+        {
+          "intent": "CPU usage percentage",
+          "tool": "prometheus.query",
+          "params": { "query": "100 - (avg by(instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)" }
+        },
+        {
+          "intent": "Memory usage percentage",
+          "tool": "prometheus.query",
+          "params": { "query": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100" }
+        },
+        {
+          "intent": "Disk usage percentage",
+          "tool": "prometheus.query",
+          "params": { "query": "(1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes)) * 100" }
+        },
+        {
+          "intent": "HTTP request rate",
+          "tool": "prometheus.query",
+          "params": { "query": "sum(rate(http_requests_total[5m]))" }
+        },
+        {
+          "intent": "HTTP error rate (5xx)",
+          "tool": "prometheus.query",
+          "params": { "query": "sum(rate(http_requests_total{status=~\"5..\"}[5m]))" }
+        },
+        {
+          "intent": "Container memory usage",
+          "tool": "prometheus.query",
+          "params": { "query": "container_memory_usage_bytes{name!=\"\"}" }
+        },
+        {
+          "intent": "Network traffic in/out",
+          "tool": "prometheus.query",
+          "params": { "query": "rate(node_network_receive_bytes_total[5m])" }
+        }
+      ]
+    },
+    "output_interpretation": {
+      "success": "Returns JSON with status='success' and data.result array containing metric values",
+      "empty": "Empty result[] means query matched no data - check metric name spelling and label filters",
+      "error": "Returns status='error' with errorType ('bad_data', 'timeout', 'execution') and error message"
+    },
+    "error_recovery": [
+      { "error": "bad_data", "meaning": "Invalid PromQL syntax or unknown metric", "action": "Verify metric name exists with prometheus.targets, check PromQL syntax" },
+      { "error": "timeout", "meaning": "Query took too long to execute", "action": "Reduce time range, simplify query, or increase timeout" },
+      { "error": "execution", "meaning": "Prometheus server error", "action": "Retry once, then check Prometheus server health" },
+      { "error": "connection refused", "meaning": "Cannot reach Prometheus server", "action": "Check network connectivity and Prometheus service status" }
+    ],
+    "chaining": {
+      "often_used_with": ["grafana.dashboard", "alertmanager.silence", "alertmanager.status"],
+      "feeds_into": ["Analysis for interpretation", "Reporting tools"],
+      "requires_first": []
+    }
+  },
+
+  "help": {
+    "man_url": "https://prometheus.io/docs/prometheus/latest/querying/basics/",
+    "quick_reference": "/docs/tools/prometheus-cheatsheet.md",
+    "examples_url": "/docs/tools/prometheus-examples.md",
+    "video_tutorial": null,
+    "troubleshooting": "/docs/tools/prometheus-troubleshooting.md"
+  },
+
+  "agent_hints": {
+    "primary_agent": "metrics",
+    "secondary_agents": ["beacon"],
+    "delegation_keywords": ["prometheus", "promql", "metric", "time series", "scrape", "target", "alertmanager"],
+    "context_tokens": 150,
+    "typical_latency_ms": 200,
+    "cacheable": true,
+    "cache_ttl_seconds": 60,
+    "batch_friendly": true,
+    "max_batch_size": 10,
+    "idempotent": true,
+    "side_effects": false
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "id": "startup-ops",
+  "type": "team",
+  "version": "1.0.0",
+  "displayName": "Startup Ops",
+  "description": "Essential operations team for new deployments — covers security fundamentals, CI/CD pipelines, monitoring, uptime tracking, and knowledge base setup.",
+  "author": "QUOX",
+  "tier": "free",
+  "price": 0,
+  "priceModel": "included",
+  "icon": "rocket",
+  "accentColor": "#10b981",
+
+  "orchestrator": {
+    "agentId": "quox",
+    "role": "orchestrator",
+    "domains": ["coordination", "task routing", "startup operations"]
+  },
+
+  "members": [
+    {
+      "agentId": "sentinel",
+      "role": "manager",
+      "domains": ["security baseline", "access control", "compliance"]
+    },
+    {
+      "agentId": "nova",
+      "role": "specialist",
+      "domains": ["CI/CD setup", "container deployment", "automation"]
+    },
+    {
+      "agentId": "metrics",
+      "role": "specialist",
+      "domains": ["monitoring setup", "alerting", "baseline metrics"]
+    },
+    {
+      "agentId": "beacon",
+      "role": "specialist",
+      "domains": ["uptime monitoring", "health checks", "SLA tracking"]
+    },
+    {
+      "agentId": "scholar",
+      "role": "specialist",
+      "domains": ["documentation", "runbooks", "onboarding guides"]
+    }
+  ],
+
+  "policies": {
+    "maxBudgetTokens": 300000,
+    "maxBudgetToolCalls": 120,
+    "maxDurationMs": 14400000,
+    "maxTaskDurationMs": 600000,
+    "heartbeatIntervalMs": 15000,
+    "maxParallelTasks": 2,
+    "requireApprovalBeforeStart": true,
+    "checkpointAfterEachTask": false,
+    "voltRequired": true,
+    "allowedChannels": ["slack", "telegram", "discord", "email"]
+  },
+
+  "sharedContext": {
+    "persistent": true,
+    "schema": {}
+  }
+}

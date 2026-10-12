@@ -1,0 +1,244 @@
+{
+  "spec_version": 1,
+  "id": "tray",
+  "name": "Tray.io",
+  "category": "developer",
+  "credentialType": "tray",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://tray.io/documentation",
+  "base_url": "https://api.tray.io",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/core/v1/users/me"
+  },
+  "tools_source": "https://tray.io/documentation/embedded/api-reference",
+  "tools": [
+    {
+      "name": "get_current_user",
+      "description": "Get the Tray.io account the access token belongs to (who am I)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/core/v1/users/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "email": "email",
+          "created": "created"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_viewer",
+      "description": "Get the Tray.io viewer (the GraphQL identity behind the token) with its name and email",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql",
+        "body": {
+          "query": "query { viewer { details { name email } } }"
+        }
+      },
+      "response": {
+        "pick": {
+          "name": "data.viewer.details.name",
+          "email": "data.viewer.details.email",
+          "errors": "errors"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_workflows",
+      "description": "List Tray.io workflows visible to the token (id, title, enabled state, creation time)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max workflows to return (default 25, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql",
+        "body": {
+          "query": "query ($first: Int) { viewer { workflows (first: $first) { edges { node { id title enabled created } } pageInfo { hasNextPage endCursor } } } }",
+          "variables": {
+            "first": "{{clamp input.limit 25 100}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "data.viewer.workflows.edges[]": {
+            "id": "node.id",
+            "title": "node.title",
+            "enabled": "node.enabled",
+            "created": "node.created"
+          },
+          "has_next_page": "data.viewer.workflows.pageInfo.hasNextPage",
+          "end_cursor": "data.viewer.workflows.pageInfo.endCursor",
+          "errors": "errors"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_solutions",
+      "description": "List Tray.io solutions (the reusable templates customer instances are created from)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max solutions to return (default 25, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql",
+        "body": {
+          "query": "query ($first: Int) { viewer { solutions (first: $first) { edges { node { id title description created } } pageInfo { hasNextPage endCursor } } } }",
+          "variables": {
+            "first": "{{clamp input.limit 25 100}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "data.viewer.solutions.edges[]": {
+            "id": "node.id",
+            "title": "node.title",
+            "description": "node.description",
+            "created": "node.created"
+          },
+          "has_next_page": "data.viewer.solutions.pageInfo.hasNextPage",
+          "end_cursor": "data.viewer.solutions.pageInfo.endCursor",
+          "errors": "errors"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_solution_instances",
+      "description": "List Tray.io solution instances (per-customer deployments of a solution) with their enabled state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max solution instances to return (default 25, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql",
+        "body": {
+          "query": "query ($first: Int) { viewer { solutionInstances (first: $first) { edges { node { id name enabled created solution { id title } } } pageInfo { hasNextPage endCursor } } } }",
+          "variables": {
+            "first": "{{clamp input.limit 25 100}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "data.viewer.solutionInstances.edges[]": {
+            "id": "node.id",
+            "name": "node.name",
+            "enabled": "node.enabled",
+            "created": "node.created",
+            "solution_id": "node.solution.id",
+            "solution_title": "node.solution.title"
+          },
+          "has_next_page": "data.viewer.solutionInstances.pageInfo.hasNextPage",
+          "end_cursor": "data.viewer.solutionInstances.pageInfo.endCursor",
+          "errors": "errors"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_authentications",
+      "description": "List the Tray.io authentications (stored third-party service credentials) the token can see, by service",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max authentications to return (default 25, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql",
+        "body": {
+          "query": "query ($first: Int) { viewer { authentications (first: $first) { edges { node { id name service { id name } } } pageInfo { hasNextPage endCursor } } } }",
+          "variables": {
+            "first": "{{clamp input.limit 25 100}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "data.viewer.authentications.edges[]": {
+            "id": "node.id",
+            "name": "node.name",
+            "service_id": "node.service.id",
+            "service_name": "node.service.name"
+          },
+          "has_next_page": "data.viewer.authentications.pageInfo.hasNextPage",
+          "end_cursor": "data.viewer.authentications.pageInfo.endCursor",
+          "errors": "errors"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "THE GRAPHQL PATH IN THE BRIEF IS WRONG AND IS NOT USED HERE. Probed 2026-09-12 with a dummy bearer, `POST https://api.tray.io/core/v1/graphql` answers `404 {\"message\":\"\"}`, byte-identical to the harness control path `GET https://api.tray.io/quox-shapeproof-control-abc123` -> `404 {\"message\":\"\"}`, so that route does not exist. `POST https://api.tray.io/graphql` answers `200 {\"data\":null,\"errors\":[{\"message\":\"Missing or invalid Authorization header, or user not found\",\"extensions\":{\"name\":\"PreconditionError\",\"code\":\"access_not_allowed\",\"data\":null,\"isUserFacing\":true,\"internal\":{\"origin\":\"api-service\",\"javaException\":null,\"queryContext\":null}}}]}`. Every GraphQL tool therefore posts to `/graphql`.",
+      "Auth kept as scaffolded (bearer on `access_token`): the GraphQL endpoint and the REST endpoint reject the dummy bearer with the SAME message text (`Missing or invalid Authorization header, or user not found`), so one auth layer fronts both surfaces.",
+      "The GraphQL DOCUMENTS ARE NOT PROVEN AND CANNOT BE PROVEN BLIND. Tray authenticates before it parses: a deliberately broken query (`{ `), an unknown root field (`{ quoxNonexistentField }`) and an introspection query (`{ __schema { queryType { name } } }`) all return the identical PreconditionError above, never a parse or validation error. Field names and the Relay `edges { node }` / `pageInfo` connection shape come from Tray's Embedded API reference, not from a live 2xx. Introspection is unreachable and no OpenAPI or schema document is served (`/graphql` via GET, `/core/v1/openapi`, `/core/v1/swagger.json`, `/openapi.json`, `/core/v1/docs` all `404 {\"message\":\"\"}`). Confirm every query against a real token before promoting this draft.",
+      "HOW THE SHAPE-PROOF MUST BE READ FOR THIS SPEC: the GraphQL tools come back HTTP 200, so the harness classifies them SHAPE_PROVEN with flags `no_auth_required` and `public_endpoint`. Both flags are about the HTTP STATUS ONLY and are misleading here: the body is an authentication refusal carried at 200, which is normal GraphQL transport. What those rows prove is one endpoint (host, TLS, path `/graphql`, JSON handling) reached six times, nothing about auth and nothing about the queries. The single row that proves the auth wiring is `test` on `/core/v1/users/me`, which answers `401 {\"message\":\"Missing or invalid Authorization header, or user not found\",\"details\":null}` against a control `404`.",
+      "Caller input never reaches the query text. Each tool sends a FIXED read document and passes `first` through the GraphQL `variables` object, where declarativeRuntime.renderBody preserves a solo placeholder's numeric type. Interpolating `{{input.*}}` into the query string would let a caller close the read query and append a mutation, which would defeat the read-only intent of this spec (every tool is `write: false`).",
+      "GraphQL returns 200 with an `errors` array for query-level failures, so every GraphQL tool picks `errors` through. Without it a permission or schema error would be shaped into an empty result set and read as 'no workflows', a silent-fallback falsehood.",
+      "`pick` keys carry the full response path (`data.viewer.workflows.edges[]`) because applyPick sources an array from its KEY, not its value, so the output key reads `data.viewer.workflows.edges`. Functional but ugly; a spec v2 with a `from` on array picks would fix it. The same limit means one request per tool: `end_cursor` is returned but there is no next-page tool to spend it on, and `first` clamps at 100.",
+      "`get_current_user` is the one REST tool, on the only Tray REST route family that exists under a dummy key. Route mapping probed 2026-09-12: `/core/v1/users/me`, `/core/v1/users`, `/core/v1/users/{id}` and `/core/v1/workspaces` all answer `401 {\"message\":\"Missing or invalid Authorization header, or user not found\",\"details\":null}`; `/core/v1/authentications` and `/core/v1/connectors` answer `401 {\"message\":\"The request is unauthorized\"}` (a different service behind the same gate); `/core/v1/workflows`, `/core/v1/solutions`, `/core/v1/solution-instances`, `/core/v1/logs`, `/core/v1/organizations`, `/core/v1/projects`, `/core/v1/teams` and `/core/v1/webhooks` all answer `404 {\"message\":\"\"}`. So there is no REST workflow surface to read: workflows are GraphQL-only.",
+      "`get_current_user`'s picked fields (`id`, `name`, `email`, `created`) are documentation-derived like the GraphQL ones: the 401 proves the route and the auth header, never a body. The REST list routes that do exist (`/core/v1/users`, `/core/v1/workspaces`) were left out because their pagination wrapper could not be pinned down blind and a wrong wrapper would report an empty tenant.",
+      "Category changed from the scaffolded `productivity`, which is outside the 12-value taxonomy, to `developer`, matching the shipped Workato spec (the closest peer: enterprise integration platform)."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

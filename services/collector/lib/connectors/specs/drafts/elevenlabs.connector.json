@@ -1,0 +1,28 @@
+{
+  "spec_version": 1,
+  "id": "elevenlabs",
+  "name": "ElevenLabs",
+  "category": "communication",
+  "credentialType": "elevenlabs",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.elevenlabs.io/api-reference",
+  "base_url": "https://api.elevenlabs.io",
+  "auth": {
+    "type": "header",
+    "header": "xi-api-key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/user"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

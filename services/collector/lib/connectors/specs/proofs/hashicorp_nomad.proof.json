@@ -1,0 +1,106 @@
+{
+  "spec_id": "hashicorp_nomad",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T19:30:43.728Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/agent/self",
+      "status": 200,
+      "latency_ms": 295,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "181f3c95a804c08c2690591d81d51301233f025ba7ce95081e22ed99374c5ebf",
+      "body_excerpt": "{\"config\":{\"ACL\":{\"Enabled\":true,\"PolicyTTL\":30000000000,\"ReplicationToken\":\"\",\"RoleTTL\":30000000000,\"TokenMaxExpirationTTL\":0,\"TokenMinExpirationTTL\":0,\"TokenTTL\":30000000000},\"Addresses\":{\"HTTP\":\"0.",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "agent_self",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/agent/self",
+      "status": 200,
+      "latency_ms": 19,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "eb0f1e18eb540ae02ab495d1decf02ca075b4930afa71d40d8358ed7b06c856a",
+      "body_excerpt": "{\"config\":{\"ACL\":{\"Enabled\":true,\"PolicyTTL\":30000000000,\"ReplicationToken\":\"\",\"RoleTTL\":30000000000,\"TokenMaxExpirationTTL\":0,\"TokenMinExpirationTTL\":0,\"TokenTTL\":30000000000},\"Addresses\":{\"HTTP\":\"0.",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "agent_members",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/agent/members",
+      "status": 200,
+      "latency_ms": 15,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "1fc8a831ed34a8578f9c76e9d61eeb48fbf546740d3e7c5ab55a2f5fc7022e35",
+      "body_excerpt": "{\"ServerName\":\"5e7a46d7f288\",\"ServerRegion\":\"global\",\"ServerDC\":\"dc1\",\"Members\":[{\"Name\":\"5e7a46d7f288.global\",\"Addr\":\"[RFC1918_REDACTED]\",\"Port\":4648,\"Tags\":{\"role\":\"nomad\",\"dc\":\"dc1\",\"build\":\"1.9.7\",\"revisi",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_leader",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/status/leader",
+      "status": 200,
+      "latency_ms": 20,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "8b5e38d98e2f28d2a5ab36da1115d4fdce95e9abee49fc6c63a90f96012b091e",
+      "body_excerpt": "\"[RFC1918_REDACTED]:4647\"",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_jobs",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/jobs?namespace=default&per_page=20",
+      "status": 200,
+      "latency_ms": 16,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "body_excerpt": "[]",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_nodes",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/nodes",
+      "status": 200,
+      "latency_ms": 14,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "body_excerpt": "[]",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_namespaces",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/namespaces",
+      "status": 200,
+      "latency_ms": 21,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "9daac45e337dbc867a8b71e9e855f1f536eae7c0224423d943760cec3ef99d94",
+      "body_excerpt": "[{\"Name\":\"default\",\"Description\":\"Default shared namespace\",\"Quota\":\"\",\"Capabilities\":null,\"NodePoolConfiguration\":null,\"VaultConfiguration\":null,\"ConsulConfiguration\":null,\"Meta\":null,\"Hash\":\"C7UbjDw",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:hashicorp/nomad:1.9"
+}

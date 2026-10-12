@@ -1,0 +1,95 @@
+{
+  "spec_version": 1,
+  "id": "deepgram",
+  "name": "Deepgram",
+  "category": "data_ai",
+  "credentialType": "deepgram",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Read-only Deepgram access: the account's projects and the speech-to-text models available to them. Deepgram's transcription endpoint (/v1/listen) is billable and needs an audio payload/URL, so it is deliberately out of scope here rather than modelled write:true with nothing real to send; this connector completes STT coverage alongside AssemblyAI as a read-only pair.",
+  "docs": "https://developers.deepgram.com/reference/",
+  "base_url": "https://api.deepgram.com/v1",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "Token {{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/projects"
+  },
+  "tools_source": "https://developers.deepgram.com/reference/get-projects",
+  "tools": [
+    {
+      "name": "list_projects",
+      "description": "List the Deepgram projects this API key belongs to, with their id, name and account balance company",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/projects"
+      },
+      "response": {
+        "pick": {
+          "projects[]": {
+            "project_id": "project_id",
+            "name": "name",
+            "company": "company"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_models",
+      "description": "List the speech-to-text and text-to-speech models Deepgram currently offers, with their name, version and languages",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/models"
+      },
+      "response": {
+        "pick": {
+          "stt[]": {
+            "name": "name",
+            "canonical_name": "canonical_name",
+            "version": "version",
+            "languages": "languages"
+          },
+          "tts[]": {
+            "name": "name",
+            "canonical_name": "canonical_name",
+            "version": "version",
+            "languages": "languages"
+          }
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-16, frontier-LLM gap fill batch B (project_ai_tools_coverage_gaps_2026_09_16)",
+    "confidence": "high",
+    "needs_review": [
+      "NO LIVE CREDENTIAL AT AUTHORING TIME: this spec is shape-proved blind only. LIVE_PROVEN needs one real Deepgram API key against /v1/projects, a zero-spend authed read per the coverage-gap plan.",
+      "NEW VAULT TYPE: 'deepgram' did not exist in integrationTypeRegistry.js before this build (single api_key field, Authorization: Token <key> header, live testEndpoint /v1/projects). Added alongside this connector.",
+      "Auth uses the 'Token' scheme, not 'Bearer' — Deepgram's own documented convention (Authorization: Token <api_key>).",
+      "No write tool is declared. /v1/listen (transcription) is billable and requires a real audio URL or upload, which the shape-proof harness cannot supply blind and which would be a poor fit for a dummy-input HITL probe; deliberately left out rather than modelled with nothing real to send.",
+      "SHAPE-PROOF FINDING (2026-09-16 run, real network, dummy key): GET /v1/models answered 200 with a real, unauthenticated stt[]/tts[] catalogue (public_endpoint) -- Deepgram serves its model list keyless, unlike /v1/projects which correctly 401s a dummy key. Both the response shape (stt[]/tts[]) and the pick paths are confirmed correct against the live body."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

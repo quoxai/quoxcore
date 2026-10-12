@@ -1,0 +1,174 @@
+/**
+ * LoginPage — minimal styles.
+ * Heavy lifting comes from glass.css (.glass-page, .glass).
+ * Form is interactive on first paint; no entrance theater.
+ */
+
+.login-page {
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.login-content {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: relative;
+    z-index: 1;
+}
+
+.login-card {
+    padding: 32px 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.login-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.login-subtitle {
+    margin: 0;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 400;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.login-back {
+    margin-top: 10px;
+    display: inline-block;
+    font-size: 12px;
+}
+
+.login-footer {
+    text-align: center;
+    padding-top: 4px;
+}
+
+.login-footer .ui-auth-link {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 6px;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.login-footer .ui-auth-link:hover:not(:disabled) {
+    color: var(--q-cyan, #38bdf8);
+    background: rgba(56, 189, 248, 0.06);
+}
+
+.login-footer .ui-auth-link:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.login-submit-btn {
+    margin-top: 4px;
+}
+
+/* Service status — small footer pill below the card */
+.login-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    margin: 0 auto;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.04em;
+}
+
+.login-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.login-status-dot.up {
+    background: var(--q-green, #30ff90);
+    box-shadow: 0 0 6px rgba(48, 255, 144, 0.6);
+}
+
+.login-status-dot.mixed {
+    background: var(--q-amber, #f59e0b);
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+}
+
+.login-status-text .up {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.login-status-text .down {
+    color: var(--q-red, #ef4444);
+    text-decoration: line-through;
+}
+
+/* HTTPS warning */
+.login-https-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.login-https-warning svg {
+    color: var(--q-amber, #f59e0b);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.login-https-warning a {
+    color: var(--q-cyan, #38bdf8);
+    text-decoration: underline;
+}
+
+/* Remember-me checkbox */
+.login-remember-me {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: -4px;
+    margin-bottom: 4px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    user-select: none;
+}
+
+.login-remember-me input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    accent-color: var(--q-cyan, #38bdf8);
+}

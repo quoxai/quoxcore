@@ -1,0 +1,105 @@
+{
+  "spec_id": "coda",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:49:04.299Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://coda.io/apis/v1/quox-shapeproof-control-66c8aec2",
+      "status": 401,
+      "latency_ms": 1327,
+      "classification": "CONTROL",
+      "body_sha256": "8edf4ea3fa16dd6c0d8c4a0f60d64fc69ed36a36d593acf6af7a150b83934ca1",
+      "body_excerpt": "{\"statusCode\":401,\"statusMessage\":\"Unauthorized\",\"message\":\"Unauthorized\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://coda.io/apis/v1/whoami",
+      "status": 401,
+      "latency_ms": 208,
+      "classification": "AUTH_WALL",
+      "body_sha256": "8edf4ea3fa16dd6c0d8c4a0f60d64fc69ed36a36d593acf6af7a150b83934ca1",
+      "body_excerpt": "{\"statusCode\":401,\"statusMessage\":\"Unauthorized\",\"message\":\"Unauthorized\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "whoami",
+      "method": "GET",
+      "url": "https://coda.io/apis/v1/whoami",
+      "status": 401,
+      "latency_ms": 216,
+      "classification": "AUTH_WALL",
+      "body_sha256": "8edf4ea3fa16dd6c0d8c4a0f60d64fc69ed36a36d593acf6af7a150b83934ca1",
+      "body_excerpt": "{\"statusCode\":401,\"statusMessage\":\"Unauthorized\",\"message\":\"Unauthorized\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_docs",
+      "method": "GET",
+      "url": "https://coda.io/apis/v1/docs?limit=20",
+      "status": 401,
+      "latency_ms": 207,
+      "classification": "AUTH_WALL",
+      "body_sha256": "8edf4ea3fa16dd6c0d8c4a0f60d64fc69ed36a36d593acf6af7a150b83934ca1",
+      "body_excerpt": "{\"statusCode\":401,\"statusMessage\":\"Unauthorized\",\"message\":\"Unauthorized\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_tables",
+      "method": "GET",
+      "url": "https://coda.io/apis/v1/docs/quoxprobe/tables",
+      "status": 401,
+      "latency_ms": 289,
+      "classification": "AUTH_WALL",
+      "body_sha256": "8edf4ea3fa16dd6c0d8c4a0f60d64fc69ed36a36d593acf6af7a150b83934ca1",
+      "body_excerpt": "{\"statusCode\":401,\"statusMessage\":\"Unauthorized\",\"message\":\"Unauthorized\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_rows",
+      "method": "GET",
+      "url": "https://coda.io/apis/v1/docs/quoxprobe/tables/quoxprobe/rows?limit=20",
+      "status": 401,
+      "latency_ms": 492,
+      "classification": "AUTH_WALL",
+      "body_sha256": "8edf4ea3fa16dd6c0d8c4a0f60d64fc69ed36a36d593acf6af7a150b83934ca1",
+      "body_excerpt": "{\"statusCode\":401,\"statusMessage\":\"Unauthorized\",\"message\":\"Unauthorized\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

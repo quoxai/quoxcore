@@ -1,0 +1,474 @@
+{
+  "spec_version": 1,
+  "id": "hibob",
+  "name": "HiBob",
+  "category": "hr_hiring",
+  "credentialType": "hibob",
+  "requiredFields": [
+    "api_token",
+    "service_user_id"
+  ],
+  "docs": "https://apidocs.hibob.com/",
+  "base_url": "https://api.hibob.com",
+  "auth": {
+    "type": "basic",
+    "userField": "service_user_id",
+    "passField": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/profiles"
+  },
+  "tools_source": "https://apidocs.hibob.com/reference/get_profiles",
+  "tools": [
+    {
+      "name": "list_profiles",
+      "description": "Read the public profile of every active HiBob employee (name, work email, title, department, site, manager, start date)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/profiles"
+      },
+      "response": {
+        "pick": {
+          "employees[]": {
+            "id": "id",
+            "displayName": "displayName",
+            "firstName": "firstName",
+            "surname": "surname",
+            "email": "email",
+            "title": "work.title",
+            "department": "work.department",
+            "site": "work.site",
+            "startDate": "work.startDate",
+            "manager": "work.manager",
+            "reportsTo": "work.reportsTo.displayName",
+            "isManager": "work.isManager",
+            "employeeIdInCompany": "work.employeeIdInCompany"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_company_lists",
+      "description": "List every HiBob company named list (departments, sites, reasons and other configurable lists) with their values",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "include_archived": {
+            "type": "boolean",
+            "description": "Include archived list items (default false)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/company/named-lists",
+        "query": {
+          "includeArchived": "{{input.include_archived}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name",
+            "items[]": {
+              "id": "id",
+              "name": "name",
+              "value": "value",
+              "archived": "archived"
+            }
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_company_list",
+      "description": "Get one HiBob company named list by its internal name, with its values and nested children",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "list_name": {
+            "type": "string",
+            "description": "Internal name of the list (e.g. department, site, reason)"
+          },
+          "include_archived": {
+            "type": "boolean",
+            "description": "Include archived list items (default false)"
+          }
+        },
+        "required": [
+          "list_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/company/named-lists/{{input.list_name}}",
+        "query": {
+          "includeArchived": "{{input.include_archived}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "items[]": {
+            "id": "id",
+            "name": "name",
+            "value": "value",
+            "archived": "archived",
+            "children": "children"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_people_fields",
+      "description": "List the HiBob employee field definitions (id, display name, category, type, JSON path) — the metadata needed to read or interpret any profile field",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/company/people/fields"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "category": "category",
+            "categoryDisplayName": "categoryDisplayName",
+            "type": "type",
+            "jsonPath": "jsonPath",
+            "historical": "historical",
+            "description": "description"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "whos_out",
+      "description": "List who is out of the office in HiBob across a date range (employee, policy type, status, dates and day portions)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Start of the period (YYYY-MM-DD)"
+          },
+          "to": {
+            "type": "string",
+            "description": "End of the period (YYYY-MM-DD)"
+          },
+          "include_pending": {
+            "type": "boolean",
+            "description": "Include pending requests as well as approved ones (default false)"
+          },
+          "include_hourly": {
+            "type": "boolean",
+            "description": "Include hourly requests, not just whole or part days (default false)"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/timeoff/whosout",
+        "query": {
+          "from": "{{input.from}}",
+          "to": "{{input.to}}",
+          "includePending": "{{input.include_pending}}",
+          "includeHourly": "{{input.include_hourly}}"
+        }
+      },
+      "_probe": {
+        "input.from": "2026-01-01",
+        "input.to": "2026-01-31"
+      },
+      "response": {
+        "pick": {
+          "outs[]": {
+            "requestId": "requestId",
+            "employeeId": "employeeId",
+            "employeeDisplayName": "employeeDisplayName",
+            "policyType": "policyType",
+            "policyTypeDisplayName": "policyTypeDisplayName",
+            "status": "status",
+            "type": "type",
+            "startDate": "startDate",
+            "startPortion": "startPortion",
+            "endDate": "endDate",
+            "endPortion": "endPortion"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "out_today",
+      "description": "List who is out of the office in HiBob today, or on one specified date",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "today": {
+            "type": "string",
+            "description": "Date to report on (YYYY-MM-DD). Defaults to the current UTC date"
+          },
+          "include_hourly": {
+            "type": "boolean",
+            "description": "Include hourly requests, not just whole or part days (default false)"
+          },
+          "site_id": {
+            "type": "number",
+            "description": "Optional site ID to scope the answer to one office"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/timeoff/outtoday",
+        "query": {
+          "today": "{{input.today}}",
+          "includeHourly": "{{input.include_hourly}}",
+          "siteId": "{{input.site_id}}"
+        }
+      },
+      "_probe": {
+        "input.today": "2026-01-15"
+      },
+      "response": {
+        "pick": {
+          "outs[]": {
+            "requestId": "requestId",
+            "employeeId": "employeeId",
+            "employeeDisplayName": "employeeDisplayName",
+            "policyType": "policyType",
+            "policyTypeDisplayName": "policyTypeDisplayName",
+            "status": "status",
+            "type": "type",
+            "startDate": "startDate",
+            "startPortion": "startPortion",
+            "endDate": "endDate",
+            "endPortion": "endPortion"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_time_off_policy_types",
+      "description": "List the names of every HiBob time off policy type (Holiday, Sick and any custom types) — the values the balance tool needs",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/timeoff/policy-types"
+      },
+      "response": {
+        "pick": {
+          "policyTypes": "policyTypes"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_time_off_balance",
+      "description": "Get one HiBob employee's time off balance for a policy type at a point in time (starting balance, taken, adjustments, annual allowance)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "description": "HiBob employee ID"
+          },
+          "policy_type": {
+            "type": "string",
+            "description": "Policy type name, as returned by list_time_off_policy_types (e.g. Holiday)"
+          },
+          "date": {
+            "type": "string",
+            "description": "Point in time to report the balance as of (YYYY-MM-DD)"
+          }
+        },
+        "required": [
+          "employee_id",
+          "policy_type",
+          "date"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/timeoff/employees/{{input.employee_id}}/balance",
+        "query": {
+          "policyType": "{{input.policy_type}}",
+          "date": "{{input.date}}"
+        }
+      },
+      "_probe": {
+        "input.policy_type": "Holiday",
+        "input.date": "2026-01-15"
+      },
+      "response": {
+        "pick": {
+          "employeeId": "employeeId",
+          "policy": "policy",
+          "currentAssignment": "currentAssignment",
+          "pointInTime": "pointInTime",
+          "startingBalance": "startingBalance",
+          "startingBalanceAsOf": "startingBalanceAsOf",
+          "totalTaken": "totalTaken",
+          "totalBalanceAsOfDate": "totalBalanceAsOfDate",
+          "totalRoundedBalanceAsOfDate": "totalRoundedBalanceAsOfDate",
+          "annualAllowance": "annualAllowance",
+          "totalAdminAdjustments": "totalAdminAdjustments",
+          "totalSystemAdjustments": "totalSystemAdjustments"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_open_tasks",
+      "description": "List all open HiBob tasks (title, owner, who it is requested for, due date, workflow, status)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/tasks"
+      },
+      "response": {
+        "pick": {
+          "tasks[]": {
+            "id": "id",
+            "title": "title",
+            "status": "status",
+            "due": "due",
+            "set": "set",
+            "workflow": "workflow",
+            "owner": "owner.displayName",
+            "requestedFor": "requestedFor.displayName",
+            "completionDate": "completionDate",
+            "linkInBob": "linkInBob"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_employee_tasks",
+      "description": "List the HiBob tasks of one employee, optionally filtered to open or closed ones",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "description": "HiBob employee ID"
+          },
+          "task_status": {
+            "type": "string",
+            "description": "Optional status filter (open or closed). Omit to return all tasks"
+          }
+        },
+        "required": [
+          "employee_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/tasks/people/{{input.employee_id}}",
+        "query": {
+          "task_status": "{{input.task_status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "tasks[]": {
+            "id": "id",
+            "title": "title",
+            "status": "status",
+            "due": "due",
+            "set": "set",
+            "workflow": "workflow",
+            "owner": "owner.displayName",
+            "requestedFor": "requestedFor.displayName",
+            "completionDate": "completionDate",
+            "linkInBob": "linkInBob"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_company_reports",
+      "description": "List the HiBob company reports available to this service user (id, name, description, type, whether scheduled)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/company/reports"
+      },
+      "response": {
+        "pick": {
+          "views[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "type": "type",
+            "isScheduled": "isScheduled",
+            "createdBy": "createdBy",
+            "creationDate": "creationDate",
+            "modificationDate": "modificationDate"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_onboarding_wizards",
+      "description": "List the HiBob onboarding wizards defined for the company (id and name)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/onboarding/wizards"
+      },
+      "response": {
+        "pick": {
+          "wizards[]": {
+            "id": "id",
+            "name": "name"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

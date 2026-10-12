@@ -1,0 +1,13 @@
+{
+  "id": "software-dev",
+  "type": "team-pack",
+  "version": "1.0.0",
+  "displayName": "Software Dev Pack",
+  "description": "Full development lifecycle team. Code generation, testing, CI/CD pipelines, security scanning, and code review.",
+  "author": "Quox",
+  "tier": "free",
+  "teams": ["software-dev", "secops"],
+  "tags": ["development", "testing", "ci-cd"],
+  "icon": "code",
+  "accentColor": "#34d399"
+}

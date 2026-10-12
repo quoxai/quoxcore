@@ -1,0 +1,81 @@
+{
+  "id": "wf-quox-knowledge-base-refresh",
+  "name": "Scheduled Knowledge-Base Refresh",
+  "description": "Runs nightly to crawl configured documentation sources, ingest new content into memory, and notify the admin with a summary of what was added.",
+  "source": "quox-curated",
+  "category": "productivity",
+  "tags": ["knowledge-base", "crawl", "memory", "nightly", "schedule", "ingest", "notification", "docs"],
+  "nodes": [
+    {
+      "id": "trig",
+      "type": "trigger:schedule",
+      "name": "Nightly 2am",
+      "category": "trigger",
+      "config": {
+        "cron": "0 2 * * *",
+        "timezone": "UTC",
+        "enabled": true
+      },
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "crawl",
+      "type": "call",
+      "name": "Crawl Docs Sources",
+      "category": "action",
+      "config": {
+        "url": "{{COLLECTOR_URL}}/api/crawler/run",
+        "method": "POST",
+        "timeout": 60000
+      },
+      "position": { "x": 400, "y": 300 }
+    },
+    {
+      "id": "ingest",
+      "type": "call",
+      "name": "Ingest to Memory",
+      "category": "action",
+      "config": {
+        "url": "{{MEMORY_URL}}/api/ingest",
+        "method": "POST",
+        "timeout": 60000
+      },
+      "position": { "x": 700, "y": 300 }
+    },
+    {
+      "id": "summarise",
+      "type": "data:transform",
+      "name": "Build Ingest Summary",
+      "category": "data",
+      "config": {
+        "expression": "({ pagesAdded: nodes['ingest'].output.added || 0, pagesUpdated: nodes['ingest'].output.updated || 0, errors: nodes['ingest'].output.errors || 0, runAt: new Date().toISOString() })",
+        "outputField": "summary"
+      },
+      "position": { "x": 1000, "y": 300 }
+    },
+    {
+      "id": "deliver",
+      "type": "notification:deliver",
+      "name": "Notify Admin",
+      "category": "notification",
+      "config": {
+        "title": "Knowledge Base Refresh Complete",
+        "message": "## Nightly Knowledge Base Refresh\n\n- Pages added: ${nodes['summarise'].output.summary.pagesAdded}\n- Pages updated: ${nodes['summarise'].output.summary.pagesUpdated}\n- Errors: ${nodes['summarise'].output.summary.errors}\n\nRun at: ${nodes['summarise'].output.summary.runAt}",
+        "assignTo": ["team-admin"],
+        "priority": "low"
+      },
+      "position": { "x": 1300, "y": 300 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trig", "target": "crawl" },
+    { "id": "e2", "source": "crawl", "target": "ingest" },
+    { "id": "e3", "source": "ingest", "target": "summarise" },
+    { "id": "e4", "source": "summarise", "target": "deliver" }
+  ],
+  "meta": {
+    "version": "1.0.0",
+    "createdBy": "quox-curated",
+    "estimatedRuntime": "2-5 min"
+  }
+}

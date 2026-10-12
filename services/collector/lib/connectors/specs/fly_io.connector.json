@@ -1,0 +1,246 @@
+{
+  "spec_version": 1,
+  "id": "fly_io",
+  "name": "Fly.io",
+  "category": "cloud_hosting",
+  "credentialType": "fly_io",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://fly.io/docs/machines/api/",
+  "base_url": "https://api.machines.dev",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/tokens/current"
+  },
+  "tools_source": "https://docs.machines.dev/spec/openapi3.json",
+  "tools": [
+    {
+      "name": "list_apps",
+      "description": "List Fly.io apps in one organisation, with machine and volume counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_slug": {
+            "type": "string",
+            "description": "Fly organisation slug, or 'personal' for the default personal organisation"
+          },
+          "app_role": {
+            "type": "string",
+            "description": "Optional app role to filter by"
+          }
+        },
+        "required": [
+          "org_slug"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/apps",
+        "query": {
+          "org_slug": "{{input.org_slug}}",
+          "app_role": "{{input.app_role}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "apps[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "machine_count": "machine_count",
+            "volume_count": "volume_count",
+            "network": "network",
+            "organization": "organization.slug"
+          },
+          "total_apps": "total_apps"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.org_slug": "personal"
+      }
+    },
+    {
+      "name": "get_app",
+      "description": "Get one Fly.io app by name, including status and machine count",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app_name": {
+            "type": "string",
+            "description": "Fly app name (e.g. my-app)"
+          }
+        },
+        "required": [
+          "app_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/apps/{{input.app_name}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "status": "status",
+          "machine_count": "machine_count",
+          "volume_count": "volume_count",
+          "network": "network",
+          "organization": "organization.slug"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_machines",
+      "description": "List the Fly Machines belonging to one app, optionally filtered by state or region",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app_name": {
+            "type": "string",
+            "description": "Fly app name (e.g. my-app)"
+          },
+          "state": {
+            "type": "string",
+            "description": "Optional machine state to filter by (e.g. started, stopped, suspended)"
+          },
+          "region": {
+            "type": "string",
+            "description": "Optional Fly region code to filter by (e.g. lhr)"
+          }
+        },
+        "required": [
+          "app_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/apps/{{input.app_name}}/machines",
+        "query": {
+          "state": "{{input.state}}",
+          "region": "{{input.region}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "state": "state",
+            "region": "region",
+            "private_ip": "private_ip",
+            "host_status": "host_status",
+            "image": "config.image",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_machine",
+      "description": "Get one Fly Machine by ID within an app, including state and image",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app_name": {
+            "type": "string",
+            "description": "Fly app name (e.g. my-app)"
+          },
+          "machine_id": {
+            "type": "string",
+            "description": "Fly Machine ID (e.g. 148ed127b25c28)"
+          }
+        },
+        "required": [
+          "app_name",
+          "machine_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/apps/{{input.app_name}}/machines/{{input.machine_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "state": "state",
+          "region": "region",
+          "private_ip": "private_ip",
+          "host_status": "host_status",
+          "instance_id": "instance_id",
+          "image": "config.image",
+          "created_at": "created_at",
+          "updated_at": "updated_at"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_volumes",
+      "description": "List the Fly volumes belonging to one app, with size and attachment state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app_name": {
+            "type": "string",
+            "description": "Fly app name (e.g. my-app)"
+          }
+        },
+        "required": [
+          "app_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/apps/{{input.app_name}}/volumes"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "state": "state",
+            "region": "region",
+            "size_gb": "size_gb",
+            "encrypted": "encrypted",
+            "attached_machine_id": "attached_machine_id",
+            "bytes_used": "bytes_used",
+            "bytes_total": "bytes_total",
+            "created_at": "created_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "API choice 2026-09-12: the REST Machines API (api.machines.dev) is used, not Fly's GraphQL API. fly.io/docs/machines/api steers to it and publishes an OpenAPI document (docs.machines.dev/spec/openapi3.json), which is what these tools and picks are read from. The GraphQL endpoint has no equivalent published schema contract in the docs and is not declaratively expressible in Connector Spec v1 (single POST path, query strings as bodies).",
+      "Scaffolded auth (bearer api_token) stands: a dummy bearer is rejected with a structured 401 at every /v1 read path, which is the auth handling the docs describe.",
+      "Test block changed from GET /v1/apps to GET /v1/tokens/current on 2026-09-12, with evidence: the OpenAPI document marks org_slug a REQUIRED query parameter on GET /v1/apps, and the live host answers /v1/apps without it with the plain-text '404 page not found' router miss, identical to the shape-proof control path. /v1/tokens/current is the documented current-token endpoint, takes no parameters, and answers a dummy bearer with a structured 401, so it proves the credential path without inventing an organisation slug.",
+      "Shape-proof _probe hint: list_apps carries \"_probe\": {\"input.org_slug\": \"personal\"}. The OpenAPI document describes org_slug as \"The org slug, or 'personal', to filter apps\", so 'personal' is the documented public default rather than someone's tenant; without it the query param is dropped and the call becomes the same router 404 as the control. app_name and machine_id take the harness's generic dummy value: Fly answers those routes with a structured 401 (app paths) or a distinct 404 'machine not found' (machine path), both of which differ from the control, so no identifier hint is needed. Credentials are never hinted."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,262 @@
+{
+  "spec_version": 1,
+  "id": "chroma",
+  "name": "Chroma",
+  "category": "data_ai",
+  "credentialType": "chroma",
+  "requiredFields": [
+    "base_url",
+    "api_key"
+  ],
+  "docs": "https://docs.trychroma.com/",
+  "tools_source": "https://docs.trychroma.com/reference/rest",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/heartbeat"
+  },
+  "tools": [
+    {
+      "name": "heartbeat",
+      "description": "Check that the Chroma server is alive and get its nanosecond heartbeat counter",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/heartbeat"
+      },
+      "response": {
+        "pick": {
+          "nanosecond_heartbeat": "nanosecond heartbeat"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "version",
+      "description": "Get the Chroma server version string",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/version"
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "pre_flight_checks",
+      "description": "Get the Chroma server's client limits, including the maximum batch size it will accept",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/pre-flight-checks"
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "identity",
+      "description": "Get the identity the stored credential resolves to on this Chroma server: user id, tenant and the databases it may reach",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/auth/identity"
+      },
+      "response": {
+        "pick": {
+          "user_id": "user_id",
+          "tenant": "tenant",
+          "databases": "databases"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_collections",
+      "description": "List the collections in one Chroma tenant and database, with each collection's id, name and vector dimension",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant": {
+            "type": "string",
+            "description": "Tenant name. A fresh Chroma server has exactly one: default_tenant"
+          },
+          "database": {
+            "type": "string",
+            "description": "Database name inside the tenant. A fresh Chroma server has exactly one: default_database"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max collections to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of collections to skip before returning results"
+          }
+        },
+        "required": [
+          "tenant",
+          "database"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/tenants/{{input.tenant}}/databases/{{input.database}}/collections",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "dimension": "dimension",
+            "metadata": "metadata",
+            "tenant": "tenant",
+            "database": "database"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.tenant": "default_tenant",
+        "input.database": "default_database"
+      }
+    },
+    {
+      "name": "count_collections",
+      "description": "Count the collections in one Chroma tenant and database without listing them",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant": {
+            "type": "string",
+            "description": "Tenant name. A fresh Chroma server has exactly one: default_tenant"
+          },
+          "database": {
+            "type": "string",
+            "description": "Database name inside the tenant. A fresh Chroma server has exactly one: default_database"
+          }
+        },
+        "required": [
+          "tenant",
+          "database"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/tenants/{{input.tenant}}/databases/{{input.database}}/collections_count"
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.tenant": "default_tenant",
+        "input.database": "default_database"
+      }
+    },
+    {
+      "name": "get_collection",
+      "description": "Get one Chroma collection's id, name, vector dimension, metadata and configuration by name or id",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant": {
+            "type": "string",
+            "description": "Tenant name. A fresh Chroma server has exactly one: default_tenant"
+          },
+          "database": {
+            "type": "string",
+            "description": "Database name inside the tenant. A fresh Chroma server has exactly one: default_database"
+          },
+          "collection": {
+            "type": "string",
+            "description": "Collection name, or the collection id (UUID) as returned by list_collections"
+          }
+        },
+        "required": [
+          "tenant",
+          "database",
+          "collection"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/tenants/{{input.tenant}}/databases/{{input.database}}/collections/{{input.collection}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "dimension": "dimension",
+          "metadata": "metadata",
+          "configuration_json": "configuration_json",
+          "tenant": "tenant",
+          "database": "database",
+          "version": "version",
+          "log_position": "log_position"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.tenant": "default_tenant",
+        "input.database": "default_database",
+        "input.collection": "quoxproof-live"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:api_key",
+      "The vault marks api_key optional (a Chroma started without an auth provider needs no key) but this spec keeps it in requiredFields as scaffolded, because the bearer template cannot render without it. A fresh unauthenticated container IGNORES the Authorization header, so the live harness can store any placeholder value; a server that DOES enforce auth needs the real token",
+      "Chroma's token auth provider can be configured to read the token from AUTHORIZATION as a bearer (what this spec sends, and what the vault entry's testHeaders sends) or from the X_CHROMA_TOKEN header instead. The scaffolded bearer form is kept; an instance configured for X_CHROMA_TOKEN needs auth.type 'header' with that header name, which is a per-deployment fact no spec can decide",
+      "Path shape: every collection route in the v2 API is scoped by tenant and database, verbatim '/api/v2/tenants/{tenant}/databases/{database}/collections'. That shape is taken from the v2 REST surface the server publishes itself at GET /openapi.json and from the v1-to-v2 migration guidance that moved the old flat '/api/v1/collections' under the tenant/database scope. The exact docs.trychroma.com anchor in tools_source is UNVERIFIED blind; the live harness against a fresh container is what proves the shape",
+      "The fresh-instance tenant and database names are default_tenant and default_database. They are encoded as _probe defaults, not as spec defaults, because the runtime has no default-value mechanism: tenant and database are therefore REQUIRED inputs on every scoped tool so a missing value fails loudly rather than rendering an empty path segment",
+      "version, pre_flight_checks, count_collections and count_records answer with bare JSON scalars (a string for version, a number for the counts) rather than objects, so those tools carry truncate with NO pick: a dotted pick cannot address a scalar payload. pre_flight_checks is left unpicked for the same reason plus version drift in its field set",
+      "get_collection's v2 path parameter is documented as a collection id, and Chroma's own clients resolve a NAME through the same route. The _probe uses the name quoxproof-live on that basis. If the live harness 404s on the name, the tool needs an explicit id lookup via list_collections first and this note is the reason why",
+      "limit and offset on list_collections and list_databases are the parameters Chroma's own admin and client APIs expose for those two calls. Both are clamped (default 20, max 100) and offset is dropped when absent. Unproven blind: an older server that does not know one of them could reject the request rather than ignore it",
+      "The _probe collection name is quoxproof-live, which the live provisioner creates. On an instance without it, get_collection and count_records answer 404",
+      "Chroma is customer-hosted, so base_url comes from the base_url credential and nothing here is provable against a vendor-run endpoint. Every tool is GET-only and the whole spec stays unproven until the live harness runs it against a real ephemeral container",
+      "list_databases dropped 2026-09-12: live proof vs chromadb/chroma:0.5.23 returned 405 Method Not Allowed on GET. count_records dropped: the path param is a collection UUID, not a name (400 InvalidUUID 'Could not parse quoxproof-live as a UUID'); reinstate as collection_id-typed input when chained-call inputs are provable."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

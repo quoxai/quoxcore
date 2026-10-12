@@ -1,0 +1,1027 @@
+/**
+ * RouterOS Component Styles
+ *
+ * Styling for all RouterOS dashboard panels and modals.
+ */
+
+/* ============================================
+   SHARED PANEL STYLES
+   ============================================ */
+.ros-panel {
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-xl);
+    overflow: hidden;
+}
+
+.ros-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--m-space-4);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), var(--m-bg-base);
+    -webkit-backdrop-filter: var(--qx-blur);
+    backdrop-filter: var(--qx-blur);
+}
+
+.ros-panel__title {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    margin: 0;
+    font-size: var(--m-text-base);
+    font-weight: var(--m-weight-semibold);
+    color: var(--m-text-primary);
+}
+
+.ros-panel__title svg {
+    width: 18px;
+    height: 18px;
+    color: #10b981;
+}
+
+.ros-panel__actions {
+    display: flex;
+    gap: var(--m-space-2);
+}
+
+.ros-panel__body {
+    flex: 1;
+    padding: var(--m-space-4);
+    overflow-y: auto;
+}
+
+.ros-panel__footer {
+    padding: var(--m-space-3) var(--m-space-4);
+    border-top: 1px solid rgba(16, 185, 129, 0.1);
+    background: rgba(10, 10, 20, 0.3);
+}
+
+/* ============================================
+   ROUTER HEALTH PANEL
+   ============================================ */
+.ros-health {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--m-space-6);
+    align-items: center;
+}
+
+.ros-health__score {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 120px;
+    height: 120px;
+}
+
+.ros-health__score-ring {
+    position: absolute;
+    inset: 0;
+}
+
+.ros-health__score-ring circle {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: center;
+}
+
+.ros-health__score-ring .bg {
+    stroke: rgba(16, 185, 129, 0.1);
+}
+
+.ros-health__score-ring .progress {
+    stroke: #10b981;
+    transition: stroke-dashoffset 0.5s ease;
+}
+
+.ros-health__score-ring .progress.warning {
+    stroke: #f59e0b;
+}
+
+.ros-health__score-ring .progress.critical {
+    stroke: #ef4444;
+}
+
+.ros-health__score-value {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.ros-health__score-number {
+    font-size: var(--m-text-3xl);
+    font-weight: var(--m-weight-bold);
+    color: #10b981;
+    line-height: 1;
+}
+
+.ros-health__score-label {
+    font-size: var(--m-text-xs);
+    color: var(--m-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.ros-health__metrics {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-3);
+}
+
+.ros-health__metric {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-1);
+}
+
+.ros-health__metric-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--m-text-sm);
+}
+
+.ros-health__metric-label {
+    color: var(--m-text-secondary);
+}
+
+.ros-health__metric-value {
+    color: var(--m-text-primary);
+    font-weight: var(--m-weight-medium);
+}
+
+.ros-health__metric-bar {
+    height: 6px;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-full);
+    overflow: hidden;
+}
+
+.ros-health__metric-fill {
+    height: 100%;
+    background: #10b981;
+    border-radius: var(--m-radius-full);
+    transition: width 0.3s ease;
+}
+
+.ros-health__metric-fill.warning {
+    background: #f59e0b;
+}
+
+.ros-health__metric-fill.critical {
+    background: #ef4444;
+}
+
+.ros-health__info {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--m-space-3);
+    margin-top: var(--m-space-4);
+    padding-top: var(--m-space-4);
+    border-top: 1px solid rgba(16, 185, 129, 0.1);
+}
+
+.ros-health__info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ros-health__info-label {
+    font-size: 11px;
+    color: var(--m-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.ros-health__info-value {
+    font-size: var(--m-text-sm);
+    color: var(--m-text-primary);
+    font-weight: var(--m-weight-medium);
+}
+
+/* ============================================
+   DEVICE INVENTORY PANEL
+   ============================================ */
+.ros-devices__search {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    padding: var(--m-space-2) var(--m-space-3);
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-md);
+    margin-bottom: var(--m-space-3);
+}
+
+.ros-devices__search svg {
+    width: 16px;
+    height: 16px;
+    color: var(--m-text-tertiary);
+}
+
+.ros-devices__search input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--m-text-primary);
+    font-size: var(--m-text-sm);
+    outline: none;
+}
+
+.ros-devices__search input::placeholder {
+    color: var(--m-text-tertiary);
+}
+
+.ros-devices__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-2);
+}
+
+.ros-device {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-3);
+    padding: var(--m-space-3);
+    background: rgba(16, 185, 129, 0.03);
+    border: 1px solid rgba(16, 185, 129, 0.08);
+    border-radius: var(--m-radius-lg);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-device:hover {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.ros-device__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-lg);
+    color: #10b981;
+}
+
+.ros-device__icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.ros-device__info {
+    flex: 1;
+    min-width: 0;
+}
+
+.ros-device__name {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    font-weight: var(--m-weight-medium);
+    color: var(--m-text-primary);
+}
+
+.ros-device__status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+}
+
+.ros-device__status.offline {
+    background: #6b7280;
+}
+
+.ros-device__details {
+    display: flex;
+    gap: var(--m-space-3);
+    font-size: 12px;
+    color: var(--m-text-tertiary);
+}
+
+.ros-device__ip {
+    font-family: var(--m-font-mono);
+}
+
+.ros-device__vendor {
+    color: var(--m-text-secondary);
+}
+
+/* ============================================
+   DHCP PANEL
+   ============================================ */
+.ros-dhcp__pool {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-2);
+    padding: var(--m-space-3);
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-lg);
+    margin-bottom: var(--m-space-4);
+}
+
+.ros-dhcp__pool-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ros-dhcp__pool-name {
+    font-weight: var(--m-weight-medium);
+    color: var(--m-text-primary);
+}
+
+.ros-dhcp__pool-stats {
+    font-size: var(--m-text-sm);
+    color: var(--m-text-secondary);
+}
+
+.ros-dhcp__pool-bar {
+    height: 8px;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-full);
+    overflow: hidden;
+}
+
+.ros-dhcp__pool-fill {
+    height: 100%;
+    background: #10b981;
+    border-radius: var(--m-radius-full);
+    transition: width 0.3s ease;
+}
+
+.ros-dhcp__pool-fill.warning {
+    background: #f59e0b;
+}
+
+.ros-dhcp__pool-fill.critical {
+    background: #ef4444;
+}
+
+.ros-dhcp__leases {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-2);
+}
+
+.ros-lease {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-3);
+    padding: var(--m-space-2) var(--m-space-3);
+    background: rgba(16, 185, 129, 0.03);
+    border-radius: var(--m-radius-md);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.ros-lease:hover {
+    background: rgba(16, 185, 129, 0.08);
+}
+
+.ros-lease__ip {
+    font-family: var(--m-font-mono);
+    font-size: var(--m-text-sm);
+    color: var(--m-text-primary);
+    min-width: 120px;
+}
+
+.ros-lease__hostname {
+    flex: 1;
+    font-size: var(--m-text-sm);
+    color: var(--m-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ros-lease__badge {
+    padding: 2px 6px;
+    border-radius: var(--m-radius-sm);
+    font-size: 10px;
+    font-weight: var(--m-weight-semibold);
+    text-transform: uppercase;
+}
+
+.ros-lease__badge.static {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.ros-lease__badge.dynamic {
+    background: rgba(56, 189, 248, 0.2);
+    color: #38bdf8;
+}
+
+.ros-lease__expires {
+    font-size: 11px;
+    color: var(--m-text-tertiary);
+}
+
+/* ============================================
+   ALERTS PANEL
+   ============================================ */
+.ros-alerts__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-3);
+}
+
+.ros-alert {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-2);
+    padding: var(--m-space-3);
+    border-radius: var(--m-radius-lg);
+    border-left: 3px solid;
+}
+
+.ros-alert--critical,
+.ros-alert--high {
+    background: rgba(239, 68, 68, 0.08);
+    border-left-color: #ef4444;
+}
+
+.ros-alert--medium {
+    background: rgba(245, 158, 11, 0.08);
+    border-left-color: #f59e0b;
+}
+
+.ros-alert--low {
+    background: rgba(16, 185, 129, 0.08);
+    border-left-color: #10b981;
+}
+
+.ros-alert__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ros-alert__severity {
+    padding: 2px 6px;
+    border-radius: var(--m-radius-sm);
+    font-size: 10px;
+    font-weight: var(--m-weight-bold);
+    text-transform: uppercase;
+}
+
+.ros-alert--critical .ros-alert__severity,
+.ros-alert--high .ros-alert__severity {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.ros-alert--medium .ros-alert__severity {
+    background: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+}
+
+.ros-alert--low .ros-alert__severity {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.ros-alert__time {
+    font-size: 11px;
+    color: var(--m-text-tertiary);
+}
+
+.ros-alert__message {
+    font-size: var(--m-text-sm);
+    color: var(--m-text-primary);
+    line-height: 1.5;
+}
+
+.ros-alert__technical {
+    font-size: 12px;
+    font-family: var(--m-font-mono);
+    color: var(--m-text-tertiary);
+    padding: var(--m-space-2);
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--m-radius-sm);
+}
+
+.ros-alert__actions {
+    display: flex;
+    gap: var(--m-space-2);
+    margin-top: var(--m-space-1);
+}
+
+.ros-alert__action {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-1);
+    padding: var(--m-space-1) var(--m-space-2);
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: var(--m-radius-sm);
+    color: #10b981;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-alert__action:hover {
+    background: rgba(16, 185, 129, 0.2);
+}
+
+.ros-alerts__toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    font-size: var(--m-text-sm);
+    color: var(--m-text-secondary);
+}
+
+.ros-alerts__toggle input {
+    accent-color: #10b981;
+}
+
+.ros-alerts__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--m-space-2);
+    padding: var(--m-space-6);
+    color: var(--m-text-tertiary);
+}
+
+.ros-alerts__empty svg {
+    width: 32px;
+    height: 32px;
+    opacity: 0.5;
+}
+
+/* ============================================
+   VPN PANEL
+   ============================================ */
+.ros-vpn__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-3);
+}
+
+.ros-tunnel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-2);
+    padding: var(--m-space-3);
+    background: rgba(16, 185, 129, 0.03);
+    border: 1px solid rgba(16, 185, 129, 0.08);
+    border-radius: var(--m-radius-lg);
+}
+
+.ros-tunnel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ros-tunnel__name {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    font-weight: var(--m-weight-medium);
+    color: var(--m-text-primary);
+}
+
+.ros-tunnel__type {
+    padding: 2px 6px;
+    background: rgba(56, 189, 248, 0.2);
+    border-radius: var(--m-radius-sm);
+    font-size: 10px;
+    font-weight: var(--m-weight-semibold);
+    color: #38bdf8;
+    text-transform: uppercase;
+}
+
+.ros-tunnel__status {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-1);
+    font-size: var(--m-text-sm);
+}
+
+.ros-tunnel__status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.ros-tunnel__status-dot.connected,
+.ros-tunnel__status-dot.established {
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+}
+
+.ros-tunnel__status-dot.disconnected {
+    background: #ef4444;
+}
+
+.ros-tunnel__status-dot.connecting {
+    background: #f59e0b;
+    animation: ros-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes ros-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.ros-tunnel__details {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--m-space-2);
+    font-size: 12px;
+}
+
+.ros-tunnel__detail {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ros-tunnel__detail-label {
+    color: var(--m-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 10px;
+}
+
+.ros-tunnel__detail-value {
+    color: var(--m-text-secondary);
+    font-family: var(--m-font-mono);
+}
+
+.ros-tunnel__handshake {
+    font-size: 11px;
+    color: var(--m-text-tertiary);
+}
+
+.ros-tunnel__handshake.warning {
+    color: #f59e0b;
+}
+
+.ros-tunnel__handshake.stale {
+    color: #ef4444;
+}
+
+/* ============================================
+   QUICK ACTIONS PANEL
+   ============================================ */
+.ros-actions__grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--m-space-3);
+}
+
+.ros-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--m-space-2);
+    padding: var(--m-space-4);
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.15);
+    border-radius: var(--m-radius-lg);
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-action:hover {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: var(--m-text-primary);
+}
+
+.ros-action svg {
+    width: 24px;
+    height: 24px;
+    color: #10b981;
+}
+
+/* ============================================
+   MODALS
+   ============================================ */
+.ros-modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: var(--m-space-4);
+}
+
+.ros-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+.ros-modal__content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 560px;
+    max-height: 90vh;
+    background: rgba(15, 16, 32, 0.98);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: var(--m-radius-xl);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.ros-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--m-space-4) var(--m-space-5);
+    border-bottom: 1px solid rgba(16, 185, 129, 0.1);
+}
+
+.ros-modal__title {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    margin: 0;
+    font-size: var(--m-text-lg);
+    font-weight: var(--m-weight-semibold);
+    color: var(--m-text-primary);
+}
+
+.ros-modal__title svg {
+    width: 20px;
+    height: 20px;
+    color: #10b981;
+}
+
+.ros-modal__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-tertiary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-modal__close:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.ros-modal__body {
+    flex: 1;
+    padding: var(--m-space-5);
+    overflow-y: auto;
+}
+
+.ros-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--m-space-3);
+    padding: var(--m-space-4) var(--m-space-5);
+    border-top: 1px solid rgba(16, 185, 129, 0.1);
+}
+
+.ros-modal__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--m-space-2);
+    padding: var(--m-space-2) var(--m-space-4);
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-primary);
+    font-size: var(--m-text-sm);
+    font-weight: var(--m-weight-medium);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-modal__btn:hover {
+    background: rgba(16, 185, 129, 0.2);
+}
+
+.ros-modal__btn--primary {
+    background: #10b981;
+    border-color: #10b981;
+    color: white;
+}
+
+.ros-modal__btn--primary:hover {
+    background: #059669;
+}
+
+.ros-modal__btn--danger {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.ros-modal__btn--danger:hover {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+/* Device Detail Modal */
+.ros-device-detail__section {
+    margin-bottom: var(--m-space-5);
+}
+
+.ros-device-detail__section:last-child {
+    margin-bottom: 0;
+}
+
+.ros-device-detail__section-title {
+    margin: 0 0 var(--m-space-3);
+    font-size: var(--m-text-sm);
+    font-weight: var(--m-weight-semibold);
+    color: var(--m-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.ros-device-detail__grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--m-space-3);
+}
+
+.ros-device-detail__item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ros-device-detail__label {
+    font-size: 11px;
+    color: var(--m-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.ros-device-detail__value {
+    font-size: var(--m-text-sm);
+    color: var(--m-text-primary);
+    font-family: var(--m-font-mono);
+}
+
+/* Lease Action Modal */
+.ros-lease-action__preview {
+    padding: var(--m-space-4);
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-lg);
+    margin-bottom: var(--m-space-4);
+}
+
+.ros-lease-action__row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--m-space-2) 0;
+}
+
+.ros-lease-action__row:not(:last-child) {
+    border-bottom: 1px solid rgba(16, 185, 129, 0.1);
+}
+
+.ros-lease-action__label {
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+}
+
+.ros-lease-action__value {
+    color: var(--m-text-primary);
+    font-size: var(--m-text-sm);
+    font-family: var(--m-font-mono);
+}
+
+/* Troubleshoot Wizard */
+.ros-wizard__steps {
+    display: flex;
+    gap: var(--m-space-2);
+    margin-bottom: var(--m-space-6);
+}
+
+.ros-wizard__step {
+    flex: 1;
+    height: 4px;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-full);
+}
+
+.ros-wizard__step.active {
+    background: #10b981;
+}
+
+.ros-wizard__step.completed {
+    background: #10b981;
+}
+
+.ros-wizard__content {
+    text-align: center;
+    padding: var(--m-space-4);
+}
+
+.ros-wizard__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto var(--m-space-4);
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 50%;
+    color: #10b981;
+}
+
+.ros-wizard__icon svg {
+    width: 32px;
+    height: 32px;
+}
+
+.ros-wizard__title {
+    margin: 0 0 var(--m-space-2);
+    font-size: var(--m-text-lg);
+    color: var(--m-text-primary);
+}
+
+.ros-wizard__desc {
+    margin: 0;
+    color: var(--m-text-secondary);
+    line-height: 1.5;
+}
+
+.ros-wizard__options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-3);
+    margin-top: var(--m-space-6);
+}
+
+.ros-wizard__option {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-3);
+    padding: var(--m-space-4);
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.15);
+    border-radius: var(--m-radius-lg);
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-wizard__option:hover {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.ros-wizard__option-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-md);
+    color: #10b981;
+}
+
+.ros-wizard__option-text {
+    flex: 1;
+}
+
+.ros-wizard__option-title {
+    font-weight: var(--m-weight-medium);
+    color: var(--m-text-primary);
+    margin-bottom: 2px;
+}
+
+.ros-wizard__option-desc {
+    font-size: var(--m-text-sm);
+    color: var(--m-text-tertiary);
+}

@@ -1,0 +1,56 @@
+{
+  "id": "wf-quox-daily-ops-briefing",
+  "name": "Daily Ops Briefing",
+  "description": "Runs every morning at 8 am, asks CommanderQ to summarise yesterday's workflow runs and infrastructure events, then delivers the digest to the inbox.",
+  "source": "quox-curated",
+  "category": "automation",
+  "tags": ["daily", "ops", "briefing", "schedule", "assistant", "notification", "digest", "monitoring"],
+  "nodes": [
+    {
+      "id": "trig",
+      "type": "trigger:schedule",
+      "name": "Daily 8am",
+      "category": "trigger",
+      "config": {
+        "cron": "0 8 * * *",
+        "timezone": "UTC",
+        "enabled": true
+      },
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "summarise",
+      "type": "assistant:invoke",
+      "name": "Summarise Yesterday",
+      "category": "action",
+      "config": {
+        "assistant_id": "quox",
+        "prompt": "Summarise all workflow runs, errors, and infrastructure events from the last 24 hours. Format the output as a concise markdown briefing with sections: Successes, Failures, Alerts, and Recommendations.",
+        "name": "Summarise Yesterday"
+      },
+      "position": { "x": 400, "y": 300 }
+    },
+    {
+      "id": "deliver",
+      "type": "notification:deliver",
+      "name": "Deliver Briefing",
+      "category": "notification",
+      "config": {
+        "title": "Daily Ops Briefing — ${new Date().toLocaleDateString()}",
+        "message": "${nodes['summarise'].output.result}",
+        "assignTo": ["*"],
+        "priority": "normal"
+      },
+      "position": { "x": 700, "y": 300 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trig", "target": "summarise" },
+    { "id": "e2", "source": "summarise", "target": "deliver" }
+  ],
+  "meta": {
+    "version": "1.0.0",
+    "createdBy": "quox-curated",
+    "estimatedRuntime": "30s"
+  }
+}

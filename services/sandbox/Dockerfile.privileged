@@ -1,0 +1,91 @@
+# Quox Sandbox - Privileged Profile
+# Full network, filesystem access (requires human approval)
+#
+# Use cases: Infrastructure ops, deployments, system administration
+#
+# SECURITY WARNING: NEVER mount the Docker socket (/var/run/docker.sock) into this container.
+# Mounting the Docker socket allows container escape and full host compromise.
+# If Docker functionality is needed:
+#   - Use rootless Docker (https://docs.docker.com/engine/security/rootless/)
+#   - Use a separate orchestration layer (Kubernetes, Nomad)
+#   - Use Docker-in-Docker with --privileged only when absolutely necessary and with human approval
+
+FROM ubuntu:24.04
+
+# Install comprehensive runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Core tools
+    curl \
+    wget \
+    jq \
+    git \
+    openssh-client \
+    ca-certificates \
+    gnupg \
+    # Python
+    python3 \
+    python3-pip \
+    python3-venv \
+    # Node.js
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install kubectl
+RUN curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg \
+    && echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' > /etc/apt/sources.list.d/kubernetes.list \
+    && apt-get update && apt-get install -y kubectl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Terraform
+RUN curl -fsSL https://releases.hashicorp.com/terraform/1.7.0/terraform_1.7.0_linux_amd64.zip -o /tmp/terraform.zip \
+    && unzip /tmp/terraform.zip -d /usr/local/bin \
+    && rm /tmp/terraform.zip
+
+# Install Ansible
+RUN pip3 install --no-cache-dir --break-system-packages \
+    ansible \
+    ansible-lint \
+    boto3 \
+    google-cloud-compute \
+    azure-mgmt-compute
+
+# Install Python packages
+RUN pip3 install --no-cache-dir --break-system-packages \
+    httpx \
+    requests \
+    pydantic \
+    PyYAML \
+    python-dotenv \
+    paramiko \
+    fabric \
+    docker
+
+# Create sandbox user (no docker group - see security warning at top of file)
+RUN useradd -m -u 1000 sandbox
+
+# Create work directories
+RUN mkdir -p /sandbox /data /tmp/sandbox /home/sandbox/.ssh \
+    && chown -R sandbox:sandbox /sandbox /data /tmp/sandbox /home/sandbox
+
+# Copy tool runner
+COPY --chmod=755 runner.sh /sandbox/runner
+COPY --chmod=755 tool-wrapper.py /sandbox/tool-wrapper.py
+
+# Set environment
+ENV PYTHONUNBUFFERED=1
+ENV HOME=/home/sandbox
+ENV PATH="/home/sandbox/.local/bin:$PATH"
+
+# Switch to sandbox user
+USER sandbox
+WORKDIR /sandbox
+
+# Default command - wait for exec
+CMD ["tail", "-f", "/dev/null"]
+
+# Labels
+LABEL quox.sandbox.profile="privileged"
+LABEL quox.sandbox.network="full"
+LABEL quox.sandbox.filesystem="full"
+LABEL quox.sandbox.requires_approval="true"

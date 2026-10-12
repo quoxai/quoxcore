@@ -1,0 +1,206 @@
+{
+  "name": "wazuh",
+  "version": "1.0.0",
+  "displayName": "Wazuh SIEM",
+  "tagline": "Security monitoring without the headaches",
+  "description": "Full Wazuh SIEM integration with one-click agent deployment across your fleet via bastion. Intrusion detection, vulnerability scanning, file integrity monitoring, and compliance checking \u2014 all with AI-powered analysis from CommanderQ.",
+  "shortDescription": "SIEM, vulnerability scanning, and fleet-wide agent deployment.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 25,
+  "priceDisplay": "$25",
+  "priceModel": "one-time",
+  "tier": "standard",
+  "featured": true,
+  "icon": "shield",
+  "accentColor": "#00a9e5",
+  "infoUrl": "https://quox.ai/plugins/wazuh",
+  "docsUrl": "https://quox.ai/docs/plugins/wazuh",
+  "configSchema": {
+    "wazuhHost": {
+      "label": "Wazuh Server IP",
+      "description": "IP address of the Wazuh server. Must be reachable from the bastion.",
+      "type": "string",
+      "placeholder": "198.51.100.175",
+      "default": ""
+    },
+    "wazuhApiPort": {
+      "label": "API Port",
+      "description": "Wazuh API port (default 55000).",
+      "type": "string",
+      "placeholder": "55000",
+      "default": "55000"
+    },
+    "wazuhUser": {
+      "label": "API Username",
+      "description": "Wazuh API username for authentication.",
+      "type": "string",
+      "placeholder": "wazuh-wui",
+      "default": "wazuh-wui"
+    },
+    "wazuhPassword": {
+      "label": "API Password",
+      "description": "Wazuh API password. Stored encrypted in QuoxVault.",
+      "type": "password",
+      "placeholder": "Enter Wazuh API password",
+      "default": ""
+    },
+    "bastionHost": {
+      "label": "Bastion Host",
+      "description": "Bastion host used for SSH agent deployment. Defaults to the configured bastion host.",
+      "type": "string",
+      "placeholder": "198.51.100.247",
+      "default": ""
+    }
+  },
+  "marketingPoints": [
+    "One-click Wazuh agent deployment to any fleet host via bastion SSH",
+    "AI-powered alert triage \u2014 CommanderQ analyses and prioritises security events",
+    "Vulnerability scanning with actionable remediation commands",
+    "File integrity monitoring with change timeline",
+    "CIS compliance posture across your entire fleet",
+    "Cross-references with QuoxAgent fleet and Uptime Kuma for full situational awareness"
+  ],
+  "features": {
+    "agentDeployment": {
+      "name": "Fleet Agent Setup",
+      "description": "Deploy Wazuh agents to any host via bastion SSH. No manual installation needed \u2014 select hosts, click deploy.",
+      "icon": "download",
+      "highlight": true
+    },
+    "alertFeed": {
+      "name": "Alert Feed & Triage",
+      "description": "Real-time security alerts with severity levels, MITRE ATT&CK mapping, and AI-powered triage.",
+      "icon": "alert-triangle",
+      "highlight": true
+    },
+    "vulnerabilities": {
+      "name": "Vulnerability Scanner",
+      "description": "CVE detection per host with severity, affected packages, and fix commands.",
+      "icon": "search"
+    },
+    "fileIntegrity": {
+      "name": "File Integrity Monitoring",
+      "description": "Track file changes across hosts. Detect tampering, unauthorised modifications, and rootkits.",
+      "icon": "file"
+    },
+    "compliance": {
+      "name": "Compliance Posture",
+      "description": "CIS benchmarks, PCI-DSS, HIPAA, and GDPR checks with pass/fail scoring per host.",
+      "icon": "clipboard"
+    },
+    "managerHealth": {
+      "name": "Manager Health",
+      "description": "Wazuh daemon status, event processing stats, and indexer health at a glance.",
+      "icon": "heart"
+    },
+    "aiAnalysis": {
+      "name": "AI Analysis",
+      "description": "CommanderQ analyses alert patterns, identifies false positives, and suggests response actions.",
+      "icon": "brain"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "Wazuh server (v4.x) reachable from bastion"
+  },
+  "integration": {
+    "client": "wazuhClient.js",
+    "panel": "components/wazuh/WazuhPanel.jsx"
+  },
+  "capabilities": {
+    "aeeIntents": [
+      "wazuh.alerts.list",
+      "wazuh.alerts.triage",
+      "wazuh.agents.list",
+      "wazuh.agents.deploy",
+      "wazuh.agents.remove",
+      "wazuh.vulnerability.scan",
+      "wazuh.syscheck.list",
+      "wazuh.sca.check",
+      "wazuh.manager.status",
+      "wazuh.active-response.trigger"
+    ],
+    "toolAccess": "managers+"
+  },
+  "safety": {
+    "destructiveActions": [
+      "agents.deploy",
+      "agents.remove",
+      "active-response.trigger"
+    ],
+    "requiresApproval": [
+      "agents.deploy",
+      "agents.remove",
+      "active-response.trigger"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": true
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-03-08",
+      "changes": [
+        "Initial release",
+        "Fleet agent deployment via bastion SSH",
+        "Alert feed with MITRE ATT&CK mapping",
+        "Vulnerability scanning per agent",
+        "File integrity monitoring",
+        "SCA compliance posture",
+        "Manager health dashboard",
+        "AI-powered alert analysis"
+      ]
+    }
+  },
+  "category": "Monitoring",
+  "nocIntegration": {
+    "tab": {
+      "label": "Wazuh",
+      "icon": "shield",
+      "order": 15
+    },
+    "quickActions": [
+      {
+        "id": "wazuh-alerts",
+        "label": "Security Alerts",
+        "icon": "alert",
+        "description": "View recent security alerts",
+        "severity": "warning",
+        "prompt": "Show recent Wazuh security alerts sorted by severity"
+      },
+      {
+        "id": "wazuh-agents",
+        "label": "Agent Status",
+        "icon": "users",
+        "description": "Check Wazuh agent connectivity",
+        "severity": "info",
+        "prompt": "List all Wazuh agents with their connection status"
+      }
+    ],
+    "schedulable": true,
+    "templateVariables": [
+      {
+        "name": "severity",
+        "description": "Minimum alert severity (low/medium/high/critical)"
+      },
+      {
+        "name": "agent_filter",
+        "description": "Filter by agent name or ID"
+      }
+    ],
+    "crossAgentFlows": [
+      {
+        "from": "sentinel",
+        "to": "dockeragent",
+        "trigger": "critical_threat_detected",
+        "description": "WARDEN detects critical threat \u2192 DOCKERAGENT isolates affected container"
+      },
+      {
+        "from": "sentinel",
+        "to": "netwatch",
+        "trigger": "network_intrusion_detected",
+        "description": "WARDEN detects network intrusion \u2192 NETWATCH blocks source IP on firewall"
+      }
+    ]
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "spec_version": 1,
+  "id": "figma",
+  "name": "Figma",
+  "category": "developer",
+  "credentialType": "figma",
+  "requiredFields": [
+    "personal_access_token"
+  ],
+  "docs": "https://www.figma.com/developers/api",
+  "base_url": "https://api.figma.com",
+  "auth": {
+    "type": "header",
+    "header": "X-Figma-Token",
+    "template": "{{personal_access_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/me"
+  },
+  "tools_source": "https://www.figma.com/developers/api",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the Figma user the access token belongs to (id, email, handle)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "email": "email",
+          "handle": "handle",
+          "img_url": "img_url"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_file",
+      "description": "Get metadata for one Figma file by key (name, last modified, version). Does not return the document tree",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_key": {
+            "type": "string",
+            "description": "Figma file key, the segment after /file/ or /design/ in the file URL"
+          }
+        },
+        "required": [
+          "file_key"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/files/{{input.file_key}}",
+        "query": {
+          "depth": "1"
+        }
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "lastModified": "lastModified",
+          "version": "version"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_file_comments",
+      "description": "List comments on one Figma file",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_key": {
+            "type": "string",
+            "description": "Figma file key, the segment after /file/ or /design/ in the file URL"
+          }
+        },
+        "required": [
+          "file_key"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/files/{{input.file_key}}/comments"
+      },
+      "response": {
+        "pick": {
+          "comments[]": {
+            "id": "id",
+            "message": "message",
+            "created_at": "created_at",
+            "resolved_at": "resolved_at",
+            "user": "user.handle",
+            "parent_id": "parent_id"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_team_projects",
+      "description": "List the projects belonging to one Figma team",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "description": "Figma team ID, the numeric segment after /files/team/ in the team URL"
+          }
+        },
+        "required": [
+          "team_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/teams/{{input.team_id}}/projects"
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "projects[]": {
+            "id": "id",
+            "name": "name"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

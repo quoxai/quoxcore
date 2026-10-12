@@ -1,0 +1,26 @@
+{
+  "kind": "call", "prefixes": ["call:", "voicemail:"], "area": "calls", "derive": "call",
+  "ok_statuses": ["answered", "completed", "ended", "handled"],
+  "variants": [
+    { "id": "voicemail", "when": { "is_voicemail": "true" },
+      "urgency": [{ "is": "today" }],
+      "short": "voicemail from {caller}",
+      "L0": "Voicemail from {caller}",
+      "L1": { "who": "{caller}", "what": "{summary|\"They left a voicemail.\"}", "why": "Nobody has dealt with it yet." },
+      "how": "Ask me to read it out, or ring them back.",
+      "measures": ["call_back", "reply"] },
+    { "id": "missed", "when": { "status": ["missed", "unanswered", "no-answer"] },
+      "urgency": [{ "is": "today" }],
+      "short": "missed call from {caller}",
+      "L0": "Missed call from {caller}",
+      "L1": { "who": "{caller}", "what": "{summary|\"A call went unanswered.\"}", "why": "Nobody picked up." },
+      "how": "Ask me to ring them back.",
+      "measures": ["call_back", "reply"] },
+    { "id": "other",
+      "urgency": [{ "is": "fyi" }],
+      "short": "call with {caller}",
+      "L0": "Call with {caller}: {status}",
+      "L1": { "who": "{caller}", "what": "{summary|\"A call.\"}", "why": "" },
+      "how": "Nothing to do.", "measures": [] }
+  ]
+}

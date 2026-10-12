@@ -1,0 +1,802 @@
+[
+ {
+  "title": "Solutions",
+  "url": "https://quox.ai/solutions"
+ },
+ {
+  "title": "QuoxCORE (AI command center), product page",
+  "url": "https://quox.ai/solutions/quoxcore"
+ },
+ {
+  "title": "QuoxAgent (Fleet management), product page",
+  "url": "https://quox.ai/solutions/quoxagent"
+ },
+ {
+  "title": "QuoxBastion (SSH fleet access), product page",
+  "url": "https://quox.ai/solutions/quoxbastion"
+ },
+ {
+  "title": "Qluster (Multi-instance control plane), product page",
+  "url": "https://quox.ai/solutions/qluster"
+ },
+ {
+  "title": "QuoxBox (Governed Mac actuator), product page",
+  "url": "https://quox.ai/solutions/quoxbox"
+ },
+ {
+  "title": "QuoxFlow (Workflow automation), product page",
+  "url": "https://quox.ai/solutions/quoxflow"
+ },
+ {
+  "title": "QuoxTerminal (AI-powered terminal), product page",
+  "url": "https://quox.ai/solutions/quoxterminal"
+ },
+ {
+  "title": "Docs: Quoxpert (Quox as a Claude skill)",
+  "url": "https://quox.ai/docs/quoxpert"
+ },
+ {
+  "title": "QuoxMind (12 cognitive implants), product page",
+  "url": "https://quox.ai/solutions/quoxmind"
+ },
+ {
+  "title": "Mirror (AI self-awareness) feature page",
+  "url": "https://quox.ai/features/mirror"
+ },
+ {
+  "title": "QuoxEngine (Task orchestration), product page",
+  "url": "https://quox.ai/solutions/quoxengine"
+ },
+ {
+  "title": "Agentic Teams (Multi-agent teams) feature page",
+  "url": "https://quox.ai/features/agentic-teams"
+ },
+ {
+  "title": "QuoxMemory (Persistent AI memory), product page",
+  "url": "https://quox.ai/solutions/quoxmemory"
+ },
+ {
+  "title": "Brain2 (Self-feeding knowledge graph), product page",
+  "url": "https://quox.ai/solutions/brain2"
+ },
+ {
+  "title": "RepoBrain (Code intelligence agents cite), product page",
+  "url": "https://quox.ai/solutions/repobrain"
+ },
+ {
+  "title": "Browser-Q (Web automation agent), product page",
+  "url": "https://quox.ai/solutions/browserq"
+ },
+ {
+  "title": "QuoxChat (AI chat widgets for any site), product page",
+  "url": "https://quox.ai/solutions/quoxchat"
+ },
+ {
+  "title": "QuoxTrade (Governed trading desk), product page",
+  "url": "https://quox.ai/solutions/quoxtrade"
+ },
+ {
+  "title": "AI Governance (Four protocols, one trust chain)",
+  "url": "https://quox.ai/governance"
+ },
+ {
+  "title": "For Auditors (SoA, DPIA, evidence, auditor portal)",
+  "url": "https://quox.ai/for-auditors"
+ },
+ {
+  "title": "Matrix (Governed, witnessed rooms across Telegram, Slack, web)",
+  "url": "https://quox.ai/matrix"
+ },
+ {
+  "title": "Verifiable AI Ops (Evidence and audit), product page",
+  "url": "https://quox.ai/solutions/verifiable-ai-operations"
+ },
+ {
+  "title": "Plugin SDK (Build plugins), product page",
+  "url": "https://quox.ai/solutions/plugin-sdk"
+ },
+ {
+  "title": "The Quox SDK (Protocols, SDKs, and the marketplace)",
+  "url": "https://quox.ai/developers/sdk"
+ },
+ {
+  "title": "Compare (Quox vs the rest)",
+  "url": "https://quox.ai/compare/orchestration-engines"
+ },
+ {
+  "title": "Marketplace (Browse plugins)",
+  "url": "https://quox.ai/marketplace"
+ },
+ {
+  "title": "Store",
+  "url": "https://quox.ai/store"
+ },
+ {
+  "title": "Gallery",
+  "url": "https://quox.ai/gallery"
+ },
+ {
+  "title": "Blog",
+  "url": "https://quox.ai/blog"
+ },
+ {
+  "title": "Enterprise",
+  "url": "https://quox.ai/enterprise"
+ },
+ {
+  "title": "Docs",
+  "url": "https://quox.ai/docs"
+ },
+ {
+  "title": "Docs: Quickstart (Up and running in minutes)",
+  "url": "https://quox.ai/docs/quickstart"
+ },
+ {
+  "title": "Docs: Architecture (System design and data flow)",
+  "url": "https://quox.ai/docs/architecture"
+ },
+ {
+  "title": "Docs: AEE Protocol (Agent Envelope Exchange)",
+  "url": "https://quox.ai/docs/aee"
+ },
+ {
+  "title": "Docs: AOCL System (Orchestration Control Layers)",
+  "url": "https://quox.ai/docs/aocl"
+ },
+ {
+  "title": "Docs: VOLT Protocol (Verifiable Operations Ledger)",
+  "url": "https://quox.ai/docs/volt"
+ },
+ {
+  "title": "Docs: API Reference (Endpoints and schemas)",
+  "url": "https://quox.ai/docs/api"
+ },
+ {
+  "title": "Docs: Plugin SDK (Build third-party plugins)",
+  "url": "https://quox.ai/docs/plugin-sdk"
+ },
+ {
+  "title": "Docs: Docker Deployment (Container setup guide)",
+  "url": "https://quox.ai/docs/docker"
+ },
+ {
+  "title": "Docs: Introduction",
+  "url": "https://quox.ai/docs/introduction"
+ },
+ {
+  "title": "Docs: Architecture Options",
+  "url": "https://quox.ai/docs/architecture-options"
+ },
+ {
+  "title": "Docs: Setup Guide",
+  "url": "https://quox.ai/docs/setup"
+ },
+ {
+  "title": "Docs: A-Z Features",
+  "url": "https://quox.ai/docs/features"
+ },
+ {
+  "title": "Docs: QuoxCORE",
+  "url": "https://quox.ai/docs/solutions/quoxcore"
+ },
+ {
+  "title": "Docs: QuoxAgent",
+  "url": "https://quox.ai/docs/solutions/quoxagent"
+ },
+ {
+  "title": "Docs: QuoxBastion",
+  "url": "https://quox.ai/docs/solutions/quoxbastion"
+ },
+ {
+  "title": "Docs: Qluster",
+  "url": "https://quox.ai/docs/solutions/qluster"
+ },
+ {
+  "title": "Docs: QuoxFlow",
+  "url": "https://quox.ai/docs/solutions/quoxflow"
+ },
+ {
+  "title": "Docs: QuoxMCP",
+  "url": "https://quox.ai/docs/solutions/quoxmcp"
+ },
+ {
+  "title": "Docs: QuoxTerminal",
+  "url": "https://quox.ai/docs/solutions/quoxterminal"
+ },
+ {
+  "title": "Docs: QuoxGPU",
+  "url": "https://quox.ai/docs/solutions/quoxgpu"
+ },
+ {
+  "title": "Docs: Compare All",
+  "url": "https://quox.ai/docs/solutions/comparison"
+ },
+ {
+  "title": "Docs: Wazuh SIEM",
+  "url": "https://quox.ai/docs/solutions/wazuh"
+ },
+ {
+  "title": "Docs: Decision Evidence plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/decision-evidence"
+ },
+ {
+  "title": "Docs: Local Inference plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/local-inference"
+ },
+ {
+  "title": "Docs: OpsDeck plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/opsdeck"
+ },
+ {
+  "title": "Docs: Action Tracker plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/action-tracker"
+ },
+ {
+  "title": "Docs: QuoxChat plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/quoxchat"
+ },
+ {
+  "title": "Docs: Workflow Library plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/workflow-library"
+ },
+ {
+  "title": "Docs: Advanced Voice plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/advanced-voice"
+ },
+ {
+  "title": "Docs: System Maintenance",
+  "url": "https://quox.ai/docs/system-maintenance"
+ },
+ {
+  "title": "Docs: Visualizations plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/visualizations"
+ },
+ {
+  "title": "Docs: NOC plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/noc"
+ },
+ {
+  "title": "Docs: Files Manager plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/files"
+ },
+ {
+  "title": "Docs: CoreComms plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/core-comms"
+ },
+ {
+  "title": "Docs: SOC plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/soc"
+ },
+ {
+  "title": "Docs: Compliance Suite plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/compliance-suite"
+ },
+ {
+  "title": "Docs: Brain2 plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/brain2"
+ },
+ {
+  "title": "Docs: RepoBrain plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/repobrain"
+ },
+ {
+  "title": "Docs: Advanced Memory plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/advanced-memory"
+ },
+ {
+  "title": "Docs: GitHub plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/github"
+ },
+ {
+  "title": "Docs: LinkedIn plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/linkedin"
+ },
+ {
+  "title": "Docs: YouTube plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/youtube"
+ },
+ {
+  "title": "Docs: MikroTik RouterOS plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/mikrotik-routeros"
+ },
+ {
+  "title": "Docs: Web Terminal plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/web-terminal"
+ },
+ {
+  "title": "Docs: Docker Fleet plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/docker-fleet"
+ },
+ {
+  "title": "Docs: Tailscale Mesh plugin guide (setup, configuration, usage)",
+  "url": "https://quox.ai/docs/plugins/tailscale"
+ },
+ {
+  "title": "Docs: compliance, ISO 27001 SoA Builder",
+  "url": "https://quox.ai/docs/compliance/soa-builder"
+ },
+ {
+  "title": "Docs: compliance, EU AI Act Classifier",
+  "url": "https://quox.ai/docs/compliance/risk-classifier"
+ },
+ {
+  "title": "Docs: compliance, Privacy Impact (DPIA)",
+  "url": "https://quox.ai/docs/compliance/dpia"
+ },
+ {
+  "title": "Docs: compliance, Evidence Explorer",
+  "url": "https://quox.ai/docs/compliance/evidence-explorer"
+ },
+ {
+  "title": "Docs: compliance, Auditor Portal",
+  "url": "https://quox.ai/docs/compliance/auditor-portal"
+ },
+ {
+  "title": "Docs: compliance, PDF Reports",
+  "url": "https://quox.ai/docs/compliance/pdf-reports"
+ },
+ {
+  "title": "Docs: compliance, HIPAA Risk Analysis",
+  "url": "https://quox.ai/docs/compliance/hipaa-risk-analysis"
+ },
+ {
+  "title": "Docs: compliance, Compliance Monitor",
+  "url": "https://quox.ai/docs/compliance/compliance-monitor"
+ },
+ {
+  "title": "Docs: compliance, Glossary",
+  "url": "https://quox.ai/docs/compliance/glossary"
+ },
+ {
+  "title": "Docs: QuoxMind",
+  "url": "https://quox.ai/docs/quoxmind"
+ },
+ {
+  "title": "Docs: Memory System",
+  "url": "https://quox.ai/docs/memory"
+ },
+ {
+  "title": "Docs: AI Agents",
+  "url": "https://quox.ai/docs/agents"
+ },
+ {
+  "title": "Docs: Smart Router",
+  "url": "https://quox.ai/docs/smart-router"
+ },
+ {
+  "title": "Docs: QuoxBastion",
+  "url": "https://quox.ai/docs/bastion"
+ },
+ {
+  "title": "Docs: Terminal Memory",
+  "url": "https://quox.ai/docs/terminal-memory"
+ },
+ {
+  "title": "Docs: Agentic Teams",
+  "url": "https://quox.ai/docs/agentic-teams"
+ },
+ {
+  "title": "Docs: QuoxEngine",
+  "url": "https://quox.ai/docs/quoxengine"
+ },
+ {
+  "title": "Docs: Session Context",
+  "url": "https://quox.ai/docs/session-context"
+ },
+ {
+  "title": "Docs: RAG Strategy",
+  "url": "https://quox.ai/docs/rag-strategy"
+ },
+ {
+  "title": "Docs: Observability",
+  "url": "https://quox.ai/docs/observability"
+ },
+ {
+  "title": "Docs: VOLT Certification",
+  "url": "https://quox.ai/docs/volt-certification"
+ },
+ {
+  "title": "Docs: WARD Protocol",
+  "url": "https://quox.ai/docs/ward"
+ },
+ {
+  "title": "Blog: Anatomy of a Conversation",
+  "url": "https://quox.ai/blog/anatomy-of-a-conversation"
+ },
+ {
+  "title": "Docs: Safety & Security",
+  "url": "https://quox.ai/docs/safety"
+ },
+ {
+  "title": "Docs: DEFCON Levels",
+  "url": "https://quox.ai/docs/defcon"
+ },
+ {
+  "title": "Docs: Policy Configuration",
+  "url": "https://quox.ai/docs/policies"
+ },
+ {
+  "title": "Docs: Organisations",
+  "url": "https://quox.ai/docs/orgs"
+ },
+ {
+  "title": "Docs: Workspace",
+  "url": "https://quox.ai/docs/workspace"
+ },
+ {
+  "title": "Docs: Teams",
+  "url": "https://quox.ai/docs/teams"
+ },
+ {
+  "title": "Docs: HITL Inbox",
+  "url": "https://quox.ai/docs/inbox"
+ },
+ {
+  "title": "Docs: Integrations",
+  "url": "https://quox.ai/docs/integrations"
+ },
+ {
+  "title": "Docs: Workflows",
+  "url": "https://quox.ai/docs/workflows"
+ },
+ {
+  "title": "Docs: Auth Service",
+  "url": "https://quox.ai/docs/auth-service"
+ },
+ {
+  "title": "Docs: Development Guide",
+  "url": "https://quox.ai/docs/development"
+ },
+ {
+  "title": "QuoxMCP product page",
+  "url": "https://quox.ai/solutions/quoxmcp"
+ },
+ {
+  "title": "QuoxCLI product page",
+  "url": "https://quox.ai/solutions/quoxcli"
+ },
+ {
+  "title": "QuoxGPU product page",
+  "url": "https://quox.ai/solutions/quoxgpu"
+ },
+ {
+  "title": "Codebase Mirror feature page",
+  "url": "https://quox.ai/features/codebase-mirror"
+ },
+ {
+  "title": "Wazuh SIEM",
+  "url": "https://quox.ai/plugins/wazuh"
+ },
+ {
+  "title": "Decision Evidence",
+  "url": "https://quox.ai/plugins/decision-evidence"
+ },
+ {
+  "title": "Local Inference",
+  "url": "https://quox.ai/plugins/local-inference"
+ },
+ {
+  "title": "OpsDeck",
+  "url": "https://quox.ai/plugins/opsdeck"
+ },
+ {
+  "title": "Action Tracker",
+  "url": "https://quox.ai/plugins/action-tracker"
+ },
+ {
+  "title": "Workflow Library",
+  "url": "https://quox.ai/plugins/workflow-library"
+ },
+ {
+  "title": "Chief Teams",
+  "url": "https://quox.ai/plugins/chief-team-medium"
+ },
+ {
+  "title": "LinkedIn",
+  "url": "https://quox.ai/plugins/linkedin"
+ },
+ {
+  "title": "YouTube",
+  "url": "https://quox.ai/plugins/youtube"
+ },
+ {
+  "title": "MikroTik RouterOS",
+  "url": "https://quox.ai/plugins/mikrotik-routeros"
+ },
+ {
+  "title": "Web Terminal",
+  "url": "https://quox.ai/plugins/web-terminal"
+ },
+ {
+  "title": "Docker Fleet",
+  "url": "https://quox.ai/plugins/docker-fleet"
+ },
+ {
+  "title": "Tailscale Mesh",
+  "url": "https://quox.ai/plugins/tailscale"
+ },
+ {
+  "title": "Cognitive Core 3D",
+  "url": "https://quox.ai/plugins/cogcore3d"
+ },
+ {
+  "title": "Developers",
+  "url": "https://quox.ai/developers"
+ },
+ {
+  "title": "Downloads",
+  "url": "https://quox.ai/downloads"
+ },
+ {
+  "title": "Compliance Suite",
+  "url": "https://quox.ai/compliance-suite"
+ },
+ {
+  "title": "Developer Kit",
+  "url": "https://quox.ai/developer-kit"
+ },
+ {
+  "title": "About Us",
+  "url": "https://quox.ai/about"
+ },
+ {
+  "title": "Contact",
+  "url": "https://quox.ai/contact"
+ },
+ {
+  "title": "Security",
+  "url": "https://quox.ai/security"
+ },
+ {
+  "title": "Privacy Policy",
+  "url": "https://quox.ai/privacy"
+ },
+ {
+  "title": "Terms of Service",
+  "url": "https://quox.ai/terms"
+ },
+ {
+  "title": "Refund Policy",
+  "url": "https://quox.ai/refunds"
+ },
+ {
+  "title": "Licensing",
+  "url": "https://quox.ai/licensing"
+ },
+ {
+  "title": "Developer Agreement",
+  "url": "https://quox.ai/developer-agreement"
+ },
+ {
+  "title": "Marketplace Terms",
+  "url": "https://quox.ai/marketplace-terms"
+ },
+ {
+  "title": "Acceptable Use",
+  "url": "https://quox.ai/acceptable-use"
+ },
+ {
+  "title": "GitHub: QuoxMCP (MCP server for Claude)",
+  "url": "https://github.com/quoxai/quoxmcp"
+ },
+ {
+  "title": "GitHub: QuoxTerminal (desktop terminal)",
+  "url": "https://github.com/quoxai/quoxterminal"
+ },
+ {
+  "title": "GitHub: AEE protocol spec",
+  "url": "https://github.com/quoxai/aee"
+ },
+ {
+  "title": "GitHub: AOCL protocol spec",
+  "url": "https://github.com/quoxai/aocl"
+ },
+ {
+  "title": "GitHub: VOLT protocol spec",
+  "url": "https://github.com/quoxai/volt"
+ },
+ {
+  "title": "Pricing (all products and plans)",
+  "url": "https://quox.ai/pricing"
+ },
+ {
+  "title": "Install guide (self-hosting, early access)",
+  "url": "https://quox.ai/install"
+ },
+ {
+  "title": "GDPR: how Quox supports it",
+  "url": "https://quox.ai/gdpr"
+ },
+ {
+  "title": "HIPAA: how Quox supports it",
+  "url": "https://quox.ai/hipaa"
+ },
+ {
+  "title": "SOC 2: how Quox supports it",
+  "url": "https://quox.ai/soc-2"
+ },
+ {
+  "title": "ISO 27001: how Quox supports it",
+  "url": "https://quox.ai/iso-27001"
+ },
+ {
+  "title": "ISO 42001: how Quox supports it",
+  "url": "https://quox.ai/iso-42001"
+ },
+ {
+  "title": "NIST AI RMF: how Quox supports it",
+  "url": "https://quox.ai/nist-ai-rmf"
+ },
+ {
+  "title": "EU AI Act: how Quox supports it",
+  "url": "https://quox.ai/eu-ai-act"
+ },
+ {
+  "title": "Blog: EU AI Act enforcement",
+  "url": "https://quox.ai/blog/eu-ai-act-enforcement"
+ },
+ {
+  "title": "Agentic Control Plane, product page",
+  "url": "https://quox.ai/solutions/agentic-control-plane"
+ },
+ {
+  "title": "Ai Agent Audit Trail Requirements, product page",
+  "url": "https://quox.ai/solutions/ai-agent-audit-trail-requirements"
+ },
+ {
+  "title": "Ai Consultancy, product page",
+  "url": "https://quox.ai/solutions/ai-consultancy"
+ },
+ {
+  "title": "Calendarq, product page",
+  "url": "https://quox.ai/solutions/calendarq"
+ },
+ {
+  "title": "Compounding, product page",
+  "url": "https://quox.ai/solutions/compounding"
+ },
+ {
+  "title": "Dev Servers, product page",
+  "url": "https://quox.ai/solutions/dev-servers"
+ },
+ {
+  "title": "Dev Suite, product page",
+  "url": "https://quox.ai/solutions/dev-suite"
+ },
+ {
+  "title": "Discord Pro, product page",
+  "url": "https://quox.ai/solutions/discord-pro"
+ },
+ {
+  "title": "Doneengine, product page",
+  "url": "https://quox.ai/solutions/doneengine"
+ },
+ {
+  "title": "Evidence Layer, product page",
+  "url": "https://quox.ai/solutions/evidence-layer"
+ },
+ {
+  "title": "Fixloop, product page",
+  "url": "https://quox.ai/solutions/fixloop"
+ },
+ {
+  "title": "Governance Controls, product page",
+  "url": "https://quox.ai/solutions/governance-controls"
+ },
+ {
+  "title": "Gripe, product page",
+  "url": "https://quox.ai/solutions/gripe"
+ },
+ {
+  "title": "Hitl, product page",
+  "url": "https://quox.ai/solutions/hitl"
+ },
+ {
+  "title": "Identity Access, product page",
+  "url": "https://quox.ai/solutions/identity-access"
+ },
+ {
+  "title": "Inboxq, product page",
+  "url": "https://quox.ai/solutions/inboxq"
+ },
+ {
+  "title": "Integrations, product page",
+  "url": "https://quox.ai/solutions/integrations"
+ },
+ {
+  "title": "Interfaces, product page",
+  "url": "https://quox.ai/solutions/interfaces"
+ },
+ {
+  "title": "Local Inference, product page",
+  "url": "https://quox.ai/solutions/local-inference"
+ },
+ {
+  "title": "Logging, product page",
+  "url": "https://quox.ai/solutions/logging"
+ },
+ {
+  "title": "Mind And Memory, product page",
+  "url": "https://quox.ai/solutions/mind-and-memory"
+ },
+ {
+  "title": "Notesq, product page",
+  "url": "https://quox.ai/solutions/notesq"
+ },
+ {
+  "title": "Orchestration, product page",
+  "url": "https://quox.ai/solutions/orchestration"
+ },
+ {
+  "title": "Proofloop, product page",
+  "url": "https://quox.ai/solutions/proofloop"
+ },
+ {
+  "title": "Public Sector Ai Evidence, product page",
+  "url": "https://quox.ai/solutions/public-sector-ai-evidence"
+ },
+ {
+  "title": "Qlarity, product page",
+  "url": "https://quox.ai/solutions/qlarity"
+ },
+ {
+  "title": "Qloop, product page",
+  "url": "https://quox.ai/solutions/qloop"
+ },
+ {
+  "title": "Quox Security, product page",
+  "url": "https://quox.ai/solutions/quox-security"
+ },
+ {
+  "title": "Quoxbuild, product page",
+  "url": "https://quox.ai/solutions/quoxbuild"
+ },
+ {
+  "title": "Quoxlens, product page",
+  "url": "https://quox.ai/solutions/quoxlens"
+ },
+ {
+  "title": "Quoxpert, product page",
+  "url": "https://quox.ai/solutions/quoxpert"
+ },
+ {
+  "title": "Quoxplan, product page",
+  "url": "https://quox.ai/solutions/quoxplan"
+ },
+ {
+  "title": "Quoxseo, product page",
+  "url": "https://quox.ai/solutions/quoxseo"
+ },
+ {
+  "title": "Quoxsignal, product page",
+  "url": "https://quox.ai/solutions/quoxsignal"
+ },
+ {
+  "title": "Quoxskills, product page",
+  "url": "https://quox.ai/solutions/quoxskills"
+ },
+ {
+  "title": "Quoxslots, product page",
+  "url": "https://quox.ai/solutions/quoxslots"
+ },
+ {
+  "title": "Quoxvault, product page",
+  "url": "https://quox.ai/solutions/quoxvault"
+ },
+ {
+  "title": "Quoxvoice, product page",
+  "url": "https://quox.ai/solutions/quoxvoice"
+ },
+ {
+  "title": "Self Hosted Ai Agent Governance, product page",
+  "url": "https://quox.ai/solutions/self-hosted-ai-agent-governance"
+ },
+ {
+  "title": "Skill Packs, product page",
+  "url": "https://quox.ai/solutions/skill-packs"
+ },
+ {
+  "title": "Telegram Pro, product page",
+  "url": "https://quox.ai/solutions/telegram-pro"
+ }
+]

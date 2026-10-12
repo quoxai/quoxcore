@@ -1,0 +1,269 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "gemini_image",
+
+  "name": "Gemini Image Tools",
+  "description": "AI image generation, editing, and analysis tools powered by Google Gemini (Nano Banana 2)",
+  "category": "media",
+  "subcategory": "image-generation",
+  "provider": "google",
+  "version": "1.0.0",
+
+  "risk_level": "low",
+  "sandbox_profile": "standard",
+  "requires_license": null,
+
+  "tools": [
+    {
+      "id": "gemini_image.generate",
+      "name": "Generate Image",
+      "description": "Generate an image from a text prompt using Google Gemini's image generation models (Nano Banana 2). Returns a base64-encoded image and stores it via the files service.",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "prompt": {
+          "type": "string",
+          "required": true,
+          "description": "Text description of the image to generate. Be specific about style, subject, lighting, composition."
+        },
+        "model": {
+          "type": "string",
+          "required": false,
+          "default": "flash",
+          "enum": ["flash"],
+          "description": "Gemini model to use. 'flash' = gemini-2.5-flash-image (fast, default)"
+        },
+        "aspect_ratio": {
+          "type": "string",
+          "required": true,
+          "enum": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9", "1:4", "1:8", "4:1", "8:1"],
+          "description": "Aspect ratio — REQUIRED. Choose based on use case: 16:9 for hero/banner/landscape, 1:1 for social/avatar/square, 9:16 for stories/portrait/mobile, 3:2 for standard photo, 21:9 for cinematic/ultra-wide. Always ask the user or infer from context — never assume square."
+        },
+        "person_generation": {
+          "type": "string",
+          "required": false,
+          "default": "DONT_ALLOW",
+          "enum": ["DONT_ALLOW", "ALLOW_ADULT"],
+          "description": "Whether to allow generation of images containing people"
+        },
+        "temperature": {
+          "type": "number",
+          "required": false,
+          "default": 1.0,
+          "description": "Controls randomness (0.0-2.0). Lower = more deterministic, higher = more creative"
+        },
+        "number_of_images": {
+          "type": "number",
+          "required": false,
+          "default": 1,
+          "description": "Number of images to generate (1-4)"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "base64": { "type": "string", "description": "Base64-encoded image data" },
+                "mime_type": { "type": "string" },
+                "file_url": { "type": "string", "description": "URL to access the stored image" },
+                "file_id": { "type": "string" }
+              }
+            }
+          },
+          "model_used": { "type": "string" },
+          "prompt_used": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Generate images from text descriptions using Gemini AI",
+        "when_to_use": [
+          "User asks to generate, create, or make an image",
+          "User describes a visual they want created",
+          "User asks for a logo, illustration, photo, artwork, or diagram",
+          "User says 'draw', 'paint', 'render', or 'visualize'"
+        ],
+        "when_not_to_use": [
+          "User wants to edit an existing image (use gemini_image.edit)",
+          "User wants to analyze or describe an image (use gemini_image.describe)",
+          "User wants screenshots of the dashboard (use screencap tools)"
+        ]
+      }
+    },
+    {
+      "id": "gemini_image.edit",
+      "name": "Edit Image",
+      "description": "Edit an existing image using text instructions. Provide the source image as base64 or URL along with editing instructions.",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "prompt": {
+          "type": "string",
+          "required": true,
+          "description": "Instructions for how to edit the image (e.g., 'remove the background', 'change the sky to sunset', 'add a hat to the person')"
+        },
+        "image_base64": {
+          "type": "string",
+          "required": false,
+          "description": "Base64-encoded source image to edit. Provide either this or image_url."
+        },
+        "image_url": {
+          "type": "string",
+          "required": false,
+          "description": "URL of the source image to edit. Provide either this or image_base64."
+        },
+        "model": {
+          "type": "string",
+          "required": false,
+          "default": "flash",
+          "enum": ["flash"],
+          "description": "Gemini model to use. 'flash' = gemini-2.5-flash-image"
+        },
+        "aspect_ratio": {
+          "type": "string",
+          "required": false,
+          "enum": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9", "1:4", "1:8", "4:1", "8:1"],
+          "description": "Aspect ratio of the output image"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "base64": { "type": "string" },
+                "mime_type": { "type": "string" },
+                "file_url": { "type": "string" },
+                "file_id": { "type": "string" }
+              }
+            }
+          },
+          "model_used": { "type": "string" },
+          "prompt_used": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Edit existing images with text instructions using Gemini AI",
+        "when_to_use": [
+          "User wants to modify, edit, or transform an existing image",
+          "User provides an image and asks to change something about it",
+          "User asks to remove backgrounds, add elements, change colors, or restyle"
+        ],
+        "when_not_to_use": [
+          "User wants a new image from scratch (use gemini_image.generate)",
+          "User only wants to analyze an image (use gemini_image.describe)"
+        ]
+      }
+    },
+    {
+      "id": "gemini_image.describe",
+      "name": "Describe Image",
+      "description": "Analyze and describe an image using Gemini's vision capabilities. Can answer questions about image content, identify objects, read text, and provide detailed descriptions.",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "image_base64": {
+          "type": "string",
+          "required": false,
+          "description": "Base64-encoded image to analyze. Provide either this or image_url."
+        },
+        "image_url": {
+          "type": "string",
+          "required": false,
+          "description": "URL of the image to analyze. Provide either this or image_url."
+        },
+        "prompt": {
+          "type": "string",
+          "required": false,
+          "default": "Describe this image in detail.",
+          "description": "Question or instruction about the image (e.g., 'What text is in this image?', 'Identify all objects')"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string", "description": "Gemini's analysis of the image" },
+          "model_used": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Analyze images using Gemini's vision capabilities",
+        "when_to_use": [
+          "User asks to describe, analyze, or explain an image",
+          "User wants to identify objects, text, or elements in an image",
+          "User asks 'what is in this image?' or 'what does this show?'"
+        ],
+        "when_not_to_use": [
+          "User wants to generate a new image (use gemini_image.generate)",
+          "User wants to edit an image (use gemini_image.edit)"
+        ]
+      }
+    },
+    {
+      "id": "gemini_image.models",
+      "name": "List Image Models",
+      "description": "List available Gemini image generation models with their capabilities, pricing, and supported features.",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {},
+      "instructions": {
+        "summary": "Show available Gemini image models and their capabilities",
+        "when_to_use": [
+          "User asks what image models are available",
+          "User wants to know pricing or capabilities",
+          "User asks which model to use"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {
+    "base": "internal",
+    "api": "gemini_image"
+  },
+
+  "instructions": {
+    "summary": "Generate, edit, and analyze images using Google Gemini AI models",
+    "when_to_use": [
+      "User wants to create images from text descriptions",
+      "User wants to edit or transform existing images",
+      "User wants to analyze or describe images",
+      "User asks about image generation capabilities"
+    ],
+    "when_not_to_use": [
+      "User wants dashboard screenshots (use screencap tools)",
+      "User wants to browse or manage files (use file tools)"
+    ],
+    "usage_pattern": {
+      "format": "gemini_image.<tool>(params)",
+      "typical_workflow": [
+        "1. gemini_image.generate(prompt) — Create an image from text",
+        "2. gemini_image.describe(image) — Analyze the result",
+        "3. gemini_image.edit(image, prompt) — Refine if needed"
+      ]
+    }
+  },
+
+  "agent_hints": {
+    "primary_agent": "imagesq",
+    "delegation_keywords": ["generate image", "create image", "draw", "paint", "render", "visualize", "image generation", "picture", "illustration", "artwork", "AI art", "nano banana", "imagesq"],
+    "context_tokens": 200,
+    "typical_latency_ms": 10000,
+    "cacheable": false,
+    "batch_friendly": false,
+    "idempotent": false,
+    "side_effects": true
+  }
+}

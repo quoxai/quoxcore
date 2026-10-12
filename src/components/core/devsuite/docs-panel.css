@@ -1,0 +1,34 @@
+/*
+ * DocsPanel chrome.
+ *
+ * BUNDLE POLISH D. This panel carried 42 inline style objects, which is a
+ * per-view stylesheet written in JSX. Most of them were re-implementations of
+ * things the design system already names, so the fix is mostly deletion:
+ *
+ *   - two hand-rolled inputs (background, border, radius, colour, padding)
+ *     became .qx-input and .qx-select, which is the house look and gains the
+ *     cyan focus glow they were missing
+ *   - two uppercase section labels became .qx-section-title
+ *   - four padded muted messages became .qx-hint
+ *   - three list resets became .docs-panel__list below
+ *
+ * Only the genuinely panel-specific bits live here. If one of these grows a
+ * second consumer it belongs in qx-components.css and QX_INDEX.md instead,
+ * per the design-system rule: add to the globals, then consume.
+ */
+
+/* A list of pickable rows with no bullet furniture. */
+.docs-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* .qx-hint supplies the type and colour; this only adds the panel's own
+   horizontal rhythm, so the two compose rather than compete. */
+.docs-panel__msg {
+  padding: 0.5rem 1rem;
+}

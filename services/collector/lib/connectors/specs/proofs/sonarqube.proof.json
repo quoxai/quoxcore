@@ -1,0 +1,119 @@
+{
+  "spec_id": "sonarqube",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T19:33:18.961Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/authentication/validate",
+      "status": 200,
+      "latency_ms": 286,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "8daf09a6fc31937457dd77e9c25ce4b21349d605b561a8c5d557841bf964c9a0",
+      "body_excerpt": "{\"valid\":true}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "system_status",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/system/status",
+      "status": 200,
+      "latency_ms": 30,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "16ede93441e1149e304be50691ebbf0e37678252dfae96d326e96aef0ee3998a",
+      "body_excerpt": "{\"id\":\"147B411E-AaCXGtUbFfXHRV1635ID\",\"version\":\"26.9.0.129388\",\"status\":\"UP\"}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "system_health",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/system/health",
+      "status": 200,
+      "latency_ms": 45,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "14a5eb0562c4e0fb69b8b53fbff57a324e2ea57647ee8775423f6fab5d33d2f8",
+      "body_excerpt": "{\"health\":\"GREEN\",\"causes\":[]}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/projects/search?ps=100",
+      "status": 200,
+      "latency_ms": 79,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "103021baf7c1b6abfba9728dab45c6d8d12cb71f0b7efc50da173948ea54d25b",
+      "body_excerpt": "{\"paging\":{\"pageIndex\":1,\"pageSize\":100,\"total\":1},\"components\":[{\"key\":\"quoxproof-live\",\"name\":\"quoxproof-live\",\"qualifier\":\"TRK\",\"visibility\":\"public\",\"managed\":false,\"projectUuid\":\"e22fc9dc-4bb0-4f",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "project_measures",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/measures/component?component=quoxproof-live&metricKeys=bugs%2Cvulnerabilities%2Ccode_smells%2Ccoverage",
+      "status": 200,
+      "latency_ms": 64,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "c4f89c5d13fc1191ee84ecb30f720bc00a3a7b72fe86221fe426cf47cfe30319",
+      "body_excerpt": "{\"component\":{\"key\":\"quoxproof-live\",\"name\":\"quoxproof-live\",\"qualifier\":\"TRK\",\"measures\":[]}}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_issues",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/issues/search?components=quoxproof-live&ps=100",
+      "status": 200,
+      "latency_ms": 378,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "95e2f8025290016077aee5aa3899970833636da74991131312015ba838ce5538",
+      "body_excerpt": "{\"total\":0,\"p\":1,\"ps\":100,\"paging\":{\"pageIndex\":1,\"pageSize\":100,\"total\":0},\"effortTotal\":0,\"issues\":[],\"components\":[],\"facets\":[]}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_quality_gates",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/qualitygates/list",
+      "status": 200,
+      "latency_ms": 40,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "240c8a148909a73c3a710ff08c477df12a55212de37c70a7b0a08f01b7e9fc9f",
+      "body_excerpt": "{\"qualitygates\":[{\"name\":\"Sonar way\",\"isDefault\":true,\"isBuiltIn\":true,\"actions\":{\"rename\":false,\"setAsDefault\":false,\"copy\":true,\"associateProjects\":false,\"delete\":false,\"manageConditions\":false,\"del",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_metrics",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/metrics/search?ps=100",
+      "status": 200,
+      "latency_ms": 51,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "81e35f3d653712c48ff1303c74e1aa845b4c8568820e77fdd6457480074845f0",
+      "body_excerpt": "{\"metrics\":[{\"id\":\"9c97220f-9707-4601-b35a-097fafb625b2\",\"key\":\"accepted_issues\",\"type\":\"INT\",\"name\":\"Accepted Issues\",\"description\":\"Accepted issues\",\"domain\":\"Issues\",\"direction\":-1,\"qualitative\":fa",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:sonarqube:community-25"
+}

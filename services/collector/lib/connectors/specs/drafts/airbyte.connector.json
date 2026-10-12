@@ -1,0 +1,30 @@
+{
+  "spec_version": 1,
+  "id": "airbyte",
+  "name": "Airbyte",
+  "category": "uncategorized",
+  "credentialType": "airbyte",
+  "requiredFields": [
+    "base_url",
+    "api_key"
+  ],
+  "docs": "https://reference.airbyte.com/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/workspaces"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

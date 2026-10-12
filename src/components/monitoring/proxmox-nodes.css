@@ -1,0 +1,389 @@
+/* ProxmoxNodes — Node health dashboard */
+
+.pxn {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: 0;
+}
+
+.pxn-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 13px;
+}
+
+/* ── Summary strip ── */
+.pxn-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.pxn-summary__item {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.pxn-summary__value {
+  font-size: 16px;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.pxn-summary__label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.pxn-summary__sep {
+  width: 1px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Grid ── */
+.pxn-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+}
+
+/* ── Node card ── */
+.pxn-card {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.pxn-card:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.pxn-card--critical {
+  border-color: rgba(255, 85, 85, 0.2);
+}
+
+.pxn-card--critical:hover {
+  border-color: rgba(255, 85, 85, 0.35);
+}
+
+.pxn-card--warning {
+  border-color: rgba(255, 176, 48, 0.15);
+}
+
+.pxn-card--warning:hover {
+  border-color: rgba(255, 176, 48, 0.3);
+}
+
+.pxn-card--offline {
+  border-color: rgba(255, 85, 85, 0.15);
+  opacity: 0.6;
+}
+
+/* ── Card header ── */
+.pxn-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.pxn-card__header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pxn-card__identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pxn-card__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pxn-card__dot--online {
+  background: #30ff90;
+  box-shadow: 0 0 6px rgba(48, 255, 144, 0.35);
+  animation: pxn-breathe 3s ease-in-out infinite;
+}
+
+.pxn-card__dot--offline {
+  background: #ff5555;
+  box-shadow: 0 0 6px rgba(255, 85, 85, 0.35);
+  animation: pxn-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pxn-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes pxn-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(255, 85, 85, 0.35); }
+  50% { opacity: 0.5; box-shadow: 0 0 3px rgba(255, 85, 85, 0.15); }
+}
+
+.pxn-card__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  letter-spacing: 0.02em;
+}
+
+.pxn-card__badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pxn-card__expand {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.25);
+  margin-left: 2px;
+}
+
+/* ── Badges ── */
+.pxn-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.pxn-badge--critical {
+  background: rgba(255, 85, 85, 0.15);
+  color: #ff5555;
+}
+
+.pxn-badge--warning {
+  background: rgba(255, 176, 48, 0.12);
+  color: #ffb030;
+}
+
+.pxn-badge--offline {
+  background: rgba(255, 85, 85, 0.12);
+  color: #ff5555;
+  animation: pxn-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── Gauges row ── */
+.pxn-card__gauges {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 14px 12px;
+}
+
+.pxn-card__bars {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Radial gauge ── */
+.pxn-gauge {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.pxn-gauge__value {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, calc(-50% - 4px));
+  font-size: 18px;
+  font-weight: 700;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.pxn-gauge__unit {
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.5;
+}
+
+.pxn-gauge__label {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ── Metric bar ── */
+.pxn-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pxn-metric__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.pxn-metric__label {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.pxn-metric__value {
+  font-size: 11px;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.pxn-metric__track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.pxn-metric__fill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* ── Uptime compact ── */
+.pxn-card__uptime {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.pxn-card__uptime-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.pxn-card__uptime-value {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Offline state ── */
+.pxn-card__offline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: rgba(255, 85, 85, 0.6);
+  font-size: 12px;
+}
+
+.pxn-card__offline-icon {
+  font-size: 16px;
+}
+
+/* ── Expanded details ── */
+.pxn-card__details {
+  padding: 8px 14px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: pxn-slide-in 0.15s ease;
+}
+
+@keyframes pxn-slide-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.pxn-card__detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pxn-card__detail-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.pxn-card__detail-value {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.pxn-card__detail-value--mono {
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+
+/* ── Load average ── */
+.pxn-load {
+  display: flex;
+  gap: 10px;
+}
+
+.pxn-load__item {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.pxn-load__value {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.pxn-load__period {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.pxn-muted {
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 11px;
+}

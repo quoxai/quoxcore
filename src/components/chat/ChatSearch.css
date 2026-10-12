@@ -1,0 +1,296 @@
+/**
+ * ChatSearch Styles
+ * Search UI for finding messages in chat history
+ */
+
+/* Search Trigger Button */
+.chat-search__trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+    border-radius: 8px;
+    color: var(--text-secondary, #a1a1aa);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chat-search__trigger:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: var(--text-primary, #f4f4f5);
+}
+
+.chat-search__trigger:focus {
+    outline: none;
+    border-color: var(--hal-red, #38bdf8);
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+}
+
+/* Search Panel */
+.chat-search {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 280px;
+    max-width: 400px;
+    animation: searchSlideIn 0.15s ease-out;
+}
+
+@keyframes searchSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Input Wrapper */
+.chat-search__input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface-card, rgba(24, 24, 28, 0.95));
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+    border-radius: 10px;
+    transition: all 0.2s ease;
+}
+
+.chat-search__input-wrapper:focus-within {
+    border-color: var(--hal-red, #38bdf8);
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15),
+                0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.chat-search__icon {
+    flex-shrink: 0;
+    color: var(--text-muted, rgba(255, 255, 255, 0.52));
+}
+
+.chat-search__input {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-primary, #f4f4f5);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+}
+
+.chat-search__input::placeholder {
+    color: var(--text-muted, rgba(255, 255, 255, 0.52));
+}
+
+.chat-search__count {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--text-secondary, #a1a1aa);
+    padding: 2px 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+.chat-search__close {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-muted, rgba(255, 255, 255, 0.52));
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.chat-search__close:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary, #f4f4f5);
+}
+
+/* Results Dropdown */
+.chat-search__results {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    max-height: 320px;
+    overflow-y: auto;
+    background: var(--surface-card, rgba(24, 24, 28, 0.98));
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(255, 255, 255, 0.02);
+    z-index: 100;
+    animation: resultsSlideIn 0.15s ease-out;
+}
+
+@keyframes resultsSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* No Results */
+.chat-search__no-results {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px 16px;
+    color: var(--text-muted, rgba(255, 255, 255, 0.52));
+    font-size: 13px;
+    text-align: center;
+}
+
+/* Individual Result */
+.chat-search__result {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: 12px 14px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.04));
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.chat-search__result:last-child {
+    border-bottom: none;
+}
+
+.chat-search__result:hover,
+.chat-search__result--selected {
+    background: rgba(56, 189, 248, 0.08);
+}
+
+.chat-search__result--selected {
+    background: rgba(56, 189, 248, 0.12);
+}
+
+.chat-search__result-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.chat-search__result-role {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary, #f4f4f5);
+}
+
+.chat-search__result-role--user {
+    color: var(--hal-red, #38bdf8);
+}
+
+.chat-search__result-role--assistant {
+    color: var(--accent-green, #4ade80);
+}
+
+.chat-search__result-time {
+    font-size: 11px;
+    color: var(--text-muted, rgba(255, 255, 255, 0.52));
+    margin-left: auto;
+}
+
+.chat-search__result-snippet {
+    font-size: 13px;
+    color: var(--text-secondary, #a1a1aa);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Highlight */
+.chat-search__highlight {
+    background: rgba(251, 191, 36, 0.3);
+    color: var(--text-primary, #f4f4f5);
+    border-radius: 2px;
+    padding: 0 2px;
+}
+
+/* Keyboard Hints */
+.chat-search__hints {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-muted, rgba(255, 255, 255, 0.52));
+}
+
+.chat-search__hints kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-radius: 4px;
+    font-family: var(--m-font-mono, monospace);
+    font-size: 10px;
+    margin-right: 4px;
+}
+
+/* Scrollbar styling */
+.chat-search__results::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-search__results::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chat-search__results::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.chat-search__results::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .chat-search {
+        min-width: 240px;
+        max-width: none;
+        width: 100%;
+    }
+
+    .chat-search__results {
+        max-height: 250px;
+    }
+
+    .chat-search__hints {
+        display: none;
+    }
+}

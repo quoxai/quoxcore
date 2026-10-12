@@ -1,0 +1,233 @@
+{
+  "spec_version": 1,
+  "id": "launchdarkly",
+  "name": "LaunchDarkly",
+  "category": "developer",
+  "credentialType": "launchdarkly",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://apidocs.launchdarkly.com/",
+  "tools_source": "https://apidocs.launchdarkly.com/tag/Feature-flags",
+  "base_url": "https://app.launchdarkly.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/projects"
+  },
+  "tools": [
+    {
+      "name": "list_projects",
+      "description": "List LaunchDarkly projects the API access token can see",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max projects to return (default 20, max 50)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of projects to skip before returning results (pagination)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/projects",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "key": "key",
+            "name": "name",
+            "tags": "tags",
+            "id": "_id"
+          },
+          "totalCount": "totalCount"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_flags",
+      "description": "List the feature flags in one LaunchDarkly project, optionally filtered by tag",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_key": {
+            "type": "string",
+            "description": "LaunchDarkly project key (e.g. default)"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Optional tag to filter flags by"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max flags to return (default 20, max 50)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of flags to skip before returning results (pagination)"
+          }
+        },
+        "required": [
+          "project_key"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/flags/{{input.project_key}}",
+        "query": {
+          "tag": "{{input.tag}}",
+          "limit": "{{clamp input.limit 20 50}}",
+          "offset": "{{input.offset}}",
+          "summary": "true"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "key": "key",
+            "name": "name",
+            "kind": "kind",
+            "description": "description",
+            "tags": "tags",
+            "temporary": "temporary",
+            "archived": "archived",
+            "creationDate": "creationDate"
+          },
+          "totalCount": "totalCount"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.project_key": "default"
+      }
+    },
+    {
+      "name": "get_flag",
+      "description": "Get one LaunchDarkly feature flag by project key and flag key",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_key": {
+            "type": "string",
+            "description": "LaunchDarkly project key (e.g. default)"
+          },
+          "flag_key": {
+            "type": "string",
+            "description": "LaunchDarkly feature flag key (e.g. my-new-feature)"
+          }
+        },
+        "required": [
+          "project_key",
+          "flag_key"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/flags/{{input.project_key}}/{{input.flag_key}}"
+      },
+      "response": {
+        "pick": {
+          "key": "key",
+          "name": "name",
+          "kind": "kind",
+          "description": "description",
+          "tags": "tags",
+          "temporary": "temporary",
+          "archived": "archived",
+          "creationDate": "creationDate",
+          "maintainerId": "maintainerId",
+          "variations[]": {
+            "value": "value",
+            "name": "name",
+            "description": "description"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.project_key": "default"
+      }
+    },
+    {
+      "name": "list_environments",
+      "description": "List the environments in one LaunchDarkly project (keys and names only, never SDK or mobile keys)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_key": {
+            "type": "string",
+            "description": "LaunchDarkly project key (e.g. default)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max environments to return (default 20, max 50)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of environments to skip before returning results (pagination)"
+          }
+        },
+        "required": [
+          "project_key"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/projects/{{input.project_key}}/environments",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "key": "key",
+            "name": "name",
+            "color": "color",
+            "tags": "tags",
+            "critical": "critical",
+            "defaultTtl": "defaultTtl"
+          },
+          "totalCount": "totalCount"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.project_key": "default"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "LaunchDarkly takes the API access token raw in the Authorization header (no Bearer prefix), which the scaffolded auth already encodes",
+      "list_environments deliberately picks only key/name/color/tags/critical/defaultTtl: the raw environment payload also carries apiKey and mobileKey, which are live SDK credentials and must never be returned to an agent",
+      "list_flags passes summary=true so the response stays the per-environment summary rather than full targeting rules, which blow past the 2000-char truncate on any real project",
+      "probe hints use the project key 'default', LaunchDarkly's own documented starter project, so the route is exercised with a realistic key shape rather than a random string"
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

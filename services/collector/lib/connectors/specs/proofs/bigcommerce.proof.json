@@ -1,0 +1,90 @@
+{
+  "spec_id": "bigcommerce",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:49:03.614Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.bigcommerce.com/stores/n0i50vy/quox-shapeproof-control-40e1ee44",
+      "status": 404,
+      "latency_ms": 1166,
+      "classification": "CONTROL",
+      "body_sha256": "6595bd4073e54e54f9bdd3be837094fad2b12b7e0cf4cb5fd48e8c4dde9a96ab",
+      "body_excerpt": "{\"status\":404,\"title\":\"Not found\",\"type\":\"https://developer.bigcommerce.com/api-docs/getting-started/api-status-codes\",\"errors\":{}}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.bigcommerce.com/stores/n0i50vy/v2/store",
+      "status": 401,
+      "latency_ms": 263,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7bb9ea89cc36cd963aba902aa87b548be1a4a6d4781cec3ac822d537f84be599",
+      "body_excerpt": "{\"status\":401,\"title\":\"Unauthorized\",\"type\":\"https://developer.bigcommerce.com/api-docs/getting-started/api-status-codes\",\"errors\":{}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_products",
+      "method": "GET",
+      "url": "https://api.bigcommerce.com/stores/n0i50vy/v3/catalog/products?limit=20",
+      "status": 401,
+      "latency_ms": 181,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7bb9ea89cc36cd963aba902aa87b548be1a4a6d4781cec3ac822d537f84be599",
+      "body_excerpt": "{\"status\":401,\"title\":\"Unauthorized\",\"type\":\"https://developer.bigcommerce.com/api-docs/getting-started/api-status-codes\",\"errors\":{}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_orders",
+      "method": "GET",
+      "url": "https://api.bigcommerce.com/stores/n0i50vy/v2/orders?limit=20",
+      "status": 401,
+      "latency_ms": 197,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7bb9ea89cc36cd963aba902aa87b548be1a4a6d4781cec3ac822d537f84be599",
+      "body_excerpt": "{\"status\":401,\"title\":\"Unauthorized\",\"type\":\"https://developer.bigcommerce.com/api-docs/getting-started/api-status-codes\",\"errors\":{}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_customers",
+      "method": "GET",
+      "url": "https://api.bigcommerce.com/stores/n0i50vy/v3/customers?limit=20",
+      "status": 401,
+      "latency_ms": 192,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7bb9ea89cc36cd963aba902aa87b548be1a4a6d4781cec3ac822d537f84be599",
+      "body_excerpt": "{\"status\":401,\"title\":\"Unauthorized\",\"type\":\"https://developer.bigcommerce.com/api-docs/getting-started/api-status-codes\",\"errors\":{}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "store_info",
+      "method": "GET",
+      "url": "https://api.bigcommerce.com/stores/n0i50vy/v2/store",
+      "status": 401,
+      "latency_ms": 261,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7bb9ea89cc36cd963aba902aa87b548be1a4a6d4781cec3ac822d537f84be599",
+      "body_excerpt": "{\"status\":401,\"title\":\"Unauthorized\",\"type\":\"https://developer.bigcommerce.com/api-docs/getting-started/api-status-codes\",\"errors\":{}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

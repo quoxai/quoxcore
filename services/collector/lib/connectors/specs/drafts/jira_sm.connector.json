@@ -1,0 +1,35 @@
+{
+  "spec_version": 1,
+  "id": "jira_sm",
+  "name": "Jira Service Management",
+  "category": "uncategorized",
+  "credentialType": "jira_sm",
+  "requiredFields": [
+    "email",
+    "api_token",
+    "domain"
+  ],
+  "docs": "https://developer.atlassian.com/cloud/jira/service-desk/rest/intro/",
+  "base_url": {
+    "fromCredential": "domain",
+    "template": "https://{{domain}}"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "email",
+    "passField": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/rest/servicedeskapi/info"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url_template"
+    ]
+  }
+}

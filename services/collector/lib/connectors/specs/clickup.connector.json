@@ -1,0 +1,210 @@
+{
+  "spec_version": 1,
+  "id": "clickup",
+  "name": "ClickUp",
+  "category": "project_management",
+  "credentialType": "clickup",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://clickup.com/api",
+  "base_url": "https://api.clickup.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/user"
+  },
+  "tools_source": "https://developer.clickup.com/reference",
+  "tools": [
+    {
+      "name": "get_user",
+      "description": "Get the ClickUp user the API token belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/user"
+      },
+      "response": {
+        "pick": {
+          "id": "user.id",
+          "username": "user.username",
+          "email": "user.email",
+          "initials": "user.initials",
+          "timezone": "user.timezone"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_teams",
+      "description": "List the ClickUp workspaces (teams) the token can access",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/team"
+      },
+      "response": {
+        "pick": {
+          "teams[]": {
+            "id": "id",
+            "name": "name",
+            "color": "color"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_spaces",
+      "description": "List the spaces in one ClickUp workspace (team)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "description": "ClickUp workspace (team) ID, from list_teams"
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Include archived spaces (default false)"
+          }
+        },
+        "required": [
+          "team_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/team/{{input.team_id}}/space",
+        "query": {
+          "archived": "{{input.archived}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "spaces[]": {
+            "id": "id",
+            "name": "name",
+            "private": "private",
+            "archived": "archived"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_tasks",
+      "description": "List tasks in one ClickUp list, one page at a time",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "list_id": {
+            "type": "string",
+            "description": "ClickUp list ID"
+          },
+          "page": {
+            "type": "number",
+            "description": "Zero-based page of results (default 0, max 50)"
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Include archived tasks (default false)"
+          },
+          "include_closed": {
+            "type": "boolean",
+            "description": "Include closed tasks (default false)"
+          },
+          "subtasks": {
+            "type": "boolean",
+            "description": "Include subtasks (default false)"
+          }
+        },
+        "required": [
+          "list_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/list/{{input.list_id}}/task",
+        "query": {
+          "page": "{{clamp input.page 0 50}}",
+          "archived": "{{input.archived}}",
+          "include_closed": "{{input.include_closed}}",
+          "subtasks": "{{input.subtasks}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "tasks[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status.status",
+            "priority": "priority.priority",
+            "due_date": "due_date",
+            "date_created": "date_created",
+            "date_updated": "date_updated",
+            "url": "url"
+          },
+          "last_page": "last_page"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_task",
+      "description": "Get one ClickUp task by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "ClickUp task ID (e.g. 9hz)"
+          }
+        },
+        "required": [
+          "task_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/task/{{input.task_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "text_content": "text_content",
+          "status": "status.status",
+          "priority": "priority.priority",
+          "due_date": "due_date",
+          "date_created": "date_created",
+          "date_updated": "date_updated",
+          "url": "url",
+          "list_id": "list.id",
+          "list_name": "list.name"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

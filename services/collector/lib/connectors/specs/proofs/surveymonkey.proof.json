@@ -1,0 +1,92 @@
+{
+  "spec_id": "surveymonkey",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:12:29.481Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.surveymonkey.com/quox-shapeproof-control-1f29e16c",
+      "status": 404,
+      "latency_ms": 6858,
+      "classification": "CONTROL",
+      "body_sha256": "65f7cb5dcdf29d5453bced6a0ca7f3d9a1c1adabc3e60fa21db853db1909d82e",
+      "body_excerpt": "\n\n<!DOCTYPE html>\n<html>\n    <head>\n        <title>SurveyMonkey 404</title>\n        <meta charset=\"utf-8\">\n        <meta name=\"keywords\" content=\"questionnaire, questionnaires, questionaire, questiona",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.surveymonkey.com/v3/users/me",
+      "status": 401,
+      "latency_ms": 354,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9f0d93a089b19d196975df2363a4ae6203e394c831c7ad4c9a7281d34b0b8419",
+      "body_excerpt": "{\"error\": {\"id\": 1011, \"name\": \"Authorization Error\", \"docs\": \"https://developer.surveymonkey.com/api/v3/#error-codes\", \"message\": \"The authorization token provided was invalid.\", \"http_status_code\": ",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "me",
+      "method": "GET",
+      "url": "https://api.surveymonkey.com/v3/users/me",
+      "status": 401,
+      "latency_ms": 308,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9f0d93a089b19d196975df2363a4ae6203e394c831c7ad4c9a7281d34b0b8419",
+      "body_excerpt": "{\"error\": {\"id\": 1011, \"name\": \"Authorization Error\", \"docs\": \"https://developer.surveymonkey.com/api/v3/#error-codes\", \"message\": \"The authorization token provided was invalid.\", \"http_status_code\": ",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_surveys",
+      "method": "GET",
+      "url": "https://api.surveymonkey.com/v3/surveys?per_page=20&title=quoxprobe",
+      "status": 401,
+      "latency_ms": 626,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9f0d93a089b19d196975df2363a4ae6203e394c831c7ad4c9a7281d34b0b8419",
+      "body_excerpt": "{\"error\": {\"id\": 1011, \"name\": \"Authorization Error\", \"docs\": \"https://developer.surveymonkey.com/api/v3/#error-codes\", \"message\": \"The authorization token provided was invalid.\", \"http_status_code\": ",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_survey",
+      "method": "GET",
+      "url": "https://api.surveymonkey.com/v3/surveys/quoxprobe",
+      "status": 400,
+      "latency_ms": 460,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a1bc74d7055578008c5fcdc20b8a95b40d77ab2a4b74ef9817c24da3d44c80d4",
+      "body_excerpt": "[{\"exception\":\"ValidationError\",\"message\":\"'quoxprobe' does not match '^[1-9][0-9]*$'\",\"field\":\"survey_id\"}]",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 404
+      }
+    },
+    {
+      "name": "list_responses",
+      "method": "GET",
+      "url": "https://api.surveymonkey.com/v3/surveys/quoxprobe/responses?per_page=20&status=quoxprobe",
+      "status": 401,
+      "latency_ms": 735,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9f0d93a089b19d196975df2363a4ae6203e394c831c7ad4c9a7281d34b0b8419",
+      "body_excerpt": "{\"error\": {\"id\": 1011, \"name\": \"Authorization Error\", \"docs\": \"https://developer.surveymonkey.com/api/v3/#error-codes\", \"message\": \"The authorization token provided was invalid.\", \"http_status_code\": ",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

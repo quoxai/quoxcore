@@ -1,0 +1,113 @@
+{
+  "spec_id": "msteams",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:55.025Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://graph.microsoft.com/quox-shapeproof-control-b840b698",
+      "status": 401,
+      "latency_ms": 1058,
+      "classification": "CONTROL",
+      "body_sha256": "6d7d41981c27e291d926f4bf0fe4348403426e4f2b0572680218f6baa59a56d1",
+      "body_excerpt": "{\"error\":{\"code\":\"InvalidAuthenticationToken\",\"message\":\"IDX14100: JWT is not well formed, there are no dots (.).\\nThe token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHead",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://graph.microsoft.com/v1.0/groups?%24filter=resourceProvisioningOptions%2FAny%28x%3Ax+eq+%27Team%27%29&%24top=1",
+      "status": 401,
+      "latency_ms": 256,
+      "classification": "AUTH_WALL",
+      "body_sha256": "f889157bebaa584a40a757745e0f31249e51b0b0ce45d741b3097b91ce3809bd",
+      "body_excerpt": "{\"error\":{\"code\":\"InvalidAuthenticationToken\",\"message\":\"IDX14100: JWT is not well formed, there are no dots (.).\\nThe token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHead",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "list_teams",
+      "method": "GET",
+      "url": "https://graph.microsoft.com/v1.0/groups?%24filter=resourceProvisioningOptions%2FAny%28x%3Ax+eq+%27Team%27%29&%24select=id%2CdisplayName%2Cdescription%2CmailNickname%2Cvisibility%2CcreatedDateTime&%24search=quoxprobe&%24top=20",
+      "status": 401,
+      "latency_ms": 325,
+      "classification": "AUTH_WALL",
+      "body_sha256": "a3d0bb96bc7f7d15d82e4c9b70ccf2536e9ec21a676a533be26c8a760f198073",
+      "body_excerpt": "{\"error\":{\"code\":\"InvalidAuthenticationToken\",\"message\":\"IDX14100: JWT is not well formed, there are no dots (.).\\nThe token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHead",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_team",
+      "method": "GET",
+      "url": "https://graph.microsoft.com/v1.0/teams/quoxprobe",
+      "status": 401,
+      "latency_ms": 349,
+      "classification": "AUTH_WALL",
+      "body_sha256": "c3063081b599573c3037ea69bcc9dc2bc2ba50c0a31e694172597e21cf615aa9",
+      "body_excerpt": "{\"error\":{\"code\":\"InvalidAuthenticationToken\",\"message\":\"IDX14100: JWT is not well formed, there are no dots (.).\\nThe token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHead",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "list_channels",
+      "method": "GET",
+      "url": "https://graph.microsoft.com/v1.0/teams/quoxprobe/channels?%24filter=quoxprobe&%24select=id%2CdisplayName%2Cdescription%2CmembershipType%2CwebUrl%2CcreatedDateTime",
+      "status": 401,
+      "latency_ms": 297,
+      "classification": "AUTH_WALL",
+      "body_sha256": "66a41953d4705a8c36d56841873b59376de8db04983c9b4f06af0e6864bde7a9",
+      "body_excerpt": "{\"error\":{\"code\":\"InvalidAuthenticationToken\",\"message\":\"IDX14100: JWT is not well formed, there are no dots (.).\\nThe token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHead",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "list_channel_messages",
+      "method": "GET",
+      "url": "https://graph.microsoft.com/v1.0/teams/quoxprobe/channels/quoxprobe/messages?%24top=20",
+      "status": 401,
+      "latency_ms": 280,
+      "classification": "AUTH_WALL",
+      "body_sha256": "42b4e4dec3f5851b93dcfd78d0a76b458deb85c948c5ce58ab4b493ae6e588fb",
+      "body_excerpt": "{\"error\":{\"code\":\"InvalidAuthenticationToken\",\"message\":\"IDX14100: JWT is not well formed, there are no dots (.).\\nThe token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHead",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code",
+        "token_flow_untested": true
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run. This spec authenticates through a token exchange, which is NOT blind-provable: the harness probes the API surface with a dummy bearer token, so the endpoints, paths and auth handling are tested but the token-acquisition flow itself is not.",
+  "notes": [
+    "oauth2_client_credentials auth: probed with a dummy bearer token; the token-acquisition flow is NOT proven by this run."
+  ]
+}

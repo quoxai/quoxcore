@@ -1,0 +1,283 @@
+{
+  "spec_version": 1,
+  "id": "workato",
+  "name": "Workato",
+  "category": "developer",
+  "credentialType": "workato",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://docs.workato.com/workato-api.html",
+  "base_url": "https://www.workato.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/users/me"
+  },
+  "tools_source": "https://docs.workato.com/workato-api.html",
+  "tools": [
+    {
+      "name": "get_current_user",
+      "description": "Get the Workato account the API token belongs to (name, contact email, company and billing period)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/users/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "contact_email": "contact_email",
+          "company_name": "company_name",
+          "plan_id": "plan_id",
+          "current_billing_period_start": "current_billing_period_start",
+          "current_billing_period_end": "current_billing_period_end"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_recipes",
+      "description": "List Workato recipes, optionally filtered to one folder or to running recipes only",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max recipes to return per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional 1-based page number"
+          },
+          "folder_id": {
+            "type": "number",
+            "description": "Optional Workato folder ID to filter by"
+          },
+          "running": {
+            "type": "boolean",
+            "description": "Optional: true for running recipes only, false for stopped recipes only"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/recipes",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}",
+          "folder_id": "{{input.folder_id}}",
+          "running": "{{input.running}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "name": "name",
+            "running": "running",
+            "folder_id": "folder_id",
+            "description": "description",
+            "trigger_application": "trigger_application",
+            "last_run_at": "last_run_at",
+            "job_succeeded_count": "job_succeeded_count",
+            "job_failed_count": "job_failed_count",
+            "updated_at": "updated_at"
+          },
+          "count": "count"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_recipe",
+      "description": "Get one Workato recipe by ID, with its run state, applications and job counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "recipe_id": {
+            "type": "string",
+            "description": "Workato recipe ID"
+          }
+        },
+        "required": [
+          "recipe_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/recipes/{{input.recipe_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "running": "running",
+          "folder_id": "folder_id",
+          "description": "description",
+          "trigger_application": "trigger_application",
+          "applications": "applications",
+          "last_run_at": "last_run_at",
+          "job_succeeded_count": "job_succeeded_count",
+          "job_failed_count": "job_failed_count",
+          "version_no": "version_no",
+          "updated_at": "updated_at"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_connections",
+      "description": "List Workato connections with their authorization status, optionally filtered to one folder",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "folder_id": {
+            "type": "number",
+            "description": "Optional Workato folder ID to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/connections",
+        "query": {
+          "folder_id": "{{input.folder_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name",
+            "application": "application",
+            "authorization_status": "authorization_status",
+            "authorization_error": "authorization_error",
+            "authorized_at": "authorized_at",
+            "folder_id": "folder_id",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_folders",
+      "description": "List Workato project folders, optionally limited to the children of one parent folder",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "parent_id": {
+            "type": "number",
+            "description": "Optional parent folder ID; omit for the top-level folders"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional 1-based page number"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max folders to return per page (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/folders",
+        "query": {
+          "parent_id": "{{input.parent_id}}",
+          "page": "{{input.page}}",
+          "per_page": "{{clamp input.per_page 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name",
+            "parent_id": "parent_id",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_recipe_jobs",
+      "description": "List recent job runs for one Workato recipe, with status and error text",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "recipe_id": {
+            "type": "string",
+            "description": "Workato recipe ID to list jobs for"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max jobs to return (default 20, max 100)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "failed",
+              "pending"
+            ],
+            "description": "Optional job status to filter by"
+          }
+        },
+        "required": [
+          "recipe_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/recipes/{{input.recipe_id}}/jobs",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "status": "status",
+            "started_at": "started_at",
+            "completed_at": "completed_at",
+            "error": "error",
+            "title": "title"
+          },
+          "count": "count"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Response picks are documentation-derived, not data-verified: Workato answers every /api path with 401 {\"message\":\"Unauthorized\"} under a dummy token, so the blind proof covers host, TLS, bearer auth and the /api route space but never a success body. The list wrappers follow docs.workato.com (recipes and jobs return items + count, connections and folders return result); confirm them against a real token before promoting."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

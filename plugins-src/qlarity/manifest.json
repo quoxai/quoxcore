@@ -1,0 +1,31 @@
+{
+  "id": "qlarity",
+  "name": "Qlarity",
+  "displayName": "Qlarity",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "paid",
+  "badge": "PAID",
+  "category": "developer-tools",
+  "accentColor": "#38bdf8",
+  "description": "Governed browser inspection for Quox dev servers. Opens a real page in an isolated headless session and answers runtime questions directly: computed styles, pseudo-element rules, DOM reads, storage. Every session runs in its own browser context, reaches only origins the operator declared, and leaves an evidence trail.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/qlarity",
+      "label": "Qlarity",
+      "icon": "octahedron",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/qlarity/*": "QlarityView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

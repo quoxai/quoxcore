@@ -1,0 +1,227 @@
+{
+  "spec_version": 1,
+  "id": "deel",
+  "name": "Deel",
+  "category": "hr_hiring",
+  "credentialType": "deel",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://developer.deel.com/",
+  "base_url": "https://api.letsdeel.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/rest/v2/organizations"
+  },
+  "tools_source": "https://developer.deel.com/api/reference/endpoints",
+  "tools": [
+    {
+      "name": "list_contracts",
+      "description": "List Deel contracts for the organization, optionally filtered by status, type, country, currency or a name search term",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max contracts to return (default 20, max 100)"
+          },
+          "statuses": {
+            "type": "string",
+            "description": "Optional contract status to filter by (e.g. in_progress, waiting_for_client_sign, waiting_for_contractor_sign)"
+          },
+          "types": {
+            "type": "string",
+            "description": "Optional contract type to filter by (e.g. ongoing_time_based, milestones, pay_as_you_go_time_based)"
+          },
+          "countries": {
+            "type": "string",
+            "description": "Optional country code to filter by (e.g. US, GB)"
+          },
+          "currencies": {
+            "type": "string",
+            "description": "Optional currency code to filter by (e.g. USD, GBP)"
+          },
+          "search": {
+            "type": "string",
+            "description": "Optional search term matched against contract name or worker name"
+          },
+          "after_cursor": {
+            "type": "string",
+            "description": "Optional pagination cursor from a previous response's page.cursor"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/v2/contracts",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "statuses": "{{input.statuses}}",
+          "types": "{{input.types}}",
+          "countries": "{{input.countries}}",
+          "currencies": "{{input.currencies}}",
+          "search": "{{input.search}}",
+          "after_cursor": "{{input.after_cursor}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "title": "title",
+            "type": "type",
+            "status": "status",
+            "created_at": "created_at",
+            "team": "client.team.name",
+            "is_archived": "is_archived",
+            "termination_date": "termination_date"
+          },
+          "cursor": "page.cursor",
+          "total_rows": "page.total_rows"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_contract",
+      "description": "Get one Deel contract by ID (worker, client, status, job title, dates)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contract_id": {
+            "type": "string",
+            "description": "Deel contract ID"
+          }
+        },
+        "required": [
+          "contract_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/v2/contracts/{{input.contract_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "title": "data.title",
+          "type": "data.type",
+          "status": "data.status",
+          "job_title": "data.job_title",
+          "location": "data.location",
+          "start_date": "data.start_date",
+          "created_at": "data.created_at",
+          "updated_at": "data.updated_at",
+          "termination_date": "data.termination_date",
+          "is_archived": "data.is_archived",
+          "worker_name": "data.worker.full_name",
+          "worker_country": "data.worker.country",
+          "client_team": "data.client.team.name"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_people",
+      "description": "List people (workers) in the Deel organization, optionally filtered by hiring status, hiring type or a name search term",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max people to return (default 20, max 200)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of records to skip for pagination (default 0)"
+          },
+          "search": {
+            "type": "string",
+            "description": "Optional search term matched against person name"
+          },
+          "hiring_statuses": {
+            "type": "string",
+            "description": "Optional hiring status to filter by (e.g. active, onboarded)"
+          },
+          "hiring_types": {
+            "type": "string",
+            "description": "Optional hiring type to filter by (e.g. eor, contractor)"
+          },
+          "person_statuses": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "OFFBOARDING",
+              "NOT_STARTED",
+              "INACTIVE"
+            ],
+            "description": "Optional worker profile lifecycle status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/v2/people",
+        "query": {
+          "limit": "{{clamp input.limit 20 200}}",
+          "offset": "{{input.offset}}",
+          "search": "{{input.search}}",
+          "hiring_statuses": "{{input.hiring_statuses}}",
+          "hiring_types": "{{input.hiring_types}}",
+          "person_statuses": "{{input.person_statuses}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "full_name": "full_name",
+            "state": "state",
+            "job_title": "job_title",
+            "seniority": "seniority",
+            "country": "country",
+            "start_date": "start_date",
+            "worker_id": "worker_id",
+            "department": "department.name"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_organization",
+      "description": "Get the Deel organization this API token belongs to (resolved from the token, no identifier needed)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/v2/organizations"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

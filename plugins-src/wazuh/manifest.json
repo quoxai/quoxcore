@@ -1,0 +1,36 @@
+{
+  "id": "wazuh",
+  "name": "wazuh",
+  "displayName": "Wazuh SIEM",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "security",
+  "accentColor": "#3b82f6",
+  "description": "Wazuh SIEM command centre for QuoxCORE: fleet agent coverage, manager and daemon health, alerts and an AI chat assistant, with two-hop agent deployment through the bastion.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/wazuh",
+      "label": "Wazuh SIEM",
+      "icon": "wazuh",
+      "minRole": "builder"
+    }
+  ],
+  "routes": {
+    "/wazuh": "WazuhView"
+  },
+  "routeGuards": {
+    "/wazuh": {
+      "minRole": "builder"
+    }
+  },
+  "minQuoxVersion": "1.0.0"
+}

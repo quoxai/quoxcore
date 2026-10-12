@@ -1,0 +1,818 @@
+name: quox
+
+# QuoxCORE Docker Compose Configuration
+# Brings up all services needed for QuoxCORE
+#
+# SECURITY: Image versions are pinned to avoid unexpected changes from :latest tags.
+# Review and update versions periodically (quarterly recommended):
+#   - Qdrant releases: https://github.com/qdrant/qdrant/releases
+#
+# ===========================================================================
+# TRUST-GATE Phase 3c — Compose profiles (public single-tenant deploy)
+# ===========================================================================
+# Services with NO `profiles:` key ALWAYS start — that is the trimmed,
+# chat-first "public" set a single-tenant public box (e.g. q01) should run:
+#   dashboard, auth, collector, postgres, quoxflow, memory, tasks,
+#   orchestrator, files, qdrant
+#
+# Dev/experimental/heavy surfaces are gated behind the "full" profile
+# (in addition to their own pre-existing individual opt-in profile):
+#   repobrain    - profiles: [full]
+#   powers-host  - profiles: [full]
+#   screencap    - profiles: [with-screencap, full]
+#   quoxbrain    - profiles: [with-quoxbrain, full]
+#   qlarity      - profiles: [with-qlarity, full]
+#   quoxplan     - profiles: [with-quoxplan, full]
+#   quoxsignal   - profiles: [with-quoxsignal, full]
+#
+# Usage:
+#   docker compose up -d                           # PUBLIC / TRIMMED stack (10 core services only)
+#   docker compose --profile full up -d            # FULL dev stack (everything, incl. repobrain/powers-host/screencap/quoxbrain/qlarity/quoxplan/quoxsignal)
+#   docker compose --profile with-screencap up -d  # core set + screencap only (unchanged opt-in)
+#   docker compose --profile with-quoxplan up -d   # core set + quoxplan only (individual opt-in)
+#   docker compose logs -f                         # View logs
+#   docker compose ps                              # Check status
+#   docker compose down                            # Stop all services
+#
+# NOTE: this changes prior default dev behavior. Previously plain
+# `docker compose up` also started repobrain + powers-host (they had no
+# profiles key). Local/dev boxes that want the full surface must now add
+# `--profile full`.
+# ===========================================================================
+#
+# First-time setup:
+#   ./scripts/setup.sh
+#   Open https://<your-ip>:3000 and complete the Setup Wizard
+#
+# Manual setup (if you prefer):
+#   1. ./scripts/generate-secrets.sh    (creates .env, secrets, SSL certs)
+#   2. Clone quoxmcp and quoxflow repos alongside this directory
+#   3. docker compose up -d
+
+services:
+  # ===========================================
+  # Dashboard - React frontend served by nginx
+  # ===========================================
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quox-dashboard
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_PORT:-3000}:443"
+      - "80:80"
+    volumes:
+      # quox#553: WRITABLE so the image's self-signed fallback can actually
+      # generate into it when a clean worktree ships an empty ssl/ (the :ro
+      # mount + silenced openssl was the 17-minute crash-loop on 2026-09-18).
+      - ./ssl:/etc/nginx/ssl
+      - acme-challenge:/var/www/acme-challenge:ro
+    depends_on:
+      auth:
+        condition: service_healthy
+      collector:
+        condition: service_healthy
+    environment:
+      - VITE_DEMO_MODE=${VITE_DEMO_MODE:-false}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - DASHBOARD_PORT=${DASHBOARD_PORT:-3000}
+      - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY:-}
+      - BASTION_URL=${BASTION_URL:-NONE}
+      - GRAFANA_URL=${GRAFANA_URL:-NONE}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - quox-network
+      - quox-matrix-net
+
+  # ===========================================
+  # Auth - Authentication and authorization API
+  # ===========================================
+  auth:
+    build:
+      context: .
+      dockerfile: services/auth/Dockerfile
+      args:
+        QUOXCORE_VERSION: "${QUOXCORE_VERSION:-0.0.0}"
+    container_name: quox-auth
+    restart: unless-stopped
+    # H3 fix: Bind to localhost only to prevent external exposure
+    ports:
+      - "127.0.0.1:${AUTH_PORT:-3101}:3101"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - AUTH_PORT=3101
+      - AUTH_HOST=0.0.0.0
+      - AUTH_DB_PATH=/var/lib/quox/auth.db
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - JWT_ACCESS_EXPIRY=${JWT_ACCESS_EXPIRY:-1h}
+      - JWT_REFRESH_EXPIRY=${JWT_REFRESH_EXPIRY:-7d}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - MASTER_ENCRYPTION_KEY=${MASTER_ENCRYPTION_KEY}
+      # Cookies require HTTPS — set to false only for local HTTP dev
+      - COOKIE_SECURE=${COOKIE_SECURE:-true}
+      # QuoxBastion for CIPHER/NOVA agent tools
+      - BASTION_URL=${BASTION_URL:-http://gw-01:9850}
+      - BASTION_API_TOKEN=${BASTION_API_TOKEN:-}
+      # QuoxFlow workflow engine (HV2-1: HITL workflow resume)
+      - QUOXFLOW_URL=${QUOXFLOW_URL:-http://quoxflow:3200}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY:-}
+      # LICENSE-ENFORCE: the Ed25519 PUBLIC key (base64, raw 32 bytes) whose
+      # private half quox.ai signs licences with. Public key: safe to commit.
+      #
+      # WITHOUT THIS, services/auth/lib/licenseVerify.js falls back to a
+      # hardcoded DEV key and rejects every licence quox.ai actually issues,
+      # reporting 'bad_signature' — which reads as a bad customer key and
+      # sends the investigation at the issuer instead of at this config.
+      # That cost a day on 2026-08-19: quox.ai's /license/verify said the
+      # owner's key was valid while this instance called it forged.
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY:-vQeAIXKClFCGir6Yx6xcjofmXfJVtYHvJnzxJ3CqCv0=}
+      # MATRIX-P4a: Matrix (Synapse) JWT SSO bridge — same secret as homeserver.yaml jwt_config
+      - MATRIX_JWT_SECRET=${MATRIX_JWT_SECRET:-}
+      - MATRIX_SERVER_NAME=${MATRIX_SERVER_NAME:-quox}
+      # M-ISO #209: per-(user,org) Matrix identities (off by default; flip after migration)
+      - MATRIX_PER_ORG_IDENTITY=${MATRIX_PER_ORG_IDENTITY:-}
+      # M-ROOMS: room provisioning plumbing endpoint on the quox-matrix
+      # appservice (reachable via the shared quox-matrix-net network below).
+      # Fail-soft: if unreachable, ledger rows stay pending and the backfill
+      # sweep retries. PROVISION_SERVICE_KEY is optional; the call falls back
+      # to INTERNAL_SERVICE_KEY (which the appservice also accepts).
+      - MATRIX_APPSERVICE_URL=${MATRIX_APPSERVICE_URL:-http://quox-matrix-appservice:9860}
+      - PROVISION_SERVICE_KEY=${PROVISION_SERVICE_KEY:-}
+      # Login rate limit: failed auth attempts per IP per window. Raised from the
+      # default 15 so heavy dev/QA re-logins don't lock the account out (the
+      # cause of the throwaway-org sprawl). Override via env for prod.
+      - RATE_LIMIT_AUTH_MAX=${RATE_LIMIT_AUTH_MAX:-100}
+      # Backup process kill-timeout. Default 5min (backups.js) is too short for a
+      # full 2.5GB backup (git bundles + ~5min gzip ≈ 10min) — it SIGKILLs a
+      # genuine backup mid-run → every API-triggered backup fails. Raised to 20min.
+      - BACKUP_TIMEOUT_MS=${BACKUP_TIMEOUT_MS:-1200000}
+      # #727: run the backup in a detached quox-backup-<id> container (auth
+      # image, same mounts) so an auth rebuild/restart cannot kill a 44 minute run.
+      # Needs the docker socket mount below. Set false to run as a child of auth.
+      - BACKUP_DETACHED=${BACKUP_DETACHED:-true}
+    # Docker socket group — set DOCKER_GID to match host: stat -c '%g' /var/run/docker.sock
+    # Host user group (1000) — allows traversing /opt/quoxcore:ro mount
+    group_add:
+      - "${DOCKER_GID:-999}"
+      - "1000"
+    volumes:
+      - auth-data:/var/lib/quox
+      # Backup infrastructure: Docker socket for docker exec/cp/inspect
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Host filesystem for backup source paths (rw needed for restore)
+      # Backups dir override: writable for archive output
+      - ${BACKUP_ROOT:-/opt/quoxcore/backups}:${BACKUP_ROOT:-/opt/quoxcore/backups}
+      # Project root — backup/restore paths resolve against this
+      - .:/app/project
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3101/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - quox-network
+      # M-ROOMS: reach the quox-matrix appservice's /internal/provision over
+      # the matrix compose project's network (same pattern as dashboard/nginx)
+      - quox-matrix-net
+
+  # ===========================================
+  # Files - File storage service
+  # ===========================================
+  files:
+    build:
+      context: ./services/files
+      dockerfile: Dockerfile
+      args:
+        QUOXCORE_VERSION: "${QUOXCORE_VERSION:-0.0.0}"
+    container_name: quox-files
+    restart: unless-stopped
+    # H3 fix: Bind to localhost only to prevent external exposure
+    ports:
+      - "127.0.0.1:${FILES_PORT:-3102}:3102"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3102
+      - STORAGE_PATH=/var/lib/quox/files
+      - METADATA_PATH=/var/lib/quox/metadata
+      - ALLOWED_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+    volumes:
+      - files-data:/var/lib/quox
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3102/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - quox-network
+
+  # ===========================================
+  # Collector - Chat streaming & fleet management
+  # ===========================================
+  collector:
+    build:
+      context: .
+      dockerfile: services/collector/Dockerfile
+      args:
+        QUOXCORE_VERSION: "${QUOXCORE_VERSION:-0.0.0}"
+    container_name: quox-collector
+    restart: unless-stopped
+    # quox#530: node ran as PID 1, which never reaps REPARENTED orphans, so
+    # ssh_exec pipelines and git pollers whose parents exited left zombies
+    # (1,256 in 7h on 2026-09-11). init: true puts tini at PID 1, which
+    # reaps every orphan; per-site cleanup still guards live children.
+    init: true
+    # Host user group (1000) — allows traversing /opt/quoxcore:ro mount for git-scan
+    # DOCKER_GID — allows access to /var/run/docker.sock for scriptExecutor (TOOLSMITH-E-fix-3.3)
+    group_add:
+      - "1000"
+      - "${DOCKER_GID:-999}"
+    # Exposed on all interfaces — agents send heartbeats from remote hosts.
+    # COLLECTOR-AUTH #52: default-deny auth gate (utils/collectorAuthGate.js)
+    # authenticates every route except an explicit allowlist. /api/v1/heartbeat
+    # is TEMPORARILY allowlisted (agent has no credential yet — follow-up
+    # AGENT-AUTH stream). Flip COLLECTOR_AUTH_ENFORCE=enforce to fail-closed.
+    ports:
+      - "${COLLECTOR_PORT:-9848}:9848"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - COLLECTOR_PORT=9848
+      # DEVSUITE-SLOTS P6: the mautrix-telegram portal room slot says render
+      # into (set-relay active on the bridge). Unset = outbound rendering
+      # off, fail soft. NOTE: this belongs HERE, not in the auth block above
+      # (renderSlotLineToBridge runs in the collector).
+      - QUOX_SLOT_BRIDGE_ROOM=${QUOX_SLOT_BRIDGE_ROOM:-}
+      # DEVSUITE-SLOTS: the mautrix-discord portal room slot says also render
+      # into (the slots Discord channel). Unset = Discord rendering off.
+      - QUOX_SLOT_DISCORD_ROOM=${QUOX_SLOT_DISCORD_ROOM:-}
+      # COLLECTOR-AUTH #52: 'shadow' (default) logs would-deny; 'enforce' 401s.
+      #
+      # LICENSE-LAUNCH LL-6b — READ BEFORE DEPLOYING. With NODE_ENV=production
+      # (the default above), 'shadow' is no longer honoured on its own: the
+      # collector treats this gate as ENFORCED unless an instance admin has
+      # opened an unexpired break-glass record, and logs loudly when it does so.
+      # A box that has been running on the shadow default therefore starts
+      # 401-ing non-allowlisted unauthenticated callers on its next restart.
+      # Before that restart, either (a) read the [collector-auth-shadow]
+      # WOULD-DENY log lines, fix those callers and set this to 'enforce'
+      # deliberately, or (b) open a window first:
+      #   quox admin enforcement break-glass COLLECTOR_AUTH_ENFORCE \
+      #     --reason "<why>" --hours 24
+      # See services/auth/lib/breakGlass.js and .env.example.
+      - COLLECTOR_AUTH_ENFORCE=${COLLECTOR_AUTH_ENFORCE:-shadow}
+      # AGENT-AUTH #126: scoped fleet-agent key (heartbeat only) + rollout belt.
+      - AGENT_SERVICE_KEY=${AGENT_SERVICE_KEY:-}
+      - HEARTBEAT_REQUIRE_AGENT_KEY=${HEARTBEAT_REQUIRE_AGENT_KEY:-}
+      - AEE_DB_PATH=/var/lib/quox/aee.db
+      # Qluster read token (opt-in): gates health/aggregate+resources, required by /api/v1/qluster/*
+      - QUOXCORE_READ_TOKEN=${QUOXCORE_READ_TOKEN:-}
+      # Gate for toolsmith.runScript (arbitrary Python via dockerode sandbox). Default on for
+      # dev; public/demo deploys should set to false (or unset) via their compose override.
+      - ENABLE_CODE_EXEC_TOOLS=${ENABLE_CODE_EXEC_TOOLS:-true}
+      # InboxQ background sync MASTER kill-switch (operator). DARK (0) by default
+      # so a restart can never re-arm a wedge; set to 1 to let the scheduler run.
+      # Per-mailbox control is the user-facing dashboard toggle (inboxq_settings
+      # .sync_enabled, default off), so arming this alone syncs nothing until an
+      # org opts in. See services/collector/lib/inboxq/scheduler.js.
+      - INBOXQ_SYNC_ENABLED=${INBOXQ_SYNC_ENABLED:-0}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - MASTER_ENCRYPTION_KEY=${MASTER_ENCRYPTION_KEY}
+      - ALLOWED_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      # AI backend API keys
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      # Qdrant vector store — the collector reads/writes widget RAG collections
+      # (QuoxChat knowledge). Without this the collector uses a dev-default key
+      # and an auth-enabled qdrant (prod) rejects every upsert/search.
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      # ElevenLabs for voice (collector handles TTS/STT directly)
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+      # Bastion for direct SSH exec
+      - BASTION_URL=${BASTION_URL:-}
+      - BASTION_API_TOKEN=${BASTION_API_TOKEN:-}
+      # SKILLRIGHTS-14: sealed content encryption key (its own key, never reused)
+      - SEALED_CONTENT_KEY=${SEALED_CONTENT_KEY:-}
+      # FLEET #431: LAN/public address a MANAGED HOST can reach this collector
+      # on. Stamped into dev-loop spawn envelopes (the agent's EventForwarder
+      # POSTs turn batches back here) and into the quoxagent install curl.
+      # No default: an unset value now fails loud at spawn/install rather than
+      # silently routing another instance's turns to one hardcoded dev box.
+      - COLLECTOR_LAN_URL=${COLLECTOR_LAN_URL:-}
+      # QUOX-SECURITY Phase 1: bastion-managed host that runs sectest_* CLI
+      # tools (dig/openssl/subfinder/httpx/nuclei) on behalf of a capability
+      # call. Unset by default (honest "not configured" error, no fabricated
+      # results) — see STATUS_AND_LIMITS_SECURITY.md.
+      - SECURITY_SCAN_HOST=${SECURITY_SCAN_HOST:-}
+      # QuoxFlow workflow engine
+      - QUOXFLOW_URL=${QUOXFLOW_URL:-http://quoxflow:3200}
+      - QUOXFLOW_APPROVAL_ENABLED=${QUOXFLOW_APPROVAL_ENABLED:-true}
+      - AUTH_SERVICE_URL=http://auth:3101
+      - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY:-}
+      - LICENSED_PLUGINS=${LICENSED_PLUGINS:-}
+      - QUOXCHAT_LICENSE_ENFORCE=${QUOXCHAT_LICENSE_ENFORCE:-on}
+      # QuoxBrain [KNOWLEDGE CONTEXT] implant — per-org, default OFF (QUOXBRAIN P2a)
+      - QUOXBRAIN_IMPLANT_ENABLED=${QUOXBRAIN_IMPLANT_ENABLED:-false}
+      - QUOXBRAIN_IMPLANT_ORGS=${QUOXBRAIN_IMPLANT_ORGS:-}
+      - QUOXBRAIN_URL=${QUOXBRAIN_URL:-http://quoxbrain:3106}
+      # The Feed (WP2, docs/STREAM_QUOXBRAIN_FEED_PLAN.md) — collector-side
+      # autopilot ingestion scheduler feeding QuoxBrain. Ships dark by default.
+      # AGH-Chain honesty guards (chat dispatch path). Flag surfaced by the
+      # 2026-08-05 env audit: OFF here meant the owner never saw the feature
+      # act. Ships dark by default; this instance enables it via .env.
+      - AGH_CHAIN_ENABLED=${AGH_CHAIN_ENABLED:-false}
+      # QM-LTM conversation recall (env audit 24a). Ships dark by default;
+      # this instance enables it via .env. Needs qdrant + an embedding key.
+      - QM_LTM_ENABLED=${QM_LTM_ENABLED:-false}
+      - QM_LTM_MIN_INTERVAL_MS=${QM_LTM_MIN_INTERVAL_MS:-}
+      - QUOXFEED_ENABLED=${QUOXFEED_ENABLED:-false}
+      # BRAIN2-V3 A1: host-path feed sources must realpath inside these roots (fail closed when empty)
+      - FEED_FOLDER_ALLOWED_ROOTS=${FEED_FOLDER_ALLOWED_ROOTS:-}
+      - QUOXFEED_ORGS=${QUOXFEED_ORGS:-}
+      - QUOXFEED_WARMUP_MS=${QUOXFEED_WARMUP_MS:-}
+      - QUOXFEED_INTERVAL_MS=${QUOXFEED_INTERVAL_MS:-}
+      - QUOXFEED_MAX_ITEMS=${QUOXFEED_MAX_ITEMS:-}
+      - FEED_DB_PATH=${FEED_DB_PATH:-/var/lib/quox/feed.db}
+      # F2 transcript source: designates the single org allowed to receive
+      # host-global Claude session transcripts (see feedTranscriptSource.js
+      # header — transcripts are machine-global, NOT per-tenant).
+      - QUOXFEED_HOST_ORG=${QUOXFEED_HOST_ORG:-}
+      - TRANSCRIPT_DIR=${TRANSCRIPT_DIR:-}
+      # MCP tools: Claude drives tool selection via quoxmcp MCP server
+      - MCP_TOOLS_ENABLED=true
+      # CLI-OVER-MCP (owner hard rule 2026-09-21): on-server agent reaches tools
+      # via `claude -p` + `quox tool exec` (governed CLI), NOT MCP. When 'cli',
+      # dispatchClaudeCli uses the cli-tools path; unset/other keeps MCP/legacy.
+      - QUOX_TOOL_MODE=${QUOX_TOOL_MODE:-cli}
+      # Grafana for dashboard queries and alert monitoring
+      - GRAFANA_URL=${GRAFANA_URL:-}
+      - GRAFANA_API_KEY=${GRAFANA_API_KEY:-}
+      # Monitoring service URLs (configured via dashboard Monitoring page)
+      - PROMETHEUS_URL=${PROMETHEUS_URL:-}
+      - UPTIME_KUMA_URL=${UPTIME_KUMA_URL:-}
+      - PROXMOX_URL=${PROXMOX_URL:-}
+      - PROXMOX_API_TOKEN=${PROXMOX_API_TOKEN:-}
+      # Wazuh SIEM integration (optional)
+      - WAZUH_HOST=${WAZUH_HOST:-}
+      - WAZUH_API_PORT=${WAZUH_API_PORT:-55000}
+      - WAZUH_API_USER=${WAZUH_API_USER:-wazuh-wui}
+      - WAZUH_API_PASSWORD=${WAZUH_API_PASSWORD:-}
+      - BASTION_HOST=${BASTION_HOST:-}
+      - WAZUH_INDEXER_USER=${WAZUH_INDEXER_USER:-admin}
+      - WAZUH_INDEXER_PASSWORD=${WAZUH_INDEXER_PASSWORD:-}
+      # RepoBrain codebase intelligence
+      - REPOBRAIN_URL=${REPOBRAIN_URL:-http://repobrain:3105}
+      # QuoxPlan (QUOXPLAN-P7) — containerised, same compose network; override
+      # to host.docker.internal if ever running the host dev process instead.
+      - QUOXPLAN_URL=${QUOXPLAN_URL:-http://quoxplan:3107}
+      # The Feed's QuoxPlan source (feedQuoxplanSource.js): a direct read
+      # against QuoxPlan carries no org scope, so QUOXFEED_QUOXPLAN_ORG
+      # designates the single org allowed to ingest it, same gate shape as
+      # QUOXFEED_HOST_ORG above. Default OFF; the orchestrator decides the flip.
+      - QUOXFEED_QUOXPLAN_ORG=${QUOXFEED_QUOXPLAN_ORG:-}
+      - QUOXFEED_QUOXPLAN_ROADMAP_ID=${QUOXFEED_QUOXPLAN_ROADMAP_ID:-quox-strategic}
+      # QuoxSignal (SCOUT) — containerised the same way as quoxplan above;
+      # same override reasoning if ever running the host systemd unit instead.
+      - QUOXSIGNAL_URL=${QUOXSIGNAL_URL:-http://quoxsignal:3108}
+      # QLarity (DEVSUITE-CLARIFY) — governed browser inspection. 3109 because
+      # quoxsignal already holds 3108.
+      - QLARITY_URL=${QLARITY_URL:-http://qlarity:3109}
+      # QuoxSEO (QUOXSEO S2) — witnessed SEO warehouse. 3110 because qlarity
+      # holds 3109.
+      - QUOXSEO_URL=${QUOXSEO_URL:-http://quoxseo:3110}
+      # TOOLSMITH-FIX-3: sandbox network + collector hostname for egress proxy routing
+      - QUOX_SANDBOX_NETWORK=${QUOX_SANDBOX_NETWORK:-quox_quox-network}
+      - QUOX_COLLECTOR_HOST=${QUOX_COLLECTOR_HOST:-quox-collector}
+      # POWERS-P2.B: powers-host for mcp_hosted tool invocations
+      - POWERS_HOST_URL=${POWERS_HOST_URL:-http://powers-host:9849}
+      # REACTIONS-AS-HITL: post a governed-action approval proposal back into
+      # the originating Matrix room so a human's phone reaction resolves it.
+      # The matrix appservice publishes :9860 on the host; reach it via the
+      # host gateway (mirrors the appservice's own COLLECTOR_URL pattern).
+      - APPSERVICE_HITL_URL=${APPSERVICE_HITL_URL:-http://host.docker.internal:9860}
+      - APPSERVICE_HITL_KEY=${APPSERVICE_HITL_KEY:-}
+      # QVOICE-OUTBOUND #521 P5: reach the host telephony bridge (loopback :3112) to proxy the
+      # OutboundQ schedule API. The X-Quox-Trigger secret is injected server-side here so the
+      # browser never holds it; an empty default makes the proxy return a graceful 503.
+      - QUOX_TELEPHONY_BRIDGE_URL=${QUOX_TELEPHONY_BRIDGE_URL:-http://host.docker.internal:3112}
+      - TELEPHONY_TRIGGER_SECRET=${TELEPHONY_TRIGGER_SECRET:-}
+    volumes:
+      - collector-data:/var/lib/quox
+      - collector-claude:/home/quox/.claude
+      - ${SSH_KEYS_PATH:-./ssh-keys}:/tmp/ssh-keys:ro
+      - ./src/config/entities/tools:/app/entity-tools:ro
+      - ./src/config/entities/assistants:/app/entity-assistants:ro
+      # QSKL-12: hot-reload persona files — bind-mounted so edits on host
+      # are visible to the watcher + personaReader (no rebuild required)
+      - ./src/config/personas:/app/src/config/personas:ro
+      # REQUIRED: QuoxMCP for AI tool execution (clone: git@github.com:quoxai/quoxmcp.git)
+      - ${QUOXMCP_DEPLOY_PATH:-/opt/quoxcore/quoxmcp/deploy}:/app/quoxmcp-deploy:ro
+      - ${QUOXMCP_PATH:-/opt/quoxcore/quoxmcp}:/app/quoxmcp:ro
+      # WARD receipt chain service (required by server.js ./ward/ imports)
+      - ./services/ward:/app/ward:ro
+      # QuoxCLI TUI — mounted for web terminal /cli
+      - ./cli:/app/cli:ro
+      # Host repos (read-only) for git-scan endpoint (commanderq-devlog workflow)
+      # TOOLSMITH-E-fix-3: Docker socket for scriptExecutor sandbox-run.
+      # Same security model as auth + orchestrator (which already mount this).
+      # Hardening: TOOLSMITH-SANDBOX-HARDEN will mediate via docker-socket-proxy
+      # with operation allowlist (run/exec/inspect/rm only) before public exposure.
+      - /var/run/docker.sock:/var/run/docker.sock
+    # REACTIONS-AS-HITL: reach the matrix appservice (separate compose project,
+    # host-published :9860) via the host gateway, same as the appservice
+    # reaches this collector.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      auth:
+        condition: service_healthy
+    healthcheck:
+      # TRUST-GATE collector-boot fix: collector does heavy synchronous boot
+      # (MON-GOV catch-up + schedulers) observed at ~32s on a fresh rebuild.
+      # start_period bumped 15s -> 60s (~2x observed boot time) so Docker
+      # doesn't start counting failed checks against `retries` before the
+      # app is actually up. Without this, dependents using
+      # `depends_on: condition: service_healthy` (dashboard, tasks) can see
+      # collector flip to "unhealthy" during legitimate boot and refuse to
+      # start, blocking the whole stack on a cold deploy.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9848/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 60s
+    networks:
+      - quox-network
+
+  # ===========================================
+  # Tasks - Background task service
+  # ===========================================
+  tasks:
+    build:
+      context: ./services/tasks
+      dockerfile: Dockerfile
+      args:
+        QUOXCORE_VERSION: "${QUOXCORE_VERSION:-0.0.0}"
+    container_name: quox-tasks
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${TASKS_PORT:-3104}:3104"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3104
+      - DB_PATH=/var/lib/quox/tasks.db
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - COLLECTOR_URL=http://collector:9848
+      - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY:-}
+      - SCHEDULER_POLL_MS=${SCHEDULER_POLL_MS:-5000}
+    volumes:
+      - tasks-data:/var/lib/quox
+    depends_on:
+      auth:
+        condition: service_healthy
+      collector:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3104/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - quox-network
+
+  # ===========================================
+  # RepoBrain - Codebase intelligence engine
+  # TRUST-GATE Phase 3c: dev-only surface, excluded from public/trimmed
+  # stack. Enable with: docker compose --profile full up -d
+  # ===========================================
+  orchestrator:
+    build:
+      context: ./services/orchestrator
+      dockerfile: Dockerfile
+      args:
+        DOCKER_GID: "${DOCKER_GID:?DOCKER_GID required - run scripts/generate-secrets.sh to auto-detect}"
+        QUOXCORE_VERSION: "${QUOXCORE_VERSION:-0.0.0}"
+    container_name: quox-orchestrator
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${ORCHESTRATOR_PORT:-3100}:3100"
+    environment:
+      - NODE_ENV=production
+      - DOCKER_HOST=${DOCKER_HOST:-unix:///var/run/docker.sock}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - QUOXCORE_VERSION=${QUOXCORE_VERSION:-0.0.0}
+      - COMPOSE_PROJECT_DIR=${COMPOSE_PROJECT_DIR:-/opt/quoxcore}
+      - GITHUB_REPO=${GITHUB_REPO:-quoxai/quox}
+      - ALLOWED_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - orchestrator-data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/health').then(r=>{if(!r.ok)throw r.status;process.exit(0)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - quox-network
+
+  # ===========================================
+  # Memory - Server-side memory persistence
+  # ===========================================
+  memory:
+    build:
+      context: ./services/memory
+      dockerfile: Dockerfile
+      args:
+        QUOXCORE_VERSION: "${QUOXCORE_VERSION:-0.0.0}"
+    container_name: quox-memory
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MEMORY_PORT:-3103}:3103"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3103
+      - DB_PATH=/var/lib/quox/memory.db
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY:?INTERNAL_SERVICE_KEY is required}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+    volumes:
+      - memory-data:/var/lib/quox
+    depends_on:
+      auth:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3103/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - quox-network
+
+  # ===========================================
+  # QuoxBrain - Knowledge graph / vault indexing service (P0.1 foundation)
+  # ===========================================
+  quoxbrain:
+    profiles: ["with-quoxbrain", "full"]
+    build:
+      context: ./services/quoxbrain
+      dockerfile: Dockerfile
+      args:
+        QUOXCORE_VERSION: "${QUOXCORE_VERSION:-0.0.0}"
+    container_name: quox-brain
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${QUOXBRAIN_PORT:-3106}:3106"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3106
+      - DB_PATH=/var/lib/quox/quoxbrain.db
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY:?INTERNAL_SERVICE_KEY is required}
+      - AUTH_SERVICE_URL=http://auth:3101
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - QUOXBRAIN_VAULT_ROOT=/vaults
+      - QUOXDREAM_ENABLED=${QUOXDREAM_ENABLED:-false}
+      - QUOXDREAM_ORGS=${QUOXDREAM_ORGS:-}
+      - QUOXDREAM_WARMUP_MS=${QUOXDREAM_WARMUP_MS:-}
+      - QUOXDREAM_INTERVAL_MS=${QUOXDREAM_INTERVAL_MS:-}
+      - QUOXDREAM_BATCH_SIZE=${QUOXDREAM_BATCH_SIZE:-}
+      - QUOXDREAM_MAX_BATCHES=${QUOXDREAM_MAX_BATCHES:-}
+      - QUOXBRAIN_HYBRID_ENABLED=${QUOXBRAIN_HYBRID_ENABLED:-true}
+      - QUOXDREAM_SEMANTIC_DEDUP=${QUOXDREAM_SEMANTIC_DEDUP:-}
+      - QUOXBRAIN_EMBED_BACKFILL_ENABLED=${QUOXBRAIN_EMBED_BACKFILL_ENABLED:-false}
+      - QUOXBRAIN_EMBED_BACKFILL_WARMUP_MS=${QUOXBRAIN_EMBED_BACKFILL_WARMUP_MS:-}
+      - QUOXBRAIN_EMBED_BACKFILL_INTERVAL_MS=${QUOXBRAIN_EMBED_BACKFILL_INTERVAL_MS:-}
+      - QUOXBRAIN_EMBED_BACKFILL_MAX_ORGS=${QUOXBRAIN_EMBED_BACKFILL_MAX_ORGS:-}
+      - QUOXBRAIN_EMBED_BACKFILL_BATCH_CAP=${QUOXBRAIN_EMBED_BACKFILL_BATCH_CAP:-}
+      - QUOXBRAIN_EMBED_TIMEOUT_MS=${QUOXBRAIN_EMBED_TIMEOUT_MS:-}
+      # BRAIN2-V3 B1: qdrant ANN for the dense leg. Off unless QUOXBRAIN_ANN=qdrant;
+      # unreachable qdrant falls back to the packed scan (see /brain/status dense_backend).
+      - QUOXBRAIN_ANN=${QUOXBRAIN_ANN:-}
+      - QDRANT_URL=${QDRANT_URL_INTERNAL:-http://qdrant:6333}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - MEMORY_URL=${MEMORY_URL:-http://memory:3103}
+      - COLLECTOR_URL=${COLLECTOR_URL:-http://collector:9848}
+    volumes:
+      - quoxbrain-data:/var/lib/quox
+    depends_on:
+      auth:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3106/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - quox-network
+
+  # ===========================================
+  # QuoxPlan - roadmap/planning suite server (QUOXPLAN-P7 containerisation)
+  # ===========================================
+  # QLarity: governed browser inspection for dev servers (DEVSUITE-CLARIFY).
+  #
+  # NO PORTS BLOCK, deliberately. This service has no user auth of its own —
+  # the collector proxy is the governed boundary and asserts org context. Bound
+  # to the compose network only. Anything that can reach it can drive a headless
+  # browser as any org it names. If tempted to publish a port for debugging,
+  # use `docker compose exec` instead.
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    container_name: quox-qdrant
+    restart: unless-stopped
+    # QCFT 2026-07-24: bulk corpus sync hit RocksDB "Too many open files" at
+    # the default container nofile limit; raise it well past segment churn.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "127.0.0.1:${QDRANT_PORT:-6333}:6333"
+    environment:
+      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:?QDRANT_API_KEY is required}
+    volumes:
+      - qdrant-data:/qdrant/storage
+    healthcheck:
+      # Note: Qdrant image doesn't have wget/curl, use bash TCP check
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - quox-network
+
+  # ===========================================
+  # PostgreSQL - QuoxFlow database
+  # ===========================================
+  postgres:
+    image: postgres:16.4-bookworm
+    container_name: quox-postgres
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-quoxflow}
+      - POSTGRES_USER=${POSTGRES_USER:-quoxflow}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-quoxflow} -d ${POSTGRES_DB:-quoxflow}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - quox-network
+
+  # ===========================================
+  # QuoxFlow - Auditable workflow engine
+  # ===========================================
+  quoxflow:
+    build:
+      context: ${QUOXFLOW_PATH:-./quoxflow}
+      dockerfile: Dockerfile
+    container_name: quox-quoxflow
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${QUOXFLOW_PORT:-3200}:3200"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3200
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-quoxflow}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-quoxflow}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - AUTH_SERVICE_URL=http://auth:3101
+      - QUOXFLOW_AUTH_ENABLED=${QUOXFLOW_AUTH_ENABLED:-true}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY:-}
+      - EVIDENCE_PATH=/var/lib/quoxflow/evidence
+      # P8.F HITL-ORGID-PLUMB (2026-05-06): DEFAULT_INBOX_ORG_ID and
+      # DEFAULT_INBOX_USER_ID have been REMOVED. orgId is now first-class
+      # on ExecutionContext and flows through the full trigger→execute→HV2
+      # pipeline. Set these vars ONLY for local CLI test runs that invoke
+      # QuoxFlow directly without a dashboard orgId context.
+      # - DEFAULT_INBOX_ORG_ID=<your-test-org-id>
+      # - DEFAULT_INBOX_USER_ID=<your-test-user-id>
+      # 2026-05-03: forward every persisted envelope to the collector's
+      # AEE store so workflow runs surface in the dashboard ActivityView
+      # with full AOCL + AEE detail (matching chat dispatches).
+      - COLLECTOR_URL=${COLLECTOR_URL:-http://collector:9848}
+      - QUOXFLOW_FORWARD_ENVELOPES=${QUOXFLOW_FORWARD_ENVELOPES:-true}
+      # 2026-05-04: SSRF allowlist for the call node. Private IPs are
+      # blocked by default; CIDR ranges listed here are exempt so fleet
+      # workflows can reach LAN services (Prometheus, internal APIs).
+      # Loopback (127/8 + ::1) is ALWAYS blocked regardless.
+      - QUOXFLOW_ALLOWED_PRIVATE=${QUOXFLOW_ALLOWED_PRIVATE:-}
+      # STUDY-REV Sprint 2 K2 (2026-05-03): single scheduler in QuoxCORE.
+      # NOTE (Sentinel-2 Fix4 2026-05-08): the tasks service (teamScheduler)
+      # only handles team_schedules (objectives / browser automations). It does
+      # NOT poll or fire QuoxFlow trigger:schedule nodes. QuoxFlow must run its
+      # own croner bootstrap for trigger:schedule workflows (Sentinel-heartbeat,
+      # etc.) to auto-fire. Risk of double-fire only exists if a future tasks
+      # integration also calls quoxflow /execute for the same workflow — that
+      # integration doesn't exist yet. Re-evaluate when it does.
+      - QUOXFLOW_OWN_SCHEDULER=${QUOXFLOW_OWN_SCHEDULER:-true}
+      # QSKL-10.2: seed path for built-in skill files
+      - QUOX_SKILLS_SEED_PATH=/app/skills-seed
+      # SKILLRIGHTS-BRIDGE: filesystem mirror for quox_skills rows
+      # (src/store/quox-skill-mirror.ts). Sync-on-write, plus the
+      # src/cli-mirror-backfill.ts full-rebuild pass. The SkillRights
+      # registry CLI reads these SKILL.md files to register declared
+      # licences, so the mount lands in quox-memory (durable, backed up,
+      # not a git repo) rather than a docker volume the host cannot read.
+      - QUOX_SKILLS_MIRROR_PATH=/data/skills-mirror
+    volumes:
+      - quoxflow-data:/var/lib/quoxflow
+      - ./src/config/skills:/app/skills-seed:ro
+    # Host user group (1000) — the mirror bind is owned by the host user, and
+    # the image runs as uid 1001. Without this, sync-on-write into the mirror
+    # fails EACCES and mirrorSkillToDisk swallows it (mirror is not a contract),
+    # so the mount would look wired while writing nothing. Same pattern the auth
+    # service uses for its /opt/quoxcore mount.
+    group_add:
+      - "1000"
+    mem_limit: 512m
+    depends_on:
+      auth:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3200/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - quox-network
+
+  # ===========================================
+  # Powers Host - MCP repo clone + Docker build + process supervisor
+  # POWERS-P2.A: builds Docker images from GitHub-hosted MCP repos
+  # TRUST-GATE Phase 3c: dev-only surface, excluded from public/trimmed
+  # stack. Enable with: docker compose --profile full up -d
+  # ===========================================
+networks:
+  quox-network:
+    driver: bridge
+  quox-matrix-net:
+    external: true
+    name: quox-matrix_default
+  # Isolated network for spawned MCP child containers.
+  # Powers-host is on both networks; spawned containers are on this network only.
+  # This prevents spawned containers from reaching auth/collector/dashboard.
+  quox-powers-net:
+    driver: bridge
+
+# ===========================================
+# Volumes
+# ===========================================
+volumes:
+  auth-data:
+    name: quox-auth-data
+  orchestrator-data:
+    name: quox-orchestrator-data
+  collector-data:
+    name: quox-collector-data
+  collector-claude:
+    name: quox-collector-claude
+  files-data:
+    name: quox-files-data
+  memory-data:
+    name: quox-memory-data
+  quoxbrain-data:
+    name: quox-quoxbrain-data
+  qdrant-data:
+    name: quox-qdrant-data
+  postgres-data:
+    name: quox-postgres-data
+  quoxflow-data:
+    name: quox-quoxflow-data
+  tasks-data:
+    name: quox-tasks-data
+  screencap-data:
+    name: quox-screencap-data
+  repobrain-data:
+    name: quox-repobrain-data
+  qlarity-data:
+    name: quox-qlarity-data
+  acme-challenge:
+    name: quox-acme-challenge
+  powers-workspace:
+    name: quox-powers-workspace

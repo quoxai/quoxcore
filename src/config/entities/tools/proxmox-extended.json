@@ -1,0 +1,348 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "proxmox-extended",
+
+  "name": "Proxmox Extended Tools",
+  "description": "Extended Proxmox tools for storage, snapshots, and capacity management",
+  "category": "infrastructure",
+  "subcategory": "virtualization",
+  "provider": "proxmox",
+  "version": "1.0.0",
+
+  "risk_level": "medium",
+  "sandbox_profile": "standard",
+
+  "tools": [
+    {
+      "id": "proxmox.storage.usage",
+      "name": "Storage Usage",
+      "description": "Get storage utilization across all Proxmox datastores",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "node": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by node (omit for all)"
+        },
+        "warn_percent": {
+          "type": "number",
+          "required": false,
+          "default": 80,
+          "description": "Percent usage to flag as warning"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "storage": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "type": { "type": "string" },
+                "total": { "type": "string" },
+                "used": { "type": "string" },
+                "available": { "type": "string" },
+                "percent": { "type": "number" },
+                "status": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Check Proxmox storage capacity across all datastores",
+        "when_to_use": [
+          "User asks about storage capacity",
+          "Checking disk space on Proxmox",
+          "Capacity planning"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.snapshots.list",
+      "name": "List Snapshots",
+      "description": "List all VM/container snapshots with age and size",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "vmid": {
+          "type": "number",
+          "required": false,
+          "description": "Filter by VM ID (omit for all)"
+        },
+        "older_than_days": {
+          "type": "number",
+          "required": false,
+          "description": "Only show snapshots older than X days"
+        }
+      },
+      "instructions": {
+        "summary": "List snapshots to identify old ones for cleanup",
+        "when_to_use": [
+          "User asks about snapshots",
+          "Finding old snapshots to delete",
+          "Storage cleanup"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.snapshots.cleanup",
+      "name": "Cleanup Snapshots",
+      "description": "Delete snapshots older than specified age",
+      "accessLevel": "managers+",
+      "defconLevel": "ORANGE",
+      "requiresApproval": true,
+      "parameters": {
+        "older_than_days": {
+          "type": "number",
+          "required": true,
+          "description": "Delete snapshots older than X days"
+        },
+        "exclude_vmids": {
+          "type": "array",
+          "required": false,
+          "description": "VM IDs to exclude from cleanup"
+        },
+        "dry_run": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Preview only, don't delete"
+        }
+      },
+      "instructions": {
+        "summary": "Clean up old snapshots to free storage",
+        "when_to_use": [
+          "Storage is running low",
+          "User wants to clean up old snapshots",
+          "Scheduled snapshot maintenance"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.vm.resources",
+      "name": "VM Resource Usage",
+      "description": "Get detailed CPU, memory, and disk I/O per VM",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "vmid": {
+          "type": "number",
+          "required": false,
+          "description": "Specific VM ID (omit for top consumers)"
+        },
+        "sort_by": {
+          "type": "string",
+          "required": false,
+          "enum": ["cpu", "memory", "disk_read", "disk_write", "network"],
+          "default": "cpu"
+        },
+        "limit": {
+          "type": "number",
+          "required": false,
+          "default": 10
+        }
+      },
+      "instructions": {
+        "summary": "Check which VMs are using the most resources",
+        "when_to_use": [
+          "User asks about VM performance",
+          "Finding resource hogs",
+          "Capacity planning"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.node.resources",
+      "name": "Node Resources",
+      "description": "Get CPU, memory, and storage usage for a specific Proxmox node — for capacity planning before placing a new VM, distinct from proxmox.vm.resources (per-VM, not per-node)",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "node": {
+          "type": "string",
+          "required": true,
+          "description": "Node name to query (e.g. hyp-01)"
+        }
+      },
+      "instructions": {
+        "summary": "Get resource utilization for a Proxmox node",
+        "when_to_use": [
+          "User asks about node capacity",
+          "Planning VM placement — which node has room for a new VM",
+          "Investigating resource constraints"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.backup.status",
+      "name": "Backup Status",
+      "description": "Check Proxmox backup job status and recent backups",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "vmid": {
+          "type": "number",
+          "required": false,
+          "description": "Filter by VM ID"
+        },
+        "days": {
+          "type": "number",
+          "required": false,
+          "default": 7,
+          "description": "Show backups from last X days"
+        }
+      },
+      "instructions": {
+        "summary": "Check backup completion status",
+        "when_to_use": [
+          "User asks about backups",
+          "Verifying backup completion",
+          "Troubleshooting backup failures"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.ha.status",
+      "name": "HA Status",
+      "description": "Check High Availability cluster status and failover readiness",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {},
+      "instructions": {
+        "summary": "Check Proxmox HA cluster health",
+        "when_to_use": [
+          "User asks about HA status",
+          "Checking failover readiness",
+          "Cluster health check"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.vm.clone",
+      "name": "Clone VM",
+      "description": "Clone a new VM FROM an existing golden template. Quox never creates templates — the source must already be flagged template:1 in Proxmox (see proxmox.templates.list). Approval-gated: creates real infrastructure.",
+      "accessLevel": "managers+",
+      "defconLevel": "YELLOW",
+      "requiresApproval": true,
+      "parameters": {
+        "template_vmid": {
+          "type": "number",
+          "required": true,
+          "description": "Source template VM ID (must be flagged template:1 in Proxmox — get this from proxmox.templates.list)"
+        },
+        "newid": {
+          "type": "number",
+          "required": true,
+          "description": "New VM ID for the clone"
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "description": "Name for the new VM"
+        },
+        "node": {
+          "type": "string",
+          "required": false,
+          "description": "Target node (omit for same node as the template)"
+        },
+        "storage": {
+          "type": "string",
+          "required": false,
+          "description": "Target storage pool for the clone (omit to use the template's storage)"
+        },
+        "full": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Full clone (true, independent disk) or linked clone (false, depends on the template)"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "task": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Provision a new VM by cloning an existing golden template",
+        "when_to_use": [
+          "User wants to clone a VM from a template",
+          "Deploying from a golden image",
+          "Creating a new environment from an approved template"
+        ],
+        "when_not_to_use": [
+          "Source VM is not flagged as a template (check with proxmox.templates.list first)"
+        ],
+        "requires_first": ["proxmox.templates.list (to get a valid template_vmid)"]
+      }
+    },
+    {
+      "id": "proxmox.vm.snapshot",
+      "name": "Create Snapshot",
+      "description": "Create a point-in-time snapshot of an existing virtual machine. Approval-gated: modifies infrastructure state.",
+      "accessLevel": "managers+",
+      "defconLevel": "AMBER",
+      "requiresApproval": true,
+      "parameters": {
+        "vmid": {
+          "type": "number",
+          "required": true,
+          "description": "VM ID to snapshot"
+        },
+        "node": {
+          "type": "string",
+          "required": true,
+          "description": "Node hosting the VM"
+        },
+        "snapname": {
+          "type": "string",
+          "required": true,
+          "description": "Snapshot name (alphanumeric, no spaces)"
+        },
+        "description": {
+          "type": "string",
+          "required": false,
+          "description": "Optional snapshot description"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "task": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Create a restore point before making changes to a VM",
+        "when_to_use": [
+          "Before updates or configuration changes",
+          "User wants a restore point",
+          "User says 'snapshot VM X'"
+        ],
+        "when_not_to_use": [
+          "VM has insufficient disk space for snapshot"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {"base": "internal", "api": "bastion_ssh"},
+
+  "agent_hints": {
+    "primary_agent": "atlas",
+    "delegation_keywords": ["storage", "snapshot", "backup", "clone", "template", "golden clone", "ha", "high availability", "vm resource", "proxmox capacity"]
+  }
+}

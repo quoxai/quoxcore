@@ -1,0 +1,89 @@
+{
+  "spec_id": "wise",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:32.413Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.wise.com/quox-shapeproof-control-c88af1b7",
+      "status": 401,
+      "latency_ms": 134,
+      "classification": "CONTROL",
+      "body_sha256": "8ab91f04c58db819a263877ac2fc759677bc4ed69f26a9c797fdeb66eeee8af7",
+      "body_excerpt": "{\"error\":\"invalid_token\",\"error_description\":\"Invalid token\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.wise.com/v2/profiles",
+      "status": 401,
+      "latency_ms": 46,
+      "classification": "AUTH_WALL",
+      "body_sha256": "17533c60ea27aa27cc22851922e2f197caccb1dece65cba7e9ca4fcb79d28736",
+      "body_excerpt": "{\"error_description\":\"Invalid token\",\"error\":\"invalid_token\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_profiles",
+      "method": "GET",
+      "url": "https://api.wise.com/v2/profiles",
+      "status": 401,
+      "latency_ms": 52,
+      "classification": "AUTH_WALL",
+      "body_sha256": "8ab91f04c58db819a263877ac2fc759677bc4ed69f26a9c797fdeb66eeee8af7",
+      "body_excerpt": "{\"error\":\"invalid_token\",\"error_description\":\"Invalid token\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_accounts",
+      "method": "GET",
+      "url": "https://api.wise.com/v4/profiles/1/balances?types=STANDARD",
+      "status": 401,
+      "latency_ms": 51,
+      "classification": "AUTH_WALL",
+      "body_sha256": "17533c60ea27aa27cc22851922e2f197caccb1dece65cba7e9ca4fcb79d28736",
+      "body_excerpt": "{\"error_description\":\"Invalid token\",\"error\":\"invalid_token\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_transfers",
+      "method": "GET",
+      "url": "https://api.wise.com/v1/transfers?profile=1&status=quoxprobe&limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 61,
+      "classification": "AUTH_WALL",
+      "body_sha256": "17533c60ea27aa27cc22851922e2f197caccb1dece65cba7e9ca4fcb79d28736",
+      "body_excerpt": "{\"error_description\":\"Invalid token\",\"error\":\"invalid_token\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

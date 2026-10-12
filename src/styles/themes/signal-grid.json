@@ -1,0 +1,51 @@
+{
+  "project": "QuoxCORE Dashboard",
+  "themeId": "signal-grid",
+  "description": "Industrial Ops aesthetic - cut corners, rack-module headers, grid backgrounds",
+  "fonts": {
+    "display": "Space Grotesk",
+    "body": "Inter",
+    "mono": "IBM Plex Mono"
+  },
+  "palette": {
+    "accent": "192 100% 55%",
+    "accent2": "280 100% 68%",
+    "bg": "220 20% 4%",
+    "panel": "220 22% 7%",
+    "panel2": "220 18% 10%",
+    "border": "215 25% 18%",
+    "borderStrong": "215 25% 25%",
+    "text": "210 25% 92%",
+    "textSecondary": "215 15% 75%",
+    "muted": "215 12% 55%",
+    "good": "145 70% 48%",
+    "goodMuted": "145 40% 25%",
+    "warn": "38 95% 55%",
+    "warnMuted": "38 60% 30%",
+    "bad": "0 90% 60%",
+    "badMuted": "0 50% 30%"
+  },
+  "shape": {
+    "radiusSm": 6,
+    "radiusMd": 10,
+    "radiusLg": 14,
+    "useCutCorners": true
+  },
+  "depth": {
+    "shadowStyle": "none-or-inset",
+    "borderStyle": "crisp+innerStroke"
+  },
+  "background": {
+    "style": "grid+noise",
+    "gridSize": 48,
+    "intensity": 0.35
+  },
+  "signatureMove": "Cut-corner panels + rack-module headers with tick-mark dividers",
+  "density": "compact",
+  "antiPatterns": [
+    "rounded-2xl everywhere",
+    "glow as primary interaction",
+    "single surface color",
+    "pills for everything"
+  ]
+}

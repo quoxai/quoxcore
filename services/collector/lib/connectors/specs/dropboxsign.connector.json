@@ -1,0 +1,254 @@
+{
+  "spec_version": 1,
+  "id": "dropboxsign",
+  "name": "Dropbox Sign",
+  "category": "files_knowledge",
+  "credentialType": "dropboxsign",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developers.hellosign.com/",
+  "base_url": "https://api.hellosign.com",
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": ""
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v3/account"
+  },
+  "tools_source": "https://github.com/hellosign/hellosign-openapi/blob/master/openapi.yaml",
+  "tools": [
+    {
+      "name": "account",
+      "description": "Get the Dropbox Sign account this API key belongs to (email, team, role, paid status, and remaining signature request / template quotas)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/account"
+      },
+      "response": {
+        "pick": {
+          "account_id": "account.account_id",
+          "email_address": "account.email_address",
+          "team_id": "account.team_id",
+          "role_code": "account.role_code",
+          "locale": "account.locale",
+          "is_locked": "account.is_locked",
+          "is_paid_hs": "account.is_paid_hs",
+          "is_paid_hf": "account.is_paid_hf",
+          "api_signature_requests_left": "account.quotas.api_signature_requests_left",
+          "documents_left": "account.quotas.documents_left",
+          "templates_total": "account.quotas.templates_total",
+          "templates_left": "account.quotas.templates_left",
+          "sms_verifications_left": "account.quotas.sms_verifications_left"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_signature_requests",
+      "description": "List Dropbox Sign signature requests you sent or received, with each signer's status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "description": "Page number to fetch (default 1, capped here at 100)"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Signature requests per page (Dropbox Sign defaults to 20, documented maximum 100)"
+          },
+          "query": {
+            "type": "string",
+            "description": "Optional Dropbox Sign search string, e.g. 'complete:false' or 'title:Contract'"
+          },
+          "account_id": {
+            "type": "string",
+            "description": "Optional team member account id to list for, or 'all' for every team member (defaults to your own account)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/signature_request/list",
+        "query": {
+          "page": "{{clamp input.page 1 100}}",
+          "page_size": "{{clamp input.page_size 20 100}}",
+          "query": "{{input.query}}",
+          "account_id": "{{input.account_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "signature_requests[]": {
+            "signature_request_id": "signature_request_id",
+            "title": "title",
+            "subject": "subject",
+            "requester_email_address": "requester_email_address",
+            "is_complete": "is_complete",
+            "is_declined": "is_declined",
+            "has_error": "has_error",
+            "test_mode": "test_mode",
+            "created_at": "created_at",
+            "expires_at": "expires_at",
+            "template_ids": "template_ids",
+            "signatures[]": {
+              "signature_id": "signature_id",
+              "signer_email_address": "signer_email_address",
+              "signer_name": "signer_name",
+              "signer_role": "signer_role",
+              "order": "order",
+              "status_code": "status_code",
+              "decline_reason": "decline_reason",
+              "signed_at": "signed_at",
+              "last_viewed_at": "last_viewed_at",
+              "last_reminded_at": "last_reminded_at"
+            }
+          },
+          "num_pages": "list_info.num_pages",
+          "num_results": "list_info.num_results",
+          "page": "list_info.page",
+          "page_size": "list_info.page_size"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_signature_request",
+      "description": "Get one Dropbox Sign signature request by id, including per-signer status and decline reasons",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "signature_request_id": {
+            "type": "string",
+            "description": "Dropbox Sign signature request id (e.g. fa5c8a0b0f492d768749333ad6fcc214c111e967)"
+          }
+        },
+        "required": [
+          "signature_request_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/signature_request/{{input.signature_request_id}}"
+      },
+      "response": {
+        "pick": {
+          "signature_request_id": "signature_request.signature_request_id",
+          "title": "signature_request.title",
+          "original_title": "signature_request.original_title",
+          "subject": "signature_request.subject",
+          "requester_email_address": "signature_request.requester_email_address",
+          "is_complete": "signature_request.is_complete",
+          "is_declined": "signature_request.is_declined",
+          "has_error": "signature_request.has_error",
+          "test_mode": "signature_request.test_mode",
+          "created_at": "signature_request.created_at",
+          "expires_at": "signature_request.expires_at",
+          "template_ids": "signature_request.template_ids",
+          "cc_email_addresses": "signature_request.cc_email_addresses",
+          "signature_request.signatures[]": {
+            "signature_id": "signature_id",
+            "signer_email_address": "signer_email_address",
+            "signer_name": "signer_name",
+            "signer_role": "signer_role",
+            "order": "order",
+            "status_code": "status_code",
+            "decline_reason": "decline_reason",
+            "signed_at": "signed_at",
+            "last_viewed_at": "last_viewed_at",
+            "last_reminded_at": "last_reminded_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_templates",
+      "description": "List the Dropbox Sign templates this account can access (title, signer roles, edit and lock state)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "description": "Page number to fetch (default 1, capped here at 100)"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Templates per page (Dropbox Sign defaults to 20, documented maximum 100)"
+          },
+          "query": {
+            "type": "string",
+            "description": "Optional Dropbox Sign search string to filter templates by"
+          },
+          "account_id": {
+            "type": "string",
+            "description": "Optional team member account id to list for, or 'all' for every team member (defaults to your own account)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/template/list",
+        "query": {
+          "page": "{{clamp input.page 1 100}}",
+          "page_size": "{{clamp input.page_size 20 100}}",
+          "query": "{{input.query}}",
+          "account_id": "{{input.account_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "templates[]": {
+            "template_id": "template_id",
+            "title": "title",
+            "updated_at": "updated_at",
+            "is_embedded": "is_embedded",
+            "is_creator": "is_creator",
+            "can_edit": "can_edit",
+            "is_locked": "is_locked",
+            "signer_roles[]": {
+              "name": "name",
+              "order": "order"
+            }
+          },
+          "num_pages": "list_info.num_pages",
+          "num_results": "list_info.num_results",
+          "page": "list_info.page",
+          "page_size": "list_info.page_size"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "auth left exactly as scaffolded (basic, userField api_key, empty passField) on documentary evidence: the Dropbox Sign OpenAPI declares securityScheme api_key as { type: http, scheme: basic }, the key goes in the username position with an empty password, and the vault type already sends Basic base64(api_key + ':'). Confirmed live: api.hellosign.com answers that header shape with a structured 401 'Unauthorized api key' rather than a 400 or a challenge loop.",
+      "base_url is https://api.hellosign.com with every path carrying its own /v3 prefix. Dropbox Sign publishes the server as https://api.hellosign.com/v3 (servers[0].url), so the split is ours; the composed URLs are identical. The API host is still the legacy hellosign.com domain, which is correct and not a stale value.",
+      "test path /v3/account kept as scaffolded and confirmed as the documented accountGet operation ('Returns the properties and settings of your Account').",
+      "operation surface, path names, parameter names, documented defaults and every picked field name are taken verbatim from the official Dropbox Sign OpenAPI document (openapi 3.0.3, info.title 'Dropbox Sign API', version 3.0.0, published at github.com/hellosign/hellosign-openapi), NOT from a live 2xx: the shape-proof stops at 401, so no response body was ever data. A wrong pick source yields empty output silently, so the first run with a real key must confirm them.",
+      "page_size clamp 20/100 is Dropbox Sign's OWN documented default and maximum, quoted from both list operations: 'Number of objects to be returned per page. Must be between `1` and `100`. Default is `20`.' The page clamp default of 1 is also Dropbox Sign's documented default, but the cap of 100 pages is a local courtesy and spend guard chosen here, not a published Dropbox Sign ceiling.",
+      "the account tool takes NO inputs even though accountGet documents optional account_id and email_address parameters ('`account_id` or `email_address` is required. If both are provided, the account id prevails'). Called bare, the endpoint returns the key owner's own account, which is what an agent needs to answer 'who am I and what quota is left'; querying another team member's account is not modelled.",
+      "READ-ONLY by design: no tool is marked write:true. The v3 surface can create and cancel signature requests, send reminders, add and remove team members, create and delete templates and delete accounts; none is modelled, so this connector cannot start a signature flow, remind a signer or cancel a request.",
+      "document content and access URLs deliberately not picked: the SignatureRequest schema carries files_url (downloads a copy of the documents), signing_url (lets the holder sign after authenticating), signing_redirect_url, final_copy_uri, details_url, the free-text message body, metadata, custom_fields and attachments. None is in any pick, so no document, no signing link and no contract body reaches an LLM context through this connector. Adding them later is a security decision, not a completeness fix.",
+      "signer email addresses, signer names and requester_email_address ARE picked, because a signature-status tool that cannot say who has not signed yet is useless. cc_email_addresses is picked on the single-request tool only. Signer SMS fields (sms_phone_number, has_sms_auth, has_sms_delivery, has_pin) are excluded everywhere.",
+      "get_signature_request nests its signer array under the pick key 'signature_request.signatures[]', so that array lands in the output as a key literally named 'signature_request.signatures'. The other picked fields are flattened out of the envelope; only the nested array keeps the dotted prefix, which is a Connector Spec v1 pick limitation, not a naming choice.",
+      "rateLimit 30/min is a local courtesy and spend guard chosen here. Dropbox Sign publishes no single number in the spec: it returns X-RateLimit-Limit, X-RateLimit-Remaining and X-Ratelimit-Reset response headers, which the declarative runtime does not surface, so a caller cannot see remaining quota.",
+      "test_mode is picked on every signature request for a reason: Dropbox Sign documents that test requests 'have no legal value', and a connector that reported a test signature as a completed agreement would be actively misleading.",
+      "shape-proof 2026-09-12 is overall SHAPE_PROVEN, runner line verbatim: 'dropboxsign  SHAPE_PROVEN  proven=5 authwall=0 ambiguous=0 failed=0 inconclusive=0 skipped=0'. All five real paths (/v3/account twice, as test and as tool, plus the two list paths and /v3/signature_request/{id}) answer 401 with Dropbox Sign's structured JSON envelope {\"error\":{\"error_msg\":\"Unauthorized api key\",\"error_name\":\"unauthorized\"}}, while the bogus control path answers 404 with a DIFFERENT structured envelope, {\"error\":{\"error_msg\":\"Invalid URI. Make sure you have the correct URI and HTTP method.\",\"error_name\":\"not_found\"}}. That differential proves host, TLS, base_url, the basic-auth header shape and every route. Caveat on the control: the harness fires it at the host root (https://api.hellosign.com/quox-shapeproof-control-3afbb993), not under /v3, so the 404 identity it establishes is the API's generic unrouted-URI envelope rather than a /v3-specific one. What the proof does NOT cover: whether a real key's role reaches each route (role_code and team membership gate some data), and no response body was ever data."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

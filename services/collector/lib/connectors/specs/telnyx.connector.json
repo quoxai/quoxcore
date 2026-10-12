@@ -1,0 +1,155 @@
+{
+  "spec_version": 1,
+  "id": "telnyx",
+  "name": "Telnyx",
+  "category": "communication",
+  "credentialType": "telnyx",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developers.telnyx.com/",
+  "base_url": "https://api.telnyx.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/balance"
+  },
+  "tools_source": "https://developers.telnyx.com/api",
+  "tools": [
+    {
+      "name": "get_balance",
+      "description": "Get the current Telnyx account balance, credit limit and available credit",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/balance"
+      },
+      "response": {
+        "pick": {
+          "balance": "data.balance",
+          "credit_limit": "data.credit_limit",
+          "available_credit": "data.available_credit",
+          "currency": "data.currency",
+          "pending_payment_balance": "data.pending_payment_balance"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_phone_numbers",
+      "description": "List the phone numbers owned by this Telnyx account, optionally filtered by number or status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max phone numbers to return (default 20, max 250)"
+          },
+          "phone_number": {
+            "type": "string",
+            "description": "Optional phone number to filter by (E.164, e.g. +447700900000)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "purchase_pending",
+              "purchase_failed",
+              "port_pending",
+              "active",
+              "deleted",
+              "port_failed",
+              "emergency_only",
+              "ported_out",
+              "port_out_pending"
+            ],
+            "description": "Optional phone number status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/phone_numbers",
+        "query": {
+          "page[size]": "{{clamp input.page_size 20 250}}",
+          "filter[phone_number]": "{{input.phone_number}}",
+          "filter[status]": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "phone_number": "phone_number",
+            "status": "status",
+            "phone_number_type": "phone_number_type",
+            "connection_id": "connection_id",
+            "messaging_profile_id": "messaging_profile_id",
+            "purchased_at": "purchased_at"
+          },
+          "total_results": "meta.total_results",
+          "page_number": "meta.page_number",
+          "page_size": "meta.page_size"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_messaging_profiles",
+      "description": "List the Telnyx messaging profiles on this account (the SMS/MMS sending configurations)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max messaging profiles to return (default 20, max 250)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional messaging profile name to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/messaging_profiles",
+        "query": {
+          "page[size]": "{{clamp input.page_size 20 250}}",
+          "filter[name]": "{{input.name}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "enabled": "enabled",
+            "webhook_url": "webhook_url",
+            "webhook_failover_url": "webhook_failover_url",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "total_results": "meta.total_results",
+          "page_number": "meta.page_number",
+          "page_size": "meta.page_size"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

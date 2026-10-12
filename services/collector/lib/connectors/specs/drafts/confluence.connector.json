@@ -1,0 +1,35 @@
+{
+  "spec_version": 1,
+  "id": "confluence",
+  "name": "Confluence",
+  "category": "knowledge",
+  "credentialType": "confluence",
+  "requiredFields": [
+    "domain",
+    "email",
+    "api_token"
+  ],
+  "docs": "https://developer.atlassian.com/cloud/confluence/rest/v1/",
+  "base_url": {
+    "fromCredential": "domain",
+    "template": "https://{{domain}}"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "email",
+    "passField": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/wiki/rest/api/user/current"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url_template"
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "measures": {
+    "approve": { "kind": "approve", "risk": "gated", "label": "Approve it", "say": "Say approve to let {who} go ahead.", "url": "/approvals", "execute": { "via": "url" } },
+    "deny": { "kind": "deny", "risk": "gated", "label": "Deny it", "say": "Say deny to stop {who}.", "url": "/approvals", "execute": { "via": "url" } },
+    "restart_unit": { "kind": "run", "risk": "gated", "label": "Restart it", "say": "Ask me to restart {label}.", "command": "{ctl} restart {unit}",
+      "execute": { "via": "hitl", "tool_name": "ssh_exec", "params": { "host": "{host}", "command": "{ctl} restart {unit}" } } },
+    "remove_leftover_unit": { "kind": "run", "risk": "gated", "label": "Remove the leftover", "say": "Ask me to remove the leftover {label} service.",
+      "command": "{ctl} disable --now {unit} && {ctl} reset-failed {unit}",
+      "execute": { "via": "hitl", "tool_name": "ssh_exec", "params": { "host": "{host}", "command": "{ctl} disable --now {unit} && {ctl} reset-failed {unit}" } } },
+    "check_site": { "kind": "run", "risk": "safe", "label": "Check it now", "say": "Ask me to check {site} again.", "command": "curl -sSI --max-time 10 https://{site}",
+      "execute": { "via": "manual" } },
+    "open_stream": { "kind": "open", "risk": "safe", "label": "Open the stream", "say": "Ask me to open {code} in QuoxPlan.", "url": "/quoxplan?stream={code}", "execute": { "via": "url" } },
+    "decide": { "kind": "decide", "risk": "gated", "label": "Make the decision", "say": "Tell me your decision on {code} and I will record it.",
+      "command": "quoxplan note {code} \"<your decision>\"", "execute": { "via": "agent" } },
+    "reply": { "kind": "reply", "risk": "safe", "label": "Reply", "say": "Tell me what to say back and I will draft the reply.", "execute": { "via": "agent" } },
+    "call_back": { "kind": "run", "risk": "gated", "label": "Call back", "say": "Ask me to ring {caller} back.", "execute": { "via": "agent" } },
+    "show_log": { "kind": "say", "risk": "safe", "label": "Show the log", "say": "Ask me to show the log.", "command": "{log_command}", "requires": ["log_command"], "execute": { "via": "manual" } },
+    "retry_build": { "kind": "run", "risk": "gated", "label": "Run the build again", "say": "Ask me to run the {target} build again.", "command": "quox-build {target}", "requires": ["target"],
+      "execute": { "via": "hitl", "tool_name": "ssh_exec", "params": { "host": "{host}", "command": "quox-build {target}" } } },
+    "ask_agent_why": { "kind": "say", "risk": "safe", "label": "Ask why", "say": "Ask {who} why it wants this.", "execute": { "via": "agent" } },
+    "investigate": { "kind": "say", "risk": "safe", "label": "Look into it", "say": "Ask me to look into it.", "execute": { "via": "agent" } },
+    "check_terminal": { "kind": "say", "risk": "safe", "label": "Check its terminal", "say": "Check the {label} terminal.", "execute": { "via": "manual" } },
+    "send_session_message": { "kind": "reply", "risk": "safe", "label": "Send it a message", "say": "Tell me what to send to {label}.", "command": "quox slot say {slot} \"<message>\"", "requires": ["slot"],
+      "execute": { "via": "manual" } },
+    "open_contacts_sync": { "kind": "open", "risk": "safe", "label": "Open the sync settings", "say": "Open ContactsQ, then Settings, then Sync, and re-enable the connection.", "url": "/contacts?tab=settings", "execute": { "via": "url" } },
+    "open_contacts_compliance": { "kind": "open", "risk": "safe", "label": "Open the compliance view", "say": "Open ContactsQ, then Compliance, to see the retention status.", "url": "/contacts?tab=compliance", "execute": { "via": "url" } },
+    "open_contacts_review": { "kind": "open", "risk": "safe", "label": "Review the candidates", "say": "Open ContactsQ to keep or discard the waiting candidates.", "url": "/contacts", "execute": { "via": "url" } }
+  }
+}

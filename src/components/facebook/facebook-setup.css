@@ -1,0 +1,557 @@
+/* ─── Facebook Setup Wizard ─────────────────────────────────
+ * Progressive disclosure onboarding.
+ * Design: dark glassmorphic, LinkedIn blue accent, clean steps.
+ * Follows QuoxCORE dashboard aesthetic.
+ * ──────────────────────────────────────────────────────────── */
+
+.lis {
+  display: flex;
+  flex-direction: column;
+  max-width: 680px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 24px;
+  gap: 24px;
+}
+
+/* ─── Header ───────────────────────────────────────────────── */
+.fbs-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.fbs-logo {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  padding: 8px;
+  background: rgba(24, 119, 242, 0.1);
+  border-radius: 12px;
+  border: 1px solid rgba(24, 119, 242, 0.15);
+}
+
+.fbs-header__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: -0.3px;
+}
+
+.fbs-header__sub {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* ─── Progress Bar ─────────────────────────────────────────── */
+.fbs-progress {
+  display: flex;
+  gap: 4px;
+}
+
+.fbs-progress__step {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fbs-progress__step:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.fbs-progress__step--active {
+  background: rgba(24, 119, 242, 0.1);
+  border-color: rgba(24, 119, 242, 0.3);
+}
+
+.fbs-progress__step--done {
+  border-color: rgba(52, 211, 153, 0.2);
+}
+
+.fbs-progress__num {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.4);
+  transition: all 0.2s ease;
+}
+
+.fbs-progress__step--active .fbs-progress__num {
+  background: rgba(24, 119, 242, 0.3);
+  color: rgba(24, 119, 242, 1);
+}
+
+.fbs-progress__step--done .fbs-progress__num {
+  background: rgba(52, 211, 153, 0.15);
+  color: rgba(52, 211, 153, 0.9);
+}
+
+.fbs-progress__label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fbs-progress__step--active .fbs-progress__label {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.fbs-progress__step--done .fbs-progress__label {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* ─── Content Card ─────────────────────────────────────────── */
+.fbs-content {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(24, 119, 242, 0.12);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.fbs-content__header {
+  padding: 20px 24px 0;
+}
+
+.fbs-content__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.fbs-content__subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.fbs-content__body {
+  padding: 16px 24px 24px;
+}
+
+.fbs-content__body > p {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+
+/* ─── Step Lists ───────────────────────────────────────────── */
+.fbs-steps {
+  margin: 0 0 12px;
+  padding: 0 0 0 20px;
+  list-style: none;
+  counter-reset: fbs-step;
+}
+
+.fbs-steps li {
+  position: relative;
+  padding: 6px 0 6px 12px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+  line-height: 1.6;
+  counter-increment: fbs-step;
+}
+
+.fbs-steps li::before {
+  content: counter(fbs-step);
+  position: absolute;
+  left: -20px;
+  top: 8px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(24, 119, 242, 0.15);
+  color: rgba(24, 119, 242, 0.9);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.fbs-steps li code {
+  background: rgba(24, 119, 242, 0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: rgba(24, 119, 242, 0.85);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+/* ─── Links ────────────────────────────────────────────────── */
+.fbs-link {
+  color: rgba(24, 119, 242, 0.9);
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.15s;
+}
+
+.fbs-link:hover {
+  color: rgba(24, 119, 242, 1);
+  text-decoration: underline;
+}
+
+.fbs-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: rgba(24, 119, 242, 0.12);
+  border: 1px solid rgba(24, 119, 242, 0.25);
+  border-radius: 8px;
+  color: rgba(24, 119, 242, 0.95);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.fbs-link-btn:hover {
+  background: rgba(24, 119, 242, 0.2);
+  border-color: rgba(24, 119, 242, 0.4);
+}
+
+/* ─── Inline Icons ─────────────────────────────────────────── */
+.fbs-icon-inline {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  vertical-align: -1px;
+  flex-shrink: 0;
+}
+
+.fbs-icon-check {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.fbs-icon-tip {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ─── Tips ─────────────────────────────────────────────────── */
+.fbs-tip {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(24, 119, 242, 0.06);
+  border: 1px solid rgba(24, 119, 242, 0.1);
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+.fbs-tip span {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.5;
+}
+
+.fbs-tip--warn {
+  background: rgba(251, 191, 36, 0.05);
+  border-color: rgba(251, 191, 36, 0.12);
+}
+
+.fbs-tip--warn span {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* ─── API Products List ────────────────────────────────────── */
+.fbs-products {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.fbs-product {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+
+.fbs-product div {
+  flex: 1;
+  min-width: 0;
+}
+
+.fbs-product strong {
+  display: block;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+}
+
+.fbs-product span:not(.fbs-product-badge) {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.fbs-product-badge {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.fbs-product-badge--auto {
+  background: rgba(52, 211, 153, 0.1);
+  color: rgba(52, 211, 153, 0.9);
+  border: 1px solid rgba(52, 211, 153, 0.15);
+}
+
+.fbs-product-badge--review {
+  background: rgba(251, 191, 36, 0.08);
+  color: rgba(251, 191, 36, 0.9);
+  border: 1px solid rgba(251, 191, 36, 0.15);
+}
+
+/* ─── Method Card ──────────────────────────────────────────── */
+.fbs-method {
+  padding: 16px;
+  background: rgba(24, 119, 242, 0.04);
+  border: 1px solid rgba(24, 119, 242, 0.12);
+  border-radius: 10px;
+  margin: 12px 0;
+}
+
+.fbs-method-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.fbs-method-header strong {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.fbs-method-badge {
+  padding: 2px 8px;
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(52, 211, 153, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* ─── Secure Badge ─────────────────────────────────────────── */
+.fbs-secure-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(52, 211, 153, 0.04);
+  border: 1px solid rgba(52, 211, 153, 0.1);
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+.fbs-secure-badge span {
+  font-size: 13px;
+  color: rgba(52, 211, 153, 0.8);
+  line-height: 1.5;
+}
+
+/* ─── Form Fields ──────────────────────────────────────────── */
+.fbs-form > p {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+.fbs-field {
+  margin-bottom: 20px;
+}
+
+.fbs-field__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 4px;
+}
+
+.fbs-field__required {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(24, 119, 242, 0.15);
+  color: rgba(24, 119, 242, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.fbs-field__optional {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.fbs-field__help {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+
+.fbs-field__input {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(10, 10, 20, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.fbs-field__input:focus {
+  border-color: rgba(24, 119, 242, 0.5);
+  box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.1);
+}
+
+.fbs-field__input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+/* ─── Navigation Bar ───────────────────────────────────────── */
+.fbs-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fbs-nav__right {
+  display: flex;
+  gap: 8px;
+}
+
+.fbs-nav__back {
+  padding: 8px 16px;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.fbs-nav__back:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.fbs-nav__back:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.fbs-nav__skip {
+  padding: 8px 20px;
+  background: rgba(24, 119, 242, 0.15);
+  border: 1px solid rgba(24, 119, 242, 0.25);
+  border-radius: 8px;
+  color: rgba(24, 119, 242, 0.95);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.fbs-nav__skip:hover {
+  background: rgba(24, 119, 242, 0.25);
+}
+
+.fbs-nav__finish {
+  padding: 10px 24px;
+  background: linear-gradient(135deg, rgba(24, 119, 242, 0.9), rgba(11, 61, 145, 0.9));
+  border: none;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(24, 119, 242, 0.3);
+}
+
+.fbs-nav__finish:hover:not(:disabled) {
+  box-shadow: 0 4px 16px rgba(24, 119, 242, 0.4);
+  transform: translateY(-1px);
+}
+
+.fbs-nav__finish:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* ─── Responsive ───────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .lis {
+    padding: 20px 16px;
+  }
+
+  .fbs-progress {
+    flex-direction: column;
+  }
+
+  .fbs-progress__step {
+    padding: 8px 12px;
+  }
+
+  .fbs-content__body {
+    padding: 12px 16px 20px;
+  }
+}

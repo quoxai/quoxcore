@@ -1,0 +1,105 @@
+{
+  "spec_id": "opsgenie",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:02.478Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.opsgenie.com/quox-shapeproof-control-b1f74b4e",
+      "status": 404,
+      "latency_ms": 717,
+      "classification": "CONTROL",
+      "body_sha256": "909f825c8e79da800f8568248940ac13ab59ba41e0c528153ddab1c28c5e2449",
+      "body_excerpt": "{\"message\":\"no Route matched with those values\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.opsgenie.com/v2/users/me",
+      "status": 422,
+      "latency_ms": 281,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1b1a847ca720adf35a2577ed92899dc2a9d31de297ac225b5e7e17f2ef77f3c0",
+      "body_excerpt": "{\"message\":\"Key format is not valid!\",\"took\":0.001,\"requestId\":\"0d9411b8-2693-4dd5-8667-c4ee49118563\"}",
+      "flags": {
+        "structured_4xx": 422,
+        "differential_path_proof": true,
+        "control_status": 404,
+        "control_error_code": "no Route matched with those values"
+      }
+    },
+    {
+      "name": "list_alerts",
+      "method": "GET",
+      "url": "https://api.opsgenie.com/v2/alerts?query=quoxprobe&sort=quoxprobe&limit=20",
+      "status": 422,
+      "latency_ms": 292,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "ed21d3f597f3073d506de0b92b236a6dadd0eccf183d74563bee6d71599e4285",
+      "body_excerpt": "{\"message\":\"Key format is not valid!\",\"took\":0.0,\"requestId\":\"00fe9b95-02d8-4eaa-8bf0-3bcbc099670a\"}",
+      "flags": {
+        "structured_4xx": 422,
+        "differential_path_proof": true,
+        "control_status": 404,
+        "control_error_code": "no Route matched with those values"
+      }
+    },
+    {
+      "name": "get_alert",
+      "method": "GET",
+      "url": "https://api.opsgenie.com/v2/alerts/quoxprobe",
+      "status": 422,
+      "latency_ms": 330,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c47826b8aa96b26a266e4b19e52527df09f21c393bf09cca8c0f1c2edbeb73b4",
+      "body_excerpt": "{\"message\":\"Key format is not valid!\",\"took\":0.0,\"requestId\":\"f5e3e4ae-c2dc-4443-8483-a12a642be843\"}",
+      "flags": {
+        "structured_4xx": 422,
+        "differential_path_proof": true,
+        "control_status": 404,
+        "control_error_code": "no Route matched with those values"
+      }
+    },
+    {
+      "name": "list_teams",
+      "method": "GET",
+      "url": "https://api.opsgenie.com/v2/teams",
+      "status": 422,
+      "latency_ms": 451,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "eb1f55832987010de5e75eee49fcc505d8d09ce55a7be2436a028f8edb23ec57",
+      "body_excerpt": "{\"message\":\"Key format is not valid!\",\"took\":0.0,\"requestId\":\"2731f596-a7bc-4ce4-afae-8652fc0f3dbc\"}",
+      "flags": {
+        "structured_4xx": 422,
+        "differential_path_proof": true,
+        "control_status": 404,
+        "control_error_code": "no Route matched with those values"
+      }
+    },
+    {
+      "name": "list_schedules",
+      "method": "GET",
+      "url": "https://api.opsgenie.com/v2/schedules",
+      "status": 422,
+      "latency_ms": 484,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "ce53c1d07fce72e734847405858ea3406b72533cc892b6a2de0526355b1f6b38",
+      "body_excerpt": "{\"message\":\"Key format is not valid!\",\"took\":0.0,\"requestId\":\"19ee0794-0b79-47fd-890a-9614c21328e2\"}",
+      "flags": {
+        "structured_4xx": 422,
+        "differential_path_proof": true,
+        "control_status": 404,
+        "control_error_code": "no Route matched with those values"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

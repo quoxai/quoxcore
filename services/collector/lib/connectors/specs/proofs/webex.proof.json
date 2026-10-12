@@ -1,0 +1,105 @@
+{
+  "spec_id": "webex",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:27:23.196Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://webexapis.com/quox-shapeproof-control-13762dab",
+      "status": 401,
+      "latency_ms": 255,
+      "classification": "CONTROL",
+      "body_sha256": "fe225d37a83dfbb9366df5254d65c11cb8648ba0d18866576f40b3c273cdbdd3",
+      "body_excerpt": "{\"message\":\"The request requires a valid access token set in the Authorization request header.\",\"errors\":[{\"description\":\"The request requires a valid access token set in the Authorization request hea",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://webexapis.com/v1/people/me",
+      "status": 401,
+      "latency_ms": 37,
+      "classification": "AUTH_WALL",
+      "body_sha256": "8a4e0f49daaefb7f0fc797cb9a2adc835ca9b1f8c103df3f665b5153bae59d2e",
+      "body_excerpt": "{\"message\":\"The request requires a valid access token set in the Authorization request header.\",\"errors\":[{\"description\":\"The request requires a valid access token set in the Authorization request hea",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "me",
+      "method": "GET",
+      "url": "https://webexapis.com/v1/people/me",
+      "status": 401,
+      "latency_ms": 44,
+      "classification": "AUTH_WALL",
+      "body_sha256": "1a32a56a835eeb368828ecfce2077da1f703dab77cb9586c05532f9673cc8ff6",
+      "body_excerpt": "{\"message\":\"The request requires a valid access token set in the Authorization request header.\",\"errors\":[{\"description\":\"The request requires a valid access token set in the Authorization request hea",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_rooms",
+      "method": "GET",
+      "url": "https://webexapis.com/v1/rooms?teamId=quoxprobe&type=quoxprobe&sortBy=quoxprobe&max=50",
+      "status": 401,
+      "latency_ms": 42,
+      "classification": "AUTH_WALL",
+      "body_sha256": "cd2a4c1ac585e4b4d84b394381a9bd717b2ed95507a10122102751c34bc50f27",
+      "body_excerpt": "{\"message\":\"The request requires a valid access token set in the Authorization request header.\",\"errors\":[{\"description\":\"The request requires a valid access token set in the Authorization request hea",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_messages",
+      "method": "GET",
+      "url": "https://webexapis.com/v1/messages?roomId=quoxprobe&parentId=quoxprobe&mentionedPeople=quoxprobe&before=quoxprobe&beforeMessage=quoxprobe&max=50",
+      "status": 401,
+      "latency_ms": 52,
+      "classification": "AUTH_WALL",
+      "body_sha256": "c17585cfbe04ff90e980c5e62e9db974810de06ba2d957a464e31d36364dea51",
+      "body_excerpt": "{\"message\":\"The request requires a valid access token set in the Authorization request header.\",\"errors\":[{\"description\":\"The request requires a valid access token set in the Authorization request hea",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_teams",
+      "method": "GET",
+      "url": "https://webexapis.com/v1/teams?max=50",
+      "status": 401,
+      "latency_ms": 71,
+      "classification": "AUTH_WALL",
+      "body_sha256": "f9395b03815cab7fe12e5257a248ddc4216d5544d9087469a60a075c2fcb688e",
+      "body_excerpt": "{\"message\":\"The request requires a valid access token set in the Authorization request header.\",\"errors\":[{\"description\":\"The request requires a valid access token set in the Authorization request hea",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

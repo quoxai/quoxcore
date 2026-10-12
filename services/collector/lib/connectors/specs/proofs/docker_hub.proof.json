@@ -1,0 +1,81 @@
+{
+  "spec_id": "docker_hub",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:25.518Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://hub.docker.com/quox-shapeproof-control-c5f6ffa1",
+      "status": 404,
+      "latency_ms": 868,
+      "classification": "CONTROL",
+      "body_sha256": "2c1af7f97b930402df8fcd90150b727b7a14442a00db9279ee6bc01a7e973d60",
+      "body_excerpt": "<!DOCTYPE html><html lang=\"en\" style=\"font-size:14px\" data-hydrated=\"false\" class=\"\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/><link rel=\"preconn",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://hub.docker.com/v2/namespaces/library/repositories?page_size=1",
+      "status": 200,
+      "latency_ms": 150,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9db99d7f474e25052b886be45e55b1d919a2488610e7012567eb4c5ddd146e0d",
+      "body_excerpt": "{\"count\":181,\"next\":\"https://hub.docker.com/v2/namespaces/library/repositories?page=2\\u0026page_size=1\",\"previous\":null,\"results\":[{\"name\":\"centos\",\"namespace\":\"library\",\"repository_type\":\"image\",\"sta",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "list_repositories",
+      "method": "GET",
+      "url": "https://hub.docker.com/v2/namespaces/library/repositories?page_size=25&page=1&name=nginx&ordering=-last_updated",
+      "status": 200,
+      "latency_ms": 156,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "8a08b4b0e81fb704f9e5ecac08574fbf7b19265295643f4225da8ac2e19c8952",
+      "body_excerpt": "{\"count\":1,\"next\":null,\"previous\":null,\"results\":[{\"name\":\"nginx\",\"namespace\":\"library\",\"repository_type\":\"image\",\"status\":1,\"status_description\":\"active\",\"description\":\"Official build of Nginx.\",\"is_",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "get_repository",
+      "method": "GET",
+      "url": "https://hub.docker.com/v2/namespaces/library/repositories/nginx",
+      "status": 200,
+      "latency_ms": 187,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "66ccf3c981596b1dc7c5a7eef5e47250d9cc694092be43b20c90d2440832cc53",
+      "body_excerpt": "{\"user\":\"library\",\"name\":\"nginx\",\"namespace\":\"library\",\"repository_type\":\"image\",\"status\":1,\"status_description\":\"active\",\"description\":\"Official build of Nginx.\",\"is_private\":false,\"is_automated\":fal",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "list_tags",
+      "method": "GET",
+      "url": "https://hub.docker.com/v2/namespaces/library/repositories/nginx/tags?page_size=25&page=1",
+      "status": 200,
+      "latency_ms": 314,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7416ff916722b97df7d8268b9bd1cab205ada80822810d0d8c161382f60211b1",
+      "body_excerpt": "{\"count\":1311,\"next\":\"https://hub.docker.com/v2/namespaces/library/repositories/nginx/tags?page=2\\u0026page_size=25\",\"previous\":null,\"results\":[{\"creator\":1156886,\"id\":1235098847,\"images\":[{\"architect",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

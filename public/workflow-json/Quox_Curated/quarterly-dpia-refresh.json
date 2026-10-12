@@ -1,0 +1,70 @@
+{
+  "id": "wf-quox-quarterly-dpia-refresh",
+  "name": "Quarterly DPIA Refresh",
+  "description": "Runs quarterly, pulls the current risk register, has an AI agent analyse changes and update the DPIA, then notifies the compliance team to review.",
+  "source": "quox-curated",
+  "category": "security",
+  "tags": ["dpia", "gdpr", "compliance", "quarterly", "schedule", "risk", "notification", "ai"],
+  "nodes": [
+    {
+      "id": "trig",
+      "type": "trigger:schedule",
+      "name": "Quarterly",
+      "category": "trigger",
+      "config": {
+        "cron": "0 9 1 1,4,7,10 *",
+        "timezone": "UTC",
+        "enabled": true
+      },
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "pull-risks",
+      "type": "call",
+      "name": "Pull Risk Register",
+      "category": "action",
+      "config": {
+        "url": "{{COLLECTOR_URL}}/api/compliance/risk-register",
+        "method": "GET",
+        "timeout": 15000
+      },
+      "position": { "x": 400, "y": 300 }
+    },
+    {
+      "id": "dpia-analysis",
+      "type": "agent:agentic",
+      "name": "DPIA Analyser",
+      "category": "action",
+      "config": {
+        "agent": "sentinel",
+        "goal": "Review the current risk register and identify: (1) new data processing activities requiring DPIA assessment, (2) changes to existing high-risk activities, (3) residual risks above threshold. Risk register: ${nodes['pull-risks'].output}. Return structured DPIA update with sections: newActivities, changedActivities, residualRisks, recommendedMitigations.",
+        "model": "claude-haiku-4-5",
+        "maxIterations": 10
+      },
+      "position": { "x": 700, "y": 300 }
+    },
+    {
+      "id": "deliver",
+      "type": "notification:deliver",
+      "name": "Notify Compliance Team",
+      "category": "notification",
+      "config": {
+        "title": "Q${Math.ceil((new Date().getMonth()+1)/3)} DPIA Refresh Ready",
+        "message": "## Quarterly DPIA Refresh\n\nGenerated: ${new Date().toISOString().slice(0,10)}\n\n${nodes['dpia-analysis'].output}\n\nPlease review and sign off in the Compliance view.",
+        "assignTo": ["team-compliance"],
+        "priority": "high"
+      },
+      "position": { "x": 1000, "y": 300 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trig", "target": "pull-risks" },
+    { "id": "e2", "source": "pull-risks", "target": "dpia-analysis" },
+    { "id": "e3", "source": "dpia-analysis", "target": "deliver" }
+  ],
+  "meta": {
+    "version": "1.0.0",
+    "createdBy": "quox-curated",
+    "estimatedRuntime": "2-3 min"
+  }
+}

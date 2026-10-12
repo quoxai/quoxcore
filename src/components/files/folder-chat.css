@@ -1,0 +1,637 @@
+/**
+ * FolderChat Styles
+ * Styles for folder-scoped chat interface
+ */
+
+.folder-chat {
+  --fc-bg: var(--m-bg-deep, #0a0a0f);
+  --fc-bg-elevated: var(--m-bg-elevated, rgba(255, 255, 255, 0.05));
+  --fc-border: var(--m-border-default, #2a2a4e);
+  --fc-text: var(--m-text-primary, #e0e0e0);
+  --fc-muted: var(--m-text-tertiary, #888);
+  --fc-accent: var(--m-accent, #00d4ff);
+
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--fc-bg);
+  color: var(--fc-text);
+}
+
+/* Header */
+.fc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--fc-bg-elevated);
+  border-bottom: 1px solid var(--fc-border);
+}
+
+.fc-header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fc-folder-icon {
+  font-size: 1.5rem;
+}
+
+.fc-header-text h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.fc-file-count {
+  font-size: 0.75rem;
+  color: var(--fc-muted);
+}
+
+.fc-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.fc-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--fc-muted);
+  cursor: pointer;
+}
+
+.fc-toggle input {
+  accent-color: var(--fc-accent);
+}
+
+.fc-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--fc-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.fc-close:hover {
+  background: var(--fc-bg-elevated);
+  color: var(--fc-text);
+}
+
+/* Settings button */
+.fc-settings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid var(--fc-border);
+  border-radius: 6px;
+  color: var(--fc-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.fc-settings-btn:hover {
+  border-color: var(--fc-accent);
+  color: var(--fc-accent);
+}
+
+.fc-settings-btn.active {
+  background: rgba(0, 212, 255, 0.1);
+  border-color: var(--fc-accent);
+  color: var(--fc-accent);
+}
+
+/* Personality Panel */
+.fc-personality-panel {
+  padding: 16px 20px;
+  background: var(--fc-bg-elevated);
+  border-bottom: 1px solid var(--fc-border);
+}
+
+.fc-personality-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.fc-personality-header h4 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--fc-accent);
+}
+
+.fc-refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--fc-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.fc-refresh-btn:hover {
+  background: rgba(0, 212, 255, 0.1);
+  color: var(--fc-accent);
+}
+
+.fc-personality-summary {
+  margin-bottom: 12px;
+  font-size: 0.8rem;
+  color: var(--fc-text);
+  line-height: 1.5;
+}
+
+.fc-personality-summary p {
+  margin: 0;
+}
+
+.fc-personality-topics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.fc-topics-label {
+  font-size: 0.75rem;
+  color: var(--fc-muted);
+  font-weight: 500;
+}
+
+.fc-topics-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fc-topic-tag {
+  padding: 2px 8px;
+  background: rgba(0, 212, 255, 0.1);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: var(--fc-accent);
+}
+
+.fc-custom-instructions {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--fc-border);
+}
+
+.fc-custom-instructions label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--fc-muted);
+}
+
+.fc-custom-instructions textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--fc-bg);
+  border: 1px solid var(--fc-border);
+  border-radius: 6px;
+  color: var(--fc-text);
+  font-size: 0.8rem;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.fc-custom-instructions textarea:focus {
+  border-color: var(--fc-accent);
+}
+
+.fc-custom-instructions textarea::placeholder {
+  color: var(--fc-muted);
+}
+
+.fc-save-instructions {
+  margin-top: 8px;
+  padding: 8px 16px;
+  background: rgba(0, 212, 255, 0.15);
+  border: 1px solid var(--fc-accent);
+  border-radius: 6px;
+  color: var(--fc-accent);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.fc-save-instructions:hover:not(:disabled) {
+  background: var(--fc-accent);
+  color: #000;
+}
+
+.fc-save-instructions:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Premium banner */
+.fc-premium-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(255, 193, 7, 0.1);
+  border-bottom: 1px solid rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+  font-size: 0.8rem;
+}
+
+/* Messages area */
+.fc-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* Empty state */
+.fc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: var(--fc-muted);
+}
+
+.fc-empty svg {
+  opacity: 0.3;
+  margin-bottom: 16px;
+}
+
+.fc-empty h4 {
+  margin: 0 0 8px;
+  font-size: 1.125rem;
+  color: var(--fc-text);
+}
+
+.fc-empty p {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.fc-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.fc-suggestions button {
+  padding: 8px 14px;
+  background: var(--fc-bg-elevated);
+  border: 1px solid var(--fc-border);
+  border-radius: 16px;
+  color: var(--fc-text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.fc-suggestions button:hover {
+  border-color: var(--fc-accent);
+  color: var(--fc-accent);
+}
+
+/* Message */
+.fc-message {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.fc-message.user {
+  flex-direction: row-reverse;
+}
+
+.fc-message-avatar {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fc-bg-elevated);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.fc-message.user .fc-message-avatar {
+  background: var(--fc-accent);
+  color: #000;
+}
+
+.fc-message.assistant .fc-message-avatar {
+  color: var(--fc-accent);
+}
+
+.fc-message-content {
+  max-width: 80%;
+  padding: 12px 16px;
+  background: var(--fc-bg-elevated);
+  border-radius: 12px;
+  line-height: 1.5;
+}
+
+.fc-message.user .fc-message-content {
+  background: rgba(0, 212, 255, 0.15);
+  border-radius: 12px 12px 0 12px;
+}
+
+.fc-message.assistant .fc-message-content {
+  border-radius: 12px 12px 12px 0;
+}
+
+.fc-message-content p {
+  margin: 0;
+}
+
+/* Loading/typing indicator */
+.fc-message.loading .fc-message-content {
+  padding: 16px 20px;
+}
+
+.fc-typing {
+  display: flex;
+  gap: 4px;
+}
+
+.fc-typing span {
+  width: 8px;
+  height: 8px;
+  background: var(--fc-muted);
+  border-radius: 50%;
+  animation: typing 1.4s infinite;
+}
+
+.fc-typing span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.fc-typing span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+/* Input area */
+.fc-input-area {
+  display: flex;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--fc-bg-elevated);
+  border-top: 1px solid var(--fc-border);
+}
+
+.fc-input-area textarea {
+  flex: 1;
+  padding: 12px 16px;
+  background: var(--fc-bg);
+  border: 1px solid var(--fc-border);
+  border-radius: 8px;
+  color: var(--fc-text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.fc-input-area textarea:focus {
+  border-color: var(--fc-accent);
+}
+
+.fc-input-area textarea::placeholder {
+  color: var(--fc-muted);
+}
+
+.fc-input-area textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fc-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: var(--fc-accent);
+  border: none;
+  border-radius: 8px;
+  color: #000;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.fc-send:hover:not(:disabled) {
+  background: #00b8e6;
+}
+
+.fc-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Preview modal */
+.fc-preview-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.fc-preview-modal {
+  background: var(--fc-bg);
+  border: 1px solid var(--fc-border);
+  border-radius: 12px;
+  max-width: 800px;
+  max-height: 80vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.fc-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--fc-border);
+}
+
+.fc-preview-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fc-preview-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--fc-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.fc-preview-close:hover {
+  background: var(--fc-bg-elevated);
+  color: var(--fc-text);
+}
+
+.fc-preview-body {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+
+.fc-preview-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.fc-preview-body pre {
+  margin: 0;
+  padding: 16px;
+  background: var(--fc-bg-elevated);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-family: 'JetBrains Mono', monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .fc-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .fc-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .fc-message-content {
+    max-width: 90%;
+  }
+
+  .fc-suggestions {
+    flex-direction: column;
+  }
+
+  .fc-suggestions button {
+    width: 100%;
+  }
+}
+
+/* =============================================================================
+   MARKDOWN STYLES
+   ============================================================================= */
+
+.fc-message-content .fc-md-p {
+  margin: 0 0 0.4em 0;
+}
+
+.fc-message-content .fc-md-p:last-child {
+  margin-bottom: 0;
+}
+
+.fc-message-content .fc-md-bold {
+  font-weight: 600;
+  color: var(--fc-text);
+}
+
+.fc-message-content .fc-md-code {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: var(--fc-accent);
+}
+
+.fc-message-content .fc-md-pre {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  padding: 0.75em 1em;
+  margin: 0.5em 0;
+  overflow-x: auto;
+}
+
+.fc-message-content .fc-md-pre code {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.85em;
+  line-height: 1.5;
+}
+
+.fc-message-content .fc-md-list {
+  margin: 0.25em 0;
+  padding-left: 1.25em;
+}
+
+.fc-message-content .fc-md-ol {
+  list-style-type: decimal;
+}
+
+.fc-message-content .fc-md-list li {
+  margin: 0.15em 0;
+}

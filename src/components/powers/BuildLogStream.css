@@ -1,0 +1,105 @@
+.bls-root {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bls-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* State pill */
+.bls-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    padding: 3px 9px;
+    border-radius: 10px;
+    text-transform: uppercase;
+}
+
+.bls-pill--pending {
+    background: rgba(148, 163, 184, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    color: #94a3b8;
+}
+
+.bls-pill--building {
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: #fbbf24;
+}
+
+.bls-pill--built {
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    color: #22c55e;
+}
+
+.bls-pill--failed {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+/* Spinner inside pill */
+.bls-spinner {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border: 1.5px solid rgba(251, 191, 36, 0.3);
+    border-top-color: #fbbf24;
+    border-radius: 50%;
+    animation: bls-spin 0.7s linear infinite;
+}
+
+@keyframes bls-spin {
+    to { transform: rotate(360deg); }
+}
+
+.bls-elapsed {
+    font-size: 0.72rem;
+    color: var(--text-muted, #888);
+    font-variant-numeric: tabular-nums;
+}
+
+.bls-log-count {
+    font-size: 0.72rem;
+    color: var(--text-muted, #888);
+    margin-left: auto;
+}
+
+/* Log terminal */
+.bls-pre {
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.72rem;
+    line-height: 1.55;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text-secondary, #ccc);
+}
+
+.bls-placeholder {
+    color: var(--text-muted, #888);
+    font-style: italic;
+}
+
+.bls-line {
+    display: block;
+}
+
+.bls-line--stderr {
+    color: #f87171;
+}

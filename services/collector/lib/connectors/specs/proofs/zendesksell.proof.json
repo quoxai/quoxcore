@@ -1,0 +1,207 @@
+{
+  "spec_id": "zendesksell",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:55:21.158Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.getbase.com/quox-shapeproof-control-51aa93d0",
+      "status": 404,
+      "latency_ms": 703,
+      "classification": "CONTROL",
+      "body_sha256": "516c14cc4a52f7ceb5ad37625773076e0680b60e8e83cc6ef03edcba231bace1",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"not_found\", \"details\":\"Requested path was not found.\", \"message\":\"Not Found\"}, \"meta\": {\"type\": \"error\",\"links\": {\"more_info\": \"https://developers.getbase.com/docs/rest/ar",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/users/self",
+      "status": 401,
+      "latency_ms": 204,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "cc3943256f3fe09a8fec19260e3d23d7a602f5f20eb8425ae97cf519697ce11e",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_current_user",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/users/self",
+      "status": 401,
+      "latency_ms": 198,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "abc191369c790d84996afdad9b35666aa76bd9eff49ded1b6c9f99e1f7401037",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_users",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/users?per_page=20&page=1",
+      "status": 401,
+      "latency_ms": 206,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "758ed19dd0b693442c8f7c653b259388af7bfef5eabae19430a79103cc9b8f0d",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_contacts",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/contacts?per_page=20&page=1&name=quoxprobe&email=quoxprobe&is_organization=false",
+      "status": 401,
+      "latency_ms": 328,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7a3694a8ad3b19ab660b21dfeab8b97a88bbafde9e64561cf8586c6938898c71",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_contact",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/contacts/1",
+      "status": 401,
+      "latency_ms": 353,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "84961c2e27e5a97e7c211a222aadb8fb015f153b4e1e12682965a12be78824a7",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_deals",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/deals?per_page=20&page=1&contact_id=1&stage_id=1&hot=false",
+      "status": 401,
+      "latency_ms": 251,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "98546a1867b9941f0a442a0b827bf914cbffb0fa577cc07353c1b9b02f275cc2",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_deal",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/deals/1",
+      "status": 401,
+      "latency_ms": 304,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "719dd6199265417b0a3227c4abb24c1d00b44cf15327d382d4a97bf62209f653",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_leads",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/leads?per_page=20&page=1&email=quoxprobe&status=quoxprobe",
+      "status": 401,
+      "latency_ms": 338,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "08d49a2393da78e53e282fd84732b120a8221d07e6715da0078fd476271ce134",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_pipelines",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/pipelines?per_page=20",
+      "status": 401,
+      "latency_ms": 350,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d9116a47f5bb02a51628a4ed50ff1e8e625c25db4645ef29463107efea7761d1",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_stages",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/stages?per_page=20&pipeline_id=1",
+      "status": 401,
+      "latency_ms": 211,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1a3daa8f586656fd37b63a322d2806b257f1a0627a041794f36fb15d4f2b58ac",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_tasks",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/tasks?per_page=20&page=1&completed=false&resource_type=quoxprobe&resource_id=1",
+      "status": 401,
+      "latency_ms": 276,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "899f099e2e7746a412ea74111a90eadf89dc4da941cad69024fdf3d86736bb4d",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_notes",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/notes?per_page=20&page=1&resource_type=quoxprobe&resource_id=1&q=quoxprobe",
+      "status": 401,
+      "latency_ms": 281,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3700e103bcf8cfa91f6e48d47e54e62607efa99a8a8e06ab8e36970d44e98161",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_lead_sources",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/lead_sources?per_page=20",
+      "status": 401,
+      "latency_ms": 285,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "51eac7a2be28ad37f0d950d90dc993e522ce786e16e60cf7030c72e21bfb84cb",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_loss_reasons",
+      "method": "GET",
+      "url": "https://api.getbase.com/v2/loss_reasons?per_page=20",
+      "status": 401,
+      "latency_ms": 430,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4d0bc2abeca0136058174d08c4f950f002c38bf05778c9d7b11c3628c3abcc36",
+      "body_excerpt": "{\"errors\":[{\"error\":{\"code\":\"unauthorized\", \"details\":\"Required access token is missing, malformed, expired, or invalid.\", \"message\":\"request is unauthorized\"}, \"meta\": {\"type\": \"error\",\"links\": {\"mor",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

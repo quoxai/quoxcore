@@ -1,0 +1,77 @@
+{
+  "spec_id": "beehiiv",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:05.106Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.beehiiv.com/quox-shapeproof-control-61eba838",
+      "status": 404,
+      "latency_ms": 432,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.beehiiv.com/v2/publications",
+      "status": 401,
+      "latency_ms": 454,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "12248dffdc55c3dd327db292a097f2d75802224329d8012256f3b83dae7632b1",
+      "body_excerpt": "{\"status\":401,\"statusText\":\"unauthorized\",\"errors\":[{\"message\":\"The api key is not valid\",\"code\":\"INVALID_API_KEY\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_publications",
+      "method": "GET",
+      "url": "https://api.beehiiv.com/v2/publications?limit=20&page=1&direction=quoxprobe",
+      "status": 401,
+      "latency_ms": 196,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "12248dffdc55c3dd327db292a097f2d75802224329d8012256f3b83dae7632b1",
+      "body_excerpt": "{\"status\":401,\"statusText\":\"unauthorized\",\"errors\":[{\"message\":\"The api key is not valid\",\"code\":\"INVALID_API_KEY\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_posts",
+      "method": "GET",
+      "url": "https://api.beehiiv.com/v2/publications/quoxprobe/posts?limit=20&status=quoxprobe&audience=quoxprobe&direction=quoxprobe",
+      "status": 401,
+      "latency_ms": 181,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "12248dffdc55c3dd327db292a097f2d75802224329d8012256f3b83dae7632b1",
+      "body_excerpt": "{\"status\":401,\"statusText\":\"unauthorized\",\"errors\":[{\"message\":\"The api key is not valid\",\"code\":\"INVALID_API_KEY\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_subscriptions",
+      "method": "GET",
+      "url": "https://api.beehiiv.com/v2/publications/quoxprobe/subscriptions?limit=20&status=quoxprobe&tier=quoxprobe&email=quoxprobe",
+      "status": 401,
+      "latency_ms": 203,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "12248dffdc55c3dd327db292a097f2d75802224329d8012256f3b83dae7632b1",
+      "body_excerpt": "{\"status\":401,\"statusText\":\"unauthorized\",\"errors\":[{\"message\":\"The api key is not valid\",\"code\":\"INVALID_API_KEY\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

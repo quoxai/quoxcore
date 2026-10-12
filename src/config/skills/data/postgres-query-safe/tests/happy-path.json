@@ -1,0 +1,15 @@
+{
+  "name": "happy-path",
+  "input": {
+    "connection_string": "<connection_string>",
+    "query": "SELECT id, name, created_at FROM users WHERE org_id = $1 ORDER BY created_at DESC",
+    "params": ["org_abc123"],
+    "row_cap": 100,
+    "timeout_ms": 5000,
+    "schema": "public"
+  },
+  "expects": {
+    "contains": ["rows", "rows_returned", "columns", "stats", "duration_ms", "truncated"],
+    "not_contains": ["error", "denied", "rejected"]
+  }
+}

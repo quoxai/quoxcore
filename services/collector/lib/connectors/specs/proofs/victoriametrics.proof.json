@@ -1,0 +1,93 @@
+{
+  "spec_id": "victoriametrics",
+  "spec_version": 1,
+  "checked_at": "2026-09-13T00:32:25.424Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/status/tsdb",
+      "status": 200,
+      "latency_ms": 132,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "d87c4e595ac5950f3a394b7d3fd23d2b6ca0a51b7ffbf3408fa0ab1f07d6fc7d",
+      "body_excerpt": "{\"status\":\"success\",\"data\":{\"totalSeries\":0,\"totalLabelValuePairs\":0,\"seriesCountByMetricName\":[],\"seriesCountByLabelName\":[],\"seriesCountByFocusLabelValue\":[],\"seriesCountByLabelValuePair\":[],\"labelV",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "query",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/query?query=vm_app_version",
+      "status": 200,
+      "latency_ms": 10,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "8762161076b3bc40504d7ff29c6c0d0bf0cfd019e7070a5ba4d76552899d6353",
+      "body_excerpt": "{\"status\":\"success\",\"data\":{\"resultType\":\"vector\",\"result\":[]},\"stats\":{\"seriesFetched\": \"0\",\"executionTimeMsec\":3}}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "query_range",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/query_range?query=vm_app_version&start=2020-01-01T00%3A00%3A00Z&end=2020-01-01T00%3A05%3A00Z&step=60s",
+      "status": 200,
+      "latency_ms": 10,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "1cfebe060603b3f3c9daed1ba0070e5e2a2091f18986fbbeb62afe66be63ecd9",
+      "body_excerpt": "{\"status\":\"success\",\"data\":{\"resultType\":\"matrix\",\"result\":[]},\"stats\":{\"seriesFetched\": \"0\",\"executionTimeMsec\":0}}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "labels",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/labels",
+      "status": 200,
+      "latency_ms": 9,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "20bc1392a17b383b46fffc33c8e796755452883bfcfc2d33c90342ea70227639",
+      "body_excerpt": "{\"status\":\"success\",\"data\":[]}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "label_values",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/label/__name__/values",
+      "status": 200,
+      "latency_ms": 10,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "20bc1392a17b383b46fffc33c8e796755452883bfcfc2d33c90342ea70227639",
+      "body_excerpt": "{\"status\":\"success\",\"data\":[]}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "tsdb_status",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/status/tsdb",
+      "status": 200,
+      "latency_ms": 8,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "d87c4e595ac5950f3a394b7d3fd23d2b6ca0a51b7ffbf3408fa0ab1f07d6fc7d",
+      "body_excerpt": "{\"status\":\"success\",\"data\":{\"totalSeries\":0,\"totalLabelValuePairs\":0,\"seriesCountByMetricName\":[],\"seriesCountByLabelName\":[],\"seriesCountByFocusLabelValue\":[],\"seriesCountByLabelValuePair\":[],\"labelV",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "victoriametrics/victoria-metrics:v1.102.1"
+}

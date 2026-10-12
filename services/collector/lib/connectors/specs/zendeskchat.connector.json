@@ -1,0 +1,494 @@
+{
+  "spec_version": 1,
+  "id": "zendeskchat",
+  "name": "Zendesk Chat",
+  "category": "communication",
+  "credentialType": "zendeskchat",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://developer.zendesk.com/api-reference/live-chat/chat-api/introduction/",
+  "base_url": "https://www.zopim.com/api/v2",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/account"
+  },
+  "tools_source": "https://developer.zendesk.com/api-reference/live-chat/chat-api/introduction/",
+  "tools": [
+    {
+      "name": "get_account",
+      "description": "Get the Zendesk Chat account the access token belongs to (plan, status, account key)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/account"
+      },
+      "response": {
+        "pick": {
+          "account_key": "account_key",
+          "status": "status",
+          "create_date": "create_date",
+          "plan": "plan"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_current_agent",
+      "description": "Get the Zendesk Chat agent the access token belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/agents/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "email": "email",
+          "display_name": "display_name",
+          "first_name": "first_name",
+          "last_name": "last_name",
+          "role_id": "role_id",
+          "enabled": "enabled",
+          "departments": "departments",
+          "create_date": "create_date"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_agents",
+      "description": "List the Zendesk Chat agents on the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/agents"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "email": "email",
+            "display_name": "display_name",
+            "role_id": "role_id",
+            "enabled": "enabled",
+            "departments": "departments",
+            "create_date": "create_date"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_agent",
+      "description": "Get one Zendesk Chat agent by numeric ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "agent_id": {
+            "type": "number",
+            "description": "Zendesk Chat agent ID (numeric)"
+          }
+        },
+        "required": [
+          "agent_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/agents/{{input.agent_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "email": "email",
+          "display_name": "display_name",
+          "first_name": "first_name",
+          "last_name": "last_name",
+          "role_id": "role_id",
+          "enabled": "enabled",
+          "departments": "departments",
+          "create_date": "create_date"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_chats",
+      "description": "List Zendesk Chat chat records, cursor paginated",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "description": "Optional pagination cursor taken from a previous response's next_url"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/chats",
+        "query": {
+          "cursor": "{{input.cursor}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "chats[]": {
+            "id": "id",
+            "type": "type",
+            "timestamp": "timestamp",
+            "end_timestamp": "end_timestamp",
+            "department_id": "department_id",
+            "agent_ids": "agent_ids",
+            "missed": "missed",
+            "duration": "duration",
+            "rating": "rating",
+            "visitor_name": "visitor.name",
+            "visitor_email": "visitor.email"
+          },
+          "next_url": "next_url"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_chat",
+      "description": "Get one Zendesk Chat chat record by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "chat_id": {
+            "type": "string",
+            "description": "Zendesk Chat chat ID (e.g. 1029385.9f3d)"
+          }
+        },
+        "required": [
+          "chat_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/chats/{{input.chat_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "type": "type",
+          "timestamp": "timestamp",
+          "end_timestamp": "end_timestamp",
+          "department_id": "department_id",
+          "agent_ids": "agent_ids",
+          "missed": "missed",
+          "duration": "duration",
+          "rating": "rating",
+          "comment": "comment",
+          "tags": "tags",
+          "visitor_name": "visitor.name",
+          "visitor_email": "visitor.email"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "search_chats",
+      "description": "Search Zendesk Chat chat history with a Chat search query string",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "description": "Chat search query (e.g. a visitor email, or timestamp:[2026-01-01 TO 2026-02-01])"
+          }
+        },
+        "required": [
+          "q"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/chats/search",
+        "query": {
+          "q": "{{input.q}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "id": "id",
+            "type": "type",
+            "timestamp": "timestamp",
+            "preview": "preview"
+          },
+          "next_url": "next_url",
+          "count": "count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_departments",
+      "description": "List the Zendesk Chat departments on the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/departments"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "enabled": "enabled",
+            "settings": "settings",
+            "members": "members"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_department",
+      "description": "Get one Zendesk Chat department by numeric ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "department_id": {
+            "type": "number",
+            "description": "Zendesk Chat department ID (numeric)"
+          }
+        },
+        "required": [
+          "department_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/departments/{{input.department_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "description": "description",
+          "enabled": "enabled",
+          "settings": "settings",
+          "members": "members"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_goals",
+      "description": "List the Zendesk Chat conversion goals on the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/goals"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "enabled": "enabled",
+            "attribution_period": "attribution_period",
+            "attribution_model": "attribution_model"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_triggers",
+      "description": "List the Zendesk Chat triggers on the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/triggers"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "enabled": "enabled",
+            "event": "event"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_shortcuts",
+      "description": "List the Zendesk Chat agent shortcuts (canned replies) on the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/shortcuts"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "message": "message",
+            "options": "options",
+            "scope": "scope",
+            "tags": "tags"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_bans",
+      "description": "List the Zendesk Chat visitor and IP bans on the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/bans"
+      },
+      "response": {
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_roles",
+      "description": "List the Zendesk Chat agent roles on the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/roles"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "permissions": "permissions"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_skills",
+      "description": "List the Zendesk Chat skills on the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/skills"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "enabled": "enabled",
+            "members": "members"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "incremental_chats",
+      "description": "Incremental export of Zendesk Chat chats changed since a start time (unix seconds)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "start_time": {
+            "type": "number",
+            "description": "Unix timestamp in seconds to export changes from"
+          },
+          "fields": {
+            "type": "string",
+            "description": "Chat fields to return, Chat API field syntax (default chats(*))"
+          }
+        },
+        "required": [
+          "start_time"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/incremental/chats",
+        "query": {
+          "start_time": "{{input.start_time}}",
+          "fields": "{{input.fields}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "chats[]": {
+            "id": "id",
+            "type": "type",
+            "timestamp": "timestamp",
+            "end_timestamp": "end_timestamp",
+            "department_id": "department_id",
+            "missed": "missed",
+            "duration": "duration",
+            "rating": "rating"
+          },
+          "count": "count",
+          "end_time": "end_time",
+          "next_page": "next_page"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "base_url moved from https://chat.zendesk.com to the documented legacy Zopim host https://www.zopim.com/api/v2. Both hosts are live, but chat.zendesk.com answers an identical OAuth 401 at every path including a bogus control path (auth wall, no path proof), while www.zopim.com/api/v2 routes: real endpoints answer 401 Unauthorized and unknown subpaths answer 404 Not Found. The vault testEndpoint still points at chat.zendesk.com/api/v2/account.",
+      "list_bans ships without a pick: the Chat API bans response is documented as a keyed object (visitor / ip_address) rather than a flat list, and a wrong array pick would silently return an empty list, so the payload is passed through truncated instead."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

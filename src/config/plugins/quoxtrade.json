@@ -1,0 +1,37 @@
+{
+  "name": "quoxtrade",
+  "version": "0.3.0",
+  "displayName": "QuoxTrade",
+  "tagline": "The trading desk that shows its working",
+  "description": "A governed, evidenced trading desk. Around 80 market indicators with explicit trigger levels, a Missing Stars regime score, a five-agent Quant desk that reasons over your live signals, and a human-approved, fully audited order loop. Paper today, wired for live execution on your own exchange. Non-custodial: your keys, your exchange, and it runs on your OAuth CLI with no metered API keys.",
+  "shortDescription": "An evidenced trading cockpit. The desk proposes, you approve, and every step is audited.",
+  "author": "Quox",
+  "license": "commercial",
+  "priceModel": "enterprise",
+  "priceDisplay": "Enterprise",
+  "tier": "enterprise",
+  "featured": true,
+  "badge": "ENTERPRISE",
+  "category": "Trading",
+  "icon": "compass",
+  "heroGradient": "linear-gradient(135deg, #0a1628 0%, #1a2a4a 50%, #0f2038 100%)",
+  "accentColor": "#38bdf8",
+  "infoUrl": "https://quox.ai/solutions/quoxtrade",
+  "docsUrl": "https://quox.ai/solutions/quoxtrade#docs",
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "marketingPoints": [
+    "Around 80 indicators, each with an explicit numeric buy/sell trigger level. No black boxes",
+    "Missing Stars: what still needs to happen, not buy now",
+    "A five-agent Quant desk that reasons over your live signals",
+    "Governed order loop: the desk proposes, you approve, it fills. Every step is audited",
+    "A server-side kill switch and per-order risk caps sit in front of every fill",
+    "Non-custodial: your keys, your exchange. Quox never holds funds"
+  ]
+}

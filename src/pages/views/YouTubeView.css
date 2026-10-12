@@ -1,0 +1,233 @@
+/* YouTubeView — Plugin Dashboard */
+
+.youtube-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, #0f1020 50%, rgba(255, 255, 255, 0.04) 100%);
+}
+
+.youtube-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), var(--m-bg-base);
+  -webkit-backdrop-filter: var(--qx-blur);
+  backdrop-filter: var(--qx-blur);
+  flex-shrink: 0;
+}
+
+.youtube-view__title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.youtube-view__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.youtube-view__error {
+  font-size: 12px;
+  color: rgba(248, 113, 113, 0.9);
+  margin-left: 12px;
+}
+
+.youtube-view__refresh {
+  padding: 6px 14px;
+  background: rgba(255, 0, 0, 0.12);
+  border: 1px solid rgba(255, 0, 0, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 0, 0, 0.9);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.youtube-view__refresh:hover:not(:disabled) {
+  background: rgba(255, 0, 0, 0.2);
+}
+
+.youtube-view__refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Tab Switcher ─────────────────────────────────── */
+.youtube-view__tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.youtube-view__tab {
+  padding: 5px 12px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.youtube-view__tab:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.youtube-view__tab--active {
+  background: rgba(255, 0, 0, 0.15);
+  color: rgba(255, 0, 0, 0.95);
+}
+
+/* ─── Dashboard + Chat Layout ──────────────────────── */
+.youtube-view__layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.youtube-view__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  transition: flex 0.25s ease;
+}
+
+.youtube-view__grid--full {
+  flex: 1;
+}
+
+.youtube-view__top {
+  flex-shrink: 0;
+}
+
+.youtube-view__main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+.youtube-view__left {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.youtube-view__left .yt-panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.youtube-view__right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+.youtube-view__bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+/* ─── Chat Sidebar (collapsible) ───────────────────── */
+.youtube-view__chat-sidebar {
+  width: 340px;
+  min-width: 340px;
+  max-width: 340px;
+  height: 100%;
+  overflow: hidden;
+  transition: width 0.25s ease, min-width 0.25s ease, opacity 0.2s ease;
+  border-left: 1px solid rgba(255, 0, 0, 0.08);
+}
+
+.youtube-view__chat-sidebar--collapsed {
+  width: 0;
+  min-width: 0;
+  max-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  border-left: none;
+}
+
+.youtube-view__chat-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  backdrop-filter: blur(8px);
+}
+
+.youtube-view__chat-toggle:hover {
+  background: rgba(255, 0, 0, 0.12);
+  border-color: rgba(255, 0, 0, 0.25);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.youtube-view__layout:has(.youtube-view__chat-sidebar:not(.youtube-view__chat-sidebar--collapsed)) .youtube-view__chat-toggle {
+  right: 348px;
+}
+
+/* ─── Full Chat Tab ────────────────────────────────── */
+.youtube-view__chat-full {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.youtube-view__chat-full .yt-chat-sidebar {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* ─── Responsive ───────────────────────────────────── */
+@media (max-width: 1100px) {
+  .youtube-view__chat-sidebar {
+    width: 300px;
+    min-width: 300px;
+    max-width: 300px;
+  }
+}
+
+@media (max-width: 900px) {
+  .youtube-view__main {
+    grid-template-columns: 1fr;
+  }
+  .youtube-view__bottom {
+    grid-template-columns: 1fr;
+  }
+  .youtube-view__chat-sidebar {
+    display: none;
+  }
+}

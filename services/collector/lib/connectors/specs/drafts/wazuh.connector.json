@@ -1,0 +1,32 @@
+{
+  "spec_version": 1,
+  "id": "wazuh",
+  "name": "Wazuh",
+  "category": "monitoring",
+  "credentialType": "wazuh",
+  "requiredFields": [
+    "base_url",
+    "username",
+    "password"
+  ],
+  "docs": "https://documentation.wazuh.com/current/user-manual/api/reference.html",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "username",
+    "passField": "password"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/security/user/authenticate"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "name": "quox-security",
+  "version": "0.1.0",
+  "displayName": "QUOX-SECURITY",
+  "tagline": "The permission slip a security test has to pass before it runs.",
+  "description": "Security testing engagement/scope substrate: authorization, target verification, and adversarially-verified findings. In development, Phase 1 of 5. No live scan capability is reachable from this UI yet, that lives in chat and the CLI once a bastion-managed scan host exists.",
+  "shortDescription": "Security testing engagement management, in development",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 99,
+  "priceDisplay": "$99",
+  "priceModel": "one-time",
+  "tier": "standard",
+  "featured": false,
+  "icon": "shield",
+  "accentColor": "#c9302c",
+  "infoUrl": "https://quox.ai/solutions/quox-security",
+  "docsUrl": null,
+  "marketingPoints": [
+    "Every capability call passes a real policy gate: scope, verification, risk ceiling, time window",
+    "Domain verification via DNS TXT or a well-known file, SSRF-guarded",
+    "4 chat-reachable specialist agents, all policy-gated the same way the UI is",
+    "Adversarially-verified findings: a confirmed or refuted verdict always carries a reason"
+  ],
+  "features": {
+    "engagementScope": {
+      "name": "Engagement scope",
+      "description": "Create an engagement, set its environment tier and risk ceiling, add and verify targets.",
+      "icon": "shield",
+      "highlight": true
+    },
+    "findingsReview": {
+      "name": "Findings",
+      "description": "Candidate findings and their adversarially-reached verdicts, read here once an agent or the CLI reports one.",
+      "icon": "check-circle",
+      "highlight": false
+    }
+  }
+}

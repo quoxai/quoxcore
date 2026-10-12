@@ -1,0 +1,114 @@
+{
+  "name": "quoxsignal",
+  "version": "0.1.0",
+  "displayName": "QuoxSignal",
+  "tagline": "Watches your sources, transcribes what matters, drafts the finding.",
+  "description": "Follows TikTok, Instagram, YouTube, and RSS/podcast sources, transcribes new posts, and runs an evidence-gated lens over the transcript before ever showing you a claim. Every proposal cites a verbatim transcript quote or it never surfaces. SCOUT, the triage specialist, explains and challenges verdicts and drafts QuoxPlan stream entries from approved findings. Decisions stay human.",
+  "shortDescription": "Account-watching, transcription, and evidence-gated proposal triage",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 39,
+  "priceDisplay": "$39",
+  "priceModel": "one-time",
+  "tier": "tier_b",
+  "featured": true,
+  "icon": "radio",
+  "accentColor": "#38bdf8",
+  "infoUrl": "https://quox.ai/solutions/quoxsignal",
+  "docsUrl": "https://quox.ai/docs/quoxsignal",
+  "marketingPoints": [
+    "Follows TikTok, Instagram, YouTube, and RSS/podcast sources automatically",
+    "Evidence-gated proposals: a finding without a verbatim transcript quote is dropped, never invented",
+    "SCOUT triage specialist explains and challenges verdicts, cites the transcript, never guesses",
+    "Two-tier triage keeps cost trivial: cheap score first, expensive analysis only on survivors",
+    "Approved findings hand off to QuoxPlan as a drafted stream entry, human-decided every time"
+  ],
+  "features": {
+    "feed": {
+      "name": "Feed",
+      "description": "Every discovered item across every followed source, with triage score, stage, and thumbnail in one scannable list.",
+      "icon": "activity",
+      "highlight": true
+    },
+    "sources": {
+      "name": "Sources",
+      "description": "Follow accounts and feeds across TikTok, Instagram, YouTube, and RSS/podcasts; see health and last-poll status per source.",
+      "icon": "radio"
+    },
+    "proposals": {
+      "name": "Proposals",
+      "description": "Evidence-gated findings queued for human decision: approve, reject, or hand off to a QuoxPlan stream entry.",
+      "icon": "check-square",
+      "highlight": true
+    },
+    "scoutChat": {
+      "name": "SCOUT",
+      "description": "The signal triage specialist: explains a verdict, argues the counter-case, and drafts a QuoxPlan entry from an approved proposal.",
+      "icon": "bot"
+    },
+    "evidenceTrail": {
+      "name": "Evidence Trail",
+      "description": "Every proposal's evidence chain, verifiable back to the transcript quote it was drawn from.",
+      "icon": "archive"
+    }
+  },
+  "safety": {
+    "destructiveActions": [],
+    "requiresApproval": [
+      "proposal.decided",
+      "proposal.handed_off"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": false
+  },
+  "specialist": {
+    "name": "SCOUT",
+    "description": "Signal triage analyst: explains and challenges verdicts, drafts QuoxPlan stream entries from approved proposals. Grounded in transcript evidence, never invents a finding.",
+    "avatar": "/assets/agents/scout.svg",
+    "capabilities": [
+      "content-triage",
+      "evidence-review",
+      "proposal-drafting"
+    ]
+  },
+  "capabilities": {
+    "aeeIntents": [
+      "signal.item.discovered",
+      "signal.item.stage_requested",
+      "signal.proposal.created",
+      "signal.proposal.decided",
+      "signal.proposal.handed_off",
+      "signal.proposal.enriched"
+    ]
+  },
+  "limits": {
+    "free": {},
+    "paid": {
+      "feedEnabled": true,
+      "sourcesEnabled": true,
+      "proposalsEnabled": true,
+      "scoutChatEnabled": true,
+      "evidenceTrailEnabled": true
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0"
+  },
+  "integration": {
+    "service": "quoxai/quoxsignal",
+    "port": 3108,
+    "healthEndpoint": "/health",
+    "client": "src/components/quoxsignal/lib/api.js",
+    "view": "src/components/quoxsignal/QuoxSignalView.jsx"
+  },
+  "changelog": {
+    "0.1.0": {
+      "date": "2026-07-28",
+      "changes": [
+        "Initial plugin registration: manifest, nav gating, route gating, and a locked-state sales surface",
+        "Not yet server-side licence-governed (LICENSE_GOVERNED_PLUGINS). See docs/QUOXSIGNAL_GATING.md for the cutover this requires"
+      ]
+    }
+  },
+  "category": "AI & Intelligence"
+}

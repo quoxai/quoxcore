@@ -1,0 +1,194 @@
+{
+  "spec_version": 1,
+  "id": "calendly",
+  "name": "Calendly",
+  "category": "crm_sales",
+  "credentialType": "calendly",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developer.calendly.com/",
+  "base_url": "https://api.calendly.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/users/me"
+  },
+  "tools_source": "https://developer.calendly.com/api-docs",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the Calendly user the API key belongs to (URI, name, email, scheduling URL, timezone, organization)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/users/me"
+      },
+      "response": {
+        "pick": {
+          "uri": "resource.uri",
+          "name": "resource.name",
+          "email": "resource.email",
+          "slug": "resource.slug",
+          "scheduling_url": "resource.scheduling_url",
+          "timezone": "resource.timezone",
+          "current_organization": "resource.current_organization"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_event_types",
+      "description": "List the Calendly event types owned by a user (use get_me to obtain the user URI)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_uri": {
+            "type": "string",
+            "description": "Calendly user URI, e.g. https://api.calendly.com/users/AAAAAAAAAAAAAAAA"
+          },
+          "count": {
+            "type": "number",
+            "description": "Max event types to return (default 20, max 50)"
+          }
+        },
+        "required": [
+          "user_uri"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/event_types",
+        "query": {
+          "user": "{{input.user_uri}}",
+          "count": "{{clamp input.count 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "collection[]": {
+            "uri": "uri",
+            "name": "name",
+            "slug": "slug",
+            "active": "active",
+            "duration": "duration",
+            "kind": "kind",
+            "scheduling_url": "scheduling_url"
+          },
+          "next_page_token": "pagination.next_page_token"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_scheduled_events",
+      "description": "List Calendly scheduled events for a user, optionally filtered by status (use get_me to obtain the user URI)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_uri": {
+            "type": "string",
+            "description": "Calendly user URI, e.g. https://api.calendly.com/users/AAAAAAAAAAAAAAAA"
+          },
+          "count": {
+            "type": "number",
+            "description": "Max scheduled events to return (default 20, max 50)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "canceled"
+            ],
+            "description": "Optional event status to filter by"
+          }
+        },
+        "required": [
+          "user_uri"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/scheduled_events",
+        "query": {
+          "user": "{{input.user_uri}}",
+          "count": "{{clamp input.count 20 50}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "collection[]": {
+            "uri": "uri",
+            "name": "name",
+            "status": "status",
+            "start_time": "start_time",
+            "end_time": "end_time",
+            "event_type": "event_type",
+            "invitees_active": "invitees_counter.active",
+            "invitees_total": "invitees_counter.total"
+          },
+          "next_page_token": "pagination.next_page_token"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_invitees",
+      "description": "List the invitees of one Calendly scheduled event (event UUID is the last path segment of a scheduled event URI)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "event_uuid": {
+            "type": "string",
+            "description": "Scheduled event UUID, the last segment of the event URI"
+          },
+          "count": {
+            "type": "number",
+            "description": "Max invitees to return (default 20, max 50)"
+          }
+        },
+        "required": [
+          "event_uuid"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/scheduled_events/{{input.event_uuid}}/invitees",
+        "query": {
+          "count": "{{clamp input.count 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "collection[]": {
+            "uri": "uri",
+            "name": "name",
+            "email": "email",
+            "status": "status",
+            "timezone": "timezone",
+            "created_at": "created_at"
+          },
+          "next_page_token": "pagination.next_page_token"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,135 @@
+{
+  "spec_version": 1,
+  "id": "resend",
+  "name": "Resend",
+  "category": "marketing_email",
+  "credentialType": "resend",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://resend.com/docs/api-reference",
+  "base_url": "https://api.resend.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/domains"
+  },
+  "tools_source": "https://resend.com/docs/api-reference",
+  "tools": [
+    {
+      "name": "list_domains",
+      "description": "List the sending domains registered on the Resend account, with verification status and region",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/domains"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "region": "region",
+            "created_at": "created_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_api_keys",
+      "description": "List the Resend API keys on the account (metadata only, the secret token is never returned)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api-keys"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "created_at": "created_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_audiences",
+      "description": "List the Resend audiences (contact lists) on the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/audiences"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "created_at": "created_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_email",
+      "description": "Get one sent Resend email by ID, including recipients, subject and its latest delivery event",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email_id": {
+            "type": "string",
+            "description": "Resend email ID returned when the email was sent (a UUID)"
+          }
+        },
+        "required": [
+          "email_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/emails/{{input.email_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "from": "from",
+          "to": "to",
+          "cc": "cc",
+          "bcc": "bcc",
+          "reply_to": "reply_to",
+          "subject": "subject",
+          "created_at": "created_at",
+          "last_event": "last_event"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

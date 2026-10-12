@@ -1,0 +1,123 @@
+{
+  "description": "Held-out paraphrases authored by hand 2026-10-06 against real QUOX DEV org (01KKNKH398) notes. Each question deliberately avoids the target note's distinctive words. Near-misses are on corpus topics but their answer is not in the corpus.",
+  "paraphrases": [
+    {
+      "noteId": "43ab178b6f1f48e15dfb7219a6fd8229330d58ca",
+      "question": "which long punctuation mark are we forbidden from putting in written copy because it reads as machine generated"
+    },
+    {
+      "noteId": "02983f0f7649f971318cadde82c165e8d63bcd82",
+      "question": "what did the owner decide about charging for the second brain, which part costs money and which part is given away"
+    },
+    {
+      "noteId": "4037253bdb639c4a21b39aabcccaee193e1964de",
+      "question": "am I allowed to bounce a background process that other terminals also rely on without checking first"
+    },
+    {
+      "noteId": "606f037c9508b7c18ceb61ba65785fcc147a3ca3",
+      "question": "why should I avoid parking my uncommitted edits on the common shelf that every parallel session pops from"
+    },
+    {
+      "noteId": "d0ad9c2187311acfa2de92da3994d7994eb4cb41",
+      "question": "which product replaced the old leaky headless chromium helper for poking at a running site"
+    },
+    {
+      "noteId": "9c81b690c17e1930eefc0e948845cbe632afa141",
+      "question": "a newly added endpoint on the central API keeps answering 401, what rule causes that"
+    },
+    {
+      "noteId": "05b3b0c0ac400d5d6e90aa0e2fe6dbf75c48f8d1",
+      "question": "how do parallel coding sessions avoid trampling each other's branch and baking stale frontend output"
+    },
+    {
+      "noteId": "88d74939facd51e1f3af95c3a544fe88b974bde4",
+      "question": "where exactly should alerts meant for the boss's mobile be posted"
+    },
+    {
+      "noteId": "6500d0bc5937ff5397e2309f4a4349d6d6d9f1b3",
+      "question": "since late july what is authoritative for workstream progress, and what restore step once wiped edits"
+    },
+    {
+      "noteId": "a31a88481eaa46a9568387eabd19ea7746d3ce1c",
+      "question": "how are image rebuilds from many sessions serialised and merged when two ask at nearly the same moment"
+    },
+    {
+      "noteId": "37db8be2922f8bb67a01381c6da4594f522fe305",
+      "question": "the leak scanner only checked pictures, what else must it inspect before anything goes public"
+    },
+    {
+      "noteId": "baab16e5109cc91372c959ba4276d8e18ffbe448",
+      "question": "why is printing everything except the keys named like passwords an unsafe way to read one field"
+    },
+    {
+      "noteId": "f0aa080d7bd1b676bf5f6101e3910a76a60c77cb",
+      "question": "a host unit kept relaunching forever and burned a core because the port was already taken by a container"
+    },
+    {
+      "noteId": "0fe69a4c2b7c09392482bdd617cb68c35dc63c4f",
+      "question": "does landing a branch on the primary line of the marketing site publish it to customers immediately"
+    },
+    {
+      "noteId": "73cad3445b8863106f8482cc742715d0580b532f",
+      "question": "can I trust a helper model when it says something failed or was not done"
+    },
+    {
+      "noteId": "b56c482a77b6bfaa29a75f58b03fc9a90d5f57f3",
+      "question": "why did ranking processes by the usual percentage column mislead us about what was hogging the processor"
+    },
+    {
+      "noteId": "34e8b7ab9b5f03c8984a6cee0535040062c33d43",
+      "question": "should commits credit the language model as a co writer in the message footer"
+    },
+    {
+      "noteId": "ff5ac77727a0b907dc66339ef6b3df6c7d7855be",
+      "question": "after a mistake, where should the takeaway be written so it actually fires next time instead of sitting passively"
+    },
+    {
+      "noteId": "82f462b4865dc62a76cbf2e973c66482c616e10b",
+      "question": "which author name and address should every commit be made under"
+    },
+    {
+      "noteId": "b5cd84c5b00f328a62baadc5ba3434a857556955",
+      "question": "why do some vector instructions fail on one older hypervisor box and why stop and start rather than a soft restart"
+    },
+    {
+      "noteId": "80c7654ee971cab1a6a146a679aa8671bb9e56c8",
+      "question": "should the company name be written in all capitals"
+    },
+    {
+      "noteId": "930990a6dfe4945ab6dab556c36dda46d9a1c7c0",
+      "question": "what must run before the server fetches an address a user supplied, to stop it reaching internal machines"
+    },
+    {
+      "noteId": "3cbc089a886ced6f1b44816fd4a0a77f86166420",
+      "question": "where is the private key that signs product entitlements kept safe, and who holds its passphrase"
+    }
+  ],
+  "nearMisses": [
+    {
+      "query": "what salary band did we offer the first hired support engineer",
+      "topic": "hiring"
+    },
+    {
+      "query": "which venture capital firm led our seed round and at what valuation",
+      "topic": "funding"
+    },
+    {
+      "query": "what is the office wifi password for the london site",
+      "topic": "office"
+    },
+    {
+      "query": "how many paying enterprise customers renewed their annual contract last quarter",
+      "topic": "revenue"
+    },
+    {
+      "query": "what did the owner say about the brain2 pricing in japanese yen for the tokyo reseller",
+      "topic": "pricing"
+    },
+    {
+      "query": "which kubernetes helm chart version do we pin for the production collector cluster",
+      "topic": "deploy"
+    }
+  ]
+}

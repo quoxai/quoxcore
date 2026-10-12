@@ -1,0 +1,138 @@
+{
+  "name": "bastion-fleet",
+  "version": "1.0.0",
+  "displayName": "QuoxBastion Fleet Manager",
+  "tagline": "Your Fleet's Single Source of Truth",
+  "description": "Centralized host registry and secure remote command execution. The foundation for all fleet operations in QuoxCORE.",
+  "shortDescription": "Host registry and secure remote access.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 15,
+  "priceDisplay": "$15",
+  "priceModel": "one-time",
+  "tier": "standard",
+  "featured": true,
+  "icon": "server",
+  "accentColor": "#0ea5e9",
+  "infoUrl": "https://quox.ai/solutions/quoxbastion",
+  "docsUrl": "https://quox.ai/docs/plugins/bastion-fleet",
+  "configSchema": {
+    "apiToken": {
+      "label": "API Token",
+      "description": "API token generated during QuoxBastion installation. Check the install output or configs/tokens.json on the bastion server.",
+      "type": "string",
+      "placeholder": "Enter your bastion API token",
+      "default": ""
+    },
+    "backendUrl": {
+      "label": "Backend URL",
+      "description": "URL of the QuoxBastion API server. Default uses the proxy path /bastion.",
+      "type": "string",
+      "placeholder": "/bastion",
+      "default": "/bastion"
+    }
+  },
+  "marketingPoints": [
+    "Single source of truth for all hosts",
+    "Secure SSH command execution with audit trail",
+    "Group-based host organization",
+    "CIPHER/DAEDALUS agent integration",
+    "Full AEE compliance"
+  ],
+  "features": {
+    "hostRegistry": {
+      "name": "Host Registry",
+      "description": "Manage all hosts from one central registry. Add, edit, group, and tag hosts.",
+      "icon": "database",
+      "highlight": true
+    },
+    "remoteExec": {
+      "name": "Remote Execution",
+      "description": "Execute commands on any host or group with full audit trail.",
+      "icon": "terminal",
+      "highlight": true
+    },
+    "sshKeys": {
+      "name": "SSH Key Management",
+      "description": "Manage and deploy SSH keys across your fleet.",
+      "icon": "key"
+    },
+    "auditLog": {
+      "name": "Audit Log",
+      "description": "Complete audit trail with AEE envelope integration.",
+      "icon": "shield"
+    },
+    "agentSync": {
+      "name": "Agent Sync",
+      "description": "Automatic sync with CIPHER/DAEDALUS agents.",
+      "icon": "refresh-cw"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "QuoxBastion backend running on bastion host"
+  },
+  "integration": {
+    "client": "bastionClient.js",
+    "panel": "components/BastionPanel.jsx"
+  },
+  "capabilities": {
+    "aeeIntents": [
+      "bastion.host.list",
+      "bastion.host.add",
+      "bastion.host.remove",
+      "bastion.exec.command",
+      "bastion.key.deploy"
+    ],
+    "toolAccess": "managers+"
+  },
+  "safety": {
+    "destructiveActions": [
+      "exec.command",
+      "host.delete",
+      "key.revoke"
+    ],
+    "requiresApproval": [
+      "exec.command"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": true
+  },
+  "category": "Infrastructure",
+  "nocIntegration": {
+    "tab": {
+      "label": "Bastion",
+      "icon": "shield",
+      "order": 40
+    },
+    "quickActions": [
+      {
+        "id": "bastion-hosts",
+        "label": "Host Registry",
+        "icon": "services",
+        "description": "List all registered bastion hosts",
+        "severity": "info",
+        "prompt": "List all hosts registered in the bastion with their status and group"
+      },
+      {
+        "id": "bastion-sessions",
+        "label": "SSH Sessions",
+        "icon": "logs",
+        "description": "Show active SSH sessions through bastion",
+        "severity": "info",
+        "prompt": "Show active SSH sessions through the bastion proxy"
+      }
+    ],
+    "schedulable": true,
+    "templateVariables": [
+      {
+        "name": "host",
+        "description": "Target host accessible via bastion"
+      },
+      {
+        "name": "group",
+        "description": "Host group filter"
+      }
+    ]
+  }
+}

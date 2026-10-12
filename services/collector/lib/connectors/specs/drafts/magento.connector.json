@@ -1,0 +1,30 @@
+{
+  "spec_version": 1,
+  "id": "magento",
+  "name": "Adobe Commerce (Magento)",
+  "category": "ecommerce",
+  "credentialType": "magento",
+  "requiredFields": [
+    "access_token",
+    "base_url"
+  ],
+  "docs": "https://developer.adobe.com/commerce/webapi/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/rest/V1/store/storeConfigs"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

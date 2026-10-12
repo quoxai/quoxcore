@@ -1,0 +1,77 @@
+{
+  "spec_id": "mercury",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T00:32:37.442Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.mercury.com/quox-shapeproof-control-b769a698",
+      "status": 404,
+      "latency_ms": 6416,
+      "classification": "CONTROL",
+      "body_sha256": "9915813d6aa43a5fb4bcfe1f2f53a899c2b94ea60704d994f77a1f080deb0666",
+      "body_excerpt": "{\"errors\":{\"notFound\":[\"We couldn’t find the data associated with your request. Please contact help@mercury.com\"]}}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.mercury.com/api/v1/accounts",
+      "status": 401,
+      "latency_ms": 366,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7f3ecf86a3efccda8aa39bfada2fef435ac3eb3be4bf10ca78f4541f0f3f73a7",
+      "body_excerpt": "{\"errors\":{\"errorCode\":\"noTokenInDB\",\"message\":\"No matching token found\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_accounts",
+      "method": "GET",
+      "url": "https://api.mercury.com/api/v1/accounts",
+      "status": 401,
+      "latency_ms": 377,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7f3ecf86a3efccda8aa39bfada2fef435ac3eb3be4bf10ca78f4541f0f3f73a7",
+      "body_excerpt": "{\"errors\":{\"errorCode\":\"noTokenInDB\",\"message\":\"No matching token found\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_account",
+      "method": "GET",
+      "url": "https://api.mercury.com/api/v1/account/quoxprobe",
+      "status": 404,
+      "latency_ms": 380,
+      "classification": "FAIL",
+      "body_sha256": "9915813d6aa43a5fb4bcfe1f2f53a899c2b94ea60704d994f77a1f080deb0666",
+      "body_excerpt": "{\"errors\":{\"notFound\":[\"We couldn’t find the data associated with your request. Please contact help@mercury.com\"]}}",
+      "flags": {
+        "path_wrong": true
+      }
+    },
+    {
+      "name": "list_transactions",
+      "method": "GET",
+      "url": "https://api.mercury.com/api/v1/account/quoxprobe/transactions?limit=20&offset=1&start=quoxprobe&end=quoxprobe",
+      "status": 404,
+      "latency_ms": 334,
+      "classification": "FAIL",
+      "body_sha256": "9915813d6aa43a5fb4bcfe1f2f53a899c2b94ea60704d994f77a1f080deb0666",
+      "body_excerpt": "{\"errors\":{\"notFound\":[\"We couldn’t find the data associated with your request. Please contact help@mercury.com\"]}}",
+      "flags": {
+        "path_wrong": true
+      }
+    }
+  ],
+  "overall": "FAIL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

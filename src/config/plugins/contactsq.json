@@ -1,0 +1,88 @@
+{
+  "name": "contactsq",
+  "version": "0.1.0",
+  "displayName": "ContactsQ",
+  "tagline": "Governed contacts for people and agents.",
+  "description": "A governed address book for you and your org. Contact details are encrypted at rest, agents see masked cards and safe greetings rather than raw numbers, callers resolve to a name, and a suppression list stops you contacting people who said no.",
+  "shortDescription": "Governed contacts with caller-ID and a suppression list; agents never receive raw identifiers",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "one-time",
+  "_pricingNote": "Pricing is an open owner decision; price 0 / core-free is a placeholder for P0.",
+  "tier": "core-free",
+  "featured": false,
+  "icon": "users",
+  "accentColor": "#38bdf8",
+  "marketingPoints": [
+    "Governed store: every detail encrypted at rest under a per-contact key",
+    "Caller-ID: resolve a number or email to a contact, with a safe greeting for voice agents",
+    "Suppression list: do-not-contact entries checked on every resolve",
+    "Leased, not given: agents get masked cards, only humans can read raw values"
+  ],
+  "features": {
+    "governedStore": {
+      "name": "Governed store",
+      "description": "Per-contact encryption, org isolation, and witnessed reads.",
+      "icon": "lock",
+      "highlight": true
+    },
+    "callerId": {
+      "name": "Caller-ID",
+      "description": "Resolve a phone number or email to a contact and a safe greeting.",
+      "icon": "phone",
+      "highlight": true
+    },
+    "suppression": {
+      "name": "Suppression list",
+      "description": "Do-not-call, do-not-market and bounced entries, stored as blind indexes only.",
+      "icon": "ban",
+      "highlight": true
+    },
+    "leasedNotGiven": {
+      "name": "Leased, not given",
+      "description": "Agents receive masked cards; raw identifiers are human-only.",
+      "icon": "key",
+      "highlight": false
+    }
+  },
+  "safety": {
+    "destructiveActions": [
+      "contacts.erase",
+      "contacts.merge",
+      "contacts.retention_run"
+    ],
+    "requiresApproval": [
+      "contacts_dial",
+      "contacts_send",
+      "contacts_context"
+    ],
+    "_approvalNote": "Agents need a person to approve contacts_dial, contacts_send and contacts_context unless a standing grant covers the contact, channel and purpose. Erase, merge and the retention run are human org admin only.",
+    "aeeRequired": true,
+    "killSwitchEnabled": false
+  },
+  "requirements": {
+    "quox": ">=4.0.0"
+  },
+  "integration": {
+    "client": "src/components/contactsq/lib/api.js",
+    "view": "src/components/contactsq/ContactsQView.jsx"
+  },
+  "aware": {
+    "feed": "contacts",
+    "subjects": [
+      { "prefix": "contacts:", "area": "people", "kind": "contacts" }
+    ],
+    "heartbeat_s": 300
+  },
+  "changelog": {
+    "0.1.0": {
+      "date": "2026-10-08",
+      "changes": [
+        "P0 substrate: governed contact store, caller-ID resolve, suppression list, settings, CLI"
+      ]
+    }
+  },
+  "category": "Productivity"
+}

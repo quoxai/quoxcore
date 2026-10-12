@@ -1,0 +1,115 @@
+{
+  "id": "chief-medium",
+  "type": "team",
+  "version": "1.0.0",
+  "displayName": "Chief Team — Medium Business",
+  "description": "A comprehensive C-suite for growing businesses. Fourteen specialist chiefs spanning operations, finance, marketing, technology, people, security, legal, product, revenue, communications, information, data, and administration — all coordinated by the CEO.",
+  "author": "Quox",
+  "tier": "tier_b",
+  "price": 10,
+  "priceModel": "one-time",
+  "icon": "building",
+  "accentColor": "#7c3aed",
+
+  "orchestrator": {
+    "agentId": "ceo",
+    "role": "orchestrator",
+    "domains": ["strategic leadership", "cross-functional coordination", "executive decision-making"]
+  },
+
+  "members": [
+    {
+      "agentId": "coo",
+      "role": "specialist",
+      "domains": ["operations", "process optimization", "execution management", "supply chain"]
+    },
+    {
+      "agentId": "cfo",
+      "role": "specialist",
+      "domains": ["finance", "budgeting", "forecasting", "risk management", "fundraising"]
+    },
+    {
+      "agentId": "cmo",
+      "role": "specialist",
+      "domains": ["marketing", "brand strategy", "customer acquisition", "growth"]
+    },
+    {
+      "agentId": "cto",
+      "role": "specialist",
+      "domains": ["technology strategy", "architecture", "engineering", "innovation"]
+    },
+    {
+      "agentId": "cpo-people",
+      "role": "specialist",
+      "domains": ["human resources", "talent acquisition", "culture", "employee engagement"]
+    },
+    {
+      "agentId": "ciso",
+      "role": "specialist",
+      "domains": ["information security", "cyber risk", "compliance", "incident response"]
+    },
+    {
+      "agentId": "clo",
+      "role": "specialist",
+      "domains": ["legal strategy", "contracts", "corporate governance", "regulatory affairs"]
+    },
+    {
+      "agentId": "cpo-product",
+      "role": "specialist",
+      "domains": ["product strategy", "roadmap planning", "user research", "product-market fit"]
+    },
+    {
+      "agentId": "cro-revenue",
+      "role": "specialist",
+      "domains": ["revenue strategy", "sales operations", "partnerships", "pricing"]
+    },
+    {
+      "agentId": "cco-comms",
+      "role": "specialist",
+      "domains": ["communications", "public relations", "crisis management", "brand voice"]
+    },
+    {
+      "agentId": "cio",
+      "role": "specialist",
+      "domains": ["IT strategy", "enterprise systems", "digital infrastructure", "vendor management"]
+    },
+    {
+      "agentId": "cdo-data",
+      "role": "specialist",
+      "domains": ["data strategy", "analytics", "data governance", "business intelligence"]
+    },
+    {
+      "agentId": "cao",
+      "role": "specialist",
+      "domains": ["administration", "corporate services", "facilities", "internal compliance"]
+    }
+  ],
+
+  "policies": {
+    "maxBudgetTokens": 800000,
+    "maxBudgetToolCalls": 350,
+    "maxDurationMs": 21600000,
+    "maxTaskDurationMs": 1200000,
+    "heartbeatIntervalMs": 15000,
+    "maxParallelTasks": 5,
+    "requireApprovalBeforeStart": false,
+    "checkpointAfterEachTask": false,
+    "voltRequired": false,
+    "allowedChannels": ["slack", "telegram", "discord", "email"]
+  },
+
+  "sharedContext": {
+    "persistent": true,
+    "schema": {
+      "companyName": "",
+      "industry": "",
+      "stage": "",
+      "headcount": 0,
+      "annualRevenue": "",
+      "keyMetrics": {},
+      "strategicPriorities": [],
+      "quarterlyOKRs": [],
+      "competitiveLandscape": {}
+    }
+  }
+}

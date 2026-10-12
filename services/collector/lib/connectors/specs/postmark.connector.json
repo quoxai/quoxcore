@@ -1,0 +1,231 @@
+{
+  "spec_version": 1,
+  "id": "postmark",
+  "name": "Postmark",
+  "category": "marketing_email",
+  "credentialType": "postmark",
+  "requiredFields": [
+    "server_token"
+  ],
+  "docs": "https://postmarkapp.com/developer",
+  "base_url": "https://api.postmarkapp.com",
+  "auth": {
+    "type": "header",
+    "header": "X-Postmark-Server-Token",
+    "template": "{{server_token}}"
+  },
+  "static_headers": {
+    "Accept": "application/json"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/server"
+  },
+  "tools_source": "https://postmarkapp.com/developer/api/overview",
+  "tools": [
+    {
+      "name": "get_server",
+      "description": "Get the Postmark server this token belongs to (name, delivery type, inbound address and tracking settings)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/server"
+      },
+      "response": {
+        "pick": {
+          "id": "ID",
+          "name": "Name",
+          "color": "Color",
+          "delivery_type": "DeliveryType",
+          "smtp_api_activated": "SmtpApiActivated",
+          "inbound_address": "InboundAddress",
+          "server_link": "ServerLink",
+          "track_opens": "TrackOpens",
+          "track_links": "TrackLinks"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "outbound_overview",
+      "description": "Get the Postmark outbound sending overview (sent, bounced, bounce rate, spam complaints, opens and click totals)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string",
+            "description": "Optional message tag to filter the stats by"
+          },
+          "fromdate": {
+            "type": "string",
+            "description": "Optional inclusive start date in YYYY-MM-DD form (e.g. 2026-01-01)"
+          },
+          "todate": {
+            "type": "string",
+            "description": "Optional inclusive end date in YYYY-MM-DD form (e.g. 2026-01-31)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/stats/outbound",
+        "query": {
+          "tag": "{{input.tag}}",
+          "fromdate": "{{input.fromdate}}",
+          "todate": "{{input.todate}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "sent": "Sent",
+          "bounced": "Bounced",
+          "bounce_rate": "BounceRate",
+          "spam_complaints": "SpamComplaints",
+          "spam_complaints_rate": "SpamComplaintsRate",
+          "smtp_api_errors": "SMTPApiErrors",
+          "tracked": "Tracked",
+          "opens": "Opens",
+          "unique_opens": "UniqueOpens",
+          "total_clicks": "TotalClicks",
+          "unique_links_clicked": "UniqueLinksClicked"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_outbound_messages",
+      "description": "Search recent Postmark outbound messages, optionally filtered by recipient, tag or delivery status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Max messages to return (default 20, max 50)"
+          },
+          "recipient": {
+            "type": "string",
+            "description": "Optional recipient email address to filter by"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Optional message tag to filter by"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "sent"
+            ],
+            "description": "Optional delivery status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/messages/outbound",
+        "query": {
+          "count": "{{clamp input.count 20 50}}",
+          "offset": "0",
+          "recipient": "{{input.recipient}}",
+          "tag": "{{input.tag}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_count": "TotalCount",
+          "Messages[]": {
+            "message_id": "MessageID",
+            "from": "From",
+            "recipients": "Recipients",
+            "subject": "Subject",
+            "status": "Status",
+            "received_at": "ReceivedAt",
+            "tag": "Tag",
+            "message_stream": "MessageStream"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_bounces",
+      "description": "List Postmark bounces, optionally filtered by bounce type, recipient email or tag",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Max bounces to return (default 20, max 50)"
+          },
+          "type": {
+            "type": "string",
+            "description": "Optional bounce type to filter by (e.g. HardBounce, SoftBounce, Transient, SpamComplaint)"
+          },
+          "emailFilter": {
+            "type": "string",
+            "description": "Optional recipient email address, or part of one, to filter by"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Optional message tag to filter by"
+          },
+          "inactive": {
+            "type": "boolean",
+            "description": "Optional filter: true returns only recipients Postmark has deactivated"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/bounces",
+        "query": {
+          "count": "{{clamp input.count 20 50}}",
+          "offset": "0",
+          "type": "{{input.type}}",
+          "emailFilter": "{{input.emailFilter}}",
+          "tag": "{{input.tag}}",
+          "inactive": "{{input.inactive}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_count": "TotalCount",
+          "Bounces[]": {
+            "id": "ID",
+            "type": "Type",
+            "name": "Name",
+            "email": "Email",
+            "from": "From",
+            "subject": "Subject",
+            "description": "Description",
+            "bounced_at": "BouncedAt",
+            "inactive": "Inactive",
+            "can_activate": "CanActivate",
+            "message_id": "MessageID",
+            "tag": "Tag"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "GET /server also returns ApiTokens, the server's own send tokens. They are deliberately NOT picked: that field is credential material and must never reach a chat transcript",
+      "the PascalCase response field names every pick depends on (TotalCount, Messages[], Bounces[], ReceivedAt) come from the official Postmark documentation, NOT from a live body: the shape-proof stops at 401, so no response was ever data. The first run with a real server token must confirm them, because a wrong pick source yields empty output silently",
+      "Postmark requires both count and offset on /messages/outbound and /bounces. offset is pinned to 0 because spec v1 exposes no pagination, so only the first page is ever returned",
+      "the messagestream parameter is not exposed on any tool, so stats and searches cover whatever Postmark's default stream scope is for the token, not a caller-chosen stream"
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

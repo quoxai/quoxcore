@@ -1,0 +1,220 @@
+{
+  "spec_version": 1,
+  "id": "msteams",
+  "name": "Microsoft Teams",
+  "category": "communication",
+  "credentialType": "msteams",
+  "requiredFields": [
+    "client_id",
+    "client_secret",
+    "tenant_id"
+  ],
+  "description": "Read-only Microsoft Teams access through Microsoft Graph with an app-only (client credentials) token: teams in the tenant, one team's detail, a team's channels and a channel's messages. Nothing is posted, edited or deleted by this connector.",
+  "docs": "https://learn.microsoft.com/en-us/graph/api/resources/teams-api-overview",
+  "base_url": "https://graph.microsoft.com",
+  "auth": {
+    "type": "oauth2_client_credentials",
+    "token_url": {
+      "template": "https://login.microsoftonline.com/{{tenant_id}}/oauth2/v2.0/token"
+    },
+    "client_auth": "form",
+    "scope": "https://graph.microsoft.com/.default",
+    "clientIdField": "client_id",
+    "clientSecretField": "client_secret"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1.0/groups",
+    "query": {
+      "$filter": "resourceProvisioningOptions/Any(x:x eq 'Team')",
+      "$top": "1"
+    }
+  },
+  "tools_source": "https://learn.microsoft.com/en-us/graph/api/resources/teams-api-overview",
+  "tools": [
+    {
+      "name": "list_teams",
+      "description": "List the teams in the Microsoft 365 tenant (display name, description, mail nickname and visibility)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "search": {
+            "type": "string",
+            "description": "Optional display-name prefix to filter by (combined with the team filter)"
+          },
+          "top": {
+            "type": "number",
+            "description": "Teams per page (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1.0/groups",
+        "query": {
+          "$filter": "resourceProvisioningOptions/Any(x:x eq 'Team')",
+          "$select": "id,displayName,description,mailNickname,visibility,createdDateTime",
+          "$search": "{{input.search}}",
+          "$top": "{{clamp input.top 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "value[]": {
+            "id": "id",
+            "displayName": "displayName",
+            "description": "description",
+            "mailNickname": "mailNickname",
+            "visibility": "visibility",
+            "createdDateTime": "createdDateTime"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_team",
+      "description": "Get one Microsoft Teams team by id (display name, description, visibility, web URL and archive state)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "description": "Team id (the group id of the team, as returned by list_teams)"
+          }
+        },
+        "required": [
+          "team_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1.0/teams/{{input.team_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "displayName": "displayName",
+          "description": "description",
+          "internalId": "internalId",
+          "classification": "classification",
+          "specialization": "specialization",
+          "visibility": "visibility",
+          "webUrl": "webUrl",
+          "isArchived": "isArchived"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_channels",
+      "description": "List the channels of one team (display name, description, membership type and web URL)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "description": "Team id (the group id of the team, as returned by list_teams)"
+          },
+          "filter": {
+            "type": "string",
+            "description": "Optional OData $filter expression, e.g. membershipType eq 'private'"
+          }
+        },
+        "required": [
+          "team_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1.0/teams/{{input.team_id}}/channels",
+        "query": {
+          "$filter": "{{input.filter}}",
+          "$select": "id,displayName,description,membershipType,webUrl,createdDateTime"
+        }
+      },
+      "response": {
+        "pick": {
+          "value[]": {
+            "id": "id",
+            "displayName": "displayName",
+            "description": "description",
+            "membershipType": "membershipType",
+            "webUrl": "webUrl",
+            "createdDateTime": "createdDateTime"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_channel_messages",
+      "description": "List the top-level messages of one channel (author, body preview, importance and timestamps)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "description": "Team id (the group id of the team, as returned by list_teams)"
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "Channel id, as returned by list_channels"
+          },
+          "top": {
+            "type": "number",
+            "description": "Messages per page (default 20, max 50)"
+          }
+        },
+        "required": [
+          "team_id",
+          "channel_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1.0/teams/{{input.team_id}}/channels/{{input.channel_id}}/messages",
+        "query": {
+          "$top": "{{clamp input.top 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "value[]": {
+            "id": "id",
+            "createdDateTime": "createdDateTime",
+            "lastModifiedDateTime": "lastModifiedDateTime",
+            "messageType": "messageType",
+            "importance": "importance",
+            "subject": "subject",
+            "from_display_name": "from.user.displayName",
+            "from_user_id": "from.user.id",
+            "body_content_type": "body.contentType",
+            "body": "body.content"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH FIXED: THE SCAFFOLD HAD auth null AND THE LOGIN HOST AS base_url. This spec uses auth.type oauth2_client_credentials with a TEMPLATED token_url (https://login.microsoftonline.com/{{tenant_id}}/oauth2/v2.0/token), client_auth form (the Microsoft identity platform wants client_id and client_secret in the body, not a Basic header) and scope https://graph.microsoft.com/.default, which is what integrationTypeRegistry.js key msteams already posts in its testBody. base_url is the API host https://graph.microsoft.com, so the login host no longer sits in front of every read.",
+      "LIST_TEAMS USES THE DOCUMENTED APP-ONLY PATH, NOT /v1.0/teams: Graph's GET /teams lists the SIGNED-IN USER'S teams and needs a delegated token, so it is unusable app-only. The documented way to enumerate teams in a tenant is GET /groups?$filter=resourceProvisioningOptions/Any(x:x eq 'Team') (learn.microsoft.com, 'List all teams in Microsoft 365'), which is what this tool issues. The consequence is honest but real: the objects returned are GROUP objects, so they carry mailNickname and group fields rather than the team fields (internalId, webUrl, isArchived) that get_team returns.",
+      "APP PERMISSIONS ARE AN ADMIN-CONSENT PREREQUISITE: Group.Read.All or Directory.Read.All for list_teams, TeamSettings.Read.Group or Team.ReadBasic.All for get_team, ChannelSettings.Read.Group or Channel.ReadBasic.All for list_channels, and ChannelMessage.Read.All for list_channel_messages. Without admin consent the token still mints and Graph then answers 403 Authorization_RequestDenied, so a missing permission looks like a working credential right up to the call. Nothing in this spec can detect that.",
+      "CHANNEL MESSAGES ARE A PROTECTED API: app-only access to /messages is a Microsoft Teams protected API and needs a separate Microsoft request-access approval on top of ChannelMessage.Read.All, with per-seat licensing for evaluation-mode use. Until that approval lands the tool authenticates and 403s. This is recorded rather than hidden because the tool otherwise looks identical to the other three.",
+      "GRAPH PAGING IS NOT EXPOSED: Graph returns the next page as @odata.nextLink, a key whose name CONTAINS A DOT, which the spec v1 pick walker splits on and therefore cannot address. Rather than ship a field that always resolves to undefined, paging is left out: $top caps a page, and there is no next-page token in the pruned response. Callers needing deep paging want a follow-up in the pick contract, not a workaround here.",
+      "NO _probe HINTS: team ids and channel ids are tenant-private GUID-shaped values with no safe public example, so the harness fires its generic dummy inputs.",
+      "SHAPE-PROOF RESULT (real run, 2026-09-12, 1 iteration): verbatim overall line 'msteams  AUTH_WALL  proven=0 authwall=5 ambiguous=0 failed=0 inconclusive=0 skipped=0'. Graph answered all five probes AND the bogus control path with the same 401 and the same error identity, {\"error\":{\"code\":\"InvalidAuthenticationToken\",\"message\":\"IDX14100: JWT is not well formed, there are no dots (.).\"}}, so control_match is error_code and every result carries path_unproven. Host, TLS and Graph's own structured error envelope are proven; NO PATH IS PROVEN BY THIS RUN. The paths rest on documentary provenance from the Graph v1.0 reference alone.",
+      "AUTH_WALL IS TERMINAL HERE, NOT A SPEC DEFECT TO ITERATE ON: Graph validates the bearer as a JWT before it routes, and the harness's dummy token has no dots, so it is rejected at the token parser upstream of any path lookup. No probe hint, path tweak or extra iteration can move this spec off AUTH_WALL blind; only a real app-only token can prove the four routes. That is why the run stopped at one iteration rather than spending the remaining two.",
+      "READ ONLY BY CONSTRUCTION: every request is a GET and no tool is marked write:true, so no message can be posted, edited or deleted, and no team or channel can be created or archived through this connector."
+    ]
+  }
+}

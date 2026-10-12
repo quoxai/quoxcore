@@ -1,0 +1,260 @@
+{
+  "spec_version": 1,
+  "id": "hashicorp_nomad",
+  "name": "HashiCorp Nomad",
+  "category": "cloud_hosting",
+  "credentialType": "hashicorp_nomad",
+  "requiredFields": [
+    "base_url",
+    "token"
+  ],
+  "docs": "https://developer.hashicorp.com/nomad/api-docs",
+  "tools_source": "https://developer.hashicorp.com/nomad/api-docs",
+  "description": "Self-hosted HashiCorp Nomad reads: the agent's own identity and stats, the known server members, the current leader, registered jobs, client nodes, and namespaces. Read-only; every job register, dispatch, stop, node drain and ACL endpoint on the same API is deliberately absent.",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "X-Nomad-Token",
+    "template": "{{token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/agent/self"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "agent_self",
+      "description": "Identify the Nomad agent this credential points at: its member identity, region, datacenter, build and server role",
+      "request": {
+        "method": "GET",
+        "path": "/v1/agent/self"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "name": "member.Name",
+          "addr": "member.Addr",
+          "port": "member.Port",
+          "status": "member.Status",
+          "region": "member.Tags.region",
+          "datacenter": "member.Tags.dc",
+          "build": "member.Tags.build",
+          "role": "member.Tags.role",
+          "server": "stats.nomad.server",
+          "leader": "stats.nomad.leader",
+          "known_regions": "stats.nomad.known_regions",
+          "cpu_count": "stats.runtime.cpu_count",
+          "goroutines": "stats.runtime.goroutines"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "agent_members",
+      "description": "List the Nomad server nodes known to this agent's gossip pool, with each member's address and status",
+      "request": {
+        "method": "GET",
+        "path": "/v1/agent/members"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "ServerName": "ServerName",
+          "ServerRegion": "ServerRegion",
+          "ServerDC": "ServerDC",
+          "Members[]": {
+            "Name": "Name",
+            "Addr": "Addr",
+            "Port": "Port",
+            "Status": "Status",
+            "Region": "Tags.region",
+            "Datacenter": "Tags.dc",
+            "Build": "Tags.build"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_leader",
+      "description": "Get the address of the current Nomad region leader",
+      "request": {
+        "method": "GET",
+        "path": "/v1/status/leader"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_jobs",
+      "description": "List the jobs registered on this Nomad cluster, optionally filtered by namespace or an ID prefix",
+      "request": {
+        "method": "GET",
+        "path": "/v1/jobs",
+        "query": {
+          "namespace": "{{input.namespace}}",
+          "prefix": "{{input.prefix}}",
+          "per_page": "{{clamp input.per_page 20 50}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "description": "Namespace to list jobs from (Nomad defaults to 'default'; '*' lists every namespace)"
+          },
+          "prefix": {
+            "type": "string",
+            "description": "Return only jobs whose ID starts with this prefix"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max jobs to return (default 20, capped at 50 by this connector)"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "ID": "ID",
+            "Name": "Name",
+            "Namespace": "Namespace",
+            "Type": "Type",
+            "Priority": "Priority",
+            "Status": "Status",
+            "StatusDescription": "StatusDescription",
+            "Datacenters": "Datacenters",
+            "Stop": "Stop",
+            "Periodic": "Periodic",
+            "ParameterizedJob": "ParameterizedJob",
+            "SubmitTime": "SubmitTime",
+            "ModifyIndex": "ModifyIndex"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.namespace": "default",
+        "input.per_page": 5
+      }
+    },
+    {
+      "name": "list_nodes",
+      "description": "List the client nodes registered with this Nomad cluster, with their status, drain state and scheduling eligibility",
+      "request": {
+        "method": "GET",
+        "path": "/v1/nodes",
+        "query": {
+          "prefix": "{{input.prefix}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "prefix": {
+            "type": "string",
+            "description": "Return only nodes whose ID starts with this prefix"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "ID": "ID",
+            "Name": "Name",
+            "Datacenter": "Datacenter",
+            "NodeClass": "NodeClass",
+            "NodePool": "NodePool",
+            "Status": "Status",
+            "StatusDescription": "StatusDescription",
+            "SchedulingEligibility": "SchedulingEligibility",
+            "Drain": "Drain",
+            "Version": "Version",
+            "CreateIndex": "CreateIndex",
+            "ModifyIndex": "ModifyIndex"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_namespaces",
+      "description": "List the namespaces defined on this Nomad cluster",
+      "request": {
+        "method": "GET",
+        "path": "/v1/namespaces"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "Name": "Name",
+            "Description": "Description",
+            "Quota": "Quota",
+            "CreateIndex": "CreateIndex",
+            "ModifyIndex": "ModifyIndex"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:token",
+      "AUTH KEPT AS SCAFFOLDED, AND THE DOCS SAY THE SAME THING: the Nomad HTTP API overview (https://developer.hashicorp.com/nomad/api-docs) documents that an ACL token is supplied in the X-Nomad-Token request header, so {type: header, header: X-Nomad-Token, template: '{{token}}'} is unchanged. The vault entry (integrationTypeRegistry.hashicorp_nomad) sends the identical header in testHeaders, and its testEndpoint is base_url + /v1/agent/self, which is this spec's test block verbatim.",
+      "THE OPTIONAL-TOKEN MISMATCH IS A REAL BLOCKER FOR ACL-DISABLED INSTANCES. The vault declares { key: 'token', label: 'ACL Token', required: false } and its testHeaders read verbatim: \"creds.token ? ({ 'X-Nomad-Token': creds.token }) : ({})\", that is, it SKIPS the header entirely when the field is blank. This spec cannot express that conditional: lib/connectors/declarativeRuntime.js buildAuth for auth.type 'header' calls renderCredentialTemplate, which calls requireCredential and THROWS 'missing credential field' when the field is absent. Nomad ships with ACLs DISABLED by default, so a customer running a stock agent needs no token at all, and a credential saved without one tests GREEN in the vault and then hard-errors on every tool call. requiredFields therefore lists 'token' even though the vault marks it optional: it documents what THIS connector needs to run, and keeps the scaffolder warning above honest rather than deleting it. Identical shape to prometheus.connector.json; closing it is a RUNTIME or SCHEMA change (an auth mode that omits its header when the field is empty), not a spec change, so it is not done here.",
+      "CATEGORY: the scaffold wrote 'uncategorized', which is not one of the twelve values in use across this spec directory (cloud_hosting, commerce_finance, communication, crm_sales, data_ai, developer, files_knowledge, hr_hiring, marketing_email, media, monitoring, project_management). Changed to 'cloud_hosting', which puts Nomad next to the other infrastructure and workload control planes already there (terraform, fly_io, render, heroku, digitalocean). The vault entry says 'infra', which is not a spec-directory value; 'cloud_hosting' is its nearest equivalent.",
+      "NOT PROVEN BY ANY RUN, BECAUSE THE HOST IS CUSTOMER-SUPPLIED: base_url comes fromCredential 'base_url', Nomad is self-hosted, and there is no vendor-run endpoint a blind shape-proof could reach. Every path, query parameter and picked field name here is DOCUMENTARY, from the HTTP API reference, not from a 2xx seen in this session. The LIVE harness, standing up an ephemeral Nomad agent in dev mode, is what must confirm them.",
+      "LIVE-PROOF CONTRACT: every tool carries a tool-level _probe and every one of the six answers on a FRESH, EMPTY instance. agent_self, agent_members, get_leader and list_namespaces need no resource at all and carry an EMPTY _probe ({}) rather than none, recording that nothing needs substituting; list_namespaces returns the built-in 'default' namespace on any instance. list_jobs returns an empty array on an agent with no jobs and probes namespace 'default' with per_page 5. list_nodes returns the dev agent's single client node, and an empty array on a server-only agent, which is still a 200. NO tool needs a provisioned resource, so nothing probes the 'quoxproof-live' resource-name convention; if the harness registers a job by that name, list_jobs simply includes it. No credential value is ever hinted.",
+      "get_leader RETURNS A BARE JSON STRING, AND THE RUNTIME DOES CARRY THAT: GET /v1/status/leader answers a JSON string such as \"127.0.0.1:4647\", not an object. declarativeRuntime.request() ends in resp.json(), which JSON.parses that body to a JavaScript string; execute() only calls applyPick when response.pick is a plain object, and truncateStrings has an explicit typeof value === 'string' branch, so a scalar payload round-trips intact. This tool therefore ships with truncate 2000 and NO pick, the same shape couchdb list_databases and luma list_camera_concepts already use for scalar payloads. A pick here would be silently WRONG: applyPick over a non-object builds an object of undefined values. Confirmed by READING lib/connectors/declarativeRuntime.js, not by a live call.",
+      "agent_members IS SERVER-ONLY: /v1/agent/members lists the known SERVER nodes from the gossip pool, so against a client-only agent it answers an error rather than an empty list. It is kept because the live harness stands up a dev-mode agent, which is both server and client; a customer pointing this connector at a client agent will see that tool fail while the other five work.",
+      "PAGINATION IS DELIBERATELY HALF-WIRED. /v1/jobs documents per_page and next_token, and the 20/50 per_page clamp is OURS (Nomad documents no default page size for it). The continuation token comes back in the X-Nomad-NextToken RESPONSE HEADER, which Connector Spec v1 response picks cannot read at all, so paging past the first page is not offered and no next_token input is declared. /v1/nodes documents no pagination, so list_nodes sends only prefix and relies on the picks plus truncate 2000 to bound the payload: a large cluster can return a long array before truncation.",
+      "WHAT IS DELIBERATELY NOT PICKED: agent_self's `config` block, which is the agent's ENTIRE resolved configuration (every address, path and integration setting, and the docs do not guarantee that every field it carries is redacted), and list_nodes' Drivers, NodeResources and ReservedResources, which are fingerprint payloads that dwarf the rest of the node stub. Only member and stats scalars, and node identity and status fields, are picked.",
+      "READ-ONLY BY CONSTRUCTION, AND THE OMISSIONS ARE THE POINT: all six tools are GET and carry write:false. The same API exposes POST /v1/jobs to register, POST /v1/job/:id/dispatch and /periodic/force, DELETE /v1/job/:id to stop, PUT node drain and scheduling-eligibility changes, PUT /v1/namespace, and the whole ACL token surface. None is wired here. Nothing in this connector may be described as managing or deploying to a Nomad cluster.",
+      "rateLimit 30/min is a LOCAL courtesy and spend guard, not a Nomad number: Nomad enforces no HTTP request rate limit of its own.",
+      "RESPONSE SHAPES COME FROM THE API DOCS, NOT FROM A RUN: the job stub (ID, Name, Namespace, Type, Priority, Status, StatusDescription, Datacenters, Stop, Periodic, ParameterizedJob, SubmitTime, ModifyIndex), the node stub (ID, Name, Datacenter, NodeClass, NodePool, Status, StatusDescription, SchedulingEligibility, Drain, Version, CreateIndex, ModifyIndex), the namespace object (Name, Description, Quota, CreateIndex, ModifyIndex), agent/self ({config, member, stats}) and agent/members ({ServerName, ServerRegion, ServerDC, Members[]}). Field names are PascalCase because Nomad's API is. NodePool exists on newer versions only; a key a given version does not send resolves to undefined and simply drops out of the picked object, so an older agent degrades to a smaller result rather than an error."
+    ]
+  }
+}

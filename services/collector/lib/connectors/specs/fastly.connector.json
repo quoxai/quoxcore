@@ -1,0 +1,179 @@
+{
+  "spec_version": 1,
+  "id": "fastly",
+  "name": "Fastly",
+  "category": "cloud_hosting",
+  "credentialType": "fastly",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://www.fastly.com/documentation/reference/api/",
+  "base_url": "https://api.fastly.com",
+  "auth": {
+    "type": "header",
+    "header": "Fastly-Key",
+    "template": "{{api_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/current_customer"
+  },
+  "tools_source": "https://www.fastly.com/documentation/reference/api/services/service/",
+  "tools": [
+    {
+      "name": "list_services",
+      "description": "List Fastly services on the account, with their type and most recent update time",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max services to return (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional 1-based page number to fetch"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/service",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "type": "type",
+            "customer_id": "customer_id",
+            "comment": "comment",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_service",
+      "description": "Get one Fastly service by ID, including its versions and which one is active",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "description": "Fastly service ID (e.g. SU1Z0isxPaozGVKXdv0eY)"
+          }
+        },
+        "required": [
+          "service_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/service/{{input.service_id}}"
+      },
+      "_probe": {
+        "input.service_id": "SU1Z0isxPaozGVKXdv0eY"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "type": "type",
+          "customer_id": "customer_id",
+          "comment": "comment",
+          "created_at": "created_at",
+          "updated_at": "updated_at",
+          "versions[]": {
+            "number": "number",
+            "active": "active",
+            "locked": "locked",
+            "deployed": "deployed",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_service_versions",
+      "description": "List the versions of one Fastly service, showing which are active, locked or deployed",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "description": "Fastly service ID (e.g. SU1Z0isxPaozGVKXdv0eY)"
+          }
+        },
+        "required": [
+          "service_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/service/{{input.service_id}}/version"
+      },
+      "_probe": {
+        "input.service_id": "SU1Z0isxPaozGVKXdv0eY"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "number": "number",
+            "active": "active",
+            "locked": "locked",
+            "deployed": "deployed",
+            "staging": "staging",
+            "testing": "testing",
+            "comment": "comment",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "current_user",
+      "description": "Get the Fastly user the API token belongs to, including role and two-factor status",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/current_user"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "login": "login",
+          "name": "name",
+          "role": "role",
+          "customer_id": "customer_id",
+          "locked": "locked",
+          "two_factor_auth_enabled": "two_factor_auth_enabled",
+          "created_at": "created_at"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

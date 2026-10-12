@@ -1,0 +1,220 @@
+/* TerminalPromo - Web Terminal Plugin Feature Page */
+
+.terminal-promo {
+    padding: 40px 24px 60px;
+}
+
+/* Reading-measure caps live on the prose blocks only, not the view root,
+   so the view itself is full-width while paragraphs stay comfortable to read.
+   .terminal-promo__features (the grid section) and its shared
+   .terminal-promo__section-title heading are deliberately excluded so the
+   feature grid can fill the freed width. */
+.terminal-promo__hero,
+.terminal-promo__highlights,
+.terminal-promo__requirements {
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* ═══ Hero ═══ */
+
+.terminal-promo__hero {
+    text-align: center;
+    margin-bottom: 48px;
+}
+
+.terminal-promo__hero-icon {
+    margin-bottom: 16px;
+    filter: drop-shadow(0 0 12px rgba(34, 197, 94, 0.3));
+}
+
+.terminal-promo__title {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary, #e0e0e0);
+    margin: 0 0 6px;
+    letter-spacing: -0.02em;
+}
+
+.terminal-promo__tagline {
+    font-size: 15px;
+    color: rgba(34, 197, 94, 0.6);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-style: italic;
+    margin: 0 0 16px;
+}
+
+.terminal-promo__desc {
+    font-size: 14px;
+    color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+    line-height: 1.6;
+    margin: 0 0 24px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.terminal-promo__cta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+}
+
+.terminal-promo__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 24px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.terminal-promo__btn--primary {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    color: #0a0e14;
+    box-shadow: 0 2px 12px rgba(34, 197, 94, 0.3);
+}
+
+.terminal-promo__btn--primary:hover {
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+    box-shadow: 0 4px 20px rgba(34, 197, 94, 0.4);
+    transform: translateY(-1px);
+}
+
+.terminal-promo__btn--primary:active {
+    transform: scale(0.98) translateY(0);
+}
+
+.terminal-promo__price {
+    font-size: 13px;
+    color: var(--text-tertiary, rgba(255, 255, 255, 0.52));
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ═══ Section Titles ═══ */
+
+.terminal-promo__section-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary, #e0e0e0);
+    margin: 0 0 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+}
+
+/* ═══ Feature Grid ═══ */
+
+.terminal-promo__features {
+    margin-bottom: 40px;
+}
+
+.terminal-promo__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.terminal-promo__card {
+    padding: 20px;
+    background: var(--surface-secondary, rgba(255, 255, 255, 0.03));
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+    border-radius: 8px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.terminal-promo__card:hover {
+    border-color: rgba(34, 197, 94, 0.15);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+.terminal-promo__card--highlight {
+    border-color: rgba(34, 197, 94, 0.12);
+    background: rgba(34, 197, 94, 0.03);
+}
+
+.terminal-promo__card--soon {
+    opacity: 0.6;
+}
+
+.terminal-promo__card-icon {
+    color: #22c55e;
+    margin-bottom: 10px;
+}
+
+.terminal-promo__card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary, #e0e0e0);
+    margin: 0 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.terminal-promo__badge {
+    font-size: 10px;
+    font-weight: 500;
+    color: rgba(234, 179, 8, 0.8);
+    background: rgba(234, 179, 8, 0.1);
+    border: 1px solid rgba(234, 179, 8, 0.2);
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.terminal-promo__card-desc {
+    font-size: 13px;
+    color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* ═══ Highlights ═══ */
+
+.terminal-promo__highlights {
+    margin-bottom: 40px;
+}
+
+.terminal-promo__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.terminal-promo__list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    font-size: 14px;
+    color: var(--text-primary, #e0e0e0);
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.04));
+}
+
+.terminal-promo__list-item:last-child {
+    border-bottom: none;
+}
+
+.terminal-promo__list-item svg {
+    flex-shrink: 0;
+}
+
+/* ═══ Requirements ═══ */
+
+.terminal-promo__requirements {
+    margin-bottom: 24px;
+}
+
+.terminal-promo__req-text {
+    font-size: 13px;
+    color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    margin: 0;
+}

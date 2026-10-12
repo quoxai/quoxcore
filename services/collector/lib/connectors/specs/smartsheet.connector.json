@@ -1,0 +1,204 @@
+{
+  "spec_version": 1,
+  "id": "smartsheet",
+  "name": "Smartsheet",
+  "category": "project_management",
+  "credentialType": "smartsheet",
+  "requiredFields": [
+    "access_token"
+  ],
+  "description": "Read-only Smartsheet inventory: sheets, workspaces and reports the token can see, plus one sheet's structure",
+  "docs": "https://developers.smartsheet.com/api/smartsheet/introduction",
+  "base_url": "https://api.smartsheet.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/2.0/users/me"
+  },
+  "tools_source": "https://developers.smartsheet.com/api/smartsheet/openapi/sheets/list-sheets",
+  "tools": [
+    {
+      "name": "list_sheets",
+      "description": "List the Smartsheet sheets this token can access, with access level, permalink and modification times",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max sheets to return per page (default 50, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional page number to return (1-based, defaults to 1)"
+          },
+          "modified_since": {
+            "type": "string",
+            "description": "Optional ISO-8601 date/time; only sheets modified on or after it are returned (e.g. 2026-09-01T00:00:00Z)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/sheets",
+        "query": {
+          "pageSize": "{{clamp input.page_size 50 100}}",
+          "page": "{{input.page}}",
+          "modifiedSince": "{{input.modified_since}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "accessLevel": "accessLevel",
+            "permalink": "permalink",
+            "createdAt": "createdAt",
+            "modifiedAt": "modifiedAt"
+          },
+          "pageNumber": "pageNumber",
+          "pageSize": "pageSize",
+          "totalPages": "totalPages",
+          "totalCount": "totalCount"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_sheet",
+      "description": "Get one Smartsheet sheet's structure: name, owner, row count and column definitions. Returns no row or cell values",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "sheet_id": {
+            "type": "number",
+            "description": "Smartsheet sheet ID (from list_sheets)"
+          },
+          "rows_modified_since": {
+            "type": "string",
+            "description": "Optional ISO-8601 date/time; limits the sheet read to rows modified since then (e.g. 2026-09-01T00:00:00Z)"
+          }
+        },
+        "required": [
+          "sheet_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/sheets/{{input.sheet_id}}",
+        "query": {
+          "rowsModifiedSince": "{{input.rows_modified_since}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "permalink": "permalink",
+          "accessLevel": "accessLevel",
+          "owner": "owner",
+          "ownerId": "ownerId",
+          "createdAt": "createdAt",
+          "modifiedAt": "modifiedAt",
+          "version": "version",
+          "totalRowCount": "totalRowCount",
+          "columns[]": {
+            "id": "id",
+            "index": "index",
+            "title": "title",
+            "type": "type",
+            "primary": "primary"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_workspaces",
+      "description": "List the Smartsheet workspaces this token can access (metadata only, first page)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/workspaces"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "accessLevel": "accessLevel",
+            "permalink": "permalink"
+          },
+          "lastKey": "lastKey"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_reports",
+      "description": "List the Smartsheet reports this token can access, with access level and whether each is a summary report",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "modified_since": {
+            "type": "string",
+            "description": "Optional ISO-8601 date/time; only reports modified on or after it are returned (e.g. 2026-09-01T00:00:00Z)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/reports",
+        "query": {
+          "modifiedSince": "{{input.modified_since}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "accessLevel": "accessLevel",
+            "permalink": "permalink",
+            "isSummaryReport": "isSummaryReport"
+          },
+          "pageNumber": "pageNumber",
+          "pageSize": "pageSize",
+          "totalPages": "totalPages",
+          "totalCount": "totalCount"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Tools written 2026-09-12 from the official Smartsheet API reference: List sheets (tools_source), Get sheet (https://developers.smartsheet.com/api/smartsheet/openapi/sheets/getsheet), List workspaces (.../openapi/workspaces/list-workspaces) and List reports (.../openapi/reports/getreports). All four are GET reads, write:false.",
+      "Scaffolded auth (bearer access_token) and test path /2.0/users/me are UNCHANGED and match the vault registry's live-tested entry. Shape-proof 2026-09-12 (proofs/smartsheet.proof.json): SHAPE_PROVEN on all 5 calls. Each answered 401 {\"errorCode\":1002,\"message\":\"Your Access Token is invalid.\"} with a WWW-Authenticate header, while the control bogus path on the same host answered 404 with an HTML error page, so the differential proves DNS, TLS, base_url, the bearer header and each path; a real token flips those same calls to 2xx.",
+      "docs was moved off the vault registry's https://smartsheet.redoc.ly/ because that site is retired: its openapi.yaml now self-describes as title: \"(DEPRECATED site)\" with a single /ping path and the text \"The new Smartsheet API reference documentation site is located at https://developers.smartsheet.com/api\" (fetched 2026-09-12). The registry entry in services/auth/config/integrationTypeRegistry.js still carries the stale URL: not changed here, flagged.",
+      "get_sheet deliberately picks only sheet metadata and the columns array, never rows or cells. Row data is the customer's business data and one sheet can be tens of thousands of cells; note that `truncate: 2000` is a per-STRING cap, not a payload cap, so it would not have contained it. The row payload still crosses the wire from Smartsheet and is dropped by the pick server-side: no row content reaches the model, but the fetch is not cheap. rows_modified_since is offered because it is the documented way to narrow that fetch.",
+      "list_workspaces takes NO paging input. GET /workspaces uses TOKEN-based pagination (maxItems + lastKey) and the docs say of maxItems: \"The default and minimum are 100\". The clamp helper can only cap a maximum, so any smaller number a model asked for would be sent below the documented minimum. lastKey is picked so a caller can see that further pages exist; following the cursor is NOT expressed in this spec.",
+      "list_sheets keeps pageSize/page even though the Query parameters guide warns \"The pageSize parameter is deprecated for several operations\": the List sheets operation page itself still documents both, with pageSize defaulting to 100. Clamp is 50 default, 100 cap. If Smartsheet retires offset paging on this operation, the tool needs the maxItems/lastKey shape instead.",
+      "UNVERIFIED: List reports documents \"Security: OAuth2\" while List sheets documents \"Security: APIToken, OAuth2\", so a raw personal access token may not be accepted at GET /2.0/reports. A blind probe cannot distinguish this (401 invalid-token at both paths), and the vault field is labelled only 'Access Token'.",
+      "The documented optional smartsheet-integration-source header (format TYPE,OrgName,SourceName, which Smartsheet uses to mark AI-initiated calls) is deliberately NOT sent: OrgName is the customer's own organisation name and no credential field in the vault carries it. Sending a hardcoded org name would be a false declaration.",
+      "Response field names come from the documented schemas, NOT from a live 2xx: no Smartsheet account was held for this draft."
+    ]
+  }
+}

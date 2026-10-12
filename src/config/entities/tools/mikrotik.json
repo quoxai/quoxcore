@@ -1,0 +1,822 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "mikrotik",
+
+  "name": "MikroTik RouterOS Tools",
+  "description": "Network management tools for MikroTik RouterOS devices. Includes router discovery, health monitoring, DHCP management, firewall rules, VPN status, and diagnostic tools with plain English explanations.",
+  "category": "infrastructure",
+  "subcategory": "network",
+  "provider": "mikrotik",
+  "version": "1.0.0",
+
+  "risk_level": "medium",
+  "sandbox_profile": "standard",
+  "requires_license": "mikrotik-routeros",
+
+  "tools": [
+    {
+      "id": "mikrotik.discovery.scan",
+      "name": "Scan Network",
+      "description": "Discover MikroTik routers on the network using CDP/MNDP neighbor discovery",
+      "aeeIntent": "quox.noc.mikrotik.discovery.scan",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "subnet": {
+          "type": "string",
+          "required": false,
+          "description": "CIDR subnet to scan (e.g., '10.0.0.0/24')"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "routers": { "type": "array" },
+          "count": { "type": "number" }
+        }
+      },
+      "instructions": {
+        "summary": "Discovers MikroTik routers using neighbor discovery protocols",
+        "when_to_use": [
+          "Finding routers on network",
+          "Building initial inventory",
+          "User asks 'what routers do I have?'"
+        ],
+        "when_not_to_use": [
+          "Already have complete router list"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.discovery.inventory",
+      "name": "Get Inventory",
+      "description": "Get complete inventory of all routers and connected devices",
+      "aeeIntent": "quox.noc.mikrotik.discovery.inventory",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by specific router ID"
+        },
+        "include_devices": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Include connected devices"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "routers": { "type": "array" },
+          "devices": { "type": "array" },
+          "total": { "type": "number" }
+        }
+      },
+      "instructions": {
+        "summary": "Get full inventory of routers and devices",
+        "when_to_use": [
+          "User asks 'what devices are on my network?'",
+          "Need to see all connected clients"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.monitoring.health",
+      "name": "Check Health",
+      "description": "Get router health including CPU, memory, temperature, and uptime with health score",
+      "aeeIntent": "quox.noc.mikrotik.health.query",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID to check"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "health": { "type": "object" },
+          "score": { "type": "number" },
+          "issues": { "type": "array" }
+        }
+      },
+      "instructions": {
+        "summary": "Check router health status and resource usage",
+        "when_to_use": [
+          "User asks 'is my router healthy?'",
+          "User wants to check CPU/memory usage",
+          "Troubleshooting performance issues"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.monitoring.interfaces",
+      "name": "List Interfaces",
+      "description": "Get interface statistics including errors, utilization, and link status",
+      "aeeIntent": "quox.noc.mikrotik.interfaces.list",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        },
+        "interface": {
+          "type": "string",
+          "required": false,
+          "description": "Specific interface name (optional)"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "interfaces": { "type": "array" },
+          "total": { "type": "number" }
+        }
+      },
+      "instructions": {
+        "summary": "Get interface status and statistics",
+        "when_to_use": [
+          "User asks about network ports",
+          "Checking for interface errors",
+          "Verifying link status"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.monitoring.traffic",
+      "name": "Monitor Traffic",
+      "description": "Get real-time bandwidth usage per interface",
+      "aeeIntent": "quox.noc.mikrotik.traffic.query",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        },
+        "interface": {
+          "type": "string",
+          "required": false,
+          "description": "Specific interface (optional)"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "traffic": { "type": "array" }
+        }
+      },
+      "instructions": {
+        "summary": "Get real-time traffic statistics",
+        "when_to_use": [
+          "User asks 'how much bandwidth am I using?'",
+          "Monitoring network activity"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.dhcp.leases",
+      "name": "List DHCP Leases",
+      "description": "List all DHCP leases with device identification (vendor lookup)",
+      "aeeIntent": "quox.noc.mikrotik.dhcp.leases.list",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "leases": { "type": "array" },
+          "total": { "type": "number" }
+        }
+      },
+      "instructions": {
+        "summary": "List all DHCP leases and identify devices",
+        "when_to_use": [
+          "User asks 'what devices have IP addresses?'",
+          "Looking for a specific device by hostname or MAC"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.dhcp.reserve",
+      "name": "Reserve IP Address",
+      "description": "Create a static DHCP reservation for a device so it always gets the same IP",
+      "aeeIntent": "quox.noc.mikrotik.dhcp.reserve",
+      "aoclClassification": { "layer": 3, "risk": "MEDIUM", "autonomy": "SUPERVISED" },
+      "accessLevel": "managers+",
+      "defconLevel": "AMBER",
+      "requiresApproval": true,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        },
+        "mac_address": {
+          "type": "string",
+          "required": true,
+          "description": "MAC address of device"
+        },
+        "address": {
+          "type": "string",
+          "required": true,
+          "description": "IP address to reserve"
+        },
+        "comment": {
+          "type": "string",
+          "required": false,
+          "description": "Description for the reservation"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "lease": { "type": "object" },
+          "success": { "type": "boolean" },
+          "preview": { "type": "object" }
+        }
+      },
+      "instructions": {
+        "summary": "Create static IP reservation for a device",
+        "when_to_use": [
+          "User wants a device to always get the same IP",
+          "Setting up static IP for a printer/server"
+        ],
+        "plain_english": "This makes the device always get the same address. Other devices won't be able to use this address."
+      }
+    },
+    {
+      "id": "mikrotik.dhcp.conflict_check",
+      "name": "Check IP Conflicts",
+      "description": "Detect IP address conflicts on the network where multiple devices claim the same address",
+      "aeeIntent": "quox.noc.mikrotik.dhcp.conflicts.query",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "conflicts": { "type": "array" },
+          "healthy": { "type": "boolean" },
+          "plain_english": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Detect IP address conflicts",
+        "when_to_use": [
+          "User asks 'are there any IP conflicts?'",
+          "Troubleshooting network connectivity issues"
+        ],
+        "plain_english": "Checks if any two devices are fighting over the same address"
+      }
+    },
+    {
+      "id": "mikrotik.dhcp.pool_status",
+      "name": "DHCP Pool Status",
+      "description": "Get DHCP pool utilization statistics",
+      "aeeIntent": "quox.noc.mikrotik.dhcp.pool.status",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "pools": { "type": "array" },
+          "total_used": { "type": "number" },
+          "total_avail": { "type": "number" }
+        }
+      },
+      "instructions": {
+        "summary": "Check DHCP pool utilization",
+        "when_to_use": [
+          "User asks 'how many IPs are available?'",
+          "Checking if pool is running low"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.dhcp.find_free_ip",
+      "name": "Find Free IP Address",
+      "description": "Find spare IP addresses in a DHCP pool for static assignment — checks both DHCP leases and the live ARP table so it never suggests an address already in use, even by a device with a manually configured static IP outside DHCP",
+      "aeeIntent": "quox.noc.mikrotik.dhcp.find_free_ip",
+      "also_grant": ["atlas"],
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        },
+        "pool": {
+          "type": "string",
+          "required": false,
+          "description": "DHCP pool name to search (omit to search all pools)"
+        },
+        "count": {
+          "type": "number",
+          "required": false,
+          "description": "How many free addresses to return (default 1, max 20)"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "free_ips": { "type": "array" },
+          "pool_searched": { "type": "string" },
+          "pools_scanned": { "type": "number" }
+        }
+      },
+      "instructions": {
+        "summary": "Find a spare IP address for static assignment",
+        "when_to_use": [
+          "User needs a static IP for a new VM, container, or device",
+          "Before creating a VM that needs a fixed address",
+          "User asks 'what IP should this get?' or 'find me a free address'"
+        ],
+        "plain_english": "Looks at the DHCP pool's address range and rules out anything already leased or seen live on the network, then hands back addresses that are genuinely free to assign."
+      }
+    },
+    {
+      "id": "mikrotik.firewall.rules",
+      "name": "List Firewall Rules",
+      "description": "List firewall filter, NAT, and mangle rules with hit counters",
+      "aeeIntent": "quox.noc.mikrotik.firewall.rules.list",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        },
+        "chain": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by chain: input, forward, output"
+        },
+        "type": {
+          "type": "string",
+          "required": false,
+          "default": "filter",
+          "enum": ["filter", "nat", "mangle"],
+          "description": "Rule type"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "rules": { "type": "array" },
+          "total": { "type": "number" }
+        }
+      },
+      "instructions": {
+        "summary": "List firewall rules with statistics",
+        "when_to_use": [
+          "User asks 'what firewall rules are active?'",
+          "Reviewing security configuration"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.firewall.block_ip",
+      "name": "Block IP Address",
+      "description": "Add IP address to block list (safe operation using address lists)",
+      "aeeIntent": "quox.noc.mikrotik.firewall.block",
+      "aoclClassification": { "layer": 3, "risk": "MEDIUM", "autonomy": "SUPERVISED" },
+      "accessLevel": "managers+",
+      "defconLevel": "AMBER",
+      "requiresApproval": true,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        },
+        "ip": {
+          "type": "string",
+          "required": true,
+          "description": "IP address to block"
+        },
+        "reason": {
+          "type": "string",
+          "required": false,
+          "description": "Reason for blocking"
+        },
+        "duration": {
+          "type": "string",
+          "required": false,
+          "description": "Block duration (e.g., '1h', '1d')"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "blocked": { "type": "boolean" },
+          "entry": { "type": "object" }
+        }
+      },
+      "instructions": {
+        "summary": "Block an IP address via address list",
+        "when_to_use": [
+          "User wants to block a suspicious IP",
+          "Responding to security incident"
+        ],
+        "plain_english": "This IP will be blocked from communicating through the router"
+      }
+    },
+    {
+      "id": "mikrotik.firewall.unblock_ip",
+      "name": "Unblock IP Address",
+      "description": "Remove IP address from block list",
+      "aeeIntent": "quox.noc.mikrotik.firewall.unblock",
+      "aoclClassification": { "layer": 3, "risk": "MEDIUM", "autonomy": "SUPERVISED" },
+      "accessLevel": "managers+",
+      "defconLevel": "AMBER",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        },
+        "ip": {
+          "type": "string",
+          "required": true,
+          "description": "IP address to unblock"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "unblocked": { "type": "boolean" }
+        }
+      },
+      "instructions": {
+        "summary": "Remove an IP from the block list",
+        "when_to_use": [
+          "User wants to unblock a previously blocked IP"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.vpn.wireguard_peers",
+      "name": "List WireGuard Peers",
+      "description": "List WireGuard VPN peers with connection status",
+      "aeeIntent": "quox.noc.mikrotik.vpn.peers.list",
+      "also_grant": ["cipher"],
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "peers": { "type": "array" },
+          "total": { "type": "number" }
+        }
+      },
+      "instructions": {
+        "summary": "List WireGuard VPN peers",
+        "when_to_use": [
+          "User asks about VPN connections",
+          "Checking WireGuard tunnel status"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.vpn.health",
+      "name": "VPN Health",
+      "description": "Get overall VPN health score and status of all tunnels",
+      "aeeIntent": "quox.noc.mikrotik.vpn.health.query",
+      "also_grant": ["cipher"],
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "health": { "type": "object" },
+          "score": { "type": "number" },
+          "issues": { "type": "array" }
+        }
+      },
+      "instructions": {
+        "summary": "Check VPN tunnel health",
+        "when_to_use": [
+          "User asks 'is my VPN working?'",
+          "Troubleshooting VPN connectivity"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.diagnostics.analyze_issue",
+      "name": "Analyze Issue",
+      "description": "AI-powered analysis of network issues with plain English explanations and suggested fixes",
+      "aeeIntent": "quox.noc.mikrotik.diagnostics.analyze",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        },
+        "issue": {
+          "type": "string",
+          "required": false,
+          "description": "Description of the issue (e.g., 'internet is slow')"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "analysis": { "type": "object" },
+          "plain_english": { "type": "string" },
+          "suggestions": { "type": "array" },
+          "auto_fixes": { "type": "array" }
+        }
+      },
+      "instructions": {
+        "summary": "Analyze and diagnose network issues",
+        "when_to_use": [
+          "User reports a network problem",
+          "Troubleshooting connectivity issues",
+          "User says 'my internet is slow'"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.diagnostics.ping_test",
+      "name": "Ping Test",
+      "description": "Test connectivity to a target from the router",
+      "aeeIntent": "quox.noc.mikrotik.diagnostics.ping",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        },
+        "target": {
+          "type": "string",
+          "required": true,
+          "description": "Target IP or hostname"
+        },
+        "count": {
+          "type": "number",
+          "required": false,
+          "default": 4,
+          "description": "Number of pings"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "results": { "type": "object" },
+          "success": { "type": "boolean" },
+          "plain_english": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Test connectivity to a destination",
+        "when_to_use": [
+          "Testing if a host is reachable",
+          "User asks 'can I reach X?'"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.diagnostics.dns_check",
+      "name": "DNS Check",
+      "description": "Test DNS resolution from the router",
+      "aeeIntent": "quox.noc.mikrotik.diagnostics.dns",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        },
+        "hostname": {
+          "type": "string",
+          "required": true,
+          "description": "Hostname to resolve"
+        },
+        "dns_server": {
+          "type": "string",
+          "required": false,
+          "description": "DNS server to use (optional)"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "resolved": { "type": "boolean" },
+          "addresses": { "type": "array" },
+          "plain_english": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Test DNS resolution",
+        "when_to_use": [
+          "User can't reach websites by name",
+          "Testing DNS configuration"
+        ]
+      }
+    },
+    {
+      "id": "mikrotik.automation.preview",
+      "name": "Preview Change",
+      "description": "Preview a configuration change before applying it",
+      "aeeIntent": "quox.noc.mikrotik.automation.preview",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "managers+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "router_id": {
+          "type": "string",
+          "required": true,
+          "description": "Router ID"
+        },
+        "action": {
+          "type": "string",
+          "required": true,
+          "description": "Action to preview"
+        },
+        "params": {
+          "type": "object",
+          "required": false,
+          "description": "Action parameters"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "preview": { "type": "object" }
+        }
+      },
+      "instructions": {
+        "summary": "Preview a change before applying",
+        "when_to_use": [
+          "User wants to see what will change",
+          "Before making configuration changes"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {
+    "base": "internal",
+    "api": "mikrotik"
+  },
+
+  "instructions": {
+    "summary": "Manage MikroTik RouterOS devices with monitoring, DHCP, firewall, VPN, and diagnostic tools",
+    "when_to_use": [
+      "User wants to manage MikroTik routers",
+      "Checking network device health",
+      "Managing DHCP leases and reservations",
+      "Reviewing or modifying firewall rules",
+      "Checking VPN tunnel status",
+      "Troubleshooting network issues"
+    ],
+    "when_not_to_use": [
+      "Managing non-MikroTik devices",
+      "OS-level server monitoring (use prometheus)"
+    ],
+    "usage_pattern": {
+      "format": "mikrotik.<capability>.<method>(params)",
+      "common_queries": [
+        {
+          "intent": "Check router health",
+          "tool": "mikrotik.monitoring.health",
+          "params": { "router_id": "router1" }
+        },
+        {
+          "intent": "List devices on network",
+          "tool": "mikrotik.dhcp.leases",
+          "params": { "router_id": "router1" }
+        },
+        {
+          "intent": "Check for IP conflicts",
+          "tool": "mikrotik.dhcp.conflict_check",
+          "params": { "router_id": "router1" }
+        },
+        {
+          "intent": "Block an IP address",
+          "tool": "mikrotik.firewall.block_ip",
+          "params": { "router_id": "router1", "ip": "10.0.0.100", "reason": "Suspicious activity" }
+        },
+        {
+          "intent": "Check VPN status",
+          "tool": "mikrotik.vpn.health",
+          "params": { "router_id": "router1" }
+        }
+      ]
+    },
+    "error_recovery": [
+      { "error": "router not found", "meaning": "Router ID doesn't exist in config", "action": "Check router ID or run discovery" },
+      { "error": "connection refused", "meaning": "Can't connect to router API", "action": "Verify router IP and API port" },
+      { "error": "authentication failed", "meaning": "Invalid credentials", "action": "Check username/password" },
+      { "error": "read-only mode", "meaning": "Write operations disabled", "action": "Contact admin to enable write access" }
+    ],
+    "chaining": {
+      "often_used_with": ["noc.health (for host metrics)", "sentinel (for security events)"],
+      "feeds_into": ["Alerting and incident response"],
+      "requires_first": ["mikrotik.discovery.scan (to find routers)"]
+    }
+  },
+
+  "help": {
+    "man_url": "https://help.mikrotik.com/docs/",
+    "quick_reference": "/docs/tools/mikrotik-cheatsheet.md",
+    "examples_url": "/docs/tools/mikrotik-examples.md",
+    "video_tutorial": null,
+    "troubleshooting": "/docs/tools/mikrotik-troubleshooting.md"
+  },
+
+  "agent_hints": {
+    "primary_agent": "netwatch",
+    "context_tokens": 250,
+    "typical_latency_ms": 500,
+    "cacheable": true,
+    "cache_ttl_seconds": 30,
+    "batch_friendly": false,
+    "max_batch_size": 1,
+    "idempotent": true,
+    "side_effects": false
+  }
+}

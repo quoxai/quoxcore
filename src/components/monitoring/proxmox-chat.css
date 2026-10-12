@@ -1,0 +1,232 @@
+/* ProxmoxChatSidebar — HYPERION agent chat */
+
+.pxc {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: transparent;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── Header ── */
+.pxc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.pxc-header__agent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pxc-header__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #30ff90;
+  box-shadow: 0 0 6px rgba(48, 255, 144, 0.4);
+  animation: pxc-dot-breathe 3s ease-in-out infinite;
+}
+
+@keyframes pxc-dot-breathe {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(48, 255, 144, 0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 3px rgba(48, 255, 144, 0.2); }
+}
+
+.pxc-header__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.06em;
+}
+
+.pxc-header__role {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* ── Visualizer — compact for sidebar ── */
+.pxc-viz {
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Sidebar visualizer — full-width, sizing via visualizer-section.css */
+.pxc-viz .visualizer-section {
+  padding: 8px;
+}
+/* Make controls always visible in sidebar (no hover discovery) */
+.pxc-viz .visualizer-section__controls {
+  opacity: 0.7;
+}
+.pxc-viz .visualizer-section__controls:hover {
+  opacity: 1;
+}
+/* Fix SVG icons — override stroke="currentColor" HTML attribute on dark bg */
+.pxc-viz .visualizer-section__btn svg {
+  stroke: rgba(255, 255, 255, 0.7) !important;
+}
+.pxc-viz .visualizer-section__btn:hover svg {
+  stroke: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* ── Chat body (wraps messages + input from ChatEngine render-prop) ── */
+.pxc-chat-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Messages ── */
+.pxc-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pxc-messages::-webkit-scrollbar {
+  width: 4px;
+}
+.pxc-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pxc-messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.pxc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 13px;
+  text-align: center;
+  gap: 4px;
+  padding: 16px 0;
+}
+
+/* ── Suggestion chips ── */
+.pxc-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.pxc-chip {
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 107, 48, 0.15);
+  background: rgba(255, 107, 48, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  text-align: left;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pxc-chip:hover {
+  background: rgba(255, 107, 48, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 107, 48, 0.3);
+}
+
+/* ── Message bubbles ── */
+.pxc-msg {
+  max-width: 92%;
+}
+.pxc-msg--user {
+  align-self: flex-end;
+}
+.pxc-msg--assistant {
+  align-self: flex-start;
+}
+
+.pxc-msg__text {
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.pxc-msg--user .pxc-msg__text {
+  background: rgba(255, 107, 48, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+  border-bottom-right-radius: 3px;
+}
+.pxc-msg--assistant .pxc-msg__text {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.85);
+  border-bottom-left-radius: 3px;
+}
+
+/* ── Typing indicator ── */
+.pxc-typing {
+  display: flex;
+  gap: 4px;
+  padding: 10px 14px;
+}
+.pxc-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  animation: pxc-bounce 1.4s ease-in-out infinite;
+}
+.pxc-typing span:nth-child(2) { animation-delay: 0.2s; }
+.pxc-typing span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes pxc-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.3; }
+  40% { transform: translateY(-6px); opacity: 0.8; }
+}
+
+/* ── Input — pinned to bottom ── */
+.pxc-input-wrap {
+  padding: 0;
+  flex-shrink: 0;
+  background: transparent;
+}
+
+/* Compact input styling for sidebar */
+.pxc-input-wrap .chat-input {
+  padding: 8px 12px;
+  background: transparent;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Explicit send button icon colour — override stroke="currentColor" */
+.pxc-input-wrap .chat-input__send-btn {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+.pxc-input-wrap .chat-input__send-btn svg {
+  stroke: rgba(255, 255, 255, 0.7) !important;
+}
+.pxc-input-wrap .chat-input__send-btn:hover:not(:disabled) {
+  color: #ff6b30 !important;
+  background: rgba(255, 107, 48, 0.12);
+}
+.pxc-input-wrap .chat-input__send-btn:hover:not(:disabled) svg {
+  stroke: #ff6b30 !important;
+}
+.pxc-input-wrap .chat-input__send-btn:disabled {
+  color: rgba(255, 255, 255, 0.2) !important;
+}
+.pxc-input-wrap .chat-input__send-btn:disabled svg {
+  stroke: rgba(255, 255, 255, 0.2) !important;
+}

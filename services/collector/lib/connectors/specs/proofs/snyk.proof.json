@@ -1,0 +1,90 @@
+{
+  "spec_id": "snyk",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:17.989Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.snyk.io/quox-shapeproof-control-8cb0f11d",
+      "status": 404,
+      "latency_ms": 601,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.snyk.io/v1/user/me",
+      "status": 401,
+      "latency_ms": 205,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "20a302bccd9407b5b7e6a290fce6bd56b7c8a932290c0c7311b962fd15d50f79",
+      "body_excerpt": "{\"jsonapi\":{\"version\":\"1.0\"},\"errors\":[{\"status\":\"401\",\"details\":\"Unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_orgs",
+      "method": "GET",
+      "url": "https://api.snyk.io/rest/orgs?version=2024-10-15&limit=20&slug=quoxprobe",
+      "status": 401,
+      "latency_ms": 268,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "20a302bccd9407b5b7e6a290fce6bd56b7c8a932290c0c7311b962fd15d50f79",
+      "body_excerpt": "{\"jsonapi\":{\"version\":\"1.0\"},\"errors\":[{\"status\":\"401\",\"details\":\"Unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "GET",
+      "url": "https://api.snyk.io/rest/orgs/00000000-0000-0000-0000-000000000000/projects?version=2024-10-15&limit=20&names=quoxprobe&origins=quoxprobe",
+      "status": 401,
+      "latency_ms": 226,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "20a302bccd9407b5b7e6a290fce6bd56b7c8a932290c0c7311b962fd15d50f79",
+      "body_excerpt": "{\"jsonapi\":{\"version\":\"1.0\"},\"errors\":[{\"status\":\"401\",\"details\":\"Unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_project",
+      "method": "GET",
+      "url": "https://api.snyk.io/rest/orgs/00000000-0000-0000-0000-000000000000/projects/00000000-0000-0000-0000-000000000000?version=2024-10-15",
+      "status": 401,
+      "latency_ms": 234,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "20a302bccd9407b5b7e6a290fce6bd56b7c8a932290c0c7311b962fd15d50f79",
+      "body_excerpt": "{\"jsonapi\":{\"version\":\"1.0\"},\"errors\":[{\"status\":\"401\",\"details\":\"Unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_issues",
+      "method": "GET",
+      "url": "https://api.snyk.io/rest/orgs/00000000-0000-0000-0000-000000000000/issues?version=2024-10-15&limit=20&effective_severity_level=quoxprobe&status=quoxprobe&scan_item.id=quoxprobe&scan_item.type=quoxprobe",
+      "status": 401,
+      "latency_ms": 284,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "20a302bccd9407b5b7e6a290fce6bd56b7c8a932290c0c7311b962fd15d50f79",
+      "body_excerpt": "{\"jsonapi\":{\"version\":\"1.0\"},\"errors\":[{\"status\":\"401\",\"details\":\"Unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

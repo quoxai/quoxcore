@@ -1,0 +1,215 @@
+{
+  "name": "system-maintenance",
+  "version": "2.0.0",
+  "displayName": "System Maintenance",
+  "tagline": "Backup, Update & Protect Your AI Infrastructure",
+  "description": "Unified system maintenance: backup and restore with DEFCON-style audit logging, automated update detection and execution via GitHub Releases, pre-update safety backups, rollback support, and version tracking across all services.",
+  "shortDescription": "Backup, update, restore, and maintain your entire QuoxCORE installation.",
+  "author": "QUOX",
+  "license": "free",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "free",
+  "tier": "free",
+  "featured": true,
+  "icon": "shield",
+  "accentColor": "#10b981",
+  "infoUrl": "https://quox.ai/plugins/system-maintenance",
+  "docsUrl": "https://quox.ai/docs/plugins/system-maintenance",
+  "marketingPoints": [
+    "One-click system updates with automatic safety backups",
+    "GitHub Release integration with changelog display",
+    "Full and selective backup with SHA-256 verification",
+    "DEFCON-style audit logging for all operations",
+    "Rolling service restart with health verification",
+    "Rollback to any previous version from pre-update backup",
+    "Automated backup scheduling (hourly, daily, weekly, monthly)",
+    "Version tracking across all services"
+  ],
+  "features": {
+    "updateDetection": {
+      "name": "Update Detection",
+      "description": "Automatic version checks against GitHub Releases. Get notified when new versions are available.",
+      "icon": "refresh-cw",
+      "highlight": true
+    },
+    "updateExecution": {
+      "name": "One-Click Updates",
+      "description": "Apply updates with automatic pre-update backup, rolling service restart, and health verification.",
+      "icon": "download",
+      "highlight": true
+    },
+    "rollback": {
+      "name": "Rollback",
+      "description": "Instantly revert to a previous version using the pre-update backup. Never get stuck on a bad release.",
+      "icon": "rotate-ccw",
+      "highlight": true
+    },
+    "fullBackup": {
+      "name": "Full Backup",
+      "description": "Backup all critical components including databases, memory, uploads, workflows, and configurations.",
+      "icon": "archive",
+      "highlight": true
+    },
+    "selectiveBackup": {
+      "name": "Selective Backup",
+      "description": "Choose specific components to backup — databases, uploads, n8n workflows, agent configs, and more.",
+      "icon": "check-square"
+    },
+    "verification": {
+      "name": "SHA-256 Verification",
+      "description": "Cryptographic proofs ensure backup integrity. Verify archives haven't been tampered with.",
+      "icon": "shield"
+    },
+    "scheduling": {
+      "name": "Automated Scheduling",
+      "description": "Configure recurring backups — hourly, daily, weekly, or monthly with retention policies.",
+      "icon": "clock"
+    },
+    "auditLogging": {
+      "name": "DEFCON Audit Logging",
+      "description": "Military-style audit trail with risk levels (GREEN→RED) for all backup, restore, and update operations.",
+      "icon": "shield-alert"
+    },
+    "versionTracking": {
+      "name": "Version Tracking",
+      "description": "Every service reports its version in health checks. See at a glance if all services are running the same version.",
+      "icon": "tag"
+    }
+  },
+  "limits": {
+    "free": {
+      "maxBackups": 50,
+      "maxBackupSize": "unlimited",
+      "hasScheduling": true,
+      "hasVerification": true,
+      "hasDryRun": true,
+      "hasAuditLog": true,
+      "hasNotifications": true,
+      "hasUpdates": true,
+      "hasRollback": true,
+      "retentionDays": 90
+    }
+  },
+  "comparison": {
+    "free": {
+      "backups": "50 backups",
+      "scheduling": true,
+      "verification": true,
+      "dryRun": true,
+      "auditLog": true,
+      "notifications": true,
+      "updates": true,
+      "rollback": true
+    }
+  },
+  "requirements": {
+    "quox": ">=4.2.0"
+  },
+  "integration": {
+    "service": "src/services/maintenance/updateService.js",
+    "backupService": "src/services/backup/backupService.js",
+    "panel": "src/components/maintenance/UpdatePanel.jsx",
+    "view": "src/pages/views/SystemMaintenanceView.jsx",
+    "routes": "services/auth/routes/updates.js",
+    "backupRoutes": "services/auth/routes/backups.js",
+    "schema": "services/auth/db/schema-updates.sql",
+    "backupSchema": "services/auth/db/schema-backups.sql"
+  },
+  "components": [
+    {
+      "key": "auth_db",
+      "name": "Auth Database",
+      "category": "core",
+      "priority": 1
+    },
+    {
+      "key": "memory_system",
+      "name": "Memory System",
+      "category": "data",
+      "priority": 2
+    },
+    {
+      "key": "qdrant_vectors",
+      "name": "Qdrant Vectors",
+      "category": "data",
+      "priority": 3
+    },
+    {
+      "key": "user_uploads",
+      "name": "User Uploads",
+      "category": "data",
+      "priority": 4
+    },
+    {
+      "key": "n8n_workflows",
+      "name": "n8n Workflows",
+      "category": "workflow",
+      "priority": 5
+    },
+    {
+      "key": "env_secrets",
+      "name": "Environment Secrets",
+      "category": "config",
+      "priority": 6
+    },
+    {
+      "key": "plugin_configs",
+      "name": "Plugin Configurations",
+      "category": "config",
+      "priority": 7
+    },
+    {
+      "key": "agent_definitions",
+      "name": "Agent Definitions",
+      "category": "config",
+      "priority": 8
+    },
+    {
+      "key": "tool_definitions",
+      "name": "Tool Definitions",
+      "category": "config",
+      "priority": 9
+    },
+    {
+      "key": "quoxagent_playbooks",
+      "name": "QuoxAgent Playbooks",
+      "category": "workflow",
+      "priority": 10
+    },
+    {
+      "key": "host_configs",
+      "name": "Host Configurations",
+      "category": "infrastructure",
+      "priority": 11
+    }
+  ],
+  "changelog": {
+    "2.0.0": {
+      "date": "2026-03-02",
+      "changes": [
+        "Merged backup-restore into unified System Maintenance plugin",
+        "Added update detection via GitHub Releases",
+        "Added one-click update execution with pre-update backup",
+        "Added rollback support from pre-update backups",
+        "Added version tracking across all services",
+        "Added update progress SSE streaming",
+        "Added update history and settings management"
+      ]
+    },
+    "1.0.0": {
+      "date": "2025-01-31",
+      "changes": [
+        "Initial release as backup-restore plugin",
+        "Full and selective backup support",
+        "SHA-256 verification proofs",
+        "DEFCON-style audit logging",
+        "Automated scheduling with retention policies",
+        "Dry-run restore mode",
+        "Multi-step restore wizard",
+        "Inbox notifications integration"
+      ]
+    }
+  },
+  "category": "Operations"
+}

@@ -1,0 +1,249 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "screencap",
+
+  "name": "Screenshot Service",
+  "description": "Headless browser screenshot service for capturing, validating, comparing, and publishing dashboard screenshots",
+  "category": "media",
+  "subcategory": "screenshots",
+  "provider": "screencap",
+  "version": "1.0.0",
+
+  "risk_level": "low",
+  "sandbox_profile": "standard",
+  "requires_license": null,
+
+  "tools": [
+    {
+      "id": "screencap.list_pages",
+      "name": "List Screenshot Pages",
+      "description": "List known dashboard pages from the screenshot page registry. Shows page IDs, titles, paths, and last capture status.",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "filter": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by page ID, title, or tag"
+        }
+      },
+      "instructions": {
+        "summary": "Browse available pages for screenshot capture",
+        "when_to_use": [
+          "User asks what pages can be captured",
+          "User wants to see screenshot status",
+          "Before capturing, to find the right page_id"
+        ]
+      }
+    },
+    {
+      "id": "screencap.capture",
+      "name": "Capture Screenshot",
+      "description": "Take a screenshot of a specific dashboard page using a headless browser. Stores the image for comparison or upload.",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "page_id": {
+          "type": "string",
+          "required": true,
+          "description": "Page identifier from the registry (e.g., 'assistants', 'dashboard', 'agents')"
+        },
+        "viewport": {
+          "type": "object",
+          "required": false,
+          "description": "Custom viewport size { width, height }"
+        },
+        "wait_for": {
+          "type": "string",
+          "required": false,
+          "description": "CSS selector to wait for before capturing"
+        },
+        "full_page": {
+          "type": "boolean",
+          "required": false,
+          "description": "Capture the full scrollable page (default: false)"
+        }
+      },
+      "instructions": {
+        "summary": "Capture a dashboard page screenshot with a headless browser",
+        "when_to_use": [
+          "User asks to take/update a screenshot",
+          "User says 'capture the assistants page'",
+          "Part of a gallery refresh workflow"
+        ],
+        "when_not_to_use": [
+          "User wants to view existing screenshots (use the gallery)",
+          "The page hasn't changed (check with screencap.compare first)"
+        ]
+      }
+    },
+    {
+      "id": "screencap.compare",
+      "name": "Compare Screenshots",
+      "description": "Compare the latest capture of a page against the previously stored version. Returns the pixel difference percentage and a recommendation (upload/review/skip).",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "page_id": {
+          "type": "string",
+          "required": true,
+          "description": "Page identifier to compare"
+        },
+        "threshold": {
+          "type": "number",
+          "required": false,
+          "default": 0.1,
+          "description": "Pixel matching threshold 0-1 (lower = more sensitive)"
+        }
+      },
+      "instructions": {
+        "summary": "Detect visual changes by comparing screenshots pixel-by-pixel",
+        "when_to_use": [
+          "After capturing a new screenshot, before uploading",
+          "To check if a page has visually changed",
+          "Part of automated gallery refresh"
+        ]
+      }
+    },
+    {
+      "id": "screencap.validate",
+      "name": "Validate Screenshot",
+      "description": "Check screenshot quality — validates dimensions, file size, blank page detection, and error overlay detection.",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "page_id": {
+          "type": "string",
+          "required": true,
+          "description": "Page identifier to validate the latest capture of"
+        }
+      },
+      "instructions": {
+        "summary": "Quality check a captured screenshot before publishing",
+        "when_to_use": [
+          "After capturing, before uploading to the gallery",
+          "If a previous upload looked wrong",
+          "Part of automated gallery refresh"
+        ]
+      }
+    },
+    {
+      "id": "screencap.upload",
+      "externalEffect": true,
+      "name": "Upload Screenshot",
+      "description": "Upload the latest capture of a page to the quox.ai website gallery with metadata (title, description, tags, featured flag).",
+      "accessLevel": "specialists+",
+      "defconLevel": "YELLOW",
+      "requiresApproval": false,
+      "parameters": {
+        "page_id": {
+          "type": "string",
+          "required": true,
+          "description": "Page identifier to upload"
+        },
+        "title": {
+          "type": "string",
+          "required": false,
+          "description": "Gallery display title (defaults to page title from registry)"
+        },
+        "description": {
+          "type": "string",
+          "required": false,
+          "description": "Gallery description text"
+        },
+        "tags": {
+          "type": "array",
+          "required": false,
+          "description": "Tag names to assign (e.g., ['dashboard', 'monitoring'])"
+        },
+        "featured": {
+          "type": "boolean",
+          "required": false,
+          "description": "Mark as featured screenshot (default: false)"
+        }
+      },
+      "instructions": {
+        "summary": "Publish a screenshot to the quox.ai product gallery",
+        "when_to_use": [
+          "After capturing and validating a screenshot",
+          "User says 'upload the screenshot for assistants'",
+          "Part of automated gallery refresh when diff > threshold"
+        ],
+        "when_not_to_use": [
+          "Screenshot hasn't been captured yet",
+          "Screenshot failed validation"
+        ]
+      }
+    },
+    {
+      "id": "screencap.status",
+      "name": "Screenshot Status",
+      "description": "Check the status of all pages in the registry — shows last capture time, staleness, and capture counts.",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "max_age_days": {
+          "type": "number",
+          "required": false,
+          "default": 7,
+          "description": "Days before a page is considered stale"
+        }
+      },
+      "instructions": {
+        "summary": "Check which pages need new screenshots",
+        "when_to_use": [
+          "User asks 'which pages need updating?'",
+          "Before a batch refresh",
+          "To check gallery freshness"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {
+    "base": "http://quox-screencap:3300",
+    "api": "/execute"
+  },
+
+  "instructions": {
+    "summary": "Capture, validate, compare, and publish dashboard screenshots for the quox.ai gallery",
+    "when_to_use": [
+      "User wants to update product screenshots",
+      "User asks to capture a dashboard page",
+      "Automated gallery refresh workflow",
+      "User says 'update the screenshot for X'"
+    ],
+    "when_not_to_use": [
+      "User wants to view the gallery (direct them to quox.ai/gallery)",
+      "User wants to edit/design the dashboard UI"
+    ],
+    "usage_pattern": {
+      "format": "screencap.<tool>(params)",
+      "typical_workflow": [
+        "1. screencap.status() — Check which pages are stale",
+        "2. screencap.capture(page_id) — Take the screenshot",
+        "3. screencap.validate(page_id) — Quality check",
+        "4. screencap.compare(page_id) — Compare against previous",
+        "5. screencap.upload(page_id, title, tags) — Publish to gallery"
+      ]
+    }
+  },
+
+  "agent_hints": {
+    "primary_agent": "screencap",
+    "context_tokens": 200,
+    "typical_latency_ms": 5000,
+    "cacheable": false,
+    "batch_friendly": true,
+    "max_batch_size": 5,
+    "idempotent": false,
+    "side_effects": true
+  }
+}

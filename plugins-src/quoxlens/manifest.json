@@ -1,0 +1,31 @@
+{
+  "id": "quoxlens",
+  "name": "quoxlens",
+  "displayName": "QuoxLens",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "paid",
+  "badge": "PAID",
+  "category": "AI & Intelligence",
+  "accentColor": "#eab308",
+  "description": "Applies a reusable, versioned Lens (a declared evaluative stance) to an artifact and returns a typed, evidence-gated verdict: a finding needs a cited basis or it is dropped, never invented. Every live application is recorded as an AEE lens.applied envelope plus a VOLT evidence bundle, so a verdict is replayable, not just a chat response.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/quoxlens",
+      "label": "QuoxLens",
+      "icon": "lens",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/quoxlens": "QuoxLensView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

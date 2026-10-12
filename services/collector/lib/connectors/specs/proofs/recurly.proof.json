@@ -1,0 +1,90 @@
+{
+  "spec_id": "recurly",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:10.734Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://v3.recurly.com/quox-shapeproof-control-b21aa910",
+      "status": 404,
+      "latency_ms": 172,
+      "classification": "CONTROL",
+      "body_sha256": "48b430d3b6fb556e7a7668265ab0501e72037dd4fa3b933f24acc3c4c0c3d8ee",
+      "body_excerpt": "<!DOCTYPE HTML>\n<html lang=\"en\">\n  <head>\n    <meta http-equiv=\"content-type\" content=\"text/html;charset=UTF-8\" />\n    <title>Page Not Found - Recurly</title>\n    <style type='text/css'>\n      * {\n   ",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://v3.recurly.com/sites",
+      "status": 401,
+      "latency_ms": 109,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "64a8c253f1851884ef71cdf545e96fb5316db363bd12bf178dd2a52cd18eeb7d",
+      "body_excerpt": "{\"error\":{\"type\":\"unauthorized\",\"message\":\"Invalid API key\"}}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_sites",
+      "method": "GET",
+      "url": "https://v3.recurly.com/sites?limit=20&state=quoxprobe",
+      "status": 401,
+      "latency_ms": 115,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "64a8c253f1851884ef71cdf545e96fb5316db363bd12bf178dd2a52cd18eeb7d",
+      "body_excerpt": "{\"error\":{\"type\":\"unauthorized\",\"message\":\"Invalid API key\"}}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_accounts",
+      "method": "GET",
+      "url": "https://v3.recurly.com/accounts?limit=20&email=quoxprobe&subscriber=false",
+      "status": 401,
+      "latency_ms": 109,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "64a8c253f1851884ef71cdf545e96fb5316db363bd12bf178dd2a52cd18eeb7d",
+      "body_excerpt": "{\"error\":{\"type\":\"unauthorized\",\"message\":\"Invalid API key\"}}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_subscriptions",
+      "method": "GET",
+      "url": "https://v3.recurly.com/subscriptions?limit=20&state=quoxprobe",
+      "status": 401,
+      "latency_ms": 198,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "64a8c253f1851884ef71cdf545e96fb5316db363bd12bf178dd2a52cd18eeb7d",
+      "body_excerpt": "{\"error\":{\"type\":\"unauthorized\",\"message\":\"Invalid API key\"}}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_invoices",
+      "method": "GET",
+      "url": "https://v3.recurly.com/invoices?limit=20&state=quoxprobe&type=quoxprobe",
+      "status": 401,
+      "latency_ms": 143,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "64a8c253f1851884ef71cdf545e96fb5316db363bd12bf178dd2a52cd18eeb7d",
+      "body_excerpt": "{\"error\":{\"type\":\"unauthorized\",\"message\":\"Invalid API key\"}}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

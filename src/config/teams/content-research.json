@@ -1,0 +1,65 @@
+{
+  "id": "content-research",
+  "type": "team",
+  "version": "1.0.0",
+  "displayName": "Content & Research",
+  "description": "Knowledge operations team — document analysis, research synthesis, content extraction, classification, and technical writing across your knowledge base.",
+  "author": "QUOX",
+  "tier": "free",
+  "price": 0,
+  "priceModel": "included",
+  "icon": "book-open",
+  "accentColor": "#f59e0b",
+
+  "orchestrator": {
+    "agentId": "scholar",
+    "role": "orchestrator",
+    "domains": ["research coordination", "knowledge synthesis", "content strategy"]
+  },
+
+  "members": [
+    {
+      "agentId": "archivist",
+      "role": "specialist",
+      "domains": ["document analysis", "summarization", "content extraction"]
+    },
+    {
+      "agentId": "prism",
+      "role": "analyst",
+      "domains": ["classification", "pattern recognition", "data validation"]
+    },
+    {
+      "agentId": "beacon",
+      "role": "specialist",
+      "domains": ["source availability", "link checking", "uptime verification"]
+    },
+    {
+      "agentId": "quoxcode",
+      "role": "specialist",
+      "domains": ["code documentation", "API reference generation", "technical writing"]
+    },
+    {
+      "agentId": "forge",
+      "role": "specialist",
+      "domains": ["template generation", "report formatting", "export scripts"]
+    }
+  ],
+
+  "policies": {
+    "maxBudgetTokens": 250000,
+    "maxBudgetToolCalls": 100,
+    "maxDurationMs": 14400000,
+    "maxTaskDurationMs": 600000,
+    "heartbeatIntervalMs": 15000,
+    "maxParallelTasks": 2,
+    "requireApprovalBeforeStart": true,
+    "checkpointAfterEachTask": false,
+    "voltRequired": true,
+    "allowedChannels": ["slack", "telegram", "email"]
+  },
+
+  "sharedContext": {
+    "persistent": true,
+    "schema": {}
+  }
+}

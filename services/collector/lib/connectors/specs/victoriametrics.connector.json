@@ -1,0 +1,218 @@
+{
+  "spec_version": 1,
+  "id": "victoriametrics",
+  "name": "VictoriaMetrics",
+  "category": "monitoring",
+  "credentialType": "victoriametrics",
+  "requiredFields": [
+    "base_url"
+  ],
+  "docs": "https://docs.victoriametrics.com/url-examples/",
+  "tools_source": "https://docs.victoriametrics.com/url-examples/",
+  "description": "VictoriaMetrics reads over its Prometheus-compatible HTTP API: instant and range PromQL queries, label and label-value listing, and TSDB series/cardinality status. Read-only; no data ingestion or admin endpoint is wired here. It is unauthenticated by default (base_url is the only credential); put it behind a reverse proxy for exposure beyond a trusted LAN.",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "none"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/status/tsdb"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 60
+  },
+  "tools": [
+    {
+      "name": "query",
+      "description": "Evaluate a PromQL expression at a single instant and return the matching series with their values (e.g. 'up', 'vm_app_version')",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "PromQL expression to evaluate"
+          },
+          "time": {
+            "type": "string",
+            "description": "Optional evaluation timestamp, RFC3339 or a Unix timestamp (defaults to now)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/query",
+        "query": {
+          "query": "{{input.query}}",
+          "time": "{{input.time}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "resultType": "data.resultType",
+          "data.result[]": {
+            "metric": "metric",
+            "value": "value"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.query": "vm_app_version"
+      }
+    },
+    {
+      "name": "query_range",
+      "description": "Evaluate a PromQL expression over a time range at a fixed step and return each series as a list of timestamped samples",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "PromQL expression to evaluate"
+          },
+          "start": {
+            "type": "string",
+            "description": "Range start, RFC3339 or a Unix timestamp"
+          },
+          "end": {
+            "type": "string",
+            "description": "Range end, RFC3339 or a Unix timestamp"
+          },
+          "step": {
+            "type": "string",
+            "description": "Resolution step, a duration such as 60s or 5m, or a number of seconds"
+          }
+        },
+        "required": [
+          "query",
+          "start",
+          "end",
+          "step"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/query_range",
+        "query": {
+          "query": "{{input.query}}",
+          "start": "{{input.start}}",
+          "end": "{{input.end}}",
+          "step": "{{input.step}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "resultType": "data.resultType",
+          "data.result[]": {
+            "metric": "metric",
+            "values": "values"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.query": "vm_app_version",
+        "input.start": "2020-01-01T00:00:00Z",
+        "input.end": "2020-01-01T00:05:00Z",
+        "input.step": "60s"
+      }
+    },
+    {
+      "name": "labels",
+      "description": "List every label name known to this instance",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/labels"
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "values": "data"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "label_values",
+      "description": "List the values a label takes across the series in this instance (use __name__ to list every metric name)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Label name to list values for, e.g. __name__, job or instance"
+          }
+        },
+        "required": [
+          "label"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/label/{{input.label}}/values"
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "values": "data"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.label": "__name__"
+      }
+    },
+    {
+      "name": "tsdb_status",
+      "description": "Get TSDB cardinality status: total series, total label/value pairs and top series counts by metric name",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/status/tsdb"
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "totalSeries": "data.totalSeries",
+          "totalLabelValuePairs": "data.totalLabelValuePairs",
+          "seriesCountByMetricName": "data.seriesCountByMetricName"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-13 observability tranche",
+    "confidence": "live",
+    "needs_review": [
+      "AUTH IS none BY DESIGN: VictoriaMetrics ships with no authentication on its HTTP API by default, so base_url is the only credential and auth.type is 'none'. An internet-exposed instance must sit behind a reverse proxy; that is a deployment concern, not a spec one.",
+      "READ-ONLY: all five tools are GET, write:false. VictoriaMetrics's write surface (/api/v1/import, /api/v1/write, admin/snapshot endpoints) is not modelled here.",
+      "query probes vm_app_version, a metric VictoriaMetrics exposes about itself from boot, so the live proof gets a non-empty result even on a just-started instance.",
+      "query_range probes a FIXED 2020 five-minute window, before any ephemeral instance existed; the honest expected result is a 200 with an empty result array, proving routing and the envelope keys, not the sample shape.",
+      "PICK SHAPES follow the Prometheus-compatible envelope: metric/value/values are kept as the raw objects the API returns, since Connector Spec v1 has no computed fields to flatten them.",
+      "LIVE-PROOF CONTRACT: query pins vm_app_version; query_range pins the fixed 2020 window; label_values pins __name__; labels and tsdb_status take no input, _probe {}. Proven against docker victoriametrics/victoria-metrics:v1.102.1, then destroyed."
+    ]
+  }
+}

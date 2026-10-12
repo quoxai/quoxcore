@@ -1,0 +1,279 @@
+{
+  "spec_version": 1,
+  "id": "kong",
+  "name": "Kong",
+  "category": "developer",
+  "credentialType": "kong",
+  "requiredFields": [
+    "admin_url",
+    "api_key"
+  ],
+  "docs": "https://docs.konghq.com/",
+  "tools_source": "https://docs.konghq.com/gateway/latest/admin-api/",
+  "description": "Self-hosted Kong Gateway Admin API reads: node health and traffic counters, node version and enabled plugins, and the configured services, routes and plugins. Read-only; every create, update, delete and declarative config-load endpoint on the same Admin API is deliberately absent.",
+  "base_url": {
+    "fromCredential": "admin_url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "apikey",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/status"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "get_status",
+      "description": "Get the Kong node's health: connection and request counters, datastore reachability, and the loaded configuration hash in DB-less mode",
+      "request": {
+        "method": "GET",
+        "path": "/status"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "database_reachable": "database.reachable",
+          "configuration_hash": "configuration_hash",
+          "connections_accepted": "server.connections_accepted",
+          "connections_active": "server.connections_active",
+          "connections_handled": "server.connections_handled",
+          "connections_reading": "server.connections_reading",
+          "connections_waiting": "server.connections_waiting",
+          "connections_writing": "server.connections_writing",
+          "total_requests": "server.total_requests"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "node_info",
+      "description": "Identify the Kong node this credential points at: gateway version, hostname, node id, Lua runtime and the plugins enabled across the cluster",
+      "request": {
+        "method": "GET",
+        "path": "/"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "version": "version",
+          "hostname": "hostname",
+          "node_id": "node_id",
+          "tagline": "tagline",
+          "lua_version": "lua_version",
+          "enabled_in_cluster": "plugins.enabled_in_cluster",
+          "timers_pending": "timers.pending",
+          "timers_running": "timers.running"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_services",
+      "description": "List the services configured on this Kong gateway, with their upstream target and timeouts",
+      "request": {
+        "method": "GET",
+        "path": "/services",
+        "query": {
+          "size": "{{clamp input.size 20 100}}",
+          "offset": "{{input.offset}}",
+          "tags": "{{input.tags}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "size": {
+            "type": "number",
+            "description": "Max services to return (default 20, capped at 100 by this connector)"
+          },
+          "offset": {
+            "type": "string",
+            "description": "Pagination cursor taken from a previous response's offset field"
+          },
+          "tags": {
+            "type": "string",
+            "description": "Filter by tag; comma-separated for AND, slash-separated for OR"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "enabled": "enabled",
+            "protocol": "protocol",
+            "host": "host",
+            "port": "port",
+            "path": "path",
+            "retries": "retries",
+            "connect_timeout": "connect_timeout",
+            "read_timeout": "read_timeout",
+            "write_timeout": "write_timeout",
+            "tags": "tags",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "offset": "offset",
+          "next": "next"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.size": 5
+      }
+    },
+    {
+      "name": "list_routes",
+      "description": "List the routes configured on this Kong gateway, with the hosts, paths and methods each one matches and the service it forwards to",
+      "request": {
+        "method": "GET",
+        "path": "/routes",
+        "query": {
+          "size": "{{clamp input.size 20 100}}",
+          "offset": "{{input.offset}}",
+          "tags": "{{input.tags}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "size": {
+            "type": "number",
+            "description": "Max routes to return (default 20, capped at 100 by this connector)"
+          },
+          "offset": {
+            "type": "string",
+            "description": "Pagination cursor taken from a previous response's offset field"
+          },
+          "tags": {
+            "type": "string",
+            "description": "Filter by tag; comma-separated for AND, slash-separated for OR"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "protocols": "protocols",
+            "methods": "methods",
+            "hosts": "hosts",
+            "paths": "paths",
+            "strip_path": "strip_path",
+            "preserve_host": "preserve_host",
+            "https_redirect_status_code": "https_redirect_status_code",
+            "regex_priority": "regex_priority",
+            "service_id": "service.id",
+            "tags": "tags",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "offset": "offset",
+          "next": "next"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.size": 5
+      }
+    },
+    {
+      "name": "list_plugins",
+      "description": "List the plugins configured on this Kong gateway, with what each one is attached to and whether it is enabled (plugin config is deliberately not returned)",
+      "request": {
+        "method": "GET",
+        "path": "/plugins",
+        "query": {
+          "size": "{{clamp input.size 20 100}}",
+          "offset": "{{input.offset}}",
+          "tags": "{{input.tags}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "size": {
+            "type": "number",
+            "description": "Max plugins to return (default 20, capped at 100 by this connector)"
+          },
+          "offset": {
+            "type": "string",
+            "description": "Pagination cursor taken from a previous response's offset field"
+          },
+          "tags": {
+            "type": "string",
+            "description": "Filter by tag; comma-separated for AND, slash-separated for OR"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "instance_name": "instance_name",
+            "enabled": "enabled",
+            "protocols": "protocols",
+            "service_id": "service.id",
+            "route_id": "route.id",
+            "consumer_id": "consumer.id",
+            "tags": "tags",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "offset": "offset",
+          "next": "next"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.size": 5
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:api_key",
+      "AUTH KEPT AS SCAFFOLDED, AND THE VAULT IS WHAT IT HAS TO MATCH: the vault entry (integrationTypeRegistry.kong) sends { 'apikey': creds.api_key } and tests admin_url + /status, which is this spec's test block verbatim. Kong Gateway OSS ships its Admin API with NO authentication of its own (the docs' guidance is to restrict it at the network layer or put it behind the key-auth plugin, whose default key name IS 'apikey'), and Kong Enterprise RBAC uses a DIFFERENT header, Kong-Admin-Token. Nothing in the docs proves 'apikey' wrong for the key-auth-protected deployment the vault describes, so the scaffolded header is unchanged. An Enterprise RBAC instance is NOT served by this spec as written.",
+      "THE OPTIONAL-KEY MISMATCH IS A REAL BLOCKER FOR AN UNSECURED ADMIN API. The vault declares { key: 'api_key', required: false, placeholder: 'Admin API key (if secured)' } and its testHeaders read verbatim: \"creds.api_key ? ({ 'apikey': creds.api_key }) : ({})\", that is, it SKIPS the header entirely when the field is blank. This spec cannot express that conditional: lib/connectors/declarativeRuntime.js buildAuth for auth.type 'header' calls renderCredentialTemplate, which calls requireCredential and THROWS 'missing credential field' when the field is absent. A stock Kong node's Admin API needs no key, so a credential saved without one tests GREEN in the vault and then hard-errors on every tool call. requiredFields therefore lists 'api_key' even though the vault marks it optional: it documents what THIS connector needs to run, and keeps the scaffolder warning above honest rather than deleting it. Identical shape to prometheus.connector.json; closing it is a RUNTIME or SCHEMA change (an auth mode that omits its header when the field is empty), not a spec change, so it is not done here.",
+      "CATEGORY: the scaffold wrote 'uncategorized', which is not one of the twelve values in use across this spec directory (cloud_hosting, commerce_finance, communication, crm_sales, data_ai, developer, files_knowledge, hr_hiring, marketing_email, media, monitoring, project_management). Changed to 'developer', which is both an existing spec-directory value (next to postman, netlify, vercel and the other delivery-path control planes) and exactly what the vault entry's own category field says.",
+      "DB-LESS IS THE TARGET SHAPE, AND IT SUITS A READ-ONLY CONNECTOR: with declarative configuration (KONG_DATABASE=off) Kong REFUSES writes to /services, /routes and /plugins at the Admin API, so a DB-less gateway can only ever be read through these endpoints, which is exactly what this connector does. It also means the live harness can stand up a stock Kong container with an empty declarative config and every tool answers 200 with an empty data array. get_status's configuration_hash appears in DB-less and hybrid modes only, and database.reachable is what a DB-backed node reports; a field a given mode omits resolves to undefined and simply drops out of the picked object rather than failing the call.",
+      "NOT PROVEN BY ANY RUN, BECAUSE THE HOST IS CUSTOMER-SUPPLIED: base_url comes fromCredential 'admin_url', Kong is self-hosted, and there is no vendor-run Admin API a blind shape-proof could reach. Every path, query parameter and picked field name here is DOCUMENTARY, from the Admin API reference, not from a 2xx seen in this session. The LIVE harness against an ephemeral Kong container is what must confirm them.",
+      "LIVE-PROOF CONTRACT: every tool carries a tool-level _probe and all five answer on a FRESH, EMPTY instance. get_status and node_info need no resource at all and carry an EMPTY _probe ({}) rather than none, recording that nothing needs substituting. list_services, list_routes and list_plugins probe input.size 5 only and return {\"data\": [], \"next\": null} on a gateway with no configuration, which proves routing and the envelope without any provisioning. NO tool needs a provisioned resource, so nothing probes the 'quoxproof-live' resource-name convention; if the harness loads a declarative config carrying a service named quoxproof-live, list_services simply includes it. No credential value is ever hinted.",
+      "WHAT IS DELIBERATELY NOT PICKED, AND THIS ONE IS A SECRET-HANDLING DECISION: list_plugins does NOT pick a plugin's `config` object. Plugin config is precisely where credentials live (jwt and hmac secrets, http-log Authorization headers, ai-proxy provider keys), so returning it would turn a read-only tool into an exfiltration path into agent context. node_info likewise does not pick GET /'s `configuration` block, which is the node's entire resolved configuration: every listen address, path and datastore setting, far larger than any question an agent asks and not worth the blast radius. Identity, state and relationship ids are picked instead.",
+      "PAGINATION: the Admin API pages by an opaque `offset` cursor with a `size` page size (documented default 100, maximum 1000). The 20/100 clamp is OURS, deliberately below Kong's maximum, and the input descriptions say so. Both `offset` and `next` are picked so a caller can tell a truncated page from a complete one. `tags` is passed through for the documented tag filter, whose comma/slash AND-OR syntax is repeated in the input descriptions.",
+      "READ-ONLY BY CONSTRUCTION, AND THE OMISSIONS ARE THE POINT: all five tools are GET and carry write:false. The same Admin API exposes POST/PATCH/PUT/DELETE on /services, /routes, /plugins, /consumers, /upstreams, /targets and /certificates, plus POST /config, which REPLACES a DB-less node's entire configuration in one call. None is wired here. Nothing in this connector may be described as configuring or deploying Kong.",
+      "rateLimit 30/min is a LOCAL courtesy and spend guard, not a Kong number: the Admin API enforces no request rate limit of its own.",
+      "RESPONSE SHAPES COME FROM THE ADMIN API REFERENCE, NOT FROM A RUN: the Service object (id, name, enabled, protocol, host, port, path, retries, connect_timeout, read_timeout, write_timeout, tags, created_at, updated_at), the Route object (id, name, protocols, methods, hosts, paths, strip_path, preserve_host, https_redirect_status_code, regex_priority, service, tags, created_at, updated_at), the Plugin object (id, name, instance_name, enabled, protocols, service, route, consumer, tags, created_at, updated_at), the {data, offset, next} list envelope, /status ({memory, server, database, configuration_hash}) and / ({version, hostname, node_id, tagline, lua_version, plugins, timers}). A plugin or route that is not attached to a service, route or consumer sends null there, and a dotted pick over null resolves to undefined and drops out, so unattached entries return a smaller object rather than failing."
+    ]
+  }
+}

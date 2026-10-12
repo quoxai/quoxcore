@@ -1,0 +1,77 @@
+{
+  "spec_id": "messagebird",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:14:06.487Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://rest.messagebird.com/quox-shapeproof-control-6884fc0d",
+      "status": 404,
+      "latency_ms": 2406,
+      "classification": "CONTROL",
+      "body_sha256": "ca3c4992113fec06a85a119807bc6c64723a6c021a0e99e91cd8d22d607a95dc",
+      "body_excerpt": "{\"errors\":[{\"code\":98,\"description\":\"Resource not found\",\"parameter\":null}]}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://rest.messagebird.com/balance",
+      "status": 401,
+      "latency_ms": 143,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c88e4fb1fe2e4afbf4af6eda2e9900325cf5702b9bff19d95c61b5f369b1a958",
+      "body_excerpt": "{\"errors\":[{\"code\":2,\"description\":\"Request not allowed (incorrect access_key)\",\"parameter\":\"access_key\"}]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "balance",
+      "method": "GET",
+      "url": "https://rest.messagebird.com/balance",
+      "status": 401,
+      "latency_ms": 82,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c88e4fb1fe2e4afbf4af6eda2e9900325cf5702b9bff19d95c61b5f369b1a958",
+      "body_excerpt": "{\"errors\":[{\"code\":2,\"description\":\"Request not allowed (incorrect access_key)\",\"parameter\":\"access_key\"}]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_messages",
+      "method": "GET",
+      "url": "https://rest.messagebird.com/messages?limit=20",
+      "status": 401,
+      "latency_ms": 201,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c88e4fb1fe2e4afbf4af6eda2e9900325cf5702b9bff19d95c61b5f369b1a958",
+      "body_excerpt": "{\"errors\":[{\"code\":2,\"description\":\"Request not allowed (incorrect access_key)\",\"parameter\":\"access_key\"}]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_contacts",
+      "method": "GET",
+      "url": "https://rest.messagebird.com/contacts?limit=20",
+      "status": 401,
+      "latency_ms": 131,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c88e4fb1fe2e4afbf4af6eda2e9900325cf5702b9bff19d95c61b5f369b1a958",
+      "body_excerpt": "{\"errors\":[{\"code\":2,\"description\":\"Request not allowed (incorrect access_key)\",\"parameter\":\"access_key\"}]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

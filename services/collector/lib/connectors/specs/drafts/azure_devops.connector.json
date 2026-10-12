@@ -1,0 +1,34 @@
+{
+  "spec_version": 1,
+  "id": "azure_devops",
+  "name": "Azure DevOps",
+  "category": "uncategorized",
+  "credentialType": "azure_devops",
+  "requiredFields": [
+    "organization",
+    "pat"
+  ],
+  "docs": "https://learn.microsoft.com/en-us/rest/api/azure/devops/",
+  "base_url": "https://dev.azure.com",
+  "auth": {
+    "type": "basic",
+    "userField": "",
+    "passField": "pat"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/{{organization}}/_apis/projects",
+    "query": {
+      "api-version": "7.1"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "basic_literal_user"
+    ]
+  }
+}

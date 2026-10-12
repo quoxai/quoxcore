@@ -1,0 +1,90 @@
+{
+  "spec_id": "close",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:51:28.747Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.close.com/quox-shapeproof-control-310ff200",
+      "status": 404,
+      "latency_ms": 982,
+      "classification": "CONTROL",
+      "body_sha256": "dc783817e93d14e0697ed81405f4ad30b1d8a4adf74e13971dfe3276b816117d",
+      "body_excerpt": "{\"error\": \"The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.\"}\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.close.com/api/v1/me/",
+      "status": 401,
+      "latency_ms": 378,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1e944ca6d5ac9c20a8bca4e3cd987dc29ec3c00adf58c5e0aaf71c7928334dda",
+      "body_excerpt": "{\"error\": \"Unauthorized\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "me",
+      "method": "GET",
+      "url": "https://api.close.com/api/v1/me/",
+      "status": 401,
+      "latency_ms": 838,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1e944ca6d5ac9c20a8bca4e3cd987dc29ec3c00adf58c5e0aaf71c7928334dda",
+      "body_excerpt": "{\"error\": \"Unauthorized\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_leads",
+      "method": "GET",
+      "url": "https://api.close.com/api/v1/lead/?_limit=20",
+      "status": 401,
+      "latency_ms": 373,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1e944ca6d5ac9c20a8bca4e3cd987dc29ec3c00adf58c5e0aaf71c7928334dda",
+      "body_excerpt": "{\"error\": \"Unauthorized\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_lead",
+      "method": "GET",
+      "url": "https://api.close.com/api/v1/lead/quoxprobe/",
+      "status": 401,
+      "latency_ms": 456,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1e944ca6d5ac9c20a8bca4e3cd987dc29ec3c00adf58c5e0aaf71c7928334dda",
+      "body_excerpt": "{\"error\": \"Unauthorized\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_opportunities",
+      "method": "GET",
+      "url": "https://api.close.com/api/v1/opportunity/?_limit=20&lead_id=quoxprobe&status_type=quoxprobe",
+      "status": 401,
+      "latency_ms": 173,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1e944ca6d5ac9c20a8bca4e3cd987dc29ec3c00adf58c5e0aaf71c7928334dda",
+      "body_excerpt": "{\"error\": \"Unauthorized\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

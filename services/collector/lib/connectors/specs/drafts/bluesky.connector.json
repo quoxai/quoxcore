@@ -1,0 +1,31 @@
+{
+  "spec_version": 1,
+  "id": "bluesky",
+  "name": "Bluesky",
+  "category": "uncategorized",
+  "credentialType": "bluesky",
+  "requiredFields": [
+    "handle",
+    "app_password"
+  ],
+  "docs": "https://docs.bsky.app/",
+  "base_url": "https://bsky.social",
+  "auth": null,
+  "static_headers": {
+    "Content-Type": "application/json"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/xrpc/com.atproto.server.createSession",
+    "body": "{\"identifier\":\"{{handle}}\",\"password\":\"{{app_password}}\"}"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "no_auth_detected"
+    ]
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "spec_id": "pexels",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:07.019Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.pexels.com/quox-shapeproof-control-47d08516",
+      "status": 404,
+      "latency_ms": 843,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.pexels.com/v1/curated",
+      "status": 200,
+      "latency_ms": 169,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "61d7e8b5f374cb205d8d8d7080039516c4ccf8b6b5a4b752e9d0b14c59113f5e",
+      "body_excerpt": "{\"page\":1,\"per_page\":15,\"photos\":[{\"id\":39455763,\"width\":2732,\"height\":3634,\"url\":\"https://www.pexels.com/photo/black-drongo-bird-on-a-tree-branch-39455763/\",\"photographer\":\"Rino Adamo\",\"photographer_",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "search_photos",
+      "method": "GET",
+      "url": "https://api.pexels.com/v1/search?query=quoxprobe&page=1&per_page=15&orientation=quoxprobe&size=quoxprobe",
+      "status": 401,
+      "latency_ms": 261,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e91e7938cf6033aeffe65a9f4fb0562271fab2404d9fc7ce74735cd4df94ee35",
+      "body_excerpt": "{\"status\":401,\"code\":\"Unauthorized\",\"message\":\"Invalid API key\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_photo",
+      "method": "GET",
+      "url": "https://api.pexels.com/v1/photos/quoxprobe",
+      "status": 401,
+      "latency_ms": 256,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e91e7938cf6033aeffe65a9f4fb0562271fab2404d9fc7ce74735cd4df94ee35",
+      "body_excerpt": "{\"status\":401,\"code\":\"Unauthorized\",\"message\":\"Invalid API key\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_curated_photos",
+      "method": "GET",
+      "url": "https://api.pexels.com/v1/curated?page=1&per_page=15",
+      "status": 200,
+      "latency_ms": 117,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b93211493af047991025dfcf9045a72ba206deb01ee271c25bd8bf25a22a2272",
+      "body_excerpt": "{\"page\":1,\"per_page\":15,\"photos\":[{\"id\":20896073,\"width\":6000,\"height\":4000,\"url\":\"https://www.pexels.com/photo/layers-of-hills-seen-from-bay-20896073/\",\"photographer\":\"Jörg Hamel\",\"photographer_url\":",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "search_videos",
+      "method": "GET",
+      "url": "https://api.pexels.com/videos/search?query=quoxprobe&page=1&per_page=15&orientation=quoxprobe",
+      "status": 401,
+      "latency_ms": 208,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e91e7938cf6033aeffe65a9f4fb0562271fab2404d9fc7ce74735cd4df94ee35",
+      "body_excerpt": "{\"status\":401,\"code\":\"Unauthorized\",\"message\":\"Invalid API key\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

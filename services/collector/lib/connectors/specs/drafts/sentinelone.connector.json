@@ -1,0 +1,31 @@
+{
+  "spec_version": 1,
+  "id": "sentinelone",
+  "name": "SentinelOne",
+  "category": "uncategorized",
+  "credentialType": "sentinelone",
+  "requiredFields": [
+    "api_token",
+    "base_url"
+  ],
+  "docs": "https://usea1-partners.sentinelone.net/api-doc/overview",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "ApiToken {{api_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/web/api/v2.1/system/status"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

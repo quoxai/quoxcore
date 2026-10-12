@@ -1,0 +1,234 @@
+{
+  "spec_version": 1,
+  "id": "spotify",
+  "name": "Spotify",
+  "category": "media",
+  "credentialType": "spotify",
+  "requiredFields": [
+    "client_id",
+    "client_secret"
+  ],
+  "docs": "https://developer.spotify.com/documentation/web-api",
+  "base_url": "https://api.spotify.com",
+  "auth": {
+    "type": "oauth2_client_credentials",
+    "token_url": "https://accounts.spotify.com/api/token",
+    "client_auth": "basic",
+    "clientIdField": "client_id",
+    "clientSecretField": "client_secret"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/search",
+    "query": {
+      "q": "quox",
+      "type": "artist",
+      "limit": "1"
+    }
+  },
+  "tools_source": "https://developer.spotify.com/documentation/web-api/reference",
+  "tools": [
+    {
+      "name": "search",
+      "description": "Search the Spotify catalogue for artists, albums, tracks or playlists",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "description": "Search query (e.g. 'artist:Radiohead' or free text)"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "album",
+              "artist",
+              "playlist",
+              "track",
+              "show",
+              "episode",
+              "audiobook"
+            ],
+            "description": "Item type to search for"
+          },
+          "market": {
+            "type": "string",
+            "description": "Optional ISO 3166-1 alpha-2 country code (e.g. GB)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max results to return (default 20, max 50)"
+          }
+        },
+        "required": [
+          "q",
+          "type"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/search",
+        "query": {
+          "q": "{{input.q}}",
+          "type": "{{input.type}}",
+          "market": "{{input.market}}",
+          "limit": "{{clamp input.limit 20 50}}"
+        }
+      },
+      "_probe": {
+        "input.type": "artist"
+      },
+      "response": {
+        "pick": {
+          "artists": "artists.total",
+          "albums": "albums.total",
+          "tracks": "tracks.total",
+          "playlists": "playlists.total"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_artist",
+      "description": "Get one Spotify artist by ID (name, genres, followers, popularity)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "artist_id": {
+            "type": "string",
+            "description": "Spotify artist ID (e.g. 0TnOYISbd1XYRBk9myaseg)"
+          }
+        },
+        "required": [
+          "artist_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/artists/{{input.artist_id}}"
+      },
+      "_probe": {
+        "input.artist_id": "0TnOYISbd1XYRBk9myaseg"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "genres": "genres",
+          "popularity": "popularity",
+          "followers": "followers.total",
+          "url": "external_urls.spotify"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_album",
+      "description": "Get one Spotify album by ID (name, release date, label, track count)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "album_id": {
+            "type": "string",
+            "description": "Spotify album ID (e.g. 4aawyAB9vmqN3uQ7FjRGTy)"
+          },
+          "market": {
+            "type": "string",
+            "description": "Optional ISO 3166-1 alpha-2 country code (e.g. GB)"
+          }
+        },
+        "required": [
+          "album_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/albums/{{input.album_id}}",
+        "query": {
+          "market": "{{input.market}}"
+        }
+      },
+      "_probe": {
+        "input.album_id": "4aawyAB9vmqN3uQ7FjRGTy"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "album_type": "album_type",
+          "release_date": "release_date",
+          "label": "label",
+          "total_tracks": "total_tracks",
+          "popularity": "popularity",
+          "artists[]": {
+            "id": "id",
+            "name": "name"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_track",
+      "description": "Get one Spotify track by ID (name, album, artists, duration, popularity)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "string",
+            "description": "Spotify track ID (e.g. 11dFghVXANMlKmJXsNCbNl)"
+          },
+          "market": {
+            "type": "string",
+            "description": "Optional ISO 3166-1 alpha-2 country code (e.g. GB)"
+          }
+        },
+        "required": [
+          "track_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/tracks/{{input.track_id}}",
+        "query": {
+          "market": "{{input.market}}"
+        }
+      },
+      "_probe": {
+        "input.track_id": "11dFghVXANMlKmJXsNCbNl"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "album": "album.name",
+          "release_date": "album.release_date",
+          "duration_ms": "duration_ms",
+          "explicit": "explicit",
+          "popularity": "popularity",
+          "artists[]": {
+            "id": "id",
+            "name": "name"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "medium",
+    "needs_review": [
+      "UNBLOCKED. The earlier draft was BLOCKED with zero tools because Connector Spec v1 had no client-credentials auth type: basic client_id:client_secret works only at https://accounts.spotify.com/api/token, while the API surface (https://api.spotify.com/v1/*) accepts only 'Authorization: Bearer <access_token>', and oauth2_refresh was unusable because it demands a refreshTokenField the vault entry never collects. The new auth.type oauth2_client_credentials (specSchema.js, declarativeRuntime.js getClientCredentialsToken) resolves exactly that gap: token_url + clientIdField + clientSecretField + client_auth basic, which is the flow the two collected fields already support. base_url now points at the API host, not the token host.",
+      "The vault entry (services/auth/config/integrationTypeRegistry.js:7014) still collects only client_id and client_secret, and that is sufficient: no new field is required and none was invented. Its credential test continues to exercise the token endpoint, which is the correct check for a client-credentials pair.",
+      "APP-TOKEN SCOPE ONLY. All four tools are catalogue reads, which is the whole surface a client-credentials token can reach. Anything user-scoped (saved tracks, playlists of a user, playback, recently played) needs the authorisation-code flow with a user refresh token and stays out of scope for this credential type.",
+      "Token-acquisition flow is NOT proven by the shape-proof run. The harness fires a dummy bearer at the API surface, so paths, host, TLS and auth handling are tested and the exchange itself is not; only a real client id/secret pair can prove it.",
+      "Probe hints use Spotify's own public documentation IDs (artist 0TnOYISbd1XYRBk9myaseg, album 4aawyAB9vmqN3uQ7FjRGTy, track 11dFghVXANMlKmJXsNCbNl) so an invalid-ID 404 cannot be confused with a wrong path."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

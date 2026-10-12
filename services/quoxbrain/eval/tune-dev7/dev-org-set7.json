@@ -1,0 +1,492 @@
+{
+  "description": "TUNABLE visible set 7, authored 2026-10-10 by an independent agent without access to search results, eval output or ranking code. For candidate-generation research; may be tuned on. 70 paraphrase targets sampled with ORDER BY random() (bodies >=400 chars, non-code, credential/IP/hostname rows screened out): note 22, memory 10, quoxplan_note/stream/plan 16, commit 8, transcript_session 8, other (insight, finding, governance_incidents, tasks_execution_wisdom) 6. Every question passed Jaccard<=0.3 and <=50% content-word overlap against its note. 15 near-misses, each verified 0 rows via SQL LIKE on notes.body for the org with key terms: Apache Flink, Cassandra, Istio, Vagrant, CockroachDB, ClickHouse, Jaeger, Fly.io, Kubeflow, Terragrunt, Kustomize, Tekton, Renovate, Sidekiq, Airflow. Note: two governance_incidents questions share near-identical sibling notes (cross-listed in acceptable).",
+  "org_id": "01KKNKH398KKEWB36JXRYR70QH",
+  "paraphrases": [
+    {
+      "noteId": "e69ab2392316e6d91683511cdcdb6d9eaa370953",
+      "question": "Why can't third-party extensions keep customer information solely inside the visitor's own web client, and which kind of backend has to receive the write before anything else?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "f37569510a108dafb8f634a145da8aed27f55809",
+      "question": "After an outside red-team style review of the search analytics product turned up two serious live holes, what standing policy did the owner announce for future reviews?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "b23a08f405d5ef54dbc9f03a9e6f2bb11ea8b5c3",
+      "question": "Can unsupervised late-night bots delete anything on their own, and what ownership check precedes a repair?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "7b7f76e90b53f062f0078bd6fde15d6bdbfddbda",
+      "question": "How does the user want me to close out messages once the roadmap is signed off, rather than asking which way to go?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "fc612fc215953a60d26dabb18eba7c6eb30d5d5b",
+      "question": "Which transport won out for live telemetry of AI workers into the UI, and what was the argument for it?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "48bf47a0e854caa89dfc6bf340a1ebbd8a59247e",
+      "question": "What distinction did a hash-chain auditor blur when a link had nothing recorded at all?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "1632e6f72f4d45abc3bb07843d2c474551c660f7",
+      "question": "For mailbox products, how should subscribed bulletins be treated instead of mass opting out?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "a16b5f3f60d6a0357d3ff076026c3b7dd0762963",
+      "question": "Why did a site compile die with an odd short message while helper bots were still writing pages?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "3b1327fdbd8939e268bb93574df558d24c07dbd5",
+      "question": "Why did glyphs vanish inside clickable controls after a sitewide stylesheet rule, and what else did that rule inflate?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "8709fc60ca07223b336558b028195c8b6ba82e73",
+      "question": "How many checks passed and what was the 95th percentile latency when the two big protocol-layer rollouts finished in April 2026?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "e0cf439ce76046ec348d3c1e80a7a0aba0777180",
+      "question": "What duplicate control irritated the user on the config screen for the node-graph viewer?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "c0a3456e3aa3cc4365d4ada9c5cd39e485afad99",
+      "question": "What two serious weaknesses emerged from the sixteen-phase review of the crystal skills work, delaying the sequel?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "0558530326e9ebbc43fb4f2b55f052eff9afd291",
+      "question": "Why does the team believe making life pleasant for compliance reviewers is a high-leverage route to enterprise sales?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "d772d97bf46907f579eebdadb0512603e6948e82",
+      "question": "If you register a function for the pipeline engine, why does the live conversation surface remain unaware of it?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "67cab1408e697f8c4d1d16ab1a4a3c3b638ebacc",
+      "question": "How can every automated page check succeed while a navigation panel visually blocks the main area?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "f18b7ff5fdc2b79f2863973e431a4ce88ec4f173",
+      "question": "What happened on 2026-07-25 that taught us to read prior art and domain guidance first when shaping anything new?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "9526d1c214d49b45cddbc3819e664dff597432c9",
+      "question": "Where should alerts that need a person go first, and when may copies be sent to chat apps?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "ba468a5cdd07972ec56444c8b493a42e76741afc",
+      "question": "What did the user find lacking on the capability catalog page after first walking through it in mid-May?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "879cab7eec05752c8661300cae5e74a0f8e189c9",
+      "question": "What does the proposed hosted document vault look like in the owner's own words, and who curates it?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "53f87eed2f185b14910fea12e4b7bd2ff1664f54",
+      "question": "What guard makes saving the wrong kind of record bounce to the right layer, and how many of the phases were complete?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "948ca14c2aac091a0cf78b2c5d43b650666d0b2b",
+      "question": "What jokingly named helper was floated on 2026-05-08 for the screen that governs automatic launchers, and what would it spot that is orphaned?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "02983f0f7649f971318cadde82c165e8d63bcd82",
+      "question": "How should the brain product be priced, free engine versus the paid visual workbench, and what is the amount?",
+      "kind": "note",
+      "acceptable": []
+    },
+    {
+      "noteId": "57bbac9d581a3531b34bb2aca60a79181d7c842d",
+      "question": "Which ranking check costs nothing and which spends real money, and how much credit remains in the paid account?",
+      "kind": "memory",
+      "acceptable": []
+    },
+    {
+      "noteId": "5e563b3e3e8e59eef99a657f34cd2111448bf0d5",
+      "question": "How healthy was the network of mental add-ons in early July, and why was the sleep consolidation judged unproductive?",
+      "kind": "memory",
+      "acceptable": []
+    },
+    {
+      "noteId": "030246e5e98a3f16c1169703cd9732e331dbe782",
+      "question": "What rule governs citing outside authors in articles for the governance content series, and what four parts does each article follow?",
+      "kind": "memory",
+      "acceptable": []
+    },
+    {
+      "noteId": "f151ae76355f6f484ef3b55fe872b94f089474cb",
+      "question": "What is the analyst persona's remit regarding website changes, and which three hub pages make up the organic strategy?",
+      "kind": "memory",
+      "acceptable": []
+    },
+    {
+      "noteId": "5f086d758b516e62a95adbff19d421be96de8249",
+      "question": "What flaws did the developer list in March about the chat assistant knowing its own environment?",
+      "kind": "memory",
+      "acceptable": []
+    },
+    {
+      "noteId": "1dc35a30883e91f76c52a6b8a7e712243f8b61a5",
+      "question": "During the overnight watch for fresh tickets, which kinds of problems was the automaton allowed to fix on its own?",
+      "kind": "memory",
+      "acceptable": []
+    },
+    {
+      "noteId": "b3ef8527b81ae39667128595cdec8e1b11d4da5d",
+      "question": "How much disk space was reclaimed by trimming the run-history archive, and how many runs were signed into it?",
+      "kind": "memory",
+      "acceptable": []
+    },
+    {
+      "noteId": "4436c96ee9cffc5d6d7a9984e2cdaa7ce851c5bc",
+      "question": "What did the schema work for the attached-session kit deliver so agents can see function signatures before adopting?",
+      "kind": "memory",
+      "acceptable": []
+    },
+    {
+      "noteId": "ed964f02885c27efc41c2c1097c79cf562f79904",
+      "question": "What extra context now appears on approval requests after the collector update, and why was the ticket left open?",
+      "kind": "memory",
+      "acceptable": []
+    },
+    {
+      "noteId": "928016f73d39d28fbf3ee7ab9f9ecd9d0b209cff",
+      "question": "Why did a ticket on the shell-gateway repo get shut as redundant, and what temporary mitigation went in?",
+      "kind": "memory",
+      "acceptable": []
+    },
+    {
+      "noteId": "8b42eb6b8141e3c26447b351bd977242e7b3d7db",
+      "question": "In the late-August mid-point review of the paid-boundary work, which adversarial reviewers were used and what did the owner order about the defects?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "8b4a845d9f0899d0d03eeb6960f8fb4f9cc36857",
+      "question": "How was it shown that a signed proof file served from the public edge can be checked with no network access to our servers?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "552447129e8548dc2afeff60b5020597bfe8d9b7",
+      "question": "Which two articles and which two definitional landing pages went up in the biggest content push of that SEO mission, and how were search engines notified?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "5c319d274981de4d0189d82d46642434c85ee2e6",
+      "question": "Why was the idea of agents staying the same agent across sessions deliberately not launched as its own product?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "f781dcca98098f8fc8a11c41d82e07b6a03f9f81",
+      "question": "What was wrong with the answers the code-search tool handed to agents, missing snippet text and relevance?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "958b9505439be53d1d8d29fa61306960a3857f90",
+      "question": "Why would a marketing line about compounding returns on reusable skills suit our sales material?",
+      "kind": "quoxplan_stream",
+      "acceptable": []
+    },
+    {
+      "noteId": "9de66f46319fd32eb7a3bf05f6ac7c347b5dc40a",
+      "question": "Which two office-style apps were sketched on 2026-10-10 and what delivery channel do they share?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "8f95e5a037fb648e0ddc9eeb858bf3cc0684fbcc",
+      "question": "How many categories did the owner agree for sorting paid add-ons by how they ship, and which one is the default?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "b3c536fe864024950aeec6ec6c8c3ff4bffec37d",
+      "question": "Why did a custom assistant's lookups of stored knowledge fail with an invalid-identifier error after attaching?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "0d50b213596368e4b859291ddddeaa8f60bb4af5",
+      "question": "What did the owner decide about charging for the builder starter pack in late August?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "599b1591503a3456c4020776ac2589bc452ef8b8",
+      "question": "How does analytics data from the crawler warehouse get pushed into the knowledge store without touching contested code?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "10f46d1fbc68ecad594ae2c279a98e022bcc2c1c",
+      "question": "Which expiry-style feature for reusable skills shipped on July 7, and what was postponed?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "2cb57b1eb1dee302301c776c8a016657042df1b4",
+      "question": "What fix made two evidence-signing implementations agree, and why was it not deployed to production straight away?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "01bb4df0a1a47002a69f548a3fb8e12aa132a404",
+      "question": "Why did the owner say recurring scans belong to the security product rather than being coded per website?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "078090ff6c6239a90945c5da04a9fea770ba282b",
+      "question": "Why do long-lived headless identities get a rejection when invoking tools, per the blast-radius finding?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "96b309492c1ca48d6983a60d28c6cb9da4719cce",
+      "question": "In the overnight run, how many agents had too many tools versus balanced ones, and which was thin by design?",
+      "kind": "quoxplan_note",
+      "acceptable": []
+    },
+    {
+      "noteId": "95237ab3102620306c88341510870326c12c7b91",
+      "question": "What new building blocks were proposed in the initial plan for the accountability engine stream?",
+      "kind": "commit",
+      "acceptable": []
+    },
+    {
+      "noteId": "4c12c0324b12cf815aac3b6c060072335481daab",
+      "question": "Why was a skipped test about publishing a timestamped proof wrong, and what does the publishing function really do?",
+      "kind": "commit",
+      "acceptable": []
+    },
+    {
+      "noteId": "47d9df628a001840e44b81c8ebe4833b0e738d28",
+      "question": "Why were dozens of server test files showing false failures in the aggregate runner?",
+      "kind": "commit",
+      "acceptable": []
+    },
+    {
+      "noteId": "bd4c8cab8057adfc5ea53987e4faa3bf28a2e9f9",
+      "question": "How were the controls above the signal list consolidated, and what keyboard help was dropped?",
+      "kind": "commit",
+      "acceptable": []
+    },
+    {
+      "noteId": "cb93f771c6cd92ffa63865337cf543cfc3116a55",
+      "question": "What endpoint was added for removing a tool from the in-memory registry, and who calls it?",
+      "kind": "commit",
+      "acceptable": []
+    },
+    {
+      "noteId": "a8b2ea52f6d0a84222d0423715844c545c1953b9",
+      "question": "During post-restart sign-off, why did a human note sent to the standing session get skipped over by the picker?",
+      "kind": "commit",
+      "acceptable": []
+    },
+    {
+      "noteId": "b86e6f012514f3b995a1b8983e10654579e4e8d2",
+      "question": "What made two sidebar icons for wiping a conversation look alike at tiny size?",
+      "kind": "commit",
+      "acceptable": []
+    },
+    {
+      "noteId": "c16cf8978bb293130dbd17a7745624ec30153204",
+      "question": "What did people see when opening an entry from the library, and which data source did the corrected view read?",
+      "kind": "commit",
+      "acceptable": []
+    },
+    {
+      "noteId": "91c77e7c2a656b9a066833d3a91e8f49cc940d31",
+      "question": "What loose ends were left for the owner after the iconography rollout, like activating the chat-bridge service?",
+      "kind": "transcript_session",
+      "acceptable": []
+    },
+    {
+      "noteId": "8b47347398dc2f88924c1043227b134c5dc8e9f9",
+      "question": "What did the user want packaged up for use on another machine regarding a spoken-style persona for a VPN product?",
+      "kind": "transcript_session",
+      "acceptable": []
+    },
+    {
+      "noteId": "eaf94d583dbb57ca359dbd093df2788d314a3271",
+      "question": "What was blocking pasting of the login address into the in-browser shell under the credentials settings?",
+      "kind": "transcript_session",
+      "acceptable": []
+    },
+    {
+      "noteId": "0023ff1b3934c75d2eb63b7d073f97901c9832fb",
+      "question": "What did the owner demand about the old name of the queue runner and the look of its console?",
+      "kind": "transcript_session",
+      "acceptable": []
+    },
+    {
+      "noteId": "dbcadb640048081cd2afe3b92a2cdc4087fd5e34",
+      "question": "How does the rapid complaint-filing console turn a one-line input into a ticket?",
+      "kind": "transcript_session",
+      "acceptable": []
+    },
+    {
+      "noteId": "8f13ed2370d2740425514f4f463522fc9fa19fd0",
+      "question": "What loop does the fleet-ticket sorting console run through for each report?",
+      "kind": "transcript_session",
+      "acceptable": []
+    },
+    {
+      "noteId": "b1d19ef5039fa129c2200d7b5500d0dda2b0e7cd",
+      "question": "Which tier did the session drop to, and what caveat did the settings file raise about the restart?",
+      "kind": "transcript_session",
+      "acceptable": []
+    },
+    {
+      "noteId": "fe8cfbef216adfd1677fe1f1ec17c99b7bc0ffea",
+      "question": "Which linting tool catches icon problems and which audit is it wired into?",
+      "kind": "transcript_session",
+      "acceptable": []
+    },
+    {
+      "noteId": "b9cfcda46ae8ba1cd2449892e2687a8293b985af",
+      "question": "What share of automated visitors to the public site are machine-learning crawlers, and which crawlers were heaviest?",
+      "kind": "finding",
+      "acceptable": []
+    },
+    {
+      "noteId": "fb7577a2bbffcf709cea1be5ebf19162dc7ba174",
+      "question": "Why can chatbots crawl the public site heavily yet fail to cite it, and what remedy was suggested?",
+      "kind": "insight",
+      "acceptable": []
+    },
+    {
+      "noteId": "868b2e9a26e070f0e908e6560cb6f59de594a3e9",
+      "question": "What should be done when over half of the planned jobs get skipped because their predecessors fail?",
+      "kind": "tasks_execution_wisdom",
+      "acceptable": []
+    },
+    {
+      "noteId": "e70e56fed8338599f49ae844b0ebfb63488e1df0",
+      "question": "How did a restart during deployment leave an execution proof off the ledger, and what self-healing change resolved it?",
+      "kind": "governance_incidents",
+      "acceptable": []
+    },
+    {
+      "noteId": "e35e0c226305bbbd6ede1ea449b8ff8ec31cf576",
+      "question": "Which commit fixed the race that left a remote command's proof unwitnessed, and how was the obligation repaired?",
+      "kind": "governance_incidents",
+      "acceptable": [
+        "4c274fac2ca39a411fa6e917714f657ac674f6bc"
+      ]
+    },
+    {
+      "noteId": "4c274fac2ca39a411fa6e917714f657ac674f6bc",
+      "question": "How were the replacement proofs checked on-chain after the incident, and was the detection genuine or spurious?",
+      "kind": "governance_incidents",
+      "acceptable": [
+        "e35e0c226305bbbd6ede1ea449b8ff8ec31cf576"
+      ]
+    }
+  ],
+  "nearMisses": [
+    {
+      "query": "How do we run stream processing jobs on Apache Flink?",
+      "topic": "Apache Flink"
+    },
+    {
+      "query": "What replication strategy do we use in Cassandra for agent logs?",
+      "topic": "Cassandra"
+    },
+    {
+      "query": "How is Istio service mesh mTLS set up for the collector?",
+      "topic": "Istio"
+    },
+    {
+      "query": "How do I bring up the local dev environment with Vagrant boxes?",
+      "topic": "Vagrant"
+    },
+    {
+      "query": "Did we evaluate CockroachDB as the evidence ledger store?",
+      "topic": "CockroachDB"
+    },
+    {
+      "query": "What does the ClickHouse schema for telemetry analytics look like?",
+      "topic": "ClickHouse"
+    },
+    {
+      "query": "How is Jaeger tracing configured for distributed spans?",
+      "topic": "Jaeger"
+    },
+    {
+      "query": "How do we deploy a service to Fly.io regions?",
+      "topic": "Fly.io"
+    },
+    {
+      "query": "How are Kubeflow pipelines used for model training here?",
+      "topic": "Kubeflow"
+    },
+    {
+      "query": "What is the Terragrunt module layout for our infrastructure?",
+      "topic": "Terragrunt"
+    },
+    {
+      "query": "How do Kustomize overlays differ between staging and production?",
+      "topic": "Kustomize"
+    },
+    {
+      "query": "Which Tekton pipeline tasks run in CI?",
+      "topic": "Tekton"
+    },
+    {
+      "query": "How is the Renovate bot configured for dependency updates?",
+      "topic": "Renovate"
+    },
+    {
+      "query": "How is Sidekiq retry queue tuning handled?",
+      "topic": "Sidekiq"
+    },
+    {
+      "query": "How are Airflow DAGs scheduled for nightly jobs?",
+      "topic": "Airflow"
+    }
+  ]
+}

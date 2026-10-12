@@ -1,0 +1,235 @@
+{
+  "spec_version": 1,
+  "id": "monday",
+  "name": "Monday.com",
+  "category": "project_management",
+  "credentialType": "monday",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://developer.monday.com/api-reference/docs",
+  "base_url": "https://api.monday.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "static_headers": {
+    "Content-Type": "application/json"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/v2",
+    "body": {
+      "query": "{ me { id name } }"
+    }
+  },
+  "tools_source": "https://developer.monday.com/api-reference/reference",
+  "tools": [
+    {
+      "name": "me",
+      "description": "Get the Monday.com account and profile the API token belongs to (who am I)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "POST",
+        "path": "/v2",
+        "body": {
+          "query": "query { me { id name email is_admin is_guest account { id name slug } } }"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "data.me.id",
+          "name": "data.me.name",
+          "email": "data.me.email",
+          "is_admin": "data.me.is_admin",
+          "is_guest": "data.me.is_guest",
+          "account_id": "data.me.account.id",
+          "account_name": "data.me.account.name",
+          "account_slug": "data.me.account.slug",
+          "errors": "errors"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_boards",
+      "description": "List Monday.com boards visible to the token (id, name, state, kind, last update)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max boards to return (default 25, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "path": "/v2",
+        "body": {
+          "query": "query ($limit: Int) { boards (limit: $limit) { id name state board_kind updated_at } }",
+          "variables": {
+            "limit": "{{clamp input.limit 25 100}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "data.boards[]": {
+            "id": "id",
+            "name": "name",
+            "state": "state",
+            "board_kind": "board_kind",
+            "updated_at": "updated_at"
+          },
+          "errors": "errors"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_board_items",
+      "description": "List the items (rows) on one Monday.com board, with their group and last update",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "board_id": {
+            "type": "string",
+            "description": "Monday.com board ID, the numeric id from list_boards (e.g. 1234567890)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max items to return (default 25, max 100)"
+          }
+        },
+        "required": [
+          "board_id"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/v2",
+        "body": {
+          "query": "query ($boardIds: [ID!], $limit: Int) { boards (ids: $boardIds) { id name items_page (limit: $limit) { cursor items { id name state updated_at group { id title } } } } }",
+          "variables": {
+            "boardIds": [
+              "{{input.board_id}}"
+            ],
+            "limit": "{{clamp input.limit 25 100}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "data.boards[]": {
+            "id": "id",
+            "name": "name",
+            "cursor": "items_page.cursor",
+            "items_page.items[]": {
+              "id": "id",
+              "name": "name",
+              "state": "state",
+              "updated_at": "updated_at",
+              "group": "group.title"
+            }
+          },
+          "errors": "errors"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_users",
+      "description": "List users in the Monday.com account (id, name, email, enabled, admin flags)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max users to return (default 25, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "path": "/v2",
+        "body": {
+          "query": "query ($limit: Int) { users (limit: $limit) { id name email enabled is_admin is_guest } }",
+          "variables": {
+            "limit": "{{clamp input.limit 25 100}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "data.users[]": {
+            "id": "id",
+            "name": "name",
+            "email": "email",
+            "enabled": "enabled",
+            "is_admin": "is_admin",
+            "is_guest": "is_guest"
+          },
+          "errors": "errors"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "description": "List Monday.com workspaces visible to the token (id, name, kind, description)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max workspaces to return (default 25, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "path": "/v2",
+        "body": {
+          "query": "query ($limit: Int) { workspaces (limit: $limit) { id name kind description } }",
+          "variables": {
+            "limit": "{{clamp input.limit 25 100}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "data.workspaces[]": {
+            "id": "id",
+            "name": "name",
+            "kind": "kind",
+            "description": "description"
+          },
+          "errors": "errors"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Monday.com is GraphQL-over-POST and spec v1 has no GraphQL type, so every tool is a FIXED read query sent as a POST body to /v2. Caller input never touches the query string: it is passed in the GraphQL `variables` object, where declarativeRuntime.renderBody keeps a solo placeholder's JSON type. That is deliberate, not cosmetic. Interpolating {{input.*}} into the query text would let a caller close the read query and append a mutation, defeating the read-only (no write:true) intent of this spec.",
+      "GraphQL returns HTTP 200 with an `errors` array for query-level failures, so every tool picks `errors` through. Without it a schema or permission error would be shaped into an empty result set and read as 'no boards' (a silent-fallback falsehood).",
+      "pick keys carry the response path (`data.boards[]`, `items_page.items[]`) because applyPick sources an array from its KEY, not its value, so output keys read `data.boards` and `items_page.items` rather than `boards` / `items`. Functional but ugly; a spec v2 with a `from` on array picks would fix it.",
+      "No API-Version header is pinned, so Monday serves its own default supported version. `items_page` and `boards(ids: [ID!])` are 2023-10-and-later shapes, which every currently supported version is. Pinning a dated version instead would silently break when Monday sunsets it.",
+      "One request per tool (v1 limit) means no pagination: get_board_items returns items_page.cursor but there is no next-page tool to spend it on, and list_* tools cap at 100. Column values are deliberately not fetched: column_values would need per-board column metadata to be readable, which is a second call.",
+      "Field presence is taken from the Monday.com API reference, not from a live 2xx: no account was held, so the proof below covers wiring only, never payload shape.",
+      "What the shape-proof can and cannot say here: every tool posts to the SAME /v2 endpoint, so six SHAPE_PROVEN rows are one endpoint proven six times (host, TLS, path, bearer header). GraphQL query validity is NOT proven by them, because Monday rejects on auth before it parses the document. Only a real token can prove the queries themselves."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

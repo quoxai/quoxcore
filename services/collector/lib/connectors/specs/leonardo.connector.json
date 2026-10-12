@@ -1,0 +1,137 @@
+{
+  "spec_version": 1,
+  "id": "leonardo",
+  "name": "Leonardo AI",
+  "category": "data_ai",
+  "credentialType": "leonardo",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Read-only Leonardo AI account surface: the API user's own details and token balances, the platform model catalogue, and one already-finished generation looked up by ID. NO GENERATION TOOL IS EXPOSED, deliberately: starting a Leonardo generation is a POST that spends API credits, so this connector carries no POST at all and cannot spend money.",
+  "docs": "https://docs.leonardo.ai/",
+  "base_url": "https://cloud.leonardo.ai/api/rest/v1",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/me"
+  },
+  "tools_source": "https://docs.leonardo.ai/v1.0/reference",
+  "tools": [
+    {
+      "name": "me",
+      "description": "Get the Leonardo AI user the API key belongs to, with current API and subscription token balances and concurrency slots",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/me"
+      },
+      "response": {
+        "pick": {
+          "user_details[]": {
+            "id": "user.id",
+            "username": "user.username",
+            "subscriptionTokens": "subscriptionTokens",
+            "subscriptionGptTokens": "subscriptionGptTokens",
+            "subscriptionModelTokens": "subscriptionModelTokens",
+            "paidTokens": "paidTokens",
+            "apiPaidTokens": "apiPaidTokens",
+            "apiSubscriptionTokens": "apiSubscriptionTokens",
+            "apiConcurrencySlots": "apiConcurrencySlots",
+            "tokenRenewalDate": "tokenRenewalDate",
+            "apiPlanTokenRenewalDate": "apiPlanTokenRenewalDate"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_models",
+      "description": "List the Leonardo AI platform models available for generation, with id, name and description",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platformModels"
+      },
+      "response": {
+        "pick": {
+          "custom_models[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "featured": "featured",
+            "nsfw": "nsfw"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_generation",
+      "description": "Get one existing Leonardo AI generation by ID: its status, prompt, dimensions, model and the URLs of the images it produced. Reads an existing generation only; it never starts one",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "generation_id": {
+            "type": "string",
+            "description": "UUID of an existing Leonardo generation (e.g. 7f8a2b14-3c5d-4e6f-8a9b-0c1d2e3f4a5b)"
+          }
+        },
+        "required": [
+          "generation_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/generations/{{input.generation_id}}"
+      },
+      "_probe": {
+        "input.generation_id": "00000000-0000-4000-8000-000000000000"
+      },
+      "response": {
+        "pick": {
+          "id": "generations_by_pk.id",
+          "status": "generations_by_pk.status",
+          "createdAt": "generations_by_pk.createdAt",
+          "prompt": "generations_by_pk.prompt",
+          "negativePrompt": "generations_by_pk.negativePrompt",
+          "imageWidth": "generations_by_pk.imageWidth",
+          "imageHeight": "generations_by_pk.imageHeight",
+          "modelId": "generations_by_pk.modelId",
+          "public": "generations_by_pk.public",
+          "generations_by_pk.generated_images[]": {
+            "id": "id",
+            "url": "url",
+            "nsfw": "nsfw",
+            "likeCount": "likeCount"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "READ-ONLY BY DESIGN, AND FOR COST REASONS: no tool is marked write:true and no generation endpoint is present. Every Leonardo generation route (/generations, /generations-lcm, /generations-text-to-video, /generations-image-to-video, the variation and upscale routes) is a POST that consumes API credits on the same key, so exposing one would let an agent spend the customer's money. get_generation only LOOKS UP a generation that already exists.",
+      "base_url moved from the scaffolded 'https://cloud.leonardo.ai' (with full /api/rest/v1/... tool paths) to 'https://cloud.leonardo.ai/api/rest/v1' with relative paths. Same wire URL either way, but it changes the shape-proof CONTROL probe, and the difference was measured, not assumed: with a dummy bearer, https://cloud.leonardo.ai/<bogus> returns a Cloudflare 403 HTML page while /api/rest/v1/me returns a JSON 401, which the harness would have read as a path differential and scored SHAPE_PROVEN. Probing /api/rest/v1/<bogus> returns the byte-identical JSON 401 {error, path, code: access-denied} that every real path returns, so the honest class for this API is AUTH_WALL: host, TLS and auth rejection are proven, and the paths rest on the v1 OpenAPI document, not on this run.",
+      "auth kept as scaffolded (bearer api_key), confirmed against the live host: /me, /platformModels and an unrouted /api/rest/v1 path all answer a dummy bearer with the same structured JSON 401.",
+      "Response shapes taken from the v1.0 OpenAPI document (info.title 'Rest Endpoints', servers[0].url https://cloud.leonardo.ai/api/rest/v1) served by https://docs.leonardo.ai/v1.0/reference: /me returns {user_details: [...]}, /platformModels returns {custom_models: [...]} and /generations/{id} returns {generations_by_pk: {...}}. Leonardo also now publishes a v2 API (https://cloud.leonardo.ai/api/rest/v2); this spec is v1 only, which is what the vault entry's test endpoint targets.",
+      "get_generation carries a _probe hint so the shape-proof harness sends a syntactically valid v4 UUID (the path parameter is pattern-constrained), not the harness default 'quoxprobe'. It is a non-existent id, not a credential."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

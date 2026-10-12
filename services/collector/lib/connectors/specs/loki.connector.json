@@ -1,0 +1,205 @@
+{
+  "spec_version": 1,
+  "id": "loki",
+  "name": "Loki",
+  "category": "monitoring",
+  "credentialType": "loki",
+  "requiredFields": [
+    "base_url"
+  ],
+  "docs": "https://grafana.com/docs/loki/latest/reference/loki-http-api/",
+  "tools_source": "https://grafana.com/docs/loki/latest/reference/loki-http-api/",
+  "description": "Grafana Loki reads over its HTTP query API: known label names and their values, a LogQL range query, and the log streams matching a label selector. Read-only; no push/ingest endpoint is wired here. It is unauthenticated by default (base_url is the only credential); put it behind a reverse proxy or Grafana's own auth for exposure beyond a trusted LAN.",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "none"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/loki/api/v1/labels"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 60
+  },
+  "tools": [
+    {
+      "name": "labels",
+      "description": "List every log label name known to this Loki instance",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "description": "Optional start timestamp to bound the lookup"
+          },
+          "end": {
+            "type": "string",
+            "description": "Optional end timestamp to bound the lookup"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/loki/api/v1/labels",
+        "query": {
+          "start": "{{input.start}}",
+          "end": "{{input.end}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "values": "data"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "label_values",
+      "description": "List the values a given log label takes across streams (e.g. job, namespace)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Label name to list values for, e.g. job or namespace"
+          }
+        },
+        "required": [
+          "label"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/loki/api/v1/label/{{input.label}}/values"
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "values": "data"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.label": "job"
+      }
+    },
+    {
+      "name": "query_range",
+      "description": "Run a LogQL query over a time range and return the matching log streams and entries",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "LogQL query, e.g. {job=\"varlogs\"}"
+          },
+          "start": {
+            "type": "string",
+            "description": "Range start, a Unix timestamp in nanoseconds"
+          },
+          "end": {
+            "type": "string",
+            "description": "Range end, a Unix timestamp in nanoseconds"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Max number of entries to return"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/loki/api/v1/query_range",
+        "query": {
+          "query": "{{input.query}}",
+          "start": "{{input.start}}",
+          "end": "{{input.end}}",
+          "limit": "{{input.limit}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "resultType": "data.resultType",
+          "data.result[]": {
+            "stream": "stream",
+            "values": "values"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.query": "{job=~\".+\"}",
+        "input.start": "1600000000000000000",
+        "input.end": "1600000300000000000",
+        "input.limit": 5
+      }
+    },
+    {
+      "name": "series",
+      "description": "List the log streams (label sets) matching one or more stream selectors",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "match": {
+            "type": "string",
+            "description": "Stream selector, e.g. {job=~\".+\"}"
+          },
+          "start": {
+            "type": "string",
+            "description": "Optional start timestamp to bound the lookup"
+          },
+          "end": {
+            "type": "string",
+            "description": "Optional end timestamp to bound the lookup"
+          }
+        },
+        "required": [
+          "match"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/loki/api/v1/series",
+        "query": {
+          "match[]": "{{input.match}}",
+          "start": "{{input.start}}",
+          "end": "{{input.end}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "data": "data"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.match": "{job=~\".+\"}"
+      }
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-13 observability tranche",
+    "confidence": "live",
+    "needs_review": [
+      "AUTH IS none BY DESIGN: Loki ships with no authentication of its own on the query HTTP API (auth_enabled defaults true only in multi-tenant mode with an X-Scope-OrgID header, not a credential), so base_url is the only credential and auth.type is 'none'. Fronting Loki with a reverse proxy or Grafana's auth is a deployment concern, not a spec one.",
+      "READ-ONLY: all four tools are GET, write:false. Loki's ingest surface (/loki/api/v1/push) is not modelled here.",
+      "labels and label_values return {\"status\":\"success\"} with the data key omitted or empty on a fresh instance with no ingested logs; that is a valid 200 proof of the endpoint, not a failure.",
+      "query_range and series probe a FIXED nanosecond window (2020-09-13) with a catch-all selector {job=~\".+\"}; on a fresh instance the honest expected result is a 200 success envelope with an empty result/data array, proving routing and the envelope shape, not real log content.",
+      "LIVE-PROOF CONTRACT: labels takes no required input (_probe {}); label_values pins job; query_range and series pin the fixed window/selector above. Proven against docker grafana/loki:3.1.1, then destroyed."
+    ]
+  }
+}

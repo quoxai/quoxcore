@@ -1,0 +1,87 @@
+{
+  "spec_id": "sonarcloud",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:21:13.002Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://sonarcloud.io/api/quox-shapeproof-control-c0ff1e68",
+      "status": 401,
+      "latency_ms": 5984,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://sonarcloud.io/api/authentication/validate",
+      "status": 200,
+      "latency_ms": 295,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "af5fd803088fcdc627e5cd97fb88d7fcbbb02a705f38fd48b1ab5f4ffca50ae8",
+      "body_excerpt": "{\"valid\":false}",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "GET",
+      "url": "https://sonarcloud.io/api/projects/search?organization=apache&q=juneau&ps=100&p=1",
+      "status": 401,
+      "latency_ms": 334,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    },
+    {
+      "name": "project_measures",
+      "method": "GET",
+      "url": "https://sonarcloud.io/api/measures/component?component=apache_juneau&metricKeys=bugs%2Cvulnerabilities%2Ccode_smells%2Ccoverage",
+      "status": 401,
+      "latency_ms": 173,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    },
+    {
+      "name": "list_issues",
+      "method": "GET",
+      "url": "https://sonarcloud.io/api/issues/search?organization=apache&componentKeys=apache_juneau&impactSeverities=HIGH&issueStatuses=OPEN&resolved=false&ps=50&p=1",
+      "status": 401,
+      "latency_ms": 190,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

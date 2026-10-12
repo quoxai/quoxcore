@@ -1,0 +1,123 @@
+/**
+ * DevShell — glass panel chrome for the three-pane IDE shell.
+ *
+ * Each pane (file tree / editor / right rail) wraps its content in a
+ * .ds-panel element. The .ds-panel carries the full Quox glass card recipe
+ * (background, border, radius, 4-edge shimmer ::before) so the panes read
+ * as separate glass cards with visible gaps between them — matching the
+ * WorkflowBuilder and other 3-panel dashboard pages.
+ *
+ * Tokens used — never hard-coded:
+ *   --m-bg-base            rgba(255,255,255,0.08)  panel glass fill
+ *   --m-border-default     rgba(255,255,255,0.18)  uniform 4-edge border
+ *   --qx-radius            20px                    panel corner radius
+ *   --qx-edges             4-edge hairline shimmer (top cyan→purple, others white)
+ *
+ * ARCHITECTURAL NOTE: This file is agent-agnostic. DevShell tenants
+ * (Toolsmith, QuoxDev, etc.) should NOT override .ds-panel. If a tenant
+ * needs a different background tint, add a [data-devshell-agent="X"] scoped
+ * modifier here — do not write per-tenant CSS files.
+ */
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   Root shell layout
+   ────────────────────────────────────────────────────────────────────────────── */
+
+/* Outer DevShell wrapper — transparent layout container; panels carry visual weight. */
+.ds-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background: transparent;
+}
+
+/* The Group fills remaining height. */
+.ds-shell__group {
+    flex: 1;
+    min-height: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   Panel glass card (.ds-panel)
+   ────────────────────────────────────────────────────────────────────────────── */
+
+/*
+ * Full Quox glass card recipe — mirrors .wb-palette / .wb-canvas / .wb-chat
+ * from WorkflowBuilder.css (the canonical 3-panel reference).
+ *
+ * Uses backdrop-filter via ::before pseudo so child flyouts/modals can keep
+ * their own blur (nested backdrop-filter on the element itself would isolate
+ * descendants). The ::before trick is the accepted pattern for glass containers
+ * that host flyouts.
+ */
+.ds-panel {
+    /* Fill the entire react-resizable-panels Panel div */
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+
+    /* Glass surface */
+    position: relative;
+    isolation: isolate;
+    background: var(--m-bg-base);
+    border: 1px solid var(--m-border-default);
+    border-radius: var(--qx-radius);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.18),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+}
+
+/* 4-edge cyan→purple hairline shimmer — the signature Quox luminous rim */
+.ds-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: var(--qx-edges);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+    z-index: 0;
+}
+
+/* Content must sit above the ::before pseudo */
+.ds-panel > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   Separator (drag handle between panels)
+   ────────────────────────────────────────────────────────────────────────────── */
+
+/*
+ * The 16px Separator creates a transparent channel between panels — the
+ * cinematic body background shows through, producing the visual gap that
+ * makes the three cards read as distinct objects floating on the background.
+ *
+ * The 1px centre line inside is a subtle affordance for the drag handle.
+ */
+.ds-separator {
+    width: 16px;
+    flex-shrink: 0;
+    background: transparent;
+    position: relative;
+    cursor: col-resize;
+}
+
+.ds-separator__line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    background: rgba(255, 255, 255, 0.06);
+    pointer-events: none;
+}

@@ -1,0 +1,36 @@
+{
+  "id": "mikrotik-routeros",
+  "name": "mikrotik-routeros",
+  "displayName": "RouterOS",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "paid",
+  "badge": "PAID",
+  "category": "Monitoring",
+  "accentColor": "#e6522c",
+  "description": "The RouterOS plugin — device inventory, health, DHCP, firewall, and VPN capabilities — connects to live MikroTik routers via the RouterOS REST API. Plain English explanations for noobs, full RouterOS API access for professionals, deep Bastion integration, and NOC/SOC-grade monitoring.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/routeros",
+      "label": "RouterOS",
+      "icon": "globe",
+      "minRole": "builder"
+    }
+  ],
+  "routes": {
+    "/routeros": "RouterOSView"
+  },
+  "routeGuards": {
+    "/routeros": {
+      "minRole": "builder"
+    }
+  },
+  "minQuoxVersion": "1.0.0"
+}

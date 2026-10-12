@@ -1,0 +1,38 @@
+{
+  "spec_version": 1,
+  "id": "onelogin",
+  "name": "OneLogin",
+  "category": "security",
+  "credentialType": "onelogin",
+  "requiredFields": [
+    "client_id",
+    "client_secret",
+    "region"
+  ],
+  "docs": "https://developers.onelogin.com/api-docs/2/getting-started/dev-overview",
+  "base_url": {
+    "fromCredential": "region",
+    "template": "https://api.{{region}}.onelogin.com"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "client_id",
+    "passField": "client_secret"
+  },
+  "static_headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/auth/oauth2/v2/token"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url_template"
+    ]
+  }
+}

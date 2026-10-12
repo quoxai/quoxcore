@@ -1,0 +1,1345 @@
+/* ============================================================================
+   Communications Command Centre — Signal Operations Centre
+   Glassmorphic ops-room aesthetic: monospace data, breathing indicators,
+   channel-colored accents, consistent with Dashboard + Activity pages.
+   ============================================================================ */
+
+/* Kill parent scroll — glass card owns its own scroll */
+.app-shell__content:has(.comms-layout) {
+    overflow: hidden !important;
+}
+.app-shell__content:has(.comms-layout) .breadcrumbs {
+    display: none;
+}
+
+/* --- Design tokens (local, aligned to dashboard --m-* / --qx-*) --- */
+.comms-layout {
+    --comms-mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+    --comms-glass-bg: var(--m-bg-base, rgba(255, 255, 255, 0.06));
+    --comms-glass-border: var(--m-border-default, rgba(255, 255, 255, 0.14));
+    --comms-glass-hover: rgba(255, 255, 255, 0.08);
+    --comms-glass-shine: rgba(255, 255, 255, 0.08);
+    --comms-green: #30ff90;
+    --comms-amber: #ffb030;
+    --comms-red: #f87171;
+    --comms-blue: #38bdf8;
+    --comms-radius: 12px;
+    --comms-radius-sm: 8px;
+}
+
+/* --- Root layout — full glass card, matches Inbox / Settings --- */
+.comms-layout {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    background: var(--m-bg-base, rgba(255, 255, 255, 0.06));
+    border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.18));
+    border-radius: var(--qx-radius, 20px);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.18),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+}
+
+.comms-layout::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: var(--qx-edges);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+}
+
+/* ============================================================================
+   Stats Strip — Glassmorphic ops readout bar
+   ============================================================================ */
+
+.comms-stats-strip {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 24px;
+    height: 56px;
+    flex-shrink: 0;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+    backdrop-filter: var(--qx-blur, blur(16px));
+    -webkit-backdrop-filter: var(--qx-blur, blur(16px));
+    border-bottom: 1px solid var(--comms-glass-border);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.comms-stat {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 20px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.45);
+    font-family: var(--comms-mono);
+    letter-spacing: 0.02em;
+}
+
+.comms-stat__value {
+    font-weight: 600;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--comms-mono);
+    letter-spacing: -0.02em;
+}
+
+.comms-stat__value--success {
+    color: var(--comms-green);
+    text-shadow: 0 0 12px rgba(48, 255, 144, 0.25);
+}
+
+.comms-stat__value--error {
+    color: var(--comms-red);
+    text-shadow: 0 0 12px rgba(248, 113, 113, 0.25);
+}
+
+.comms-stat__value--neutral {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.comms-stat__label {
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    font-family: var(--comms-mono);
+}
+
+.comms-stat__divider {
+    width: 1px;
+    height: 20px;
+    background: linear-gradient(
+        180deg,
+        transparent,
+        rgba(255, 255, 255, 0.08) 30%,
+        rgba(255, 255, 255, 0.08) 70%,
+        transparent
+    );
+}
+
+/* ============================================================================
+   Body: Sidebar + Content
+   ============================================================================ */
+
+.comms-body {
+    display: flex;
+    gap: 0;
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ============================================================================
+   Sidebar — Channel navigation with breathing status dots
+   ============================================================================ */
+
+.comms-sidebar {
+    width: 256px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--comms-glass-border);
+    padding: 16px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-y: auto;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0%, rgba(255, 255, 255, 0.01) 100%);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+.comms-sidebar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.comms-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.comms-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+}
+
+.comms-sidebar__group {
+    margin-bottom: 6px;
+}
+
+.comms-sidebar__group-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.25);
+    padding: 12px 12px 8px;
+    font-family: var(--comms-mono);
+}
+
+.comms-sidebar__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--comms-radius-sm);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+}
+
+.comms-sidebar__item:hover {
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(255, 255, 255, 0.8);
+    border-color: rgba(255, 255, 255, 0.04);
+}
+
+.comms-sidebar__item:focus-visible {
+    outline: 1px solid var(--comms-blue);
+    outline-offset: -1px;
+}
+
+.comms-sidebar__item--active {
+    background: rgba(56, 189, 248, 0.08);
+    border-color: rgba(56, 189, 248, 0.15);
+    color: var(--comms-blue);
+    box-shadow: inset 0 1px 0 rgba(56, 189, 248, 0.05);
+}
+
+.comms-sidebar__item--active:hover {
+    background: rgba(56, 189, 248, 0.12);
+}
+
+.comms-sidebar__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    opacity: 0.55;
+}
+
+.comms-sidebar__item--active .comms-sidebar__icon {
+    opacity: 1;
+}
+
+.comms-sidebar__label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.comms-sidebar__badge {
+    font-size: 10px;
+    font-weight: 600;
+    font-family: var(--comms-mono);
+    min-width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.4);
+    padding: 0 5px;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.comms-sidebar__item--active .comms-sidebar__badge {
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--comms-blue);
+}
+
+/* Status dots with ring halo */
+.comms-sidebar__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.comms-sidebar__dot::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    opacity: 0.25;
+}
+
+.comms-sidebar__dot--active {
+    background: var(--comms-green);
+    color: var(--comms-green);
+    box-shadow: 0 0 6px rgba(48, 255, 144, 0.35);
+    animation: comms-dot-breathe 3s ease-in-out infinite;
+}
+
+.comms-sidebar__dot--inactive {
+    background: rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.25);
+}
+
+.comms-sidebar__dot--error {
+    background: var(--comms-red);
+    color: var(--comms-red);
+    box-shadow: 0 0 6px rgba(248, 113, 113, 0.35);
+    animation: comms-dot-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes comms-dot-breathe {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+@keyframes comms-dot-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.15); }
+}
+
+/* ============================================================================
+   Content area
+   ============================================================================ */
+
+.comms-content {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    padding: 24px 28px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+.comms-content::-webkit-scrollbar {
+    width: 4px;
+}
+
+.comms-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.comms-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+}
+
+.comms-content__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+
+.comms-content__title {
+    font-size: 16px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    letter-spacing: -0.01em;
+}
+
+/* ============================================================================
+   Overview grid — Channel cards
+   ============================================================================ */
+
+.comms-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+}
+
+/* ============================================================================
+   Channel Card — Glassmorphic with channel-colored accent
+   ============================================================================ */
+
+.comms-channel-card {
+    position: relative;
+    isolation: isolate;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--comms-glass-border);
+    border-radius: var(--comms-radius);
+    padding: 18px 20px;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    overflow: hidden;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.comms-channel-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    transition: background 0.2s ease;
+}
+
+.comms-channel-card:hover {
+    border-color: rgba(255, 255, 255, 0.24);
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateY(-1px);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.14),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+        0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* Channel-specific accent stripes */
+.comms-channel-card:has(.comms-channel-card__icon--telegram)::before { background: #0088cc; }
+.comms-channel-card:has(.comms-channel-card__icon--slack)::before { background: #e01e5a; }
+.comms-channel-card:has(.comms-channel-card__icon--discord)::before { background: #5865f2; }
+.comms-channel-card:has(.comms-channel-card__icon--email)::before { background: #ea4335; }
+.comms-channel-card:has(.comms-channel-card__icon--webhook)::before { background: #3b82f6; }
+.comms-channel-card:has(.comms-channel-card__icon--msteams)::before { background: #5059c9; }
+.comms-channel-card:has(.comms-channel-card__icon--sms)::before { background: #10b981; }
+.comms-channel-card:has(.comms-channel-card__icon--pagerduty)::before { background: #06ac38; }
+.comms-channel-card:has(.comms-channel-card__icon--opsgenie)::before { background: #2563eb; }
+.comms-channel-card:has(.comms-channel-card__icon--mattermost)::before { background: #0064b1; }
+.comms-channel-card:has(.comms-channel-card__icon--ntfy)::before { background: #8b5cf6; }
+.comms-channel-card:has(.comms-channel-card__icon--pushover)::before { background: #f97316; }
+.comms-channel-card:has(.comms-channel-card__icon--googlechat)::before { background: #34a853; }
+.comms-channel-card:has(.comms-channel-card__icon--gotify)::before { background: #06b6d4; }
+.comms-channel-card:has(.comms-channel-card__icon--rocketchat)::before { background: #f44336; }
+.comms-channel-card:has(.comms-channel-card__icon--line)::before { background: #00b900; }
+
+.comms-channel-card__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.comms-channel-card__icon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--comms-radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+/* Channel icon backgrounds — rgba treatment */
+.comms-channel-card__icon--telegram { background: rgba(0, 136, 204, 0.12); color: #0088cc; }
+.comms-channel-card__icon--slack { background: rgba(224, 30, 90, 0.12); color: #e01e5a; }
+.comms-channel-card__icon--discord { background: rgba(88, 101, 242, 0.12); color: #5865f2; }
+.comms-channel-card__icon--email { background: rgba(234, 67, 53, 0.12); color: #ea4335; }
+.comms-channel-card__icon--webhook { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
+.comms-channel-card__icon--msteams { background: rgba(80, 89, 201, 0.12); color: #5059c9; }
+.comms-channel-card__icon--sms { background: rgba(16, 185, 129, 0.12); color: #10b981; }
+.comms-channel-card__icon--pagerduty { background: rgba(6, 172, 56, 0.12); color: #06ac38; }
+.comms-channel-card__icon--opsgenie { background: rgba(37, 99, 235, 0.12); color: #2563eb; }
+.comms-channel-card__icon--mattermost { background: rgba(0, 100, 177, 0.12); color: #0064b1; }
+.comms-channel-card__icon--ntfy { background: rgba(139, 92, 246, 0.12); color: #8b5cf6; }
+.comms-channel-card__icon--pushover { background: rgba(249, 115, 22, 0.12); color: #f97316; }
+.comms-channel-card__icon--googlechat { background: rgba(52, 168, 83, 0.12); color: #34a853; }
+.comms-channel-card__icon--gotify { background: rgba(6, 182, 212, 0.12); color: #06b6d4; }
+.comms-channel-card__icon--rocketchat { background: rgba(244, 67, 54, 0.12); color: #f44336; }
+.comms-channel-card__icon--line { background: rgba(0, 185, 0, 0.12); color: #00b900; }
+
+.comms-channel-card__info {
+    flex: 1;
+    min-width: 0;
+}
+
+.comms-channel-card__name {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    letter-spacing: -0.01em;
+}
+
+.comms-channel-card__desc {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.35);
+    margin-top: 2px;
+    font-family: var(--comms-mono);
+    letter-spacing: 0.01em;
+}
+
+.comms-channel-card__toggle {
+    flex-shrink: 0;
+}
+
+.comms-channel-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.comms-channel-card__meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.35);
+    font-family: var(--comms-mono);
+}
+
+.comms-channel-card__actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+/* ============================================================================
+   Status badges — Monospace, compact, color-coded
+   ============================================================================ */
+
+.comms-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    font-family: var(--comms-mono);
+    text-transform: uppercase;
+}
+
+.comms-badge--success {
+    background: rgba(48, 255, 144, 0.1);
+    color: var(--comms-green);
+}
+
+.comms-badge--error {
+    background: rgba(248, 113, 113, 0.1);
+    color: var(--comms-red);
+}
+
+.comms-badge--warning {
+    background: rgba(255, 176, 48, 0.1);
+    color: var(--comms-amber);
+}
+
+.comms-badge--info {
+    background: rgba(56, 189, 248, 0.1);
+    color: var(--comms-blue);
+}
+
+.comms-badge--neutral {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* ============================================================================
+   Delivery feed — Recent activity stream
+   ============================================================================ */
+
+.comms-delivery-feed {
+    margin-top: 28px;
+}
+
+.comms-delivery-feed__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.01em;
+}
+
+.comms-delivery-feed__list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--comms-glass-border);
+    border-radius: var(--comms-radius);
+    overflow: hidden;
+}
+
+.comms-delivery-feed__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.01);
+    font-size: 13px;
+    transition: background 0.1s ease;
+}
+
+.comms-delivery-feed__item:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.comms-delivery-feed__channel {
+    display: flex;
+    align-items: center;
+    width: 24px;
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.comms-delivery-feed__title-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.comms-delivery-feed__time {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--comms-mono);
+    letter-spacing: 0.02em;
+}
+
+.comms-delivery-feed__empty {
+    text-align: center;
+    padding: 36px 24px;
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 13px;
+    border: 1px dashed rgba(255, 255, 255, 0.06);
+    border-radius: var(--comms-radius);
+}
+
+/* ============================================================================
+   Routing Rules — Glassmorphic rule rows
+   ============================================================================ */
+
+.comms-rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.comms-rule-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--comms-glass-bg);
+    border: 1px solid var(--comms-glass-border);
+    border-radius: var(--comms-radius);
+    transition: all 0.15s ease;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 var(--comms-glass-shine);
+}
+
+.comms-rule-row:hover {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: var(--comms-glass-hover);
+}
+
+.comms-rule-row__priority {
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--comms-mono);
+    color: rgba(255, 255, 255, 0.35);
+    min-width: 28px;
+    text-align: center;
+}
+
+.comms-rule-row__name {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.comms-rule-row__conditions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.comms-rule-row__targets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.comms-rule-row__actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* ============================================================================
+   Rule Editor Modal
+   ============================================================================ */
+
+.comms-rule-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.comms-rule-editor__section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.comms-rule-editor__section-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.35);
+    font-family: var(--comms-mono);
+}
+
+.comms-rule-editor__multi-select {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.comms-rule-editor__chip {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid var(--comms-glass-border);
+    background: var(--comms-glass-bg);
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.comms-rule-editor__chip:hover {
+    border-color: rgba(56, 189, 248, 0.3);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.comms-rule-editor__chip--selected {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.3);
+    color: var(--comms-blue);
+}
+
+/* ============================================================================
+   Delivery Log — Table with glassmorphic treatment
+   ============================================================================ */
+
+.comms-delivery-log {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.comms-delivery-log__filters {
+    display: flex;
+    gap: 8px;
+    padding: 12px 0;
+    flex-wrap: wrap;
+}
+
+.comms-delivery-log__filter {
+    padding: 5px 12px;
+    border-radius: var(--comms-radius-sm);
+    border: 1px solid var(--comms-glass-border);
+    background: var(--comms-glass-bg);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    transition: all 0.15s ease;
+}
+
+.comms-delivery-log__filter:hover {
+    border-color: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.comms-delivery-log__filter:focus {
+    outline: 1px solid var(--comms-blue);
+    outline-offset: -1px;
+}
+
+.comms-delivery-log__table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--comms-glass-border);
+    border-radius: var(--comms-radius);
+    overflow: hidden;
+}
+
+.comms-delivery-log__table th {
+    text-align: left;
+    padding: 8px 14px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #fff;
+    font-family: var(--comms-mono);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), var(--m-bg-base);
+    -webkit-backdrop-filter: var(--qx-blur);
+    backdrop-filter: var(--qx-blur);
+}
+
+.comms-delivery-log__table td {
+    padding: 10px 14px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.8);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.comms-delivery-log__table tr:last-child td {
+    border-bottom: none;
+}
+
+.comms-delivery-log__table tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.comms-delivery-log__expand {
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.015);
+    border-radius: 0 0 var(--comms-radius) var(--comms-radius);
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.35);
+    font-family: var(--comms-mono);
+}
+
+.comms-delivery-log__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.35);
+    font-family: var(--comms-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================================
+   Buttons — Glassmorphic ops buttons
+   ============================================================================ */
+
+.comms-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: var(--comms-radius-sm);
+    border: 1px solid var(--comms-glass-border);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.comms-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.9);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.comms-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.comms-btn--primary {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(56, 189, 248, 0.25);
+    color: var(--comms-blue);
+}
+
+.comms-btn--primary:hover:not(:disabled) {
+    background: rgba(56, 189, 248, 0.25);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #7dd3fc;
+}
+
+.comms-btn--danger {
+    color: var(--comms-red);
+}
+
+.comms-btn--danger:hover:not(:disabled) {
+    background: rgba(248, 113, 113, 0.1);
+    border-color: rgba(248, 113, 113, 0.25);
+}
+
+.comms-btn--ghost {
+    border-color: transparent;
+    background: transparent;
+}
+
+.comms-btn--ghost:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.comms-btn--sm {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+/* ============================================================================
+   Loading / Empty states
+   ============================================================================ */
+
+.comms-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 48px 24px;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 13px;
+    font-family: var(--comms-mono);
+    flex: 1;
+    min-height: 0;
+    background: var(--m-bg-base, rgba(255, 255, 255, 0.06));
+    border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.18));
+    border-radius: var(--qx-radius, 20px);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.18),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+}
+
+.comms-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 56px 32px;
+    color: rgba(255, 255, 255, 0.35);
+    text-align: center;
+    border: 1px dashed rgba(255, 255, 255, 0.06);
+    border-radius: var(--comms-radius);
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.comms-empty__icon {
+    opacity: 0.2;
+}
+
+/* ============================================================================
+   Scope-Channel Assignment Matrix — Phase D5
+   ============================================================================ */
+
+.comms-matrix-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.comms-matrix-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--comms-glass-border);
+    border-radius: var(--comms-radius);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+.comms-matrix {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+}
+
+.comms-matrix thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.comms-matrix__scope-header {
+    text-align: left;
+    padding: 8px 14px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #fff;
+    font-family: var(--comms-mono);
+    background: linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), var(--m-bg-base);
+    -webkit-backdrop-filter: var(--qx-blur);
+    backdrop-filter: var(--qx-blur);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    min-width: 180px;
+    position: sticky;
+    left: 0;
+    z-index: 3;
+}
+
+.comms-matrix__channel-header {
+    padding: 4px;
+    background: linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), var(--m-bg-base);
+    -webkit-backdrop-filter: var(--qx-blur);
+    backdrop-filter: var(--qx-blur);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    text-align: center;
+    min-width: 36px;
+    width: 36px;
+    vertical-align: bottom;
+    height: 52px;
+}
+
+.comms-matrix__channel-label {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.3);
+    font-family: var(--comms-mono);
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    white-space: nowrap;
+    cursor: default;
+}
+
+.comms-matrix__row {
+    transition: background 0.1s ease;
+}
+
+.comms-matrix__row:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.comms-matrix__scope-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    background: rgba(15, 15, 24, 0.9);
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 180px;
+}
+
+.comms-matrix__scope-icon {
+    display: flex;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.35);
+    flex-shrink: 0;
+}
+
+.comms-matrix__scope-name {
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.85);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 160px;
+}
+
+.comms-matrix__scope-type {
+    font-size: 9px;
+    flex-shrink: 0;
+    font-family: var(--comms-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.comms-matrix__cell {
+    text-align: center;
+    padding: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    min-width: 36px;
+}
+
+.comms-matrix__checkbox {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.comms-matrix__toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.comms-matrix__toggle:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.comms-matrix__toggle--active {
+    background: rgba(48, 255, 144, 0.12);
+    border-color: rgba(48, 255, 144, 0.3);
+}
+
+.comms-matrix__toggle--active:hover {
+    background: rgba(48, 255, 144, 0.2);
+}
+
+.comms-matrix__toggle-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.08);
+    transition: all 0.15s ease;
+}
+
+.comms-matrix__toggle--active .comms-matrix__toggle-indicator {
+    background: var(--comms-green);
+    box-shadow: 0 0 6px rgba(48, 255, 144, 0.3);
+}
+
+/* ============================================================================
+   Analytics Dashboard — Phase D5
+   ============================================================================ */
+
+.comms-analytics {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.comms-analytics__cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.comms-analytics__card {
+    background: var(--comms-glass-bg);
+    border: 1px solid var(--comms-glass-border);
+    border-radius: var(--comms-radius);
+    padding: 18px 16px;
+    text-align: center;
+    box-shadow: inset 0 1px 0 var(--comms-glass-shine);
+    transition: all 0.15s ease;
+}
+
+.comms-analytics__card:hover {
+    background: var(--comms-glass-hover);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.comms-analytics__card-value {
+    font-size: 26px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--comms-mono);
+    line-height: 1.2;
+    letter-spacing: -0.03em;
+}
+
+.comms-analytics__card-label {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.35);
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    font-family: var(--comms-mono);
+}
+
+.comms-analytics__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.comms-analytics__section {
+    background: var(--comms-glass-bg);
+    border: 1px solid var(--comms-glass-border);
+    border-radius: var(--comms-radius);
+    padding: 18px;
+    box-shadow: inset 0 1px 0 var(--comms-glass-shine);
+}
+
+.comms-analytics__section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.45);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-family: var(--comms-mono);
+}
+
+/* Charts */
+.comms-chart {
+    width: 100%;
+    overflow: hidden;
+}
+
+.comms-chart--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 12px;
+    font-family: var(--comms-mono);
+}
+
+.comms-scope-table {
+    overflow-x: auto;
+}
+
+/* Time range toggle */
+.comms-time-toggle {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--comms-glass-border);
+    border-radius: var(--comms-radius-sm);
+    overflow: hidden;
+}
+
+.comms-time-toggle__btn {
+    padding: 5px 14px;
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--comms-glass-border);
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--comms-mono);
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.comms-time-toggle__btn:last-child {
+    border-right: none;
+}
+
+.comms-time-toggle__btn:hover {
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.comms-time-toggle__btn--active {
+    background: rgba(56, 189, 248, 0.1);
+    color: var(--comms-blue);
+}
+
+/* ============================================================================
+   Responsive
+   ============================================================================ */
+
+@media (max-width: 900px) {
+    .comms-sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 100;
+        transform: translateX(-100%);
+        transition: transform 0.2s ease;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+        background: rgba(15, 15, 24, 0.98);
+        backdrop-filter: blur(16px);
+    }
+
+    .comms-sidebar--open {
+        transform: translateX(0);
+    }
+
+    .comms-stats-strip {
+        flex-wrap: wrap;
+        height: auto;
+        padding: 8px 16px;
+        gap: 4px;
+    }
+
+    .comms-overview-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .comms-analytics__cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .comms-analytics__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .comms-content {
+        padding: 16px;
+    }
+}
+
+/* ============================================================================
+   Vault/Manual toggle tabs
+   ============================================================================ */
+
+.corecomms-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: var(--comms-radius-sm);
+    border: 1px solid var(--comms-glass-border);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--comms-mono);
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.corecomms-tab-btn:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.corecomms-tab-btn--active {
+    background: rgba(56, 189, 248, 0.08);
+    border-color: rgba(56, 189, 248, 0.2);
+    color: var(--comms-blue);
+}

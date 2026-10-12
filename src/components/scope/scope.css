@@ -1,0 +1,260 @@
+/* =========================================================================
+   Scope Components — ScopeBadge + ScopeFilterCascade
+   ========================================================================= */
+
+/* ---------- ScopeBadge ---------- */
+
+.scope-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+/* Compact variant — card headers */
+.scope-badge--compact {
+    padding: 4px 8px;
+    border-radius: 10px;
+    font-size: 0.6rem;
+    cursor: default;
+}
+
+/* Full variant — detail page headers */
+.scope-badge--full {
+    gap: 0;
+    font-size: 0.75rem;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 500;
+}
+
+/* Inline variant — detail page info rows */
+.scope-badge--inline {
+    font-size: 0.8rem;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 500;
+}
+
+/* Color variants (matching existing views.css scope badge palette) */
+.scope-badge--org {
+    background: rgba(94, 234, 212, 0.15);
+    color: #5eeac4;
+}
+.scope-badge--division {
+    background: rgba(168, 85, 247, 0.15);
+    color: #a855f7;
+}
+.scope-badge--department {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+}
+.scope-badge--team {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+}
+.scope-badge--core {
+    background: rgba(255, 59, 59, 0.12);
+    color: var(--hal-red, #ff3b3b);
+}
+
+/* Labeled variant — full type labels before each segment */
+.scope-badge--labeled {
+    gap: 0;
+    font-size: 0.8rem;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 500;
+}
+
+/* Full, labeled, and inline variants don't need background */
+.scope-badge--full,
+.scope-badge--labeled,
+.scope-badge--inline {
+    background: none;
+    color: var(--text-secondary, #a1a1aa);
+}
+
+.scope-badge__icon {
+    opacity: 0.6;
+    font-size: 0.85em;
+    font-family: monospace;
+}
+
+.scope-badge__logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #4ecdc4, #2a9d8f);
+    font-size: 7px;
+    font-weight: 700;
+    color: #000;
+}
+
+.scope-badge__logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+}
+
+.scope-badge__logo-initials {
+    line-height: 1;
+}
+
+.scope-badge__sep {
+    color: var(--text-muted, rgba(255, 255, 255, 0.52));
+    margin: 0 2px;
+    font-weight: 400;
+    opacity: 0.5;
+}
+
+.scope-badge__crumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.scope-badge__type-label {
+    color: var(--text-muted, rgba(255, 255, 255, 0.52));
+    font-weight: 400;
+    font-size: 0.9em;
+    margin-right: 2px;
+}
+
+.scope-badge__segment {
+    /* inherits color from parent variant */
+}
+
+.scope-badge__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+/* ---------- ScopeFilterCascade ---------- */
+
+.scope-cascade {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.scope-cascade__level {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: opacity 0.2s ease, max-width 0.3s ease;
+    max-width: 220px;
+    overflow: hidden;
+}
+
+.scope-cascade__level--hidden {
+    opacity: 0;
+    max-width: 0;
+    pointer-events: none;
+}
+
+.scope-cascade__select {
+    padding: 4px 24px 4px 8px;
+    font-size: 0.8rem;
+    background: var(--surface-card, #1a1a1e);
+    border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
+    border-radius: 6px;
+    color: var(--text-primary, #f4f4f5);
+    cursor: pointer;
+    outline: none;
+    min-width: 0;
+    max-width: 200px;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    transition: border-color 0.15s ease;
+}
+
+.scope-cascade__select:hover {
+    border-color: var(--border-strong, rgba(255, 255, 255, 0.16));
+}
+
+.scope-cascade__select:focus {
+    border-color: var(--m-quox-primary, #38bdf8);
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+}
+
+.scope-cascade__select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.scope-cascade__select option {
+    background: var(--surface-card, #1a1a1e);
+    color: var(--text-primary, #f4f4f5);
+}
+
+.scope-cascade__label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted, rgba(255, 255, 255, 0.6));
+    white-space: nowrap;
+    user-select: none;
+}
+
+.scope-cascade__sep {
+    color: var(--text-muted, rgba(255, 255, 255, 0.52));
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.scope-cascade__clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    background: none;
+    border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
+    border-radius: 4px;
+    color: var(--text-muted, rgba(255, 255, 255, 0.6));
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+}
+
+.scope-cascade__clear:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+.scope-cascade__org-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #4ecdc4, #2a9d8f);
+    font-size: 8px;
+    font-weight: 700;
+    color: #000;
+}
+
+.scope-cascade__org-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+}

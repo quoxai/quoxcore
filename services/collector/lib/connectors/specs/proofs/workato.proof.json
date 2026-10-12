@@ -1,0 +1,116 @@
+{
+  "spec_id": "workato",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:30:57.523Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://www.workato.com/quox-shapeproof-control-104d5d49",
+      "status": 404,
+      "latency_ms": 1588,
+      "classification": "CONTROL",
+      "body_sha256": "eb68fc3bc52d0eb82b81508d3e79ee646b2a2c9e038d496423fea99f2b380060",
+      "body_excerpt": "<!doctype html>\n<html data-n-head-ssr lang=\"en\" data-n-head=\"%7B%22lang%22:%7B%22ssr%22:%22en%22%7D%7D\">\n  <head >\n    <meta data-n-head=\"ssr\" charset=\"utf-8\"><meta data-n-head=\"ssr\" name=\"viewport\" c",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://www.workato.com/api/users/me",
+      "status": 401,
+      "latency_ms": 391,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3e7db788e384631f8a9f299d1797e6f8af6d16d643a1c91f9e83ae15212de45c",
+      "body_excerpt": "{\"message\":\"Unauthorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_current_user",
+      "method": "GET",
+      "url": "https://www.workato.com/api/users/me",
+      "status": 401,
+      "latency_ms": 436,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3e7db788e384631f8a9f299d1797e6f8af6d16d643a1c91f9e83ae15212de45c",
+      "body_excerpt": "{\"message\":\"Unauthorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_recipes",
+      "method": "GET",
+      "url": "https://www.workato.com/api/recipes?per_page=20&page=1&folder_id=1&running=false",
+      "status": 401,
+      "latency_ms": 439,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3e7db788e384631f8a9f299d1797e6f8af6d16d643a1c91f9e83ae15212de45c",
+      "body_excerpt": "{\"message\":\"Unauthorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_recipe",
+      "method": "GET",
+      "url": "https://www.workato.com/api/recipes/quoxprobe",
+      "status": 401,
+      "latency_ms": 363,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3e7db788e384631f8a9f299d1797e6f8af6d16d643a1c91f9e83ae15212de45c",
+      "body_excerpt": "{\"message\":\"Unauthorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_connections",
+      "method": "GET",
+      "url": "https://www.workato.com/api/connections?folder_id=1",
+      "status": 401,
+      "latency_ms": 415,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3e7db788e384631f8a9f299d1797e6f8af6d16d643a1c91f9e83ae15212de45c",
+      "body_excerpt": "{\"message\":\"Unauthorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_folders",
+      "method": "GET",
+      "url": "https://www.workato.com/api/folders?parent_id=1&page=1&per_page=20",
+      "status": 401,
+      "latency_ms": 264,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3e7db788e384631f8a9f299d1797e6f8af6d16d643a1c91f9e83ae15212de45c",
+      "body_excerpt": "{\"message\":\"Unauthorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_recipe_jobs",
+      "method": "GET",
+      "url": "https://www.workato.com/api/recipes/quoxprobe/jobs?per_page=20&status=quoxprobe",
+      "status": 401,
+      "latency_ms": 462,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3e7db788e384631f8a9f299d1797e6f8af6d16d643a1c91f9e83ae15212de45c",
+      "body_excerpt": "{\"message\":\"Unauthorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

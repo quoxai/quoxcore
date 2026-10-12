@@ -1,0 +1,65 @@
+{
+  "spec_id": "mistral",
+  "spec_version": 1,
+  "checked_at": "2026-09-16T17:58:33.977Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.mistral.ai/v1/quox-shapeproof-control-92051019",
+      "status": 404,
+      "latency_ms": 137,
+      "classification": "CONTROL",
+      "body_sha256": "1279bad28bb71399812977227c99ba869e5325d089d92f5b2801a42469068900",
+      "body_excerpt": "{\n  \"message\":\"no Route matched with those values\",\n  \"request_id\":\"30648c044af2db01312807603c14c67b\"\n}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true,
+        "retried": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.mistral.ai/v1/models",
+      "status": 401,
+      "latency_ms": 75,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "08327cbfef8b96819b1da1f1aafd36a014dd15fdd1046df3f2ad539e142de832",
+      "body_excerpt": "{\"detail\":\"Invalid API Key\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_models",
+      "method": "GET",
+      "url": "https://api.mistral.ai/v1/models",
+      "status": 401,
+      "latency_ms": 85,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "08327cbfef8b96819b1da1f1aafd36a014dd15fdd1046df3f2ad539e142de832",
+      "body_excerpt": "{\"detail\":\"Invalid API Key\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "chat_completion",
+      "method": "POST",
+      "url": null,
+      "status": null,
+      "latency_ms": null,
+      "classification": "SKIPPED_WRITE",
+      "body_sha256": null,
+      "body_excerpt": null,
+      "flags": {
+        "reason": "writes_not_included"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

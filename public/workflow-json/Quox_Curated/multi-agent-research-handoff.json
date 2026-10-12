@@ -1,0 +1,84 @@
+{
+  "id": "wf-quox-multi-agent-research-handoff",
+  "name": "Multi-Agent Research Hand-off",
+  "description": "BEACON gathers sources on a topic, CODEX cross-checks for accuracy, then CommanderQ synthesises the final brief and delivers it to the inbox.",
+  "source": "quox-curated",
+  "category": "ai-llm",
+  "tags": ["research", "multi-agent", "synthesis", "beacon", "codex", "ai", "event", "notification"],
+  "nodes": [
+    {
+      "id": "trig",
+      "type": "trigger:event",
+      "name": "Research Request",
+      "category": "trigger",
+      "config": {
+        "event": "research.requested",
+        "source": "quox",
+        "filter": ""
+      },
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "gather",
+      "type": "agent:agentic",
+      "name": "BEACON: Gather Sources",
+      "category": "action",
+      "config": {
+        "agent": "beacon",
+        "goal": "Research the topic: ${input.topic}. Find 5-8 credible sources, extract key facts, and return a structured JSON with fields: topic, sources (array of {url, title, summary}), keyFacts (array of strings).",
+        "model": "claude-haiku-4-5",
+        "maxIterations": 10
+      },
+      "position": { "x": 400, "y": 300 }
+    },
+    {
+      "id": "crosscheck",
+      "type": "agent:agentic",
+      "name": "CODEX: Cross-Check",
+      "category": "action",
+      "config": {
+        "agent": "codex",
+        "goal": "Review these research findings and cross-check for accuracy, contradictions, and knowledge gaps: ${nodes['gather'].output}. Return a structured review with fields: verifiedFacts, disputedClaims, gaps.",
+        "model": "claude-haiku-4-5",
+        "maxIterations": 8
+      },
+      "position": { "x": 700, "y": 300 }
+    },
+    {
+      "id": "synthesise",
+      "type": "assistant:invoke",
+      "name": "Synthesise Brief",
+      "category": "action",
+      "config": {
+        "assistant_id": "quox",
+        "prompt": "Synthesise the following research and cross-check into a concise executive brief (max 500 words). Research: ${nodes['gather'].output}. Cross-check: ${nodes['crosscheck'].output}. Format as: Summary, Key Findings, Confidence Notes, Recommended Actions.",
+        "name": "Synthesise Brief"
+      },
+      "position": { "x": 1000, "y": 300 }
+    },
+    {
+      "id": "deliver",
+      "type": "notification:deliver",
+      "name": "Deliver Brief",
+      "category": "notification",
+      "config": {
+        "title": "Research Brief: ${input.topic}",
+        "message": "${nodes['synthesise'].output.result}",
+        "assignTo": ["*"],
+        "priority": "normal"
+      },
+      "position": { "x": 1300, "y": 300 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trig", "target": "gather" },
+    { "id": "e2", "source": "gather", "target": "crosscheck" },
+    { "id": "e3", "source": "crosscheck", "target": "synthesise" },
+    { "id": "e4", "source": "synthesise", "target": "deliver" }
+  ],
+  "meta": {
+    "version": "1.0.0",
+    "createdBy": "quox-curated",
+    "estimatedRuntime": "2-4 min"
+  }
+}

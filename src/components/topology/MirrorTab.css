@@ -1,0 +1,671 @@
+/**
+ * MirrorTab Styles - Consciousness Map Display
+ *
+ * Follows the existing ct2-* pattern from CognitiveTopologyView
+ */
+
+/* ============================================
+   MAIN CONTAINER
+   ============================================ */
+.mirror {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--m-space-4, 1rem);
+  overflow-y: auto;
+  background: var(--m-bg-dark, #0a0a1a);
+}
+
+/* Header */
+.mirror__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--m-space-4, 1rem);
+  padding-bottom: var(--m-space-3, 0.75rem);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.1);
+}
+
+.mirror__title {
+  display: flex;
+  align-items: center;
+  gap: var(--m-space-3, 0.75rem);
+}
+
+.mirror__title h2 {
+  margin: 0;
+  font-size: var(--m-text-xl, 1.25rem);
+  font-weight: var(--m-weight-semibold, 600);
+  color: var(--m-text-primary, #f0f0f0);
+}
+
+.mirror__title svg {
+  color: var(--hal-green, #00ff88);
+}
+
+.mirror__timestamp {
+  font-size: var(--m-text-xs, 0.75rem);
+  color: var(--m-text-tertiary, #666);
+  padding-left: var(--m-space-2, 0.5rem);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Regenerate button */
+.mirror__regenerate {
+  display: flex;
+  align-items: center;
+  gap: var(--m-space-2, 0.5rem);
+  padding: var(--m-space-2, 0.5rem) var(--m-space-4, 1rem);
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: var(--m-radius-md, 0.5rem);
+  color: #38bdf8;
+  font-size: var(--m-text-sm, 0.875rem);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mirror__regenerate:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+}
+
+.mirror__regenerate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Content grid */
+.mirror__content {
+  display: grid;
+  grid-template-columns: 280px 1fr 280px;
+  gap: var(--m-space-4, 1rem);
+  flex: 1;
+  min-height: 0;
+}
+
+.mirror__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--m-space-3, 0.75rem);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.mirror__column--wide {
+  /* Center column for implants grid */
+}
+
+/* ============================================
+   THESIS STRIP (MIRROR-THESIS T2)
+   ============================================ */
+.mirror-thesis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--m-space-2, 0.5rem);
+  background: linear-gradient(135deg, rgba(15, 15, 30, 0.9), rgba(56, 189, 248, 0.06));
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: var(--m-radius-lg, 0.75rem);
+  padding: var(--m-space-4, 1rem);
+  margin-bottom: var(--m-space-4, 1rem);
+}
+
+.mirror-thesis__tagline {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-primary, #fff);
+}
+
+.mirror-thesis__live {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--m-space-3, 0.75rem);
+}
+
+.mirror-thesis__live--muted {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+}
+
+.mirror-thesis__seg {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.mirror-thesis__num {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: rgba(56, 189, 248, 0.95);
+  font-variant-numeric: tabular-nums;
+}
+
+.mirror-thesis__num--digest {
+  font-size: 0.95rem;
+  font-family: var(--font-mono, monospace);
+  color: rgba(0, 255, 136, 0.9);
+}
+
+.mirror-thesis__label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.mirror-thesis__arrow {
+  color: rgba(56, 189, 248, 0.6);
+  font-size: 1.1rem;
+}
+
+/* ============================================
+   CARDS
+   ============================================ */
+.mirror-card {
+  background: rgba(15, 15, 30, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  border-radius: var(--m-radius-lg, 0.75rem);
+  padding: var(--m-space-4, 1rem);
+}
+
+.mirror-card--identity {
+  background: linear-gradient(135deg, rgba(15, 15, 30, 0.9), rgba(0, 255, 136, 0.05));
+  border-color: rgba(0, 255, 136, 0.2);
+}
+
+.mirror-card--wide {
+  /* Full height for center column */
+}
+
+.mirror-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--m-space-2, 0.5rem);
+  margin-bottom: var(--m-space-3, 0.75rem);
+  color: var(--m-text-secondary, #a0a0a0);
+  font-size: var(--m-text-sm, 0.875rem);
+  font-weight: var(--m-weight-medium, 500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mirror-card__count {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: rgba(56, 189, 248, 0.15);
+  border-radius: var(--m-radius-sm, 0.25rem);
+  font-size: var(--m-text-xs, 0.75rem);
+  color: #38bdf8;
+}
+
+/* ============================================
+   IDENTITY CARD
+   ============================================ */
+.mirror-identity {
+  text-align: center;
+  padding: var(--m-space-3, 0.75rem) 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: var(--m-space-3, 0.75rem);
+}
+
+.mirror-identity__name {
+  margin: 0 0 var(--m-space-1, 0.25rem);
+  font-size: var(--m-text-2xl, 1.5rem);
+  font-weight: var(--m-weight-bold, 700);
+  color: var(--hal-green, #00ff88);
+  letter-spacing: 0.1em;
+}
+
+.mirror-identity__role {
+  margin: 0;
+  font-size: var(--m-text-sm, 0.875rem);
+  color: var(--m-text-secondary, #a0a0a0);
+}
+
+.mirror-identity__version {
+  margin-top: var(--m-space-2, 0.5rem);
+  font-size: var(--m-text-xs, 0.75rem);
+  color: var(--m-text-tertiary, #666);
+}
+
+/* Health overview */
+.mirror-health-overview {
+  text-align: center;
+}
+
+.mirror-health-overview__value {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+}
+
+.mirror-health-overview__number {
+  font-size: 2.5rem;
+  font-weight: var(--m-weight-bold, 700);
+  color: var(--m-text-primary, #f0f0f0);
+  line-height: 1;
+}
+
+.mirror-health-overview__percent {
+  font-size: var(--m-text-lg, 1.125rem);
+  color: var(--m-text-secondary, #a0a0a0);
+}
+
+.mirror-health-overview__label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--m-space-2, 0.5rem);
+  margin: var(--m-space-2, 0.5rem) 0;
+  font-size: var(--m-text-sm, 0.875rem);
+  color: var(--m-text-secondary, #a0a0a0);
+}
+
+/* ============================================
+   HEALTH BAR
+   ============================================ */
+.mirror-health-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.mirror-health-bar--lg {
+  height: 8px;
+  margin-top: var(--m-space-2, 0.5rem);
+}
+
+.mirror-health-bar__fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* ============================================
+   STATUS BADGE
+   ============================================ */
+.mirror-status {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: var(--m-text-xs, 0.75rem);
+  font-weight: var(--m-weight-medium, 500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: var(--m-radius-sm, 0.25rem);
+}
+
+.mirror-status--operational,
+.mirror-status--healthy {
+  background: rgba(0, 255, 136, 0.15);
+  color: var(--hal-green, #00ff88);
+}
+
+.mirror-status--degraded {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.mirror-status--critical,
+.mirror-status--offline {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.mirror-status--locked {
+  background: rgba(139, 92, 246, 0.15);
+  color: #8b5cf6;
+}
+
+.mirror-status--unknown {
+  background: rgba(107, 114, 128, 0.15);
+  color: #6b7280;
+}
+
+/* ============================================
+   STATS
+   ============================================ */
+.mirror-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--m-space-2, 0.5rem);
+}
+
+.mirror-stats--row {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.mirror-stat {
+  text-align: center;
+  padding: var(--m-space-2, 0.5rem);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--m-radius-sm, 0.25rem);
+}
+
+.mirror-stat__value {
+  display: block;
+  font-size: var(--m-text-lg, 1.125rem);
+  font-weight: var(--m-weight-semibold, 600);
+  color: var(--m-text-primary, #f0f0f0);
+}
+
+.mirror-stat__label {
+  display: block;
+  font-size: var(--m-text-xs, 0.75rem);
+  color: var(--m-text-tertiary, #666);
+  margin-top: 2px;
+}
+
+.mirror-open-loops {
+  margin-top: var(--m-space-2, 0.5rem);
+  padding: var(--m-space-2, 0.5rem);
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: var(--m-radius-sm, 0.25rem);
+  font-size: var(--m-text-xs, 0.75rem);
+  color: #f59e0b;
+  text-align: center;
+}
+
+/* ============================================
+   IMPLANTS GRID
+   ============================================ */
+.mirror-implants {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--m-space-3, 0.75rem);
+}
+
+.mirror-implant {
+  padding: var(--m-space-3, 0.75rem);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--m-radius-md, 0.5rem);
+  transition: all 0.15s ease;
+}
+
+.mirror-implant:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--implant-color, rgba(56, 189, 248, 0.3));
+}
+
+.mirror-implant--locked {
+  opacity: 0.6;
+}
+
+.mirror-implant__header {
+  display: flex;
+  align-items: center;
+  gap: var(--m-space-2, 0.5rem);
+  margin-bottom: var(--m-space-2, 0.5rem);
+}
+
+.mirror-implant__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--implant-color, #38bdf8);
+  flex-shrink: 0;
+}
+
+.mirror-implant__name {
+  flex: 1;
+  font-size: var(--m-text-sm, 0.875rem);
+  font-weight: var(--m-weight-medium, 500);
+  color: var(--m-text-primary, #f0f0f0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mirror-implant__body {
+  margin-top: var(--m-space-2, 0.5rem);
+}
+
+.mirror-implant__details {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--m-space-1, 0.25rem);
+  font-size: var(--m-text-xs, 0.75rem);
+}
+
+.mirror-implant__health {
+  color: var(--m-text-secondary, #a0a0a0);
+}
+
+.mirror-implant__metric {
+  color: var(--m-text-tertiary, #666);
+}
+
+.mirror-implant__plugin {
+  margin-top: var(--m-space-2, 0.5rem);
+  padding: var(--m-space-1, 0.25rem) var(--m-space-2, 0.5rem);
+  background: rgba(139, 92, 246, 0.1);
+  border-radius: var(--m-radius-sm, 0.25rem);
+  font-size: var(--m-text-xs, 0.75rem);
+  color: #8b5cf6;
+}
+
+/* ============================================
+   AGENTS LIST
+   ============================================ */
+.mirror-agents {
+  display: flex;
+  flex-direction: column;
+  gap: var(--m-space-3, 0.75rem);
+}
+
+.mirror-agent-group__header {
+  font-size: var(--m-text-xs, 0.75rem);
+  font-weight: var(--m-weight-medium, 500);
+  color: var(--m-text-tertiary, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--m-space-1, 0.25rem);
+}
+
+.mirror-agent-group__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--m-space-1, 0.25rem);
+}
+
+.mirror-agent {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--m-radius-sm, 0.25rem);
+  font-size: var(--m-text-xs, 0.75rem);
+}
+
+.mirror-agent--inactive {
+  opacity: 0.5;
+}
+
+.mirror-agent__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--agent-color, #38bdf8);
+}
+
+.mirror-agent__name {
+  color: var(--m-text-secondary, #a0a0a0);
+}
+
+/* ============================================
+   PLUGINS LIST
+   ============================================ */
+.mirror-plugins {
+  display: flex;
+  flex-direction: column;
+  gap: var(--m-space-1, 0.25rem);
+}
+
+.mirror-plugin {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--m-space-2, 0.5rem);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--m-radius-sm, 0.25rem);
+}
+
+.mirror-plugin--disabled {
+  opacity: 0.5;
+}
+
+.mirror-plugin__name {
+  font-size: var(--m-text-sm, 0.875rem);
+  color: var(--m-text-primary, #f0f0f0);
+}
+
+.mirror-plugin__version {
+  font-size: var(--m-text-xs, 0.75rem);
+  color: var(--m-text-tertiary, #666);
+}
+
+/* ============================================
+   EMPTY STATE
+   ============================================ */
+.mirror-empty {
+  padding: var(--m-space-4, 1rem);
+  text-align: center;
+  color: var(--m-text-tertiary, #666);
+  font-size: var(--m-text-sm, 0.875rem);
+}
+
+.mirror-empty--small {
+  padding: var(--m-space-2, 0.5rem);
+  font-size: var(--m-text-xs, 0.75rem);
+}
+
+/* ============================================
+   LOADING & ERROR
+   ============================================ */
+.mirror-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--m-space-3, 0.75rem);
+  color: var(--m-text-secondary, #a0a0a0);
+}
+
+.mirror-loading__spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(56, 189, 248, 0.2);
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: mirror-spin 1s linear infinite;
+}
+
+.mirror-loading__spinner--small {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+@keyframes mirror-spin {
+  to { transform: rotate(360deg); }
+}
+
+.mirror-error {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--m-space-3, 0.75rem);
+  color: var(--hal-red, #ef4444);
+}
+
+.mirror-error button {
+  padding: var(--m-space-2, 0.5rem) var(--m-space-4, 1rem);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--m-radius-md, 0.5rem);
+  color: #ef4444;
+  cursor: pointer;
+}
+
+.mirror-error button:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* ============================================
+   JSON VIEWER
+   ============================================ */
+.mirror-json {
+  margin-top: var(--m-space-4, 1rem);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  border-radius: var(--m-radius-lg, 0.75rem);
+  background: rgba(15, 15, 30, 0.8);
+  overflow: hidden;
+}
+
+.mirror-json__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--m-space-2, 0.5rem);
+  width: 100%;
+  padding: var(--m-space-3, 0.75rem) var(--m-space-4, 1rem);
+  background: transparent;
+  border: none;
+  color: var(--m-text-secondary, #a0a0a0);
+  font-size: var(--m-text-sm, 0.875rem);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mirror-json__toggle:hover {
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--m-text-primary, #f0f0f0);
+}
+
+.mirror-json__size {
+  margin-left: auto;
+  font-size: var(--m-text-xs, 0.75rem);
+  color: var(--m-text-tertiary, #666);
+}
+
+.mirror-json__content {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  max-height: 500px;
+  overflow: auto;
+}
+
+.mirror-json__content pre {
+  margin: 0;
+  padding: var(--m-space-4, 1rem);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: var(--m-text-xs, 0.75rem);
+  line-height: 1.5;
+  color: var(--m-text-secondary, #a0a0a0);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* JSON syntax highlighting (optional) */
+.mirror-json__content pre {
+  color: #9cdcfe;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 1200px) {
+  .mirror__content {
+    grid-template-columns: 1fr;
+  }
+
+  .mirror__column {
+    overflow: visible;
+  }
+}

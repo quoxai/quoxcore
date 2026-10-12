@@ -1,0 +1,154 @@
+/**
+ * PublicWaypointView styles. Standalone public share page — mobile-first
+ * (external recipients open these on phones). Prefixed `pubwp-` to avoid
+ * colliding with the dashboard's global styles (this route has no AppShell).
+ */
+
+.pubwp-root {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background:
+        radial-gradient(120% 90% at 50% -10%, #0d1b2a 0%, #060a10 55%, #04060a 100%);
+    color: #e8eef6;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    padding: 20px 16px 32px;
+    box-sizing: border-box;
+}
+
+.pubwp-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 22px;
+    letter-spacing: 0.02em;
+}
+.pubwp-mark { color: #38bdf8; font-size: 20px; line-height: 1; }
+.pubwp-brand-name { font-weight: 600; font-size: 16px; color: #cfe3f5; }
+
+.pubwp-card {
+    width: 100%;
+    max-width: 440px;
+    background: rgba(13, 22, 34, 0.72);
+    border: 1px solid rgba(56, 189, 248, 0.16);
+    border-radius: 18px;
+    padding: 22px 20px 24px;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+    box-sizing: border-box;
+}
+
+.pubwp-title {
+    font-size: 22px;
+    font-weight: 650;
+    margin: 2px 0 14px;
+    line-height: 1.2;
+}
+
+/* VOX code chip — the hero element; tap to copy */
+.pubwp-codechip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.32);
+    border-radius: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+    margin-bottom: 16px;
+    transition: border-color 0.15s, background 0.15s;
+}
+.pubwp-codechip:hover { border-color: rgba(56, 189, 248, 0.6); background: rgba(56, 189, 248, 0.12); }
+.pubwp-codechip-text {
+    font-family: 'SFMono-Regular', ui-monospace, 'JetBrains Mono', Menlo, monospace;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: #a9e0fb;
+}
+.pubwp-codechip-copy { font-size: 12px; color: #7aa7c4; white-space: nowrap; }
+
+.pubwp-map-wrap {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 16px;
+    background: #0a0f16;
+}
+.pubwp-map { display: block; width: 100%; height: 230px; border: 0; }
+
+.pubwp-facts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
+    margin: 0 0 16px;
+}
+.pubwp-facts.pubwp-facts-extra { grid-template-columns: 1fr; gap: 8px; }
+.pubwp-facts > div {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 9px;
+    padding: 9px 11px;
+    min-width: 0;
+}
+.pubwp-facts dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #7089a0; margin-bottom: 3px; }
+.pubwp-facts dd { margin: 0; font-size: 14px; color: #dceaf6; word-break: break-word; }
+
+.pubwp-actions { display: flex; flex-direction: column; gap: 10px; }
+
+.pubwp-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 13px 16px;
+    border-radius: 11px;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #e8eef6;
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    transition: transform 0.08s, background 0.15s, border-color 0.15s;
+}
+.pubwp-btn:active { transform: translateY(1px); }
+.pubwp-btn-primary {
+    background: linear-gradient(180deg, #2ea8e6 0%, #1d84c4 100%);
+    border-color: transparent;
+    color: #04121c;
+}
+.pubwp-btn-primary:hover { background: linear-gradient(180deg, #45b6ef 0%, #2490d2 100%); }
+
+/* Message / gate / empty states */
+.pubwp-msg { text-align: center; padding: 26px 6px; color: #9fb4c8; font-size: 15px; }
+.pubwp-msg-empty { padding: 20px 6px 8px; }
+.pubwp-gate { text-align: center; padding: 8px 4px; }
+.pubwp-gate-icon { font-size: 34px; margin-bottom: 10px; }
+.pubwp-gate-title { font-size: 20px; font-weight: 650; margin: 0 0 8px; }
+.pubwp-gate-body { font-size: 14px; color: #9fb4c8; line-height: 1.5; margin: 0 auto 18px; max-width: 320px; }
+.pubwp-gate .pubwp-btn { width: 100%; }
+
+.pubwp-code-quiet {
+    margin-top: 16px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    color: #5b7690;
+}
+
+.pubwp-footer {
+    margin-top: 22px;
+    font-size: 12px;
+    color: #5b7288;
+    text-align: center;
+    max-width: 440px;
+}
+
+@media (min-width: 480px) {
+    .pubwp-actions { flex-direction: row; }
+    .pubwp-actions .pubwp-btn { flex: 1; }
+}

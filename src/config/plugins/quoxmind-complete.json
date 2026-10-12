@@ -1,0 +1,59 @@
+{
+  "name": "quoxmind-complete",
+  "version": "1.0.0",
+  "displayName": "QuoxMind Complete",
+  "tagline": "Self-improving intelligence that compounds over time.",
+  "description": "Unlocks the full QuoxMind Cognitive Implant Suite including the reflective tier: QuoxReflect (self-evaluation), QuoxDream (knowledge consolidation), and QuoxLearn (behavioural adaptation). Includes everything in QuoxMind Pro.",
+  "shortDescription": "Full cognitive implant suite with self-improvement",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 49,
+  "priceDisplay": "$49",
+  "priceModel": "one-time",
+  "tier": "tier_c",
+  "featured": true,
+  "icon": "brain",
+  "accentColor": "#7c3aed",
+  "infoUrl": "https://quox.ai/solutions/quoxmind",
+  "docsUrl": "https://quox.ai/docs/quoxmind",
+  "marketingPoints": [
+    "Everything in QuoxMind Pro",
+    "QuoxReflect: Post-action evaluation and quality feedback",
+    "QuoxDream: Memory consolidation and contradiction resolution",
+    "QuoxLearn: Behavioural adaptation that improves over time",
+    "The system gets measurably smarter with every operation"
+  ],
+  "unlockedImplants": ["quox-reflect", "quox-dream", "quox-learn"],
+  "features": {
+    "reflect": {
+      "name": "QuoxReflect Implant",
+      "description": "Evaluates past actions — what worked, what failed, what to change. Inspired by the default mode network.",
+      "icon": "rotate-ccw"
+    },
+    "dream": {
+      "name": "QuoxDream Implant",
+      "description": "Consolidates memory — merges duplicates, resolves contradictions, elevates patterns into institutional knowledge. Inspired by sleep consolidation.",
+      "icon": "moon"
+    },
+    "learn": {
+      "name": "QuoxLearn Implant",
+      "description": "Adapts behaviour based on accumulated experience. Changes decomposition, delegation, and communication over time. Inspired by synaptic plasticity.",
+      "icon": "graduation-cap"
+    }
+  },
+  "limits": {
+    "free": {},
+    "paid": {
+      "allCompleteImplantsActive": true,
+      "includesProTier": true,
+      "reflectionCycles": true,
+      "consolidationCycles": true,
+      "behaviouralAdaptation": true
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0",
+    "includes": ["quoxmind-pro"]
+  },
+  "category": "AI & Intelligence"
+}

@@ -1,0 +1,92 @@
+{
+  "spec_id": "huggingface",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:44.095Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://huggingface.co/quox-shapeproof-control-d203a277",
+      "status": 404,
+      "latency_ms": 3513,
+      "classification": "CONTROL",
+      "body_sha256": "6b078ce1e72e845d053d232987884be72829b2bb7c6d502880403675309f4253",
+      "body_excerpt": "<!doctype html>\n<html class=\"\">\n\t<head>\n\t\t<meta charset=\"utf-8\" />\n\n\t\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\" />\n\n\t\t<meta name=\"description\" content=\"We",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://huggingface.co/api/whoami-v2",
+      "status": 401,
+      "latency_ms": 111,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "65842e3d84e6b7f62a470c85204e80b953bb8f944e9b69813130a9d7f3eaa1d8",
+      "body_excerpt": "{\"error\":\"Invalid username or password.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "whoami",
+      "method": "GET",
+      "url": "https://huggingface.co/api/whoami-v2",
+      "status": 401,
+      "latency_ms": 120,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "65842e3d84e6b7f62a470c85204e80b953bb8f944e9b69813130a9d7f3eaa1d8",
+      "body_excerpt": "{\"error\":\"Invalid username or password.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_models",
+      "method": "GET",
+      "url": "https://huggingface.co/api/models?search=quoxprobe&limit=20",
+      "status": 200,
+      "latency_ms": 127,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "body_excerpt": "[]",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "model_info",
+      "method": "GET",
+      "url": "https://huggingface.co/api/models/quoxprobe/quoxprobe",
+      "status": 401,
+      "latency_ms": 144,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "65842e3d84e6b7f62a470c85204e80b953bb8f944e9b69813130a9d7f3eaa1d8",
+      "body_excerpt": "{\"error\":\"Invalid username or password.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_datasets",
+      "method": "GET",
+      "url": "https://huggingface.co/api/datasets?search=quoxprobe&limit=20",
+      "status": 200,
+      "latency_ms": 117,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "body_excerpt": "[]",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

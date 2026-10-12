@@ -1,0 +1,188 @@
+/**
+ * AgentPicker - Dropdown component styles
+ * H8 fix: Extracted from inline styles for performance
+ * Issue #164 fix: Replaced rogue tokens with design system tokens
+ */
+
+.agent-picker {
+  position: relative;
+  display: inline-block;
+  font-family: var(--m-font-mono, monospace);
+}
+
+.ap-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--m-bg-elevated, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.08));
+  border-radius: 6px;
+  color: var(--m-text-primary, #fff);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.ap-trigger:hover:not(:disabled) {
+  border-color: var(--m-quox-primary, #38bdf8);
+}
+
+.ap-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* H7 fix: Focus ring for keyboard navigation */
+.ap-trigger:focus-visible {
+  outline: none;
+  border-color: var(--m-quox-primary, #38bdf8);
+  box-shadow: 0 0 0 2px var(--m-quox-muted, rgba(56, 189, 248, 0.15));
+}
+
+.ap-selected {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ap-placeholder {
+  color: var(--m-text-tertiary, rgba(255, 255, 255, 0.52));
+}
+
+.ap-icon {
+  font-size: 1.1em;
+}
+
+.ap-name {
+  font-weight: 500;
+}
+
+.ap-domain {
+  font-size: 0.8em;
+  color: var(--m-text-tertiary, rgba(255, 255, 255, 0.52));
+  padding: 2px 6px;
+  background: var(--m-bg-float, #1f1f24);
+  border-radius: 4px;
+}
+
+.ap-chevron {
+  color: var(--m-text-tertiary, rgba(255, 255, 255, 0.52));
+  transition: transform 0.2s;
+}
+
+.agent-picker:has(.ap-dropdown) .ap-chevron {
+  transform: rotate(180deg);
+}
+
+.ap-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: var(--m-bg-elevated, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.08));
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: var(--z-dropdown, 100);
+  overflow: hidden;
+}
+
+.ap-search {
+  padding: 8px;
+  border-bottom: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.08));
+}
+
+.ap-search input {
+  width: 100%;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.18));
+  border-radius: 10px;
+  color: #fff;
+  font-family: inherit;
+}
+
+.ap-search input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.ap-search input:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+}
+
+.ap-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.ap-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  color: var(--m-text-primary, #fff);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.ap-option:hover {
+  background: var(--m-bg-float, #1f1f24);
+}
+
+.ap-option.ap-selected {
+  background: var(--m-quox-muted, rgba(56, 189, 248, 0.15));
+}
+
+/* H7 fix: Keyboard focus indicator for options */
+.ap-option.ap-focused {
+  background: var(--m-bg-float, #1f1f24);
+  outline: 2px solid var(--m-quox-primary, #38bdf8);
+  outline-offset: -2px;
+}
+
+.ap-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ap-info .ap-domain {
+  font-size: 0.75em;
+  background: none;
+  padding: 0;
+}
+
+.ap-level {
+  font-size: 0.7em;
+  padding: 2px 6px;
+  background: var(--m-bg-wash, #26262c);
+  border-radius: 3px;
+  color: var(--m-text-tertiary, rgba(255, 255, 255, 0.52));
+}
+
+.ap-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--m-text-tertiary, rgba(255, 255, 255, 0.52));
+}
+
+/* Size variants */
+.ap-small .ap-trigger {
+  padding: 4px 8px;
+  font-size: 0.85em;
+}
+
+.ap-large .ap-trigger {
+  padding: 12px 16px;
+  font-size: 1.1em;
+}

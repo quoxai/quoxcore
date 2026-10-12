@@ -1,0 +1,207 @@
+{
+  "spec_version": 1,
+  "id": "customer_io",
+  "name": "Customer.io",
+  "category": "marketing_email",
+  "credentialType": "customer_io",
+  "requiredFields": [
+    "api_key",
+    "site_id"
+  ],
+  "docs": "https://docs.customer.io/integrations/api/app/",
+  "base_url": "https://api.customer.io",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/segments"
+  },
+  "tools_source": "https://docs.customer.io/files/journeys-app.json",
+  "tools": [
+    {
+      "name": "list_campaigns",
+      "description": "List Customer.io automations (campaigns) in the workspace, with their trigger type and state",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/campaigns"
+      },
+      "response": {
+        "pick": {
+          "campaigns[]": {
+            "id": "id",
+            "name": "name",
+            "type": "type",
+            "state": "state",
+            "active": "active",
+            "created": "created",
+            "updated": "updated",
+            "tags": "tags"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_newsletters",
+      "description": "List Customer.io newsletters (one-time sends), most recent first when sorted desc",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max newsletters to return per page (default 20, max 100)"
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "description": "Optional sort order, asc for chronological or desc for reverse chronological"
+          },
+          "start": {
+            "type": "string",
+            "description": "Optional pagination token from a previous response's next property"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/newsletters",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "sort": "{{input.sort}}",
+          "start": "{{input.start}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "newsletters[]": {
+            "id": "id",
+            "name": "name",
+            "type": "type",
+            "created": "created",
+            "updated": "updated",
+            "sent_at": "sent_at",
+            "recipient_segment_ids": "recipient_segment_ids",
+            "tags": "tags"
+          },
+          "next": "next"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_segments",
+      "description": "List Customer.io segments with their type, state and description",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/segments"
+      },
+      "response": {
+        "pick": {
+          "segments[]": {
+            "id": "id",
+            "name": "name",
+            "type": "type",
+            "state": "state",
+            "description": "description",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "tags": "tags"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_customer_activities",
+      "description": "List recent Customer.io activities for one person (message sends, attribute changes, events) from the last 30 days",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_id": {
+            "type": "string",
+            "description": "The identifier of the person to look up (by default their id)"
+          },
+          "id_type": {
+            "type": "string",
+            "enum": [
+              "id",
+              "email",
+              "phone",
+              "cio_id"
+            ],
+            "description": "Which identifier customer_id is, defaults to id"
+          },
+          "type": {
+            "type": "string",
+            "description": "Optional activity type to filter by (e.g. sent_email, opened_email, attribute_change, event)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max activities to return per page (default 20, max 100)"
+          }
+        },
+        "required": [
+          "customer_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/activities",
+        "query": {
+          "customer_id": "{{input.customer_id}}",
+          "id_type": "{{input.id_type}}",
+          "type": "{{input.type}}",
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "activities[]": {
+            "id": "id",
+            "type": "type",
+            "name": "name",
+            "timestamp": "timestamp",
+            "customer_id": "customer_id",
+            "email": "customer_identifiers.email",
+            "delivery_id": "delivery_id",
+            "delivery_type": "delivery_type"
+          },
+          "next": "next"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Scaffolded auth was WRONG for these tools and was fixed. The scaffold had base_url https://track.customer.io with basic auth (site_id + api_key) and test GET /auth, which is the Track (ingress) API. Campaigns, newsletters, segments and activities are App API reads, and the official App API spec (https://docs.customer.io/files/journeys-app.json) declares servers https://api.customer.io (US) and https://api-eu.customer.io (EU) with security scheme Bearer-Auth, an App API Key. The integration type registry already labels the api_key field 'App API Key', so the bearer key is what a user supplies. base_url is now https://api.customer.io and auth is bearer on api_key.",
+      "site_id stays in requiredFields because the credential type in src/config/integrationTypes.js marks it required and the Track API pairing needs it, but no App API tool reads it. A workspace in the EU region answers on https://api-eu.customer.io only, and the spec has no per-credential base_url override, so EU customers would need that variant: flagged rather than silently guessed.",
+      "test was moved from GET /auth (Track API) to GET /v1/segments: the App API publishes no dedicated credential-check route, so the cheapest documented read doubles as the connection test. A key scoped narrowly enough to exclude segment reads will fail the test while other tools still work.",
+      "list_campaigns and list_segments take no documented query parameters, so both carry an empty input schema rather than invented paging. get_customer_activities uses GET /v1/activities with a customer_id query parameter rather than /v1/customers/{customer_id}/activities, so it needs no path identifier and no _probe hint."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

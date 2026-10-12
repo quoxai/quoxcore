@@ -1,0 +1,65 @@
+/* PlatformPulse — aggregate health strip */
+.platform-pulse {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.25rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  overflow-x: auto;
+}
+
+.platform-pulse--loading,
+.platform-pulse--error {
+  justify-content: center;
+  min-height: 48px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.platform-pulse--error { color: #f87171; }
+
+.pulse-section {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+/* Score */
+.pulse-score-value { font-size: 1.25rem; font-weight: 700; }
+.pulse-score-label { font-size: 0.7rem; color: rgba(255,255,255,0.8); text-transform: uppercase; }
+.pulse-score--good .pulse-score-value { color: #30ff90; }
+.pulse-score--warn .pulse-score-value { color: #fbbf24; }
+.pulse-score--critical .pulse-score-value { color: #f87171; }
+
+/* Services */
+.pulse-services { display: flex; gap: 0.6rem; }
+.pulse-service { display: flex; align-items: center; gap: 0.2rem; font-size: 0.75rem; }
+.pulse-service-dot { font-size: 0.6rem; }
+.pulse-service-name { color: rgba(255,255,255,0.8); }
+.pulse-service--ok .pulse-service-dot { color: #30ff90; }
+.pulse-service--degraded .pulse-service-dot { color: #fbbf24; }
+.pulse-service--down .pulse-service-dot { color: #f87171; }
+.pulse-service--unknown .pulse-service-dot { color: rgba(255,255,255,0.8); }
+
+/* Fleet */
+.pulse-fleet-total { font-weight: 600; color: #38bdf8; }
+.pulse-fleet-label { font-size: 0.7rem; color: rgba(255,255,255,0.8); }
+.pulse-fleet-down { font-size: 0.7rem; color: #f87171; font-weight: 500; }
+
+/* Sessions */
+.pulse-sessions-count { font-weight: 600; color: #a78bfa; }
+.pulse-sessions-label { font-size: 0.7rem; color: rgba(255,255,255,0.8); }
+.pulse-sessions-cost { font-size: 0.7rem; color: rgba(255,255,255,0.8); }
+
+/* AEE */
+.pulse-aee-count { font-weight: 600; color: #38bdf8; }
+.pulse-aee-label { font-size: 0.7rem; color: rgba(255,255,255,0.8); }
+.pulse-aee--ok { color: #30ff90; }
+.pulse-aee--broken { color: #f87171; }
+
+/* Vault */
+.pulse-vault-warn { font-size: 0.75rem; color: #fbbf24; }
+.pulse-vault-icon { margin-right: 0.2rem; }

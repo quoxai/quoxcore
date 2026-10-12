@@ -1,0 +1,159 @@
+{
+  "spec_version": 1,
+  "id": "convertkit",
+  "name": "Kit (ConvertKit)",
+  "category": "marketing_email",
+  "credentialType": "convertkit",
+  "requiredFields": [
+    "api_secret"
+  ],
+  "docs": "https://developers.kit.com/v4",
+  "base_url": "https://api.convertkit.com",
+  "auth": {
+    "type": "query",
+    "param": "api_secret",
+    "field": "api_secret"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v3/account"
+  },
+  "tools_source": "https://developers.kit.com/v3",
+  "tools": [
+    {
+      "name": "get_account",
+      "description": "Get the authenticated Kit (ConvertKit) account: account name, primary email address and plan type",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/account"
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "primary_email_address": "primary_email_address",
+          "plan_type": "plan_type"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_forms",
+      "description": "List the forms and landing pages on the Kit (ConvertKit) account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/forms"
+      },
+      "response": {
+        "pick": {
+          "forms[]": {
+            "id": "id",
+            "name": "name",
+            "type": "type",
+            "format": "format",
+            "created_at": "created_at",
+            "archived": "archived"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_subscribers",
+      "description": "List Kit (ConvertKit) subscribers one page at a time, optionally filtered by exact email address or subscription state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "description": "Result page to fetch, 50 subscribers per page (default 1, max 100)"
+          },
+          "email_address": {
+            "type": "string",
+            "description": "Optional exact email address to filter by"
+          },
+          "subscriber_state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "cancelled"
+            ],
+            "description": "Optional subscription state to filter by (default active)"
+          },
+          "sort_order": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "description": "Optional sort order by creation date (default asc)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/subscribers",
+        "query": {
+          "page": "{{clamp input.page 1 100}}",
+          "email_address": "{{input.email_address}}",
+          "subscriber_state": "{{input.subscriber_state}}",
+          "sort_order": "{{input.sort_order}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "subscribers[]": {
+            "id": "id",
+            "first_name": "first_name",
+            "email_address": "email_address",
+            "state": "state",
+            "created_at": "created_at"
+          },
+          "total_subscribers": "total_subscribers",
+          "page": "page",
+          "total_pages": "total_pages"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_tags",
+      "description": "List the subscriber tags on the Kit (ConvertKit) account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/tags"
+      },
+      "response": {
+        "pick": {
+          "tags[]": {
+            "id": "id",
+            "name": "name",
+            "created_at": "created_at"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

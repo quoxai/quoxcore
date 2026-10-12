@@ -1,0 +1,221 @@
+{
+  "spec_version": 1,
+  "id": "papertrail",
+  "name": "Papertrail",
+  "category": "monitoring",
+  "credentialType": "papertrail",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://www.papertrail.com/help/api/",
+  "base_url": "https://papertrailapp.com",
+  "auth": {
+    "type": "header",
+    "header": "X-Papertrail-Token",
+    "template": "{{api_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/systems.json"
+  },
+  "tools_source": "https://www.papertrail.com/help/http-api/",
+  "tools": [
+    {
+      "name": "list_systems",
+      "description": "List the systems (log senders) registered in this Papertrail account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/systems.json"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "hostname": "hostname",
+            "ip_address": "ip_address",
+            "last_event_at": "last_event_at",
+            "auto_delete": "auto_delete",
+            "syslog_hostname": "syslog.hostname",
+            "syslog_port": "syslog.port"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_system",
+      "description": "Get one Papertrail system by numeric system ID (from list_systems)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "description": "Papertrail numeric system ID (from list_systems)"
+          }
+        },
+        "required": [
+          "system_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/systems/{{input.system_id}}.json"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "hostname": "hostname",
+          "ip_address": "ip_address",
+          "last_event_at": "last_event_at",
+          "auto_delete": "auto_delete",
+          "syslog_hostname": "syslog.hostname",
+          "syslog_port": "syslog.port"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.system_id": "0"
+      }
+    },
+    {
+      "name": "list_groups",
+      "description": "List the Papertrail groups (named collections of systems) in this account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/groups.json"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "system_wildcard": "system_wildcard",
+            "systems[]": {
+              "id": "id",
+              "name": "name"
+            }
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "search_events",
+      "description": "Search recent Papertrail log events, optionally narrowed to one system or group and a time window",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "description": "Papertrail search query (e.g. 'error', '\"connection refused\"')"
+          },
+          "system_id": {
+            "type": "string",
+            "description": "Optional numeric system ID to search within (from list_systems)"
+          },
+          "group_id": {
+            "type": "string",
+            "description": "Optional numeric group ID to search within (from list_groups)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max events to return (default 100, max 1000)"
+          },
+          "min_time": {
+            "type": "string",
+            "description": "Optional earliest event time, as a Unix timestamp"
+          },
+          "max_time": {
+            "type": "string",
+            "description": "Optional latest event time, as a Unix timestamp"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/events/search.json",
+        "query": {
+          "q": "{{input.q}}",
+          "system_id": "{{input.system_id}}",
+          "group_id": "{{input.group_id}}",
+          "limit": "{{clamp input.limit 100 1000}}",
+          "min_time": "{{input.min_time}}",
+          "max_time": "{{input.max_time}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "events[]": {
+            "id": "id",
+            "received_at": "received_at",
+            "hostname": "hostname",
+            "source_name": "source_name",
+            "program": "program",
+            "severity": "severity",
+            "message": "message"
+          },
+          "min_id": "min_id",
+          "max_id": "max_id",
+          "reached_beginning": "reached_beginning",
+          "reached_record_limit": "reached_record_limit"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_archives",
+      "description": "List the Papertrail log archives available for download in this account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/archives.json"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "start": "start",
+            "end": "end",
+            "duration": "duration",
+            "filename": "filename",
+            "filesize": "filesize",
+            "start_formatted": "start_formatted"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Tools written 2026-09-12 from the official HTTP API docs (https://www.papertrail.com/help/http-api/): systems.json, systems/:id.json, groups.json, events/search.json and archives.json. All five are GET reads, write:false, no mutating endpoint expressed.",
+      "Scaffolded auth (X-Papertrail-Token header) matches the official docs and is left unchanged.",
+      "Shape-proof _probe hint added: get_system carries \"_probe\": {\"input.system_id\": \"0\"} because Papertrail system IDs are numeric and the harness's generic string dummy cannot match the numeric route segment. 0 is a nil ID, not tenant data, and credentials are never hinted.",
+      "search_events limit is clamped to the documented default 100 and documented maximum 1000; the tail/min_id/max_id streaming parameters are deliberately not exposed."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

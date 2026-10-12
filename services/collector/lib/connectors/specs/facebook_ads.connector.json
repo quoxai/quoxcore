@@ -1,0 +1,230 @@
+{
+  "spec_version": 1,
+  "id": "facebook_ads",
+  "name": "Meta Ads",
+  "category": "marketing_email",
+  "credentialType": "facebook_ads",
+  "requiredFields": [
+    "access_token",
+    "ad_account_id"
+  ],
+  "docs": "https://developers.facebook.com/docs/marketing-apis",
+  "base_url": "https://graph.facebook.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v21.0/{{ad_account_id}}"
+  },
+  "tools_source": "https://developers.facebook.com/docs/marketing-api/reference/v21.0",
+  "tools": [
+    {
+      "name": "list_ad_accounts",
+      "description": "List the Meta ad accounts the access token can reach (id, name, status, currency, spend to date)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max ad accounts to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/me/adaccounts",
+        "query": {
+          "fields": "id,account_id,name,account_status,currency,timezone_name,amount_spent",
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "account_id": "account_id",
+            "name": "name",
+            "account_status": "account_status",
+            "currency": "currency",
+            "timezone_name": "timezone_name",
+            "amount_spent": "amount_spent"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_campaigns",
+      "description": "List campaigns under one Meta ad account, optionally filtered by effective status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "ad_account_id": {
+            "type": "string",
+            "description": "Meta ad account ID including the act_ prefix (e.g. act_123456789)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max campaigns to return (default 20, max 100)"
+          },
+          "effective_status": {
+            "type": "string",
+            "description": "Optional effective status to filter by, as a JSON array string (e.g. [\"ACTIVE\"])"
+          }
+        },
+        "required": [
+          "ad_account_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/{{input.ad_account_id}}/campaigns",
+        "query": {
+          "fields": "id,name,objective,status,effective_status,daily_budget,lifetime_budget,created_time,start_time,stop_time",
+          "limit": "{{clamp input.limit 20 100}}",
+          "effective_status": "{{input.effective_status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "objective": "objective",
+            "status": "status",
+            "effective_status": "effective_status",
+            "daily_budget": "daily_budget",
+            "lifetime_budget": "lifetime_budget",
+            "created_time": "created_time",
+            "start_time": "start_time",
+            "stop_time": "stop_time"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_campaign",
+      "description": "Get one Meta Ads campaign by ID (name, objective, status, budgets, schedule)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "campaign_id": {
+            "type": "string",
+            "description": "Meta Ads campaign ID (the numeric ID from Ads Manager)"
+          }
+        },
+        "required": [
+          "campaign_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/{{input.campaign_id}}",
+        "query": {
+          "fields": "id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,budget_remaining,created_time,start_time,stop_time,account_id"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "objective": "objective",
+          "status": "status",
+          "effective_status": "effective_status",
+          "buying_type": "buying_type",
+          "daily_budget": "daily_budget",
+          "lifetime_budget": "lifetime_budget",
+          "budget_remaining": "budget_remaining",
+          "created_time": "created_time",
+          "start_time": "start_time",
+          "stop_time": "stop_time",
+          "account_id": "account_id"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "campaign_insights",
+      "description": "Read delivery and spend insights for one Meta Ads campaign over a preset date range (read-only reporting)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "campaign_id": {
+            "type": "string",
+            "description": "Meta Ads campaign ID to report on"
+          },
+          "date_preset": {
+            "type": "string",
+            "enum": [
+              "today",
+              "yesterday",
+              "last_7d",
+              "last_14d",
+              "last_30d",
+              "last_90d",
+              "this_month",
+              "last_month",
+              "maximum"
+            ],
+            "description": "Preset reporting window (default last_30d when omitted by the API)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max insight rows to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "campaign_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/{{input.campaign_id}}/insights",
+        "query": {
+          "fields": "campaign_id,campaign_name,impressions,clicks,spend,reach,frequency,cpc,cpm,ctr,date_start,date_stop",
+          "date_preset": "{{input.date_preset}}",
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "campaign_id": "campaign_id",
+            "campaign_name": "campaign_name",
+            "impressions": "impressions",
+            "clicks": "clicks",
+            "spend": "spend",
+            "reach": "reach",
+            "frequency": "frequency",
+            "cpc": "cpc",
+            "cpm": "cpm",
+            "ctr": "ctr",
+            "date_start": "date_start",
+            "date_stop": "date_stop"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "SHAPE-PROOF RESULT (real run, 2026-09-12, 1 iteration): verbatim overall line 'facebook_ads  AUTH_WALL  proven=0 authwall=5 ambiguous=0 failed=0 inconclusive=0 skipped=0'. Graph answered the test call, all four tools AND the deliberately bogus control path with the same 401 and the same error identity, {\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,...}}, so control_match is error_code and every result carries path_unproven. Host, TLS, base_url https://graph.facebook.com and Graph's own structured error envelope are proven; NO PATH IS PROVEN BY THIS RUN. The four paths rest on documentary provenance from the Marketing API v21.0 reference alone.",
+      "AUTH_WALL IS TERMINAL HERE, NOT A SPEC DEFECT TO ITERATE ON: Graph parses the bearer as an access token before it routes, so a dummy token is rejected upstream of any path lookup ('Cannot parse access token'). No probe hint, path tweak or extra iteration can move this spec off AUTH_WALL blind; only a real Marketing API token can prove the routes. Same ceiling as the committed whatsapp and msteams Graph specs, which is why the run stopped at one iteration rather than spending the remaining two.",
+      "READ-ONLY by design: no tool is marked write:true and every request is a GET. Campaign mutation (POST /v21.0/{campaign_id} to pause, POST /v21.0/act_*/campaigns to create) is deliberately ABSENT: those calls spend the customer's advertising budget, so they need their own approval and spend-guard design before they ship.",
+      "ad_account_id must carry the act_ prefix (act_123456789), which is how the vault entry collects it (services/auth/config/integrationTypeRegistry.js:6012, placeholder act_123456789). The scaffolded test block uses the vault-stored {{ad_account_id}} verbatim; list_campaigns takes it as a tool input instead, so one token can serve several ad accounts. Unverified blind: whether Graph accepts the vault value without normalisation.",
+      "list_campaigns passes effective_status straight through as Graph's array-valued filter (a JSON array string such as [\"ACTIVE\"]), which is the documented wire form but is NOT proven by this run, and campaign_insights relies on Graph's own default window when date_preset is omitted rather than pinning one. Both need a real token to confirm.",
+      "The vault entry files facebook_ads under category 'social' while this spec declares 'marketing'. The spec category drives connector grouping only, not routing, so it was left as scaffolded; worth reconciling in one place if the two surfaces are ever compared."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

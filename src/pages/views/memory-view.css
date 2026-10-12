@@ -1,0 +1,219 @@
+/* MemoryView — glass pass (2026-04-16)
+ *
+ * All overrides scoped to `.memory-view` so the shared `.memory-dashboard`
+ * classes keep working in any other consumer (e.g. embedded panels).
+ */
+
+.app-shell__content:has(.memory-view) { overflow: hidden; }
+.app-shell__content:has(.memory-view) .breadcrumbs { display: none; }
+
+/* ─────────────────────────── Outer glass card shell */
+.memory-view.view-page {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  background: var(--m-bg-base, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.18));
+  border-radius: var(--qx-radius, 20px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.memory-view.view-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--qx-edges);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+}
+
+.memory-view__content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ─────────────────────────── Kill the near-black dashboard bg */
+.memory-view .memory-dashboard {
+  background: transparent;
+  border-radius: inherit;
+  color: rgba(255, 255, 255, 0.95);
+  flex: 1;
+  min-height: 0;
+}
+
+/* ─────────────────────────── Header strip */
+.memory-view .md-header {
+  padding: 16px 24px;
+  min-height: 56px;
+  background:
+    linear-gradient(180deg, rgba(56, 189, 248, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border-bottom: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.14));
+  backdrop-filter: var(--qx-blur, blur(16px));
+  -webkit-backdrop-filter: var(--qx-blur, blur(16px));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.memory-view .md-title h1 {
+  color: #fff;
+}
+
+.memory-view .md-search-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.memory-view .md-search-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.memory-view .md-close-btn {
+  color: rgba(255, 255, 255, 0.6);
+}
+.memory-view .md-close-btn:hover { color: #fff; }
+
+/* ─────────────────────────── Nav strip */
+.memory-view .md-nav {
+  padding: 10px 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+  border-bottom: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.12));
+}
+
+.memory-view .md-nav-item {
+  color: rgba(255, 255, 255, 0.62);
+}
+.memory-view .md-nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.memory-view .md-nav-item.active {
+  background: rgba(56, 189, 248, 0.14);
+  color: #38bdf8;
+  box-shadow: inset 0 -2px 0 rgba(56, 189, 248, 0.6);
+}
+
+/* ─────────────────────────── Overview area */
+.memory-view .md-overview {
+  padding: 22px 24px;
+  gap: 20px;
+}
+
+/* Tier banner */
+.memory-view .md-tier-banner {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.memory-view .tier-usage {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.memory-view .usage-meter-label {
+  color: rgba(255, 255, 255, 0.78);
+}
+.memory-view .usage-meter-icon {
+  color: rgba(255, 255, 255, 0.52);
+}
+.memory-view .usage-meter-track {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* Stat cards */
+.memory-view .md-stat-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+.memory-view .md-stat-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(56, 189, 248, 0.4);
+  transform: translateY(-1px);
+}
+.memory-view .md-stat-card.active {
+  border-color: rgba(39, 174, 96, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 0 18px rgba(39, 174, 96, 0.1);
+}
+.memory-view .md-stat-card.pending {
+  border-color: rgba(243, 156, 18, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 0 18px rgba(243, 156, 18, 0.1);
+}
+.memory-view .md-stat-card.alert {
+  border-color: rgba(231, 76, 60, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 0 18px rgba(231, 76, 60, 0.1);
+}
+
+.memory-view .md-stat-card .stat-label {
+  color: rgba(255, 255, 255, 0.72);
+}
+.memory-view .md-stat-card .stat-breakdown {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Quick actions */
+.memory-view .md-quick-actions h3 {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.memory-view .quick-action {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22);
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+.memory-view .quick-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(56, 189, 248, 0.4);
+  transform: translateY(-1px);
+}
+
+/* Upgrade placeholder — premium promo tile */
+.memory-view .md-upgrade-placeholder {
+  padding: 40px 24px;
+}
+.memory-view .upgrade-hero {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 40px rgba(168, 85, 247, 0.1);
+}

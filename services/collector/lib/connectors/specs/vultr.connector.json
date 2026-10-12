@@ -1,0 +1,184 @@
+{
+  "spec_version": 1,
+  "id": "vultr",
+  "name": "Vultr",
+  "category": "cloud_hosting",
+  "credentialType": "vultr",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://www.vultr.com/api/",
+  "base_url": "https://api.vultr.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/account"
+  },
+  "tools_source": "https://www.vultr.com/api/",
+  "tools": [
+    {
+      "name": "list_instances",
+      "description": "List Vultr cloud compute instances, optionally filtered by region or label",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max instances to return (default 20, max 100)"
+          },
+          "region": {
+            "type": "string",
+            "description": "Optional Vultr region id to filter by (e.g. ewr)"
+          },
+          "label": {
+            "type": "string",
+            "description": "Optional exact instance label to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/instances",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "region": "{{input.region}}",
+          "label": "{{input.label}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "instances[]": {
+            "id": "id",
+            "label": "label",
+            "hostname": "hostname",
+            "os": "os",
+            "region": "region",
+            "plan": "plan",
+            "status": "status",
+            "power_status": "power_status",
+            "server_status": "server_status",
+            "main_ip": "main_ip",
+            "vcpu_count": "vcpu_count",
+            "ram": "ram",
+            "disk": "disk",
+            "date_created": "date_created"
+          },
+          "total": "meta.total"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_instance",
+      "description": "Get one Vultr instance by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "description": "Vultr instance ID (a UUID, e.g. cb676a46-66fd-4dfb-b839-443f2e6c0b60)"
+          }
+        },
+        "required": [
+          "instance_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/instances/{{input.instance_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "instance.id",
+          "label": "instance.label",
+          "hostname": "instance.hostname",
+          "os": "instance.os",
+          "region": "instance.region",
+          "plan": "instance.plan",
+          "status": "instance.status",
+          "power_status": "instance.power_status",
+          "server_status": "instance.server_status",
+          "main_ip": "instance.main_ip",
+          "internal_ip": "instance.internal_ip",
+          "vcpu_count": "instance.vcpu_count",
+          "ram": "instance.ram",
+          "disk": "instance.disk",
+          "allowed_bandwidth": "instance.allowed_bandwidth",
+          "date_created": "instance.date_created",
+          "tags": "instance.tags"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_regions",
+      "description": "List Vultr regions available for deployment, with their city, country and options",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max regions to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/regions",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "regions[]": {
+            "id": "id",
+            "city": "city",
+            "country": "country",
+            "continent": "continent",
+            "options": "options"
+          },
+          "total": "meta.total"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "account_info",
+      "description": "Get the Vultr account profile, including balance, pending charges and last payment",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/account"
+      },
+      "response": {
+        "pick": {
+          "name": "account.name",
+          "email": "account.email",
+          "balance": "account.balance",
+          "pending_charges": "account.pending_charges",
+          "last_payment_date": "account.last_payment_date",
+          "last_payment_amount": "account.last_payment_amount",
+          "acls": "account.acls"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

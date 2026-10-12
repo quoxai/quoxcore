@@ -1,0 +1,491 @@
+{
+  "spec_version": 1,
+  "id": "langsmith",
+  "name": "LangSmith",
+  "category": "monitoring",
+  "credentialType": "langsmith",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.smith.langchain.com/",
+  "base_url": "https://api.smith.langchain.com",
+  "auth": {
+    "type": "header",
+    "header": "x-api-key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/sessions",
+    "query": {
+      "limit": "1"
+    }
+  },
+  "tools_source": "https://api.smith.langchain.com/openapi.json",
+  "tools": [
+    {
+      "name": "list_projects",
+      "description": "List LangSmith tracing projects (tracer sessions) in the workspace the API key belongs to, newest activity first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max projects to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of projects to skip for pagination (default 0)"
+          },
+          "name_contains": {
+            "type": "string",
+            "description": "Optional substring filter on the project name"
+          },
+          "include_stats": {
+            "type": "boolean",
+            "description": "Include run counts, latency, token and cost aggregates (slower)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/sessions",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}",
+          "name_contains": "{{input.name_contains}}",
+          "include_stats": "{{input.include_stats}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "start_time": "start_time",
+            "last_run_start_time": "last_run_start_time",
+            "run_count": "run_count",
+            "error_rate": "error_rate",
+            "latency_p50": "latency_p50",
+            "total_tokens": "total_tokens",
+            "total_cost": "total_cost",
+            "reference_dataset_id": "reference_dataset_id"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_project",
+      "description": "Get one LangSmith tracing project by its session ID, with optional run count, latency, token and cost stats",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "LangSmith project (tracer session) UUID"
+          },
+          "include_stats": {
+            "type": "boolean",
+            "description": "Include run counts, latency, token and cost aggregates (slower)"
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/sessions/{{input.project_id}}",
+        "query": {
+          "include_stats": "{{input.include_stats}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "description": "description",
+          "start_time": "start_time",
+          "end_time": "end_time",
+          "last_run_start_time": "last_run_start_time",
+          "run_count": "run_count",
+          "error_rate": "error_rate",
+          "latency_p50": "latency_p50",
+          "latency_p99": "latency_p99",
+          "total_tokens": "total_tokens",
+          "total_cost": "total_cost",
+          "reference_dataset_id": "reference_dataset_id"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_datasets",
+      "description": "List LangSmith evaluation datasets in the workspace, with example and experiment counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max datasets to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of datasets to skip for pagination (default 0)"
+          },
+          "name_contains": {
+            "type": "string",
+            "description": "Optional substring filter on the dataset name"
+          },
+          "data_type": {
+            "type": "string",
+            "enum": [
+              "kv",
+              "llm",
+              "chat"
+            ],
+            "description": "Optional dataset data type filter"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/datasets",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}",
+          "name_contains": "{{input.name_contains}}",
+          "data_type": "{{input.data_type}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "data_type": "data_type",
+            "example_count": "example_count",
+            "session_count": "session_count",
+            "created_at": "created_at",
+            "modified_at": "modified_at",
+            "last_session_start_time": "last_session_start_time"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_examples",
+      "description": "List examples (inputs and reference outputs) in one LangSmith dataset",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "description": "LangSmith dataset UUID"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max examples to return (default 10, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of examples to skip for pagination (default 0)"
+          },
+          "splits": {
+            "type": "string",
+            "description": "Optional dataset split name to filter by (e.g. base)"
+          }
+        },
+        "required": [
+          "dataset"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/examples",
+        "query": {
+          "dataset": "{{input.dataset}}",
+          "limit": "{{clamp input.limit 10 100}}",
+          "offset": "{{input.offset}}",
+          "splits": "{{input.splits}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "dataset_id": "dataset_id",
+            "created_at": "created_at",
+            "modified_at": "modified_at",
+            "source_run_id": "source_run_id",
+            "inputs": "inputs",
+            "outputs": "outputs",
+            "metadata": "metadata"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_run",
+      "description": "Get one LangSmith run (trace span) by ID, with status, latency window, error, token counts and cost",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "description": "LangSmith run UUID"
+          }
+        },
+        "required": [
+          "run_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/runs/{{input.run_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "run_type": "run_type",
+          "status": "status",
+          "start_time": "start_time",
+          "end_time": "end_time",
+          "error": "error",
+          "tags": "tags",
+          "trace_id": "trace_id",
+          "parent_run_id": "parent_run_id",
+          "reference_example_id": "reference_example_id",
+          "total_tokens": "total_tokens",
+          "prompt_tokens": "prompt_tokens",
+          "completion_tokens": "completion_tokens",
+          "total_cost": "total_cost",
+          "inputs": "inputs",
+          "outputs": "outputs"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_feedback",
+      "description": "List LangSmith feedback records, optionally scoped to one run, one project or one feedback key",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "run": {
+            "type": "string",
+            "description": "Optional run UUID to scope feedback to"
+          },
+          "session": {
+            "type": "string",
+            "description": "Optional project (tracer session) UUID to scope feedback to"
+          },
+          "key": {
+            "type": "string",
+            "description": "Optional feedback key to filter by (e.g. correctness)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max feedback records to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of records to skip for pagination (default 0)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/feedback",
+        "query": {
+          "run": "{{input.run}}",
+          "session": "{{input.session}}",
+          "key": "{{input.key}}",
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "run_id": "run_id",
+            "session_id": "session_id",
+            "key": "key",
+            "score": "score",
+            "value": "value",
+            "comment": "comment",
+            "correction": "correction",
+            "created_at": "created_at",
+            "modified_at": "modified_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_annotation_queues",
+      "description": "List LangSmith annotation queues with their queue type, reviewer settings and pending run totals",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max queues to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of queues to skip for pagination (default 0)"
+          },
+          "name_contains": {
+            "type": "string",
+            "description": "Optional substring filter on the queue name"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/annotation-queues",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}",
+          "name_contains": "{{input.name_contains}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "queue_type": "queue_type",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "num_reviewers_per_item": "num_reviewers_per_item",
+            "total_runs": "total_runs"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "workspace_stats",
+      "description": "Get counts of datasets, tracing projects, prompts, annotation queues and evaluators for the current LangSmith workspace",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/workspaces/current/stats"
+      },
+      "response": {
+        "pick": {
+          "tenant_id": "tenant_id",
+          "dataset_count": "dataset_count",
+          "tracer_session_count": "tracer_session_count",
+          "repo_count": "repo_count",
+          "annotation_queue_count": "annotation_queue_count",
+          "deployment_count": "deployment_count",
+          "dashboards_count": "dashboards_count",
+          "evaluator_count": "evaluator_count",
+          "custom_app_count": "custom_app_count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "search_prompts",
+      "description": "Search LangSmith Hub prompt repositories by text, returning handles, owners and download counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Optional free-text search over prompt handle, description and readme"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max prompts to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of prompts to skip for pagination (default 0)"
+          },
+          "is_public": {
+            "type": "boolean",
+            "description": "Restrict to public prompts (true) or the workspace's own prompts (false)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/repos",
+        "query": {
+          "query": "{{input.query}}",
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}",
+          "is_public": "{{input.is_public}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "repos[]": {
+            "full_name": "full_name",
+            "repo_handle": "repo_handle",
+            "owner": "owner",
+            "description": "description",
+            "repo_type": "repo_type",
+            "is_public": "is_public",
+            "tags": "tags",
+            "num_likes": "num_likes",
+            "num_downloads": "num_downloads",
+            "num_views": "num_views",
+            "num_commits": "num_commits",
+            "updated_at": "updated_at"
+          },
+          "total": "total"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "server_info",
+      "description": "Get the LangSmith instance version, build SHA and maximum supported SDK versions (public endpoint, no credential required)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/info"
+      },
+      "response": {
+        "pick": {
+          "version": "version",
+          "git_sha": "git_sha",
+          "max_python_sdk_version": "sdk_versions.max_python_sdk_version",
+          "max_js_sdk_version": "sdk_versions.max_js_sdk_version"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

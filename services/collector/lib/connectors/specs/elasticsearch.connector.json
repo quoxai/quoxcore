@@ -1,0 +1,260 @@
+{
+  "spec_version": 1,
+  "id": "elasticsearch",
+  "name": "Elasticsearch",
+  "category": "data_ai",
+  "credentialType": "elasticsearch",
+  "requiredFields": [
+    "host",
+    "username",
+    "password"
+  ],
+  "docs": "https://www.elastic.co/guide/en/elasticsearch/reference/current/",
+  "tools_source": "https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html",
+  "description": "Elasticsearch cluster reads: cluster health and stats, the index list, one index's settings and mappings, a document count, and a query-string search. Read-only; no index, document, mapping or cluster-setting write is wired here.",
+  "base_url": {
+    "fromCredential": "host"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "username",
+    "passField": "password"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/_cluster/health"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "cluster_health",
+      "description": "Get Elasticsearch cluster health: green/yellow/red status, node counts and shard allocation",
+      "request": {
+        "method": "GET",
+        "path": "/_cluster/health"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "cluster_name": "cluster_name",
+          "status": "status",
+          "timed_out": "timed_out",
+          "number_of_nodes": "number_of_nodes",
+          "number_of_data_nodes": "number_of_data_nodes",
+          "active_primary_shards": "active_primary_shards",
+          "active_shards": "active_shards",
+          "relocating_shards": "relocating_shards",
+          "initializing_shards": "initializing_shards",
+          "unassigned_shards": "unassigned_shards",
+          "active_shards_percent": "active_shards_percent_as_number"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "cluster_stats",
+      "description": "Get Elasticsearch cluster statistics: index count, document count, store size, node count and versions",
+      "request": {
+        "method": "GET",
+        "path": "/_cluster/stats"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "cluster_name": "cluster_name",
+          "cluster_uuid": "cluster_uuid",
+          "status": "status",
+          "index_count": "indices.count",
+          "doc_count": "indices.docs.count",
+          "deleted_docs": "indices.docs.deleted",
+          "store_size_bytes": "indices.store.size_in_bytes",
+          "shard_total": "indices.shards.total",
+          "node_count": "nodes.count.total",
+          "node_versions": "nodes.versions"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_indices",
+      "description": "List the indices on the cluster with health, status, shard counts and document counts",
+      "request": {
+        "method": "GET",
+        "path": "/_cat/indices",
+        "query": {
+          "format": "json",
+          "h": "index,health,status,pri,rep,docs.count,store.size",
+          "expand_wildcards": "open"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_index",
+      "description": "Get one index's aliases, mappings and settings",
+      "request": {
+        "method": "GET",
+        "path": "/{{input.index}}"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "string",
+            "description": "Index name, e.g. logs-2026.09.12"
+          }
+        },
+        "required": [
+          "index"
+        ]
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.index": "quoxproof-live"
+      }
+    },
+    {
+      "name": "count_documents",
+      "description": "Count the documents in one index, optionally matching a Lucene query string",
+      "request": {
+        "method": "GET",
+        "path": "/{{input.index}}/_count",
+        "query": {
+          "q": "{{input.q}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "string",
+            "description": "Index name to count documents in"
+          },
+          "q": {
+            "type": "string",
+            "description": "Optional Lucene query string; omit to count every document"
+          }
+        },
+        "required": [
+          "index"
+        ]
+      },
+      "response": {
+        "pick": {
+          "count": "count",
+          "shards_total": "_shards.total",
+          "shards_successful": "_shards.successful",
+          "shards_failed": "_shards.failed"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.index": "quoxproof-live"
+      }
+    },
+    {
+      "name": "search",
+      "description": "Search one index with a Lucene query string and return the matching documents",
+      "request": {
+        "method": "GET",
+        "path": "/{{input.index}}/_search",
+        "query": {
+          "q": "{{input.q}}",
+          "size": "{{clamp input.size 10 50}}",
+          "sort": "{{input.sort}}",
+          "track_total_hits": "true"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "string",
+            "description": "Index name to search"
+          },
+          "q": {
+            "type": "string",
+            "description": "Lucene query string, e.g. status:error AND host:web01; omit to match every document"
+          },
+          "size": {
+            "type": "number",
+            "description": "Max documents to return (default 10, capped at 50 by this connector)"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Optional sort clause, e.g. @timestamp:desc (the field must be sortable)"
+          }
+        },
+        "required": [
+          "index"
+        ]
+      },
+      "response": {
+        "pick": {
+          "took_ms": "took",
+          "timed_out": "timed_out",
+          "total": "hits.total.value",
+          "total_relation": "hits.total.relation",
+          "max_score": "hits.max_score",
+          "hits.hits[]": {
+            "index": "_index",
+            "id": "_id",
+            "score": "_score",
+            "source": "_source"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.index": "quoxproof-live",
+        "input.q": "*",
+        "input.size": 5
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "AUTH CHANGED FROM THE SCAFFOLD, DELIBERATELY: the scaffold wrote {type: header, header: Authorization, template: 'ApiKey {{api_key}}'} because it took the first credential field it found. The vault entry (integrationTypeRegistry.elasticsearch) supports BOTH forms in testHeaders: 'ApiKey <api_key>' when api_key is present, otherwise base64(username:password) as HTTP Basic. Elasticsearch documents both as first-class (Authenticate with HTTP basic auth / API keys, https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-authenticate.html). Basic auth with the built-in 'elastic' superuser is what a fresh cluster has BEFORE anyone mints an API key, so it is what the live harness can drive against an ephemeral container. auth is therefore {type: basic, userField: username, passField: password}, matching the vault's own fallback branch byte for byte. An api_key variant of this spec stays an unbuilt gap rather than a silent one.",
+      "REQUIREDFIELDS ARE NARROWER THAN THE VAULT FORM, ON PURPOSE: the vault marks every field optional (cloud_id, host, api_key, username, password) and enforces 'either Cloud ID or Host URL' in validateCredentials. A spec cannot express 'one of', so it declares the combination this connector actually uses: host + username + password. cloud_id is NOT supported here (an Elastic Cloud ID has to be decoded into a host before any request can be built, which the declarative runtime cannot do), so Elastic Cloud customers must supply the deployment's host URL.",
+      "BASE URL IS CUSTOMER-SUPPLIED, SO NOTHING HERE IS PROVABLE BLIND: base_url is {fromCredential: 'host'} and Elasticsearch is self-hosted or per-deployment, so there is no vendor-run host to shape-prove against. This spec is NOT SHAPE_PROVEN by a blind 401 sweep; it is marked for the live harness, which stands up an ephemeral Elasticsearch container with an index named 'quoxproof-live' and drives every tool against it.",
+      "CATEGORY FOLLOWS THE TAXONOMY, NOT THE SCAFFOLD GUESS: the scaffold wrote 'uncategorized', which is not one of the twelve values in use across this spec directory (cloud_hosting, commerce_finance, communication, crm_sales, data_ai, developer, files_knowledge, hr_hiring, marketing_email, media, monitoring, project_management) and the vault entry carries no category at all. 'data_ai' is used: Elasticsearch sits with the other datastores and search/vector engines already filed there (pinecone, upstash, singlestore, neon, planetscale, turso, confluent). 'monitoring' was rejected because this connector reads a datastore, it does not watch a system.",
+      "PROBES RESOLVE ON A FRESH CLUSTER: cluster_health, cluster_stats and list_indices need no index and carry an empty _probe. get_index, count_documents and search probe input.index='quoxproof-live', the exact index name the live provisioner creates; search probes q='*' and size=5 so it returns a well-formed zero-hit body on an empty index rather than depending on a document existing.",
+      "LIST_INDICES AND GET_INDEX INTENTIONALLY HAVE NO PICK: _cat/indices returns a top-level array whose keys are LITERALLY dotted ('docs.count', 'store.size'), and this runtime resolves a pick source as a dotted PATH (declarativeRuntime.getPath splits on '.'), so picking them would silently yield undefined. The column set is trimmed with the documented h parameter instead, which is lossless for the fields named. GET /{index} keys its body by the index NAME, which is dynamic, so no static pick can address it. Both rely on truncate 2000 alone.",
+      "SIZE CLAMP IS OURS, NOT ELASTICSEARCH'S: the search API's own default is size=10 with index.max_result_window (default 10000) as the real ceiling. The 10/50 clamp is a connector-side guard so an agent cannot pull a huge result page through a tool call, and the input description says so rather than implying Elasticsearch rejects 51. track_total_hits=true is sent so the reported total is exact rather than the default 10000 cap.",
+      "READ-ONLY BY CONSTRUCTION, AND THE OMISSIONS ARE THE POINT: all six tools are GETs. The same REST surface exposes index creation and deletion, document index/update/delete, _bulk, reindex, mapping and cluster-setting writes, and the whole security API (users, roles, API keys). None is wired here. Nothing in this connector may be described as managing an Elasticsearch cluster.",
+      "RESPONSE SHAPES COME FROM THE REFERENCE BODIES: cluster_health picks the documented fields of the cluster health response (cluster_name, status, timed_out, number_of_nodes, number_of_data_nodes, active_primary_shards, active_shards, relocating_shards, initializing_shards, unassigned_shards, active_shards_percent_as_number); cluster_stats picks the nested indices.count / indices.docs.count / indices.docs.deleted / indices.store.size_in_bytes / indices.shards.total / nodes.count.total / nodes.versions; _count answers {count, _shards{total,successful,skipped,failed}}; _search answers {took, timed_out, hits{total{value,relation}, max_score, hits[{_index,_id,_score,_source}]}}. The live harness is what confirms these against a real cluster version."
+    ]
+  }
+}

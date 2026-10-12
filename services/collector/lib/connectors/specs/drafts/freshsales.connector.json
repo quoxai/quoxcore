@@ -1,0 +1,38 @@
+{
+  "spec_version": 1,
+  "id": "freshsales",
+  "name": "Freshsales",
+  "category": "crm",
+  "credentialType": "freshsales",
+  "requiredFields": [
+    "api_key",
+    "domain"
+  ],
+  "docs": "https://developers.freshworks.com/crm/api/",
+  "base_url": {
+    "fromCredential": "domain",
+    "template": "https://{{domain}}.myfreshworks.com"
+  },
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "Token token={{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/crm/sales/api/contacts/view",
+    "query": {
+      "page": "1",
+      "per_page": "1"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url_template"
+    ]
+  }
+}

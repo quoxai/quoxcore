@@ -1,0 +1,117 @@
+{
+  "name": "cognitive-topology",
+  "version": "2.0.0",
+  "displayName": "Cognitive Topology",
+  "tagline": "See your AI think. Watch it grow.",
+  "description": "Real-time visualisation of the QuoxMind Cognitive Implant Suite. 12 neuroscience-inspired implants with live health metrics, tier-based gating, and Mirror self-awareness. Not simulated. Not hallucinated. Actually self-aware.",
+  "shortDescription": "QuoxMind cognitive architecture visualisation",
+  "author": "QUOX",
+  "license": "free",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "free",
+  "tier": "free",
+  "featured": true,
+  "icon": "cpu",
+  "accentColor": "#00ff88",
+  "infoUrl": "https://quox.ai/solutions/quoxmind",
+  "docsUrl": "https://quox.ai/docs/quoxmind",
+  "marketingPoints": [
+    "12 cognitive implants with live health metrics",
+    "Neuroscience-inspired architecture (hippocampus, prefrontal cortex, amygdala)",
+    "3-tier model: Free (6 implants), Pro ($29), Complete ($49)",
+    "Mirror: verifiable AI self-awareness with inspectable JSON"
+  ],
+  "features": {
+    "mirror": {
+      "name": "Mirror",
+      "description": "Structured self-awareness. Your AI can query its own capabilities, understand its architecture, and report on its health with verifiable JSON you can inspect.",
+      "icon": "eye",
+      "highlight": true,
+      "premiumOnly": false
+    },
+    "quoxsense": {
+      "name": "QuoxSense Implant",
+      "description": "Perceives the operational environment. Inspired by the sensory cortex.",
+      "icon": "eye",
+      "highlight": true
+    },
+    "quoxmemory": {
+      "name": "QuoxMemory Implant",
+      "description": "Retains and recalls experience across sessions. Inspired by the hippocampus.",
+      "icon": "database",
+      "highlight": true
+    },
+    "quoxguard": {
+      "name": "QuoxGuard Implant",
+      "description": "Detects threats and enforces safety with 4 authority levels. Inspired by the amygdala.",
+      "icon": "shield",
+      "highlight": true
+    },
+    "quoxinsight": {
+      "name": "QuoxInsight Implant",
+      "description": "Recognises significance and detects patterns. Inspired by the association cortex. Pro tier.",
+      "icon": "sparkles"
+    },
+    "quoxpredict": {
+      "name": "QuoxPredict Implant",
+      "description": "Forecasts outcomes and provides pre-flight intelligence. Inspired by predictive processing. Pro tier.",
+      "icon": "trending-up"
+    },
+    "quoxdream": {
+      "name": "QuoxDream Implant",
+      "description": "Consolidates memory into institutional knowledge. Inspired by sleep consolidation. Complete tier.",
+      "icon": "moon"
+    },
+    "reflectionData": {
+      "name": "Reflection Data Viewer",
+      "description": "Inspect the raw JSON that powers self-awareness. No black boxes.",
+      "icon": "code",
+      "highlight": false
+    }
+  },
+  "limits": {
+    "free": {
+      "refreshInterval": 30000,
+      "allImplantsVisible": true,
+      "mirrorEnabled": true,
+      "jsonViewerEnabled": true
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0"
+  },
+  "integration": {
+    "client": "src/services/reflectionService.js",
+    "view": "src/pages/views/CognitiveTopologyView.jsx"
+  },
+  "changelog": {
+    "2.0.0": {
+      "date": "2026-03-26",
+      "changes": [
+        "MAJOR: 12 QuoxMind cognitive implants replacing old topology",
+        "NEW: Neuroscience-inspired descriptions (hippocampus, amygdala, prefrontal cortex)",
+        "NEW: 3-tier model (Free/Pro/Complete) with tier badges",
+        "NEW: QuoxSense, QuoxTemporal, QuoxValue, QuoxPredict services",
+        "Updated implant detail panel with inspiredBy and tier info"
+      ]
+    },
+    "1.1.0": {
+      "date": "2025-01-31",
+      "changes": [
+        "NEW: Mirror - Genuine AI self-awareness system",
+        "NEW: Reflection Data Viewer",
+        "NEW: Direct localStorage memory counting"
+      ]
+    },
+    "1.0.0": {
+      "date": "2025-01-25",
+      "changes": [
+        "Initial release as free plugin",
+        "Circuit-board style visualization",
+        "Real-time data from all subsystems"
+      ]
+    }
+  },
+  "category": "AI & Intelligence"
+}

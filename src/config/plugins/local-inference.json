@@ -1,0 +1,390 @@
+{
+  "name": "local-inference",
+  "version": "0.1.0-beta",
+  "displayName": "Local Inference",
+  "tagline": "Run AI on Your Own Hardware",
+  "description": "Connect QuoxCORE to self-hosted LLM inference servers running on your own GPU machines. Supports Ollama, vLLM, llama.cpp, and NVIDIA NIM via OpenAI-compatible APIs. Zero API costs, full data privacy, and complete audit trails for every inference request.",
+  "shortDescription": "Self-hosted LLM inference with full auditability.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 89,
+  "priceDisplay": "$89",
+  "priceModel": "one-time",
+  "enterprisePrice": 699,
+  "enterprisePriceDisplay": "$699",
+  "enterprisePriceModel": "one-time",
+  "beta": true,
+  "betaPrice": 0,
+  "betaMessage": "Free during public beta. All features unlocked.",
+  "tier": "pro",
+  "featured": true,
+  "badge": "BETA",
+  "infoUrl": "https://quox.ai/plugins/local-inference",
+  "docsUrl": "https://quox.ai/docs/plugins/local-inference",
+  "icon": "server",
+  "heroGradient": "linear-gradient(135deg, #22c55e 0%, #16a34a 50%, #15803d 100%)",
+  "accentColor": "#22c55e",
+  "marketingPoints": [
+    "Connect to Ollama, vLLM, llama.cpp, or NVIDIA NIM in minutes",
+    "Zero marginal API cost for every inference request",
+    "Your data never leaves your network",
+    "Auto-detect backend type and available models",
+    "Full AEE/VOLT audit trail for every local inference call"
+  ],
+  "supportedBackends": [
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "discoveryEndpoint": "/api/tags",
+      "chatEndpoint": "/v1/chat/completions",
+      "embeddingEndpoint": "/v1/embeddings",
+      "defaultPort": 11434,
+      "notes": "Easiest setup. Best for workstations and hobbyist use."
+    },
+    {
+      "id": "vllm",
+      "name": "vLLM",
+      "discoveryEndpoint": "/v1/models",
+      "chatEndpoint": "/v1/chat/completions",
+      "embeddingEndpoint": "/v1/embeddings",
+      "defaultPort": 8000,
+      "notes": "High-performance serving. Best for multi-user and enterprise."
+    },
+    {
+      "id": "llamacpp",
+      "name": "llama.cpp",
+      "discoveryEndpoint": "/v1/models",
+      "chatEndpoint": "/v1/chat/completions",
+      "embeddingEndpoint": "/v1/embeddings",
+      "defaultPort": 8080,
+      "notes": "Lightweight and flexible. Good for experimental setups."
+    },
+    {
+      "id": "nim",
+      "name": "NVIDIA NIM",
+      "discoveryEndpoint": "/v1/models",
+      "chatEndpoint": "/v1/chat/completions",
+      "embeddingEndpoint": "/v1/embeddings",
+      "defaultPort": 8000,
+      "notes": "Enterprise-grade NVIDIA microservice. Best for data centres."
+    }
+  ],
+  "features": {
+    "connection": {
+      "name": "Inference Server Connection",
+      "description": "Connect to any OpenAI-compatible inference server. Auto-detects whether you are running Ollama, vLLM, llama.cpp, or NVIDIA NIM.",
+      "icon": "plug",
+      "highlight": true
+    },
+    "modelSwitching": {
+      "name": "Model Switching",
+      "description": "Switch between locally available models mid-conversation. Load a fast 7B for quick queries, switch to 70B for complex reasoning.",
+      "icon": "shuffle",
+      "highlight": true
+    },
+    "streaming": {
+      "name": "Streaming Responses",
+      "description": "Full SSE streaming support. Tokens appear in real-time, identical to cloud provider experience.",
+      "icon": "radio",
+      "highlight": true
+    },
+    "embeddings": {
+      "name": "Local Embeddings",
+      "description": "Generate embeddings locally for memory search and RAG pipelines. Your embedding data stays on your hardware.",
+      "icon": "layers"
+    },
+    "healthChecks": {
+      "name": "Health Monitoring",
+      "description": "Automatic health checks on configured sources. See connection status, model availability, and response latency at a glance.",
+      "icon": "heart-pulse"
+    },
+    "usageMetrics": {
+      "name": "Usage Metrics",
+      "description": "Track token usage, latency, and request counts per model and source. Know exactly how your local compute is being used.",
+      "icon": "bar-chart-2"
+    },
+    "gpuAgent": {
+      "name": "GPU Fleet Agent",
+      "description": "Install QuoxAgent on GPU machines for automatic hardware discovery, VRAM monitoring, model enumeration, and fleet registration.",
+      "icon": "cpu",
+      "enterprise": true
+    },
+    "multiNode": {
+      "name": "Multi-Node Routing",
+      "description": "Route inference requests across multiple GPU nodes based on model availability, load, VRAM, and latency.",
+      "icon": "git-branch",
+      "enterprise": true
+    },
+    "failover": {
+      "name": "Local-to-Cloud Failover",
+      "description": "Automatic fallback to cloud providers when local nodes are overloaded or unavailable. Configurable per source.",
+      "icon": "shield",
+      "enterprise": true
+    },
+    "allowlists": {
+      "name": "Model Allowlists",
+      "description": "Restrict which models can be used per org or team. Enforce approved model lists for compliance.",
+      "icon": "list-checks",
+      "enterprise": true
+    },
+    "auditTrail": {
+      "name": "Inference Audit Trail",
+      "description": "Every local inference request produces an AEE envelope with provider, host, model, backend, privacy boundary, and timing metadata. Recorded in VOLT for tamper-evident audit.",
+      "icon": "file-lock",
+      "enterprise": true
+    },
+    "residencyTags": {
+      "name": "Data Residency Tags",
+      "description": "Tag each inference source with residency metadata (local, on-prem, EU, custom). Enforce data sovereignty policies per workflow.",
+      "icon": "map-pin",
+      "enterprise": true
+    }
+  },
+  "configSchema": {
+    "sources": {
+      "type": "array",
+      "label": "Inference Sources",
+      "description": "Configured local inference endpoints",
+      "itemSchema": {
+        "name": {
+          "type": "text",
+          "label": "Source Name",
+          "description": "A friendly name for this inference source (e.g. 'Office GPU', 'ML Cluster')",
+          "required": true
+        },
+        "baseUrl": {
+          "type": "text",
+          "label": "Base URL",
+          "description": "The HTTP endpoint for the inference server (e.g. http://192.168.1.100:11434)",
+          "required": true
+        },
+        "authToken": {
+          "type": "password",
+          "label": "API Key / Auth Token",
+          "description": "Optional authentication token. Required if the inference server has auth enabled."
+        },
+        "backendType": {
+          "type": "select",
+          "label": "Backend Type",
+          "description": "The inference runtime. Auto-detect will probe endpoints to determine the type.",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Auto-detect"
+            },
+            {
+              "value": "ollama",
+              "label": "Ollama"
+            },
+            {
+              "value": "vllm",
+              "label": "vLLM"
+            },
+            {
+              "value": "llamacpp",
+              "label": "llama.cpp"
+            },
+            {
+              "value": "nim",
+              "label": "NVIDIA NIM"
+            }
+          ],
+          "default": "auto"
+        },
+        "defaultChatModel": {
+          "type": "text",
+          "label": "Default Chat Model",
+          "description": "Model to use for chat requests. Populated after connection test."
+        },
+        "defaultEmbeddingModel": {
+          "type": "text",
+          "label": "Default Embedding Model",
+          "description": "Model to use for embeddings. Leave empty to disable local embeddings.",
+          "pro": true
+        },
+        "maxConcurrency": {
+          "type": "number",
+          "label": "Max Concurrent Requests",
+          "description": "Maximum simultaneous inference requests to this source.",
+          "min": 1,
+          "max": 32,
+          "default": 1,
+          "enterprise": true
+        },
+        "dataResidencyTag": {
+          "type": "text",
+          "label": "Data Residency Tag",
+          "description": "Metadata tag for data sovereignty (e.g. 'local', 'on-prem', 'EU-west')",
+          "default": "local",
+          "enterprise": true
+        },
+        "allowExternalFallback": {
+          "type": "toggle",
+          "label": "Allow Cloud Fallback",
+          "description": "Fall back to a cloud provider if this source is unavailable.",
+          "default": false,
+          "enterprise": true
+        }
+      }
+    },
+    "healthCheckInterval": {
+      "type": "number",
+      "label": "Health Check Interval (seconds)",
+      "description": "How often to check source availability.",
+      "min": 10,
+      "max": 300,
+      "step": 10,
+      "default": 30,
+      "pro": true
+    },
+    "requestTimeout": {
+      "type": "number",
+      "label": "Request Timeout (seconds)",
+      "description": "Maximum time to wait for an inference response. Increase for large models.",
+      "min": 10,
+      "max": 600,
+      "step": 10,
+      "default": 120
+    }
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "sources": "1",
+      "models": "Default only",
+      "streaming": "Basic",
+      "embeddings": false,
+      "healthChecks": "Manual",
+      "usageMetrics": false,
+      "gpuAgent": false,
+      "multiNode": false,
+      "failover": false,
+      "allowlists": false,
+      "auditTrail": false,
+      "residencyTags": "Label only"
+    },
+    "pro": {
+      "name": "Pro",
+      "sources": "Unlimited",
+      "models": "All available",
+      "streaming": "Full SSE",
+      "embeddings": true,
+      "healthChecks": "Auto (30s)",
+      "usageMetrics": "Basic (tokens, latency)",
+      "gpuAgent": false,
+      "multiNode": false,
+      "failover": false,
+      "allowlists": false,
+      "auditTrail": false,
+      "residencyTags": "Label only"
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "sources": "Unlimited",
+      "models": "All available",
+      "streaming": "Full SSE",
+      "embeddings": true,
+      "healthChecks": "Fleet-integrated",
+      "usageMetrics": "Full (latency, queue, cost)",
+      "gpuAgent": true,
+      "multiNode": true,
+      "failover": true,
+      "allowlists": true,
+      "auditTrail": true,
+      "residencyTags": "Enforced + audited"
+    }
+  },
+  "limits": {
+    "free": {
+      "maxSources": 1,
+      "modelSwitching": false,
+      "streamingMode": "basic",
+      "embeddingsEnabled": false,
+      "healthCheckMode": "manual",
+      "metricsEnabled": false,
+      "gpuAgentEnabled": false,
+      "multiNodeEnabled": false,
+      "failoverEnabled": false,
+      "allowlistsEnabled": false,
+      "auditTrailEnabled": false,
+      "residencyEnforced": false
+    },
+    "pro": {
+      "maxSources": -1,
+      "modelSwitching": true,
+      "streamingMode": "full",
+      "embeddingsEnabled": true,
+      "healthCheckMode": "auto",
+      "healthCheckInterval": 30,
+      "metricsEnabled": true,
+      "metricsLevel": "basic",
+      "gpuAgentEnabled": false,
+      "multiNodeEnabled": false,
+      "failoverEnabled": false,
+      "allowlistsEnabled": false,
+      "auditTrailEnabled": false,
+      "residencyEnforced": false
+    },
+    "enterprise": {
+      "maxSources": -1,
+      "modelSwitching": true,
+      "streamingMode": "full",
+      "embeddingsEnabled": true,
+      "healthCheckMode": "fleet",
+      "healthCheckInterval": 30,
+      "metricsEnabled": true,
+      "metricsLevel": "full",
+      "gpuAgentEnabled": true,
+      "multiNodeEnabled": true,
+      "failoverEnabled": true,
+      "allowlistsEnabled": true,
+      "auditTrailEnabled": true,
+      "residencyEnforced": true,
+      "maxConcurrencyPerSource": 32
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "activation": {
+    "type": "beta",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent",
+    "betaOverride": true
+  },
+  "integration": {
+    "localModelRegistry": "src/services/localModelRegistry.js",
+    "localInferenceSettings": "src/components/settings/LocalInferenceSettings.jsx",
+    "pluginClient": "src/services/pluginClient.js"
+  },
+  "testimonials": [
+    {
+      "quote": "We run Llama 3 on our own hardware and Quox treats it exactly like any other provider. The audit trail is the same whether inference is local or cloud.",
+      "author": "Infrastructure Lead, Fintech Startup"
+    },
+    {
+      "quote": "Connected our vLLM cluster in about five minutes. The auto-detection just worked.",
+      "author": "ML Engineer"
+    }
+  ],
+  "changelog": {
+    "0.1.0-beta": {
+      "date": "2026-03-10",
+      "changes": [
+        "Public beta release",
+        "OpenAI-compatible endpoint connection (Ollama, vLLM, llama.cpp, NVIDIA NIM)",
+        "Backend auto-detection",
+        "Model discovery and switching",
+        "SSE streaming responses",
+        "Local embeddings support",
+        "Health monitoring with configurable interval",
+        "Usage metrics (tokens, latency)",
+        "AEE envelope generation with local provider metadata",
+        "Data residency tagging",
+        "Settings UI for source management",
+        "All tiers free during beta"
+      ]
+    }
+  },
+  "category": "AI & Intelligence"
+}

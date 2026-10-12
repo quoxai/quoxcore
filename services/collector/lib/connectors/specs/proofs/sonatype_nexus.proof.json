@@ -1,0 +1,93 @@
+{
+  "spec_id": "sonatype_nexus",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T19:34:39.978Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/service/rest/v1/repositories",
+      "status": 200,
+      "latency_ms": 302,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "60ba786d73ae510dc3b067ca15f18935073f30ae22d9b73fe315474d62b9f778",
+      "body_excerpt": "[ {\n  \"name\" : \"nuget-hosted\",\n  \"format\" : \"nuget\",\n  \"type\" : \"hosted\",\n  \"url\" : \"[LIVE_REDACTED]/repository/nuget-hosted\",\n  \"attributes\" : { }\n}, {\n  \"name\" : \"nuget.org-proxy\",\n  \"for",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "status_check",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/service/rest/v1/status/check",
+      "status": 200,
+      "latency_ms": 32,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "b73b804d00686a63ef2c51cd03d637276fe3e90a1925fe583c62d54f9509be59",
+      "body_excerpt": "{\n  \"Available CPUs\" : {\n    \"healthy\" : true,\n    \"message\" : \"The host system is allocating a maximum of 8 cores to the application.\",\n    \"error\" : null,\n    \"details\" : null,\n    \"time\" : 17892416",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_repositories",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/service/rest/v1/repositories",
+      "status": 200,
+      "latency_ms": 24,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "60ba786d73ae510dc3b067ca15f18935073f30ae22d9b73fe315474d62b9f778",
+      "body_excerpt": "[ {\n  \"name\" : \"nuget-hosted\",\n  \"format\" : \"nuget\",\n  \"type\" : \"hosted\",\n  \"url\" : \"[LIVE_REDACTED]/repository/nuget-hosted\",\n  \"attributes\" : { }\n}, {\n  \"name\" : \"nuget.org-proxy\",\n  \"for",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_repository",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/service/rest/v1/repositories/quoxproof-live",
+      "status": 200,
+      "latency_ms": 16,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "24ac25db7bda490a527e106627b54f285c5ef1c58ee9b7e8dcac8a57f5580282",
+      "body_excerpt": "{\n  \"name\" : \"quoxproof-live\",\n  \"format\" : \"raw\",\n  \"type\" : \"hosted\",\n  \"url\" : \"[LIVE_REDACTED]/repository/quoxproof-live\",\n  \"attributes\" : { }\n}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_components",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/service/rest/v1/components?repository=quoxproof-live",
+      "status": 200,
+      "latency_ms": 20,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "8bb57c1e239bdd0f5327bb6695ce5b94681d78463c1b3243de1c93a79510d1fc",
+      "body_excerpt": "{\n  \"items\" : [ ],\n  \"continuationToken\" : null\n}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "search_components",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/service/rest/v1/search?repository=quoxproof-live",
+      "status": 200,
+      "latency_ms": 24,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "8bb57c1e239bdd0f5327bb6695ce5b94681d78463c1b3243de1c93a79510d1fc",
+      "body_excerpt": "{\n  \"items\" : [ ],\n  \"continuationToken\" : null\n}",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:sonatype/nexus3:3.75.0"
+}

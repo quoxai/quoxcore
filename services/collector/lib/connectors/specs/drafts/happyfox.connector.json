@@ -1,0 +1,35 @@
+{
+  "spec_version": 1,
+  "id": "happyfox",
+  "name": "HappyFox",
+  "category": "uncategorized",
+  "credentialType": "happyfox",
+  "requiredFields": [
+    "domain",
+    "api_key",
+    "auth_code"
+  ],
+  "docs": "https://support.happyfox.com/kb/section/6/",
+  "base_url": {
+    "fromCredential": "domain",
+    "template": "https://{{domain}}.happyfox.com"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": "auth_code"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/1.1/json/tickets/"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url_template"
+    ]
+  }
+}

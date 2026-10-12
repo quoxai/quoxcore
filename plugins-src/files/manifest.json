@@ -1,0 +1,30 @@
+{
+  "id": "files",
+  "name": "files",
+  "displayName": "Files",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "paid",
+  "badge": "PAID",
+  "category": "Productivity",
+  "accentColor": "#60a5fa",
+  "description": "Upload, organize, and reference files in conversations. Images, PDFs, text files - all searchable and integrated with QUOX's memory. Semantic file search and memory integration.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/files",
+      "label": "Files",
+      "icon": "folder"
+    }
+  ],
+  "routes": {
+    "/files": "FilesView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

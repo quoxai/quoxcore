@@ -1,0 +1,504 @@
+/**
+ * ThinkingDisplay — Glass Waterfall Styles
+ *
+ * Glass Design System compliant:
+ * - No grey text — minimum rgba(255,255,255,0.6)
+ * - Purple-cyan active states
+ * - Top-left light source (bright top/left borders)
+ * - Shimmer overlay
+ * - Monospace timing, JetBrains Mono where available
+ */
+
+/* ═══ CONTAINER ═══ */
+
+.tw {
+    margin: 8px 0;
+    border-radius: 12px;
+    backdrop-filter: var(--glass-blur-strong);
+    -webkit-backdrop-filter: var(--glass-blur-strong);
+    background: linear-gradient(145deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.005) 100%);
+    border-top: 1px solid rgba(255,255,255,0.25);
+    border-left: 1px solid rgba(255,255,255,0.15);
+    border-right: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    box-shadow:
+        0 5px 19px rgba(0,0,0,0.35),
+        0 2px 4px rgba(0,0,0,0.2),
+        inset 0 1px 2px rgba(255,255,255,0.06);
+    /* AOCL-DISPATCH-B5: was overflow:visible which let children visually
+       overflow the box but kept backdrop-filter blur clipped at the box
+       boundary (only the first 1-2 rows had glass background). overflow:
+       hidden ensures the blur and the children both respect the same
+       border-radius envelope. */
+    overflow: hidden;
+    position: relative;
+    min-height: 40px;
+    /* quox#649: never let a flex parent squash the card (overflow:hidden
+       removes the automatic content floor, so it would shrink to 40px). */
+    flex-shrink: 0;
+    /* Make the container a flex column so the body grows to fit its content
+       and the outer .tw box is always sized to wrap all rows. */
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.tw--active {
+    background: linear-gradient(145deg, rgba(168,85,247,0.06) 0%, rgba(56,189,248,0.02) 100%);
+    border-top-color: rgba(168,85,247,0.4);
+    border-left-color: rgba(56,189,248,0.2);
+    box-shadow:
+        0 0 40px rgba(168,85,247,0.12),
+        0 5px 19px rgba(0,0,0,0.35),
+        inset 0 1px 2px rgba(255,255,255,0.06);
+}
+
+.tw--collapsed {
+    background: linear-gradient(145deg, rgba(255,255,255,0.015) 0%, rgba(255,255,255,0.003) 100%);
+}
+
+/* Shimmer overlay */
+.tw__shimmer {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, rgba(255,255,255,0.04) 0%, transparent 35%, transparent 65%, rgba(255,255,255,0.01) 100%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ═══ HEADER ═══ */
+
+.tw__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.8);
+    cursor: pointer;
+    text-align: left;
+    position: relative;
+    z-index: 1;
+    font-family: inherit;
+    font-size: 12px;
+    transition: background 0.15s ease;
+}
+
+.tw__header:hover {
+    background: rgba(255,255,255,0.03);
+}
+
+/* Indicator (pulse or checkmark) */
+.tw__indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.tw__pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #a855f7;
+    animation: tw-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes tw-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.5); opacity: 0.5; }
+}
+
+/* Title */
+.tw__title {
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+    color: rgba(255,255,255,0.9);
+}
+
+.tw--active .tw__title {
+    background: linear-gradient(90deg, #a855f7, #38bdf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Mini dots showing step progress */
+.tw__dots {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin: 0 4px;
+}
+
+.tw__dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.tw__dot--done {
+    opacity: 0.7;
+}
+
+.tw__dot--active {
+    animation: tw-dot-pulse 1s ease-in-out infinite;
+    box-shadow: 0 0 6px currentColor;
+}
+
+@keyframes tw-dot-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.4); }
+}
+
+/* Meta (elapsed + count) */
+.tw__meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 10px;
+}
+
+.tw__elapsed {
+    padding: 2px 7px;
+    background: rgba(168,85,247,0.15);
+    border: 1px solid rgba(168,85,247,0.2);
+    border-radius: 6px;
+    color: #c084fc;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.tw__count {
+    color: rgba(255,255,255,0.8);
+    font-weight: 500;
+}
+
+.tw__chevron {
+    display: flex;
+    align-items: center;
+    color: rgba(255,255,255,0.8);
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+/* ═══ WATERFALL BODY ═══ */
+
+.tw__body {
+    max-height: 400px;
+    min-height: 60px;
+    overflow-y: auto;
+    padding: 8px 14px 10px;
+    position: relative;
+    z-index: 1;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    display: block;
+}
+
+.tw__waterfall {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
+    width: 100%;
+}
+
+/* AOCL layer pill — matches the Activity Log .layer-badge style so a
+   single visual language ties chat trace and audit views. Color comes
+   from the inline `style` attribute (drawn from AOCL_LAYERS palette in
+   src/lib/aee/envelope.js). */
+.tw-row__layer-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    text-transform: uppercase;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15);
+}
+
+/* ═══ WATERFALL ROW ═══ */
+
+.tw-row {
+    display: grid;
+    grid-template-columns: 120px 1fr minmax(100px, 30%) 52px;
+    align-items: center;
+    gap: 8px;
+    min-height: 28px;
+    padding: 2px 4px;
+    border-radius: 6px;
+    opacity: 1;
+    animation: tw-row-in 0.3s ease-out both;
+    transition: background 0.15s ease;
+}
+
+.tw-row:hover {
+    background: rgba(255,255,255,0.03);
+}
+
+.tw-row--active {
+    background: rgba(168,85,247,0.05);
+}
+
+@keyframes tw-row-in {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* Agent badge */
+.tw-row__agent {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+}
+
+.tw-row__icon {
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+.tw-row__agent-label {
+    font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--agent-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Message */
+.tw-row__message {
+    font-size: 12px;
+    color: rgba(255,255,255,0.75);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1;
+}
+
+.tw-row--active .tw-row__message {
+    color: rgba(255,255,255,0.9);
+}
+
+/* Bar track */
+.tw-row__track {
+    position: relative;
+    height: 16px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+/* Waterfall bar */
+.tw-row__bar {
+    position: absolute;
+    top: 2px;
+    height: 12px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--bar-color, #a855f7) 0%, color-mix(in srgb, var(--bar-color, #a855f7) 60%, transparent) 100%);
+    transition: width 0.08s linear;
+    overflow: hidden;
+}
+
+/* Inner radial glow on bar */
+.tw-row__bar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 20% 50%, color-mix(in srgb, var(--bar-color, #a855f7) 30%, transparent) 0%, transparent 70%);
+}
+
+/* Shimmer sweep on completed bars */
+.tw-row__bar::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%);
+    animation: tw-bar-shimmer 1.5s ease-in-out;
+    animation-fill-mode: forwards;
+    opacity: 0;
+}
+
+@keyframes tw-bar-shimmer {
+    0% { transform: translateX(-100%); opacity: 1; }
+    100% { transform: translateX(100%); opacity: 0; }
+}
+
+/* Live bar glow (active step) */
+.tw-row__bar--live {
+    box-shadow: 0 0 8px color-mix(in srgb, var(--bar-color, #a855f7) 40%, transparent);
+}
+
+.tw-row__bar--live::after {
+    animation: tw-bar-live 1.2s ease-in-out infinite;
+    opacity: 1;
+}
+
+@keyframes tw-bar-live {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.tw-row__bar-glow {
+    position: absolute;
+    right: -2px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--bar-color, #a855f7);
+    box-shadow: 0 0 10px var(--bar-color, #a855f7), 0 0 20px color-mix(in srgb, var(--bar-color, #a855f7) 50%, transparent);
+    animation: tw-glow-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes tw-glow-pulse {
+    0%, 100% { opacity: 1; transform: translateY(-50%) scale(1); }
+    50% { opacity: 0.6; transform: translateY(-50%) scale(1.4); }
+}
+
+/* Duration label */
+.tw-row__duration {
+    font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+}
+
+/* ═══ TIME SCALE ═══ */
+
+.tw__scale {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    margin-left: 128px;
+    margin-right: 60px;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 9px;
+    color: rgba(255,255,255,0.8);
+    letter-spacing: 0.3px;
+}
+
+/* ═══ WAITING STATE ═══ */
+
+.tw__waiting {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 4px;
+    color: rgba(255,255,255,0.7);
+    font-size: 12px;
+    font-style: italic;
+}
+
+.tw__waiting-dots {
+    display: inline-flex;
+    gap: 3px;
+}
+
+.tw__waiting-dots span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #a855f7;
+    animation: tw-wait-dot 1.4s ease-in-out infinite;
+}
+
+.tw__waiting-dots span:nth-child(2) { animation-delay: 0.2s; }
+.tw__waiting-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes tw-wait-dot {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
+}
+
+/* ═══ SCROLLBAR ═══ */
+
+.tw__body::-webkit-scrollbar { width: 4px; }
+.tw__body::-webkit-scrollbar-track { background: transparent; }
+.tw__body::-webkit-scrollbar-thumb { background: rgba(168,85,247,0.2); border-radius: 2px; }
+.tw__body::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,0.35); }
+
+/* ═══ BADGE (compact) ═══ */
+
+.tw-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    backdrop-filter: blur(20px);
+    background: rgba(168,85,247,0.1);
+    border: 1px solid rgba(168,85,247,0.2);
+    border-radius: 6px;
+    color: #c084fc;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tw-badge:hover {
+    background: rgba(168,85,247,0.2);
+    border-color: rgba(168,85,247,0.4);
+    transform: translateY(-1px);
+}
+
+.tw-badge--active {
+    animation: tw-badge-glow 2s ease-in-out infinite;
+}
+
+@keyframes tw-badge-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(168,85,247,0.3); }
+    50% { box-shadow: 0 0 0 4px rgba(168,85,247,0); }
+}
+
+.tw-badge__pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #a855f7;
+    animation: tw-pulse 1.5s ease-in-out infinite;
+}
+
+.tw-badge__count {
+    font-weight: 600;
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+}
+
+/* ═══ RESPONSIVE ═══ */
+
+@media (max-width: 600px) {
+    .tw-row {
+        grid-template-columns: 80px 1fr minmax(80px, 30%) 44px;
+        gap: 4px;
+        height: 24px;
+    }
+
+    .tw-row__message {
+        font-size: 11px;
+    }
+
+    .tw__scale {
+        margin-left: 88px;
+        margin-right: 48px;
+    }
+}

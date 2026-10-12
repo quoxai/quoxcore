@@ -1,0 +1,90 @@
+{
+  "spec_id": "square",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:20.692Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://connect.squareup.com/quox-shapeproof-control-4ba3e8e3",
+      "status": 404,
+      "latency_ms": 811,
+      "classification": "CONTROL",
+      "body_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "body_excerpt": "{}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://connect.squareup.com/v2/merchants",
+      "status": 401,
+      "latency_ms": 266,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e69042062232d5308e43bbcabbefec41605bd50d5502266593a445e4d61497f7",
+      "body_excerpt": "{\n  \"errors\": [\n    {\n      \"category\": \"AUTHENTICATION_ERROR\",\n      \"code\": \"UNAUTHORIZED\",\n      \"detail\": \"This request could not be authorized.\"\n    }\n  ]\n}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_locations",
+      "method": "GET",
+      "url": "https://connect.squareup.com/v2/locations",
+      "status": 401,
+      "latency_ms": 264,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e69042062232d5308e43bbcabbefec41605bd50d5502266593a445e4d61497f7",
+      "body_excerpt": "{\n  \"errors\": [\n    {\n      \"category\": \"AUTHENTICATION_ERROR\",\n      \"code\": \"UNAUTHORIZED\",\n      \"detail\": \"This request could not be authorized.\"\n    }\n  ]\n}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_payments",
+      "method": "GET",
+      "url": "https://connect.squareup.com/v2/payments?limit=20&location_id=quoxprobe&begin_time=quoxprobe&sort_order=quoxprobe",
+      "status": 401,
+      "latency_ms": 308,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e69042062232d5308e43bbcabbefec41605bd50d5502266593a445e4d61497f7",
+      "body_excerpt": "{\n  \"errors\": [\n    {\n      \"category\": \"AUTHENTICATION_ERROR\",\n      \"code\": \"UNAUTHORIZED\",\n      \"detail\": \"This request could not be authorized.\"\n    }\n  ]\n}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_customers",
+      "method": "GET",
+      "url": "https://connect.squareup.com/v2/customers?limit=20&sort_field=quoxprobe&sort_order=quoxprobe",
+      "status": 401,
+      "latency_ms": 209,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e69042062232d5308e43bbcabbefec41605bd50d5502266593a445e4d61497f7",
+      "body_excerpt": "{\n  \"errors\": [\n    {\n      \"category\": \"AUTHENTICATION_ERROR\",\n      \"code\": \"UNAUTHORIZED\",\n      \"detail\": \"This request could not be authorized.\"\n    }\n  ]\n}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_catalog",
+      "method": "GET",
+      "url": "https://connect.squareup.com/v2/catalog/list?types=quoxprobe&cursor=quoxprobe",
+      "status": 401,
+      "latency_ms": 344,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e69042062232d5308e43bbcabbefec41605bd50d5502266593a445e4d61497f7",
+      "body_excerpt": "{\n  \"errors\": [\n    {\n      \"category\": \"AUTHENTICATION_ERROR\",\n      \"code\": \"UNAUTHORIZED\",\n      \"detail\": \"This request could not be authorized.\"\n    }\n  ]\n}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

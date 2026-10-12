@@ -1,0 +1,17 @@
+{
+  "kind": "security", "prefixes": ["security:", "finding:", "ward:"], "area": "security", "derive": "security",
+  "ok_statuses": ["resolved", "closed", "fixed", "ok"],
+  "variants": [
+    { "id": "finding",
+      "urgency": [
+        { "when": { "severity": ["critical", "high"] }, "is": "now" },
+        { "when": { "severity": "medium" }, "is": "today" },
+        { "is": "this week" }
+      ],
+      "short": "{headline}",
+      "L0": "{headline}",
+      "L1": { "who": "{who|\"Security monitoring\"}", "what": "{summary|headline}", "why": "{why|category_why|\"It was flagged as a security risk.\"}" },
+      "how": "Ask me to look into it.",
+      "measures": ["investigate", "ask_agent_why"] }
+  ]
+}

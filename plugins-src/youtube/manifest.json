@@ -1,0 +1,31 @@
+{
+  "id": "youtube",
+  "name": "youtube",
+  "displayName": "YouTube",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "social",
+  "accentColor": "#FF0000",
+  "description": "Upload videos, manage metadata, organise playlists, and monitor your YouTube channel — all from Quox. Vault-integrated Google OAuth, channel dashboard, upload panel, and AI-assisted metadata.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/youtube",
+      "label": "YouTube",
+      "icon": "youtube",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/youtube": "YouTubeView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

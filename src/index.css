@@ -1,0 +1,917 @@
+/**
+ * QuoxCORE Design System - Foundation Layer
+ * ==========================================
+ * A premium, distinctive visual identity for the QuoxCORE platform.
+ *
+ * FILE STRUCTURE:
+ * - index.css (this file): Core design tokens and base styles
+ * - styles/design-system.css: Extended layout tokens and utility classes
+ * - styles/hal.css: HAL-9000 interface-specific styles
+ * - components/*.css: Component-specific styles
+ *
+ * DESIGN PHILOSOPHY:
+ * - Warm sophistication over cold tech aesthetics
+ * - Amber/gold accents for authority and premium feel
+ * - Deep, rich backgrounds with subtle texture
+ * - Generous whitespace and refined typography
+ *
+ * NAMING CONVENTIONS:
+ * - Variables prefixed with --m- are "master" design tokens
+ * - Use --m-bg-* for backgrounds (deepest -> wash)
+ * - Use --m-text-* for text colors (primary -> disabled)
+ * - Use --m-border-* for borders (subtle -> focus)
+ * - Use --m-space-* for spacing (based on 4px unit)
+ * - Use --m-radius-* for border radius
+ * - Use --m-shadow-* for shadows
+ * - Use --m-duration-* and --m-ease-* for animations
+ *
+ * USAGE GUIDELINES:
+ * - ALWAYS use CSS variables instead of hardcoded values
+ * - For brand colors, use --m-quox-primary (cyan) and --m-quox-secondary (violet)
+ * - For semantic colors, use --m-success, --m-warning, --m-error, --m-info
+ * - Avoid using --m-hal-red (deprecated legacy alias)
+ *
+ * COMMON MAPPINGS:
+ * - White text: var(--m-text-primary) NOT #fff
+ * - Muted text: var(--m-text-tertiary) NOT #666 or #999
+ * - Borders: var(--m-border-default) NOT #333
+ * - Backgrounds: var(--m-bg-elevated) NOT #1a1a1a
+ */
+
+/* ============================================
+   DESIGN TOKENS - Core Variables
+   ============================================ */
+:root {
+  /* === COLOR PALETTE === */
+
+  /* Primary Backgrounds — GLASS-CYAN refactor (translucent on cinematic bg) */
+  --m-bg-deepest: #000;         /* Void black */
+  --m-bg-deep: #000;             /* Primary background base — orbs paint over via body { background } */
+  --m-bg-base: rgba(255,255,255,0.08);     /* Card/panel — translucent glass */
+  --m-bg-elevated: rgba(255,255,255,0.12); /* Hover/elevated */
+  --m-bg-float: rgba(255,255,255,0.10);    /* Floating dropdowns */
+  --m-bg-wash: rgba(255,255,255,0.06);     /* Subtle fills */
+
+  /* Borders — bumped to Cyan-spec 0.18 */
+  --m-border-subtle: rgba(255, 255, 255, 0.10);
+  --m-border-default: rgba(255, 255, 255, 0.18);
+  --m-border-strong: rgba(255, 255, 255, 0.28);
+  --m-border-focus: rgba(0, 229, 255, 0.5);
+
+  /* GLASS-CYAN extras (qx-* namespace, only for things --m-* doesn't model) */
+  --qx-bg-cinematic:
+    radial-gradient(ellipse 50% 40% at 15% 20%, rgba(0,229,255,0.28), transparent 70%),
+    radial-gradient(ellipse 45% 40% at 85% 15%, rgba(139,92,246,0.32), transparent 70%),
+    radial-gradient(ellipse 50% 45% at 75% 80%, rgba(59,130,246,0.24), transparent 70%),
+    radial-gradient(ellipse 45% 40% at 20% 88%, rgba(124,58,237,0.20), transparent 70%),
+    radial-gradient(ellipse 30% 25% at 50% 50%, rgba(0,180,220,0.10), transparent 70%),
+    linear-gradient(180deg, #000 0%, #030714 45%, #050b22 100%);
+  --qx-vignette: linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.38));
+  --qx-blur: blur(32px) saturate(1.6);
+  --qx-radius: 20px;
+  --qx-shimmer: linear-gradient(90deg, rgba(0,229,255,0) 0%, rgba(0,229,255,0.85) 30%, rgba(139,92,246,0.85) 70%, rgba(139,92,246,0) 100%);
+  /* Full 4-edge hairline pattern: top cyan→purple fade, other 3 sides white (0.7 peak, fades to corners) */
+  --qx-edges:
+    linear-gradient(90deg,rgba(0,229,255,0) 0%,rgba(0,229,255,0.85) 30%,rgba(139,92,246,0.85) 70%,rgba(139,92,246,0) 100%) 20px 0/calc(100% - 40px) 1px no-repeat,
+    linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,0.7) 50%,rgba(255,255,255,0) 100%) 20px 100%/calc(100% - 40px) 1px no-repeat,
+    linear-gradient(180deg,rgba(255,255,255,0) 0%,rgba(255,255,255,0.7) 50%,rgba(255,255,255,0) 100%) 0 20px/1px calc(100% - 40px) no-repeat,
+    linear-gradient(180deg,rgba(255,255,255,0) 0%,rgba(255,255,255,0.7) 50%,rgba(255,255,255,0) 100%) 100% 20px/1px calc(100% - 40px) no-repeat;
+
+  /* Opaque-backed surface tokens — for glass-on-glass nesting (sidebars,
+     dropdowns, proposal cards, reader panes) where backdrop-filter blur
+     cannot composite over another blurred surface. See .qx-surface--backed
+     in qx-components.css and QX_INDEX.md "Opaque-backed surfaces". */
+  --qx-surface-base-opaque: rgb(18 23 36);
+  --qx-surface-raised-opaque: rgb(24 31 47);
+  --qx-surface-sheen: linear-gradient(135deg, rgba(56,189,248,0.05), rgba(139,92,246,0.04));
+
+  /* Text Hierarchy */
+  --m-text-primary: #fff;                       /* Headings, body — PURE WHITE (glass spec) */
+  --m-text-secondary: #fff;                     /* Body text — PURE WHITE */
+  --m-text-tertiary: rgba(255,255,255,0.7);     /* Captions/hints — dim white, not grey */
+  --m-text-disabled: rgba(255,255,255,0.45);    /* Disabled — still white, lower opacity */
+  --m-text-inverse: #09090b;     /* Text on light backgrounds */
+
+  /* === ACCENT COLORS === */
+
+  /* Primary Accent - Warm Amber/Gold (Authority, Premium) */
+  --m-accent: #ffbf69;           /* Primary accent */
+  --m-accent-hover: #ffd699;     /* Hover state */
+  --m-accent-muted: rgba(255, 191, 105, 0.15);
+  --m-accent-subtle: rgba(255, 191, 105, 0.08);
+  --m-accent-glow: rgba(255, 191, 105, 0.25);
+
+  /* Secondary Accent - Warm Coral (Energy, Action) */
+  --m-coral: #ff8a6b;
+  --m-coral-muted: rgba(255, 138, 107, 0.15);
+  --m-coral-glow: rgba(255, 138, 107, 0.25);
+
+  /* Quox Brand Colors - Trustworthy Enterprise Palette */
+  --m-quox-primary: #38bdf8;     /* Sky Blue - Trust, Reliability */
+  --m-quox-secondary: #a78bfa;   /* Violet - Innovation, Creativity */
+  --m-quox-muted: rgba(56, 189, 248, 0.15);
+  --m-quox-glow: rgba(56, 189, 248, 0.3);
+  --m-quox-gradient: linear-gradient(135deg, #38bdf8, #a78bfa);
+
+  /* Legacy HAL Theme Colors
+   * DEPRECATED: These variables have misleading names.
+   * "hal-red" now maps to Quox brand cyan for backward compatibility.
+   * For new code, use --m-quox-primary/secondary instead.
+   * TODO: Migrate all usages to --m-quox-* variables and remove these aliases.
+   */
+  --m-hal-red: var(--m-quox-primary);           /* Legacy alias -> Quox cyan */
+  --m-hal-red-soft: var(--m-quox-secondary);    /* Legacy alias -> Quox violet */
+  --m-hal-red-muted: var(--m-quox-muted);       /* Legacy alias -> Quox muted */
+  --m-hal-red-glow: var(--m-quox-glow);         /* Legacy alias -> Quox glow */
+
+  /* Semantic Colors */
+  --m-success: #4ade80;          /* Mint green - softer than typical greens */
+  --m-success-muted: rgba(74, 222, 128, 0.12);
+  --m-warning: #fbbf24;          /* Warm yellow */
+  --m-warning-muted: rgba(251, 191, 36, 0.12);
+  --m-error: #f87171;            /* Soft red - ONLY for actual errors */
+  --m-error-muted: rgba(248, 113, 113, 0.12);
+  --m-info: #60a5fa;             /* Soft blue */
+  --m-info-muted: rgba(96, 165, 250, 0.12);
+
+  /* Agent-Specific Colors (Refined palette) */
+  --m-agent-quox: #38bdf8;    /* Quox cyan - trustworthy */
+  --m-agent-sentinel: #60a5fa;   /* Guardian blue */
+  --m-agent-cipher: #a78bfa;     /* Mystic purple */
+  --m-agent-nova: #4ade80;       /* Innovation green */
+  --m-agent-scholar: #fbbf24;     /* Wisdom gold */
+  --m-agent-vault: #94a3b8;      /* Steel gray */
+
+  /* === TYPOGRAPHY === */
+
+  /* Font Stacks. QuoxSymbols sits before the generic keyword so PUA
+     codepoints (U+E9C0 = the brand Q) fall through to it; it owns no other
+     glyphs, so ordinary text is untouched (DEVSUITE-GLYPH P12). */
+  --m-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'QuoxSymbols', sans-serif;
+  --m-font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, 'QuoxSymbols', monospace;
+  --m-font-display: 'Oswald', 'Inter', -apple-system, BlinkMacSystemFont, 'QuoxSymbols', sans-serif;
+
+  /* Font Sizes - Fluid scale */
+  --m-text-xs: 0.6875rem;        /* 11px - Fine print */
+  --m-text-sm: 0.8125rem;        /* 13px - Captions */
+  --m-text-base: 0.9375rem;      /* 15px - Body */
+  --m-text-lg: 1.0625rem;        /* 17px - Emphasis */
+  --m-text-xl: 1.25rem;          /* 20px - Subheadings */
+  --m-text-2xl: 1.5rem;          /* 24px - Headings */
+  --m-text-3xl: 1.875rem;        /* 30px - Page titles */
+  --m-text-4xl: 2.25rem;         /* 36px - Display */
+
+  /* Font Weights */
+  --m-weight-normal: 400;
+  --m-weight-medium: 500;
+  --m-weight-semibold: 600;
+  --m-weight-bold: 700;
+
+  /* Line Heights */
+  --m-leading-tight: 1.25;
+  --m-leading-snug: 1.375;
+  --m-leading-normal: 1.5;
+  --m-leading-relaxed: 1.625;
+
+  /* Letter Spacing */
+  --m-tracking-tighter: -0.02em;
+  --m-tracking-tight: -0.01em;
+  --m-tracking-normal: 0;
+  --m-tracking-wide: 0.02em;
+  --m-tracking-wider: 0.05em;
+  --m-tracking-widest: 0.1em;
+
+  /* === SPACING === */
+
+  /* Base unit: 4px */
+  --m-space-0: 0;
+  --m-space-px: 1px;
+  --m-space-0-5: 0.125rem;       /* 2px */
+  --m-space-1: 0.25rem;          /* 4px */
+  --m-space-1-5: 0.375rem;       /* 6px */
+  --m-space-2: 0.5rem;           /* 8px */
+  --m-space-2-5: 0.625rem;       /* 10px */
+  --m-space-3: 0.75rem;          /* 12px */
+  --m-space-4: 1rem;             /* 16px */
+  --m-space-5: 1.25rem;          /* 20px */
+  --m-space-6: 1.5rem;           /* 24px */
+  --m-space-8: 2rem;             /* 32px */
+  --m-space-10: 2.5rem;          /* 40px */
+  --m-space-12: 3rem;            /* 48px */
+  --m-space-16: 4rem;            /* 64px */
+  --m-space-20: 5rem;            /* 80px */
+  --m-space-24: 6rem;            /* 96px */
+
+  /* === BORDERS & RADIUS === */
+
+  /* Border Radius - Slightly refined, not childish */
+  --m-radius-none: 0;
+  --m-radius-sm: 4px;            /* Subtle rounding */
+  --m-radius-md: 6px;            /* Default rounding */
+  --m-radius-lg: 8px;            /* Cards, panels */
+  --m-radius-xl: 12px;           /* Large containers */
+  --m-radius-2xl: 16px;          /* Modal, sheets */
+  --m-radius-full: 9999px;       /* Pills, badges */
+
+  /* === SHADOWS === */
+
+  /* Subtle, sophisticated shadows */
+  --m-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --m-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --m-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --m-shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.2), 0 4px 8px rgba(0, 0, 0, 0.3);
+  --m-shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.25), 0 8px 16px rgba(0, 0, 0, 0.3);
+  --m-shadow-glow: 0 0 20px var(--m-accent-glow);
+  --m-shadow-inner: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+
+  /* === TRANSITIONS === */
+
+  --m-duration-fast: 100ms;
+  --m-duration-normal: 200ms;
+  --m-duration-slow: 300ms;
+  --m-duration-slower: 500ms;
+
+  --m-ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --m-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --m-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --m-ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* === Z-INDEX SCALE === */
+
+  --m-z-below: -1;
+  --m-z-base: 0;
+  --m-z-raised: 10;
+  --m-z-dropdown: 100;
+  --m-z-sticky: 200;
+  --m-z-overlay: 300;
+  --m-z-modal: 400;
+  --m-z-toast: 500;
+  --m-z-tooltip: 600;
+
+  /* === COMPONENT TOKENS === */
+
+  /* Buttons */
+  --m-btn-height-sm: 28px;
+  --m-btn-height-md: 36px;
+  --m-btn-height-lg: 44px;
+
+  /* Inputs */
+  --m-input-height-sm: 32px;
+  --m-input-height-md: 40px;
+  --m-input-height-lg: 48px;
+
+  /* Legacy support - map to new system */
+  color-scheme: dark;
+}
+
+/* ============================================
+   CSS VARIABLES QUICK REFERENCE
+   ============================================
+
+   BACKGROUNDS (darkest to lightest):
+   --m-bg-deepest    #09090b   Page background, void
+   --m-bg-deep       #0c0c0f   Primary app background
+   --m-bg-base       #111114   Card/panel backgrounds
+   --m-bg-elevated   #18181c   Hover states, elevated surfaces
+   --m-bg-float      #1f1f24   Floating elements, dropdowns
+   --m-bg-wash       #26262c   Subtle fills, disabled states
+
+   TEXT (brightest to dimmest):
+   --m-text-primary    #f4f4f5   Headings, important text (use instead of #fff)
+   --m-text-secondary  #a1a1aa   Body text (use instead of #ccc)
+   --m-text-tertiary   #71717a   Captions, hints (use instead of #666, #999)
+   --m-text-disabled   #52525b   Disabled states
+   --m-text-inverse    #09090b   Text on light backgrounds
+
+   BORDERS:
+   --m-border-subtle   rgba(255,255,255,0.04)   Very subtle dividers
+   --m-border-default  rgba(255,255,255,0.08)   Standard borders (use instead of #333)
+   --m-border-strong   rgba(255,255,255,0.12)   Emphasized borders
+   --m-border-focus    rgba(255,191,105,0.4)    Focus rings
+
+   BRAND COLORS:
+   --m-quox-primary    #38bdf8   Quox cyan - primary brand color
+   --m-quox-secondary  #a78bfa   Quox violet - secondary brand color
+   --m-quox-muted      rgba(56,189,248,0.15)    Muted cyan background
+   --m-quox-glow       rgba(56,189,248,0.3)     Glow effect
+   --m-quox-gradient   linear-gradient(...)     Brand gradient
+
+   SEMANTIC COLORS:
+   --m-success         #4ade80   Success/online (use instead of #22c55e, #30ff90)
+   --m-success-muted   rgba(74,222,128,0.12)
+   --m-warning         #fbbf24   Warning/caution
+   --m-warning-muted   rgba(251,191,36,0.12)
+   --m-error           #f87171   Error/danger (use instead of #ef4444, #ff4444)
+   --m-error-muted     rgba(248,113,113,0.12)
+   --m-info            #60a5fa   Info/links
+   --m-info-muted      rgba(96,165,250,0.12)
+
+   ACCENTS:
+   --m-accent          #ffbf69   Amber/gold accent
+   --m-accent-hover    #ffd699   Accent hover state
+   --m-accent-muted    rgba(255,191,105,0.15)
+   --m-coral           #ff8a6b   Coral accent
+
+   SPACING (based on 4px unit):
+   --m-space-1   0.25rem (4px)     --m-space-8   2rem (32px)
+   --m-space-2   0.5rem (8px)      --m-space-10  2.5rem (40px)
+   --m-space-3   0.75rem (12px)    --m-space-12  3rem (48px)
+   --m-space-4   1rem (16px)       --m-space-16  4rem (64px)
+   --m-space-6   1.5rem (24px)     --m-space-20  5rem (80px)
+
+   TYPOGRAPHY:
+   --m-text-xs   0.6875rem (11px)  --m-text-xl   1.25rem (20px)
+   --m-text-sm   0.8125rem (13px)  --m-text-2xl  1.5rem (24px)
+   --m-text-base 0.9375rem (15px)  --m-text-3xl  1.875rem (30px)
+   --m-text-lg   1.0625rem (17px)  --m-text-4xl  2.25rem (36px)
+
+   BORDER RADIUS:
+   --m-radius-sm   4px    Subtle rounding
+   --m-radius-md   6px    Default (buttons, inputs)
+   --m-radius-lg   8px    Cards, panels
+   --m-radius-xl   12px   Large containers
+   --m-radius-2xl  16px   Modals, sheets
+   --m-radius-full 9999px Pills, badges
+
+   SHADOWS:
+   --m-shadow-xs/sm/md/lg/xl   Elevation shadows
+   --m-shadow-glow             Accent glow effect
+   --m-shadow-inner            Inset shadow
+
+   TRANSITIONS:
+   --m-duration-fast   100ms   Quick micro-interactions
+   --m-duration-normal 200ms   Standard transitions
+   --m-duration-slow   300ms   Deliberate animations
+   --m-duration-slower 500ms   Dramatic transitions
+   --m-ease-default    cubic-bezier(0.4, 0, 0.2, 1)
+
+   Z-INDEX:
+   --m-z-base      0      Base level
+   --m-z-raised    10     Slightly elevated
+   --m-z-dropdown  100    Dropdown menus
+   --m-z-sticky    200    Sticky headers
+   --m-z-overlay   300    Overlays
+   --m-z-modal     400    Modal dialogs
+   --m-z-toast     500    Toast notifications
+   --m-z-tooltip   600    Tooltips
+
+   DEPRECATED (do not use in new code):
+   --m-hal-red, --m-hal-red-soft, --m-hal-red-muted, --m-hal-red-glow
+   -> Use --m-quox-primary, --m-quox-secondary instead
+
+   ============================================ */
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  height: 100%;
+}
+
+body {
+  font-family: var(--m-font-sans);
+  font-size: var(--m-text-base);
+  line-height: var(--m-leading-normal);
+  font-weight: var(--m-weight-normal);
+  color: var(--m-text-primary);
+  background: var(--qx-bg-cinematic);
+  background-attachment: fixed;
+  height: 100%;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ============================================
+   TYPOGRAPHY BASE
+   ============================================ */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--m-font-display);
+  color: var(--m-text-primary);
+  font-weight: var(--m-weight-semibold);
+  line-height: var(--m-leading-tight);
+  letter-spacing: var(--m-tracking-tight);
+}
+
+h1 { font-size: var(--m-text-3xl); }
+h2 { font-size: var(--m-text-2xl); }
+h3 { font-size: var(--m-text-xl); }
+h4 { font-size: var(--m-text-lg); }
+h5 { font-size: var(--m-text-base); }
+h6 { font-size: var(--m-text-sm); }
+
+p {
+  margin-bottom: var(--m-space-4);
+}
+
+a {
+  color: var(--m-accent);
+  text-decoration: none;
+  transition: color var(--m-duration-fast) var(--m-ease-default);
+}
+
+a:hover {
+  color: var(--m-accent-hover);
+}
+
+code, pre, kbd, samp {
+  font-family: var(--m-font-mono);
+  font-size: 0.9em;
+}
+
+code {
+  padding: var(--m-space-0-5) var(--m-space-1);
+  background: var(--m-bg-elevated);
+  border-radius: var(--m-radius-sm);
+  color: var(--m-accent);
+}
+
+pre {
+  padding: var(--m-space-4);
+  background: var(--m-bg-base);
+  border: 1px solid var(--m-border-default);
+  border-radius: var(--m-radius-lg);
+  overflow-x: auto;
+}
+
+pre code {
+  padding: 0;
+  background: none;
+  border-radius: 0;
+}
+
+/* ============================================
+   FORM ELEMENTS BASE
+   ============================================ */
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--m-space-2);
+  height: var(--m-btn-height-md);
+  padding: 0 var(--m-space-4);
+  font-weight: var(--m-weight-medium);
+  color: var(--m-text-primary);
+  background: var(--m-bg-elevated);
+  border: 1px solid var(--m-border-default);
+  border-radius: var(--m-radius-md);
+  cursor: pointer;
+  transition: all var(--m-duration-normal) var(--m-ease-default);
+  outline: none;
+}
+
+button:hover:not(:disabled) {
+  background: var(--m-bg-float);
+  border-color: var(--m-border-strong);
+}
+
+button:focus-visible {
+  box-shadow: 0 0 0 2px var(--m-bg-deep), 0 0 0 4px var(--m-accent);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input, select, textarea {
+  height: var(--m-input-height-md);
+  padding: 0 var(--m-space-3);
+  color: var(--m-text-primary);
+  background: var(--m-bg-base);
+  border: 1px solid var(--m-border-default);
+  border-radius: var(--m-radius-md);
+  transition: all var(--m-duration-normal) var(--m-ease-default);
+  outline: none;
+}
+
+input:hover, select:hover, textarea:hover {
+  border-color: var(--m-border-strong);
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--m-accent);
+  box-shadow: 0 0 0 3px var(--m-accent-subtle);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--m-text-tertiary);
+}
+
+textarea {
+  height: auto;
+  padding: var(--m-space-3);
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* Range Input (Slider) - Must override default input styles */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  padding: 0;
+  background: var(--m-bg-wash);
+  border: none;
+  border-radius: var(--m-radius-full);
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: var(--m-bg-wash);
+  border-radius: var(--m-radius-full);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  background: var(--m-accent);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform var(--m-duration-fast) var(--m-ease-default),
+              box-shadow var(--m-duration-fast) var(--m-ease-default);
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: var(--m-bg-wash);
+  border-radius: var(--m-radius-full);
+  border: none;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--m-accent);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform var(--m-duration-fast) var(--m-ease-default),
+              box-shadow var(--m-duration-fast) var(--m-ease-default);
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+input[type="range"]:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+input[type="range"]:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--m-accent-subtle), 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+input[type="range"]:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 3px var(--m-accent-subtle), 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2371717a' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--m-space-3) center;
+  padding-right: var(--m-space-8);
+}
+
+/* ============================================
+   SCROLLBAR STYLING
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--m-bg-deep);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--m-bg-wash);
+  border-radius: var(--m-radius-full);
+  border: 2px solid var(--m-bg-deep);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--m-text-tertiary);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--m-bg-wash) var(--m-bg-deep);
+}
+
+/* ============================================
+   SELECTION
+   ============================================ */
+
+::selection {
+  background: var(--m-accent-muted);
+  color: var(--m-text-primary);
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Text colors */
+.text-primary { color: var(--m-text-primary); }
+.text-secondary { color: var(--m-text-secondary); }
+.text-tertiary { color: var(--m-text-tertiary); }
+.text-accent { color: var(--m-accent); }
+.text-success { color: var(--m-success); }
+.text-warning { color: var(--m-warning); }
+.text-error { color: var(--m-error); }
+
+/* Background colors */
+.bg-base { background: var(--m-bg-base); }
+.bg-elevated { background: var(--m-bg-elevated); }
+.bg-float { background: var(--m-bg-float); }
+
+/* Font sizes */
+.text-xs { font-size: var(--m-text-xs); }
+.text-sm { font-size: var(--m-text-sm); }
+.text-base { font-size: var(--m-text-base); }
+.text-lg { font-size: var(--m-text-lg); }
+.text-xl { font-size: var(--m-text-xl); }
+.text-2xl { font-size: var(--m-text-2xl); }
+
+/* Font weights */
+.font-normal { font-weight: var(--m-weight-normal); }
+.font-medium { font-weight: var(--m-weight-medium); }
+.font-semibold { font-weight: var(--m-weight-semibold); }
+.font-bold { font-weight: var(--m-weight-bold); }
+
+/* Monospace */
+.font-mono { font-family: var(--m-font-mono); }
+
+/* Truncation */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Focus ring utility */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--m-bg-deep), 0 0 0 4px var(--m-accent);
+}
+
+/* Screen reader only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fadeIn { animation: fadeIn var(--m-duration-normal) var(--m-ease-out); }
+.animate-slideUp { animation: slideUp var(--m-duration-normal) var(--m-ease-out); }
+.animate-slideDown { animation: slideDown var(--m-duration-normal) var(--m-ease-out); }
+.animate-scaleIn { animation: scaleIn var(--m-duration-normal) var(--m-ease-out); }
+.animate-pulse { animation: pulse 2s var(--m-ease-default) infinite; }
+.animate-spin { animation: spin 1s linear infinite; }
+
+/* ============================================
+   REDUCED MOTION SUPPORT
+   Respect user preference for reduced motion
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Disable all animations */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Remove animation utility classes */
+  .animate-fadeIn,
+  .animate-slideUp,
+  .animate-slideDown,
+  .animate-scaleIn,
+  .animate-pulse,
+  .animate-spin {
+    animation: none !important;
+  }
+
+  /* Ensure elements are visible without animation */
+  .animate-fadeIn,
+  .animate-slideUp,
+  .animate-slideDown,
+  .animate-scaleIn {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* ============================================
+   RESPONSIVE / MOBILE FOUNDATIONS
+   ============================================ */
+
+/* Prevent horizontal scroll on all devices */
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+}
+
+/* Touch-friendly improvements */
+@media (max-width: 768px) {
+  /* Ensure minimum touch target sizes */
+  button, a, input, select, textarea {
+    min-height: 44px;
+  }
+
+  /* Prevent iOS zoom on input focus */
+  input, select, textarea {
+    font-size: 16px;
+  }
+
+  /* Improve tap highlight */
+  button, a {
+    -webkit-tap-highlight-color: rgba(255, 191, 105, 0.2);
+  }
+
+  /* Better text rendering on mobile */
+  body {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Reduce spacing on mobile */
+  :root {
+    --m-space-4: 0.875rem;    /* 14px instead of 16px */
+    --m-space-6: 1.25rem;     /* 20px instead of 24px */
+    --m-space-8: 1.5rem;      /* 24px instead of 32px */
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  :root {
+    /* Slightly smaller text on very small screens */
+    --m-text-base: 0.875rem;   /* 14px */
+    --m-text-lg: 1rem;         /* 16px */
+    --m-text-xl: 1.125rem;     /* 18px */
+    --m-text-2xl: 1.375rem;    /* 22px */
+    --m-text-3xl: 1.625rem;    /* 26px */
+
+    /* Tighter spacing */
+    --m-space-4: 0.75rem;      /* 12px */
+    --m-space-6: 1rem;         /* 16px */
+    --m-space-8: 1.25rem;      /* 20px */
+  }
+
+  /* Smaller button heights */
+  button {
+    min-height: 40px;
+  }
+}
+
+/* Very small screens (iPhone SE) */
+@media (max-width: 375px) {
+  :root {
+    --m-text-base: 0.8125rem;  /* 13px */
+    --m-text-3xl: 1.5rem;      /* 24px */
+
+    --m-space-4: 0.625rem;     /* 10px */
+    --m-space-6: 0.875rem;     /* 14px */
+  }
+}
+
+
+/* Inter (UI text) and Oswald (display: headings, breadcrumbs), self-hosted so a
+   self-hosted install never calls out to a font CDN. Variable fonts, OFL licence,
+   the same faces the quox.ai website uses. Before 2026-10-10 'Inter' was named in
+   every stack but never loaded, so the dashboard rendered in the system fallback. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Oswald';
+  font-style: normal;
+  font-weight: 200 700;
+  font-display: swap;
+  src: url('/fonts/oswald-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Oswald';
+  font-style: normal;
+  font-weight: 200 700;
+  font-display: swap;
+  src: url('/fonts/oswald-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* QuoxSymbols: the brand glyph font (DEVSUITE-GLYPH P12). Serves PUA
+   U+E9C0 (the horned Q) as a fallback in every stack above. Built by
+   quox-skills quoxglyph/build-quox-symbols.py from quox-q-mark.svg. */
+@font-face {
+  font-family: 'QuoxSymbols';
+  src: url('/fonts/QuoxSymbols.woff2') format('woff2');
+  font-display: swap;
+  unicode-range: U+E9C0-E9DF;
+}

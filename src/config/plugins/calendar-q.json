@@ -1,0 +1,92 @@
+{
+  "name": "calendar-q",
+  "version": "0.1.0",
+  "displayName": "Calendar-Q",
+  "tagline": "Talk to your calendar, with receipts.",
+  "description": "Calendar-Q reads a connected calendar (Google today, more providers planned) and merges it with your internal events, team schedules, and workflow cron triggers into one layered agenda. Every answer quotes the coverage it actually checked rather than claiming a clean calendar beyond what it saw, and human double-bookings are spotted and cited against the exact window checked. Read-first by design: reads, clash-spotting and meeting prep need no approval, and the one write it can do, creating a single non-recurring event, always goes through an exact human approval showing the full effect before anything reaches the provider. It never reschedules, cancels, or edits recurring events. Governed by the same AEE-witnessed, per-org licence path every collector-native surface uses.",
+  "shortDescription": "Layered agenda across your calendar, schedules, and workflow cron, with honest coverage and double-booking detection.",
+  "author": "QUOX",
+  "license": "commercial",
+  "priceDisplay": "$19",
+  "priceModel": "one-time",
+  "tier": "premium",
+  "featured": false,
+  "badge": "NEW",
+  "icon": "calendar",
+  "accentColor": "#a855f7",
+  "infoUrl": "https://quox.ai/solutions/calendar-q",
+  "docsUrl": "https://quox.ai/docs/calendar-q",
+  "marketingPoints": [
+    "An agenda built from the coverage it actually checked, never a guess past what it synced",
+    "Layered overlay: your connected calendar, internal events, team schedules, and Quox workflow cron triggers, one feed",
+    "Spots human double-bookings across every layer and cites the exact window it checked",
+    "Read-first with one governed write: creating a single event always shows you the exact effect, attendees and notifications for approval first; it never reschedules or cancels"
+  ],
+  "features": {
+    "agenda": {
+      "name": "Agenda",
+      "description": "The latest synced, non-cancelled occurrences for a connection, with an honest coverage state (complete, stale, partial, disconnected, empty, unavailable).",
+      "icon": "calendar",
+      "highlight": true
+    },
+    "layeredOverlay": {
+      "name": "Layered overlay",
+      "description": "Provider calendar, internal events, team schedules, and workflow cron merged into one feed, each layer coloured and independently toggled.",
+      "icon": "layers",
+      "highlight": true
+    },
+    "clashDetection": {
+      "name": "Clash detection",
+      "description": "Flags overlapping human commitments across every connected layer, citing the coverage statement that bounds the claim.",
+      "icon": "alert-triangle",
+      "highlight": true
+    },
+    "schedules": {
+      "name": "Schedules",
+      "description": "Team schedules and workflow cron triggers in the same agenda view, deep-linking to Triggers for management.",
+      "icon": "zap"
+    }
+  },
+  "safety": {
+    "destructiveActions": [],
+    "requiresApproval": [],
+    "aeeRequired": true,
+    "killSwitchEnabled": false
+  },
+  "capabilities": {
+    "aeeIntents": [
+      "quox.calendar.read",
+      "quox.calendar.sync"
+    ]
+  },
+  "limits": {
+    "free": {
+      "agendaEnabled": false,
+      "overlayEnabled": false,
+      "clashDetectionEnabled": false
+    },
+    "premium": {
+      "agendaEnabled": true,
+      "overlayEnabled": true,
+      "clashDetectionEnabled": true
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0"
+  },
+  "integration": {
+    "client": "src/services/calendarQService.js",
+    "view": "src/components/calendarq/CalendarQView.jsx"
+  },
+  "changelog": {
+    "0.1.0": {
+      "date": "2026-10-02",
+      "changes": [
+        "Initial plugin registration: manifest, nav entry, route, chat agent, and the Calendar/Schedules/Connections/Receipts view",
+        "Read-first L2-C1b: agenda, layered overlay, clash detection, OAuth connect scaffold. Receipts arrive with phase C2 (approvals)"
+      ]
+    }
+  },
+  "category": "Productivity",
+  "price": 19
+}

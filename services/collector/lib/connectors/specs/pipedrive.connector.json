@@ -1,0 +1,228 @@
+{
+  "spec_version": 1,
+  "id": "pipedrive",
+  "name": "Pipedrive",
+  "category": "crm_sales",
+  "credentialType": "pipedrive",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://developers.pipedrive.com/docs/api/v1",
+  "base_url": "https://api.pipedrive.com",
+  "auth": {
+    "type": "query",
+    "param": "api_token",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/users/me"
+  },
+  "tools_source": "https://developers.pipedrive.com/docs/api/v1",
+  "tools": [
+    {
+      "name": "list_deals",
+      "description": "List Pipedrive deals, optionally filtered by status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max deals to return (default 20, max 50)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "won",
+              "lost",
+              "deleted",
+              "all_not_deleted"
+            ],
+            "description": "Optional deal status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/deals",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "title": "title",
+            "value": "value",
+            "currency": "currency",
+            "status": "status",
+            "stage_id": "stage_id",
+            "add_time": "add_time",
+            "update_time": "update_time"
+          },
+          "more_items": "additional_data.pagination.more_items_in_collection"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_deal",
+      "description": "Get one Pipedrive deal by its numeric ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "deal_id": {
+            "type": "number",
+            "description": "Pipedrive deal ID (e.g. 1)"
+          }
+        },
+        "required": [
+          "deal_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/deals/{{input.deal_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "title": "data.title",
+          "value": "data.value",
+          "currency": "data.currency",
+          "status": "data.status",
+          "stage_id": "data.stage_id",
+          "pipeline_id": "data.pipeline_id",
+          "probability": "data.probability",
+          "expected_close_date": "data.expected_close_date",
+          "add_time": "data.add_time",
+          "update_time": "data.update_time"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_persons",
+      "description": "List Pipedrive persons (contacts)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max persons to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/persons",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "primary_email": "primary_email",
+            "open_deals_count": "open_deals_count",
+            "add_time": "add_time",
+            "update_time": "update_time"
+          },
+          "more_items": "additional_data.pagination.more_items_in_collection"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_organizations",
+      "description": "List Pipedrive organizations (companies)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max organizations to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/organizations",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "address": "address",
+            "people_count": "people_count",
+            "open_deals_count": "open_deals_count",
+            "add_time": "add_time"
+          },
+          "more_items": "additional_data.pagination.more_items_in_collection"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "search_deals",
+      "description": "Search Pipedrive deals by term across title, notes and custom fields",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "term": {
+            "type": "string",
+            "description": "Search term (at least 2 characters)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max results to return (default 20, max 50)"
+          }
+        },
+        "required": [
+          "term"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/deals/search",
+        "query": {
+          "term": "{{input.term}}",
+          "limit": "{{clamp input.limit 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data.items[]": {
+            "id": "item.id",
+            "title": "item.title",
+            "value": "item.value",
+            "currency": "item.currency",
+            "status": "item.status",
+            "result_score": "result_score"
+          },
+          "more_items": "additional_data.pagination.more_items_in_collection"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

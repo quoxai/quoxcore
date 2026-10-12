@@ -1,0 +1,90 @@
+{
+  "spec_id": "deel",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:22.613Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.letsdeel.com/quox-shapeproof-control-8073c535",
+      "status": 404,
+      "latency_ms": 268,
+      "classification": "CONTROL",
+      "body_sha256": "0bd1384f3b94b985c39512cecaba6164c743839008e9f01893bbc347b9c35be3",
+      "body_excerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot GET /quox-shapeproof-control-8073c535</pre>\n</body>\n</html>\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.letsdeel.com/rest/v2/organizations",
+      "status": 401,
+      "latency_ms": 54,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "23d003e3c9ded16872206c664deda6d6663b519071eb5371ea5c81c59d67afbb",
+      "body_excerpt": "{\"request\":{\"method\":\"GET\",\"url\":\"/rest/organizations\",\"status\":401,\"api_req_id\":\"dc47f623-7e46-457c-aa1d-d7d25b92e611\",\"docs\":\"no match\",\"source\":\"rest\"},\"errors\":[{\"message\":\"Unauthorized call: Inva",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_contracts",
+      "method": "GET",
+      "url": "https://api.letsdeel.com/rest/v2/contracts?limit=20&statuses=quoxprobe&types=quoxprobe&countries=quoxprobe&currencies=quoxprobe&search=quoxprobe&after_cursor=quoxprobe",
+      "status": 401,
+      "latency_ms": 61,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c8803194ff3e2a872fb70cc7943da3467ed1165f5c2dcbe071a79690b1d9d991",
+      "body_excerpt": "{\"request\":{\"method\":\"GET\",\"url\":\"/rest/contracts?limit=20&statuses=quoxprobe&types=quoxprobe&countries=quoxprobe&currencies=quoxprobe&search=quoxprobe&after_cursor=quoxprobe\",\"status\":401,\"api_req_id",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_contract",
+      "method": "GET",
+      "url": "https://api.letsdeel.com/rest/v2/contracts/quoxprobe",
+      "status": 401,
+      "latency_ms": 61,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "ef2cd43e2bb2c539532d21a06a05105415a1ba1678f13ee057e17b1c2c878c56",
+      "body_excerpt": "{\"request\":{\"method\":\"GET\",\"url\":\"/rest/contracts/quoxprobe\",\"status\":401,\"api_req_id\":\"53dfe8a0-59de-4f43-a70f-1d99ea07b234\",\"docs\":\"no match\",\"source\":\"rest\"},\"errors\":[{\"message\":\"Unauthorized call",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_people",
+      "method": "GET",
+      "url": "https://api.letsdeel.com/rest/v2/people?limit=20&offset=1&search=quoxprobe&hiring_statuses=quoxprobe&hiring_types=quoxprobe&person_statuses=quoxprobe",
+      "status": 401,
+      "latency_ms": 70,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d0b08af796a8ceff3a7c60fdcaf839f92202563afeff743978fbe4e8a6506afb",
+      "body_excerpt": "{\"request\":{\"method\":\"GET\",\"url\":\"/rest/people?limit=20&offset=1&search=quoxprobe&hiring_statuses=quoxprobe&hiring_types=quoxprobe&person_statuses=quoxprobe\",\"status\":401,\"api_req_id\":\"4e738e78-555d-4",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_organization",
+      "method": "GET",
+      "url": "https://api.letsdeel.com/rest/v2/organizations",
+      "status": 401,
+      "latency_ms": 91,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b30b077c4ff6ed41a25c6079fb3fc59deee9d1e7fa5e410a9f26571a3eeac77a",
+      "body_excerpt": "{\"request\":{\"method\":\"GET\",\"url\":\"/rest/organizations\",\"status\":401,\"api_req_id\":\"193ae47f-45e3-4b3f-8506-38d263b3d923\",\"docs\":\"no match\",\"source\":\"rest\"},\"errors\":[{\"message\":\"Unauthorized call: Inva",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

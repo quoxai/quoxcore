@@ -1,0 +1,141 @@
+{
+  "name": "action-tracker",
+  "version": "1.0.0",
+  "displayName": "Action Tracker",
+  "tagline": "Get Things Done",
+  "description": "A Kanban-style action board with drag-and-drop, streaks, confetti celebrations, and AI integration. Track real-world action items through TODO, DOING, and DONE columns.",
+  "shortDescription": "Kanban board with drag-and-drop, streaks, and AI integration.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 5,
+  "priceDisplay": "$5",
+  "priceModel": "one-time",
+  "tier": "tier_a",
+  "featured": false,
+  "badge": "NEW",
+  "icon": "check-square",
+  "infoUrl": "https://quox.ai/plugins/action-tracker",
+  "docsUrl": "https://quox.ai/docs/plugins/action-tracker",
+  "heroGradient": "linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%)",
+  "accentColor": "#f59e0b",
+  "marketingPoints": [
+    "Kanban board with TODO, DOING, and DONE columns",
+    "Drag-and-drop cards between columns",
+    "Completion streaks with day counting",
+    "Confetti celebration when items are done",
+    "AI integration — ACTION-Q agent can add, prioritise, and delegate items",
+    "Due dates with overdue highlighting"
+  ],
+  "features": {
+    "kanban": {
+      "name": "Kanban Board",
+      "description": "Three-column board (TODO, DOING, DONE) to visualize your action items at a glance.",
+      "icon": "columns",
+      "highlight": true
+    },
+    "dragDrop": {
+      "name": "Drag & Drop",
+      "description": "Move cards between columns with smooth drag-and-drop. Status updates automatically.",
+      "icon": "move",
+      "highlight": true
+    },
+    "streaks": {
+      "name": "Completion Streaks",
+      "description": "Track consecutive days of completing items. Build momentum and stay motivated.",
+      "icon": "zap",
+      "highlight": true
+    },
+    "confetti": {
+      "name": "Confetti Celebrations",
+      "description": "Enjoy a confetti burst every time you complete an action item. Small wins matter.",
+      "icon": "star"
+    },
+    "aiIntegration": {
+      "name": "ACTION-Q Agent",
+      "description": "ACTION-Q can add items, check progress, suggest priorities, and delegate tasks to agentic objectives. Works with MCP tools.",
+      "icon": "cpu"
+    },
+    "dueDates": {
+      "name": "Due Dates",
+      "description": "Set due dates on action items with automatic overdue highlighting and stats.",
+      "icon": "calendar"
+    }
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "kanban": false,
+      "dragDrop": false,
+      "streaks": false,
+      "confetti": false,
+      "aiIntegration": false,
+      "dueDates": false,
+      "board": "No action tracker"
+    },
+    "tier_a": {
+      "name": "Action Tracker",
+      "kanban": true,
+      "dragDrop": true,
+      "streaks": true,
+      "confetti": true,
+      "aiIntegration": true,
+      "dueDates": true,
+      "board": "Full Kanban board with all features"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "route": "/actions",
+  "integration": {
+    "service": "src/services/actionsService.js",
+    "view": "src/pages/views/ActionsView.jsx"
+  },
+  "permissions": [
+    "actions:read",
+    "actions:write"
+  ],
+  "futureFeatures": [
+    "MCP tools for agent-driven action management",
+    "Team boards with shared action items",
+    "Recurring action items with schedules",
+    "Integration with QuoxFlow workflows",
+    "Action item templates",
+    "Export to CSV/markdown"
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-03-02",
+      "changes": [
+        "Initial release",
+        "Kanban board with 3 columns",
+        "Drag-and-drop between columns",
+        "Completion streak tracking",
+        "Confetti celebrations",
+        "Priority and category labels",
+        "Due date tracking with overdue alerts",
+        "Stats panel with completion metrics",
+        "Add/edit/delete modal",
+        "Server-first persistence with localStorage cache fallback"
+      ]
+    },
+    "1.1.0": {
+      "date": "2026-05-01",
+      "changes": [
+        "Layout regression fix — main panel + sidebar render reliably",
+        "ACTION-Q agent registered as dedicated assistant (was falling back to CommanderQ)",
+        "Server-side AEE audit envelope for every tool call",
+        "/sync endpoint hardened — server-generated IDs, visibility filter, 500-item cap",
+        "Optimistic update rollback on server failure (move/delete/save)",
+        "Single-item GET endpoint for direct fetch (avoids 200-item linear scan)",
+        "Modal a11y — role=dialog, aria-modal, focus trap, keyboard-activatable rows"
+      ]
+    }
+  },
+  "category": "Operations"
+}

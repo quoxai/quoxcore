@@ -1,0 +1,82 @@
+{
+  "id": "wf-quox-compliance-evidence-bundle",
+  "name": "Compliance Evidence Bundle",
+  "description": "Runs weekly, pulls AOCL audit envelopes and VOLT spend records, assembles an evidence package, and emails it to the compliance team.",
+  "source": "quox-curated",
+  "category": "security",
+  "tags": ["compliance", "evidence", "aocl", "volt", "audit", "weekly", "schedule", "notification"],
+  "nodes": [
+    {
+      "id": "trig",
+      "type": "trigger:schedule",
+      "name": "Weekly Monday 9am",
+      "category": "trigger",
+      "config": {
+        "cron": "0 9 * * 1",
+        "timezone": "UTC",
+        "enabled": true
+      },
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "pull-aocl",
+      "type": "call",
+      "name": "Pull AOCL Envelopes",
+      "category": "action",
+      "config": {
+        "url": "{{COLLECTOR_URL}}/api/aocl/envelopes?window=7d&format=summary",
+        "method": "GET",
+        "timeout": 15000
+      },
+      "position": { "x": 400, "y": 200 }
+    },
+    {
+      "id": "pull-volt",
+      "type": "call",
+      "name": "Pull VOLT Spend",
+      "category": "action",
+      "config": {
+        "url": "{{COLLECTOR_URL}}/api/volt/spend?window=7d",
+        "method": "GET",
+        "timeout": 15000
+      },
+      "position": { "x": 400, "y": 400 }
+    },
+    {
+      "id": "build-package",
+      "type": "data:transform",
+      "name": "Build Evidence Package",
+      "category": "data",
+      "config": {
+        "expression": "({ week: new Date().toISOString().slice(0,10), aocl: nodes['pull-aocl'].output, volt: nodes['pull-volt'].output, generatedAt: new Date().toISOString() })",
+        "outputField": "evidencePackage"
+      },
+      "position": { "x": 700, "y": 300 }
+    },
+    {
+      "id": "deliver",
+      "type": "notification:deliver",
+      "name": "Email Compliance Team",
+      "category": "notification",
+      "config": {
+        "title": "Weekly Compliance Evidence Bundle",
+        "message": "## Weekly Evidence Package\n\nGenerated: ${nodes['build-package'].output.evidencePackage.generatedAt}\n\n### AOCL Audit Summary\n${JSON.stringify(nodes['build-package'].output.evidencePackage.aocl, null, 2)}\n\n### VOLT Spend Summary\n${JSON.stringify(nodes['build-package'].output.evidencePackage.volt, null, 2)}",
+        "assignTo": ["team-compliance"],
+        "priority": "normal"
+      },
+      "position": { "x": 1000, "y": 300 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trig", "target": "pull-aocl" },
+    { "id": "e2", "source": "trig", "target": "pull-volt" },
+    { "id": "e3", "source": "pull-aocl", "target": "build-package" },
+    { "id": "e4", "source": "pull-volt", "target": "build-package" },
+    { "id": "e5", "source": "build-package", "target": "deliver" }
+  ],
+  "meta": {
+    "version": "1.0.0",
+    "createdBy": "quox-curated",
+    "estimatedRuntime": "45s"
+  }
+}

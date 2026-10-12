@@ -1,0 +1,19 @@
+{
+  "kind": "container", "prefixes": ["container:"], "area": "systems", "derive": "container",
+  "ok_statuses": ["running", "healthy", "ok", "up"],
+  "variants": [
+    { "id": "ok", "when": { "is_ok": "true" },
+      "urgency": [{ "is": "fyi" }],
+      "short": "container {name} is {status}",
+      "L0": "Container {name} is {status}",
+      "L1": { "who": "Server {host}", "what": "Container {name} is {status}.", "why": "Nothing is wrong." },
+      "how": "Nothing to do.", "measures": [] },
+    { "id": "bad",
+      "urgency": [{ "is": "today" }],
+      "short": "container {name} is {status}",
+      "L0": "Container {name} is {status}",
+      "L1": { "who": "Server {host}", "what": "Container {name} is {status}.", "why": "A Docker container is not in its normal running state." },
+      "how": "Ask me to look at its log.",
+      "measures": ["show_log", "investigate"] }
+  ]
+}

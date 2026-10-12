@@ -1,0 +1,103 @@
+{
+  "spec_id": "shutterstock",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T04:00:25.556Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.shutterstock.com/quox-shapeproof-control-09afc45f",
+      "status": 404,
+      "latency_ms": 1411,
+      "classification": "CONTROL",
+      "body_sha256": "f4dc26b25c3b21ceaac7ecdb614f7c4b50e4e621560b92d9cda334affea3a738",
+      "body_excerpt": "{\"fault\":{\"faultstring\":\"Unable to identify proxy for host: https_vhost and url: \\/quox-shapeproof-control-09afc45f\",\"detail\":{\"errorcode\":\"messaging.adaptors.http.flow.ApplicationNotFound\"}}}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.shutterstock.com/v2/images/search?query=test&per_page=1",
+      "status": 401,
+      "latency_ms": 226,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3ac1335c055956c5122d476227cd6f0e3ae176a147b9adfc906c3f9c8705ea7d",
+      "body_excerpt": "{\"message\": \"Invalid auth credentials\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "search_images",
+      "method": "GET",
+      "url": "https://api.shutterstock.com/v2/images/search?query=mountain&per_page=20&page=1&image_type=photo&orientation=horizontal&sort=popular&license=commercial&color=grayscale",
+      "status": 401,
+      "latency_ms": 257,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3ac1335c055956c5122d476227cd6f0e3ae176a147b9adfc906c3f9c8705ea7d",
+      "body_excerpt": "{\"message\": \"Invalid auth credentials\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_image",
+      "method": "GET",
+      "url": "https://api.shutterstock.com/v2/images/1572478477?view=full",
+      "status": 401,
+      "latency_ms": 190,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3ac1335c055956c5122d476227cd6f0e3ae176a147b9adfc906c3f9c8705ea7d",
+      "body_excerpt": "{\"message\": \"Invalid auth credentials\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "search_videos",
+      "method": "GET",
+      "url": "https://api.shutterstock.com/v2/videos/search?query=ocean&per_page=20&page=1&resolution=high_definition&orientation=horizontal&sort=popular&duration_from=1&duration_to=1",
+      "status": 401,
+      "latency_ms": 160,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3ac1335c055956c5122d476227cd6f0e3ae176a147b9adfc906c3f9c8705ea7d",
+      "body_excerpt": "{\"message\": \"Invalid auth credentials\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "search_audio",
+      "method": "GET",
+      "url": "https://api.shutterstock.com/v2/audio/search?query=piano&per_page=20&page=1&genre=quoxprobe&is_instrumental=false&bpm_from=1&bpm_to=1&duration_from=1&duration_to=1&sort=score",
+      "status": 401,
+      "latency_ms": 152,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3ac1335c055956c5122d476227cd6f0e3ae176a147b9adfc906c3f9c8705ea7d",
+      "body_excerpt": "{\"message\": \"Invalid auth credentials\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_image_categories",
+      "method": "GET",
+      "url": "https://api.shutterstock.com/v2/images/categories",
+      "status": 401,
+      "latency_ms": 150,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3ac1335c055956c5122d476227cd6f0e3ae176a147b9adfc906c3f9c8705ea7d",
+      "body_excerpt": "{\"message\": \"Invalid auth credentials\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

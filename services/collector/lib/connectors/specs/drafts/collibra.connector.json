@@ -1,0 +1,32 @@
+{
+  "spec_version": 1,
+  "id": "collibra",
+  "name": "Collibra",
+  "category": "uncategorized",
+  "credentialType": "collibra",
+  "requiredFields": [
+    "base_url",
+    "username",
+    "password"
+  ],
+  "docs": "https://developer.collibra.com/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "username",
+    "passField": "password"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/rest/2.0/users/current"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

@@ -1,0 +1,188 @@
+{
+  "spec_version": 1,
+  "id": "plivo",
+  "name": "Plivo",
+  "category": "communication",
+  "credentialType": "plivo",
+  "requiredFields": [
+    "auth_id",
+    "auth_token"
+  ],
+  "docs": "https://www.plivo.com/docs/sms/api/",
+  "base_url": "https://api.plivo.com",
+  "auth": {
+    "type": "basic",
+    "userField": "auth_id",
+    "passField": "auth_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/Account/{{auth_id}}/"
+  },
+  "tools_source": "https://www.plivo.com/docs/",
+  "tools": [
+    {
+      "name": "account_details",
+      "description": "Get the Plivo account this credential belongs to (name, type, billing mode, cash credits)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/Account/{{auth_id}}/"
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "account_type": "account_type",
+          "billing_mode": "billing_mode",
+          "cash_credits": "cash_credits",
+          "auto_recharge": "auto_recharge",
+          "state": "state",
+          "timezone": "timezone",
+          "api_id": "api_id"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_messages",
+      "description": "List recent Plivo SMS/MMS messages, optionally filtered by direction or state. Message text is not returned",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max messages to return (default 20, max 20 — the Plivo page cap)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of messages to skip, for paging (default 0)"
+          },
+          "message_direction": {
+            "type": "string",
+            "enum": [
+              "inbound",
+              "outbound"
+            ],
+            "description": "Optional message direction to filter by"
+          },
+          "message_state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "sent",
+              "failed",
+              "delivered",
+              "undelivered",
+              "received",
+              "rejected"
+            ],
+            "description": "Optional message state to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/Account/{{auth_id}}/Message/",
+        "query": {
+          "limit": "{{clamp input.limit 20 20}}",
+          "offset": "{{clamp input.offset 0 10000}}",
+          "message_direction": "{{input.message_direction}}",
+          "message_state": "{{input.message_state}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "objects[]": {
+            "message_uuid": "message_uuid",
+            "from_number": "from_number",
+            "to_number": "to_number",
+            "message_direction": "message_direction",
+            "message_state": "message_state",
+            "message_type": "message_type",
+            "message_time": "message_time",
+            "units": "units",
+            "total_amount": "total_amount",
+            "error_code": "error_code"
+          },
+          "total_count": "meta.total_count",
+          "limit": "meta.limit",
+          "offset": "meta.offset"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_numbers",
+      "description": "List the phone numbers rented on this Plivo account, optionally filtered by type or prefix",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max phone numbers to return (default 20, max 20 — the Plivo page cap)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of phone numbers to skip, for paging (default 0)"
+          },
+          "number_type": {
+            "type": "string",
+            "enum": [
+              "local",
+              "tollfree",
+              "mobile",
+              "national"
+            ],
+            "description": "Optional phone number type to filter by"
+          },
+          "number_startswith": {
+            "type": "string",
+            "description": "Optional digit prefix to filter by, country code first (e.g. 44770)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/Account/{{auth_id}}/Number/",
+        "query": {
+          "limit": "{{clamp input.limit 20 20}}",
+          "offset": "{{clamp input.offset 0 10000}}",
+          "number_type": "{{input.number_type}}",
+          "number_startswith": "{{input.number_startswith}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "objects[]": {
+            "number": "number",
+            "number_type": "number_type",
+            "region": "region",
+            "sms_enabled": "sms_enabled",
+            "voice_enabled": "voice_enabled",
+            "application": "application",
+            "sub_account": "sub_account",
+            "added_on": "added_on",
+            "monthly_rental_rate": "monthly_rental_rate"
+          },
+          "total_count": "meta.total_count",
+          "limit": "meta.limit",
+          "offset": "meta.offset"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

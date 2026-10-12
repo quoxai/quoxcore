@@ -1,0 +1,160 @@
+{
+  "spec_version": 1,
+  "id": "mercury",
+  "name": "Mercury",
+  "category": "uncategorized",
+  "credentialType": "mercury",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://docs.mercury.com/reference/",
+  "base_url": "https://api.mercury.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/accounts"
+  },
+  "tools_source": "https://docs.mercury.com/reference/",
+  "tools": [
+    {
+      "name": "list_accounts",
+      "description": "List the Mercury bank accounts on the org with balances (the account IDs every other Mercury call is scoped by). Account and routing numbers are deliberately not returned",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/accounts"
+      },
+      "response": {
+        "pick": {
+          "accounts[]": {
+            "id": "id",
+            "name": "name",
+            "nickname": "nickname",
+            "legalBusinessName": "legalBusinessName",
+            "kind": "kind",
+            "type": "type",
+            "status": "status",
+            "availableBalance": "availableBalance",
+            "currentBalance": "currentBalance",
+            "createdAt": "createdAt"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_account",
+      "description": "Get one Mercury account by ID (get the account_id from list_accounts). Account and routing numbers are deliberately not returned",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Mercury account ID (from list_accounts)"
+          }
+        },
+        "required": [
+          "account_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/account/{{input.account_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "nickname": "nickname",
+          "legalBusinessName": "legalBusinessName",
+          "kind": "kind",
+          "type": "type",
+          "status": "status",
+          "availableBalance": "availableBalance",
+          "currentBalance": "currentBalance",
+          "createdAt": "createdAt"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_transactions",
+      "description": "List transactions on one Mercury account (get the account_id from list_accounts)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Mercury account ID to read transactions for (from list_accounts)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max transactions to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional number of transactions to skip, for paging"
+          },
+          "start": {
+            "type": "string",
+            "description": "Optional ISO 8601 date; only transactions on or after this date are returned"
+          },
+          "end": {
+            "type": "string",
+            "description": "Optional ISO 8601 date; only transactions on or before this date are returned"
+          }
+        },
+        "required": [
+          "account_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/account/{{input.account_id}}/transactions",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}",
+          "start": "{{input.start}}",
+          "end": "{{input.end}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total": "total",
+          "transactions[]": {
+            "id": "id",
+            "amount": "amount",
+            "kind": "kind",
+            "status": "status",
+            "counterpartyId": "counterpartyId",
+            "counterpartyName": "counterpartyName",
+            "bankDescription": "bankDescription",
+            "externalMemo": "externalMemo",
+            "note": "note",
+            "createdAt": "createdAt",
+            "postedAt": "postedAt",
+            "estimatedDeliveryDate": "estimatedDeliveryDate",
+            "reasonForFailure": "reasonForFailure"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

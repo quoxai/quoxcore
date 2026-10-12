@@ -1,0 +1,495 @@
+/**
+ * x-shine.css, the X plugin surface's own polish layer. X-PLUGIN phase 13.
+ *
+ * WHY THIS FILE EXISTS (and why it is not in the global stylesheet):
+ * the house rule is to build dashboard UI from the global .qx-* classes, and
+ * everything structural here still does. What this file adds is the part that
+ * is deliberately NOT global:
+ *   1. The X-flavoured treatment the owner asked for (a black, bold SEND NOW
+ *      button carrying the X mark, X blue focus rings), which must not leak
+ *      into every other view that uses .qx-btn.
+ *   2. Solid, "buttony" foreground actions. The glass look stays on cards and
+ *      surfaces, but an action painted in glass on top of a glass card has no
+ *      contrast left to spend. Owner, walkthrough 2: "if everything is glass
+ *      and glass on glass it gets bland."
+ *   3. The scroll fix below, which is a behaviour fix, not decoration.
+ *
+ * Every class here is namespaced .xs-* and imported once by XView.jsx, so the
+ * blast radius is this plugin and nothing else.
+ *
+ * THE SCROLL BUG THIS FILE FIXES (owner item 1, Overview did not scroll):
+ * .qx-card sets overflow: hidden. Per the flexbox spec, a flex item whose
+ * overflow is not visible gets an automatic minimum size of 0 instead of its
+ * content size, so a tall panel inside a flex column scroll container SHRANK
+ * to the container height and clipped its own content. The wrapper had
+ * min-height: 0 and overflow-y: auto exactly as the house pattern says, and
+ * still nothing scrolled, because there was never any overflow to scroll: the
+ * card had already been squashed. .xs-scroll > * { flex-shrink: 0 } stops the
+ * squash, the content overflows honestly, and the wrapper scrolls.
+ */
+
+/* ═══ 1. SCROLL CONTAINER ═══════════════════════════════════════════════ */
+
+.xs-scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;          /* house flex-overflow pattern */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;     /* breathing room for the scrollbar gutter */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.22) transparent;
+}
+/* The fix: panels keep their natural height instead of being shrunk to fit
+   and clipped by .qx-card's own overflow: hidden. */
+.xs-scroll > * { flex-shrink: 0; }
+.xs-scroll::-webkit-scrollbar { width: 10px; }
+.xs-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.18);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.xs-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); background-clip: content-box; }
+
+/* ═══ 2. BUTTONS, the foreground layer ══════════════════════════════════ */
+/* Solid fills, real edges, states you can feel. These sit ON TOP of .qx-btn,
+   so structure (inline-flex, gap, icon sizing) still comes from the library. */
+
+.xs-btn {
+  background: #2a2f39;
+  border: 1px solid rgba(255,255,255,0.22);
+  color: #fff;
+  font-weight: 650;
+  letter-spacing: 0.005em;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 1px 2px rgba(0,0,0,0.4);
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.08s ease, box-shadow 0.14s ease;
+}
+.xs-btn:hover:not(:disabled) {
+  background: #363d4a;
+  border-color: rgba(255,255,255,0.38);
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 12px rgba(0,0,0,0.45);
+}
+.xs-btn:active:not(:disabled) {
+  background: #232830;
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+  transition-duration: 0.04s;
+}
+.xs-btn:focus-visible {
+  outline: 2px solid #1d9bf0;
+  outline-offset: 2px;
+}
+.xs-btn:disabled { opacity: 0.42; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* Accent action: X blue, for the affirmative non-publishing actions. */
+.xs-btn--accent {
+  background: #1d9bf0;
+  border-color: #1d9bf0;
+  color: #fff;
+}
+.xs-btn--accent:hover:not(:disabled) { background: #3aabff; border-color: #3aabff; }
+.xs-btn--accent:active:not(:disabled) { background: #1683cc; }
+
+/* THE HERO: send now. Black, bigger, bolder, carries the X mark. It is the
+   only control on this surface that reaches X, and it is the only one painted
+   like this, so it can never be confused with a draft or a schedule. */
+.xs-btn--send {
+  background: #000;
+  border: 1px solid rgba(255,255,255,0.4);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  padding: 13px 26px;
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 6px 18px rgba(0,0,0,0.5);
+}
+.xs-btn--send:hover:not(:disabled) {
+  background: #0e0e0e;
+  border-color: rgba(255,255,255,0.75);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.24), 0 10px 26px rgba(0,0,0,0.6), 0 0 0 1px rgba(29,155,240,0.35);
+}
+.xs-btn--send:active:not(:disabled) {
+  background: #000;
+  transform: translateY(1px);
+  box-shadow: inset 0 3px 8px rgba(0,0,0,0.8);
+}
+.xs-btn--send svg { width: 18px; height: 18px; }
+.xs-btn--send:disabled { border-color: rgba(255,255,255,0.18); }
+
+/* The two siblings of the hero: visibly secondary, still solid, still legible. */
+.xs-btn--sibling { font-size: 13px; padding: 10px 16px; border-radius: 999px; }
+
+/* ═══ 3. TYPE ═══════════════════════════════════════════════════════════ */
+/* Fewer tiny grey strings. .qx-hint--sm is 11-12px at ~55% white, which is the
+   right weight for a footnote and the wrong weight for something a human has
+   to read to make a decision. */
+
+.xs-caption {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: rgba(255,255,255,0.78);
+}
+.xs-caption--strong { color: rgba(255,255,255,0.92); font-weight: 600; }
+.xs-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.62);
+}
+.xs-panel-head { display: flex; align-items: center; gap: 10px; }
+.xs-panel-head h3 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+
+/* Consistent chip/badge treatment across the seven tabs. */
+.xs-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.16);
+  color: rgba(255,255,255,0.88);
+  white-space: nowrap;
+}
+.xs-badge--ok { background: rgba(34,197,94,0.16); border-color: rgba(34,197,94,0.45); color: #86efac; }
+.xs-badge--warn { background: rgba(245,158,11,0.16); border-color: rgba(245,158,11,0.45); color: #fcd34d; }
+.xs-badge--bad { background: rgba(239,68,68,0.16); border-color: rgba(239,68,68,0.45); color: #fca5a5; }
+.xs-badge--x { background: rgba(29,155,240,0.16); border-color: rgba(29,155,240,0.45); color: #7cc6fb; }
+
+/* ═══ 4. STATUS ICON (Account health) ═══════════════════════════════════ */
+
+.xs-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.045);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.xs-status__icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid currentColor;
+}
+.xs-status__icon svg { width: 22px; height: 22px; }
+.xs-status--ok .xs-status__icon { color: #4ade80; background: rgba(34,197,94,0.14); }
+.xs-status--warn .xs-status__icon { color: #fbbf24; background: rgba(245,158,11,0.14); }
+.xs-status--bad .xs-status__icon { color: #f87171; background: rgba(239,68,68,0.14); }
+.xs-status--ok { border-color: rgba(34,197,94,0.3); }
+.xs-status--warn { border-color: rgba(245,158,11,0.3); }
+.xs-status--bad { border-color: rgba(239,68,68,0.3); }
+.xs-status__body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.xs-status__headline { font-size: 15px; font-weight: 650; color: rgba(255,255,255,0.95); }
+/* The caption the owner called out as too small and too grey. */
+.xs-status__caption { font-size: 13.5px; line-height: 1.55; color: rgba(255,255,255,0.8); }
+
+/* ═══ 5. SPARKLINE AXIS ═════════════════════════════════════════════════ */
+/* The old chart was one SVG at preserveAspectRatio="none", so scaling a 280
+   unit viewBox up to the panel width stretched the GLYPHS of the date labels
+   with it. Bars can be stretched; type cannot. Bars stay SVG-free here: each
+   column is a grid cell, so a label is sized to its own text and centred under
+   its own bar, with no stretch-justify anywhere. */
+
+.xs-spark {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+.xs-spark__col { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; }
+.xs-spark__track {
+  width: 100%;
+  height: 76px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-bottom: 1px solid rgba(255,255,255,0.14);
+}
+.xs-spark__bar {
+  width: 100%;
+  max-width: 34px;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, #7cc6fb 0%, #1d9bf0 100%);
+  box-shadow: 0 0 14px rgba(29,155,240,0.25);
+  min-height: 3px;
+}
+.xs-spark__bar--empty { background: rgba(255,255,255,0.1); box-shadow: none; }
+.xs-spark__count {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.9);
+  font-variant-numeric: tabular-nums;
+}
+.xs-spark__label {
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.66);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* ═══ 6. SLIDERS (Budget caps) ══════════════════════════════════════════ */
+
+.xs-slider-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 170px) minmax(0, 1fr) 92px;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 0;
+}
+.xs-slider-row + .xs-slider-row { border-top: 1px solid rgba(255,255,255,0.07); }
+/* The ceiling note sits OUTSIDE the <label> on purpose: inside it, the
+   control's accessible name became "Daily postsallowed 1 to 100". */
+.xs-slider-row__labelcell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.xs-slider-row__label { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.9); }
+.xs-slider-row__ceiling { font-size: 11.5px; color: rgba(255,255,255,0.55); display: block; font-weight: 400; }
+
+input[type="range"].xs-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 26px;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"].xs-range:disabled { cursor: not-allowed; opacity: 0.5; }
+input[type="range"].xs-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    #1d9bf0 0%,
+    #1d9bf0 calc(var(--xs-fill, 0) * 100%),
+    rgba(255,255,255,0.14) calc(var(--xs-fill, 0) * 100%),
+    rgba(255,255,255,0.14) 100%
+  );
+}
+input[type="range"].xs-range::-moz-range-track { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.14); }
+input[type="range"].xs-range::-moz-range-progress { height: 6px; border-radius: 999px; background: #1d9bf0; }
+input[type="range"].xs-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #1d9bf0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+input[type="range"].xs-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #1d9bf0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+input[type="range"].xs-range:hover::-webkit-slider-thumb { transform: scale(1.12); }
+input[type="range"].xs-range:active::-webkit-slider-thumb { transform: scale(0.96); box-shadow: 0 0 0 6px rgba(29,155,240,0.18); }
+.xs-range:focus-visible { outline: none; }
+input[type="range"].xs-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(29,155,240,0.35); }
+input[type="range"].xs-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px rgba(29,155,240,0.35); }
+
+.xs-num {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  font-family: inherit;
+}
+.xs-num:focus { outline: 2px solid #1d9bf0; outline-offset: 1px; border-color: #1d9bf0; }
+.xs-num:disabled { opacity: 0.5; }
+
+/* ═══ 7. MEDIA LIBRARY (Compose) ════════════════════════════════════════ */
+
+.xs-media-panel {
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 14px;
+  background: rgba(0,0,0,0.28);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.xs-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
+}
+.xs-media-grid .xs-media-tile {
+  display: flex;
+  flex-direction: column;
+  /* height/align/justify are stated EXPLICITLY because the global
+     `button { height: var(--m-btn-height-md); align-items: center;
+     justify-content: center }` rule otherwise wins on every property this
+     file leaves unset: it pinned each tile to 36px and flattened its
+     thumbnail to 0px high. Confirmed from computed styles on the running
+     page, not guessed. */
+  height: auto;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0;
+  border-radius: 12px;
+  border: 1.5px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.04);
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  transition: border-color 0.14s ease, transform 0.1s ease, box-shadow 0.14s ease;
+}
+.xs-media-grid .xs-media-tile:hover:not(:disabled) {
+  border-color: rgba(255,255,255,0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+}
+.xs-media-grid .xs-media-tile:focus-visible { outline: 2px solid #1d9bf0; outline-offset: 2px; }
+.xs-media-grid .xs-media-tile:disabled { opacity: 0.4; cursor: not-allowed; }
+.xs-media-grid .xs-media-tile--selected { border-color: #1d9bf0; box-shadow: 0 0 0 1px #1d9bf0, 0 6px 18px rgba(29,155,240,0.2); }
+.xs-media-grid .xs-media-tile__thumb {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 110px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.xs-media-tile__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.xs-media-tile__check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #1d9bf0;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+.xs-media-tile__check svg { width: 14px; height: 14px; }
+.xs-media-tile__meta { padding: 8px 9px 9px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.xs-media-tile__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.92);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.xs-media-tile__date { font-size: 11px; color: rgba(255,255,255,0.55); font-variant-numeric: tabular-nums; }
+
+/* Attached-image strip: what is actually going out with this post. */
+.xs-attached {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.xs-attached__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 6px;
+  border-radius: 10px;
+  background: rgba(29,155,240,0.1);
+  border: 1px solid rgba(29,155,240,0.35);
+}
+.xs-attached__thumb {
+  width: 34px;
+  height: 34px;
+  border-radius: 7px;
+  object-fit: cover;
+  background: rgba(0,0,0,0.4);
+  flex-shrink: 0;
+}
+.xs-attached__name { font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,0.92); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xs-attached__remove {
+  display: inline-flex;
+  /* Same trap as the tiles: the global button rule pins height and padding. */
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(0,0,0,0.4);
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  padding: 0;
+}
+.xs-attached__remove:hover { background: rgba(239,68,68,0.3); border-color: rgba(239,68,68,0.6); color: #fff; }
+.xs-attached__remove svg { width: 12px; height: 12px; }
+
+/* ═══ 8. COMPOSE ════════════════════════════════════════════════════════ */
+
+.xs-actionbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+.xs-compose-text {
+  font-size: 16px;
+  line-height: 1.55;
+  min-height: 120px;
+}
+
+/* ═══ 9. ABOUT TAB ══════════════════════════════════════════════════════ */
+/* Owner: larger base text, generous padding. This tab is read, not scanned. */
+
+.xs-about { padding: 30px 34px; }
+.xs-about p,
+.xs-about li { font-size: 15px; line-height: 1.68; color: rgba(255,255,255,0.84); }
+.xs-about ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+.xs-about h3 { font-size: 22px; letter-spacing: -0.015em; }
+.xs-about .xs-title { font-size: 12.5px; }
+.xs-about table { font-size: 14px; }
+.xs-about section,
+.xs-about .xs-about__block { display: flex; flex-direction: column; gap: 10px; }
+.xs-about__block + .xs-about__block { margin-top: 8px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.08); }
+.xs-about code { font-size: 13px; }
+
+@media (max-width: 900px) {
+  .xs-about { padding: 20px 18px; }
+  .xs-slider-row { grid-template-columns: 1fr; gap: 8px; }
+  .xs-slider-row > .xs-num { width: 96px; }
+}

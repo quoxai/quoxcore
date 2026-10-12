@@ -1,0 +1,150 @@
+/* TerminalPane — Per-pane wrapper for multi-pane workspace */
+
+.terminal-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: #0a0e14;
+}
+
+.terminal-pane--focused {
+  outline: 1px solid rgba(34, 197, 94, 0.3);
+  outline-offset: -1px;
+}
+
+/* Compact pane header */
+.terminal-pane__header {
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  height: 30px;
+  min-height: 30px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 4px;
+}
+
+/* Compact select styling */
+.terminal-pane__select {
+  padding: 2px 6px;
+  border: 1px solid rgba(34, 197, 94, 0.15);
+  border-radius: 3px;
+  background: rgba(34, 197, 94, 0.04);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.terminal-pane__select:hover {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.terminal-pane__select:focus {
+  border-color: rgba(34, 197, 94, 0.5);
+}
+
+.terminal-pane__select option {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.terminal-pane__select optgroup {
+  background: rgba(255, 255, 255, 0.04);
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.terminal-pane__select--host {
+  min-width: 140px;
+  max-width: 200px;
+}
+
+.terminal-pane__spacer {
+  flex: 1;
+}
+
+/* Close button */
+.terminal-pane__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.terminal-pane__close:hover {
+  background: rgba(234, 108, 115, 0.15);
+  color: #ea6c73;
+}
+
+/* Pane body fills remaining space */
+.terminal-pane__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.terminal-pane__body .terminal-embed {
+  height: 100%;
+  border: none;
+  border-radius: 0;
+}
+
+/* Hide TerminalEmbed's own header — pane has its own */
+.terminal-pane__body .terminal-embed__header {
+  display: none;
+}
+
+/* Placeholder when no host selected */
+.terminal-pane__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.terminal-pane__placeholder p {
+  margin: 0;
+}
+
+/* Vim mode indicator badge */
+.terminal-pane__vim-badge {
+  display: flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  user-select: none;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.terminal-pane__vim-badge--normal {
+  background: rgba(251, 146, 60, 0.15);
+  color: #fb923c;
+  border: 1px solid rgba(251, 146, 60, 0.3);
+}
+
+.terminal-pane__vim-badge--insert {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}

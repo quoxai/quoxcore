@@ -1,0 +1,217 @@
+{
+  "spec_version": 1,
+  "id": "gusto",
+  "name": "Gusto",
+  "category": "hr",
+  "credentialType": "gusto",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://docs.gusto.com/app-integrations/reference",
+  "base_url": "https://api.gusto.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/token_info"
+  },
+  "tools_source": "https://docs.gusto.com/app-integrations/reference",
+  "tools": [
+    {
+      "name": "get_token_info",
+      "description": "Get the scope and resource the current Gusto access token belongs to (company or application, and the admin who authorized it)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/token_info"
+      },
+      "response": {
+        "pick": {
+          "scope": "scope",
+          "resource_type": "resource.type",
+          "resource_uuid": "resource.uuid",
+          "resource_owner_type": "resource_owner.type",
+          "resource_owner_uuid": "resource_owner.uuid"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_company",
+      "description": "Get one Gusto company by UUID (name, trade name, status, entity type, pay schedule type)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "string",
+            "description": "Gusto company UUID (e.g. 6bf7807c-a5a0-4f4d-b2e7-3fbb4b2299fb)"
+          }
+        },
+        "required": [
+          "company_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/companies/{{input.company_id}}"
+      },
+      "response": {
+        "pick": {
+          "uuid": "uuid",
+          "name": "name",
+          "trade_name": "trade_name",
+          "slug": "slug",
+          "company_status": "company_status",
+          "entity_type": "entity_type",
+          "tier": "tier",
+          "contractor_only": "contractor_only",
+          "is_suspended": "is_suspended",
+          "is_partner_managed": "is_partner_managed",
+          "pay_schedule_type": "pay_schedule_type",
+          "funding_type": "funding_type",
+          "join_date": "join_date"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_employees",
+      "description": "List the employees of a Gusto company (name, work email, job title, department, onboarding and termination state)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "string",
+            "description": "Gusto company UUID (e.g. 6bf7807c-a5a0-4f4d-b2e7-3fbb4b2299fb)"
+          },
+          "search_term": {
+            "type": "string",
+            "description": "Optional name or email fragment to search employees by"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to fetch (default 1, max 100)"
+          },
+          "per": {
+            "type": "number",
+            "description": "Employees per page (Gusto defaults to 25, capped here at 100)"
+          }
+        },
+        "required": [
+          "company_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/companies/{{input.company_id}}/employees",
+        "query": {
+          "search_term": "{{input.search_term}}",
+          "page": "{{clamp input.page 1 100}}",
+          "per": "{{clamp input.per 25 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "uuid": "uuid",
+            "first_name": "first_name",
+            "last_name": "last_name",
+            "preferred_first_name": "preferred_first_name",
+            "email": "email",
+            "work_email": "work_email",
+            "title": "title",
+            "department": "department",
+            "manager_uuid": "manager_uuid",
+            "company_uuid": "company_uuid",
+            "onboarded": "onboarded",
+            "terminated": "terminated",
+            "hired_at": "hired_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_company_locations",
+      "description": "List the locations (mailing, filing and work addresses) of a Gusto company",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "string",
+            "description": "Gusto company UUID (e.g. 6bf7807c-a5a0-4f4d-b2e7-3fbb4b2299fb)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to fetch (default 1, max 100)"
+          },
+          "per": {
+            "type": "number",
+            "description": "Locations per page (Gusto defaults to 25, capped here at 100)"
+          }
+        },
+        "required": [
+          "company_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/companies/{{input.company_id}}/locations",
+        "query": {
+          "page": "{{clamp input.page 1 100}}",
+          "per": "{{clamp input.per 25 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "uuid": "uuid",
+            "street_1": "street_1",
+            "street_2": "street_2",
+            "city": "city",
+            "state": "state",
+            "zip": "zip",
+            "country": "country",
+            "phone_number": "phone_number",
+            "mailing_address": "mailing_address",
+            "filing_address": "filing_address",
+            "active": "active"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "BLOCKED for promotion: Gusto's App Integrations API has NO long-lived static API key for company data. https://docs.gusto.com/app-integrations/docs/authentication documents exactly two token types: organization-level API tokens (api_token) issued in the Developer Portal, which only reach system-level endpoints (provisioning, partner-managed companies, disconnect), and company-level OAuth2 tokens (access_token + refresh_token) for every endpoint modelled here. The documented access_token lifetime is 7200 seconds (2 hours), after which it must be refreshed with the refresh token plus the application's client id and secret. Connector Spec v1 cannot hold that lifecycle against this vault type, so this spec must not be registered yet.",
+      "why spec v1 cannot express it: the only refresh-capable auth type is oauth2_refresh, which demands clientIdField, clientSecretField AND refreshTokenField, and declarativeRuntime hardcodes grant_type='refresh_token'. Gusto's exchange fits that grant, but the fields do not exist here to bind it to.",
+      "why the vault entry cannot express it either: integrationTypes.js 'gusto' collects ONE field, access_token ('Your Gusto access token'). An OAuth2 connector needs client_id, client_secret and refresh_token as well. The integration registry is out of scope for this change.",
+      "auth left as scaffolded (bearer on access_token) because the WIRE format is right: every App Integrations call authenticates with 'Authorization: Bearer <access_token>' (securityScheme CompanyAccessAuth, type http, scheme bearer in Gusto's own OpenAPI), which is exactly what the runtime sends. What is wrong is the LIFECYCLE: a token pasted into access_token goes 401 after 2 hours with no way to renew. That is why this ships as a proven draft, not a registered connector.",
+      "unblocking needs two changes, both outside this file: (1) client_id / client_secret / refresh_token fields on the gusto vault type, and (2) nothing else, since oauth2_refresh already covers the grant. Gusto's token endpoint is POST /oauth/token (reference page 'Create a System Access Token or Refresh an Access Token', whose OpenAPI lists the demo server https://api.gusto-demo.com; production is the same path on api.gusto.com).",
+      "test path changed from the scaffolded /v1/me to /v1/token_info on DOCUMENTARY evidence, not on a live differential: /v1/me is absent from the docs index (https://docs.gusto.com/app-integrations/llms.txt) and the reference URL .../reference/get-v1-me 301-redirects to .../reference/get-v1-token-info, whose OpenAPI declares GET /v1/token_info. Honest caveat: probed blind with a dummy bearer, api.gusto.com answers 401 at BOTH /v1/me and /v1/token_info, so this run did not prove the old path dead, only that the documented one is live and gated.",
+      "base_url is the PRODUCTION host api.gusto.com. Gusto documents that all development and all testing, before and after launch, must run against api.gusto-demo.com, and that it cannot issue production test accounts. A customer credential from the demo environment will 401 against this spec.",
+      "READ-ONLY by design: no tool is marked write:true. The v1 API has create/update/delete endpoints for employees, payrolls, time sheets, benefits and departments; none is modelled.",
+      "PII deliberately not picked: the Employee schema carries ssn, hidden_ssn, has_ssn, date_of_birth, phone and home addresses. None is in any pick, so no payroll identity data reaches an LLM context through this connector. Adding them later is a privacy decision, not a completeness fix.",
+      "paths and every picked field name are taken verbatim from the official OpenAPI blocks on the reference pages (get-v1-token-info, get-v1-companies, get-v1-companies-company_id-employees, get-v1-companies-company_id-locations), NOT from a live 2xx: the shape-proof stops at 401, so no body was ever data. A wrong pick source yields empty output silently, so the first run with a real token must confirm them.",
+      "GET /v1/companies/{company_id}/employees and .../locations both answer a TOP-LEVEL JSON array, so both use the root-array pick ('[]'). Pagination is page/per with page-count metadata in X-Page / X-Total-Count / X-Total-Pages response headers, which the declarative runtime does not surface: a caller cannot see how many pages remain.",
+      "per is clamped 25/100: 25 is Gusto's documented default page size, and 100 is the documented maximum for the payroll endpoints. The pagination page publishes NO global per-page ceiling, so 100 is a courtesy and spend guard chosen here, not a quoted Gusto limit. page is clamped 1/100 for the same reason.",
+      "X-Gusto-API-Version is deliberately NOT pinned in static_headers: Gusto defaults an omitted version to the application's own minimum API version, and pinning the docs version (2026-06-15) for an app approved on an older one would change response shapes under the picks above.",
+      "employees exposes search_term but not sort_by: Gusto documents that the two cannot be combined, and a spec cannot express that exclusion, so the safer parameter is the one exposed.",
+      "rateLimit 30/min is a local courtesy and spend guard chosen here; Gusto's own rate-limits page publishes per-endpoint limits rather than one number.",
+      "shape-proof 2026-09-12 is overall SHAPE_PROVEN, runner line verbatim: 'gusto  SHAPE_PROVEN  proven=5 authwall=0 ambiguous=0 failed=0 inconclusive=0 skipped=0'. All five real paths (/v1/token_info twice, as test and as tool, plus the three company paths) answer 401 with a WWW-Authenticate header and an EMPTY body, while the bogus control path answers 404 with Gusto's HTML marketing '404 Error - Page Not Found' page, so host, TLS, base_url, the bearer header and every route are proven distinct from the control. Caveat on the body: these 401s carry no JSON envelope at all, so the classification rests on the WWW-Authenticate header plus the control differential, not on an error shape. What the proof does NOT cover: the OAuth2 token acquisition and refresh above, which no blind run can exercise, and no response body was ever data."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

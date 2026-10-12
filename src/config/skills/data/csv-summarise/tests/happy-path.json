@@ -1,0 +1,14 @@
+{
+  "name": "happy-path",
+  "input": {
+    "file_path": "/tmp/memories_export.csv",
+    "delimiter": ",",
+    "has_header": true,
+    "sample_rows": 50000,
+    "top_n": 5
+  },
+  "expects": {
+    "contains": ["file_path", "rows_sampled", "total_columns", "columns", "pk_candidates"],
+    "not_contains": ["error"]
+  }
+}

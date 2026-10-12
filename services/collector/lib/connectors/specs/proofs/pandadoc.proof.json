@@ -1,0 +1,155 @@
+{
+  "spec_id": "pandadoc",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:32:40.298Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.pandadoc.com/quox-shapeproof-control-e3aa0c88",
+      "status": 404,
+      "latency_ms": 1971,
+      "classification": "CONTROL",
+      "body_sha256": "d000a7a304b0b776ace33c0fe586bf2eb4da24f65b0b6cfe3dd3876644469ee8",
+      "body_excerpt": "\n<!doctype html>\n<html lang=\"en\">\n<head>\n  <title>Not Found</title>\n</head>\n<body>\n  <h1>Not Found</h1><p>The requested resource was not found on this server.</p>\n<script type=\"text/javascript\" src=\"/",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.pandadoc.com/public/v1/members/current",
+      "status": 401,
+      "latency_ms": 361,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d4008a9f56d1f0739b561ebb30f58be942195ed91f51ba41e3e6178a6bf0ac51",
+      "body_excerpt": "{\"type\":\"authentication_error\",\"detail\":\"Invalid key.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_current_member",
+      "method": "GET",
+      "url": "https://api.pandadoc.com/public/v1/members/current",
+      "status": 401,
+      "latency_ms": 361,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d4008a9f56d1f0739b561ebb30f58be942195ed91f51ba41e3e6178a6bf0ac51",
+      "body_excerpt": "{\"type\":\"authentication_error\",\"detail\":\"Invalid key.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_members",
+      "method": "GET",
+      "url": "https://api.pandadoc.com/public/v1/members",
+      "status": 401,
+      "latency_ms": 356,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d4008a9f56d1f0739b561ebb30f58be942195ed91f51ba41e3e6178a6bf0ac51",
+      "body_excerpt": "{\"type\":\"authentication_error\",\"detail\":\"Invalid key.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_documents",
+      "method": "GET",
+      "url": "https://api.pandadoc.com/public/v1/documents?count=20&page=1&q=quoxprobe&status=quoxprobe&template_id=quoxprobe&folder_uuid=quoxprobe&order_by=quoxprobe",
+      "status": 401,
+      "latency_ms": 355,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d4008a9f56d1f0739b561ebb30f58be942195ed91f51ba41e3e6178a6bf0ac51",
+      "body_excerpt": "{\"type\":\"authentication_error\",\"detail\":\"Invalid key.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_document_status",
+      "method": "GET",
+      "url": "https://api.pandadoc.com/public/v1/documents/quoxprobe",
+      "status": 401,
+      "latency_ms": 444,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d4008a9f56d1f0739b561ebb30f58be942195ed91f51ba41e3e6178a6bf0ac51",
+      "body_excerpt": "{\"type\":\"authentication_error\",\"detail\":\"Invalid key.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_document_details",
+      "method": "GET",
+      "url": "https://api.pandadoc.com/public/v1/documents/quoxprobe/details",
+      "status": 401,
+      "latency_ms": 302,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d4008a9f56d1f0739b561ebb30f58be942195ed91f51ba41e3e6178a6bf0ac51",
+      "body_excerpt": "{\"type\":\"authentication_error\",\"detail\":\"Invalid key.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_templates",
+      "method": "GET",
+      "url": "https://api.pandadoc.com/public/v1/templates?count=20&page=1&q=quoxprobe&tag=quoxprobe&folder_uuid=quoxprobe",
+      "status": 401,
+      "latency_ms": 365,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d4008a9f56d1f0739b561ebb30f58be942195ed91f51ba41e3e6178a6bf0ac51",
+      "body_excerpt": "{\"type\":\"authentication_error\",\"detail\":\"Invalid key.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_template_details",
+      "method": "GET",
+      "url": "https://api.pandadoc.com/public/v1/templates/quoxprobe/details",
+      "status": 401,
+      "latency_ms": 429,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d4008a9f56d1f0739b561ebb30f58be942195ed91f51ba41e3e6178a6bf0ac51",
+      "body_excerpt": "{\"type\":\"authentication_error\",\"detail\":\"Invalid key.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_document_folders",
+      "method": "GET",
+      "url": "https://api.pandadoc.com/public/v1/documents/folders?parent_uuid=quoxprobe&count=20&page=1",
+      "status": 401,
+      "latency_ms": 322,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d4008a9f56d1f0739b561ebb30f58be942195ed91f51ba41e3e6178a6bf0ac51",
+      "body_excerpt": "{\"type\":\"authentication_error\",\"detail\":\"Invalid key.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_template_folders",
+      "method": "GET",
+      "url": "https://api.pandadoc.com/public/v1/templates/folders?parent_uuid=quoxprobe&count=20&page=1",
+      "status": 401,
+      "latency_ms": 336,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d4008a9f56d1f0739b561ebb30f58be942195ed91f51ba41e3e6178a6bf0ac51",
+      "body_excerpt": "{\"type\":\"authentication_error\",\"detail\":\"Invalid key.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

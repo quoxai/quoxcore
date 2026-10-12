@@ -1,0 +1,23 @@
+{
+  "id": "quoxbuild",
+  "name": "QuoxBuild",
+  "displayName": "QuoxBuild",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "standard",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "developer-tools",
+  "accentColor": "#f59e0b",
+  "description": "A governed build queue for your dev servers. A dispatch names a target the host already registered, never a command, builds serialise and coalesce, and a receipt only reads green once a post-deploy probe confirms the service actually came up.",
+  "permissions": [
+    "storage",
+    "network"
+  ],
+  "routes": {},
+  "capabilityPanels": [
+    "dev.build"
+  ],
+  "minQuoxVersion": "1.0.0"
+}

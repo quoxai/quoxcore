@@ -1,0 +1,181 @@
+{
+  "spec_version": 1,
+  "id": "fal",
+  "name": "fal.ai",
+  "category": "data_ai",
+  "credentialType": "fal",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Read-only fal.ai queue connector: poll the status and fetch the result of an async generation job (image, video, audio and 1000+ other models, all run through the same submit-then-poll queue). Submitting a job is a billable generation, so it is modelled write:true and HITL-gated and never fired in proof; the poll tools here are the zero-cost authed reads that satisfy the gate and that a Phase-B plugin would use to watch a submitted job finish.",
+  "docs": "https://docs.fal.ai/model-apis/queue",
+  "base_url": "https://queue.fal.run",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "Key {{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/{{input.owner}}/{{input.model_name}}/requests/{{input.request_id}}/status",
+    "_probe": {
+      "input.owner": "fal-ai",
+      "input.model_name": "fast-sdxl",
+      "input.request_id": "quoxshapeproofdummy"
+    }
+  },
+  "tools_source": "https://docs.fal.ai/model-apis/queue",
+  "tools": [
+    {
+      "name": "get_status",
+      "description": "Poll a submitted fal.ai job for its current queue status: queued, in progress, completed or failed, plus its queue position and the result URL once done. This is the ASYNC POLL half of the submit-then-poll pattern: submit_generation (write:true) starts a job and returns a request_id, this tool is the zero-spend authed read that checks on it. Also the spec's auth-proving test call",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Model namespace owner, e.g. fal-ai"
+          },
+          "model_name": {
+            "type": "string",
+            "description": "Model name within that owner's namespace, e.g. fast-sdxl"
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Job request id returned by submit_generation"
+          }
+        },
+        "required": [
+          "owner",
+          "model_name",
+          "request_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/{{input.owner}}/{{input.model_name}}/requests/{{input.request_id}}/status"
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "queue_position": "queue_position",
+          "response_url": "response_url",
+          "status_url": "status_url",
+          "logs": "logs"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.owner": "fal-ai",
+        "input.model_name": "fast-sdxl",
+        "input.request_id": "quoxshapeproofdummy"
+      }
+    },
+    {
+      "name": "get_result",
+      "description": "Fetch the finished output of a completed fal.ai job: the generated images, video, audio or model-specific output. Reads an existing job only; it never starts a generation",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Model namespace owner, e.g. fal-ai"
+          },
+          "model_name": {
+            "type": "string",
+            "description": "Model name within that owner's namespace, e.g. fast-sdxl"
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Job request id returned by submit_generation"
+          }
+        },
+        "required": [
+          "owner",
+          "model_name",
+          "request_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/{{input.owner}}/{{input.model_name}}/requests/{{input.request_id}}"
+      },
+      "response": {
+        "pick": {
+          "images": "images",
+          "video": "video",
+          "audio": "audio",
+          "output": "output",
+          "seed": "seed",
+          "timings": "timings"
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {
+        "input.owner": "fal-ai",
+        "input.model_name": "fast-sdxl",
+        "input.request_id": "quoxshapeproofdummy"
+      }
+    },
+    {
+      "name": "submit_generation",
+      "description": "Submit a new generation job to a fal.ai model's async queue (image, video, audio, etc). This is the ASYNC SUBMIT half of the submit-then-poll pattern: it is a billable generation, so it is HITL-gated and never fired by the shape-proof harness. Poll the returned request_id with get_status once approved and started, then read the finished output with get_result",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Model namespace owner, e.g. fal-ai"
+          },
+          "model_name": {
+            "type": "string",
+            "description": "Model name within that owner's namespace, e.g. fast-sdxl"
+          },
+          "input": {
+            "type": "object",
+            "description": "Model-specific input fields (prompt, image_size, etc), varies per model, see the model's own schema on fal.ai"
+          }
+        },
+        "required": [
+          "owner",
+          "model_name",
+          "input"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/{{input.owner}}/{{input.model_name}}",
+        "body": {
+          "input": "{{input.input}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "request_id": "request_id",
+          "status": "status",
+          "response_url": "response_url",
+          "status_url": "status_url"
+        },
+        "truncate": 1500
+      },
+      "write": true
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-16, viral-AI-tools tranche async connector (project_viral_ai_build_plan_2026_09_16)",
+    "confidence": "medium",
+    "needs_review": [
+      "NO LIVE CREDENTIAL AT AUTHORING TIME, AND fal.ai HAS NO ZERO-SPEND LIVE READ EITHER: unlike Replicate, fal's poll endpoints need a real request_id, which needs a real (paid) submit first. This connector is expected to ship SHAPE_PROVEN or AUTH_WALL and stay that way until a Phase-B plugin can submit one cheap job (~$0.03) and poll it; do not claim LIVE_PROVEN for fal without a real submitted job, per the build plan.",
+      "MODEL ID SPLIT INTO owner + model_name (DEVIATION from the plan's single {{input.model_id}} placeholder): the shape-proof harness and the production declarative runtime both URL-encode every {{input.X}} path token (encodeURIComponent), which would turn a single 'fal-ai/fast-sdxl' value into 'fal-ai%2Ffast-sdxl' and break the real two-segment route. Split into separate owner/model_name inputs instead, mirroring replicate.connector.json's get_model(owner, name) shape, which has the same owner/name path structure and hit the same constraint. This covers the common 2-segment model id (the overwhelming majority of the catalogue, e.g. fal-ai/fast-sdxl); a handful of fal models publish deeper 3-segment ids (e.g. fal-ai/flux/dev) that this split cannot address without a third input field — flagged here rather than silently mishandled.",
+      "SUBMIT BODY IS WRAPPED, NOT A RAW PASSTHROUGH (a known Connector Spec v1 limitation): fal's real POST /{owner}/{model} expects the model's input parameters AT THE TOP LEVEL of the body with no wrapper key, but this factory's spec format has no primitive for 'the body IS this caller-supplied object' (request.body must be a JSON object of templated leaf values, per specSchema.js; there is no key-spread mechanism). submit_generation therefore sends {\"input\": {...}}, mirroring replicate's create_prediction shape rather than fal's actual wire contract. This is acceptable ONLY because submit_generation is write:true, HITL-gated, and never fired by shape-proof or by live-proof without --include-writes: nobody has exercised this body shape against the real API. A Phase-B plugin implementing real submission MUST send the model input object unwrapped at the top level, not what this declarative body literally produces; flagging so this is not silently trusted as tested.",
+      "AUTH HEADER: 'Authorization: Key <api_key>' (not Bearer) is the #1 fal integration mistake per the dossier; verified against docs.fal.ai 2026-09-16.",
+      "New vault credentialType 'fal' registered in integrationTypeRegistry.js (format-only test depth: testEndpoint is null because there is no cheap account/model-list GET, validateCredentials checks key length only)."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,9 @@
+/**
+ * Inbox Component Styles
+ */
+
+/* CoreComms Banner — glass styling from .qx-banner in qx-components.css */
+.corecomms-banner {
+  cursor: pointer;
+  margin-bottom: 1.5rem;
+}

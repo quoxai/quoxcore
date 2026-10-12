@@ -1,0 +1,90 @@
+{
+  "spec_id": "turso",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:21:14.507Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.turso.tech/quox-shapeproof-control-4170f478",
+      "status": 404,
+      "latency_ms": 6606,
+      "classification": "CONTROL",
+      "body_sha256": "7a25c3ee57bb41563af5f7f93429fc54f1fad56f7d63507249ed7e218f07b514",
+      "body_excerpt": "{\"code\":\"route_not_found\",\"error\":\"no such route\",\"hint\":\"see https://docs.turso.tech/api-reference or https://turso.tech/openapi.json for available endpoints\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.turso.tech/v1/organizations",
+      "status": 401,
+      "latency_ms": 363,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "735504f3cbfcecd66aa4e2cf29036d94a08efe664628dca1a3715f458c536e2e",
+      "body_excerpt": "{\"error\":\"token contains an invalid number of segments\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_organizations",
+      "method": "GET",
+      "url": "https://api.turso.tech/v1/organizations",
+      "status": 401,
+      "latency_ms": 296,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "735504f3cbfcecd66aa4e2cf29036d94a08efe664628dca1a3715f458c536e2e",
+      "body_excerpt": "{\"error\":\"token contains an invalid number of segments\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_databases",
+      "method": "GET",
+      "url": "https://api.turso.tech/v1/organizations/quoxprobe/databases?group=quoxprobe",
+      "status": 401,
+      "latency_ms": 460,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "735504f3cbfcecd66aa4e2cf29036d94a08efe664628dca1a3715f458c536e2e",
+      "body_excerpt": "{\"error\":\"token contains an invalid number of segments\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_database",
+      "method": "GET",
+      "url": "https://api.turso.tech/v1/organizations/quoxprobe/databases/quoxprobe",
+      "status": 401,
+      "latency_ms": 231,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "735504f3cbfcecd66aa4e2cf29036d94a08efe664628dca1a3715f458c536e2e",
+      "body_excerpt": "{\"error\":\"token contains an invalid number of segments\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_groups",
+      "method": "GET",
+      "url": "https://api.turso.tech/v1/organizations/quoxprobe/groups",
+      "status": 401,
+      "latency_ms": 410,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "735504f3cbfcecd66aa4e2cf29036d94a08efe664628dca1a3715f458c536e2e",
+      "body_excerpt": "{\"error\":\"token contains an invalid number of segments\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

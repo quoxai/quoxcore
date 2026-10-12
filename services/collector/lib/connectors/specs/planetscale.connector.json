@@ -1,0 +1,294 @@
+{
+  "spec_version": 1,
+  "id": "planetscale",
+  "name": "PlanetScale",
+  "category": "data_ai",
+  "credentialType": "planetscale",
+  "requiredFields": [
+    "service_token_id",
+    "service_token",
+    "organization"
+  ],
+  "docs": "https://api-docs.planetscale.com/",
+  "base_url": "https://api.planetscale.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "{{service_token_id}}:{{service_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/organizations"
+  },
+  "tools_source": "https://api.planetscale.com/v1/openapi-spec",
+  "tools": [
+    {
+      "name": "list_organizations",
+      "description": "List the PlanetScale organizations the service token can see (name, plan, how many databases), which supplies the organization slug every other tool takes",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "description": "Page offset of returned results (default 1)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 25, capped at 100 by this connector)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/organizations",
+        "query": {
+          "page": "{{clamp input.page 1 1000}}",
+          "per_page": "{{clamp input.per_page 25 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "plan": "plan",
+            "database_count": "database_count",
+            "single_tenancy": "single_tenancy",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "current_page": "current_page",
+          "per_page": "per_page",
+          "next_page": "next_page"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_databases",
+      "description": "List the databases in one PlanetScale organization (name, state, region, default branch, plan, branch counts), optionally narrowed by a name search",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org": {
+            "type": "string",
+            "description": "Organization name slug from list_organizations (e.g. acme)"
+          },
+          "q": {
+            "type": "string",
+            "description": "Optional search term to filter databases by name"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page offset of returned results (default 1)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 25, capped at 100 by this connector)"
+          }
+        },
+        "required": [
+          "org"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/organizations/{{input.org}}/databases",
+        "query": {
+          "q": "{{input.q}}",
+          "page": "{{clamp input.page 1 1000}}",
+          "per_page": "{{clamp input.per_page 25 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "state": "state",
+            "kind": "kind",
+            "plan": "plan",
+            "ready": "ready",
+            "sharded": "sharded",
+            "default_branch": "default_branch",
+            "branches_count": "branches_count",
+            "production_branches_count": "production_branches_count",
+            "development_branches_count": "development_branches_count",
+            "region": "region.slug",
+            "html_url": "html_url",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "current_page": "current_page",
+          "per_page": "per_page",
+          "next_page": "next_page",
+          "total_count": "total_count",
+          "total_pages": "total_pages"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_database",
+      "description": "Get one PlanetScale database by organization and database slug (state, region, default branch, sharding, deploy and deletion protection settings)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org": {
+            "type": "string",
+            "description": "Organization name slug from list_organizations (e.g. acme)"
+          },
+          "database": {
+            "type": "string",
+            "description": "Database name slug from list_databases (e.g. app-db)"
+          }
+        },
+        "required": [
+          "org",
+          "database"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/organizations/{{input.org}}/databases/{{input.database}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "state": "state",
+          "kind": "kind",
+          "plan": "plan",
+          "ready": "ready",
+          "sharded": "sharded",
+          "default_branch": "default_branch",
+          "default_branch_shard_count": "default_branch_shard_count",
+          "default_branch_table_count": "default_branch_table_count",
+          "branches_count": "branches_count",
+          "production_branches_count": "production_branches_count",
+          "development_branches_count": "development_branches_count",
+          "require_approval_for_deploy": "require_approval_for_deploy",
+          "deletion_protected": "deletion_protected",
+          "insights_enabled": "insights_enabled",
+          "region": "region.slug",
+          "html_url": "html_url",
+          "created_at": "created_at",
+          "updated_at": "updated_at",
+          "schema_last_updated_at": "schema_last_updated_at"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_branches",
+      "description": "List the branches of one PlanetScale database (name, state, production flag, safe migrations, parent branch, region), optionally filtered by production status or ordered by creation time",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org": {
+            "type": "string",
+            "description": "Organization name slug from list_organizations (e.g. acme)"
+          },
+          "database": {
+            "type": "string",
+            "description": "Database name slug from list_databases (e.g. app-db)"
+          },
+          "q": {
+            "type": "string",
+            "description": "Optional search term to filter branches by name"
+          },
+          "production": {
+            "type": "boolean",
+            "description": "Optional filter on production status"
+          },
+          "order": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "description": "Optional ordering of branches by created_at time"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page offset of returned results (default 1)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 25, capped at 100 by this connector)"
+          }
+        },
+        "required": [
+          "org",
+          "database"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/organizations/{{input.org}}/databases/{{input.database}}/branches",
+        "query": {
+          "q": "{{input.q}}",
+          "production": "{{input.production}}",
+          "order": "{{input.order}}",
+          "page": "{{clamp input.page 1 1000}}",
+          "per_page": "{{clamp input.per_page 25 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "state": "state",
+            "kind": "kind",
+            "production": "production",
+            "ready": "ready",
+            "schema_ready": "schema_ready",
+            "safe_migrations": "safe_migrations",
+            "deletion_protected": "deletion_protected",
+            "sharded": "sharded",
+            "shard_count": "shard_count",
+            "stale_schema": "stale_schema",
+            "parent_branch": "parent_branch",
+            "region": "region.slug",
+            "html_url": "html_url",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "current_page": "current_page",
+          "per_page": "per_page",
+          "next_page": "next_page",
+          "total_count": "total_count",
+          "total_pages": "total_pages"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Paths, query parameters and picked field names come from PlanetScale's OWN live OpenAPI document, fetched from https://api.planetscale.com/v1/openapi-spec on 2026-09-12 ({\"swagger\":\"2.0\",\"info\":{\"title\":\"PlanetScale API\",...,\"version\":\"v1\"},\"basePath\":\"/v1\"}), because the documented human docs host api-docs.planetscale.com did not resolve from this box (curl exit 6, DNS). That document is a schema, not a response: no PlanetScale account was held, so the proof below covers wiring only, never payload shape.",
+      "The scaffolded header auth stands: 'Authorization: <service_token_id>:<service_token>', matching the vault entry's own testHeaders (creds) => ({ 'Authorization': `${creds.service_token_id}:${creds.service_token}` }). The live OpenAPI securityDefinitions block lists ONLY oauth2 (authorizationUrl https://app.planetscale.com/oauth/authorize), so the service-token form is not restated there, but every endpoint used here documents its service-token permissions in prose ('**Service Token Accesses** `read_database`, ... `read_branch`'), and the pair form is what the registry already ships. Unchanged, and a real token is what would prove it.",
+      "The test block was moved off the scaffolded /v1/organizations/{{organization}}/databases to /v1/organizations. Evidence, probed live with a dummy token on 2026-09-12: /v1/organizations answers 401 {\"code\":\"unauthorized\",\"message\":\"Requires authentication\"}, while every organization-scoped path answers 404 {\"code\":\"not_found\",\"message\":\"Not Found\"} first, because the made-up slug is resolved before the credential is judged. Only the unscoped endpoint can prove the auth wall blind. The vault's own testEndpoint is untouched; spec.test is read by the shape-proof harness, not by the runtime.",
+      "Tools take the organization as a tool INPUT (org) even though `organization` is also a required vault field. Spec v1 has no way to default an input to a credential, and a token can hold access to more than one organization ('When using a service token, returns the list of organizations the service token has access to'), so making it explicit is honest rather than convenient. The credential field stays required because the vault's connection test uses it.",
+      "per_page is clamped to a default of 25 and a maximum of 100. The default is documented ('per_page integer, default 25, If provided, specifies the number of returned results'); the MAXIMUM IS NOT DOCUMENTED ANYWHERE in the OpenAPI document, so 100 is this connector's own conservative cap, not the API's limit. page carries a client-side cap of 1000 for the same reason: the clamp helper needs a max, and spec v1 allows one request per tool so there is no pagination follow-up tool.",
+      "Picked field names are the flat snake_case properties of the OpenAPI definitions Organization, Database and DatabaseBranch, reached through the documented paginated envelopes (PaginatedOrganization, PaginatedDatabase, PaginatedDatabaseBranch: type, current_page, per_page, next_page, next_page_url, prev_page, prev_page_url, total_count, total_pages, data). PaginatedOrganization declares no total_count or total_pages, so list_organizations does not pick them.",
+      "region is picked as region.slug only. It is a nested object (id, provider, enabled, public_ip_addresses, display_name, location, slug, current_default, mysql_supported, postgresql_supported, neki_supported) and inlining it on every row would spend the 2000-character truncate budget on region metadata instead of database rows. Branch connection details (mysql_address, mysql_edge_address, vtgate_* sizing) are deliberately left out for the same reason.",
+      "All four tools are READ-ONLY GETs (write: false). The API's create_database, create_branch, delete_branch, deploy-request and workflow-cancel operations exist on the same paths and are deliberately absent.",
+      "rateLimit is 30 requests per 60s. The OpenAPI document publishes no rate limit at all for these endpoints, so this is the factory's standard conservative default rather than a documented ceiling.",
+      "No _probe hints are set. PlanetScale publishes no public organization or database slug to hint with, so the organization-scoped tools can only ever reach their identifier-404 with a dummy value.",
+      "What the shape-proof can and cannot say here: api.planetscale.com answers the deliberately bogus control path with an EMPTY-bodied 404, /v1/organizations with a structured 401, and the three organization-scoped paths with a structured 404 {\"code\":\"not_found\"} that differs from the control's empty one. So the unscoped endpoint is proven by the status differential, and the scoped ones only by the identifier-404 differential: the route pattern matched and slug resolution ran. It proves nothing about response fields, and a real token plus a real organization slug is what would flip those calls to 2xx."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

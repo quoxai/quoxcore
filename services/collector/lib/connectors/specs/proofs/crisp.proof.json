@@ -1,0 +1,93 @@
+{
+  "spec_id": "crisp",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:19.926Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.crisp.chat/quox-shapeproof-control-06df90cc",
+      "status": 404,
+      "latency_ms": 1271,
+      "classification": "CONTROL",
+      "body_sha256": "7b82fb9969bf6b00808dafb82fed127718dbb52c240e6fd4f8a0af84ac648d91",
+      "body_excerpt": "{\"error\":true,\"reason\":\"not_found\",\"data\":{\"message\":\"the route does not exist\"}}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.crisp.chat/v1/website",
+      "status": 405,
+      "latency_ms": 38,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c0fda96ad1b7a2adde949d45d92c5197b6579bd87cac02ecf3d95ec0eba7d6df",
+      "body_excerpt": "{\"error\":true,\"reason\":\"unknown_method\",\"data\":{\"message\":\"the http method 'get' is not available on this route\"}}",
+      "flags": {
+        "structured_4xx": 405,
+        "differential_path_proof": true,
+        "control_status": 404,
+        "control_error_code": "not_found"
+      }
+    },
+    {
+      "name": "list_conversations",
+      "method": "GET",
+      "url": "https://api.crisp.chat/v1/website/quoxprobe/conversations/1?per_page=20&search_query=quoxprobe&search_type=quoxprobe",
+      "status": 401,
+      "latency_ms": 39,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "07fe1033a07fa949aae2ad003846f9ddbc140a44921e9b46bb268c9bd3ec5883",
+      "body_excerpt": "{\"error\":true,\"reason\":\"invalid_session\",\"data\":{\"message\":\"your authentication token is set but it could not be verified, is it still valid?\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_conversation",
+      "method": "GET",
+      "url": "https://api.crisp.chat/v1/website/quoxprobe/conversation/quoxprobe",
+      "status": 401,
+      "latency_ms": 33,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "07fe1033a07fa949aae2ad003846f9ddbc140a44921e9b46bb268c9bd3ec5883",
+      "body_excerpt": "{\"error\":true,\"reason\":\"invalid_session\",\"data\":{\"message\":\"your authentication token is set but it could not be verified, is it still valid?\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_people_stats",
+      "method": "GET",
+      "url": "https://api.crisp.chat/v1/website/quoxprobe/people/stats",
+      "status": 401,
+      "latency_ms": 35,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "07fe1033a07fa949aae2ad003846f9ddbc140a44921e9b46bb268c9bd3ec5883",
+      "body_excerpt": "{\"error\":true,\"reason\":\"invalid_session\",\"data\":{\"message\":\"your authentication token is set but it could not be verified, is it still valid?\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_people_profiles",
+      "method": "GET",
+      "url": "https://api.crisp.chat/v1/website/quoxprobe/people/profiles/1?per_page=20&search_text=quoxprobe",
+      "status": 401,
+      "latency_ms": 38,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "07fe1033a07fa949aae2ad003846f9ddbc140a44921e9b46bb268c9bd3ec5883",
+      "body_excerpt": "{\"error\":true,\"reason\":\"invalid_session\",\"data\":{\"message\":\"your authentication token is set but it could not be verified, is it still valid?\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,836 @@
+/* ====== PayloadRenderer ====== */
+
+.payload-renderer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.payload-renderer__raw {
+    background: var(--ui-bg-deep, #0a0a0c);
+    border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+    border-radius: var(--ui-radius-md, 6px);
+    padding: 12px;
+    font-size: 12px;
+    font-family: var(--font-mono, monospace);
+    color: var(--ui-text-secondary, #aaa);
+    overflow-x: auto;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.payload-renderer__raw-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    padding: 4px 8px;
+    background: transparent;
+    border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+    border-radius: 4px;
+    color: var(--ui-text-tertiary, #777);
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.payload-renderer__raw-toggle:hover {
+    color: var(--ui-text-secondary, #aaa);
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+/* ====== KeyValueTable ====== */
+
+.payload-kv-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.payload-kv-table--nested {
+    font-size: 12px;
+    margin: 4px 0;
+}
+
+.payload-kv-table__row:nth-child(odd) {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.payload-kv-table__key {
+    padding: 6px 12px 6px 0;
+    color: var(--ui-text-tertiary, #777);
+    font-size: 12px;
+    white-space: nowrap;
+    vertical-align: top;
+    min-width: 120px;
+    width: 140px;
+}
+
+.payload-kv-table--nested .payload-kv-table__key {
+    min-width: 80px;
+    width: 100px;
+    padding-left: 12px;
+}
+
+.payload-kv-table__value {
+    padding: 6px 0;
+    color: var(--ui-text-primary, white);
+    word-break: break-word;
+}
+
+.payload-kv-table__null {
+    color: var(--ui-text-tertiary, rgba(255,255,255,0.6));
+}
+
+.payload-kv-table__bool {
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.payload-kv-table__bool--true {
+    color: var(--ui-green, #22c55e);
+}
+
+.payload-kv-table__bool--false {
+    color: var(--ui-red, #ef4444);
+}
+
+.payload-kv-table__number {
+    font-family: var(--font-mono, monospace);
+    font-size: 13px;
+}
+
+.payload-kv-table__link {
+    color: var(--ui-blue, #3b82f6);
+    text-decoration: none;
+    word-break: break-all;
+}
+
+.payload-kv-table__link:hover {
+    text-decoration: underline;
+}
+
+.payload-kv-table__date {
+    color: var(--ui-text-secondary, #aaa);
+}
+
+.payload-kv-table__list {
+    margin: 0;
+    padding-left: 16px;
+    list-style: disc;
+}
+
+.payload-kv-table__list li {
+    margin: 2px 0;
+}
+
+/* ====== MetricsCard ====== */
+
+.payload-metrics-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    background: var(--ui-bg-deep, #0a0a0c);
+    border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+    border-radius: var(--ui-radius-md, 6px);
+}
+
+.payload-metrics-card__gauge {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.payload-metrics-card__value-text {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.payload-metrics-card__value {
+    font-size: 28px;
+    font-weight: 700;
+    font-family: var(--font-mono, monospace);
+    color: var(--ui-text-primary, white);
+    line-height: 1;
+}
+
+.payload-metrics-card__value--alert {
+    color: var(--ui-red, #ef4444);
+}
+
+.payload-metrics-card__unit {
+    font-size: 14px;
+    color: var(--ui-text-tertiary, #777);
+}
+
+.payload-metrics-card__label {
+    font-size: 12px;
+    color: var(--ui-text-secondary, #aaa);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.payload-metrics-card__bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 4px;
+}
+
+.payload-metrics-card__bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--ui-blue, #3b82f6);
+    transition: width 0.3s ease;
+}
+
+.payload-metrics-card__bar-fill--alert {
+    background: var(--ui-red, #ef4444);
+}
+
+.payload-metrics-card__threshold {
+    font-size: 11px;
+    color: var(--ui-text-tertiary, #777);
+}
+
+.payload-metrics-card__meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--ui-text-secondary, #aaa);
+}
+
+.payload-metrics-card__host {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ====== DeploymentCard ====== */
+
+.payload-deploy-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    background: var(--ui-bg-deep, #0a0a0c);
+    border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+    border-radius: var(--ui-radius-md, 6px);
+}
+
+.payload-deploy-card__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.payload-deploy-card__version {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ui-text-primary, white);
+    font-family: var(--font-mono, monospace);
+}
+
+.payload-deploy-card__env {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.payload-deploy-card__env--production {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.payload-deploy-card__env--staging {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.payload-deploy-card__env--development,
+.payload-deploy-card__env--dev {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.payload-deploy-card__commit {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--ui-text-secondary, #aaa);
+}
+
+.payload-deploy-card__commit code {
+    font-family: var(--font-mono, monospace);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1px 6px;
+    border-radius: 3px;
+}
+
+.payload-deploy-card__changelog {
+    font-size: 13px;
+    color: var(--ui-text-secondary, #aaa);
+}
+
+.payload-deploy-card__changelog ul {
+    margin: 4px 0;
+    padding-left: 18px;
+}
+
+.payload-deploy-card__changelog li {
+    margin: 2px 0;
+}
+
+/* ====== BudgetCard ====== */
+
+.payload-budget-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    background: var(--ui-bg-deep, #0a0a0c);
+    border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+    border-radius: var(--ui-radius-md, 6px);
+}
+
+.payload-budget-card__total {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.payload-budget-card__total-label {
+    font-size: 12px;
+    color: var(--ui-text-tertiary, #777);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.payload-budget-card__total-value {
+    font-size: 24px;
+    font-weight: 700;
+    font-family: var(--font-mono, monospace);
+    color: var(--ui-text-primary, white);
+}
+
+.payload-budget-card__table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.payload-budget-card__table tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.payload-budget-card__table tr:last-child {
+    border-bottom: none;
+}
+
+.payload-budget-card__item-name {
+    padding: 6px 8px 6px 0;
+    font-size: 13px;
+    color: var(--ui-text-secondary, #aaa);
+}
+
+.payload-budget-card__item-amount {
+    padding: 6px 0;
+    font-size: 13px;
+    font-family: var(--font-mono, monospace);
+    color: var(--ui-text-primary, white);
+    text-align: right;
+}
+
+/* ====== CertCard ====== */
+
+.payload-cert-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    background: var(--ui-bg-deep, #0a0a0c);
+    border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+    border-radius: var(--ui-radius-md, 6px);
+}
+
+.payload-cert-card__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ui-text-primary, white);
+}
+
+.payload-cert-card__domain {
+    font-size: 15px;
+    font-weight: 600;
+    font-family: var(--font-mono, monospace);
+}
+
+.payload-cert-card__countdown {
+    font-size: 14px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 4px;
+    display: inline-block;
+    align-self: flex-start;
+}
+
+.payload-cert-card__countdown--ok {
+    background: rgba(34, 197, 94, 0.12);
+    color: #22c55e;
+}
+
+.payload-cert-card__countdown--warning {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+}
+
+.payload-cert-card__countdown--critical {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+}
+
+.payload-cert-card__countdown--expired {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    font-weight: 700;
+}
+
+.payload-cert-card__issuer,
+.payload-cert-card__type {
+    font-size: 12px;
+    color: var(--ui-text-tertiary, #777);
+}
+
+/* ====== ResourceCard ====== */
+
+.payload-resource-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    background: var(--ui-bg-deep, #0a0a0c);
+    border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+    border-radius: var(--ui-radius-md, 6px);
+}
+
+.payload-resource-card__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.payload-resource-card__type {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ui-text-secondary, #aaa);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.payload-resource-card__id {
+    font-family: var(--font-mono, monospace);
+    font-size: 14px;
+    color: var(--ui-text-primary, white);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+
+.payload-resource-card__protection {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    align-self: flex-start;
+}
+
+.payload-resource-card__protection--red {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.payload-resource-card__protection--amber {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.payload-resource-card__protection--blue {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* ====== Payload Sections (Phase 3) ====== */
+
+.payload-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.payload-section {
+    background: var(--ui-bg-deep, #0a0a0c);
+    border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+    border-radius: var(--ui-radius-md, 6px);
+    overflow: hidden;
+}
+
+.payload-section summary {
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ui-text-primary, white);
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.payload-section summary::-webkit-details-marker {
+    display: none;
+}
+
+.payload-section summary::before {
+    content: '';
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 5px solid currentColor;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    color: var(--ui-text-tertiary, #777);
+    transition: transform 0.15s ease;
+}
+
+.payload-section[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.payload-section summary:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.payload-section[open] summary {
+    border-bottom: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+}
+
+.payload-section__content {
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--ui-text-secondary, #aaa);
+    line-height: 1.6;
+}
+
+.payload-section__content pre {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 8px 12px;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-size: 12px;
+}
+
+.payload-section__content code {
+    font-family: var(--font-mono, monospace);
+    font-size: 12px;
+}
+
+.payload-section__content ul,
+.payload-section__content ol {
+    margin: 4px 0;
+    padding-left: 18px;
+}
+
+/* ====== Attachments ====== */
+
+.payload-attachments {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.payload-attachments__title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ui-text-tertiary, #777);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.payload-attachment {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    text-decoration: none;
+    color: var(--ui-text-secondary, #aaa);
+    font-size: 13px;
+    transition: background 0.15s ease;
+}
+
+.payload-attachment:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--ui-text-primary, white);
+}
+
+.payload-attachment__icon {
+    flex-shrink: 0;
+    color: var(--ui-text-tertiary, #777);
+}
+
+.payload-attachment__name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.payload-attachment__size {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--ui-text-tertiary, #777);
+    font-family: var(--font-mono, monospace);
+}
+
+.payload-attachment__thumb {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+/* ====== X (Twitter) WYSIWYG tweet preview (2026-09-24) ======
+ * A scoped preview widget that reproduces X's OWN dark-mode visual
+ * language (black card, X blue links, X grid media layout) so the approver
+ * sees exactly what will publish. This intentionally departs from the
+ * dashboard's cinematic glass tokens for the tweet surface itself, the same
+ * way payload-linkedin-card/payload-facebook-card use their platform's
+ * brand colour as an accent: the card is simulating a third-party product's
+ * chrome, not dashboard chrome. Everything OUTSIDE `.payload-x-tweet`
+ * (the outer `.payload-x-card` and `.payload-x-card__meta` approver
+ * metadata) stays on the normal `--ui-*` token chain used by this file. */
+
+.payload-x-tweet {
+    background: #000;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 16px;
+}
+
+.payload-x-tweet__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.payload-x-tweet__avatar {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(145deg, #38bdf8, #a855f7);
+}
+
+.payload-x-tweet__identity {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.payload-x-tweet__names {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.payload-x-tweet__name {
+    font-weight: 700;
+    color: #fff;
+    font-size: 15px;
+}
+
+.payload-x-tweet__verified {
+    display: inline-flex;
+    flex-shrink: 0;
+}
+
+.payload-x-tweet__handle {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 15px;
+}
+
+.payload-x-tweet__text {
+    margin: 10px 0 0;
+    color: #fff;
+    font-size: 15px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.payload-x-tweet__link {
+    color: #1d9bf0;
+}
+
+.payload-x-tweet__media {
+    display: grid;
+    gap: 2px;
+    margin-top: 12px;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.payload-x-tweet__media--count-1 { grid-template-columns: 1fr; }
+.payload-x-tweet__media--count-1 .payload-x-tweet__media-item { aspect-ratio: 16 / 9; }
+
+.payload-x-tweet__media--count-2 { grid-template-columns: 1fr 1fr; aspect-ratio: 16 / 9; }
+
+.payload-x-tweet__media--count-3,
+.payload-x-tweet__media--count-4 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    aspect-ratio: 16 / 9;
+}
+
+.payload-x-tweet__media--count-3 .payload-x-tweet__media-item:first-child {
+    grid-row: 1 / 3;
+}
+
+.payload-x-tweet__media-item {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.04);
+    height: 100%;
+}
+
+.payload-x-tweet__media-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    cursor: zoom-in;
+}
+
+.payload-x-tweet__media-fallback {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 100%;
+    min-height: 96px;
+    padding: 10px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.payload-x-tweet__media-filename {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.75);
+    word-break: break-all;
+}
+
+.payload-x-tweet__alt-text {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    font-style: italic;
+}
+
+.payload-x-tweet__media-more {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-weight: 700;
+    font-size: 20px;
+}
+
+.payload-x-tweet__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 320px;
+    margin-top: 12px;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.payload-x-tweet__action {
+    display: inline-flex;
+    align-items: center;
+}
+
+.payload-x-tweet__caption {
+    font-size: 11px;
+    color: var(--ui-text-tertiary, rgba(255, 255, 255, 0.5));
+    font-style: italic;
+    padding: 0 2px;
+}
+
+.payload-x-tweet__thread {
+    display: flex;
+    flex-direction: column;
+}
+
+.payload-x-tweet__thread-post {
+    padding-top: 0;
+}
+
+.payload-x-tweet__thread-post + .payload-x-tweet__thread-post {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--ui-border, rgba(255, 255, 255, 0.12));
+}
+
+.payload-x-tweet__thread-index {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ui-text-tertiary, #777);
+    margin-bottom: 4px;
+}
+
+/* Approver metadata (budget/reply-settings/quote/poll) — clearly separated
+ * from the simulated tweet surface above via a divider. */
+.payload-x-card__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+}
+
+.payload-x-card__meta:empty {
+    display: none;
+}

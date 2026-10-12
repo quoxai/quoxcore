@@ -1,0 +1,250 @@
+{
+  "spec_version": 1,
+  "id": "weaviate",
+  "name": "Weaviate",
+  "category": "data_ai",
+  "credentialType": "weaviate",
+  "requiredFields": [
+    "host",
+    "api_key"
+  ],
+  "docs": "https://weaviate.io/developers/weaviate",
+  "tools_source": "https://weaviate.io/developers/weaviate/api/rest",
+  "base_url": {
+    "fromCredential": "host"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/meta"
+  },
+  "tools": [
+    {
+      "name": "meta",
+      "description": "Get the Weaviate instance hostname, version and the vectorizer and other modules it has enabled",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/meta"
+      },
+      "response": {
+        "pick": {
+          "hostname": "hostname",
+          "version": "version",
+          "modules": "modules"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_collections",
+      "description": "List every collection (class) in the Weaviate schema with its vectorizer, vector index type and multi-tenancy setting",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/schema"
+      },
+      "response": {
+        "pick": {
+          "classes[]": {
+            "class": "class",
+            "description": "description",
+            "vectorizer": "vectorizer",
+            "vector_index_type": "vectorIndexType",
+            "multi_tenancy_enabled": "multiTenancyConfig.enabled",
+            "replication_factor": "replicationConfig.factor"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_collection",
+      "description": "Get one Weaviate collection (class) definition by name: its properties, vectorizer, vector index and sharding configuration",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "class": {
+            "type": "string",
+            "description": "Collection (class) name exactly as returned by list_collections. Weaviate class names are capitalised, so a collection created as QuoxproofLive is addressed as QuoxproofLive, never quoxproof-live"
+          }
+        },
+        "required": [
+          "class"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/schema/{{input.class}}"
+      },
+      "response": {
+        "pick": {
+          "class": "class",
+          "description": "description",
+          "vectorizer": "vectorizer",
+          "vector_index_type": "vectorIndexType",
+          "vector_index_config": "vectorIndexConfig",
+          "properties": "properties",
+          "multi_tenancy_enabled": "multiTenancyConfig.enabled",
+          "replication_factor": "replicationConfig.factor",
+          "sharding_desired_count": "shardingConfig.desiredCount",
+          "inverted_index_config": "invertedIndexConfig"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.class": "QuoxproofLive"
+      }
+    },
+    {
+      "name": "list_shards",
+      "description": "List the shards of one Weaviate collection (class) with each shard's status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "class": {
+            "type": "string",
+            "description": "Collection (class) name exactly as returned by list_collections, capitalised (QuoxproofLive)"
+          }
+        },
+        "required": [
+          "class"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/schema/{{input.class}}/shards"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name",
+            "status": "status",
+            "vector_queue_size": "vectorQueueSize"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.class": "QuoxproofLive"
+      }
+    },
+    {
+      "name": "nodes",
+      "description": "Get the status of every node in the Weaviate cluster: name, status, version, git hash and its shard and object counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/nodes"
+      },
+      "response": {
+        "pick": {
+          "nodes[]": {
+            "name": "name",
+            "status": "status",
+            "version": "version",
+            "git_hash": "gitHash",
+            "shard_count": "stats.shardCount",
+            "object_count": "stats.objectCount"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "objects",
+      "description": "List objects stored in one Weaviate collection (class) with their ids, creation times and properties",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "class": {
+            "type": "string",
+            "description": "Collection (class) name to list objects from, capitalised exactly as list_collections returns it (QuoxproofLive)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max objects to return (default 25, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of objects to skip before returning results"
+          },
+          "include": {
+            "type": "string",
+            "description": "Optional comma-separated extras to include, for example 'vector' or 'classification'"
+          }
+        },
+        "required": [
+          "class"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/objects",
+        "query": {
+          "class": "{{input.class}}",
+          "limit": "{{clamp input.limit 25 100}}",
+          "offset": "{{input.offset}}",
+          "include": "{{input.include}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_results": "totalResults",
+          "objects[]": {
+            "id": "id",
+            "class": "class",
+            "creation_time_unix": "creationTimeUnix",
+            "last_update_time_unix": "lastUpdateTimeUnix",
+            "properties": "properties"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.class": "QuoxproofLive"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:api_key",
+      "The vault marks api_key optional (a Weaviate with anonymous access enabled needs no key) but this spec keeps it in requiredFields as scaffolded, because the bearer template cannot render without it. Weaviate's documented api-key transport IS Authorization: Bearer <key>, so the scaffolded auth block stands. A fresh container with AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true ignores the header, so the live harness can store any placeholder value",
+      "Weaviate class names must begin with a capital letter, so the live collection convention quoxproof-live is NOT a legal class name on this provider. Every class _probe here is QuoxproofLive, the capitalised form the provisioner must create. Getting this wrong reads as a 404 rather than a validation error, which is why it is called out",
+      "list_collections reads the whole schema (GET /v1/schema answers { classes: [...] }) and deliberately does NOT pick each class's properties array: a schema with wide classes would blow the response budget. get_collection carries properties for the one class asked for",
+      "nodes exposes no query parameters. Weaviate's documented output=minimal|verbose selector is version-dependent, and the shards breakdown only appears under verbose, so only the fields present at the default detail level are picked. An older instance therefore cannot be sent a parameter it does not know",
+      "objects uses the REST object listing, which Weaviate documents as a simple listing surface with GraphQL as the real query path. totalResults and the deprecations block have moved across 1.x releases, so a missing totalResults resolves to nothing rather than failing. limit is clamped (default 25, max 100); offset and include are dropped when absent",
+      "list_shards answers 404 for a class that does not exist, and on a single-node instance returns exactly one shard. That is the expected fresh-instance result, not an error",
+      "tools_source points at the Weaviate REST API reference section rather than a single endpoint anchor; the exact per-endpoint doc URLs are UNVERIFIED blind and the live harness against a fresh container is what proves each path",
+      "Weaviate is customer-hosted (or Weaviate Cloud), so base_url comes from the host credential and nothing here is provable against a vendor-run endpoint. Every tool is GET-only and the whole spec stays unproven until the live harness runs it against a real ephemeral container"
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

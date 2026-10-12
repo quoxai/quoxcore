@@ -1,0 +1,23 @@
+{
+  "id": "local-inference",
+  "name": "Local Inference",
+  "displayName": "Local Inference",
+  "version": "0.1.0-beta",
+  "author": "Quox",
+  "official": true,
+  "tier": "pro",
+  "license": "commercial",
+  "badge": "BETA",
+  "category": "AI & Intelligence",
+  "accentColor": "#22c55e",
+  "description": "Connect QuoxCORE to self-hosted LLM inference servers running on your own GPU machines. Supports Ollama, vLLM, llama.cpp, and NVIDIA NIM via OpenAI-compatible APIs. Zero API costs, full data privacy, and complete audit trails for every inference request.",
+  "permissions": [
+    "storage",
+    "network"
+  ],
+  "routes": {},
+  "capabilityPanels": [
+    "settings.local-inference"
+  ],
+  "minQuoxVersion": "1.0.0"
+}

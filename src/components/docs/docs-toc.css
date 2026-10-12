@@ -1,0 +1,404 @@
+/* ============================================
+   DOCS TABLE OF CONTENTS - RIGHT SIDEBAR
+   Premium styling with warm amber/gold accents
+   ============================================ */
+
+/* CSS Variables for TOC */
+.docs-toc {
+  --toc-accent: #ffbf69;
+  --toc-accent-dim: rgba(255, 191, 105, 0.3);
+  --toc-accent-glow: rgba(255, 191, 105, 0.2);
+  --toc-bg: #111118;
+  --toc-bg-hover: rgba(255, 255, 255, 0.03);
+  --toc-border: rgba(255, 255, 255, 0.08);
+  --toc-text: #888;
+  --toc-text-hover: #e8e8e8;
+  --toc-text-active: #ffbf69;
+}
+
+/* ============================================
+   MAIN SIDEBAR
+   ============================================ */
+.docs-toc {
+  position: fixed;
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  width: 240px;
+  background: var(--toc-bg);
+  border-left: 1px solid var(--toc-border);
+  overflow: hidden;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+}
+
+.docs-toc-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 24px 0;
+  overflow-y: auto;
+}
+
+/* ============================================
+   HEADER
+   ============================================ */
+.docs-toc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px 16px;
+}
+
+.docs-toc-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--toc-text);
+}
+
+.docs-toc-close {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--toc-border);
+  border-radius: 6px;
+  color: var(--toc-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.docs-toc-close:hover {
+  color: var(--toc-text-hover);
+  border-color: var(--toc-text);
+}
+
+/* ============================================
+   NAVIGATION LIST
+   ============================================ */
+.docs-toc-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.docs-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.docs-toc-item {
+  margin: 0;
+}
+
+/* ============================================
+   LINKS WITH HIERARCHY
+   ============================================ */
+.docs-toc-link {
+  display: block;
+  padding: 8px 20px;
+  padding-left: 20px;
+  color: var(--toc-text);
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 1.5;
+  border-left: 2px solid transparent;
+  transition: all 0.15s ease;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docs-toc-link:hover {
+  color: var(--toc-text-hover);
+  background: var(--toc-bg-hover);
+  border-left-color: var(--toc-border);
+}
+
+/* Active state */
+.docs-toc-link.active {
+  color: var(--toc-text-active);
+  background: var(--toc-accent-glow);
+  border-left-color: var(--toc-accent);
+  font-weight: 500;
+}
+
+/* H3 (nested) indentation */
+.docs-toc-level-3 .docs-toc-link {
+  padding-left: 32px;
+  font-size: 12px;
+  color: rgba(136, 136, 136, 0.8);
+}
+
+.docs-toc-level-3 .docs-toc-link:hover {
+  color: var(--toc-text-hover);
+}
+
+.docs-toc-level-3 .docs-toc-link.active {
+  color: var(--toc-text-active);
+  background: rgba(255, 191, 105, 0.1);
+}
+
+/* ============================================
+   PROGRESS INDICATOR
+   ============================================ */
+.docs-toc-progress {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  bottom: 20px;
+  width: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.docs-toc-progress-bar {
+  width: 100%;
+  background: linear-gradient(180deg, var(--toc-accent) 0%, rgba(255, 191, 105, 0.4) 100%);
+  border-radius: 2px;
+  transition: height 0.3s ease-out;
+  box-shadow: 0 0 8px var(--toc-accent-glow);
+}
+
+/* ============================================
+   MOBILE TOGGLE BUTTON
+   ============================================ */
+.docs-toc-toggle {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--toc-bg);
+  border: 1px solid var(--toc-border);
+  border-radius: 10px;
+  color: var(--toc-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  z-index: 50;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s ease;
+}
+
+.docs-toc-toggle:hover {
+  color: var(--toc-text-hover);
+  border-color: var(--toc-accent-dim);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+.docs-toc-toggle svg {
+  stroke: var(--toc-accent);
+}
+
+.docs-toc-toggle span {
+  margin-left: 4px;
+}
+
+/* ============================================
+   MOBILE BACKDROP
+   ============================================ */
+.docs-toc-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: var(--glass-blur);
+  z-index: 45;
+}
+
+/* ============================================
+   SCROLLBAR
+   ============================================ */
+.docs-toc-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.docs-toc-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.docs-toc-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.docs-toc-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================
+   RESPONSIVE - LARGE SCREENS (3-column)
+   ============================================ */
+@media (min-width: 1400px) {
+  .docs-toc {
+    width: 260px;
+  }
+
+  .docs-toc-link {
+    font-size: 14px;
+    padding: 10px 24px;
+  }
+
+  .docs-toc-level-3 .docs-toc-link {
+    padding-left: 40px;
+    font-size: 13px;
+  }
+}
+
+/* ============================================
+   RESPONSIVE - MEDIUM SCREENS
+   Hide TOC on screens where content + left sidebar + right TOC is too tight
+   ============================================ */
+@media (max-width: 1200px) {
+  .docs-toc {
+    position: fixed;
+    right: -300px;
+    width: 280px;
+    top: 0;
+    bottom: 0;
+    padding-top: 64px;
+    transition: right 0.3s ease;
+    box-shadow: -10px 0 40px rgba(0, 0, 0, 0.5);
+  }
+
+  .docs-toc.open {
+    right: 0;
+  }
+
+  .docs-toc-toggle {
+    display: flex;
+  }
+
+  .docs-toc-backdrop {
+    display: block;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .docs-toc.open ~ .docs-toc-backdrop,
+  .docs-toc-backdrop:has(+ .docs-toc.open) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .docs-toc-close {
+    display: flex;
+  }
+
+  .docs-toc-header {
+    padding-top: 8px;
+  }
+}
+
+/* ============================================
+   RESPONSIVE - MOBILE
+   ============================================ */
+@media (max-width: 768px) {
+  .docs-toc {
+    width: 260px;
+    right: -280px;
+  }
+
+  .docs-toc-toggle {
+    bottom: 80px;
+    right: 16px;
+    padding: 10px 14px;
+    font-size: 12px;
+  }
+
+  .docs-toc-link {
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+
+  .docs-toc-level-3 .docs-toc-link {
+    padding-left: 28px;
+    font-size: 13px;
+  }
+}
+
+/* ============================================
+   PRINT STYLES
+   ============================================ */
+@media print {
+  .docs-toc,
+  .docs-toc-toggle,
+  .docs-toc-backdrop {
+    display: none !important;
+  }
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+@keyframes tocFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.docs-toc-item {
+  animation: tocFadeIn 0.3s ease forwards;
+  opacity: 0;
+}
+
+/* Stagger animation for items */
+.docs-toc-item:nth-child(1) { animation-delay: 0.05s; }
+.docs-toc-item:nth-child(2) { animation-delay: 0.1s; }
+.docs-toc-item:nth-child(3) { animation-delay: 0.15s; }
+.docs-toc-item:nth-child(4) { animation-delay: 0.2s; }
+.docs-toc-item:nth-child(5) { animation-delay: 0.25s; }
+.docs-toc-item:nth-child(6) { animation-delay: 0.3s; }
+.docs-toc-item:nth-child(7) { animation-delay: 0.35s; }
+.docs-toc-item:nth-child(8) { animation-delay: 0.4s; }
+.docs-toc-item:nth-child(9) { animation-delay: 0.45s; }
+.docs-toc-item:nth-child(10) { animation-delay: 0.5s; }
+.docs-toc-item:nth-child(n+11) { animation-delay: 0.55s; }
+
+/* ============================================
+   HOVER EFFECTS
+   ============================================ */
+.docs-toc-link::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  background: linear-gradient(90deg, var(--toc-accent-glow) 0%, transparent 100%);
+  transition: width 0.2s ease;
+  pointer-events: none;
+}
+
+.docs-toc-link:hover::before {
+  width: 100%;
+}
+
+.docs-toc-link.active::before {
+  width: 100%;
+  background: linear-gradient(90deg, var(--toc-accent-glow) 0%, transparent 100%);
+}
+
+/* Position relative for the ::before pseudo-element */
+.docs-toc-link {
+  position: relative;
+}

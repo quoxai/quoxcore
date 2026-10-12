@@ -1,0 +1,106 @@
+{
+  "spec_id": "traefik",
+  "spec_version": 1,
+  "checked_at": "2026-09-13T00:32:14.775Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/overview",
+      "status": 200,
+      "latency_ms": 298,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "52a94f34d96872c31f1ad82c17d6961759eb8994be5f4b6b1c2ab87e44519ebd",
+      "body_excerpt": "{\"http\":{\"routers\":{\"total\":3,\"warnings\":0,\"errors\":0},\"services\":{\"total\":4,\"warnings\":0,\"errors\":0},\"middlewares\":{\"total\":2,\"warnings\":0,\"errors\":0}},\"tcp\":{\"routers\":{\"total\":0,\"warnings\":0,\"error",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "overview",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/overview",
+      "status": 200,
+      "latency_ms": 10,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "52a94f34d96872c31f1ad82c17d6961759eb8994be5f4b6b1c2ab87e44519ebd",
+      "body_excerpt": "{\"http\":{\"routers\":{\"total\":3,\"warnings\":0,\"errors\":0},\"services\":{\"total\":4,\"warnings\":0,\"errors\":0},\"middlewares\":{\"total\":2,\"warnings\":0,\"errors\":0}},\"tcp\":{\"routers\":{\"total\":0,\"warnings\":0,\"error",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_http_routers",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/http/routers",
+      "status": 200,
+      "latency_ms": 13,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "6935649d685071ba34ab75475d49b01a24696655ca19685eb0191f4267de67cd",
+      "body_excerpt": "[{\"entryPoints\":[\"traefik\"],\"service\":\"api@internal\",\"rule\":\"PathPrefix(`/api`)\",\"ruleSyntax\":\"v3\",\"priority\":9223372036854775806,\"status\":\"enabled\",\"using\":[\"traefik\"],\"name\":\"api@internal\",\"provider",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_http_services",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/http/services",
+      "status": 200,
+      "latency_ms": 17,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "27cf057441e6f74f200e914a4e8323d338fa82e03b6e123ef0597673ea52a519",
+      "body_excerpt": "[{\"status\":\"enabled\",\"usedBy\":[\"api@internal\"],\"name\":\"api@internal\",\"provider\":\"internal\"},{\"status\":\"enabled\",\"usedBy\":[\"dashboard@internal\"],\"name\":\"dashboard@internal\",\"provider\":\"internal\"},{\"sta",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_http_middlewares",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/http/middlewares",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "0a3705797e2d9e4ac8fcb2e48c1edb8f66d1d6e30e8bc6cac903191ad3ed7673",
+      "body_excerpt": "[{\"redirectRegex\":{\"regex\":\"^(http:\\\\/\\\\/(\\\\[[\\\\w:.]+\\\\]|[\\\\w\\\\._-]+)(:\\\\d+)?)\\\\/$\",\"replacement\":\"${1}/dashboard/\",\"permanent\":true},\"status\":\"enabled\",\"usedBy\":[\"dashboard@internal\"],\"name\":\"dashboa",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_entrypoints",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/entrypoints",
+      "status": 200,
+      "latency_ms": 8,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "5b88e691d002bd70e3db279b7f1ea4f53614eb6209179455ab330c71d0d63cc5",
+      "body_excerpt": "[{\"address\":\":80\",\"transport\":{\"lifeCycle\":{\"graceTimeOut\":\"10s\"},\"respondingTimeouts\":{\"readTimeout\":\"1m0s\",\"idleTimeout\":\"3m0s\"}},\"forwardedHeaders\":{},\"http\":{},\"http2\":{\"maxConcurrentStreams\":250}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "version",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/version",
+      "status": 200,
+      "latency_ms": 7,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "77b6ccbce3624efc942dbf5da04e4eae75a1fb3210556002cc542e8e72614252",
+      "body_excerpt": "{\"Version\":\"3.1.7\",\"Codename\":\"comte\",\"startDate\":\"2026-09-13T00:26:06.211643935Z\"}",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "traefik:v3.1"
+}

@@ -1,0 +1,60 @@
+/* AgentSessionList */
+.agent-sessions {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(139, 92, 246, 0.12);
+  border-radius: 10px;
+  padding: 0.75rem;
+  backdrop-filter: blur(8px);
+}
+
+.agent-sessions--loading,
+.agent-sessions--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8rem;
+}
+
+.agent-sessions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.agent-sessions-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.agent-sessions-count {
+  font-size: 0.7rem;
+  color: rgba(167, 139, 250, 0.6);
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0;
+  font-size: 0.8rem;
+}
+
+.session-status-dot { font-size: 0.6rem; }
+.session--running .session-status-dot { color: #30ff90; }
+.session--finished .session-status-dot { color: rgba(255, 255, 255, 0.8); }
+.session--failed .session-status-dot { color: #f87171; }
+
+.session-agent { font-weight: 500; color: rgba(255, 255, 255, 0.85); }
+.session-project { color: rgba(255, 255, 255, 0.8); font-size: 0.75rem; }
+.session-duration { color: rgba(56, 189, 248, 0.7); font-size: 0.75rem; }
+.session-cost { color: rgba(255, 255, 255, 0.8); font-size: 0.75rem; }
+.session-tools { color: rgba(167, 139, 250, 0.6); font-size: 0.7rem; }
+.session-files { color: rgba(48, 255, 144, 0.6); font-size: 0.7rem; }

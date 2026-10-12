@@ -1,0 +1,36 @@
+{
+  "id": "system-maintenance",
+  "name": "System Maintenance",
+  "displayName": "System Maintenance",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "free",
+  "license": "free",
+  "badge": "FREE",
+  "category": "operations",
+  "accentColor": "#10b981",
+  "description": "Backup, update, restore, and maintain your entire QuoxCORE installation. Automatic version checks, one-click updates with pre-update backup and health verification, and instant rollback.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/system",
+      "label": "System Maintenance",
+      "icon": "shield",
+      "minRole": "admin"
+    }
+  ],
+  "routes": {
+    "/system": "SystemMaintenanceView"
+  },
+  "routeGuards": {
+    "/system": {
+      "minRole": "admin"
+    }
+  },
+  "minQuoxVersion": "1.0.0"
+}

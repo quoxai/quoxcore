@@ -1,0 +1,116 @@
+{
+  "spec_version": 1,
+  "id": "deepl",
+  "name": "DeepL",
+  "category": "data_ai",
+  "credentialType": "deepl",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://www.deepl.com/docs-api",
+  "base_url": "https://api.deepl.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "DeepL-Auth-Key {{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/usage"
+  },
+  "tools_source": "https://developers.deepl.com/api-reference",
+  "tools": [
+    {
+      "name": "get_usage",
+      "description": "Get DeepL API usage and limits for the current billing period (characters translated against the account limit)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/usage"
+      },
+      "response": {
+        "pick": {
+          "character_count": "character_count",
+          "character_limit": "character_limit",
+          "document_count": "document_count",
+          "document_limit": "document_limit",
+          "team_document_count": "team_document_count",
+          "team_document_limit": "team_document_limit",
+          "products[]": {
+            "product_type": "product_type",
+            "billing_unit": "billing_unit",
+            "api_key_unit_count": "api_key_unit_count",
+            "account_unit_count": "account_unit_count"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_glossaries",
+      "description": "List the glossaries owned by this DeepL account, with their language pair, entry count and readiness",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/glossaries"
+      },
+      "response": {
+        "pick": {
+          "glossaries[]": {
+            "glossary_id": "glossary_id",
+            "name": "name",
+            "ready": "ready",
+            "source_lang": "source_lang",
+            "target_lang": "target_lang",
+            "creation_time": "creation_time",
+            "entry_count": "entry_count"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "glossary_language_pairs",
+      "description": "List the source and target language pairs DeepL supports for glossaries",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/glossary-language-pairs"
+      },
+      "response": {
+        "pick": {
+          "supported_languages[]": {
+            "source_lang": "source_lang",
+            "target_lang": "target_lang"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH IS WRONG AND PROVEN WRONG (kept as scaffolded only because this wave's rule says keep scaffolded auth; DO NOT PROMOTE until fixed): the spec sends a request header literally named 'DeepL-Auth-Key'. DeepL's official OpenAPI security scheme is name='Authorization', in=header, value 'DeepL-Auth-Key <api-key>'. The live shape-proof run caught it verbatim: GET /v2/usage answered 403 with {\"message\":\"Missing Authorization header, expected 'Authorization: DeepL-Auth-Key <API key>'\"}. The fix is auth {\"type\":\"header\",\"header\":\"Authorization\",\"template\":\"DeepL-Auth-Key {{api_key}}\"}. SHAPE_PROVEN in the proof file means host, TLS and paths are proven; it does NOT mean this connector can authenticate, and with this header it cannot.",
+      "HOST SPLIT (unresolved by this spec): DeepL serves Pro keys at https://api.deepl.com and Free keys at https://api-free.deepl.com, and both are listed as servers in the official OpenAPI document. A Free key ending in ':fx' sent to the Pro host is rejected, so this connector as written works for Pro keys ONLY. The base_url is fixed to the Pro host this wave; a follow-up should either template the host off the key suffix or expose it as a credential field (the schema supports base_url {template}/{fromCredential}).",
+      "shape-proof was run against the Pro host only. The Free host is unprobed here, so nothing in the proof file speaks to api-free.deepl.com.",
+      "read-only wave: /v2/translate, /v2/document, /v2/write/rephrase and all glossary create/delete calls are POST or DELETE and are deliberately NOT exposed. Translation is billed per character, so it is excluded under the read-only rule rather than because it is inexpressible.",
+      "no clamps declared: none of these three endpoints take a page-size or limit parameter, so there is no numeric input to clamp. truncate 2000 bounds the payload instead."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

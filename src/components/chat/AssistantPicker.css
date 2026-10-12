@@ -1,0 +1,256 @@
+/**
+ * AssistantPicker styles
+ * Based on AgentPicker.css pattern.
+ */
+
+.assistant-picker {
+    position: relative;
+    display: inline-block;
+    font-family: var(--m-font-mono, monospace);
+    width: 100%;
+}
+
+.astp-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 14px;
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(32px) saturate(1.8);
+    -webkit-backdrop-filter: blur(32px) saturate(1.8);
+    border: 1px solid rgba(255,255,255,0.22);
+    border-radius: 999px;
+    color: #fff;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.22),
+        inset 0 -1px 0 rgba(0,0,0,0.35),
+        0 2px 8px rgba(0,0,0,0.35);
+}
+
+.astp-trigger:hover:not(:disabled) {
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(255,255,255,0.32);
+}
+
+.astp-trigger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.astp-trigger:focus-visible {
+    outline: none;
+    border-color: var(--m-quox-primary, #38bdf8);
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+}
+
+.astp-selected {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.astp-placeholder {
+    color: var(--m-text-muted, #71717a);
+}
+
+.astp-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.astp-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
+}
+
+.astp-chevron {
+    flex-shrink: 0;
+    opacity: 0.5;
+}
+
+.astp-source-badge {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    padding: 1px 5px;
+    border-radius: 8px;
+    background: rgba(139, 92, 246, 0.2);
+    color: #a78bfa;
+    flex-shrink: 0;
+}
+
+.astp-source-badge--inline {
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.astp-policy-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 1px 5px;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.astp-policy-badge--locked {
+    background: rgba(245, 158, 11, 0.16);
+    color: #f59e0b;
+}
+
+.astp-policy-badge--advisory {
+    background: rgba(56, 189, 248, 0.14);
+    color: #38bdf8;
+}
+
+.astp-policy-badge--inline {
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+/* Dropdown — EXACT .quickbar__dropdown recipe (the "Quick Access" flyout) */
+.astp-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    min-width: 280px;
+    max-height: 360px;
+    background: var(--m-bg-base, rgba(255,255,255,0.08));
+    backdrop-filter: var(--qx-blur, blur(32px) saturate(1.6));
+    -webkit-backdrop-filter: var(--qx-blur, blur(32px) saturate(1.6));
+    border: 1px solid var(--m-border-default, rgba(255,255,255,0.18));
+    border-radius: var(--qx-radius, 20px);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.18),
+        inset 0 -1px 0 rgba(0,0,0,0.45),
+        0 24px 64px rgba(0,0,0,0.55);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+/* The luminous purple→cyan top rim — THIS is what makes it look like
+   the Quick Access / sidebar flyouts. --qx-edges paints a 4-edge hairline
+   with cyan→purple fade on top and white fades on the other 3 sides. */
+.astp-dropdown::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--qx-edges);
+    pointer-events: none;
+    z-index: 1;
+}
+.astp-dropdown > * { position: relative; z-index: 2; }
+
+.astp-search-wrapper {
+    padding: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.astp-search {
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--m-bg-surface, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.08));
+    border-radius: 5px;
+    color: var(--m-text-primary, #fff);
+    font-size: 12px;
+    font-family: var(--m-font-mono, monospace);
+    outline: none;
+}
+
+.astp-search:focus {
+    border-color: var(--m-quox-primary, #38bdf8);
+}
+
+.astp-options {
+    overflow-y: auto;
+    flex: 1;
+    padding: 4px;
+}
+
+.astp-group-label {
+    padding: 6px 10px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--m-text-muted, #71717a);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.astp-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.astp-option:hover,
+.astp-option--focused {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.astp-option--selected {
+    background: rgba(56, 189, 248, 0.1);
+}
+
+.astp-option-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.astp-option-name {
+    font-size: 13px;
+    color: var(--m-text-primary, #fff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.astp-option-role {
+    font-size: 11px;
+    color: var(--m-text-muted, #71717a);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.astp-empty {
+    padding: 16px;
+    text-align: center;
+    color: var(--m-text-muted, #71717a);
+    font-size: 12px;
+}
+
+/* Size variants */
+.astp--small .astp-trigger {
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+.astp--small .astp-dot {
+    width: 6px;
+    height: 6px;
+}
+
+.astp--large .astp-trigger {
+    padding: 10px 14px;
+    font-size: 14px;
+}

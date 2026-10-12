@@ -1,0 +1,131 @@
+[
+  { "query": "how do I contact support", "relevantRelPaths": [
+    "docs-public/faq/technical-support/how-to-contact-our-support-team.md",
+    "docs-public/support/support-channels.md"
+  ] },
+  { "query": "refund policy", "relevantRelPaths": [
+    "docs-public/policies/refund-policy.md"
+  ] },
+  { "query": "what devices does the vpn work on", "relevantRelPaths": [
+    "docs-public/faq/compatibility-and-devices/what-devices-and-platforms-are-supported.md",
+    "docs-public/faq/getting-started/what-devices-and-platforms-are-supported.md"
+  ] },
+  { "query": "kill switch feature", "relevantRelPaths": [
+    "docs-public/faq/privacy-and-security/is-there-a-kill-switch-feature.md"
+  ] },
+  { "query": "dns leak protection", "relevantRelPaths": [
+    "docs-public/faq/privacy-and-security/how-do-you-handle-dns-leaks.md"
+  ] },
+  { "query": "what vpn protocols do you support", "relevantRelPaths": [
+    "docs-public/faq/vpn-protocol-information/what-vpn-protocols-do-you-support.md"
+  ] },
+  { "query": "wireguard support", "relevantRelPaths": [
+    "docs-public/faq/vpn-protocol-information/do-you-offer-wireguard-support.md"
+  ] },
+  { "query": "how many server locations do you have", "relevantRelPaths": [
+    "docs-public/faq/server-locations/how-many-server-locations-do-you-have.md"
+  ] },
+  { "query": "do you keep logs of my online activity", "relevantRelPaths": [
+    "docs-public/faq/logging-and-data-retention/do-you-keep-any-logs-of-my-online-activity.md",
+    "docs-public/faq/privacy-and-security/do-you-keep-any-logs-of-my-online-activity.md",
+    "docs-public/faq/vpn-information/does-your-vpn-log-my-online-activity.md"
+  ] },
+  { "query": "how do I reset my password", "relevantRelPaths": [
+    "docs-public/faq/account-management/how-can-i-reset-my-password.md"
+  ] },
+  { "query": "how do I create an account", "relevantRelPaths": [
+    "docs-public/faq/account-management/how-do-i-create-an-account.md"
+  ] },
+  { "query": "update my account information", "relevantRelPaths": [
+    "docs-public/faq/account-management/how-do-i-update-my-account-information.md"
+  ] },
+  { "query": "how much does examplevpn cost", "relevantRelPaths": [
+    "docs-public/faq/billing/how-much-does-examplevpn-cost.md"
+  ] },
+  { "query": "what payment methods do you accept", "relevantRelPaths": [
+    "docs-public/faq/billing/what-payment-methods-do-you-accept.md"
+  ] },
+  { "query": "cancellation policy", "relevantRelPaths": [
+    "docs-public/faq/billing/what-is-your-cancellation-policy.md"
+  ] },
+  { "query": "upgrade or downgrade my subscription plan", "relevantRelPaths": [
+    "docs-public/faq/billing/can-i-upgrade-or-downgrade-my-subscription-plan.md"
+  ] },
+  { "query": "change my billing information", "relevantRelPaths": [
+    "docs-public/faq/billing/how-can-i-change-my-billing-information.md"
+  ] },
+  { "query": "android installation instructions", "relevantRelPaths": [
+    "docs-public/faq/how-to-install-examplevpn/android-installation-instructions.md"
+  ] },
+  { "query": "how to install examplevpn on windows", "relevantRelPaths": [
+    "docs-public/faq/how-to-install-examplevpn/windows-installation-instructions.md"
+  ] },
+  { "query": "install examplevpn on linux", "relevantRelPaths": [
+    "docs-public/faq/how-to-install-examplevpn/linux-installation-instructions.md"
+  ] },
+  { "query": "how do I download and install the vpn client", "relevantRelPaths": [
+    "docs-public/faq/getting-started/how-do-i-download-and-install-the-vpn-client.md"
+  ] },
+  { "query": "how do I sign up for your vpn service", "relevantRelPaths": [
+    "docs-public/faq/getting-started/how-do-i-sign-up-for-your-vpn-service.md"
+  ] },
+  { "query": "is there a free trial", "relevantRelPaths": [
+    "docs-public/faq/getting-started/do-you-offer-a-free-trial.md"
+  ] },
+  { "query": "can I use the vpn on multiple devices at the same time", "relevantRelPaths": [
+    "docs-public/faq/compatibility-and-devices/can-i-use-the-vpn-on-multiple-devices-simultaneously.md"
+  ] },
+  { "query": "is there a limit on the number of devices I can connect", "relevantRelPaths": [
+    "docs-public/faq/usage-and-restrictions/is-there-a-limit-on-the-number-of-devices-i-can-connect.md",
+    "docs-public/important-pages/why-use-examplevpn/unlimited-devices.md"
+  ] },
+  { "query": "mobile app for smartphones and tablets", "relevantRelPaths": [
+    "docs-public/faq/compatibility-and-devices/is-there-a-mobile-app-available-for-smartphones-and-tablets.md",
+    "docs-public/faq/vpn-information/is-there-a-mobile-app-available-for-smartphones-and-tablets.md"
+  ] },
+  { "query": "what encryption methods do you use", "relevantRelPaths": [
+    "docs-public/faq/data-and-encryption/what-encryption-methods-do-you-use.md"
+  ] },
+  { "query": "is my data encrypted at all times", "relevantRelPaths": [
+    "docs-public/faq/data-and-encryption/is-my-data-encrypted-at-all-times.md"
+  ] },
+  { "query": "how does your vpn protect against hackers", "relevantRelPaths": [
+    "docs-public/faq/vpn-information/how-does-your-vpn-protect-against-hackers.md"
+  ] },
+  { "query": "troubleshooting connection issues", "relevantRelPaths": [
+    "docs-public/faq/technical-support/troubleshooting-connection-issues.md",
+    "docs-public/faq/troubleshooting/what-should-i-do-if-i-have-connection-issues.md"
+  ] },
+  { "query": "is live chat support available", "relevantRelPaths": [
+    "docs-public/faq/technical-support/is-live-chat-support-available.md"
+  ] },
+  { "query": "how do I report a bug", "relevantRelPaths": [
+    "docs-public/faq/how-do-i-report-a-bug-or-service-issue/how-to-get-in-touch.md",
+    "docs-public/faq/how-to-install-examplevpn/support-feedback-and-bug-reporting.md"
+  ] },
+  { "query": "what is esg", "relevantRelPaths": [
+    "docs-public/faq/esg/what-is-esg.md"
+  ] },
+  { "query": "how are carbon offsets verified", "relevantRelPaths": [
+    "docs-public/faq/esg/how-are-carbon-offsets-verified.md"
+  ] },
+  { "query": "examplevpn sustainability report", "relevantRelPaths": [
+    "docs-public/faq/esg/how-can-i-view-examplevpn-sustainability-reports.md",
+    "docs-public/reports/esg-report-15122024.md"
+  ] },
+  { "query": "cookie policy", "relevantRelPaths": [
+    "docs-public/policies/cookie-policy.md"
+  ] },
+  { "query": "terms and conditions", "relevantRelPaths": [
+    "docs-public/policies/terms-and-conditions.md"
+  ] },
+  { "query": "privacy policy gdpr", "relevantRelPaths": [
+    "docs-public/policies/privacy-policy.md"
+  ] },
+  { "query": "which vpn gateway should I use", "relevantRelPaths": [
+    "docs-public/support/guidelines-for-using-examplevpn/which-vpn-gateway-should-i-use.md"
+  ] },
+  { "query": "improve my vpn connection speed", "relevantRelPaths": [
+    "docs-public/faq/speed-and-performance/how-can-i-improve-my-vpn-connection-speed.md"
+  ] }
+]

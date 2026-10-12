@@ -1,0 +1,121 @@
+{
+  "spec_id": "squarespace",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:26:53.608Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.squarespace.com/quox-shapeproof-control-8c0f664b",
+      "status": 401,
+      "latency_ms": 687,
+      "classification": "CONTROL",
+      "body_sha256": "cdb4cc41914c12b8c0f25e481d306572861f9e717b261291d4f7b0b727b29954",
+      "body_excerpt": "{\"type\":\"AUTHORIZATION_ERROR\",\"subtype\":null,\"message\":\"You are not authorized to do that.\",\"details\":null,\"contextId\":\"W81BZFK1IBNA\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.squarespace.com/1.0/authorization/website",
+      "status": 401,
+      "latency_ms": 148,
+      "classification": "AUTH_WALL",
+      "body_sha256": "743c3295c7831f2db99f878a4debef1dd896af29207164979e8f7ccc847b419d",
+      "body_excerpt": "{\n  \"type\" : \"AUTHORIZATION_ERROR\",\n  \"subtype\" : null,\n  \"message\" : \"You are not authorized to do that.\",\n  \"details\" : null,\n  \"contextId\" : \"DRAYCOOCROUYAUSQUOIW\"\n}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_site_info",
+      "method": "GET",
+      "url": "https://api.squarespace.com/1.0/authorization/website",
+      "status": 401,
+      "latency_ms": 151,
+      "classification": "AUTH_WALL",
+      "body_sha256": "c04d4572db23650131b4ed0f8beddf6b496fc50e9c6310cc82acd9d06487e4a6",
+      "body_excerpt": "{\n  \"type\" : \"AUTHORIZATION_ERROR\",\n  \"subtype\" : null,\n  \"message\" : \"You are not authorized to do that.\",\n  \"details\" : null,\n  \"contextId\" : \"ISCOOGREYXOOSPLETHAY\"\n}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_orders",
+      "method": "GET",
+      "url": "https://api.squarespace.com/1.0/commerce/orders?cursor=quoxprobe&customerId=quoxprobe&fulfillmentStatus=quoxprobe&modifiedAfter=quoxprobe&modifiedBefore=quoxprobe",
+      "status": 401,
+      "latency_ms": 180,
+      "classification": "AUTH_WALL",
+      "body_sha256": "42c8145cebdec821711c7934bf9c92b660d8fb7848d7d74bcf508051a130697d",
+      "body_excerpt": "{\n  \"type\" : \"AUTHORIZATION_ERROR\",\n  \"subtype\" : null,\n  \"message\" : \"You are not authorized to do that.\",\n  \"details\" : null,\n  \"contextId\" : \"SPROOSPLOSNOOMOIHAWZ\"\n}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_products",
+      "method": "GET",
+      "url": "https://api.squarespace.com/v2/commerce/products?cursor=quoxprobe&query=quoxprobe&modifiedAfter=quoxprobe&modifiedBefore=quoxprobe",
+      "status": 401,
+      "latency_ms": 145,
+      "classification": "AUTH_WALL",
+      "body_sha256": "a49d42b3cdfa00d96e50de57b99ee0d95e90a05a9ccb86bff73e433f46be2d60",
+      "body_excerpt": "{\n  \"type\" : \"AUTHORIZATION_ERROR\",\n  \"subtype\" : null,\n  \"message\" : \"You are not authorized to do that.\",\n  \"details\" : null,\n  \"contextId\" : \"SMOBLAUBLAUTHOIGRAUQ\"\n}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_inventory",
+      "method": "GET",
+      "url": "https://api.squarespace.com/1.0/commerce/inventory?cursor=quoxprobe",
+      "status": 401,
+      "latency_ms": 151,
+      "classification": "AUTH_WALL",
+      "body_sha256": "6a3172eaaf491d61768af4584c942e249beeb826c3a0635d22a090081b1219d6",
+      "body_excerpt": "{\n  \"type\" : \"AUTHORIZATION_ERROR\",\n  \"subtype\" : null,\n  \"message\" : \"You are not authorized to do that.\",\n  \"details\" : null,\n  \"contextId\" : \"YAUSPRAWHAUXOWHAYSKA\"\n}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_store_pages",
+      "method": "GET",
+      "url": "https://api.squarespace.com/1.0/commerce/store_pages?cursor=quoxprobe",
+      "status": 401,
+      "latency_ms": 188,
+      "classification": "AUTH_WALL",
+      "body_sha256": "705d974dc164ebc439cbcd37162902d866c74337d2149cc8da145532995ccb79",
+      "body_excerpt": "{\n  \"type\" : \"AUTHORIZATION_ERROR\",\n  \"subtype\" : null,\n  \"message\" : \"You are not authorized to do that.\",\n  \"details\" : null,\n  \"contextId\" : \"CROYGLAUTWOYBLAUCRAY\"\n}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

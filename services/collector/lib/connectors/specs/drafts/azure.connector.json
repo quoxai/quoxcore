@@ -1,0 +1,32 @@
+{
+  "spec_version": 1,
+  "id": "azure",
+  "name": "Azure",
+  "category": "uncategorized",
+  "credentialType": "azure",
+  "requiredFields": [
+    "tenant_id",
+    "client_id",
+    "client_secret"
+  ],
+  "docs": "https://learn.microsoft.com/en-us/azure/developer/",
+  "base_url": "https://login.microsoftonline.com",
+  "auth": null,
+  "static_headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/{{tenant_id}}/oauth2/v2.0/token",
+    "body": "grant_type=client_credentials&client_id={{client_id}}&client_secret={{client_secret}}&scope=https%3A%2F%2Fmanagement.azure.com%2F.default"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_in_path"
+    ]
+  }
+}

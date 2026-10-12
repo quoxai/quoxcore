@@ -1,0 +1,1347 @@
+/**
+ * OpsDeck V2 — Zoomable node graph styles
+ *
+ * Signature visual techniques:
+ * 1. Conic gradient scanning glow on circular nodes
+ * 2. State-driven color theming throughout
+ * 3. Zoom-adaptive detail visibility
+ *
+ * Uses @property for animating CSS custom properties (conic gradient angle).
+ */
+
+/* ─── Custom Property Registration ──────────────────────────────────── */
+
+@property --scan-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* ─── State Colors ──────────────────────────────────────────────────── */
+
+:root {
+  --state-idle: rgba(255, 255, 255, 0.12);
+  --state-thinking: #6366f1;
+  --state-executing: #22c55e;
+  --state-reading: #8b5cf6;
+  --state-writing: #f59e0b;
+  --state-waiting-input: #eab308;
+  --state-waiting-perm: #f97316;
+  --state-blocked: #ef4444;
+  --state-handoff: #06b6d4;
+  --state-done: #10b981;
+}
+
+/* ─── View Container ────────────────────────────────────────────────── */
+
+.opsdeck-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: radial-gradient(ellipse at center, #0c0c1a 0%, #050510 100%);
+  overflow: hidden;
+  position: relative;
+}
+
+.opsdeck-canvas[data-system-state="active"] {
+  background: radial-gradient(ellipse at 45% 50%, #0f0c1e 0%, #050510 100%);
+  animation: opsdeck-aurora 12s ease-in-out infinite;
+}
+.opsdeck-canvas[data-system-state="error"] {
+  background: radial-gradient(ellipse at center, #1a0c0c 0%, #100505 100%);
+}
+
+@keyframes opsdeck-aurora {
+  0%, 100% { background: radial-gradient(ellipse at 45% 50%, #0f0c1e 0%, #050510 100%); }
+  33% { background: radial-gradient(ellipse at 35% 45%, #0e0c20 0%, #060512 100%); }
+  66% { background: radial-gradient(ellipse at 55% 55%, #100c1c 0%, #050510 100%); }
+}
+
+/* ─── System Pulse Bar ──────────────────────────────────────────────── */
+
+.opsdeck-pulse {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  padding: 0 20px;
+  background: rgba(12, 12, 18, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  z-index: 10;
+  gap: 16px;
+}
+
+.opsdeck-pulse__left {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.opsdeck-pulse__title {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.opsdeck-pulse__center {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.opsdeck-pulse__progress-bar {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.opsdeck-pulse__segment {
+  width: 14px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  transition: background 0.4s ease;
+}
+
+.opsdeck-pulse__segment--done {
+  background: var(--state-done);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+}
+
+.opsdeck-pulse__overflow {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 10px;
+  margin-left: 4px;
+}
+
+.opsdeck-pulse__progress-text {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.opsdeck-pulse__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.opsdeck-pulse__util {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.opsdeck-pulse__elapsed {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.opsdeck-pulse__conn-dot {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot-color);
+}
+
+.opsdeck-pulse__conn-ping {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--dot-color);
+  animation: opsdeck-ping 1.5s ease-out infinite;
+}
+
+/* ─── Canvas (React Flow Container) ──────────────────────────────────── */
+
+.opsdeck-canvas {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  transition: background 3s ease;
+}
+
+/* React Flow overrides */
+.opsdeck-canvas .react-flow__pane {
+  cursor: grab;
+}
+.opsdeck-canvas .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+/* Edge animation for active connections */
+.opsdeck-canvas .react-flow__edge.animated path {
+  stroke-dasharray: 5;
+  animation: opsdeck-edge-flow 1s linear infinite;
+}
+
+/* Controls styling */
+.opsdeck-controls {
+  background: rgba(12, 12, 18, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 8px !important;
+  backdrop-filter: blur(12px);
+}
+.opsdeck-controls button {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  fill: rgba(255, 255, 255, 0.5) !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+.opsdeck-controls button:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  fill: rgba(255, 255, 255, 0.8) !important;
+}
+.opsdeck-controls button:last-child {
+  border-bottom: none !important;
+}
+.opsdeck-controls button svg {
+  fill: inherit !important;
+}
+
+/* Hide default React Flow handles */
+.opsdeck-handle {
+  opacity: 0 !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 1px !important;
+  min-height: 1px !important;
+}
+
+/* ─── OpsDeck Node ─────────────────────────────────────────────────── */
+
+.opsdeck-node {
+  --scan-color: var(--state-idle);
+  --scan-speed: 12s;
+  --scan-opacity: 0.5;
+  --node-size: 32px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  position: relative;
+}
+
+.opsdeck-node--orch {
+  --node-size: 48px;
+  --scan-opacity: 0.7;
+}
+
+/* Dimmed state (unfocused cluster or completed objective) */
+.opsdeck-node--dimmed {
+  opacity: 0.3;
+  filter: saturate(0.3);
+  transition: opacity 0.3s, filter 0.3s;
+}
+.opsdeck-node--dimmed:hover {
+  opacity: 0.6;
+  filter: saturate(0.6);
+}
+
+/* Highlighted state (focused cluster) */
+.opsdeck-node--highlighted .opsdeck-node__circle {
+  transform: scale(1.1);
+  transition: transform 0.3s ease;
+}
+.opsdeck-node--highlighted .opsdeck-node__label {
+  color: rgba(255, 255, 255, 1);
+}
+
+/* The glowing circle container */
+.opsdeck-node__circle {
+  width: var(--node-size);
+  height: var(--node-size);
+  border-radius: 50%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Scanning glow — conic gradient that rotates around the circle */
+.opsdeck-node__circle::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from var(--scan-angle, 0deg),
+    transparent 0%,
+    transparent 5%,
+    var(--scan-color) 12%,
+    transparent 22%,
+    transparent 100%
+  );
+  animation: opsdeck-scan var(--scan-speed) linear infinite;
+  opacity: var(--scan-opacity);
+}
+
+/* Orchestrator gets double-ring scanning */
+.opsdeck-node--orch .opsdeck-node__circle::before {
+  background: conic-gradient(
+    from var(--scan-angle, 0deg),
+    transparent 0%,
+    transparent 3%,
+    var(--scan-color) 10%,
+    transparent 20%,
+    transparent 50%,
+    var(--scan-color) 58%,
+    transparent 68%,
+    transparent 100%
+  );
+}
+
+/* Inner mask — reveals gradient only as a border ring */
+.opsdeck-node__circle::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: rgba(10, 10, 14, 0.94);
+}
+
+/* The visible dot inside — always uses cluster accent color */
+.opsdeck-node__dot {
+  width: calc(var(--node-size) - 10px);
+  height: calc(var(--node-size) - 10px);
+  border-radius: 50%;
+  background: var(--cluster-accent, var(--scan-color));
+  opacity: 0.7;
+  position: relative;
+  z-index: 1;
+  transition: opacity 0.3s, background 0.3s, box-shadow 0.3s;
+}
+
+.opsdeck-node--orch .opsdeck-node__dot {
+  opacity: 0.85;
+}
+
+/* ─── Orchestrator Status Badge ────────────────────────────────────── */
+
+.opsdeck-node__status-badge {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  border-radius: 10px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.opsdeck-node__status-badge[data-status="running"] {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.opsdeck-node__status-badge[data-status="completed"] {
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.opsdeck-node__status-badge[data-status="completed_with_errors"] {
+  background: rgba(234, 179, 8, 0.15);
+  color: #fde047;
+  border: 1px solid rgba(234, 179, 8, 0.25);
+}
+
+.opsdeck-node__status-badge[data-status="failed"] {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.opsdeck-node__status-badge[data-status="decomposed"] {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c4b5fd;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+
+.opsdeck-node__status-badge[data-status="pending"],
+.opsdeck-node__status-badge[data-status="decomposing"] {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.opsdeck-node__status-badge[data-status="paused"] {
+  background: rgba(234, 179, 8, 0.15);
+  color: #fde047;
+  border: 1px solid rgba(234, 179, 8, 0.25);
+}
+
+.opsdeck-node__status-badge[data-status="cancelled"] {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ─── State Ring Indicator ─────────────────────────────────────────── */
+
+.opsdeck-node__state-ring {
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  z-index: 2;
+  pointer-events: none;
+  transition: border-color 0.3s, opacity 0.3s;
+}
+
+/* Active states: pulsing ring in accent color */
+.opsdeck-node__state-ring--active {
+  border-color: var(--ring-accent, var(--cluster-accent, #6366f1));
+  opacity: 0.6;
+  animation: opsdeck-ring-pulse 0.8s ease-in-out infinite;
+}
+
+/* Blocked/failed: static red ring */
+.opsdeck-node__state-ring--blocked {
+  border-color: #ef4444;
+  opacity: 0.8;
+}
+
+/* Done: brief green flash then fade */
+.opsdeck-node__state-ring--done {
+  border-color: #10b981;
+  animation: opsdeck-ring-done 1s ease-out forwards;
+}
+
+/* Stale: amber ring with slow pulse */
+.opsdeck-node__state-ring--stale {
+  border-color: #f59e0b;
+  opacity: 0.7;
+  animation: opsdeck-ring-pulse 2s ease-in-out infinite;
+}
+
+@keyframes opsdeck-ring-pulse {
+  0% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.3); opacity: 0.2; }
+  100% { transform: scale(1); opacity: 0.6; }
+}
+
+@keyframes opsdeck-ring-done {
+  0% { border-color: #10b981; opacity: 0.9; transform: scale(1); }
+  40% { border-color: #10b981; opacity: 0.7; transform: scale(1.2); }
+  100% { border-color: transparent; opacity: 0; transform: scale(1.4); }
+}
+
+/* ─── Hover Tooltip ────────────────────────────────────────────────── */
+
+.opsdeck-node__tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  min-width: 140px;
+  max-width: 220px;
+  padding: 8px 10px;
+  background: rgba(12, 12, 20, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.opsdeck-node__tooltip-name {
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.opsdeck-node__tooltip-state {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.opsdeck-node__tooltip-task {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.opsdeck-node__tooltip-stats {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Label */
+.opsdeck-node__label {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.3px;
+}
+
+.opsdeck-node--orch .opsdeck-node__label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 700;
+  max-width: 120px;
+}
+
+/* Detail section (visible at higher zoom) */
+.opsdeck-node__detail {
+  text-align: center;
+  max-width: 120px;
+}
+
+.opsdeck-node__objective {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 9px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.opsdeck-node__objective[data-status="running"],
+.opsdeck-node__objective[data-status="in_progress"] {
+  color: rgba(34, 197, 94, 0.7);
+}
+
+.opsdeck-node__task {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 9px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 110px;
+}
+
+.opsdeck-node__elapsed {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 8px;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Stats */
+.opsdeck-node__stats {
+  display: flex;
+  gap: 6px;
+  font-size: 8px;
+}
+
+.opsdeck-node__stat--ok {
+  color: rgba(16, 185, 129, 0.7);
+}
+
+.opsdeck-node__stat--fail {
+  color: rgba(239, 68, 68, 0.7);
+}
+
+/* Stale badge */
+.opsdeck-node__stale {
+  position: absolute;
+  top: -6px;
+  right: -12px;
+  background: #f59e0b;
+  color: #000;
+  font-size: 7px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+.opsdeck-node--stale .opsdeck-node__circle::before {
+  --scan-color: #f59e0b;
+}
+
+/* ─── Node Hover Effects ───────────────────────────────────────────── */
+
+.opsdeck-node:hover .opsdeck-node__circle {
+  transform: scale(1.15);
+  transition: transform 0.2s ease;
+}
+
+.opsdeck-node:hover .opsdeck-node__dot {
+  opacity: 1;
+}
+
+.opsdeck-node:hover .opsdeck-node__label {
+  color: rgba(255, 255, 255, 1);
+}
+
+/* ─── Per-State Node Variants ──────────────────────────────────────── */
+
+/* Per-state scanning glow variants (conic gradient speed/color) */
+.opsdeck-node[data-state="idle"] {
+  --scan-color: rgba(255, 255, 255, 0.08);
+  --scan-speed: 14s;
+  --scan-opacity: 0.3;
+}
+
+.opsdeck-node[data-state="thinking"] {
+  --scan-color: var(--state-thinking);
+  --scan-speed: 3s;
+  --scan-opacity: 0.9;
+}
+
+.opsdeck-node[data-state="executing"] {
+  --scan-color: var(--state-executing);
+  --scan-speed: 2.5s;
+  --scan-opacity: 0.9;
+}
+
+.opsdeck-node[data-state="reading"] {
+  --scan-color: var(--state-reading);
+  --scan-speed: 4s;
+  --scan-opacity: 0.8;
+}
+
+.opsdeck-node[data-state="writing"] {
+  --scan-color: var(--state-writing);
+  --scan-speed: 3s;
+  --scan-opacity: 0.85;
+}
+
+.opsdeck-node[data-state="blocked"] {
+  --scan-color: var(--state-blocked);
+  --scan-speed: 1.5s;
+  --scan-opacity: 1;
+}
+
+.opsdeck-node[data-state="waiting_input"],
+.opsdeck-node[data-state="waiting_permission"] {
+  --scan-color: var(--state-waiting-input);
+  --scan-speed: 2s;
+  --scan-opacity: 0.9;
+}
+
+.opsdeck-node[data-state="handing_off"] {
+  --scan-color: var(--state-handoff);
+  --scan-speed: 2s;
+  --scan-opacity: 0.85;
+}
+
+.opsdeck-node[data-state="done"] {
+  --scan-color: var(--state-done);
+  --scan-speed: 6s;
+  --scan-opacity: 0.7;
+}
+
+/* ─── Keyframe Animations ───────────────────────────────────────────── */
+
+@keyframes opsdeck-scan {
+  to {
+    --scan-angle: 360deg;
+  }
+}
+
+@keyframes opsdeck-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+@keyframes opsdeck-edge-flow {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+@keyframes opsdeck-node-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+/* Orbital ring rotation — kept for backward compat with tests */
+@keyframes opsdeck-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ─── Progress Ring (Orchestrator) ──────────────────────────────────── */
+
+.opsdeck-node__progress-ring {
+  z-index: 0;
+}
+
+.opsdeck-node__progress-text {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* ─── MiniMap ──────────────────────────────────────────────────────── */
+
+.opsdeck-minimap {
+  background: rgba(8, 8, 14, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-radius: 8px !important;
+}
+
+/* ─── Detail Panel ─────────────────────────────────────────────────── */
+
+.opsdeck-detail {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: 360px;
+  background: rgba(10, 10, 16, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  animation: opsdeck-detail-in 0.2s ease-out;
+}
+
+@keyframes opsdeck-detail-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.opsdeck-detail__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.opsdeck-detail__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--detail-accent, rgba(255,255,255,0.2));
+  flex-shrink: 0;
+}
+
+.opsdeck-detail__dot[data-state="thinking"] { background: var(--state-thinking); box-shadow: 0 0 8px var(--state-thinking); }
+.opsdeck-detail__dot[data-state="executing"] { background: var(--state-executing); box-shadow: 0 0 8px var(--state-executing); }
+.opsdeck-detail__dot[data-state="blocked"] { background: var(--state-blocked); box-shadow: 0 0 8px var(--state-blocked); }
+.opsdeck-detail__dot[data-state="done"] { background: var(--state-done); }
+
+.opsdeck-detail__title {
+  flex: 1;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.opsdeck-detail__close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+.opsdeck-detail__close:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.opsdeck-detail__section {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.opsdeck-detail__label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 4px;
+}
+
+.opsdeck-detail__value {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.opsdeck-detail__value--dim {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+}
+
+.opsdeck-detail__badge {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.8);
+}
+.opsdeck-detail__badge[data-status="running"],
+.opsdeck-detail__badge[data-status="in_progress"] {
+  color: var(--state-executing);
+  background: rgba(34, 197, 94, 0.1);
+}
+.opsdeck-detail__badge[data-status="completed"] {
+  color: var(--state-done);
+  background: rgba(16, 185, 129, 0.1);
+}
+.opsdeck-detail__badge[data-status="failed"] {
+  color: var(--state-blocked);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.opsdeck-detail__state {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.opsdeck-detail__state[data-state="thinking"] { color: var(--state-thinking); }
+.opsdeck-detail__state[data-state="executing"] { color: var(--state-executing); }
+.opsdeck-detail__state[data-state="blocked"] { color: var(--state-blocked); }
+.opsdeck-detail__state[data-state="done"] { color: var(--state-done); }
+
+.opsdeck-detail__stale-tag {
+  font-size: 8px;
+  font-weight: 700;
+  background: #f59e0b;
+  color: #000;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+.opsdeck-detail__progress {
+  margin-top: 8px;
+}
+
+.opsdeck-detail__progress-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.opsdeck-detail__progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--detail-accent, var(--state-done));
+  transition: width 0.6s ease;
+}
+
+.opsdeck-detail__progress-text {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+
+.opsdeck-detail__stats-row {
+  display: flex;
+  gap: 24px;
+}
+
+.opsdeck-detail__stat {
+  text-align: center;
+}
+
+.opsdeck-detail__stat-num {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.opsdeck-detail__stat-num--ok { color: var(--state-done); }
+.opsdeck-detail__stat-num--fail { color: var(--state-blocked); }
+
+.opsdeck-detail__stat-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ─── Empty State ───────────────────────────────────────────────────── */
+
+.opsdeck-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  padding: 40px;
+}
+
+.opsdeck-empty-state__icon {
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  animation: opsdeck-spin 30s linear infinite;
+}
+
+.opsdeck-empty-state__title {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.opsdeck-empty-state__desc {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  text-align: center;
+  max-width: 380px;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.opsdeck-empty-state__cta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.1);
+  color: rgba(99, 102, 241, 0.9);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.opsdeck-empty-state__cta:hover {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+/* ─── Responsive ────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .opsdeck-pulse {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .opsdeck-pulse__center {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .opsdeck-pulse__elapsed,
+  .opsdeck-pulse__util {
+    display: none;
+  }
+}
+
+/* Phase 4: Filter bar */
+.opsdeck-filter-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(17, 17, 20, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.opsdeck-filter-pill {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.opsdeck-filter-pill:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.opsdeck-filter-active {
+  color: #fff;
+  background: rgba(99, 102, 241, 0.25);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+}
+
+.opsdeck-team-filter {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(17, 17, 20, 0.9);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+  margin-left: 4px;
+}
+
+/* Phase 4: Fit All button */
+.opsdeck-fit-all-btn {
+  position: absolute;
+  bottom: 120px;
+  left: 12px;
+  z-index: 10;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(17, 17, 20, 0.85);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  backdrop-filter: blur(8px);
+}
+
+.opsdeck-fit-all-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  color: #fff;
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+/* Phase 4: Dark MiniMap */
+.opsdeck-minimap {
+  background: rgba(5, 5, 16, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-radius: 8px !important;
+}
+
+/* ─── O2.1: Event Timeline Strip ─────────────────────────────────────── */
+
+.opsdeck-timeline {
+  position: relative;
+  height: 56px;
+  flex-shrink: 0;
+  background: rgba(12, 12, 18, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  z-index: 10;
+}
+.opsdeck-timeline::-webkit-scrollbar { display: none; }
+
+.opsdeck-timeline__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  white-space: nowrap;
+  cursor: pointer;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.opsdeck-timeline__pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  transform: scale(1.05);
+}
+
+.opsdeck-timeline__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.opsdeck-timeline__dot--started { background: #6366f1; }
+.opsdeck-timeline__dot--completed { background: #22c55e; }
+.opsdeck-timeline__dot--failed { background: #ef4444; }
+.opsdeck-timeline__dot--skipped { background: rgba(255, 255, 255, 0.3); }
+.opsdeck-timeline__dot--decomposition { background: #06b6d4; }
+.opsdeck-timeline__dot--objective-done { background: #10b981; }
+
+.opsdeck-timeline__ts {
+  font-size: 10px;
+  opacity: 0.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.opsdeck-timeline__empty {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* Node flash (triggered by timeline pill click) */
+.opsdeck-node--flash {
+  animation: opsdeck-flash 1.5s ease-out;
+}
+@keyframes opsdeck-flash {
+  0% { transform: scale(1.15); filter: brightness(1.8); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+/* ─── O2.2: Delegation Flow Lines ────────────────────────────────────── */
+
+.opsdeck-delegation-edge .react-flow__edge-path {
+  stroke-dasharray: 8 4;
+  filter: drop-shadow(0 0 4px var(--cluster-accent, #6366f1));
+  animation: opsdeck-deleg-flow 0.6s linear infinite;
+}
+@keyframes opsdeck-deleg-flow {
+  to { stroke-dashoffset: -24; }
+}
+
+/* ─── O2.3: HITL Attention Bubble ────────────────────────────────────── */
+
+.opsdeck-node[data-state="waiting_input"],
+.opsdeck-node[data-state="waiting_permission"] {
+  transform: scale(1.06);
+  z-index: 10;
+}
+
+.opsdeck-node__hitl-badge {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(249, 115, 22, 0.85);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+  animation: opsdeck-hitl-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes opsdeck-hitl-pulse {
+  0%, 100% { opacity: 0.85; transform: translateX(-50%) scale(1); }
+  50% { opacity: 1; transform: translateX(-50%) scale(1.08); }
+}
+
+/* ─── O2.4: Particle Field ───────────────────────────────────────────── */
+
+.opsdeck-particles {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.opsdeck-particles canvas {
+  width: 100%;
+  height: 100%;
+}
+.opsdeck-canvas .react-flow {
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── O3.2: Enhanced Detail Drawer ───────────────────────────────────── */
+
+.opsdeck-detail__glow-header {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    var(--detail-accent, rgba(255,255,255,0.2)) 15%,
+    transparent 30%,
+    transparent 100%
+  );
+  opacity: 0.3;
+  animation: opsdeck-scan 4s linear infinite;
+  pointer-events: none;
+}
+
+.opsdeck-detail__capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.opsdeck-detail__cap-tag {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.12);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+}
+.opsdeck-detail__tool-tag {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+}
+
+.opsdeck-detail__history {
+  max-height: 200px;
+  overflow-y: auto;
+}
+.opsdeck-detail__history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.8);
+}
+.opsdeck-detail__history-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.opsdeck-detail__history-dot--ok { background: #22c55e; }
+.opsdeck-detail__history-dot--fail { background: #ef4444; }
+
+/* ─── O3.3: Wallboard Mode ───────────────────────────────────────────── */
+
+.opsdeck-view--wallboard {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+.opsdeck-view--wallboard .opsdeck-node {
+  transform: scale(1.3);
+}
+.opsdeck-view--wallboard .opsdeck-node__label {
+  font-size: 15px;
+}
+.opsdeck-view--wallboard .opsdeck-pulse {
+  height: 56px;
+  font-size: 15px;
+}
+.opsdeck-cursor-hidden {
+  cursor: none;
+}
+
+.opsdeck-pulse__wallboard-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+.opsdeck-pulse__wallboard-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ─── Canvas Focus (keyboard shortcut support) ──────────────────────── */
+
+.opsdeck-canvas:focus {
+  outline: none;
+}
+
+/* ─── Status Badge Smooth Transitions ───────────────────────────────── */
+
+.opsdeck-node__status-badge {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* ─── Reduced Motion ────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .opsdeck-canvas[data-system-state="active"],
+  .opsdeck-node__circle::before,
+  .opsdeck-pulse__conn-ping,
+  .opsdeck-node--flash,
+  .opsdeck-node__hitl-badge,
+  .opsdeck-empty-state__icon,
+  .opsdeck-node__state-ring--active,
+  .opsdeck-node__state-ring--stale,
+  .opsdeck-node__state-ring--done {
+    animation: none;
+  }
+  .opsdeck-canvas .react-flow__edge.animated path {
+    animation: none;
+  }
+  .opsdeck-detail {
+    animation: none;
+  }
+  .opsdeck-node:hover .opsdeck-node__circle,
+  .opsdeck-node--highlighted .opsdeck-node__circle,
+  .opsdeck-node--dimmed {
+    transition: none;
+  }
+}

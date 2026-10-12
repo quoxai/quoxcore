@@ -1,0 +1,228 @@
+{
+  "spec_version": 1,
+  "id": "pagerduty",
+  "name": "PagerDuty",
+  "category": "monitoring",
+  "credentialType": "pagerduty",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developer.pagerduty.com/api-reference/",
+  "base_url": "https://api.pagerduty.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "Token token={{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/users/me"
+  },
+  "tools_source": "https://developer.pagerduty.com/api-reference/",
+  "tools": [
+    {
+      "name": "list_incidents",
+      "description": "List PagerDuty incidents, optionally filtered by status and sorted",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "statuses": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "triggered",
+                "acknowledged",
+                "resolved"
+              ]
+            },
+            "description": "Filter by incident status"
+          },
+          "sort_by": {
+            "type": "string",
+            "description": "Sort expression, e.g. created_at:desc, incident_number:asc, urgency:desc"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Maximum incidents to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/incidents",
+        "query": {
+          "statuses[]": "{{input.statuses}}",
+          "sort_by": "{{input.sort_by}}",
+          "limit": "{{clamp input.max_results 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "more": "more",
+          "incidents[]": {
+            "id": "id",
+            "title": "title",
+            "status": "status",
+            "urgency": "urgency",
+            "created_at": "created_at",
+            "service": "service.summary"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_incident",
+      "description": "Get a single PagerDuty incident by id or incident number",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "description": "PagerDuty incident id (e.g. PT4KHLK)"
+          }
+        },
+        "required": [
+          "incident_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/incidents/{{input.incident_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "incident.id",
+          "title": "incident.title",
+          "status": "incident.status",
+          "urgency": "incident.urgency",
+          "created_at": "incident.created_at",
+          "service": "incident.service.summary"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_services",
+      "description": "List PagerDuty services",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max_results": {
+            "type": "number",
+            "description": "Maximum services to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/services",
+        "query": {
+          "limit": "{{clamp input.max_results 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "more": "more",
+          "services[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_oncalls",
+      "description": "List who is currently on call, optionally limited to specific schedules",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "schedule_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by PagerDuty schedule ids"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Maximum on-call entries to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/oncalls",
+        "query": {
+          "schedule_ids[]": "{{input.schedule_ids}}",
+          "limit": "{{clamp input.max_results 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "more": "more",
+          "oncalls[]": {
+            "user": "user.summary",
+            "schedule": "schedule.summary",
+            "escalation_level": "escalation_level",
+            "start": "start",
+            "end": "end"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_schedules",
+      "description": "List PagerDuty on-call schedules",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max_results": {
+            "type": "number",
+            "description": "Maximum schedules to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/schedules",
+        "query": {
+          "limit": "{{clamp input.max_results 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "more": "more",
+          "schedules[]": {
+            "id": "id",
+            "name": "name",
+            "time_zone": "time_zone"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T20:46:44.333Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "static_headers": {
+    "Accept": "application/vnd.pagerduty+json;version=2"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

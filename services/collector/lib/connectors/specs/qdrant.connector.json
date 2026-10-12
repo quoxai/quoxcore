@@ -1,0 +1,211 @@
+{
+  "spec_version": 1,
+  "id": "qdrant",
+  "name": "Qdrant",
+  "category": "data_ai",
+  "credentialType": "qdrant",
+  "requiredFields": [
+    "host",
+    "api_key"
+  ],
+  "docs": "https://qdrant.tech/documentation/",
+  "tools_source": "https://api.qdrant.tech/api-reference",
+  "base_url": {
+    "fromCredential": "host"
+  },
+  "auth": {
+    "type": "header",
+    "header": "api-key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/collections"
+  },
+  "tools": [
+    {
+      "name": "service_info",
+      "description": "Get the Qdrant instance title, version and build commit from the service root endpoint",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/"
+      },
+      "response": {
+        "pick": {
+          "title": "title",
+          "version": "version",
+          "commit": "commit"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_collections",
+      "description": "List the names of every collection on the Qdrant instance",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/collections"
+      },
+      "response": {
+        "pick": {
+          "result.collections[]": {
+            "name": "name"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_collection",
+      "description": "Get one Qdrant collection's status, point counts and vector configuration by name",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "collection": {
+            "type": "string",
+            "description": "Collection name as returned by list_collections"
+          }
+        },
+        "required": [
+          "collection"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/collections/{{input.collection}}"
+      },
+      "response": {
+        "pick": {
+          "status": "result.status",
+          "optimizer_status": "result.optimizer_status",
+          "points_count": "result.points_count",
+          "indexed_vectors_count": "result.indexed_vectors_count",
+          "segments_count": "result.segments_count",
+          "vectors": "result.config.params.vectors",
+          "shard_number": "result.config.params.shard_number",
+          "replication_factor": "result.config.params.replication_factor",
+          "on_disk_payload": "result.config.params.on_disk_payload",
+          "payload_schema": "result.payload_schema"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.collection": "quoxproof-live"
+      }
+    },
+    {
+      "name": "list_aliases",
+      "description": "List every collection alias on the Qdrant instance with the collection each one points at",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/aliases"
+      },
+      "response": {
+        "pick": {
+          "result.aliases[]": {
+            "alias_name": "alias_name",
+            "collection_name": "collection_name"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "cluster_info",
+      "description": "Get Qdrant cluster status: whether distributed mode is enabled, this peer's id, its peers and its raft state",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/cluster"
+      },
+      "response": {
+        "pick": {
+          "status": "result.status",
+          "peer_id": "result.peer_id",
+          "peers": "result.peers",
+          "raft_term": "result.raft_info.term",
+          "raft_commit": "result.raft_info.commit",
+          "raft_leader": "result.raft_info.leader",
+          "raft_role": "result.raft_info.role",
+          "raft_is_voter": "result.raft_info.is_voter",
+          "consensus_thread_status": "result.consensus_thread_status"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "telemetry",
+      "description": "Get Qdrant instance telemetry: app name and version, collection count and cluster mode",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "anonymize": {
+            "type": "boolean",
+            "description": "Ask Qdrant to anonymize identifiers in the telemetry payload"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/telemetry",
+        "query": {
+          "anonymize": "{{input.anonymize}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "result.id",
+          "app_name": "result.app.name",
+          "app_version": "result.app.version",
+          "number_of_collections": "result.collections.number_of_collections",
+          "cluster_enabled": "result.cluster.enabled"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:api_key",
+      "The vault marks api_key optional (a Qdrant started without QDRANT__SERVICE__API_KEY needs no key), but this spec keeps it in requiredFields as scaffolded: the api-key header template cannot render without it. An unauthenticated instance therefore needs a value stored anyway, or the spec needs an auth.type of none. Unresolved blind",
+      "Qdrant is customer-hosted, so base_url comes from the host credential and no path is provable against a vendor-run endpoint. Every tool here is GET-only and the whole spec is unproven until the live harness runs it against a real ephemeral container",
+      "telemetry's payload shape is version-dependent (details_level, the collections/cluster sub-objects and the requests block have all moved across 1.x releases). Only the fields documented at the default detail level are picked, and the documented details_level query param is deliberately NOT exposed so an older instance cannot be sent a parameter it does not know",
+      "cluster_info answers 200 with result.status 'disabled' on a single-node instance, so the raft_* picks resolve to nothing there rather than failing. That is the expected fresh-instance result, not an error",
+      "No list endpoint in the Qdrant REST surface takes a limit, so no clamp helper appears in this spec. Point reads (scroll, count) are POST bodies and are not wired here; get_collection already carries points_count",
+      "The _probe collection name is quoxproof-live, which the live provisioner creates. On an instance without it, get_collection answers 404"
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

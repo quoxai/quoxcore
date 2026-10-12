@@ -1,0 +1,26 @@
+{
+  "description": "UNTUNED held-out set 2, authored 2026-10-06 16:00 UTC AFTER the fusion weight and abstention floor were chosen on set 1 (eval/heldout/). Never use this set for tuning: it exists to measure generalisation. Real QUOX DEV org (01KKNKH398) notes; questions avoid each note's distinctive words; near-misses are on corpus topics with answers absent.",
+  "paraphrases": [
+    { "noteId": "c680badabd8165355cb26f5e5a7630f05b01a20b", "question": "did we finally pull in an entire mailbox history rather than only the latest few hundred messages" },
+    { "noteId": "9d0c24ddb78b274d3e7a1f3f8df3baa3ba3ccb98", "question": "for the speaking assistant products, which shared foundation layer has to exist before the individual agents" },
+    { "noteId": "6120b8db7af46fc725626c7f86cb2edde84be770", "question": "what does the introduction page of our note taking app say is working right now" },
+    { "noteId": "e8230e936b3b50dc2fd6ac79604c596a115502e6", "question": "the owner wants the hostile outside review then fix then re-review cycle turned into something we sell" },
+    { "noteId": "ec085149b3d19488ca3c9c8ef758e84e660cdccf", "question": "where is the line between what is free and what customers pay for at go live" },
+    { "noteId": "05ac60b5fae3e90aaba6653020980c64db894e1c", "question": "how is the set of tools a role may use computed when per role restrictions are switched on" },
+    { "noteId": "0945689f6d0276082aff0aac99f1e447fade99e6", "question": "the platform wide check for one customer reading another customer's data, what critical problem did it find" },
+    { "noteId": "95637e9cd1d45a507257bdb535340c867b86465f", "question": "how do I push the marketing site to the preview box before it goes live" },
+    { "noteId": "ce8d4b129b6656b7585f5c1b0b256405d530adfb", "question": "which tool watches how close a coding session is to its allowance and handles switching accounts" },
+    { "noteId": "75a317e0e077d0d1690f3becc52154bb809cf56c", "question": "the open permission scheme for reusable agent abilities, what is it and where is it published" },
+    { "noteId": "6e8966cb98dd683b365e7ea4ec44c774683e2af7", "question": "why is connecting a schedule from the big search company slow and costly to get approved" },
+    { "noteId": "108823c3e4d95f10a4756e3106e4e1a0717938a7", "question": "what was the plan for reworking the queue where people sign off on agent actions" },
+    { "noteId": "654aa584594ab26d7f6ba84fd1f69c11259f063e", "question": "a route that looks up proof records for an attested event was missing some, what was the bug" }
+  ],
+  "nearMisses": [
+    { "query": "what font size does the mobile app use for chat bubbles on android tablets", "topic": "mobile" },
+    { "query": "which law firm reviewed our terms of service and what did they bill", "topic": "legal" },
+    { "query": "how many minutes of phone calls did the voice assistant handle in august for paying customers", "topic": "voice" },
+    { "query": "what is the refund policy for annual licences bought through the app store", "topic": "licensing" },
+    { "query": "which datacentre region in australia hosts the customer collector instances", "topic": "infra" },
+    { "query": "who won the internal hackathon prize for the best brain2 demo", "topic": "brain2" }
+  ]
+}

@@ -1,0 +1,170 @@
+{
+  "spec_id": "langsmith",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:58:30.786Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.smith.langchain.com/quox-shapeproof-control-41a24366",
+      "status": 404,
+      "latency_ms": 1306,
+      "classification": "CONTROL",
+      "body_sha256": "e27da4b2ab3efcfb17817230d749ff325e38db1f3a44e0e7f5c929ef5bc39f99",
+      "body_excerpt": "{\"type\":\"about:blank\",\"title\":\"Not Found\",\"status\":404,\"detail\":\"The requested path does not exist. If you are on a self-hosted installation, try upgrading to the latest backend version. You may also ",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.smith.langchain.com/api/v1/sessions?limit=1",
+      "status": 403,
+      "latency_ms": 298,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7d1110eaf0df924179789b5a36096adee0169b7ae21e4b50acf8a8860c030621",
+      "body_excerpt": "{\"type\":\"about:blank\",\"title\":\"Forbidden\",\"status\":403,\"detail\":\"Forbidden\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "GET",
+      "url": "https://api.smith.langchain.com/api/v1/sessions?limit=20&offset=1&name_contains=quoxprobe&include_stats=false",
+      "status": 403,
+      "latency_ms": 247,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7d1110eaf0df924179789b5a36096adee0169b7ae21e4b50acf8a8860c030621",
+      "body_excerpt": "{\"type\":\"about:blank\",\"title\":\"Forbidden\",\"status\":403,\"detail\":\"Forbidden\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_project",
+      "method": "GET",
+      "url": "https://api.smith.langchain.com/api/v1/sessions/quoxprobe?include_stats=false",
+      "status": 403,
+      "latency_ms": 331,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7d1110eaf0df924179789b5a36096adee0169b7ae21e4b50acf8a8860c030621",
+      "body_excerpt": "{\"type\":\"about:blank\",\"title\":\"Forbidden\",\"status\":403,\"detail\":\"Forbidden\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_datasets",
+      "method": "GET",
+      "url": "https://api.smith.langchain.com/api/v1/datasets?limit=20&offset=1&name_contains=quoxprobe&data_type=quoxprobe",
+      "status": 403,
+      "latency_ms": 253,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7d1110eaf0df924179789b5a36096adee0169b7ae21e4b50acf8a8860c030621",
+      "body_excerpt": "{\"type\":\"about:blank\",\"title\":\"Forbidden\",\"status\":403,\"detail\":\"Forbidden\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_examples",
+      "method": "GET",
+      "url": "https://api.smith.langchain.com/api/v1/examples?dataset=quoxprobe&limit=10&offset=1&splits=quoxprobe",
+      "status": 403,
+      "latency_ms": 252,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7d1110eaf0df924179789b5a36096adee0169b7ae21e4b50acf8a8860c030621",
+      "body_excerpt": "{\"type\":\"about:blank\",\"title\":\"Forbidden\",\"status\":403,\"detail\":\"Forbidden\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_run",
+      "method": "GET",
+      "url": "https://api.smith.langchain.com/api/v1/runs/quoxprobe",
+      "status": 403,
+      "latency_ms": 332,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7d1110eaf0df924179789b5a36096adee0169b7ae21e4b50acf8a8860c030621",
+      "body_excerpt": "{\"type\":\"about:blank\",\"title\":\"Forbidden\",\"status\":403,\"detail\":\"Forbidden\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_feedback",
+      "method": "GET",
+      "url": "https://api.smith.langchain.com/api/v1/feedback?run=quoxprobe&session=quoxprobe&key=quoxprobe&limit=20&offset=1",
+      "status": 403,
+      "latency_ms": 353,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7d1110eaf0df924179789b5a36096adee0169b7ae21e4b50acf8a8860c030621",
+      "body_excerpt": "{\"type\":\"about:blank\",\"title\":\"Forbidden\",\"status\":403,\"detail\":\"Forbidden\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_annotation_queues",
+      "method": "GET",
+      "url": "https://api.smith.langchain.com/api/v1/annotation-queues?limit=20&offset=1&name_contains=quoxprobe",
+      "status": 403,
+      "latency_ms": 229,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7d1110eaf0df924179789b5a36096adee0169b7ae21e4b50acf8a8860c030621",
+      "body_excerpt": "{\"type\":\"about:blank\",\"title\":\"Forbidden\",\"status\":403,\"detail\":\"Forbidden\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "workspace_stats",
+      "method": "GET",
+      "url": "https://api.smith.langchain.com/api/v1/workspaces/current/stats",
+      "status": 403,
+      "latency_ms": 252,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7d1110eaf0df924179789b5a36096adee0169b7ae21e4b50acf8a8860c030621",
+      "body_excerpt": "{\"type\":\"about:blank\",\"title\":\"Forbidden\",\"status\":403,\"detail\":\"Forbidden\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "search_prompts",
+      "method": "GET",
+      "url": "https://api.smith.langchain.com/api/v1/repos?query=quoxprobe&limit=20&offset=1&is_public=false",
+      "status": 200,
+      "latency_ms": 405,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "02cd0977db41004507242ed5cd11a36c00ed281b0cc4007c825116f89ac2a3a2",
+      "body_excerpt": "{\"repos\":[],\"total\":0}",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "server_info",
+      "method": "GET",
+      "url": "https://api.smith.langchain.com/info",
+      "status": 200,
+      "latency_ms": 290,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "674978eaee384ba3009821128ce162fea9deee6da47501e130602deb57ee526e",
+      "body_excerpt": "{\"version\":\"0.17.23\",\"git_sha\":\"7811c97fa991d9fb0bc706caef5c4f83b8c5ad61\",\"instance_flags\":{\"blob_storage_enabled\":true,\"blob_storage_engine\":\"gcs\",\"ch_ingestion_enabled\":true,\"ch_query_enabled\":true,",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,139 @@
+{
+  "name": "quoxplan",
+  "version": "0.1.0",
+  "displayName": "QuoxPlan",
+  "tagline": "The roadmap companion that answers what matters now.",
+  "description": "Full project-management surface for Quox streams: focus lens, board and timeline views, governed plan editing, and phase/note timelines. Every capability is an API first, so Claude sessions can brief on a stream and append notes with zero local install.",
+  "shortDescription": "Roadmap and stream planning for Quox devs",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 50,
+  "priceDisplay": "$50",
+  "priceModel": "one-time",
+  "tier": "tier_b",
+  "featured": true,
+  "icon": "octahedron",
+  "accentColor": "#a855f7",
+  "infoUrl": "https://quox.ai/solutions/quoxplan",
+  "docsUrl": "https://quox.ai/docs/plugins/quoxplan",
+  "marketingPoints": [
+    "Focus lens: what matters now in under five seconds, not a wall of streams",
+    "Board and dependency-sequenced Timeline views for parallel-opportunity reads",
+    "Plans as first-class rendered, versioned markdown documents",
+    "Governed edit mode: every mutation lands in an append-only event log",
+    "Every capability is an API first, reaching Claude via QuoxMCP auto-registration"
+  ],
+  "features": {
+    "focusLens": {
+      "name": "Focus Lens",
+      "description": "Default view: blockers, decisions needed, and stale in-flight streams. A handful of cards, never a wall.",
+      "icon": "eye",
+      "highlight": true
+    },
+    "timeline": {
+      "name": "Dependency Timeline",
+      "description": "Gantt-style view auto-sequenced from dependencies, priority, and effort. See what runs in parallel and what's gating what.",
+      "icon": "activity",
+      "highlight": true
+    },
+    "editMode": {
+      "name": "Governed Edit Mode",
+      "description": "One explicit toggle flips a view into editing. Every mutation is logged to an append-only event feed.",
+      "icon": "shield"
+    },
+    "plans": {
+      "name": "Rendered Plans",
+      "description": "Markdown plan documents, versioned, editable in place with live preview.",
+      "icon": "fileText"
+    },
+    "roady": {
+      "name": "ROADY Rail",
+      "description": "Roadmap agent panel inside QuoxPlan. Comes online once wired to the ROADY agent.",
+      "icon": "bot"
+    }
+  },
+  "configSchema": {
+    "default_roadmap": {
+      "type": "string",
+      "label": "Default Roadmap",
+      "description": "QuoxPlan roadmap id to open by default when the plugin loads (leave blank to show the roadmap picker).",
+      "default": ""
+    },
+    "show_demo_corpus": {
+      "type": "boolean",
+      "label": "Show Demo Corpus",
+      "description": "Include the fictitious Meridian demo roadmaps alongside the org's own roadmap. Useful for onboarding and before the live migration; safe to turn off once real streams are in place.",
+      "default": true
+    }
+  },
+  "safety": {
+    "destructiveActions": [],
+    "requiresApproval": ["stream.complete"],
+    "aeeRequired": true,
+    "killSwitchEnabled": false
+  },
+  "specialist": {
+    "name": "ROADY",
+    "description": "Roadmap agent: orientation briefs, focus analysis, governed roadmap writes",
+    "avatar": "/assets/agents/roady.svg",
+    "capabilities": ["roadmap-analysis", "stream-briefing", "governed-writes"]
+  },
+  "capabilities": {
+    "aeeIntents": [
+      "quoxplan.stream.updated",
+      "quoxplan.stream.status_changed",
+      "quoxplan.note.added",
+      "quoxplan.phase.updated",
+      "quoxplan.plan.updated",
+      "quoxplan.reprioritised",
+      "quoxplan.action_item.updated",
+      "quoxplan.stream.completed"
+    ]
+  },
+  "comparison": {
+    "free": {
+      "name": "Core (Free)",
+      "focusLens": true,
+      "board": true,
+      "timeline": "Read-only",
+      "editMode": false,
+      "maxRoadmaps": 1,
+      "maxStreamsPerRoadmap": 100
+    },
+    "paid": {
+      "name": "QuoxPlan (Paid)",
+      "focusLens": true,
+      "board": true,
+      "timeline": "Full (editable, Fit-to-width)",
+      "editMode": true,
+      "maxRoadmaps": "Unlimited",
+      "maxStreamsPerRoadmap": 400
+    }
+  },
+  "limits": {
+    "free": {
+      "editModeEnabled": false,
+      "timelineEnabled": false,
+      "maxRoadmaps": 1,
+      "maxStreamsPerRoadmap": 100
+    },
+    "paid": {
+      "editModeEnabled": true,
+      "timelineEnabled": true,
+      "maxRoadmaps": -1,
+      "maxStreamsPerRoadmap": 400
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0"
+  },
+  "integration": {
+    "service": "quoxai/quoxplan",
+    "port": 3107,
+    "healthEndpoint": "/health",
+    "client": "src/services/quoxplanApiClient.js",
+    "view": "src/components/quoxplan/QuoxPlanView.jsx"
+  },
+  "includedIn": ["quoxmind-complete"],
+  "category": "AI & Intelligence"
+}

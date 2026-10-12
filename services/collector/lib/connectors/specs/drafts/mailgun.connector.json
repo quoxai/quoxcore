@@ -1,0 +1,30 @@
+{
+  "spec_version": 1,
+  "id": "mailgun",
+  "name": "Mailgun",
+  "category": "email",
+  "credentialType": "mailgun",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://documentation.mailgun.com/en/latest/api_reference.html",
+  "base_url": "https://api.mailgun.net",
+  "auth": {
+    "type": "basic",
+    "userField": "",
+    "passField": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v3/domains"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "basic_literal_user"
+    ]
+  }
+}

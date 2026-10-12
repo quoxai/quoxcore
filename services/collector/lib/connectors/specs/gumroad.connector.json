@@ -1,0 +1,191 @@
+{
+  "spec_version": 1,
+  "id": "gumroad",
+  "name": "Gumroad",
+  "category": "commerce_finance",
+  "credentialType": "gumroad",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://app.gumroad.com/api",
+  "base_url": "https://api.gumroad.com",
+  "auth": {
+    "type": "query",
+    "param": "access_token",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/user"
+  },
+  "tools_source": "https://app.gumroad.com/api",
+  "tools": [
+    {
+      "name": "get_user",
+      "description": "Get the Gumroad user the current access token belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/user"
+      },
+      "response": {
+        "pick": {
+          "success": "success",
+          "user_id": "user.user_id",
+          "name": "user.name",
+          "email": "user.email",
+          "bio": "user.bio",
+          "url": "user.url",
+          "twitter_handle": "user.twitter_handle"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_products",
+      "description": "List all existing Gumroad products for the authenticated user",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/products"
+      },
+      "response": {
+        "pick": {
+          "success": "success",
+          "products[]": {
+            "id": "id",
+            "name": "name",
+            "price": "price",
+            "currency": "currency",
+            "formatted_price": "formatted_price",
+            "published": "published",
+            "deleted": "deleted",
+            "short_url": "short_url",
+            "sales_count": "sales_count",
+            "sales_usd_cents": "sales_usd_cents",
+            "tags": "tags"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_product",
+      "description": "Get the details of one Gumroad product by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "description": "Gumroad product ID (e.g. A-m3CDDC5dlrSdKZp0RFhA==)"
+          }
+        },
+        "required": [
+          "product_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/products/{{input.product_id}}"
+      },
+      "response": {
+        "pick": {
+          "success": "success",
+          "id": "product.id",
+          "name": "product.name",
+          "description": "product.description",
+          "price": "product.price",
+          "currency": "product.currency",
+          "formatted_price": "product.formatted_price",
+          "published": "product.published",
+          "short_url": "product.short_url",
+          "sales_count": "product.sales_count",
+          "sales_usd_cents": "product.sales_usd_cents",
+          "tags": "product.tags"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_sales",
+      "description": "List successful Gumroad sales for the authenticated user, optionally filtered by date range, product or buyer email",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "after": {
+            "type": "string",
+            "description": "Optional: only return sales after this date (YYYY-MM-DD)"
+          },
+          "before": {
+            "type": "string",
+            "description": "Optional: only return sales before this date (YYYY-MM-DD)"
+          },
+          "product_id": {
+            "type": "string",
+            "description": "Optional Gumroad product ID to filter sales by"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional buyer email address to filter sales by"
+          },
+          "page_key": {
+            "type": "string",
+            "description": "Optional page key from a previous response's next_page_key, for paging"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/sales",
+        "query": {
+          "after": "{{input.after}}",
+          "before": "{{input.before}}",
+          "product_id": "{{input.product_id}}",
+          "email": "{{input.email}}",
+          "page_key": "{{input.page_key}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "success": "success",
+          "next_page_key": "next_page_key",
+          "sales[]": {
+            "id": "id",
+            "email": "email",
+            "product_id": "product_id",
+            "product_name": "product_name",
+            "price": "price",
+            "currency": "currency",
+            "gumroad_fee": "gumroad_fee",
+            "created_at": "created_at",
+            "order_id": "order_id",
+            "paid": "paid",
+            "partially_refunded": "partially_refunded",
+            "disputed": "disputed"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

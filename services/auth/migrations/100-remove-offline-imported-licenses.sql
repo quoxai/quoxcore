@@ -1,0 +1,21 @@
+-- LICENSE-LAUNCH LL-1a — delete every offline-imported license row.
+--
+-- Owner ruling R7: online activation is mandatory, there is no offline path.
+-- The retired POST /setup/licensing/import (routes/setup.js) stored a signed
+-- license-key-v2 object under `licensing.imported.<license_id>` in
+-- instance_config, verified locally with NO control-plane activation and NO
+-- instance binding — so one paid key could grant entitlements on unlimited
+-- installs. LL-1a removes the route, the client helpers
+-- (importOfflineLicense / removeImportedLicense / listImportedLicenses) and
+-- the entitlements.js consumption loop.
+--
+-- With the read path gone these rows are already inert, but they are deleted
+-- anyway so no zombie license data survives the cutover: nothing must be able
+-- to resurrect an unbound entitlement grant by re-introducing a reader.
+--
+-- Data-only migration (no schema change). instance_config is created in
+-- 000-baseline.sql. Verified, instance-bound leases (`licensing.lease.%`),
+-- their key rows (`licensing.key.%`) and org slot assignments
+-- (`licensing.orgs.%`) are deliberately untouched.
+
+DELETE FROM instance_config WHERE key LIKE 'licensing.imported.%';

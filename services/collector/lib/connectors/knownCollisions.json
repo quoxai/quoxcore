@@ -1,0 +1,39 @@
+{
+  "_doc": [
+    "Known-benign connector namespace collisions (CONNFAC P7.4).",
+    "Precedence, canonical: (1) an EXACT name match in the hardcoded TOOL_DEFS map wins;",
+    "(2) every other '<connectorId>_*' name routes to the connector bridge.",
+    "So a static tool sharing a connector's prefix is benign ONLY while no exact name",
+    "clash exists (test/connectorStaticPrecedence.test.js proves the precedence rule).",
+    "A NEW overlap must either rename the connector tool (prometheus 'instant_query'",
+    "precedent) or land here as a reviewed entry with tool, connector, reason, date.",
+    "Entries whose connector is not in the registry are DORMANT (pre-seeded for an",
+    "unmerged branch); an entry whose collision no longer occurs is STALE and fails",
+    "the namespace test. Connector-vs-connector prefix collisions and unsafe connector",
+    "ids can NEVER be allowlisted here.",
+    "Enforced by classifyNamespaceCollisions() in registry.js via",
+    "test/connectorNamespace.test.js and surfaced loudly at agentTools boot."
+  ],
+  "entries": [
+    { "tool": "github_create_pull_request", "connector": "github", "reason": "pre-existing static tool; exact static match wins, no exact clash with the connector's tools", "date": "2026-09-11" },
+    { "tool": "grafana_dashboards", "connector": "grafana", "reason": "pre-existing static tool; exact static match wins", "date": "2026-09-11" },
+    { "tool": "discord_list_bindings", "connector": "discord", "reason": "pre-existing static binding tool; exact static match wins", "date": "2026-09-11" },
+    { "tool": "discord_diagnose", "connector": "discord", "reason": "pre-existing static binding tool; exact static match wins", "date": "2026-09-11" },
+    { "tool": "discord_bind_channel", "connector": "discord", "reason": "pre-existing static binding tool; exact static match wins", "date": "2026-09-11" },
+    { "tool": "discord_unbind_channel", "connector": "discord", "reason": "pre-existing static binding tool; exact static match wins", "date": "2026-09-11" },
+    { "tool": "prometheus_query", "connector": "prometheus", "reason": "LIVE-PROOF tranche 1: connector joined a hand-written prometheus_* static surface; the one EXACT clash was resolved by renaming the connector tool to instant_query", "date": "2026-09-12" },
+    { "tool": "prometheus_range", "connector": "prometheus", "reason": "same prometheus static surface; no exact clash", "date": "2026-09-12" },
+    { "tool": "prometheus_alerts", "connector": "prometheus", "reason": "same prometheus static surface; no exact clash", "date": "2026-09-12" },
+    { "tool": "prometheus_targets", "connector": "prometheus", "reason": "same prometheus static surface; no exact clash", "date": "2026-09-12" },
+    { "tool": "perplexity_search", "connector": "perplexity", "reason": "scholar agent's static perplexity_* tools; connector's only tool is chat_completion, no exact clash. DORMANT on main until gtm-a2-parity-fixes merges (VIRAL-AI-5, ebdd53b1)", "date": "2026-09-16" },
+    { "tool": "perplexity_research", "connector": "perplexity", "reason": "same scholar static surface; dormant until gtm-a2-parity-fixes merges", "date": "2026-09-16" },
+    { "tool": "perplexity_verify", "connector": "perplexity", "reason": "same scholar static surface; dormant until gtm-a2-parity-fixes merges", "date": "2026-09-16" },
+    { "tool": "gemini_review", "connector": "gemini", "reason": "hand-written gemini_* static surface (text + nano-banana image tools); connector tools are list_models/generate_content, no exact clash. DORMANT on main until gtm-a2-parity-fixes merges (VIRAL-AI-6, 71c581ea)", "date": "2026-09-16" },
+    { "tool": "gemini_analyze", "connector": "gemini", "reason": "same gemini static surface; dormant until gtm-a2-parity-fixes merges", "date": "2026-09-16" },
+    { "tool": "gemini_generate", "connector": "gemini", "reason": "same gemini static surface; dormant until gtm-a2-parity-fixes merges", "date": "2026-09-16" },
+    { "tool": "gemini_image_generate", "connector": "gemini", "reason": "same gemini static surface; dormant until gtm-a2-parity-fixes merges", "date": "2026-09-16" },
+    { "tool": "gemini_image_edit", "connector": "gemini", "reason": "same gemini static surface; dormant until gtm-a2-parity-fixes merges", "date": "2026-09-16" },
+    { "tool": "gemini_image_describe", "connector": "gemini", "reason": "same gemini static surface; dormant until gtm-a2-parity-fixes merges", "date": "2026-09-16" },
+    { "tool": "gemini_image_models", "connector": "gemini", "reason": "same gemini static surface; dormant until gtm-a2-parity-fixes merges", "date": "2026-09-16" }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "kind": "message", "prefixes": ["message:", "telegram:"], "area": "messages", "derive": "mail",
+  "variants": [
+    { "id": "message",
+      "urgency": [{ "is": "today" }],
+      "short": "message from {from}",
+      "L0": "Message from {from}: {headline}",
+      "L1": { "who": "{from}", "what": "{headline}", "why": "{why|\"It is waiting for a reply.\"}" },
+      "how": "Tell me what to say back and I will draft it.",
+      "measures": ["reply"] }
+  ]
+}

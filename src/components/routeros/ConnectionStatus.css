@@ -1,0 +1,121 @@
+/**
+ * ConnectionStatus Component Styles
+ */
+
+.ros-connection-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--m-space-4);
+    padding: var(--m-space-3) var(--m-space-4);
+    background: rgba(245, 158, 11, 0.1);
+    border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+    animation: ros-status-slide-in 0.3s ease;
+}
+
+@keyframes ros-status-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(-100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.ros-connection-status__content {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-3);
+}
+
+.ros-connection-status__content svg {
+    flex-shrink: 0;
+    color: #f59e0b;
+}
+
+.ros-connection-status__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ros-connection-status__text strong {
+    color: #f59e0b;
+    font-size: var(--m-text-sm);
+    font-weight: var(--m-weight-semibold);
+}
+
+.ros-connection-status__text span {
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+}
+
+.ros-connection-status__actions {
+    display: flex;
+    gap: var(--m-space-2);
+}
+
+.ros-connection-status__btn {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    padding: var(--m-space-2) var(--m-space-3);
+    background: rgba(245, 158, 11, 0.2);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: var(--m-radius-md);
+    color: #f59e0b;
+    font-size: var(--m-text-sm);
+    font-weight: var(--m-weight-medium);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-connection-status__btn:hover {
+    background: rgba(245, 158, 11, 0.3);
+}
+
+.ros-connection-status__btn--secondary {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.1);
+    color: var(--m-text-secondary);
+}
+
+.ros-connection-status__btn--secondary:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--m-text-primary);
+}
+
+/* Critical error state */
+.ros-connection-status--critical {
+    background: rgba(239, 68, 68, 0.1);
+    border-bottom-color: rgba(239, 68, 68, 0.2);
+}
+
+.ros-connection-status--critical .ros-connection-status__content svg,
+.ros-connection-status--critical .ros-connection-status__text strong {
+    color: #ef4444;
+}
+
+.ros-connection-status--critical .ros-connection-status__btn {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+.ros-connection-status--critical .ros-connection-status__btn:hover {
+    background: rgba(239, 68, 68, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .ros-connection-status {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ros-connection-status__actions {
+        justify-content: flex-end;
+    }
+}

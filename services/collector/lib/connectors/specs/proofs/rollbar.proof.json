@@ -1,0 +1,90 @@
+{
+  "spec_id": "rollbar",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:13.759Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.rollbar.com/quox-shapeproof-control-a5bc116b",
+      "status": 404,
+      "latency_ms": 234,
+      "classification": "CONTROL",
+      "body_sha256": "f9c511985ea6dc62771b534902eab048c9a97972e37b2bba72f5e88799aa0c4b",
+      "body_excerpt": "{\n  \"err\": 1,\n  \"message\": \"not found\"\n}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.rollbar.com/api/1/projects",
+      "status": 401,
+      "latency_ms": 150,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "694498f7ab84b93b1f3e4d5ababba0b0816b32eb4f90b373c9ad0a72e369d3ea",
+      "body_excerpt": "{\n  \"err\": 1,\n  \"message\": \"invalid access token\"\n}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_items",
+      "method": "GET",
+      "url": "https://api.rollbar.com/api/1/items?status=quoxprobe&level=quoxprobe&environment=quoxprobe&query=quoxprobe&page=1",
+      "status": 401,
+      "latency_ms": 154,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "694498f7ab84b93b1f3e4d5ababba0b0816b32eb4f90b373c9ad0a72e369d3ea",
+      "body_excerpt": "{\n  \"err\": 1,\n  \"message\": \"invalid access token\"\n}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_item",
+      "method": "GET",
+      "url": "https://api.rollbar.com/api/1/item/quoxprobe",
+      "status": 401,
+      "latency_ms": 148,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "694498f7ab84b93b1f3e4d5ababba0b0816b32eb4f90b373c9ad0a72e369d3ea",
+      "body_excerpt": "{\n  \"err\": 1,\n  \"message\": \"invalid access token\"\n}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_deploys",
+      "method": "GET",
+      "url": "https://api.rollbar.com/api/1/deploys?page=1",
+      "status": 401,
+      "latency_ms": 202,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "694498f7ab84b93b1f3e4d5ababba0b0816b32eb4f90b373c9ad0a72e369d3ea",
+      "body_excerpt": "{\n  \"err\": 1,\n  \"message\": \"invalid access token\"\n}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "top_active_items",
+      "method": "GET",
+      "url": "https://api.rollbar.com/api/1/reports/top_active_items?environment=quoxprobe&item_count=20",
+      "status": 401,
+      "latency_ms": 221,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "694498f7ab84b93b1f3e4d5ababba0b0816b32eb4f90b373c9ad0a72e369d3ea",
+      "body_excerpt": "{\n  \"err\": 1,\n  \"message\": \"invalid access token\"\n}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

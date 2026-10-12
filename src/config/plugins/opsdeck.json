@@ -1,0 +1,80 @@
+{
+  "name": "opsdeck",
+  "version": "1.0.0",
+  "displayName": "OpsDeck",
+  "tagline": "Watch your agents work. In real-time.",
+  "description": "Live constellation visualization of agent activity during team objectives. See every agent's state, watch delegations flow, and track progress in a premium glassmorphism UI with signature scanning glow effect.",
+  "shortDescription": "Real-time agent activity constellation",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 8,
+  "priceDisplay": "$8",
+  "priceModel": "one-time",
+  "tier": "starter",
+  "featured": true,
+  "badge": "NEW",
+  "icon": "activity",
+  "accentColor": "#6366f1",
+  "infoUrl": "https://quox.ai/plugins/opsdeck",
+  "docsUrl": "https://quox.ai/docs/plugins/opsdeck",
+  "route": "/opsdeck",
+  "marketingPoints": [
+    "Live constellation of all 16 agents with orbital layout",
+    "Signature scanning glow border — radar sweep per agent state",
+    "Real-time SSE event streaming from team objectives",
+    "Glassmorphism cards with state-driven color and animation"
+  ],
+  "features": {
+    "liveConstellation": {
+      "name": "Live Constellation",
+      "description": "Orbital layout with QUOX orchestrator at center and agents in concentric rings",
+      "icon": "activity",
+      "highlight": true
+    },
+    "scanningGlow": {
+      "name": "Scanning Glow",
+      "description": "Conic gradient border that sweeps like radar — speed and color driven by agent state",
+      "icon": "eye",
+      "highlight": true
+    },
+    "systemPulseBar": {
+      "name": "System Pulse Bar",
+      "description": "Top status strip with objective progress, agent utilization, and elapsed time",
+      "icon": "bar-chart"
+    }
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "liveConstellation": false,
+      "scanningGlow": false,
+      "systemPulseBar": false,
+      "view": "No OpsDeck"
+    },
+    "tier_a": {
+      "name": "OpsDeck",
+      "liveConstellation": true,
+      "scanningGlow": true,
+      "systemPulseBar": true,
+      "view": "Full real-time constellation with all features"
+    }
+  },
+  "limits": {
+    "tier_a": {
+      "refreshInterval": 1000,
+      "allAgentsVisible": true
+    }
+  },
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "integration": {
+    "view": "src/pages/views/OpsDeckView.jsx"
+  },
+  "category": "Operations"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "edge-case",
+  "input": {
+    "file_path": "/tmp/large_events_export.csv",
+    "delimiter": "\t",
+    "has_header": true,
+    "sample_rows": 10000,
+    "top_n": 3
+  },
+  "expects": {
+    "contains": ["file_path", "rows_sampled", "sampled", "columns", "pk_candidates"],
+    "not_contains": ["error"]
+  },
+  "notes": "TSV input, sampled=true expected when file has more than 10000 rows; top_n reduced to 3"
+}

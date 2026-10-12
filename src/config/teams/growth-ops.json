@@ -1,0 +1,65 @@
+{
+  "id": "growth-ops",
+  "type": "team",
+  "version": "1.0.0",
+  "displayName": "Growth Ops",
+  "description": "Infrastructure scaling team — network optimization, capacity planning, performance dashboards, system health, and automation scripting for growing platforms.",
+  "author": "QUOX",
+  "tier": "free",
+  "price": 0,
+  "priceModel": "included",
+  "icon": "trending-up",
+  "accentColor": "#3b82f6",
+
+  "orchestrator": {
+    "agentId": "nova",
+    "role": "orchestrator",
+    "domains": ["operations coordination", "scaling strategy", "deployment orchestration"]
+  },
+
+  "members": [
+    {
+      "agentId": "cipher",
+      "role": "specialist",
+      "domains": ["network optimization", "load balancing", "DNS scaling"]
+    },
+    {
+      "agentId": "metrics",
+      "role": "specialist",
+      "domains": ["capacity planning", "performance metrics", "alert tuning"]
+    },
+    {
+      "agentId": "insight",
+      "role": "specialist",
+      "domains": ["performance dashboards", "trend analysis", "capacity forecasting"]
+    },
+    {
+      "agentId": "corey",
+      "role": "specialist",
+      "domains": ["system health", "resource optimization", "platform diagnostics"]
+    },
+    {
+      "agentId": "forge",
+      "role": "specialist",
+      "domains": ["automation scripts", "scaling pipelines", "infrastructure as code"]
+    }
+  ],
+
+  "policies": {
+    "maxBudgetTokens": 400000,
+    "maxBudgetToolCalls": 150,
+    "maxDurationMs": 21600000,
+    "maxTaskDurationMs": 1200000,
+    "heartbeatIntervalMs": 15000,
+    "maxParallelTasks": 3,
+    "requireApprovalBeforeStart": true,
+    "checkpointAfterEachTask": false,
+    "voltRequired": true,
+    "allowedChannels": ["slack", "telegram", "discord", "email"]
+  },
+
+  "sharedContext": {
+    "persistent": true,
+    "schema": {}
+  }
+}

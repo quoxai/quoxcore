@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-width="1.5">
+  <!-- Outer head circle -->
+  <circle cx="32" cy="32" r="26"/>
+  <!-- Eye outline ellipse -->
+  <ellipse cx="32" cy="32" rx="18" ry="10"/>
+  <!-- Iris -->
+  <circle cx="32" cy="32" r="6" fill="#ff6b35" stroke="none"/>
+  <!-- Pupil -->
+  <circle cx="32" cy="32" r="2" fill="#000" stroke="none"/>
+  <!-- Peripheral eye dots (12, 3, 6, 9 o'clock — evokes hundred eyes) -->
+  <circle cx="32" cy="6" r="1.5" fill="#fff" stroke="none"/>
+  <circle cx="58" cy="32" r="1.5" fill="#fff" stroke="none"/>
+  <circle cx="32" cy="58" r="1.5" fill="#fff" stroke="none"/>
+  <circle cx="6" cy="32" r="1.5" fill="#fff" stroke="none"/>
+</svg>

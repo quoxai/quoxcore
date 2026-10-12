@@ -1,0 +1,42 @@
+{
+  "spec_version": 1,
+  "id": "hotjar",
+  "name": "Hotjar",
+  "category": "data_ai",
+  "credentialType": "hotjar",
+  "requiredFields": [
+    "api_key",
+    "site_id"
+  ],
+  "description": "NO TOOLS AUTHORED, DO NOT PROMOTE: both hosts this vault entry names do not exist. api.hotjar.com (the API) and developer.hotjar.com (the docs) are both NXDOMAIN, while every other Hotjar host resolves normally, and no public REST API reference is reachable from any Hotjar host that does resolve. Kept as an annotated draft so the dead surface is recorded rather than papered over.",
+  "docs": "https://help.hotjar.com/hc/en-us",
+  "base_url": "https://api.hotjar.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/sites/{{site_id}}"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "OUTCOME: FAIL, NO TOOLS SHIPPED. There is no reachable Hotjar REST API to author against: the host the vault entry points at does not resolve, and neither does the documentation host. Every line below is a verbatim probe run on 2026-09-12 from this box, or a quote from a live page.",
+      "THE VAULT'S OWN HOST DOES NOT EXIST: integrationTypeRegistry.js key 'hotjar' declares testEndpoint (creds) => `https://api.hotjar.com/v2/sites/${creds.site_id}` with testHeaders (creds) => ({'Authorization': `Bearer ${creds.api_key}`}). Checked live: `dig api.hotjar.com A` returns no A record with 'status: NXDOMAIN', and curl agrees, 'curl: (6) Could not resolve host: api.hotjar.com' for https://api.hotjar.com/v2/sites/123456, for the host root, and for a bogus control path alike. This is NOT our resolver: on the same resolver in the same run, hotjar.com resolves to 52.85.47.5, www.hotjar.com to 18.245.162.82, script.hotjar.com to 13.33.153.125, insights.hotjar.com to 18.165.242.22 and help.hotjar.com to hotjar2.zendesk.com, all NOERROR. A DNS failure is classified FAIL by the shape-proof harness by design, and correctly so: there is nothing behind this base_url to prove.",
+      "THE DOCUMENTATION HOST DOES NOT EXIST EITHER: `dig developer.hotjar.com A` also returns 'status: NXDOMAIN', so the scaffolded docs URL https://developer.hotjar.com/ cannot be fetched at all ('curl: (6) Could not resolve host'). docs.hotjar.com does resolve (108.156.46.8) but is not an API reference: GET https://docs.hotjar.com/ follows to https://help.hotjar.com/hc/en-us, a Zendesk help centre sitting behind a Cloudflare managed challenge that answers 403 'Just a moment... Enable JavaScript and cookies to continue' to any non-browser client. docs was repointed at that help centre because it is the only documentation host of Hotjar's that resolves; it is a help centre, not an API reference, and it documents no REST surface that could be reached from here.",
+      "THE 'HOTJAR API' PRODUCT PAGE NOW REDIRECTS OFF-HOST TO CONTENTSQUARE: GET https://www.hotjar.com/integrations/hotjar-api/ returns 301 with location: https://contentsquare.com/integrations-partners/ (Hotjar is a Contentsquare product), and the page that serves is titled 'Contentsquare Integrations & Partner Ecosystem' with no Hotjar API reference on it. The full sitemap at https://www.hotjar.com/sitemap.xml (200, 1527 <loc> entries) contains no developer or API-reference page whatsoever: the only API-shaped URL in it is the redirecting one above.",
+      "THERE IS NO REST SURFACE ON THE APP HOST TO FALL BACK TO: insights.hotjar.com is the Hotjar single-page app. With a dummy bearer, GET https://insights.hotjar.com/api/v1/sites returns 404 '<!doctype html>\\n<html lang=en>\\n<title>404 Not Found</title>' and GET https://insights.hotjar.com/api/v2/sites/123456 returns the same 404, while the deliberately bogus control path GET https://insights.hotjar.com/quox-bogus-control-path returns 200 with the SPA shell HTML. A host that answers 200 at a path that cannot exist gives no usable control differential, so even a correctly guessed route there could never be shape-proven. Guessing routes into a customer's analytics account on a host whose own 404s are indistinguishable from ours is exactly the fabrication this draft refuses.",
+      "WHY THE SCAFFOLDED BLOCKS WERE LEFT IN PLACE: base_url, auth, test and requiredFields still describe the vault entry as it stands, wrong as it is, so the proof artifact at lib/connectors/specs/proofs/hotjar.proof.json records evidence against the target the platform actually points customers at. Inventing paths under a host that does not resolve, or silently repointing base_url at api.contentsquare.com (which does resolve) would produce a spec that validates, looks authored and can never serve a single customer holding the Hotjar personal API key and site id this vault entry collects. Only two fields changed: category, from the scaffolded 'uncategorized' to 'data_ai' (the 12 shipped buckets have no 'uncategorized'; the vault entry labels Hotjar category 'data'), and docs, from the NXDOMAIN developer.hotjar.com to the help centre that does resolve. rateLimit was added so a future authored version is rate limited by default.",
+      "ONE INSPECTION ROUTE WAS REFUSED, AND IT DOES NOT CHANGE THE FINDING: `quox qlarity read https://help.hotjar.com/hc/en-us/search?query=API --inspector text_content` returned 'Error: Request failed with status 403 / Status: 403 egress_denied: not_in_allowlist:help.hotjar.com'. Allowlisting a new origin is an org-admin action, so the Cloudflare-challenged help centre was not read by a real browser. That gap only affects the search for documentation of an API; it cannot change the NXDOMAIN result for api.hotjar.com, which is what makes this spec unauthorable.",
+      "WHAT WOULD HAVE TO CHANGE FIRST (product and registry work, out of scope for this task): someone with a Hotjar account has to establish whether a server-side REST API is offered to customers at all and under which host and credential, because no resolvable Hotjar host publishes one. If the answer is that Contentsquare's api.contentsquare.com (which resolves, via an AWS ELB) is the successor surface, that is a DIFFERENT product, host and credential shape and wants its own integrationTypeRegistry entry and its own spec, not a quiet repoint of this one. Until then this draft stays tool-less and the proof stays FAIL."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

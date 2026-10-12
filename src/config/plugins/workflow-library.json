@@ -1,0 +1,94 @@
+{
+  "name": "workflow-library",
+  "version": "1.0.0",
+  "displayName": "Workflow Library",
+  "tagline": "154 of 1,340 Real n8n Workflows Ready to Run Today",
+  "description": "Browse, search, and learn from 1,340 real n8n workflow templates converted to QuoxFlow's format. 154 are ready to run today (clean or with minor polish); the rest are searchable, browsable references you can adapt as connector and node-type coverage grows. Filter by integration, category, and tags. View WireMap diagrams to understand workflow structure visually.",
+  "shortDescription": "1,340 n8n-derived workflow templates; 154 ready to run today, the rest browsable references.",
+  "author": "QUOX",
+  "license": "free",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "free",
+  "tier": "free",
+  "requiresActivation": false,
+  "featured": true,
+  "icon": "🔀",
+  "infoUrl": "https://quox.ai/plugins/workflow-library",
+  "docsUrl": "https://quox.ai/docs/plugins/workflow-library",
+  "accentColor": "#f59e0b",
+  "docUrl": "/docs/workflow-library",
+  "marketingPoints": [
+    "1,340 real n8n workflow templates, 154 ready to run today, the rest browsable references",
+    "Filter by integration (Slack, OpenAI, Google Sheets, 200+ more)",
+    "Visual WireMap diagrams with React Flow",
+    "Organized by category: AI/LLM, automation, integration, communication",
+    "Copy workflow JSON or use as template",
+    "AEE-indexed with safety ratings and DEFCON levels"
+  ],
+  "features": {
+    "browse": {
+      "name": "Browse Templates",
+      "description": "Explore 1,300+ workflows organized by integration and category with grid/list views.",
+      "icon": "grid",
+      "highlight": true
+    },
+    "search": {
+      "name": "Smart Search",
+      "description": "Search by name, description, integration, or tags to find the right workflow.",
+      "icon": "search",
+      "highlight": true
+    },
+    "visualization": {
+      "name": "WireMap Diagrams",
+      "description": "View workflow structure visually with interactive node diagrams, hover highlighting, and detail panels.",
+      "icon": "git-branch",
+      "highlight": true
+    },
+    "export": {
+      "name": "Copy & Template",
+      "description": "Copy workflow ID, view raw JSON, or use as a starting template for new workflows.",
+      "icon": "download"
+    }
+  },
+  "limits": {
+    "free": {
+      "browseTemplates": true,
+      "search": true,
+      "viewDiagrams": true,
+      "exportJson": true
+    }
+  },
+  "comparison": {
+    "free": {
+      "templates": "1,300+",
+      "search": true,
+      "diagrams": true,
+      "export": true
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "integration": {
+    "view": "src/pages/views/WorkflowLibraryView.jsx",
+    "service": "src/services/workflowLibrary.js",
+    "loader": "src/services/workflowLoader.js",
+    "index": "src/config/workflow-library-index.json"
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-01-22",
+      "changes": [
+        "Initial release with 1,340 indexed templates",
+        "WireMap visual workflow viewer with React Flow",
+        "Category-based filtering (AI/LLM, automation, integration, etc.)",
+        "Integration-based filtering (200+ integrations)",
+        "Grid and list view modes",
+        "Copy workflow ID and Use as Template actions",
+        "AEE manifest generation with safety ratings"
+      ]
+    }
+  },
+  "category": "Productivity"
+}

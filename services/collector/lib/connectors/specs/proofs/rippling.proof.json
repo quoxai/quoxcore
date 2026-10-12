@@ -1,0 +1,207 @@
+{
+  "spec_id": "rippling",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T04:08:04.367Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.rippling.com/quox-shapeproof-control-462084cb",
+      "status": 404,
+      "latency_ms": 967,
+      "classification": "CONTROL",
+      "body_sha256": "4dfe70ff2b82bad64d7c940b1abaedb1eccb990c42e5d5ae1e1e5a3d470f3bef",
+      "body_excerpt": "<html>\n<body>\nNot Found!\n<script>window.__CF$cv$params={r:'a39c0c335f14c0d8',t:'MTc4OTE4NjA3MQ==',u:'01a093ccde207c60ba2796d53c6026a2',ut:'WoNOsuDuOCB_t7GAMMKBs4U_1ODO1g_GCL2C2yGJl7c-1789186072-1.2.1.",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/me",
+      "status": 401,
+      "latency_ms": 631,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_me",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/me",
+      "status": 401,
+      "latency_ms": 535,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_current_company",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/companies/current",
+      "status": 401,
+      "latency_ms": 540,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_employees",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/employees?limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 547,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_employees_including_terminated",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/employees/include_terminated?limit=20&offset=1&EIN=1",
+      "status": 401,
+      "latency_ms": 497,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_employee",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/employees/quoxprobe",
+      "status": 401,
+      "latency_ms": 844,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_departments",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/departments?limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 532,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_teams",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/teams?limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 526,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_levels",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/levels?limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 667,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_work_locations",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/work_locations?limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 546,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_leave_requests",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/leave_requests?role=quoxprobe&status=quoxprobe&leavePolicy=quoxprobe&startDate=quoxprobe&endDate=quoxprobe&from=quoxprobe&to=quoxprobe&limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 522,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_company_leave_types",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/company_leave_types?managedBy=quoxprobe",
+      "status": 401,
+      "latency_ms": 519,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_leave_balances",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/leave_balances?limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 526,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_company_activity",
+      "method": "GET",
+      "url": "https://api.rippling.com/platform/api/company_activity?startDate=quoxprobe&endDate=quoxprobe&next=quoxprobe&limit=50",
+      "status": 401,
+      "latency_ms": 636,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "dbff0849bc109eee7f9b7b1fe12e40fc8add21823b2f1fb600b37f620cbd7862",
+      "body_excerpt": "{\"detail\":\"Authentication credentials were not provided.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

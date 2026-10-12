@@ -1,0 +1,30 @@
+{
+  "id": "quox-voice",
+  "name": "quox-voice",
+  "displayName": "Quox Voice",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "free",
+  "license": "free",
+  "badge": "BETA",
+  "category": "AI & Intelligence",
+  "accentColor": "#37d0a2",
+  "description": "Governed realtime voice conversations with CommanderQ. Speech recognition, agent reasoning and synthesis all run through the governed Quox stack: sessions are org-scoped, witnessed, and interruptible mid-sentence. Browser first; telephony is the roadmap.",
+  "permissions": [
+    "sidebar",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/quox-voice",
+      "label": "Quox Voice",
+      "icon": "mic",
+      "badge": "BETA"
+    }
+  ],
+  "routes": {
+    "/quox-voice/*": "QuoxVoiceView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

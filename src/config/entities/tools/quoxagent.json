@@ -1,0 +1,269 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "quoxagent",
+
+  "name": "QuoxAgent Tools",
+  "description": "Quox Helper Agent tools for remote command execution and fleet management",
+  "category": "infrastructure",
+  "subcategory": "fleet_management",
+  "provider": "quox",
+  "version": "1.0.0",
+
+  "risk_level": "high",
+  "sandbox_profile": "privileged",
+  "requires_license": null,
+
+  "tools": [
+    {
+      "id": "quoxagent.execute",
+      "name": "Execute Command",
+      "description": "Execute a shell command on a remote host via QuoxAgent agent",
+      "accessLevel": "managers+",
+      "defconLevel": "AMBER",
+      "requiresApproval": true,
+      "parameters": {
+        "hostId": {
+          "type": "string",
+          "required": true,
+          "description": "Target host ID (e.g., 'docker01', 'kuma01')"
+        },
+        "command": {
+          "type": "string",
+          "required": true,
+          "description": "Shell command to execute"
+        },
+        "timeout": {
+          "type": "number",
+          "required": false,
+          "default": 30,
+          "description": "Timeout in seconds"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "stdout": { "type": "string" },
+          "stderr": { "type": "string" },
+          "exitCode": { "type": "number" },
+          "duration": { "type": "number" }
+        }
+      },
+      "instructions": {
+        "summary": "Execute shell commands on remote hosts in the QuoxAgent fleet",
+        "when_to_use": [
+          "User wants to run a command on a specific server",
+          "User asks 'run X on host Y'",
+          "User needs to check something on a remote host",
+          "Troubleshooting requires command execution"
+        ],
+        "when_not_to_use": [
+          "Read-only metrics are available via Prometheus (use prometheus tools)",
+          "User wants to modify system configuration (use specialized tools or require explicit approval)",
+          "Command is destructive (rm -rf, format, etc.) - escalate to human"
+        ],
+        "output_interpretation": {
+          "success": "exitCode: 0 with stdout containing command output",
+          "empty": "Empty stdout with exitCode 0 means command succeeded with no output",
+          "error": "Non-zero exitCode with stderr containing error message"
+        },
+        "error_recovery": [
+          { "error": "exitCode: 127", "meaning": "Command not found", "action": "Verify command exists on target host, check PATH" },
+          { "error": "exitCode: 126", "meaning": "Permission denied", "action": "Command exists but not executable, check permissions" },
+          { "error": "timeout", "meaning": "Command exceeded timeout", "action": "Increase timeout or check if command is hanging" },
+          { "error": "agent offline", "meaning": "QuoxAgent agent not responding", "action": "Check host connectivity with quoxagent.status" }
+        ]
+      }
+    },
+    {
+      "id": "quoxagent.status",
+      "name": "Fleet Status",
+      "description": "Get status of all QuoxAgent agents in the fleet",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {},
+      "returns": {
+        "type": "object",
+        "properties": {
+          "agents": { "type": "array" },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "number" },
+              "online": { "type": "number" },
+              "offline": { "type": "number" }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Check health and connectivity of all hosts in the fleet",
+        "when_to_use": [
+          "User asks 'how many hosts are online?'",
+          "User wants to see fleet overview",
+          "Before executing commands to verify host is reachable",
+          "Troubleshooting connectivity issues"
+        ],
+        "when_not_to_use": [
+          "User needs detailed host metrics (use prometheus)"
+        ]
+      }
+    },
+    {
+      "id": "quoxagent.install",
+      "name": "Install Agent",
+      "description": "Install QuoxAgent agent on a new host",
+      "accessLevel": "managers+",
+      "defconLevel": "AMBER",
+      "requiresApproval": true,
+      "parameters": {
+        "hostId": {
+          "type": "string",
+          "required": true,
+          "description": "Target host ID to install agent on"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Deploy QuoxAgent agent to a new host for fleet management",
+        "when_to_use": [
+          "User wants to add a new host to the fleet",
+          "User says 'install quoxagent on X'",
+          "Setting up new infrastructure"
+        ],
+        "when_not_to_use": [
+          "Host already has agent installed (check with quoxagent.status first)",
+          "User doesn't have SSH access to target"
+        ]
+      }
+    },
+    {
+      "id": "quoxagent.logs",
+      "name": "Get Agent Logs",
+      "description": "Retrieve recent logs from a QuoxAgent agent",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "hostId": {
+          "type": "string",
+          "required": true,
+          "description": "Target host ID"
+        },
+        "lines": {
+          "type": "number",
+          "required": false,
+          "default": 100,
+          "description": "Number of log lines to retrieve"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "logs": { "type": "array" }
+        }
+      },
+      "instructions": {
+        "summary": "Get recent logs from a QuoxAgent agent for debugging",
+        "when_to_use": [
+          "Troubleshooting agent issues",
+          "User asks about agent activity",
+          "Debugging command execution failures"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {
+    "base": "internal",
+    "api": "quoxagent"
+  },
+
+  "instructions": {
+    "summary": "Manage and execute commands on remote hosts via the QuoxAgent fleet",
+    "when_to_use": [
+      "User wants to run commands on remote servers",
+      "User needs to check fleet/host status",
+      "User wants to deploy agents to new hosts",
+      "Infrastructure management tasks requiring shell access"
+    ],
+    "when_not_to_use": [
+      "Read-only metrics are available via Prometheus (prefer prometheus tools)",
+      "Task can be done with specialized tool (prefer specific tool)",
+      "Destructive commands without explicit approval"
+    ],
+    "usage_pattern": {
+      "format": "quoxagent.<tool>(params)",
+      "common_queries": [
+        {
+          "intent": "Check fleet status",
+          "tool": "quoxagent.status",
+          "params": {}
+        },
+        {
+          "intent": "Check disk space on host",
+          "tool": "quoxagent.execute",
+          "params": { "hostId": "docker01", "command": "df -h" }
+        },
+        {
+          "intent": "Check running containers",
+          "tool": "quoxagent.execute",
+          "params": { "hostId": "docker01", "command": "docker ps" }
+        },
+        {
+          "intent": "Check memory usage",
+          "tool": "quoxagent.execute",
+          "params": { "hostId": "docker01", "command": "free -h" }
+        },
+        {
+          "intent": "Restart a service",
+          "tool": "quoxagent.execute",
+          "params": { "hostId": "docker01", "command": "sudo systemctl restart nginx" }
+        }
+      ]
+    },
+    "output_interpretation": {
+      "success": "Returns command output in stdout with exitCode 0",
+      "empty": "Empty response may indicate command produced no output",
+      "error": "Non-zero exitCode indicates failure, check stderr for details"
+    },
+    "error_recovery": [
+      { "error": "agent offline", "meaning": "Target host agent not responding", "action": "Check network connectivity, verify agent is running" },
+      { "error": "timeout", "meaning": "Command execution exceeded timeout", "action": "Increase timeout or investigate if command is blocking" },
+      { "error": "permission denied", "meaning": "Insufficient permissions for command", "action": "May need sudo, check user permissions on target" },
+      { "error": "command not found", "meaning": "Binary doesn't exist on target", "action": "Verify command is installed, check PATH" }
+    ],
+    "chaining": {
+      "often_used_with": ["prometheus.query", "docker.ps", "ssh tools"],
+      "feeds_into": ["Analysis and reporting"],
+      "requires_first": ["quoxagent.status (to verify host is online)"]
+    }
+  },
+
+  "help": {
+    "man_url": "https://github.com/quox/quoxagent",
+    "quick_reference": "/docs/tools/quoxagent-cheatsheet.md",
+    "examples_url": "/docs/tools/quoxagent-examples.md",
+    "video_tutorial": null,
+    "troubleshooting": "/docs/tools/quoxagent-troubleshooting.md"
+  },
+
+  "agent_hints": {
+    "context_tokens": 120,
+    "typical_latency_ms": 2000,
+    "cacheable": false,
+    "cache_ttl_seconds": 0,
+    "batch_friendly": false,
+    "max_batch_size": 1,
+    "idempotent": false,
+    "side_effects": true
+  }
+}

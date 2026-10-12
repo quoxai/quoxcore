@@ -1,0 +1,187 @@
+/* AGH-CHAIN-4: Honesty Leaderboard Tab */
+
+.honesty-leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1rem 0;
+}
+
+/* Window toggle ─────────────────────────────────────────── */
+
+.honesty-leaderboard__window-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.honesty-leaderboard__window-btn {
+  padding: 0.3rem 0.75rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.55));
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.honesty-leaderboard__window-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary, #fff);
+}
+
+.honesty-leaderboard__window-btn--active {
+  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(74, 222, 128, 0.35);
+  color: var(--hal-green, #4ade80);
+}
+
+/* Loading / error ───────────────────────────────────────── */
+
+.honesty-leaderboard__loading {
+  font-size: 0.85rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+}
+
+.honesty-leaderboard__error {
+  font-size: 0.85rem;
+  color: #f87171;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+}
+
+/* Metrics grid ──────────────────────────────────────────── */
+
+.honesty-leaderboard__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.75rem;
+}
+
+.honesty-leaderboard__metric {
+  padding: 0.75rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.honesty-leaderboard__metric--clickable {
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.honesty-leaderboard__metric--clickable:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 136, 0, 0.4);
+}
+
+.honesty-leaderboard__metric-label {
+  font-size: 0.72rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+  margin-bottom: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.honesty-leaderboard__metric-value {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+/* Sparkline ─────────────────────────────────────────────── */
+
+.honesty-leaderboard__sparkline {
+  display: block;
+  opacity: 0.85;
+}
+
+/* Drill-through panel ───────────────────────────────────── */
+
+.honesty-leaderboard__drill-panel {
+  border-radius: 6px;
+  border: 1px solid rgba(255, 136, 0, 0.25);
+  background: rgba(255, 136, 0, 0.05);
+  overflow: hidden;
+}
+
+.honesty-leaderboard__drill-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.85rem;
+  background: rgba(255, 136, 0, 0.08);
+  font-size: 0.82rem;
+  color: var(--text-primary, #fff);
+  border-bottom: 1px solid rgba(255, 136, 0, 0.15);
+}
+
+.honesty-leaderboard__drill-close {
+  padding: 0.2rem 0.6rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.55));
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.honesty-leaderboard__drill-close:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary, #fff);
+}
+
+.honesty-leaderboard__drill-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.honesty-leaderboard__drill-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 0.78rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+.honesty-leaderboard__drill-item code {
+  font-family: monospace;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.45);
+  flex-shrink: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.honesty-leaderboard__drill-ts {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.honesty-leaderboard__drill-link {
+  color: var(--hal-green, #4ade80);
+  text-decoration: none;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.honesty-leaderboard__drill-link:hover {
+  text-decoration: underline;
+}
+
+.honesty-leaderboard__drill-empty {
+  padding: 0.75rem 0.85rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.45));
+  font-size: 0.82rem;
+}

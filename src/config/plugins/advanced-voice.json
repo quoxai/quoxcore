@@ -1,0 +1,299 @@
+{
+  "name": "advanced-voice",
+  "version": "1.0.0",
+  "displayName": "Advanced Voice",
+  "tagline": "Rich voice, built in.",
+  "description": "The full voice experience, included in core: 40+ professional ElevenLabs voices, fine-tuned voice parameters, intelligent summarization, and extended speech limits. No activation, no charge.",
+  "shortDescription": "40+ voices, voice parameters, smart summarization, 2000 char TTS limit — all free.",
+  "author": "QUOX",
+  "license": "free",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "free",
+  "tier": "free",
+  "featured": false,
+  "badge": null,
+  "icon": "volume-2",
+  "infoUrl": "https://quox.ai/plugins/advanced-voice",
+  "docsUrl": "https://quox.ai/docs/plugins/advanced-voice",
+  "heroGradient": "linear-gradient(135deg, #38bdf8 0%, #a78bfa 50%, #f472b6 100%)",
+  "accentColor": "#38bdf8",
+  "marketingPoints": [
+    "40+ professional ElevenLabs voices to choose from",
+    "Fine-tune stability, similarity, style, and speed",
+    "AI-powered smart summarization for long responses",
+    "2000 character TTS limit",
+    "Assign unique voices to each agent personality"
+  ],
+  "features": {
+    "voiceLibrary": {
+      "name": "Extended Voice Library",
+      "description": "Access 40+ professional ElevenLabs voices including male, female, accents, and character voices. Find the perfect voice for each agent.",
+      "icon": "users",
+      "highlight": true
+    },
+    "voiceParameters": {
+      "name": "Voice Parameter Control",
+      "description": "Fine-tune voice settings: stability (consistency), similarity boost (character matching), style (expressiveness), and speed (1.0x-1.5x).",
+      "icon": "sliders",
+      "highlight": true
+    },
+    "smartSummarization": {
+      "name": "AI Smart Summarization",
+      "description": "Long responses are intelligently summarized for speech instead of truncated. Preserves meaning while reducing length.",
+      "icon": "brain",
+      "highlight": true
+    },
+    "extendedLimit": {
+      "name": "2000 Character TTS Limit",
+      "description": "A generous 2000-character speech limit, included in core.",
+      "icon": "maximize"
+    },
+    "voicePreview": {
+      "name": "Voice Preview & Testing",
+      "description": "Preview any voice before assigning it. Test with custom phrases to find the perfect fit.",
+      "icon": "play"
+    },
+    "voiceExport": {
+      "name": "Voice Config Export/Import",
+      "description": "Save and share your voice configurations. Back up your settings or transfer to another instance.",
+      "icon": "download"
+    }
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "voices": "4 built-in",
+      "parameters": "None",
+      "ttsLimit": "500 chars",
+      "summarization": "Truncation only",
+      "preview": false,
+      "export": false
+    },
+    "premium": {
+      "name": "Premium",
+      "voices": "40+ voices",
+      "parameters": "Full control",
+      "ttsLimit": "2000 chars",
+      "summarization": "AI-powered",
+      "preview": true,
+      "export": true
+    }
+  },
+  "limits": {
+    "free": {
+      "maxVoices": 4,
+      "maxTTSLength": 500,
+      "voiceParameters": false,
+      "smartSummarization": false
+    },
+    "premium": {
+      "maxVoices": -1,
+      "maxTTSLength": 2000,
+      "voiceParameters": true,
+      "smartSummarization": true
+    }
+  },
+  "voiceList": [
+    {
+      "id": "21m00Tcm4TlvDq8ikWAM",
+      "name": "Rachel",
+      "gender": "female",
+      "accent": "American",
+      "free": true
+    },
+    {
+      "id": "pNInz6obpgDQGcFmaJgB",
+      "name": "Adam",
+      "gender": "male",
+      "accent": "American",
+      "free": true
+    },
+    {
+      "id": "VR6AewLTigWG4xSOukaG",
+      "name": "Arnold",
+      "gender": "male",
+      "accent": "American",
+      "free": true
+    },
+    {
+      "id": "onwK4e9ZLuTAKqWW03F9",
+      "name": "Daniel",
+      "gender": "male",
+      "accent": "British",
+      "free": true
+    },
+    {
+      "id": "EXAVITQu4vr4xnSDxMaL",
+      "name": "Bella",
+      "gender": "female",
+      "accent": "American"
+    },
+    {
+      "id": "ErXwobaYiN019PkySvjV",
+      "name": "Antoni",
+      "gender": "male",
+      "accent": "American"
+    },
+    {
+      "id": "MF3mGyEYCl7XYWbV9V6O",
+      "name": "Elli",
+      "gender": "female",
+      "accent": "American"
+    },
+    {
+      "id": "TxGEqnHWrfWFTfGW9XjX",
+      "name": "Josh",
+      "gender": "male",
+      "accent": "American"
+    },
+    {
+      "id": "yoZ06aMxZJJ28mfd3POQ",
+      "name": "Sam",
+      "gender": "male",
+      "accent": "American"
+    },
+    {
+      "id": "AZnzlk1XvdvUeBnXmlld",
+      "name": "Domi",
+      "gender": "female",
+      "accent": "American"
+    },
+    {
+      "id": "CYw3kZ02Hs0563khs1Fj",
+      "name": "Dave",
+      "gender": "male",
+      "accent": "British"
+    },
+    {
+      "id": "XB0fDUnXU5powFXDhCwa",
+      "name": "Charlotte",
+      "gender": "female",
+      "accent": "British"
+    },
+    {
+      "id": "SOYHLrjzK2X1ezoPC6cr",
+      "name": "Harry",
+      "gender": "male",
+      "accent": "American"
+    },
+    {
+      "id": "ThT5KcBeYPX3keUQqHPh",
+      "name": "Dorothy",
+      "gender": "female",
+      "accent": "American"
+    },
+    {
+      "id": "JBFqnCBsd6RMkjVDRZzb",
+      "name": "George",
+      "gender": "male",
+      "accent": "British"
+    },
+    {
+      "id": "XrExE9yKIg1WjnnlVkGX",
+      "name": "Matilda",
+      "gender": "female",
+      "accent": "American"
+    },
+    {
+      "id": "oWAxZDx7w5VEj9dCyTzz",
+      "name": "Grace",
+      "gender": "female",
+      "accent": "American"
+    },
+    {
+      "id": "iP95p4xoKVk53GoZ742B",
+      "name": "Chris",
+      "gender": "male",
+      "accent": "American"
+    },
+    {
+      "id": "g5CIjZEefAph4nQFvHAz",
+      "name": "Liam",
+      "gender": "male",
+      "accent": "American"
+    },
+    {
+      "id": "SAz9YHcvj6GT2YYXdXww",
+      "name": "Natasha",
+      "gender": "female",
+      "accent": "American"
+    }
+  ],
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "integration": {
+    "voiceSettings": "src/services/voiceSettings.js",
+    "ttsPreprocessor": "src/services/ttsPreprocessor.js"
+  },
+  "configSchema": {
+    "defaultVoice": {
+      "type": "string",
+      "enum": [
+        "21m00Tcm4TlvDq8ikWAM",
+        "pNInz6obpgDQGcFmaJgB",
+        "VR6AewLTigWG4xSOukaG",
+        "onwK4e9ZLuTAKqWW03F9"
+      ],
+      "enumLabels": {
+        "21m00Tcm4TlvDq8ikWAM": "Rachel (American Female)",
+        "pNInz6obpgDQGcFmaJgB": "Adam (American Male)",
+        "VR6AewLTigWG4xSOukaG": "Arnold (American Male)",
+        "onwK4e9ZLuTAKqWW03F9": "Daniel (British Male)"
+      },
+      "default": "onwK4e9ZLuTAKqWW03F9",
+      "label": "Default Voice",
+      "description": "The voice used when no specific voice is requested"
+    },
+    "stability": {
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "step": 0.1,
+      "default": 0.5,
+      "label": "Stability",
+      "description": "Voice consistency (0 = more expressive variation, 1 = more consistent)"
+    },
+    "similarityBoost": {
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "step": 0.1,
+      "default": 0.75,
+      "label": "Similarity Boost",
+      "description": "How closely the voice matches the original character (0 = loose, 1 = strict)"
+    },
+    "style": {
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "step": 0.1,
+      "default": 0.5,
+      "label": "Style Exaggeration",
+      "description": "Voice expressiveness intensity (0 = neutral, 1 = highly expressive)"
+    },
+    "enableSmartSummarization": {
+      "type": "boolean",
+      "default": true,
+      "label": "Smart Summarization",
+      "description": "Use AI to intelligently summarize long responses for speech instead of truncating"
+    }
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2025-02-01",
+      "changes": [
+        "Initial release",
+        "40+ ElevenLabs voice library",
+        "Voice parameter controls (stability, similarity, style, speed)",
+        "AI-powered smart summarization",
+        "Extended 2000 character TTS limit",
+        "Voice preview and testing",
+        "Configuration export/import",
+        "Per-agent voice assignment"
+      ]
+    }
+  },
+  "category": "AI & Intelligence"
+}

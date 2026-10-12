@@ -1,0 +1,219 @@
+{
+  "spec_version": 1,
+  "id": "linkedinads",
+  "name": "LinkedIn Ads",
+  "category": "marketing_email",
+  "credentialType": "linkedin_ads",
+  "requiredFields": [
+    "access_token",
+    "ad_account_id"
+  ],
+  "docs": "https://learn.microsoft.com/en-us/linkedin/marketing/",
+  "base_url": "https://api.linkedin.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "static_headers": {
+    "LinkedIn-Version": "202409",
+    "X-Restli-Protocol-Version": "2.0.0"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/userinfo"
+  },
+  "tools_source": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads/account-structure/create-and-manage-accounts",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the LinkedIn member identity the stored access token belongs to (OpenID Connect userinfo: name, email, locale)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/userinfo"
+      },
+      "response": {
+        "pick": {
+          "sub": "sub",
+          "name": "name",
+          "given_name": "given_name",
+          "family_name": "family_name",
+          "email": "email",
+          "email_verified": "email_verified",
+          "locale_country": "locale.country",
+          "locale_language": "locale.language"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_ad_accounts",
+      "description": "List the LinkedIn ad accounts the access token can reach, with status, type and billing currency",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Max ad accounts to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/adAccounts",
+        "query": {
+          "q": "search",
+          "count": "{{clamp input.count 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "elements[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "type": "type",
+            "currency": "currency",
+            "reference": "reference",
+            "test": "test"
+          },
+          "total": "paging.total"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_ad_account",
+      "description": "Get one LinkedIn ad account by its numeric ID (use list_ad_accounts to find IDs)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "ad_account_id": {
+            "type": "string",
+            "description": "Numeric LinkedIn ad account ID, e.g. 512345678 (not the sponsoredAccount URN)"
+          }
+        },
+        "required": [
+          "ad_account_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/adAccounts/{{input.ad_account_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "status": "status",
+          "type": "type",
+          "currency": "currency",
+          "reference": "reference",
+          "serving_statuses": "servingStatuses",
+          "created_at": "changeAuditStamps.created.time",
+          "last_modified_at": "changeAuditStamps.lastModified.time"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_campaign_groups",
+      "description": "List campaign groups in the ad account held in the stored credential, with status, schedule and total budget",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Max campaign groups to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/adAccounts/{{ad_account_id}}/adCampaignGroups",
+        "query": {
+          "q": "search",
+          "count": "{{clamp input.count 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "elements[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "run_schedule_start": "runSchedule.start",
+            "run_schedule_end": "runSchedule.end",
+            "total_budget_amount": "totalBudget.amount",
+            "total_budget_currency": "totalBudget.currencyCode",
+            "backfilled": "backfilled"
+          },
+          "total": "paging.total"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_campaigns",
+      "description": "List campaigns in the ad account held in the stored credential, with objective, status, cost type and daily budget",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Max campaigns to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/adAccounts/{{ad_account_id}}/adCampaigns",
+        "query": {
+          "q": "search",
+          "count": "{{clamp input.count 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "elements[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "type": "type",
+            "cost_type": "costType",
+            "objective_type": "objectiveType",
+            "campaign_group": "campaignGroup",
+            "format": "format",
+            "daily_budget_amount": "dailyBudget.amount",
+            "daily_budget_currency": "dailyBudget.currencyCode",
+            "run_schedule_start": "runSchedule.start",
+            "run_schedule_end": "runSchedule.end"
+          },
+          "total": "paging.total"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Scaffolded bearer auth on access_token stands: LinkedIn's marketing APIs take a 3-legged OAuth 2.0 member token as Authorization: Bearer, and the probe agrees. GET /v2/userinfo with the dummy credential answers HTTP 401 {\"status\":401,\"serviceErrorCode\":65600,\"code\":\"INVALID_ACCESS_TOKEN\",\"message\":\"Invalid access token\"}, so the auth header name and the bearer model are proven, not assumed.",
+      "static_headers added, NOT scaffolded: every /rest/ path requires the LinkedIn-Version date header (202409 here) and the marketing APIs are Rest.li 2.0, so X-Restli-Protocol-Version: 2.0.0 rides alongside. Both were fired against the real host during authoring: /rest/adAccounts?q=search answers the same structured 401 with them as /v2/userinfo does without them, so they are accepted rather than rejected as unknown headers. The version header is applied to /v2/userinfo too (static_headers are global in spec v1); /v2/ endpoints ignore it, and the 401 body was byte-identical with and without it. A real token is still needed to confirm LinkedIn does not tighten that on a 2xx.",
+      "READ-ONLY by design: no tool is marked write:true. /rest/adAccounts, /rest/adCampaignGroups and /rest/adCampaigns all accept POST and PATCH (account, campaign group and campaign creation, budget edits, pausing), which are deliberately not modelled.",
+      "The 2026-09-12 shape proof stops at 401 on every call, so NO response body was ever data. Every path, query parameter and picked field name comes from LinkedIn's own reference (adAccounts, adCampaignGroups and adCampaigns finders with q=search; the OpenID Connect userinfo document), never from a live 2xx. A wrong pick source yields an empty value silently, so the first run with a real token must confirm them.",
+      "list_campaign_groups and list_campaigns address the account from the CREDENTIAL ({{ad_account_id}}), so they take no identifier argument and cannot be pointed at an account the stored credential does not name. get_ad_account takes an explicit numeric ad_account_id input instead, so an agent can inspect any account list_ad_accounts returned. The finders want the bare numeric ID, not the urn:li:sponsoredAccount:<id> URN.",
+      "No adAnalytics tool is shipped. GET /rest/adAnalytics requires a Rest.li tuple dateRange such as dateRange=(start:(year:2026,month:9,day:1)) plus a List(urn...) of accounts, and spec v1 templating cannot build or safely encode those nested literals from tool inputs. Reporting is an owner call for a spec v2 helper rather than a hand-built string that would break the moment a date crosses a month boundary.",
+      "rateLimit 30/min is a local courtesy and spend guard chosen here, not a documented LinkedIn ceiling: LinkedIn publishes per-application and per-member daily quotas in the developer portal rather than one per-minute number, so no published band was copied."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

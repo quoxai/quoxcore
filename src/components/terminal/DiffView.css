@@ -1,0 +1,114 @@
+/* DiffView — line-level diff display for file:edit blocks */
+
+.diff-view {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+/* Stats bar */
+.diff-view__stats {
+  display: flex;
+  gap: 0.75rem;
+  padding: 4px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.65rem;
+}
+
+.diff-view__stat {
+  font-weight: 600;
+}
+
+.diff-view__stat--added {
+  color: #22c55e;
+}
+
+.diff-view__stat--removed {
+  color: #ef4444;
+}
+
+.diff-view__stat--context {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Lines container */
+.diff-view__lines {
+  max-height: 250px;
+  overflow-y: auto;
+  overflow-x: auto;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Individual line */
+.diff-view__line {
+  display: flex;
+  padding: 0 8px;
+  min-height: 1.5em;
+}
+
+.diff-view__line--context {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.diff-view__line--added {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.diff-view__line--removed {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  text-decoration: line-through;
+  text-decoration-color: rgba(239, 68, 68, 0.4);
+}
+
+/* Gutter (line numbers / +/- prefix) */
+.diff-view__gutter {
+  width: 28px;
+  flex-shrink: 0;
+  text-align: right;
+  padding-right: 8px;
+  color: rgba(255, 255, 255, 0.45);
+  user-select: none;
+}
+
+.diff-view__line--added .diff-view__gutter {
+  color: rgba(34, 197, 94, 0.6);
+}
+
+.diff-view__line--removed .diff-view__gutter {
+  color: rgba(239, 68, 68, 0.6);
+}
+
+/* Content */
+.diff-view__content {
+  flex: 1;
+  white-space: pre;
+  min-width: 0;
+}
+
+/* Collapsed context section */
+.diff-view__collapsed {
+  padding: 2px 8px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.65rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  user-select: none;
+}
+
+.diff-view__collapsed:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Empty state */
+.diff-view__empty {
+  padding: 8px 10px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.7rem;
+  font-style: italic;
+}

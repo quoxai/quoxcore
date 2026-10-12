@@ -1,0 +1,10 @@
+.brain-capture { display: flex; flex-direction: column; gap: 6px; }
+.brain-capture__title, .brain-capture__text { width: 100%; box-sizing: border-box; }
+.brain-capture__text { resize: vertical; min-height: 64px; }
+.brain-capture__btn { align-self: flex-start; }
+.brain-capture__btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.brain-capture__result { font-size: 11px; font-family: var(--font-mono); }
+.brain-capture__result--ok { color: var(--glass-text-primary); }
+.brain-capture__result--error { color: var(--color-danger, #ff6b6b); }
+
+.brain-capture__scope { width: 100%; }

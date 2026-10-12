@@ -1,0 +1,32 @@
+{
+  "spec_version": 1,
+  "id": "datahub",
+  "name": "DataHub",
+  "category": "uncategorized",
+  "credentialType": "datahub",
+  "requiredFields": [
+    "gms_url",
+    "token"
+  ],
+  "docs": "https://datahubproject.io/docs/",
+  "base_url": {
+    "fromCredential": "gms_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/config"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:token"
+    ]
+  }
+}

@@ -1,0 +1,220 @@
+{
+  "name": "advanced-memory",
+  "version": "1.1.0",
+  "displayName": "QuoxMemory Implant",
+  "tagline": "Inspired by the hippocampus",
+  "description": "The memory implant of the QuoxMind cognitive suite. Persistent storage, semantic search, working set memory, truth arbitration, and style learning. Free tier provides basic storage; Pro unlocks vector search, WSM, and promotion.",
+  "shortDescription": "QuoxMind memory implant. Semantic search, WSM, style learning, truth arbitration.",
+  "inspiredBy": "hippocampus",
+  "quoxmindTier": "free_and_pro",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 99,
+  "priceDisplay": "$99",
+  "priceModel": "one-time",
+  "tier": "pro",
+  "featured": true,
+  "badge": "MOST POPULAR",
+  "icon": "brain",
+  "infoUrl": "https://quox.ai/solutions/quoxmemory",
+  "docsUrl": "https://quox.ai/docs/plugins/advanced-memory",
+  "heroGradient": "linear-gradient(135deg, #9d4edd 0%, #ff6b6b 50%, #ffbf69 100%)",
+  "accentColor": "#9d4edd",
+  "marketingPoints": [
+    "Your AI finally remembers who you are",
+    "Import years of ChatGPT conversations in minutes",
+    "Semantic search finds memories by meaning, not keywords",
+    "AI adapts to your communication style automatically",
+    "Never repeat yourself - your AI knows your preferences"
+  ],
+  "features": {
+    "unlimitedMemory": {
+      "name": "Unlimited Memory Storage",
+      "description": "Store unlimited facts, preferences, decisions, and learned items. Free version limits you to just 10 memories.",
+      "icon": "infinity",
+      "highlight": true
+    },
+    "semanticSearch": {
+      "name": "Semantic Search",
+      "description": "Find memories by meaning, not just keywords. Ask 'what did I say about deployment?' and get relevant results even if you never used that word.",
+      "icon": "search",
+      "highlight": true
+    },
+    "styleEngine": {
+      "name": "Style Engine",
+      "description": "Your AI learns how you communicate - formal vs casual, verbose vs concise, technical vs simple. It adapts to match your preferences.",
+      "icon": "palette",
+      "highlight": true
+    },
+    "beliefMemory": {
+      "name": "Belief & Rationale Memory",
+      "description": "Track the difference between facts, beliefs, assumptions, and hypotheses. Your AI knows what it knows vs what it thinks.",
+      "icon": "lightbulb"
+    },
+    "failureMemory": {
+      "name": "Failure Memory",
+      "description": "Remember what didn't work and why. Your AI learns from mistakes and warns you before repeating them.",
+      "icon": "alert-triangle"
+    },
+    "wsm": {
+      "name": "Working Set Memory",
+      "description": "Track open loops, active projects, recent entities, and current context across sessions. Your AI remembers what you're working on.",
+      "icon": "cpu"
+    },
+    "chatgptImport": {
+      "name": "ChatGPT Import",
+      "description": "Import your entire ChatGPT conversation history. Years of context, preferences, and decisions - extracted and made searchable.",
+      "icon": "upload",
+      "highlight": true
+    },
+    "contradictionDetection": {
+      "name": "Contradiction Detection",
+      "description": "Automatically detect and resolve conflicting memories. Your AI maintains a consistent worldview.",
+      "icon": "git-merge"
+    },
+    "extendedContext": {
+      "name": "Extended Context Window",
+      "description": "8x larger context budget (4000+ tokens vs 500 free). More memories injected into every conversation.",
+      "icon": "maximize"
+    },
+    "memoryVisualization": {
+      "name": "Memory Visualization",
+      "description": "Timeline, knowledge graph, and heatmap views of your memories. See how your AI's brain is organized.",
+      "icon": "network"
+    },
+    "unlimitedPreferences": {
+      "name": "Unlimited Preferences",
+      "description": "Store as many preferences as you want. Free version limits you to just 3.",
+      "icon": "settings"
+    }
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "memories": "10 facts",
+      "preferences": "3",
+      "context": "500 tokens",
+      "search": "Keyword only",
+      "styleEngine": false,
+      "beliefMemory": false,
+      "failureMemory": false,
+      "chatgptImport": false,
+      "visualization": false
+    },
+    "premium": {
+      "name": "Premium",
+      "memories": "Unlimited",
+      "preferences": "Unlimited",
+      "context": "4000+ tokens",
+      "search": "Semantic (AI-powered)",
+      "styleEngine": true,
+      "beliefMemory": true,
+      "failureMemory": true,
+      "chatgptImport": true,
+      "visualization": true
+    }
+  },
+  "limits": {
+    "free": {
+      "maxLearnedItems": 10,
+      "maxEpisodicItems": 20,
+      "maxPreferences": 3,
+      "maxContextTokens": 500,
+      "searchType": "keyword"
+    },
+    "premium": {
+      "maxLearnedItems": -1,
+      "maxEpisodicItems": -1,
+      "maxPreferences": -1,
+      "maxContextTokens": 4000,
+      "searchType": "semantic"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "quoxagent": ">=1.0.0"
+  },
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "integration": {
+    "memoryTier": "src/services/memoryTier.js",
+    "pluginClient": "src/services/pluginClient.js"
+  },
+  "configSchema": {
+    "autoSavePreferences": {
+      "type": "boolean",
+      "default": true,
+      "label": "Auto-Save Preferences",
+      "description": "Automatically learn and save user preferences from conversations"
+    },
+    "contextTokenLimit": {
+      "type": "number",
+      "min": 500,
+      "max": 8000,
+      "step": 500,
+      "default": 4000,
+      "label": "Context Token Limit",
+      "description": "Maximum tokens to include from memory in each request",
+      "premium": true
+    },
+    "semanticSearchThreshold": {
+      "type": "number",
+      "min": 0.3,
+      "max": 0.9,
+      "step": 0.1,
+      "default": 0.6,
+      "label": "Search Relevance Threshold",
+      "description": "Minimum similarity score for memory search results (lower = more results)",
+      "premium": true
+    },
+    "enableStyleEngine": {
+      "type": "boolean",
+      "default": true,
+      "label": "Style Engine",
+      "description": "Learn and adapt to your communication style over time",
+      "premium": true
+    },
+    "retentionDays": {
+      "type": "number",
+      "min": 7,
+      "max": 365,
+      "step": 7,
+      "default": 90,
+      "label": "Memory Retention (days)",
+      "description": "How long to keep episodic memories before archiving"
+    }
+  },
+  "testimonials": [
+    {
+      "quote": "Finally, an AI that actually remembers our infrastructure setup.",
+      "author": "DevOps Engineer"
+    },
+    {
+      "quote": "Imported 2 years of ChatGPT history. It's like giving my AI all my institutional knowledge.",
+      "author": "Technical Lead"
+    }
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2025-01-21",
+      "changes": [
+        "Initial release",
+        "Memory tiering system (Free/Premium)",
+        "Unlimited memory storage for premium",
+        "Semantic search with vector embeddings",
+        "Style Engine integration",
+        "Belief & Rationale Memory",
+        "Failure Memory system",
+        "Working Set Memory with open loops",
+        "ChatGPT conversation import",
+        "Contradiction detection",
+        "Extended context (4000 tokens)",
+        "Memory visualization"
+      ]
+    }
+  },
+  "category": "AI & Intelligence"
+}

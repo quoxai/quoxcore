@@ -1,0 +1,230 @@
+{
+  "spec_version": 1,
+  "id": "adyen",
+  "name": "Adyen",
+  "category": "commerce_finance",
+  "credentialType": "adyen",
+  "requiredFields": [
+    "api_key",
+    "merchant_account"
+  ],
+  "docs": "https://docs.adyen.com/api-explorer/",
+  "base_url": "https://management-live.adyen.com",
+  "auth": {
+    "type": "header",
+    "header": "x-API-key",
+    "template": "{{api_key}}"
+  },
+  "static_headers": {
+    "Content-Type": "application/json"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v3/me"
+  },
+  "tools_source": "https://docs.adyen.com/api-explorer/management/3/overview",
+  "tools": [
+    {
+      "name": "list_merchants",
+      "description": "List the Adyen merchant accounts this API credential can reach (id, name, company, status, capture delay)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Merchant accounts per page (default 20, max 100)"
+          },
+          "page_number": {
+            "type": "number",
+            "description": "Page to fetch, 1-based (default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/merchants",
+        "query": {
+          "pageSize": "{{clamp input.page_size 20 100}}",
+          "pageNumber": "{{clamp input.page_number 1 1000}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "companyId": "companyId",
+            "status": "status",
+            "reference": "reference",
+            "primarySettlementCurrency": "primarySettlementCurrency",
+            "captureDelay": "captureDelay"
+          },
+          "itemsTotal": "itemsTotal",
+          "pagesTotal": "pagesTotal"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_merchant",
+      "description": "Get one Adyen merchant account by merchant ID (name, company, status, settlement currency)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "merchant_id": {
+            "type": "string",
+            "description": "Adyen merchant account ID, the merchant account name from the Customer Area (e.g. YourCompanyECOM)"
+          }
+        },
+        "required": [
+          "merchant_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/merchants/{{input.merchant_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "companyId": "companyId",
+          "status": "status",
+          "reference": "reference",
+          "primarySettlementCurrency": "primarySettlementCurrency",
+          "captureDelay": "captureDelay",
+          "shopperInteraction": "shopperInteraction"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_stores",
+      "description": "List the stores under one Adyen merchant account (id, description, status, address, merchant reference)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "merchant_id": {
+            "type": "string",
+            "description": "Adyen merchant account ID whose stores to list"
+          },
+          "reference": {
+            "type": "string",
+            "description": "Optional store reference to filter by"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Stores per page (default 20, max 100)"
+          },
+          "page_number": {
+            "type": "number",
+            "description": "Page to fetch, 1-based (default 1)"
+          }
+        },
+        "required": [
+          "merchant_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/merchants/{{input.merchant_id}}/stores",
+        "query": {
+          "reference": "{{input.reference}}",
+          "pageSize": "{{clamp input.page_size 20 100}}",
+          "pageNumber": "{{clamp input.page_number 1 1000}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "description": "description",
+            "status": "status",
+            "reference": "reference",
+            "merchantId": "merchantId",
+            "shopperStatement": "shopperStatement",
+            "phoneNumber": "phoneNumber",
+            "country": "address.country",
+            "city": "address.city"
+          },
+          "itemsTotal": "itemsTotal",
+          "pagesTotal": "pagesTotal"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_payment_methods",
+      "description": "List the payment methods configured on one Adyen merchant account, optionally scoped to one store",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "merchant_id": {
+            "type": "string",
+            "description": "Adyen merchant account ID whose payment method settings to list"
+          },
+          "store_id": {
+            "type": "string",
+            "description": "Optional store ID to scope the payment methods to"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Payment methods per page (default 20, max 100)"
+          },
+          "page_number": {
+            "type": "number",
+            "description": "Page to fetch, 1-based (default 1)"
+          }
+        },
+        "required": [
+          "merchant_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/merchants/{{input.merchant_id}}/paymentMethodSettings",
+        "query": {
+          "storeId": "{{input.store_id}}",
+          "pageSize": "{{clamp input.page_size 20 100}}",
+          "pageNumber": "{{clamp input.page_number 1 1000}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "type": "type",
+            "enabled": "enabled",
+            "allowed": "allowed",
+            "verificationStatus": "verificationStatus",
+            "businessLineId": "businessLineId",
+            "reference": "reference",
+            "countries": "countries",
+            "currencies": "currencies"
+          },
+          "itemsTotal": "itemsTotal",
+          "pagesTotal": "pagesTotal"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "SHAPE-PROOF RESULT (real run, 2026-09-12, 1 iteration): verbatim overall line 'adyen  AUTH_WALL  proven=0 authwall=5 ambiguous=0 failed=0 inconclusive=0 skipped=0'. The Management API answered the test call, all four tools AND the deliberately bogus control path with the byte-identical 401 {\"type\":\"https://docs.adyen.com/errors/unauthorized\",\"title\":\"Unauthorized\",\"status\":401,\"errorCode\":\"00_401\"} (control_match: error_code), so every result carries path_unproven. Host, TLS, base_url https://management-live.adyen.com and Adyen's own structured error envelope are proven; NO PATH IS PROVEN BY THIS RUN. The four /v3 routes rest on documentary provenance from the Management API v3 reference alone. Adyen rejects the credential before routing, so no probe hint or path tweak can move this off AUTH_WALL blind: terminal at one iteration, not a defect to iterate on.",
+      "LIVE vs TEST HOST SPLIT, UNRESOLVED AND OWNER-FACING. base_url is pinned to the LIVE Management API (management-live.adyen.com). Adyen splits every API by environment: Management is management-live.adyen.com vs management-test.adyen.com, Checkout is api.checkout.adyen.com vs checkout-test.adyen.com. A test-environment API key returns 401 against the live host and vice versa, so a credential saved under this type works against exactly one of them. Worse, the vault entry (services/auth/config/integrationTypeRegistry.js:2514) has testEndpoint https://checkout-test.adyen.com/v71/paymentMethods, i.e. the TEST Checkout host, so a credential that PASSES the vault connection test can 401 on every tool here. Fixing this needs either an environment field on the vault entry or a second credential type: an owner call, not a silent edit.",
+      "Scaffolded base_url and test block REPLACED (auth left exactly as scaffolded). The scaffold's test was POST /v71/paymentMethods on the Checkout API, which is a payment-session-shaped POST carrying a body and does not exist on the Management API host. This wave's read tools are all Management API v3 GETs, so the test block is now GET /v3/me (Get API credential details), the cheapest credential-scoped read on that host.",
+      "Auth header case kept as scaffolded, 'x-API-key'; Adyen's docs spell it X-API-Key. HTTP field names are case-insensitive (RFC 9110 5.1) so this should be equivalent, but note that an AUTH_WALL proof does NOT prove the header was parsed at all: the identical 401 at the control path is what an unrecognised header would also produce. Only a real key settles it.",
+      "The Management API's merchantId path parameter is the merchant account name from the Customer Area, which is exactly what the vault's merchant_account field collects. The tools take merchant_id as an input rather than reading the vault field, so one credential can reach several merchant accounts; whether the stored value is accepted verbatim as merchantId is unverified blind.",
+      "READ-ONLY by design: no tool is marked write:true and every request is a GET. Adyen's payment-taking surface (Checkout POST /v71/payments, /v71/sessions) and Management's own mutations (store and payment-method creation) are deliberately ABSENT: they move money or change a live merchant configuration and need their own approval design.",
+      "pageSize is clamped 20..100 per Adyen's documented maximum of 100. The pageNumber upper clamp of 1000 is OURS, not a documented Adyen limit: it exists only so a runaway input cannot render an absurd query value."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

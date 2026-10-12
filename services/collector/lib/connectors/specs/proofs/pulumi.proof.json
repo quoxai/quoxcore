@@ -1,0 +1,77 @@
+{
+  "spec_id": "pulumi",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:27:23.619Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.pulumi.com/quox-shapeproof-control-fbe2a040",
+      "status": 404,
+      "latency_ms": 664,
+      "classification": "CONTROL",
+      "body_sha256": "b16e15764b8bc06c5c3f9f19bc8b99fa48e7894aa5a6ccdad65da49bbf564793",
+      "body_excerpt": "404 page not found\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.pulumi.com/api/user",
+      "status": 401,
+      "latency_ms": 181,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0b217ccfd13beba5fcb0451de0b36ffc50e5760c751101b207d911accc593c0a",
+      "body_excerpt": "{\"code\":401,\"message\":\"Unauthorized: No credentials provided or are invalid.\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "whoami",
+      "method": "GET",
+      "url": "https://api.pulumi.com/api/user",
+      "status": 401,
+      "latency_ms": 417,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0b217ccfd13beba5fcb0451de0b36ffc50e5760c751101b207d911accc593c0a",
+      "body_excerpt": "{\"code\":401,\"message\":\"Unauthorized: No credentials provided or are invalid.\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_stacks",
+      "method": "GET",
+      "url": "https://api.pulumi.com/api/user/stacks?organization=quoxprobe&project=quoxprobe&tagName=quoxprobe&tagValue=quoxprobe&maxResults=50&continuationToken=quoxprobe",
+      "status": 401,
+      "latency_ms": 190,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0b217ccfd13beba5fcb0451de0b36ffc50e5760c751101b207d911accc593c0a",
+      "body_excerpt": "{\"code\":401,\"message\":\"Unauthorized: No credentials provided or are invalid.\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_stack",
+      "method": "GET",
+      "url": "https://api.pulumi.com/api/stacks/quoxprobe/quoxprobe/quoxprobe",
+      "status": 401,
+      "latency_ms": 182,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0b217ccfd13beba5fcb0451de0b36ffc50e5760c751101b207d911accc593c0a",
+      "body_excerpt": "{\"code\":401,\"message\":\"Unauthorized: No credentials provided or are invalid.\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

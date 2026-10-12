@@ -1,0 +1,164 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# SSH keys for collector container (never commit)
+ssh-keys/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ===========================================
+# SECURITY - Never commit these
+# ===========================================
+
+# Environment files (contain secrets)
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+# Keep example templates
+!.env.example
+!.env.*.example
+
+# SSL certificates and keys
+ssl/*.key
+ssl/*.pem
+certs/*.key
+certs/*.pem
+*.key
+*.pem
+!*.example.key
+
+# Data directories (runtime data, not source)
+**/data/
+!**/data/.gitkeep
+# Skills seed catalog data category is source, not runtime data
+!src/config/skills/data/
+# LICENSE-LAUNCH LL-4c: the signed product catalogue is a governance ARTEFACT,
+# not runtime data — Ed25519-signed on quox.ai, verified at auth startup
+# (services/auth/lib/signedCatalog.js), and it must ship in the image and be
+# reviewable in history. `**/data/` above made the cutover runbook's "commit the
+# artifact" step silently impossible. Git cannot re-include a file whose parent
+# directory is excluded, so the directory is re-included, its contents excluded
+# again (auth.db and friends stay out), and only the artifact allowed back.
+!services/auth/data/
+services/auth/data/*
+!services/auth/data/signed-catalog.json
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Credentials and secrets
+**/credentials.json
+**/secrets.json
+**/apikeys.json
+.secrets/
+
+# ===========================================
+# CONFIGURATION - User-specific config
+# ===========================================
+
+# Infrastructure config (contains IPs, hostnames)
+config/infrastructure.json
+!config/infrastructure.example.json
+
+# Collector GitHub token config (contains PAT — never commit)
+services/collector/config/github.json
+
+# Collector runtime logs (policy evaluations, etc.)
+services/collector/logs/
+
+# ===========================================
+# USER DATA - Don't commit personal data
+# ===========================================
+
+# Uploads directory
+uploads/
+**/uploads/
+
+# Workflow JSON templates (local symlink destination)
+public/workflow-json/*
+!public/workflow-json/.gitkeep
+# Quox-curated templates are source-controlled
+!public/workflow-json/Quox_Curated/
+public/workflow-json/Quox_Curated/**
+!public/workflow-json/Quox_Curated/*.json
+
+# ChatGPT exports and personal data
+*.chatgpt*.json
+**/conversations.json
+
+# Memory data (user-specific)
+quox-memory/
+
+# ===========================================
+# BUILD & RUNTIME
+# ===========================================
+
+# Build outputs
+build/
+*.tgz
+
+# Runtime files
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Test artifacts
+playwright-report/
+test-results/
+tests/screenshots/
+
+# Competitor analysis (if keeping locally)
+public/prompt-content/
+
+# SSL certificates (already have *.key but adding explicit)
+ssl/
+
+# Local dev-only compose overrides (host IPs, feature flips). Never committed.
+docker-compose.override.yml
+scratchpad/
+
+# Subagent worktrees are transient and must never be committed
+.claude/worktrees/
+cli/deploy/quoxcli-bundle.tar.gz
+cli/deploy/quoxgauge-bundle.tar.gz
+cli/deploy/precompacticus-bundle.tar.gz
+
+# LL-7 first-party plugin build artefacts. The SIGNED outputs are committed
+# under services/auth/first-party-plugins/<id>/ (that is what ships); the
+# intermediate dist/ and .quoxplugin ZIP are rebuildable and stay out.
+plugins-src/*/dist/
+plugins-src/*/*.quoxplugin
+
+# DoneEngine external verdicts (quox plugin doctor --json --out), generated, never committed
+.quox/

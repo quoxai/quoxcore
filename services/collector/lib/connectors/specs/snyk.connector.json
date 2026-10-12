@@ -1,0 +1,278 @@
+{
+  "spec_version": 1,
+  "id": "snyk",
+  "name": "Snyk",
+  "category": "developer",
+  "credentialType": "snyk",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://docs.snyk.io/snyk-api",
+  "base_url": "https://api.snyk.io",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "token {{api_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/user/me"
+  },
+  "tools_source": "https://docs.snyk.io/snyk-api/reference",
+  "tools": [
+    {
+      "name": "list_orgs",
+      "description": "List the Snyk organizations the API token can see",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max organizations per page (default 20, max 100; Snyk requires at least 10)"
+          },
+          "slug": {
+            "type": "string",
+            "description": "Optional exact organization slug to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/orgs",
+        "query": {
+          "version": "2024-10-15",
+          "limit": "{{clamp input.limit 20 100}}",
+          "slug": "{{input.slug}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "attributes.name",
+            "slug": "attributes.slug",
+            "group_id": "attributes.group_id",
+            "is_personal": "attributes.is_personal",
+            "created_at": "attributes.created_at"
+          },
+          "next": "links.next"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_projects",
+      "description": "List the projects monitored by one Snyk organization",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "description": "Snyk organization ID (UUID, from list_orgs)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max projects per page (default 20, max 100; Snyk requires at least 10)"
+          },
+          "names": {
+            "type": "string",
+            "description": "Optional comma separated project names to filter by"
+          },
+          "origins": {
+            "type": "string",
+            "description": "Optional comma separated project origins to filter by (e.g. github, cli)"
+          }
+        },
+        "required": [
+          "org_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/orgs/{{input.org_id}}/projects",
+        "query": {
+          "version": "2024-10-15",
+          "limit": "{{clamp input.limit 20 100}}",
+          "names": "{{input.names}}",
+          "origins": "{{input.origins}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "attributes.name",
+            "type": "attributes.type",
+            "origin": "attributes.origin",
+            "status": "attributes.status",
+            "target_file": "attributes.target_file",
+            "target_reference": "attributes.target_reference",
+            "business_criticality": "attributes.business_criticality",
+            "environment": "attributes.environment",
+            "lifecycle": "attributes.lifecycle",
+            "created": "attributes.created"
+          },
+          "next": "links.next"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.org_id": "00000000-0000-0000-0000-000000000000"
+      }
+    },
+    {
+      "name": "get_project",
+      "description": "Get one Snyk project by ID, with its type, origin and monitoring status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "description": "Snyk organization ID (UUID, from list_orgs)"
+          },
+          "project_id": {
+            "type": "string",
+            "description": "Snyk project ID (UUID, from list_projects)"
+          }
+        },
+        "required": [
+          "org_id",
+          "project_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/orgs/{{input.org_id}}/projects/{{input.project_id}}",
+        "query": {
+          "version": "2024-10-15"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "name": "data.attributes.name",
+          "type": "data.attributes.type",
+          "origin": "data.attributes.origin",
+          "status": "data.attributes.status",
+          "target_file": "data.attributes.target_file",
+          "target_reference": "data.attributes.target_reference",
+          "business_criticality": "data.attributes.business_criticality",
+          "environment": "data.attributes.environment",
+          "lifecycle": "data.attributes.lifecycle",
+          "created": "data.attributes.created"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.org_id": "00000000-0000-0000-0000-000000000000",
+        "input.project_id": "00000000-0000-0000-0000-000000000000"
+      }
+    },
+    {
+      "name": "list_issues",
+      "description": "List the open security issues in one Snyk organization, optionally filtered by severity, status or scan item",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "description": "Snyk organization ID (UUID, from list_orgs)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max issues per page (default 20, max 100; Snyk requires at least 10)"
+          },
+          "effective_severity_level": {
+            "type": "string",
+            "enum": [
+              "",
+              "info",
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "description": "Optional severity to filter by"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "",
+              "open",
+              "resolved"
+            ],
+            "description": "Optional issue status to filter by"
+          },
+          "scan_item_id": {
+            "type": "string",
+            "description": "Optional scan item ID to scope to (e.g. a project UUID)"
+          },
+          "scan_item_type": {
+            "type": "string",
+            "enum": [
+              "",
+              "project",
+              "environment"
+            ],
+            "description": "Optional scan item type, sent alongside scan_item_id"
+          }
+        },
+        "required": [
+          "org_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/rest/orgs/{{input.org_id}}/issues",
+        "query": {
+          "version": "2024-10-15",
+          "limit": "{{clamp input.limit 20 100}}",
+          "effective_severity_level": "{{input.effective_severity_level}}",
+          "status": "{{input.status}}",
+          "scan_item.id": "{{input.scan_item_id}}",
+          "scan_item.type": "{{input.scan_item_type}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "key": "attributes.key",
+            "title": "attributes.title",
+            "type": "attributes.type",
+            "status": "attributes.status",
+            "ignored": "attributes.ignored",
+            "effective_severity_level": "attributes.effective_severity_level",
+            "created_at": "attributes.created_at",
+            "updated_at": "attributes.updated_at"
+          },
+          "next": "links.next"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.org_id": "00000000-0000-0000-0000-000000000000"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Tools added 2026-09-11 from the official Snyk REST API reference (https://docs.snyk.io/snyk-api/reference): all four are GET reads, no write tool is declared.",
+      "Every Snyk REST call must carry a dated version query param, so each tool pins the fixed literal value version=2024-10-15. Bumping the API version means editing that value in all four tools.",
+      "The scaffolded token auth and the v1 test call (/v1/user/me) are unchanged; the tools sit on the REST surface under /rest.",
+      "Snyk REST pagination accepts limit 10 to 100. The clamp helper caps at 100 and defaults to 20 but has no floor, so a caller passing fewer than 10 will get a Snyk 400 rather than a silently corrected page size.",
+      "Shape-proof _probe hints added 2026-09-11: list_projects, get_project and list_issues carry the nil UUID 00000000-0000-0000-0000-000000000000 for org_id and project_id. Snyk routes /rest/orgs/{org_id}/... only when the segment is a well-formed UUID, so the generic dummy value 404d identically to the control path and proved nothing. The nil UUID is not a tenant, the call is read-only and the credential stays dummy. Credentials are never hinted."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

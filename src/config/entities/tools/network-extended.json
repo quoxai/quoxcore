@@ -1,0 +1,228 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "network-extended",
+
+  "name": "Network Extended Tools",
+  "description": "Extended network diagnostics for interface monitoring and troubleshooting",
+  "category": "network",
+  "subcategory": "diagnostics",
+  "provider": "quox",
+  "version": "1.0.0",
+
+  "risk_level": "low",
+  "sandbox_profile": "standard",
+
+  "tools": [
+    {
+      "id": "network.interfaces",
+      "name": "Interface Status",
+      "description": "List all network interfaces with status, errors, and statistics",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "localhost",
+          "description": "Host to check interfaces on"
+        },
+        "include_loopback": {
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "interfaces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "state": { "type": "string" },
+                "mac": { "type": "string" },
+                "ipv4": { "type": "string" },
+                "ipv6": { "type": "string" },
+                "rx_bytes": { "type": "number" },
+                "tx_bytes": { "type": "number" },
+                "rx_errors": { "type": "number" },
+                "tx_errors": { "type": "number" },
+                "speed": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Check network interface status, errors, and traffic statistics",
+        "when_to_use": [
+          "User asks about network interfaces",
+          "Diagnosing network connectivity issues",
+          "Checking for interface errors",
+          "Network health check"
+        ]
+      }
+    },
+    {
+      "id": "network.connections",
+      "name": "Active Connections",
+      "description": "List active network connections (TCP/UDP) with process info",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "localhost"
+        },
+        "state": {
+          "type": "string",
+          "required": false,
+          "enum": ["established", "listening", "time_wait", "all"],
+          "default": "established"
+        },
+        "port": {
+          "type": "number",
+          "required": false,
+          "description": "Filter by port number"
+        }
+      },
+      "instructions": {
+        "summary": "Show active TCP/UDP connections and listening ports",
+        "when_to_use": [
+          "User asks what's listening on a port",
+          "Checking established connections",
+          "Debugging connectivity issues",
+          "Security audit of open ports"
+        ]
+      }
+    },
+    {
+      "id": "network.routes",
+      "name": "Routing Table",
+      "description": "Display the routing table for a host",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "localhost"
+        }
+      },
+      "instructions": {
+        "summary": "View routing table configuration",
+        "when_to_use": [
+          "Debugging routing issues",
+          "Checking default gateway",
+          "Verifying route configuration"
+        ]
+      }
+    },
+    {
+      "id": "network.arp",
+      "name": "ARP Table",
+      "description": "Display the ARP cache showing IP to MAC mappings",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "localhost"
+        }
+      },
+      "instructions": {
+        "summary": "View ARP cache for IP-MAC address resolution",
+        "when_to_use": [
+          "Troubleshooting ARP issues",
+          "Detecting IP conflicts",
+          "Network discovery"
+        ]
+      }
+    },
+    {
+      "id": "network.bandwidth",
+      "name": "Bandwidth Test",
+      "description": "Test network bandwidth between two hosts",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "target": {
+          "type": "string",
+          "required": true,
+          "description": "Target host for bandwidth test"
+        },
+        "duration": {
+          "type": "number",
+          "required": false,
+          "default": 10,
+          "description": "Test duration in seconds (max 30)"
+        },
+        "source": {
+          "type": "string",
+          "required": false,
+          "default": "gw-01"
+        }
+      },
+      "instructions": {
+        "summary": "Measure network throughput between hosts",
+        "when_to_use": [
+          "User asks about network speed",
+          "Diagnosing slow transfers",
+          "Baseline network performance"
+        ]
+      }
+    },
+    {
+      "id": "network.mtr",
+      "name": "MTR Diagnostic",
+      "description": "Combined ping and traceroute for continuous path analysis",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "target": {
+          "type": "string",
+          "required": true,
+          "description": "Destination host"
+        },
+        "count": {
+          "type": "number",
+          "required": false,
+          "default": 10,
+          "description": "Number of probes per hop"
+        },
+        "source": {
+          "type": "string",
+          "required": false,
+          "default": "gw-01"
+        }
+      },
+      "instructions": {
+        "summary": "Run MTR for detailed path analysis with packet loss per hop",
+        "when_to_use": [
+          "User asks for network path analysis",
+          "Diagnosing intermittent connectivity",
+          "Finding which hop has packet loss"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {"base": "internal", "api": "bastion_ssh"},
+
+  "agent_hints": {
+    "primary_agent": "cipher",
+    "delegation_keywords": ["interface", "eth", "connection", "listening", "route", "arp", "bandwidth", "mtr", "netstat"]
+  }
+}

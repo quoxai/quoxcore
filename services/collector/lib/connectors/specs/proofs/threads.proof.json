@@ -1,0 +1,169 @@
+{
+  "spec_id": "threads",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:31:10.340Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://graph.threads.net/quox-shapeproof-control-4cc500db",
+      "status": 401,
+      "latency_ms": 1140,
+      "classification": "CONTROL",
+      "body_sha256": "2189d0ea2dbd8a8caa679afc30e308d863281295beafcb2971c37a1a2538ab31",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"A3w3cF-IHUqm9kvVpF4k3-P\"}}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://graph.threads.net/v1.0/me",
+      "status": 401,
+      "latency_ms": 194,
+      "classification": "AUTH_WALL",
+      "body_sha256": "d895ba5e900fd04a58752ba2776421b24391549e0f29c228232d9323e5353277",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"AAv3Yuq_omD8rDRb5k8QCkm\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_profile",
+      "method": "GET",
+      "url": "https://graph.threads.net/v1.0/me?fields=id%2Cusername%2Cname%2Cthreads_profile_picture_url%2Cthreads_biography",
+      "status": 401,
+      "latency_ms": 235,
+      "classification": "AUTH_WALL",
+      "body_sha256": "da1f95278cd94897a3db6595120815f4bde9fb325f0f01f580dbf7afd7e283ce",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"ANC4BdfdgUkQfCs7c7iJb54\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_threads",
+      "method": "GET",
+      "url": "https://graph.threads.net/v1.0/me/threads?fields=id%2Cmedia_product_type%2Cmedia_type%2Cpermalink%2Cusername%2Ctext%2Ctimestamp%2Cshortcode%2Cis_quote_post%2Chas_replies&limit=20&since=quoxprobe&until=quoxprobe",
+      "status": 401,
+      "latency_ms": 245,
+      "classification": "AUTH_WALL",
+      "body_sha256": "3d1b215982334b275b00fd8ead891cc073d0177caf3175592a5af651c06f758e",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"AQ29xDIxJSwCkPaRJgBa6qw\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_thread",
+      "method": "GET",
+      "url": "https://graph.threads.net/v1.0/quoxprobe?fields=id%2Cmedia_product_type%2Cmedia_type%2Cmedia_url%2Cthumbnail_url%2Cpermalink%2Cusername%2Ctext%2Ctimestamp%2Cshortcode%2Cis_quote_post%2Chas_replies%2Cis_reply%2Cowner",
+      "status": 401,
+      "latency_ms": 326,
+      "classification": "AUTH_WALL",
+      "body_sha256": "c11e9adc6da8046edf48d01f3377def8348605681176242ba70bd3e40391c475",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"ATK9vBUpbEb6ewnfja61SlQ\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_thread_replies",
+      "method": "GET",
+      "url": "https://graph.threads.net/v1.0/quoxprobe/replies?fields=id%2Ctext%2Cusername%2Cpermalink%2Ctimestamp%2Cmedia_type%2Cshortcode%2Chas_replies%2Cis_reply%2Chide_status&limit=20&reverse=quoxprobe",
+      "status": 401,
+      "latency_ms": 356,
+      "classification": "AUTH_WALL",
+      "body_sha256": "067e6b4d1e9f065b2a2bdc4632a82b207856bd1b9ba58d9043632c8335db4ccd",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"An2JmLfrnfsDiCCUXXeNOb8\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_thread_conversation",
+      "method": "GET",
+      "url": "https://graph.threads.net/v1.0/quoxprobe/conversation?fields=id%2Ctext%2Cusername%2Cpermalink%2Ctimestamp%2Cmedia_type%2Chas_replies%2Cis_reply%2Chide_status%2Creplied_to%2Croot_post&limit=20&reverse=quoxprobe",
+      "status": 401,
+      "latency_ms": 271,
+      "classification": "AUTH_WALL",
+      "body_sha256": "40b8b96a07b246c94ce4d1d050f760016ff07a96d6e95318e9d0ca7a7c57ff7f",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"ACsneKOyDWuSNFTsc1FNs0F\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_thread_insights",
+      "method": "GET",
+      "url": "https://graph.threads.net/v1.0/quoxprobe/insights?metric=views%2Clikes%2Creplies%2Creposts%2Cquotes",
+      "status": 401,
+      "latency_ms": 360,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e50048cef552e19a578e448e8f5009bf0b35af414f6f1e1f9de0e7b32e439b20",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"AfNX2aIfu4cFtpRTBQqwIZW\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_account_insights",
+      "method": "GET",
+      "url": "https://graph.threads.net/v1.0/me/threads_insights?metric=views%2Clikes%2Creplies%2Creposts%2Cquotes%2Cfollowers_count&since=quoxprobe&until=quoxprobe",
+      "status": 401,
+      "latency_ms": 179,
+      "classification": "AUTH_WALL",
+      "body_sha256": "05e92bdb1902891c9f59d232c36ae85e46b77f96ed1ccda4c6bac8485b8f0987",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"AMPlInq4QLoYf5K3rNkD6fw\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_publishing_limit",
+      "method": "GET",
+      "url": "https://graph.threads.net/v1.0/me/threads_publishing_limit?fields=quota_usage%2Cconfig%2Creply_quota_usage%2Creply_config",
+      "status": 401,
+      "latency_ms": 266,
+      "classification": "AUTH_WALL",
+      "body_sha256": "de08e9357949d04aa24137c04d53bafddd496e210fdad969e5de7bede1fb0059",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"AuxcTc7bMArFBTTykt3LquC\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

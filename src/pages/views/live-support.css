@@ -1,0 +1,383 @@
+/**
+ * QUOXCHAT-PRO: Live Support desk, scoped theme.
+ *
+ * SCOPING RULE: every selector is prefixed with `.live-support-theme` (the
+ * class applied ONLY to LiveSupportView's root `.qx-view`). Nothing here
+ * touches global tokens or any other surface. This view is the live desk,
+ * so it borrows the matrix-green accent family from matrix-comms-theme.css
+ * (same house-sanctioned scoped-theme exception), plus an amber "waiting"
+ * accent for visitor-turn conversations.
+ */
+
+.live-support-theme {
+  /* Bound the view to the shell viewport (same strategy as
+     matrix-comms-theme) so the columns scroll internally and the composer
+     stays pinned; without this the whole page scrolls. */
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+
+  --ls-green: #39ff6a;
+  --ls-green-soft: rgba(57, 255, 106, 0.12);
+  --ls-green-border: rgba(57, 255, 106, 0.32);
+  --ls-amber: #fbbf24;
+  --ls-amber-soft: rgba(251, 191, 36, 0.12);
+  --ls-amber-border: rgba(251, 191, 36, 0.35);
+}
+
+/* ── Shell: one glass card, two columns, internal scroll ────────────────── */
+.live-support-theme .ls-shell {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 16px;
+  overflow: hidden;
+}
+
+.live-support-theme .ls-col-left,
+.live-support-theme .ls-col-right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  gap: 10px;
+}
+
+.live-support-theme .ls-col-right {
+  gap: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  padding-left: 16px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.live-support-theme .ls-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.live-support-theme .ls-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+.live-support-theme .ls-title svg {
+  color: var(--ls-green);
+  flex-shrink: 0;
+}
+
+.live-support-theme .ls-wait-pill {
+  margin-left: auto;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.live-support-theme .ls-wait-pill--hot {
+  background: var(--ls-amber-soft);
+  border-color: var(--ls-amber-border);
+  color: var(--ls-amber);
+  animation: ls-waiting-pulse 2.4s ease-in-out infinite;
+}
+
+/* ── Conversation list ──────────────────────────────────────────────────── */
+.live-support-theme .ls-conv-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 2px;
+}
+
+.live-support-theme .ls-conv-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  flex-shrink: 0;
+  min-width: 0;
+  padding: 9px 12px;
+  text-align: left;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.live-support-theme .ls-conv-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.live-support-theme .ls-conv-row.active {
+  background: linear-gradient(145deg, rgba(57, 255, 106, 0.14) 0%, rgba(57, 255, 106, 0.03) 100%);
+  border-color: var(--ls-green-border);
+}
+
+.live-support-theme .ls-conv-line1,
+.live-support-theme .ls-conv-line2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.live-support-theme .ls-conv-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.live-support-theme .ls-conv-preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.live-support-theme .ls-conv-time {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+}
+
+/* ── Status badges ──────────────────────────────────────────────────────── */
+.live-support-theme .ls-status {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+.live-support-theme .ls-status--waiting {
+  background: var(--ls-amber-soft);
+  border: 1px solid var(--ls-amber-border);
+  color: var(--ls-amber);
+  animation: ls-waiting-pulse 2.4s ease-in-out infinite;
+}
+
+.live-support-theme .ls-status--answered {
+  background: var(--ls-green-soft);
+  border: 1px solid var(--ls-green-border);
+  color: var(--ls-green);
+}
+
+.live-support-theme .ls-status--ai {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+@keyframes ls-waiting-pulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(251, 191, 36, 0.15); }
+  50%      { box-shadow: 0 0 12px rgba(251, 191, 36, 0.45); }
+}
+
+/* ── Transcript ─────────────────────────────────────────────────────────── */
+.live-support-theme .ls-room-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.live-support-theme .ls-room-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.live-support-theme .ls-transcript {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 4px;
+}
+
+.live-support-theme .ls-bubble {
+  max-width: 78%;
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #fff;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.live-support-theme .ls-bubble--visitor {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  white-space: pre-wrap;
+}
+
+.live-support-theme .ls-bubble--ai {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.live-support-theme .ls-bubble--operator {
+  align-self: flex-end;
+  background: var(--ls-green-soft);
+  border: 1px solid var(--ls-green-border);
+  white-space: pre-wrap;
+}
+
+.live-support-theme .ls-bubble-meta {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 3px;
+}
+
+.live-support-theme .ls-delivered {
+  color: var(--ls-green);
+}
+
+/* ── Composer ───────────────────────────────────────────────────────────── */
+.live-support-theme .ls-composer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.live-support-theme .ls-composer-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.live-support-theme .ls-composer textarea {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+}
+
+.live-support-theme .ls-composer textarea:focus {
+  outline: none;
+  border-color: var(--ls-green-border);
+}
+
+.live-support-theme .ls-send-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--ls-green);
+  background: var(--ls-green-soft);
+  border: 1px solid var(--ls-green-border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.live-support-theme .ls-send-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.live-support-theme .ls-composer-hint {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.live-support-theme .ls-composer-error {
+  font-size: 10px;
+  font-weight: 600;
+  color: #ef4444;
+}
+
+/* ── Matrix upgrade affordance ──────────────────────────────────────────── */
+.live-support-theme .ls-matrix-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--ls-green);
+  background: var(--ls-green-soft);
+  border: 1px solid var(--ls-green-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.live-support-theme .ls-matrix-btn:hover {
+  background: rgba(57, 255, 106, 0.2);
+}
+
+/* ── Empty states ───────────────────────────────────────────────────────── */
+.live-support-theme .ls-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ── Motion safety ──────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .live-support-theme .ls-status--waiting,
+  .live-support-theme .ls-wait-pill--hot {
+    animation: none;
+  }
+}

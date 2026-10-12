@@ -1,0 +1,43 @@
+# Build context excludes — keep this in sync with what the Dockerfiles COPY.
+# All three image builds (Dockerfile, services/auth/Dockerfile,
+# services/collector/Dockerfile) use context: . and run their own `npm ci`,
+# so none of the dirs below are needed inside any image. Before this file the
+# context shipped ~2GB every build (1.1GB of stale .claude/worktrees alone).
+
+# Version control
+.git
+.gitignore
+.github
+
+# Claude Code session state + stale agent worktrees (the big one: was ~1.1GB)
+.claude
+
+# Dependencies — every Dockerfile runs its own `npm ci`. Copying host
+# node_modules is not just wasteful, it can clobber the freshly-installed
+# (correct-arch) modules with `COPY . .`.
+node_modules
+**/node_modules
+
+# Build output — the dashboard image builds dist/ inside the builder stage.
+dist
+**/dist
+
+# Scratch / temp / test artifacts
+scratchpad
+test-results
+playwright-report
+coverage
+
+# Secrets & keys — must never be baked into an image (mounted at runtime).
+certs
+ssl
+ssh-keys
+*.pem
+*.key
+
+# Editor / OS junk
+.vscode
+.idea
+.DS_Store
+*.swp
+*.log

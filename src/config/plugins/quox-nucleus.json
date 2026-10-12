@@ -1,0 +1,84 @@
+{
+  "name": "quox-nucleus",
+  "version": "1.0.0",
+  "displayName": "RepoBrain",
+  "tagline": "Your agents know their own code.",
+  "description": "Codebase intelligence for your agents. They answer with file:line citations from actual indexed source code. CogCore3D nucleus becomes a live galaxy of your codebase. Code search, cross-repo queries, and import graph visualisation.",
+  "shortDescription": "Codebase-aware AI with cited code answers",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 59,
+  "priceDisplay": "$59",
+  "priceModel": "one-time",
+  "tier": "tier_b",
+  "featured": true,
+  "icon": "code-2",
+  "accentColor": "#06b6d4",
+  "infoUrl": "https://quox.ai/solutions/repobrain",
+  "docsUrl": "https://quox.ai/docs/plugins/repobrain",
+  "marketingPoints": [
+    "Agents cite actual code with file:line references",
+    "Natural language code search across 12+ repos",
+    "CogCore3D nucleus shows live codebase structure",
+    "3D force-directed graph of 5,000+ files and 11,000+ connections",
+    "Three-layer caching with structural invalidation",
+    "Auto-indexes on startup, zero configuration"
+  ],
+  "features": {
+    "codeSearch": {
+      "name": "Code Search",
+      "description": "Natural language search across your entire codebase. Returns cited snippets with file:line references.",
+      "icon": "search",
+      "highlight": true
+    },
+    "agentTool": {
+      "name": "Agent Codebase Tool",
+      "description": "Agents can query the codebase during conversations. QUOX, DAEDALUS, WARDEN, VULCAN, and COREY get codebase_query.",
+      "icon": "bot",
+      "highlight": true
+    },
+    "implant": {
+      "name": "RepoBrain Implant",
+      "description": "Cognitive implant that tracks indexed files, connections, cache hit rate, and query performance.",
+      "icon": "cpu"
+    },
+    "graphVisualiser": {
+      "name": "Codebase Graph",
+      "description": "3D force-directed graph of your entire codebase. Color by repo, language, size, or connections.",
+      "icon": "box"
+    },
+    "nucleusLOD": {
+      "name": "Nucleus LOD",
+      "description": "CogCore3D nucleus morphs from decorative orb to live codebase galaxy as you zoom in.",
+      "icon": "eye"
+    },
+    "autoIndex": {
+      "name": "Auto-Index",
+      "description": "Volume-mounted source directories are automatically discovered and indexed on startup.",
+      "icon": "refresh-cw"
+    }
+  },
+  "limits": {
+    "free": {},
+    "paid": {
+      "codeSearchEnabled": true,
+      "agentToolEnabled": true,
+      "graphVisualizerEnabled": true,
+      "nucleusLODEnabled": true,
+      "maxTargets": 20,
+      "maxSnippetsPerQuery": 10
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0"
+  },
+  "integration": {
+    "service": "quoxai/quox-repobrain",
+    "port": 3105,
+    "healthEndpoint": "/healthz",
+    "client": "src/services/nucleusClient.js",
+    "view": "src/components/nucleus/RepoBrainView.jsx"
+  },
+  "includedIn": ["quoxmind-complete"],
+  "category": "AI & Intelligence"
+}

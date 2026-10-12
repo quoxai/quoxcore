@@ -1,0 +1,77 @@
+{
+  "spec_id": "cloudinary",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:48:36.420Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.cloudinary.com/v1_1/demo/quox-shapeproof-control-4afcef5d",
+      "status": 404,
+      "latency_ms": 6208,
+      "classification": "CONTROL",
+      "body_sha256": "bc32f1fda6845fd8d755dd8fb11b4168c4b6db8b1382beaf3f9f401832daba3e",
+      "body_excerpt": "<!DOCTYPE html>\n<html lang='en' xml:lang='en' xmlns='https://www.w3.org/1999/xhtml'><head>\n<meta charset='utf-8'>\n<meta content='width=device-width, initial-scale=1.0' name='viewport'>\n<title>Cloudina",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.cloudinary.com/v1_1/demo/usage",
+      "status": 401,
+      "latency_ms": 346,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c1017589f91226819fcaba7ecc8995423aee239fbbb296c8b5fc7aa996572a89",
+      "body_excerpt": "{\"error\":{\"message\":\"unknown api_key\"}}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_resources",
+      "method": "GET",
+      "url": "https://api.cloudinary.com/v1_1/demo/resources/image?max_results=10&next_cursor=quoxprobe",
+      "status": 401,
+      "latency_ms": 316,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c1017589f91226819fcaba7ecc8995423aee239fbbb296c8b5fc7aa996572a89",
+      "body_excerpt": "{\"error\":{\"message\":\"unknown api_key\"}}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "usage",
+      "method": "GET",
+      "url": "https://api.cloudinary.com/v1_1/demo/usage",
+      "status": 401,
+      "latency_ms": 273,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c1017589f91226819fcaba7ecc8995423aee239fbbb296c8b5fc7aa996572a89",
+      "body_excerpt": "{\"error\":{\"message\":\"unknown api_key\"}}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_folders",
+      "method": "GET",
+      "url": "https://api.cloudinary.com/v1_1/demo/folders?max_results=10&next_cursor=quoxprobe",
+      "status": 401,
+      "latency_ms": 321,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c1017589f91226819fcaba7ecc8995423aee239fbbb296c8b5fc7aa996572a89",
+      "body_excerpt": "{\"error\":{\"message\":\"unknown api_key\"}}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

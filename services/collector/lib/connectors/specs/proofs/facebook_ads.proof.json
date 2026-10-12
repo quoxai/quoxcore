@@ -1,0 +1,105 @@
+{
+  "spec_id": "facebook_ads",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:44:42.410Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://graph.facebook.com/quox-shapeproof-control-f6d4290d",
+      "status": 401,
+      "latency_ms": 711,
+      "classification": "CONTROL",
+      "body_sha256": "31ce300370700dd54b517c4358e1314e65d309fb252c585576a60d66c7933227",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"ANgvdt23-NT_tC_0StCWFJN\"}}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://graph.facebook.com/v21.0/QUOXSHAPEPROOFDUMMYADACCOUNTID",
+      "status": 401,
+      "latency_ms": 210,
+      "classification": "AUTH_WALL",
+      "body_sha256": "b04d1513d0898c4e6d5028a6079ff10a2f675d9b8a14ef7cd85962b3a39f5fcf",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"AWqLDzRSL9B9OXePixfkJBJ\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_ad_accounts",
+      "method": "GET",
+      "url": "https://graph.facebook.com/v21.0/me/adaccounts?fields=id%2Caccount_id%2Cname%2Caccount_status%2Ccurrency%2Ctimezone_name%2Camount_spent&limit=20",
+      "status": 401,
+      "latency_ms": 154,
+      "classification": "AUTH_WALL",
+      "body_sha256": "3af4fa5d24d805d11b6558d67e5a33ea1a1429ffe1430286a0af7a24a7d4f7d3",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"Ahw6wu45u3T9B-tJ_JfRklG\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_campaigns",
+      "method": "GET",
+      "url": "https://graph.facebook.com/v21.0/quoxprobe/campaigns?fields=id%2Cname%2Cobjective%2Cstatus%2Ceffective_status%2Cdaily_budget%2Clifetime_budget%2Ccreated_time%2Cstart_time%2Cstop_time&limit=20&effective_status=quoxprobe",
+      "status": 401,
+      "latency_ms": 278,
+      "classification": "AUTH_WALL",
+      "body_sha256": "60f813673b601495eede84025b6f9e80eb328b64c85ab7e9f68bdbb594cf9fc0",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"AdXYyTNiRn8NNy8X7FHw5V8\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_campaign",
+      "method": "GET",
+      "url": "https://graph.facebook.com/v21.0/quoxprobe?fields=id%2Cname%2Cobjective%2Cstatus%2Ceffective_status%2Cbuying_type%2Cdaily_budget%2Clifetime_budget%2Cbudget_remaining%2Ccreated_time%2Cstart_time%2Cstop_time%2Caccount_id",
+      "status": 401,
+      "latency_ms": 278,
+      "classification": "AUTH_WALL",
+      "body_sha256": "a3fd66dc77633316023553aac244f982134eff7fc934f2ac1abdbb5ebc665d4a",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"AE0PU7ZXL9W0DSLmsy6OWgU\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "campaign_insights",
+      "method": "GET",
+      "url": "https://graph.facebook.com/v21.0/quoxprobe/insights?fields=campaign_id%2Ccampaign_name%2Cimpressions%2Cclicks%2Cspend%2Creach%2Cfrequency%2Ccpc%2Ccpm%2Cctr%2Cdate_start%2Cdate_stop&date_preset=quoxprobe&limit=20",
+      "status": 401,
+      "latency_ms": 159,
+      "classification": "AUTH_WALL",
+      "body_sha256": "db572a54a828dfbfad1252af4bf2dec2badc6e4c29367a47e98686cf419bedce",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"An6UWoGoy8-BKkA8DxJ5rP1\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

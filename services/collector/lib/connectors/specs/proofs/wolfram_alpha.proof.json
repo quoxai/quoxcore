@@ -1,0 +1,103 @@
+{
+  "spec_id": "wolfram_alpha",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T04:01:25.216Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.wolframalpha.com/quox-shapeproof-control-5ca01eaf?appid=QUOXSHAPEPROOFDUMMYAPPID",
+      "status": 404,
+      "latency_ms": 968,
+      "classification": "CONTROL",
+      "body_sha256": "55f7d9e99b8e2d4e0e193b2f0275501e6d9c1ebd29cadbea6a0da48a8587e3e0",
+      "body_excerpt": "<html>\r\n<head><title>404 Not Found</title></head>\r\n<body>\r\n<center><h1>404 Not Found</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.wolframalpha.com/v2/query?input=1%2B1&output=json&appid=QUOXSHAPEPROOFDUMMYAPPID",
+      "status": 401,
+      "latency_ms": 403,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "94c5e6d36b469e6c32c69d4071010c0c823f04983674a2bdaa6285a18f104962",
+      "body_excerpt": "{\"status\":401,\"message\":\"Invalid appid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "compute",
+      "method": "GET",
+      "url": "https://api.wolframalpha.com/v2/query?input=quoxprobe&output=json&format=plaintext&units=quoxprobe&assumption=quoxprobe&podtimeout=4&appid=QUOXSHAPEPROOFDUMMYAPPID",
+      "status": 401,
+      "latency_ms": 166,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "94c5e6d36b469e6c32c69d4071010c0c823f04983674a2bdaa6285a18f104962",
+      "body_excerpt": "{\"status\":401,\"message\":\"Invalid appid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_short_answer",
+      "method": "GET",
+      "url": "https://api.wolframalpha.com/v2/query?input=quoxprobe&output=json&format=plaintext&includepodid=Result&units=quoxprobe&appid=QUOXSHAPEPROOFDUMMYAPPID",
+      "status": 401,
+      "latency_ms": 354,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "94c5e6d36b469e6c32c69d4071010c0c823f04983674a2bdaa6285a18f104962",
+      "body_excerpt": "{\"status\":401,\"message\":\"Invalid appid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_pod",
+      "method": "GET",
+      "url": "https://api.wolframalpha.com/v2/query?input=quoxprobe&output=json&format=plaintext&includepodid=quoxprobe&units=quoxprobe&appid=QUOXSHAPEPROOFDUMMYAPPID",
+      "status": 401,
+      "latency_ms": 289,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "94c5e6d36b469e6c32c69d4071010c0c823f04983674a2bdaa6285a18f104962",
+      "body_excerpt": "{\"status\":401,\"message\":\"Invalid appid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_pods_by_scanner",
+      "method": "GET",
+      "url": "https://api.wolframalpha.com/v2/query?input=quoxprobe&output=json&format=plaintext&scanner=quoxprobe&appid=QUOXSHAPEPROOFDUMMYAPPID",
+      "status": 401,
+      "latency_ms": 868,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "94c5e6d36b469e6c32c69d4071010c0c823f04983674a2bdaa6285a18f104962",
+      "body_excerpt": "{\"status\":401,\"message\":\"Invalid appid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "validate_query",
+      "method": "GET",
+      "url": "https://api.wolframalpha.com/v2/validatequery?input=quoxprobe&output=json&appid=QUOXSHAPEPROOFDUMMYAPPID",
+      "status": 401,
+      "latency_ms": 260,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "94c5e6d36b469e6c32c69d4071010c0c823f04983674a2bdaa6285a18f104962",
+      "body_excerpt": "{\"status\":401,\"message\":\"Invalid appid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,70 @@
+{
+  "spec_id": "deepseek",
+  "spec_version": 1,
+  "checked_at": "2026-09-16T17:58:33.441Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.deepseek.com/quox-shapeproof-control-6f7ac182",
+      "status": 401,
+      "latency_ms": 1947,
+      "classification": "CONTROL",
+      "body_sha256": "0293a5aa2509a6052457fbe86a4c23b54098baea32b098c8df4882b0576fbbb2",
+      "body_excerpt": "{\"error\":{\"message\":\"Authentication Fails, Your api key: ****IKEY is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.deepseek.com/models",
+      "status": 401,
+      "latency_ms": 365,
+      "classification": "AUTH_WALL",
+      "body_sha256": "0293a5aa2509a6052457fbe86a4c23b54098baea32b098c8df4882b0576fbbb2",
+      "body_excerpt": "{\"error\":{\"message\":\"Authentication Fails, Your api key: ****IKEY is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_models",
+      "method": "GET",
+      "url": "https://api.deepseek.com/models",
+      "status": 401,
+      "latency_ms": 273,
+      "classification": "AUTH_WALL",
+      "body_sha256": "0293a5aa2509a6052457fbe86a4c23b54098baea32b098c8df4882b0576fbbb2",
+      "body_excerpt": "{\"error\":{\"message\":\"Authentication Fails, Your api key: ****IKEY is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "chat_completion",
+      "method": "POST",
+      "url": null,
+      "status": null,
+      "latency_ms": null,
+      "classification": "SKIPPED_WRITE",
+      "body_sha256": null,
+      "body_excerpt": null,
+      "flags": {
+        "reason": "writes_not_included"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

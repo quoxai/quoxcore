@@ -1,0 +1,110 @@
+{
+  "name": "telegram-pro",
+  "version": "1.0.0",
+  "displayName": "Quox Telegram Pro",
+  "tagline": "Multi-Agent Telegram, With Terminal Channels and HITL in Chat",
+  "description": "A dedicated bidirectional gateway bot for your org, with forum-topic terminal channels and human-in-the-loop approvals answered right inside Telegram.",
+  "shortDescription": "Bidirectional Telegram gateway with terminal topic channels and in-chat HITL.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 29,
+  "priceDisplay": "$29",
+  "priceModel": "one-time",
+  "tier": "pro",
+  "featured": false,
+  "badge": "NEW",
+  "icon": "send",
+  "heroGradient": "linear-gradient(135deg, #0088cc 0%, #38bdf8 50%, #a855f7 100%)",
+  "accentColor": "#0088cc",
+  "infoUrl": "https://quox.ai/plugins/telegram-pro",
+  "docsUrl": "https://quox.ai/docs/plugins/telegram-pro",
+  "marketingPoints": [
+    "Bidirectional gateway bot, owned and created by you via BotFather",
+    "Forum topic terminal channels for live session visibility",
+    "Replay-safe webhooks, no duplicate or lost updates on retry",
+    "Rate-aware outbound queue that respects Telegram's send limits",
+    "Owner onboarding wizard walks you from bot creation to bound group in minutes"
+  ],
+  "features": {
+    "gatewayBot": {
+      "name": "Gateway Bot",
+      "description": "A single bot you create through BotFather and connect with a token. Quox never asks for BotFather access on your behalf.",
+      "icon": "send",
+      "highlight": true
+    },
+    "terminalTopics": {
+      "name": "Terminal Topic Channels",
+      "description": "Forum topics in your Quox Dev group map to live terminal sessions, so you can watch and steer work from Telegram.",
+      "icon": "terminal",
+      "highlight": true
+    },
+    "replaySafeWebhooks": {
+      "name": "Replay-Safe Webhooks",
+      "description": "Inbound updates are deduplicated and idempotent, so retries and redeliveries from Telegram never double-process.",
+      "icon": "shield",
+      "highlight": true
+    },
+    "outboundQueue": {
+      "name": "Rate-Aware Outbound Queue",
+      "description": "Outbound messages are queued and paced against Telegram's per-chat and global rate limits automatically.",
+      "icon": "clock"
+    },
+    "onboardingWizard": {
+      "name": "Owner Onboarding Wizard",
+      "description": "A 4-step guided setup: create the bot, connect the token, create the Quox Dev group, bind the owner channel.",
+      "icon": "userCheck"
+    }
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "telegramGateway": false,
+      "terminalTopics": false,
+      "hitlInChat": false,
+      "notifications": "In-app only"
+    },
+    "pro": {
+      "name": "Telegram Pro",
+      "telegramGateway": true,
+      "terminalTopics": true,
+      "hitlInChat": true,
+      "notifications": "Bidirectional Telegram + In-app"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "route": "/telegram-pro",
+  "integration": {
+    "service": "src/services/telegramProService.js",
+    "view": "src/components/telegram-pro/TelegramProView.jsx"
+  },
+  "permissions": [
+    "inbox:read",
+    "settings:write",
+    "network:external"
+  ],
+  "futureFeatures": [
+    "Per-agent bot identities, not just one shared gateway bot",
+    "Reactions-as-HITL: approve or reject by reacting to a message",
+    "/link command to bind a Telegram user to a Quox user identity",
+    "Slack Pro under the same contract as Telegram Pro"
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-07-25",
+      "changes": [
+        "Initial release",
+        "Owner onboarding wizard",
+        "Bidirectional gateway bot setup via vault-stored token",
+        "Quox Dev group detection and owner channel binding"
+      ]
+    }
+  },
+  "category": "Communication"
+}

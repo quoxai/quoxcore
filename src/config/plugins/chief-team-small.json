@@ -1,0 +1,46 @@
+{
+  "name": "chief-team-small",
+  "version": "1.0.0",
+  "displayName": "Chief Team — Small Business",
+  "tagline": "Your AI-powered C-suite, six chiefs deep.",
+  "description": "Six executive chiefs — CEO, COO, CFO, CMO, CTO, and CPO — working together as an agentic team to advise on strategy, operations, finance, marketing, technology, and people. The CEO orchestrates the other five as direct reports in a flat hierarchy, sharing objectives, context and memory the same way every Quox agentic team does.",
+  "shortDescription": "6-chief AI executive suite for small businesses.",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 5,
+  "priceDisplay": "$5",
+  "priceModel": "one-time",
+  "tier": "tier_a",
+  "featured": false,
+  "icon": "briefcase",
+  "accentColor": "#1e293b",
+  "infoUrl": "https://quox.ai/docs/agentic-teams",
+  "docsUrl": "https://quox.ai/docs/agentic-teams",
+  "marketingPoints": [
+    "6 coordinated executive chiefs: CEO, COO, CFO, CMO, CTO, CPO",
+    "CEO orchestrator delegates to five direct-report specialists",
+    "Shared objectives, context and memory across the team",
+    "Topology health monitoring and automatic fallback routing"
+  ],
+  "features": {
+    "ceo": { "name": "CEO — Orchestrator", "description": "Delegates across the team, sets strategy, resolves conflicts between chiefs.", "icon": "compass" },
+    "coo": { "name": "COO — Operations", "description": "Operational execution and process advice.", "icon": "settings" },
+    "cfo": { "name": "CFO — Finance", "description": "Financial planning, budgeting and forecasting advice.", "icon": "dollar-sign" },
+    "cmo": { "name": "CMO — Marketing", "description": "Marketing strategy and positioning advice.", "icon": "megaphone" },
+    "cto": { "name": "CTO — Technology", "description": "Technology strategy and architecture advice.", "icon": "cpu" },
+    "cpo": { "name": "CPO — People", "description": "People, culture and organisational advice.", "icon": "users" }
+  },
+  "limits": {
+    "free": {},
+    "paid": {
+      "chiefCount": 6,
+      "orchestrator": "ceo",
+      "topology": "flat"
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0",
+    "includes": ["chief-small"]
+  },
+  "category": "AI & Intelligence"
+}

@@ -1,0 +1,206 @@
+{
+  "spec_version": 1,
+  "id": "twilio",
+  "name": "Twilio",
+  "category": "communication",
+  "credentialType": "twilio",
+  "requiredFields": [
+    "account_sid",
+    "auth_token"
+  ],
+  "docs": "https://www.twilio.com/docs/usage/api",
+  "base_url": "https://api.twilio.com",
+  "auth": {
+    "type": "basic",
+    "userField": "account_sid",
+    "passField": "auth_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/2010-04-01/Accounts/{{account_sid}}.json"
+  },
+  "tools_source": "https://www.twilio.com/docs/usage/api",
+  "tools": [
+    {
+      "name": "get_account",
+      "description": "Get the Twilio account this credential belongs to (friendly name, status, type)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2010-04-01/Accounts/{{account_sid}}.json"
+      },
+      "response": {
+        "pick": {
+          "sid": "sid",
+          "friendly_name": "friendly_name",
+          "status": "status",
+          "type": "type",
+          "date_created": "date_created",
+          "date_updated": "date_updated"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_messages",
+      "description": "List recent Twilio SMS/MMS messages, optionally filtered by sender or recipient. Message bodies are not returned",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max messages to return (default 20, max 50)"
+          },
+          "to": {
+            "type": "string",
+            "description": "Optional recipient phone number in E.164 format (e.g. +447700900000)"
+          },
+          "from": {
+            "type": "string",
+            "description": "Optional sender phone number in E.164 format (e.g. +447700900000)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2010-04-01/Accounts/{{account_sid}}/Messages.json",
+        "query": {
+          "PageSize": "{{clamp input.page_size 20 50}}",
+          "To": "{{input.to}}",
+          "From": "{{input.from}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "messages[]": {
+            "sid": "sid",
+            "status": "status",
+            "direction": "direction",
+            "from": "from",
+            "to": "to",
+            "date_sent": "date_sent",
+            "num_segments": "num_segments",
+            "error_code": "error_code"
+          },
+          "page": "page",
+          "page_size": "page_size"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_calls",
+      "description": "List recent Twilio voice calls, optionally filtered by caller, callee or status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max calls to return (default 20, max 50)"
+          },
+          "to": {
+            "type": "string",
+            "description": "Optional called phone number in E.164 format (e.g. +447700900000)"
+          },
+          "from": {
+            "type": "string",
+            "description": "Optional calling phone number in E.164 format (e.g. +447700900000)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "ringing",
+              "in-progress",
+              "canceled",
+              "completed",
+              "busy",
+              "failed",
+              "no-answer"
+            ],
+            "description": "Optional call status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2010-04-01/Accounts/{{account_sid}}/Calls.json",
+        "query": {
+          "PageSize": "{{clamp input.page_size 20 50}}",
+          "To": "{{input.to}}",
+          "From": "{{input.from}}",
+          "Status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "calls[]": {
+            "sid": "sid",
+            "status": "status",
+            "direction": "direction",
+            "from": "from",
+            "to": "to",
+            "start_time": "start_time",
+            "end_time": "end_time",
+            "duration": "duration"
+          },
+          "page": "page",
+          "page_size": "page_size"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_incoming_numbers",
+      "description": "List the phone numbers owned by this Twilio account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max phone numbers to return (default 20, max 50)"
+          },
+          "phone_number": {
+            "type": "string",
+            "description": "Optional phone number to filter by (E.164, e.g. +447700900000)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2010-04-01/Accounts/{{account_sid}}/IncomingPhoneNumbers.json",
+        "query": {
+          "PageSize": "{{clamp input.page_size 20 50}}",
+          "PhoneNumber": "{{input.phone_number}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "incoming_phone_numbers[]": {
+            "sid": "sid",
+            "phone_number": "phone_number",
+            "friendly_name": "friendly_name",
+            "status": "status",
+            "date_created": "date_created"
+          },
+          "page": "page",
+          "page_size": "page_size"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

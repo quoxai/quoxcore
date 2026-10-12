@@ -1,0 +1,24 @@
+-- 020-dev-slot-last-read-at.sql — DEVSUITE-SLOTS: make "holding a slot but
+-- never reading its channel" visible instead of silent.
+--
+-- Incident (2026-08-22/23, owner's words): "you cant bind to a slot and then
+-- immediately ignore the channel it creates". A slot is a durable ADDRESS
+-- with a Matrix/Discord room behind it; a session can checkout the slot,
+-- heartbeat it forever (proving the process is alive), and never once read
+-- the room. Messages sent to that address then sit unread indefinitely,
+-- while the slot LOOKS attended because the heartbeat is green.
+--
+-- last_read_at is the holder's own read watermark: the ISO-8601 timestamp of
+-- the last time the CURRENT holder genuinely read the slot's messages (GET
+-- .../messages or GET .../wait, both gated to the current holder only — see
+-- devSlotsStore.touchSlotRead). It resets implicitly on every new checkout
+-- because checkout already clears/regrants holder_session; a stale
+-- last_read_at from a PREVIOUS holder never leaks into the new holder's
+-- unread count because unread_count (devSlotsStore.js, derived not stored)
+-- also excludes messages authored by the current holder and is recomputed
+-- per read, not cached. NULL means "this holder has never read the channel
+-- at all", which is the exact state this migration exists to surface.
+--
+-- Same additive-ALTER pattern as 013/017/018/019.
+
+ALTER TABLE dev_slots ADD COLUMN last_read_at TEXT;

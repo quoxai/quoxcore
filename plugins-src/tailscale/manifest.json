@@ -1,0 +1,37 @@
+{
+  "id": "tailscale",
+  "name": "tailscale",
+  "displayName": "TailMesh",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "paid",
+  "badge": "PAID",
+  "category": "Infrastructure",
+  "accentColor": "#4f46e5",
+  "description": "Monitor and manage your Tailscale mesh from QuoxCORE. See every peer, check connectivity, manage routes and keys, get alerts when devices go offline — and ask MESHNET anything in plain English.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/tailscale",
+      "label": "TailMesh",
+      "icon": "globe",
+      "badge": "NEW",
+      "minRole": "viewer"
+    }
+  ],
+  "routes": {
+    "/tailscale": "TailscaleView"
+  },
+  "routeGuards": {
+    "/tailscale": {
+      "minRole": "viewer"
+    }
+  },
+  "minQuoxVersion": "1.0.0"
+}

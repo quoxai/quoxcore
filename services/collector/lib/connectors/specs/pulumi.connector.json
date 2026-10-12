@@ -1,0 +1,177 @@
+{
+  "spec_version": 1,
+  "id": "pulumi",
+  "name": "Pulumi",
+  "category": "developer",
+  "credentialType": "pulumi",
+  "requiredFields": [
+    "access_token"
+  ],
+  "description": "Read-only Pulumi Cloud access: the token owner's profile and organisation memberships, the stacks that token can see, and one stack's current version, tags and in-flight operation. No stack updates, destroys, config writes or secret decryption.",
+  "docs": "https://www.pulumi.com/docs/reference/cloud-rest-api/",
+  "base_url": "https://api.pulumi.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "token {{access_token}}"
+  },
+  "static_headers": {
+    "Accept": "application/vnd.pulumi+8"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/user"
+  },
+  "tools_source": "https://www.pulumi.com/docs/reference/cloud-rest-api/api-basics/",
+  "tools": [
+    {
+      "name": "whoami",
+      "description": "Get the Pulumi Cloud identity behind this access token: login, display name, email and the organisations it belongs to with the role held in each",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/user"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "githubLogin": "githubLogin",
+          "name": "name",
+          "email": "email",
+          "organizations[]": {
+            "name": "name",
+            "role": "role",
+            "githubLogin": "githubLogin"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_stacks",
+      "description": "List the Pulumi stacks this access token can see, optionally narrowed to one organisation, one project or one stack tag; returns a continuation token when more pages remain",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization": {
+            "type": "string",
+            "description": "Optional Pulumi organisation name to filter stacks to (e.g. the org shown by whoami)"
+          },
+          "project": {
+            "type": "string",
+            "description": "Optional Pulumi project name to filter stacks to"
+          },
+          "tag_name": {
+            "type": "string",
+            "description": "Optional stack tag name to filter by (pair with tag_value for an exact match)"
+          },
+          "tag_value": {
+            "type": "string",
+            "description": "Optional stack tag value to filter by (requires tag_name)"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Max stacks to return per page (default 50, max 100 — a connector-side clamp, not a documented API ceiling)"
+          },
+          "continuation_token": {
+            "type": "string",
+            "description": "Optional continuationToken from a previous response, to fetch the next page"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/user/stacks",
+        "query": {
+          "organization": "{{input.organization}}",
+          "project": "{{input.project}}",
+          "tagName": "{{input.tag_name}}",
+          "tagValue": "{{input.tag_value}}",
+          "maxResults": "{{clamp input.max_results 50 100}}",
+          "continuationToken": "{{input.continuation_token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "stacks[]": {
+            "id": "id",
+            "orgName": "orgName",
+            "projectName": "projectName",
+            "stackName": "stackName",
+            "lastUpdate": "lastUpdate",
+            "resourceCount": "resourceCount"
+          },
+          "continuationToken": "continuationToken"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_stack",
+      "description": "Get one Pulumi stack by organisation, project and stack name: its current version number, tags, the UUID of the most recent update, and any operation currently in flight",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_name": {
+            "type": "string",
+            "description": "The Pulumi organisation name that owns the stack"
+          },
+          "project_name": {
+            "type": "string",
+            "description": "The Pulumi project name the stack belongs to"
+          },
+          "stack_name": {
+            "type": "string",
+            "description": "The stack name (e.g. dev, staging, prod)"
+          }
+        },
+        "required": [
+          "org_name",
+          "project_name",
+          "stack_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/stacks/{{input.org_name}}/{{input.project_name}}/{{input.stack_name}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "orgName": "orgName",
+          "projectName": "projectName",
+          "stackName": "stackName",
+          "version": "version",
+          "activeUpdate": "activeUpdate",
+          "tags": "tags",
+          "currentOperationKind": "currentOperation.kind",
+          "currentOperationAuthor": "currentOperation.author",
+          "currentOperationStarted": "currentOperation.started"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, AND THE DOCS SAY THE SAME THING VERBATIM: API Basics (https://www.pulumi.com/docs/reference/cloud-rest-api/api-basics/) states 'All requests must be authenticated using a token via the Authorization HTTP header.' and 'The Authorization header must be in the form below with the literal string token, then a space, then your access token value.' followed by 'Authorization: token {token}'. The scaffolded auth {type: header, header: Authorization, template: 'token {{access_token}}'} matches exactly, so it is unchanged. The same page states 'The Pulumi Cloud REST API will return a 401 status code if the token is missing or invalid.', which is the behaviour the shape-proof run depends on.",
+      "STATIC ACCEPT HEADER IS MANDATORY, NOT DECORATION: under 'Required Request Headers' the same page says 'The following headers are required for all operations except where explicitly noted:' and then 'Accept: application/vnd.pulumi+8' and 'Content-Type: application/json'. The Accept header therefore ships in static_headers. Content-Type is deliberately NOT sent: every tool here is a GET with no body, and the docs' own worked example sends only Authorization and Accept ('curl -H \"Authorization: token $PULUMI_ACCESS_TOKEN\" -H \"Accept: application/vnd.pulumi+8\" https://api.pulumi.com/api/user'). That example is also the documentary provenance for the test path /api/user.",
+      "CATEGORY FOLLOWS THE VAULT ENTRY, NOT THE SCAFFOLD GUESS: the scaffold wrote category 'infrastructure', which is not one of the twelve values in use across this spec directory (cloud_hosting, commerce_finance, communication, crm_sales, data_ai, developer, files_knowledge, hr_hiring, marketing_email, media, monitoring, project_management). integrationTypes.js records category 'developer' for pulumi, and Pulumi Cloud sits with the other deploy and delivery control planes already filed there (vercel, netlify, circleci), so 'developer' is used. Pulumi provisions cloud resources but is not itself a host, so cloud_hosting would have been the wrong neighbour.",
+      "BASE URL IS THE MANAGED CLOUD ONLY: API Basics says 'For the Managed Pulumi Cloud (i.e. app.pulumi.com), API endpoints are prefixed with the following url: https://api.pulumi.com', and adds 'If you are using Self-Hosted Pulumi Cloud, then use the configured endpoint for the Pulumi API component (e.g. https://api.pulumi.example.com).' This spec hardcodes the managed host. Self-hosted Pulumi customers are NOT served by this connector and would need a base_url {fromCredential} variant plus a new vault field; that is an unbuilt gap, not a silent limitation.",
+      "TOOL SHAPES ARE FROM THE GENERATED REFERENCE PAGES, CHECKED 2026-09-12: the category pages are 'generated from the live OpenAPI spec'. Users (https://www.pulumi.com/docs/reference/cloud-rest-api/users/) documents 'Get Current User', GET /api/user, 'Returns the authenticated user's profile information, including login name, display name, email, avatar URL, and organization memberships.' with schema User {id, githubLogin, name, email, avatarUrl, organizations[]{name, role, githubLogin}}. The same page documents 'List User Stacks', GET /api/user/stacks, 'Lists all stacks accessible to the authenticated user. Results can be filtered by organization, project, and stack tags (tagName/tagValue). Supports pagination via continuationToken and maxResults parameters.' with AppListStacksResponse {stacks[]{id, orgName, projectName, stackName, lastUpdate, resourceCount, links}, continuationToken}. Stacks (https://www.pulumi.com/docs/reference/cloud-rest-api/stacks/) documents 'Get Stack', GET /api/stacks/{orgName}/{projectName}/{stackName}, as 'the primary endpoint for inspecting the current state and metadata of a stack' returning AppStack {id, orgName, projectName, stackName, currentOperation{kind, author, started}, activeUpdate, tags, config, version}. Every picked field is taken from those schemas; none is inferred.",
+      "MAX_RESULTS CLAMP IS OURS, NOT PULUMI'S: the reference documents maxResults only as 'Maximum number of stacks to return per page' with no stated ceiling. The 50/100 clamp is a connector-side guard so an agent cannot pull an unbounded page, and the input description says so rather than implying Pulumi rejects 101. If a documented ceiling appears later, the clamp should be raised to match it rather than left to look like an API fact.",
+      "READ-ONLY BY CONSTRUCTION, AND THE OMISSIONS ARE THE POINT: all three tools are GETs. The same API surface exposes stack updates, destroys, begin-update, batch-decrypt and DELETE /api/stacks/{orgName}/{projectName}/{stackName} (a soft delete), plus stack config and ESC environments. None is wired here. Anything that mutates infrastructure or decrypts secrets stays out until there is an approval path in front of it; this connector must not be described as managing Pulumi stacks.",
+      "PROOF EXPECTATION RECORDED BEFORE THE RUN, AND IT HELD: probed live 2026-09-12 with a dummy token, api.pulumi.com answers all three real paths 401 {\"code\":401,\"message\":\"Unauthorized: No credentials provided or are invalid.\"} while a bogus control path answers 404 '404 page not found'. That difference is what earns SHAPE_PROVEN rather than AUTH_WALL: the routes are reachable and distinguishable from nonexistent ones, and only a real token can turn the 401 into a 200. No _probe hints are needed because no path segment has to be valid for the 401 to be reached."
+    ]
+  }
+}

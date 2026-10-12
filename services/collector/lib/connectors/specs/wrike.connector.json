@@ -1,0 +1,531 @@
+{
+  "spec_version": 1,
+  "id": "wrike",
+  "name": "Wrike",
+  "category": "project_management",
+  "credentialType": "wrike",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://developers.wrike.com/",
+  "base_url": "https://www.wrike.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v4/contacts",
+    "query": {
+      "me": "true"
+    }
+  },
+  "tools_source": "https://developers.wrike.com/api/v4/",
+  "tools": [
+    {
+      "name": "get_current_contact",
+      "description": "Get the Wrike user the access token belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v4/contacts",
+        "query": {
+          "me": "true"
+        }
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "data[]": {
+            "id": "id",
+            "first_name": "firstName",
+            "last_name": "lastName",
+            "type": "type",
+            "timezone": "timezone",
+            "locale": "locale",
+            "title": "title",
+            "company_name": "companyName"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_account",
+      "description": "Get the Wrike account the access token belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v4/account"
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "date_format": "dateFormat",
+            "first_day_of_week": "firstDayOfWeek",
+            "created_date": "createdDate",
+            "joined_date": "joinedDate"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_contacts",
+      "description": "List the Wrike contacts (users and groups) in the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Return deleted contacts instead of active ones (default false)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v4/contacts",
+        "query": {
+          "deleted": "{{input.deleted}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "data[]": {
+            "id": "id",
+            "first_name": "firstName",
+            "last_name": "lastName",
+            "type": "type",
+            "title": "title",
+            "deleted": "deleted",
+            "me": "me"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_spaces",
+      "description": "List the Wrike spaces the token can access",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "archived": {
+            "type": "boolean",
+            "description": "Include archived spaces (default false)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v4/spaces",
+        "query": {
+          "archived": "{{input.archived}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "data[]": {
+            "id": "id",
+            "title": "title",
+            "access_type": "accessType",
+            "archived": "archived"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_folders",
+      "description": "List the Wrike folder and project tree the token can access",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "boolean",
+            "description": "Return only folders that are projects (true) or only plain folders (false)"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "Return folders from the recycle bin instead (default false)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v4/folders",
+        "query": {
+          "project": "{{input.project}}",
+          "deleted": "{{input.deleted}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "data[]": {
+            "id": "id",
+            "title": "title",
+            "scope": "scope",
+            "child_ids": "childIds",
+            "project_status": "project.status",
+            "project_owner_ids": "project.ownerIds"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_folder",
+      "description": "Get one Wrike folder or project by ID, with its description and project dates",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "folder_id": {
+            "type": "string",
+            "description": "Wrike folder ID, from list_folders"
+          }
+        },
+        "required": [
+          "folder_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v4/folders/{{input.folder_id}}"
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "data[]": {
+            "id": "id",
+            "account_id": "accountId",
+            "title": "title",
+            "created_date": "createdDate",
+            "updated_date": "updatedDate",
+            "description": "description",
+            "scope": "scope",
+            "permalink": "permalink",
+            "parent_ids": "parentIds",
+            "child_ids": "childIds",
+            "project_status": "project.status",
+            "project_start_date": "project.startDate",
+            "project_end_date": "project.endDate"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_tasks",
+      "description": "List Wrike tasks across the account, optionally filtered by status, importance or title",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max tasks to return (default 20, max 100)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Active",
+              "Completed",
+              "Deferred",
+              "Cancelled"
+            ],
+            "description": "Optional task status to filter by"
+          },
+          "importance": {
+            "type": "string",
+            "enum": [
+              "High",
+              "Normal",
+              "Low"
+            ],
+            "description": "Optional task importance to filter by"
+          },
+          "title": {
+            "type": "string",
+            "description": "Optional text matched against the task title"
+          },
+          "sortField": {
+            "type": "string",
+            "enum": [
+              "CreatedDate",
+              "UpdatedDate",
+              "CompletedDate",
+              "DueDate",
+              "Status",
+              "Importance",
+              "Title"
+            ],
+            "description": "Optional field to sort by"
+          },
+          "sortOrder": {
+            "type": "string",
+            "enum": [
+              "Asc",
+              "Desc"
+            ],
+            "description": "Optional sort direction (default Asc)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v4/tasks",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "status": "{{input.status}}",
+          "importance": "{{input.importance}}",
+          "title": "{{input.title}}",
+          "sortField": "{{input.sortField}}",
+          "sortOrder": "{{input.sortOrder}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "data[]": {
+            "id": "id",
+            "title": "title",
+            "status": "status",
+            "importance": "importance",
+            "created_date": "createdDate",
+            "updated_date": "updatedDate",
+            "completed_date": "completedDate",
+            "due_date": "dates.due",
+            "permalink": "permalink"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_folder_tasks",
+      "description": "List the Wrike tasks inside one folder or project",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "folder_id": {
+            "type": "string",
+            "description": "Wrike folder ID, from list_folders"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max tasks to return (default 20, max 100)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Active",
+              "Completed",
+              "Deferred",
+              "Cancelled"
+            ],
+            "description": "Optional task status to filter by"
+          },
+          "descendants": {
+            "type": "boolean",
+            "description": "Include tasks from subfolders (default true in Wrike)"
+          }
+        },
+        "required": [
+          "folder_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v4/folders/{{input.folder_id}}/tasks",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "status": "{{input.status}}",
+          "descendants": "{{input.descendants}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "data[]": {
+            "id": "id",
+            "title": "title",
+            "status": "status",
+            "importance": "importance",
+            "created_date": "createdDate",
+            "updated_date": "updatedDate",
+            "completed_date": "completedDate",
+            "due_date": "dates.due",
+            "permalink": "permalink"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_task",
+      "description": "Get one Wrike task by ID, with its description, responsibles and dates",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Wrike task ID, from list_tasks"
+          }
+        },
+        "required": [
+          "task_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v4/tasks/{{input.task_id}}"
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "data[]": {
+            "id": "id",
+            "account_id": "accountId",
+            "title": "title",
+            "description": "description",
+            "status": "status",
+            "importance": "importance",
+            "created_date": "createdDate",
+            "updated_date": "updatedDate",
+            "completed_date": "completedDate",
+            "start_date": "dates.start",
+            "due_date": "dates.due",
+            "scope": "scope",
+            "author_ids": "authorIds",
+            "responsible_ids": "responsibleIds",
+            "parent_ids": "parentIds",
+            "permalink": "permalink"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_workflows",
+      "description": "List the Wrike workflows and their custom statuses",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v4/workflows"
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "standard": "standard",
+            "hidden": "hidden",
+            "custom_statuses[]": {
+              "id": "id",
+              "name": "name",
+              "standard_name": "standardName",
+              "group": "group",
+              "hidden": "hidden"
+            }
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_timelogs",
+      "description": "List Wrike time entries across the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "me": {
+            "type": "boolean",
+            "description": "Return only time entries logged by the token's own user (default false)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v4/timelogs",
+        "query": {
+          "me": "{{input.me}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "data[]": {
+            "id": "id",
+            "task_id": "taskId",
+            "user_id": "userId",
+            "hours": "hours",
+            "tracked_date": "trackedDate",
+            "created_date": "createdDate",
+            "comment": "comment"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_task_timelogs",
+      "description": "List the Wrike time entries logged against one task",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Wrike task ID, from list_tasks"
+          }
+        },
+        "required": [
+          "task_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v4/tasks/{{input.task_id}}/timelogs"
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "data[]": {
+            "id": "id",
+            "task_id": "taskId",
+            "user_id": "userId",
+            "hours": "hours",
+            "tracked_date": "trackedDate",
+            "created_date": "createdDate",
+            "comment": "comment"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

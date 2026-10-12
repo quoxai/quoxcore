@@ -1,0 +1,80 @@
+{
+  "name": "cogcore3d",
+  "version": "1.0.0",
+  "displayName": "Cognitive Core 3D",
+  "tagline": "See inside the brain.",
+  "description": "Fullscreen immersive 3D visualiser of the entire QuoxCORE cognitive architecture. Fly through nested shells containing agents, objectives, memory crystals, and cognitive implants rendered as spatial objects. Tron's Grid meets Elite's cockpit meets JARVIS.",
+  "shortDescription": "Immersive 3D cognitive architecture visualiser",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 18,
+  "priceDisplay": "$18",
+  "priceModel": "one-time",
+  "tier": "professional",
+  "featured": true,
+  "badge": "PREMIUM",
+  "icon": "box",
+  "accentColor": "#8b5cf6",
+  "infoUrl": "https://quox.ai/plugins/cogcore3d",
+  "docsUrl": "https://quox.ai/docs/plugins/cogcore3d",
+  "route": "/cogcore3d",
+  "marketingPoints": [
+    "Fly inside the brain — nested shells, agents, memory crystals, all spatial",
+    "Elite-style cockpit HUD with real-time telemetry",
+    "Every data source already wired — agents, objectives, memory, implants",
+    "Adaptive quality: Ultra to Low, runs on integrated graphics"
+  ],
+  "features": {
+    "immersiveScene": {
+      "name": "Immersive 3D Scene",
+      "description": "Fullscreen WebGL environment with fog, bloom, holo-grid floor, and ambient particles",
+      "icon": "box",
+      "highlight": true
+    },
+    "eliteHUD": {
+      "name": "Elite HUD Frame",
+      "description": "Cockpit bezels, corner brackets, pulse bar, and FPS counter inspired by Elite: Dangerous",
+      "icon": "monitor",
+      "highlight": true
+    },
+    "adaptiveQuality": {
+      "name": "Adaptive Quality",
+      "description": "Automatic 4-tier quality switching based on GPU and frame rate detection",
+      "icon": "sliders"
+    }
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "immersiveScene": false,
+      "eliteHUD": false,
+      "adaptiveQuality": false,
+      "view": "No Cognitive Core 3D"
+    },
+    "tier_a": {
+      "name": "Cognitive Core 3D",
+      "immersiveScene": true,
+      "eliteHUD": true,
+      "adaptiveQuality": true,
+      "view": "Full immersive 3D visualiser with all zones and HUD"
+    }
+  },
+  "limits": {
+    "tier_a": {
+      "maxParticles": 2500,
+      "allZonesVisible": true
+    }
+  },
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "integration": {
+    "view": "src/pages/views/CognitiveCore3DView.jsx"
+  },
+  "category": "Operations"
+}

@@ -1,0 +1,154 @@
+{
+  "spec_version": 1,
+  "id": "dropbox",
+  "name": "Dropbox",
+  "category": "files_knowledge",
+  "credentialType": "dropbox",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://www.dropbox.com/developers/documentation",
+  "base_url": "https://api.dropboxapi.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/2/users/get_current_account"
+  },
+  "tools_source": "https://www.dropbox.com/developers/documentation/http/documentation",
+  "tools": [
+    {
+      "name": "get_current_account",
+      "description": "Get the Dropbox account the credential belongs to (id, display name, email, locale)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "POST",
+        "path": "/2/users/get_current_account"
+      },
+      "response": {
+        "pick": {
+          "account_id": "account_id",
+          "display_name": "name.display_name",
+          "email": "email",
+          "email_verified": "email_verified",
+          "disabled": "disabled",
+          "country": "country",
+          "locale": "locale"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_folder",
+      "description": "List the files and folders directly inside one Dropbox folder path",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "default": "",
+            "description": "Folder path to list, e.g. /Reports. Use an empty string for the account root"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Entries to return (default 20, max 50)"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/2/files/list_folder",
+        "body": {
+          "path": "{{input.path}}",
+          "limit": "{{clamp input.max_results 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "entries[]": {
+            "id": "id",
+            "name": "name",
+            "path_display": "path_display",
+            "size": "size",
+            "server_modified": "server_modified"
+          },
+          "has_more": "has_more"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "search_files",
+      "description": "Search Dropbox for files and folders matching a free-text query",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Free-text search term matched against file and folder names"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/2/files/search_v2",
+        "body": {
+          "query": "{{input.query}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "matches[]": {
+            "id": "metadata.metadata.id",
+            "name": "metadata.metadata.name",
+            "path_display": "metadata.metadata.path_display",
+            "size": "metadata.metadata.size",
+            "server_modified": "metadata.metadata.server_modified"
+          },
+          "has_more": "has_more"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_space_usage",
+      "description": "Get Dropbox storage space used and allocated for the current account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "POST",
+        "path": "/2/users/get_space_usage"
+      },
+      "response": {
+        "pick": {
+          "used": "used",
+          "allocated": "allocation.allocated"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

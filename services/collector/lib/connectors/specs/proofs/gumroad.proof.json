@@ -1,0 +1,90 @@
+{
+  "spec_id": "gumroad",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:37.860Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.gumroad.com/quox-shapeproof-control-7a94b114?access_token=QUOXSHAPEPROOFDUMMYACCESSTOKEN",
+      "status": 404,
+      "latency_ms": 994,
+      "classification": "CONTROL",
+      "body_sha256": "2ae88373da2b01f1a18777adb5d0627975e586d7d3a9026f5d63fb9a55c2a0fc",
+      "body_excerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <title>Page not found (404) - Gumroad</title>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width\">\n    <meta name=\"descripti",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.gumroad.com/v2/user?access_token=QUOXSHAPEPROOFDUMMYACCESSTOKEN",
+      "status": 401,
+      "latency_ms": 359,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_user",
+      "method": "GET",
+      "url": "https://api.gumroad.com/v2/user?access_token=QUOXSHAPEPROOFDUMMYACCESSTOKEN",
+      "status": 401,
+      "latency_ms": 260,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_products",
+      "method": "GET",
+      "url": "https://api.gumroad.com/v2/products?access_token=QUOXSHAPEPROOFDUMMYACCESSTOKEN",
+      "status": 401,
+      "latency_ms": 293,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_product",
+      "method": "GET",
+      "url": "https://api.gumroad.com/v2/products/quoxprobe?access_token=QUOXSHAPEPROOFDUMMYACCESSTOKEN",
+      "status": 401,
+      "latency_ms": 278,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_sales",
+      "method": "GET",
+      "url": "https://api.gumroad.com/v2/sales?after=quoxprobe&before=quoxprobe&product_id=quoxprobe&email=quoxprobe&page_key=quoxprobe&access_token=QUOXSHAPEPROOFDUMMYACCESSTOKEN",
+      "status": 401,
+      "latency_ms": 1220,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

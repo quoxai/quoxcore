@@ -1,0 +1,213 @@
+{
+  "spec_version": 1,
+  "id": "bunny_cdn",
+  "name": "Bunny.net",
+  "category": "cloud_hosting",
+  "credentialType": "bunny_cdn",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.bunny.net/reference/",
+  "base_url": "https://api.bunny.net",
+  "auth": {
+    "type": "header",
+    "header": "AccessKey",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/user"
+  },
+  "tools_source": "https://docs.bunny.net/reference/pullzonepublic_index",
+  "tools": [
+    {
+      "name": "list_pullzones",
+      "description": "List Bunny.net pull zones with their origin, type and month-to-date bandwidth",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max pull zones to return (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional page number to fetch (Bunny pages are 0-based)"
+          },
+          "search": {
+            "type": "string",
+            "description": "Optional pull zone name to search for"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/pullzone",
+        "query": {
+          "perPage": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}",
+          "search": "{{input.search}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "Items[]": {
+            "Id": "Id",
+            "Name": "Name",
+            "OriginUrl": "OriginUrl",
+            "Enabled": "Enabled",
+            "Type": "Type",
+            "StorageZoneId": "StorageZoneId",
+            "MonthlyBandwidthUsed": "MonthlyBandwidthUsed",
+            "MonthlyBandwidthLimit": "MonthlyBandwidthLimit",
+            "MonthlyCharges": "MonthlyCharges"
+          },
+          "CurrentPage": "CurrentPage",
+          "TotalItems": "TotalItems",
+          "HasMoreItems": "HasMoreItems"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_pullzone",
+      "description": "Get one Bunny.net pull zone by ID, including its hostnames and cache settings",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "zone_id": {
+            "type": "number",
+            "description": "Numeric Bunny.net pull zone ID (e.g. 123456)"
+          }
+        },
+        "required": [
+          "zone_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/pullzone/{{input.zone_id}}"
+      },
+      "response": {
+        "pick": {
+          "Id": "Id",
+          "Name": "Name",
+          "OriginUrl": "OriginUrl",
+          "Enabled": "Enabled",
+          "Type": "Type",
+          "StorageZoneId": "StorageZoneId",
+          "CacheControlMaxAgeOverride": "CacheControlMaxAgeOverride",
+          "EnableGeoZoneUS": "EnableGeoZoneUS",
+          "EnableGeoZoneEU": "EnableGeoZoneEU",
+          "MonthlyBandwidthUsed": "MonthlyBandwidthUsed",
+          "MonthlyCharges": "MonthlyCharges",
+          "Hostnames[]": {
+            "Id": "Id",
+            "Value": "Value",
+            "ForceSSL": "ForceSSL",
+            "IsSystemHostname": "IsSystemHostname",
+            "HasCertificate": "HasCertificate"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_storagezones",
+      "description": "List Bunny.net storage zones with their region, files stored and storage used",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max storage zones to return (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional page number to fetch (Bunny pages are 0-based)"
+          },
+          "search": {
+            "type": "string",
+            "description": "Optional storage zone name to search for"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/storagezone",
+        "query": {
+          "perPage": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}",
+          "search": "{{input.search}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "Items[]": {
+            "Id": "Id",
+            "Name": "Name",
+            "Region": "Region",
+            "ReplicationRegions": "ReplicationRegions",
+            "StorageUsed": "StorageUsed",
+            "FilesStored": "FilesStored",
+            "Deleted": "Deleted"
+          },
+          "CurrentPage": "CurrentPage",
+          "TotalItems": "TotalItems",
+          "HasMoreItems": "HasMoreItems"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_statistics",
+      "description": "Get Bunny.net account traffic statistics: bandwidth, requests served and cache hit rate",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "date_from": {
+            "type": "string",
+            "description": "Optional start date, ISO format (e.g. 2026-09-01)"
+          },
+          "date_to": {
+            "type": "string",
+            "description": "Optional end date, ISO format (e.g. 2026-09-11)"
+          },
+          "pull_zone": {
+            "type": "number",
+            "description": "Optional pull zone ID to scope the statistics to"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/statistics",
+        "query": {
+          "dateFrom": "{{input.date_from}}",
+          "dateTo": "{{input.date_to}}",
+          "pullZone": "{{input.pull_zone}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "TotalBandwidthUsed": "TotalBandwidthUsed",
+          "TotalRequestsServed": "TotalRequestsServed",
+          "CacheHitRate": "CacheHitRate",
+          "TotalOriginTraffic": "TotalOriginTraffic",
+          "AverageOriginResponseTime": "AverageOriginResponseTime"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

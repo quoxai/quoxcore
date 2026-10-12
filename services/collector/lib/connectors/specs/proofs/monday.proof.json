@@ -1,0 +1,103 @@
+{
+  "spec_id": "monday",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:56.026Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.monday.com/quox-shapeproof-control-d618fb15",
+      "status": 401,
+      "latency_ms": 1111,
+      "classification": "CONTROL",
+      "body_sha256": "e317158f80ea9ba3b058a9ed8a785a5be3024531c3ecfe2ff11110f91e832b5a",
+      "body_excerpt": "{\"error\":\"You need to log in or sign up before continuing.\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "POST",
+      "url": "https://api.monday.com/v2",
+      "status": 401,
+      "latency_ms": 333,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a71850fb16bdcd5a853b2631dfaed569802576da9e529843fa394a90c21d5ff5",
+      "body_excerpt": "{\"errors\":[{\"message\":\"Not authenticated\",\"extensions\":{\"code\":\"NOT_AUTHENTICATED\"}}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "me",
+      "method": "POST",
+      "url": "https://api.monday.com/v2",
+      "status": 401,
+      "latency_ms": 421,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a71850fb16bdcd5a853b2631dfaed569802576da9e529843fa394a90c21d5ff5",
+      "body_excerpt": "{\"errors\":[{\"message\":\"Not authenticated\",\"extensions\":{\"code\":\"NOT_AUTHENTICATED\"}}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_boards",
+      "method": "POST",
+      "url": "https://api.monday.com/v2",
+      "status": 401,
+      "latency_ms": 443,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a71850fb16bdcd5a853b2631dfaed569802576da9e529843fa394a90c21d5ff5",
+      "body_excerpt": "{\"errors\":[{\"message\":\"Not authenticated\",\"extensions\":{\"code\":\"NOT_AUTHENTICATED\"}}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_board_items",
+      "method": "POST",
+      "url": "https://api.monday.com/v2",
+      "status": 401,
+      "latency_ms": 356,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a71850fb16bdcd5a853b2631dfaed569802576da9e529843fa394a90c21d5ff5",
+      "body_excerpt": "{\"errors\":[{\"message\":\"Not authenticated\",\"extensions\":{\"code\":\"NOT_AUTHENTICATED\"}}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_users",
+      "method": "POST",
+      "url": "https://api.monday.com/v2",
+      "status": 401,
+      "latency_ms": 385,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a71850fb16bdcd5a853b2631dfaed569802576da9e529843fa394a90c21d5ff5",
+      "body_excerpt": "{\"errors\":[{\"message\":\"Not authenticated\",\"extensions\":{\"code\":\"NOT_AUTHENTICATED\"}}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "method": "POST",
+      "url": "https://api.monday.com/v2",
+      "status": 401,
+      "latency_ms": 372,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a71850fb16bdcd5a853b2631dfaed569802576da9e529843fa394a90c21d5ff5",
+      "body_excerpt": "{\"errors\":[{\"message\":\"Not authenticated\",\"extensions\":{\"code\":\"NOT_AUTHENTICATED\"}}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

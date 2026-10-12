@@ -1,0 +1,32 @@
+{
+  "spec_version": 1,
+  "id": "posthog",
+  "name": "PostHog",
+  "category": "uncategorized",
+  "credentialType": "posthog",
+  "requiredFields": [
+    "api_key",
+    "host"
+  ],
+  "docs": "https://posthog.com/docs/api",
+  "base_url": {
+    "fromCredential": "host"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/projects"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:host"
+    ]
+  }
+}

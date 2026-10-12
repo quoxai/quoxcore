@@ -1,0 +1,364 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://quox.local/schemas/workflow.schema.json",
+  "title": "Quox Workflow Manifest",
+  "description": "AEE-compatible schema for Quox workflow entity manifests. Enables uniform discovery alongside agents, assistants, and tools.",
+  "type": "object",
+  "required": ["v", "type", "id", "identity", "capabilities", "trigger", "safety"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this schema"
+    },
+    "v": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Manifest version (e.g., '1.0')"
+    },
+    "type": {
+      "type": "string",
+      "const": "workflow",
+      "description": "Entity type"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "description": "Unique identifier (lowercase, alphanumeric, hyphens)"
+    },
+
+    "identity": {
+      "type": "object",
+      "required": ["name", "description", "category"],
+      "description": "Workflow identity and discoverability info",
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Human-readable workflow name"
+        },
+        "shortName": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Abbreviated name for UI display"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "What this workflow does (for discovery)"
+        },
+        "useCases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "maxItems": 10,
+          "description": "Example use cases / when to use this workflow"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "monitoring",
+            "automation",
+            "integration",
+            "notification",
+            "data-processing",
+            "ai-llm",
+            "security",
+            "devops",
+            "communication",
+            "productivity",
+            "other"
+          ],
+          "description": "Primary category for organization"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "maxItems": 20,
+          "description": "Searchable tags for discovery"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Icon name or path"
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Primary hex color for UI"
+        }
+      }
+    },
+
+    "capabilities": {
+      "type": "object",
+      "required": ["intents"],
+      "description": "What this workflow can do - for AEE discovery",
+      "properties": {
+        "intents": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "AEE intents this workflow handles (e.g., 'ops.monitor.cpu', 'notify.alert.send')"
+        },
+        "actions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "High-level actions (e.g., 'send-notification', 'fetch-data', 'transform')"
+        },
+        "integrations": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "External services used (e.g., 'telegram', 'slack', 'github', 'openai')"
+        },
+        "nodeTypes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "n8n node types used (auto-extracted)"
+        },
+        "dataFlows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": { "type": "string" },
+              "to": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          },
+          "description": "Key data transformations in the workflow"
+        }
+      }
+    },
+
+    "trigger": {
+      "type": "object",
+      "required": ["type"],
+      "description": "How the workflow is initiated",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["manual", "schedule", "webhook", "event", "chat"],
+          "description": "Trigger mechanism"
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Cron expression for scheduled triggers"
+        },
+        "webhookPath": {
+          "type": "string",
+          "description": "Webhook endpoint path"
+        },
+        "eventTypes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Event types that trigger this workflow"
+        },
+        "chatTriggers": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Natural language phrases that invoke this workflow"
+        }
+      }
+    },
+
+    "parameters": {
+      "type": "object",
+      "description": "Input parameters for the workflow",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "array", "object", "host", "team", "credential"]
+          },
+          "required": { "type": "boolean" },
+          "default": {},
+          "description": { "type": "string" },
+          "enum": { "type": "array" },
+          "examples": { "type": "array" }
+        }
+      }
+    },
+
+    "outputs": {
+      "type": "object",
+      "description": "What the workflow produces",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["notification", "data", "action", "report", "approval-request", "none"],
+          "description": "Primary output type"
+        },
+        "schema": {
+          "type": "object",
+          "description": "JSON schema for output data"
+        },
+        "destinations": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Where output is sent (e.g., 'telegram', 'inbox', 'webhook')"
+        }
+      }
+    },
+
+    "ownership": {
+      "type": "object",
+      "description": "Ownership and scope information",
+      "properties": {
+        "owner": {
+          "type": "string",
+          "description": "Assistant ID that owns this workflow"
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["core", "organization", "division", "team", "personal"],
+          "default": "personal",
+          "description": "Visibility scope"
+        },
+        "author": {
+          "type": "string",
+          "description": "Original author or source"
+        },
+        "source": {
+          "type": "string",
+          "enum": ["built-in", "imported", "generated", "marketplace", "custom"],
+          "description": "Origin of this workflow"
+        },
+        "license": {
+          "type": "string",
+          "description": "License for marketplace/imported workflows"
+        }
+      }
+    },
+
+    "safety": {
+      "type": "object",
+      "required": ["defconLevel"],
+      "description": "Safety and approval settings",
+      "properties": {
+        "defconLevel": {
+          "type": "string",
+          "enum": ["GREEN", "BLUE", "AMBER", "ORANGE", "RED"],
+          "description": "Default DEFCON level for this workflow's operations"
+        },
+        "requiresApproval": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether human approval is needed before execution"
+        },
+        "approvalReason": {
+          "type": "string",
+          "description": "Why approval is required"
+        },
+        "destructive": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether workflow can delete/modify data"
+        },
+        "externalAccess": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether workflow accesses external services"
+        },
+        "credentialsRequired": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of credential types needed"
+        }
+      }
+    },
+
+    "execution": {
+      "type": "object",
+      "description": "Execution configuration",
+      "properties": {
+        "engine": {
+          "type": "string",
+          "enum": ["n8n", "internal", "quoxagent"],
+          "default": "n8n",
+          "description": "Execution engine"
+        },
+        "n8nWorkflowId": {
+          "type": "string",
+          "description": "ID in n8n if deployed"
+        },
+        "timeout": {
+          "type": "integer",
+          "default": 300000,
+          "description": "Execution timeout in milliseconds"
+        },
+        "retryPolicy": {
+          "type": "object",
+          "properties": {
+            "maxRetries": { "type": "integer", "default": 0 },
+            "backoffMs": { "type": "integer", "default": 1000 }
+          }
+        }
+      }
+    },
+
+    "n8nWorkflow": {
+      "type": "object",
+      "description": "Embedded n8n workflow JSON (optional - can be external file reference)"
+    },
+
+    "workflowFile": {
+      "type": "string",
+      "description": "Path to external workflow JSON file"
+    },
+
+    "ui": {
+      "type": "object",
+      "description": "UI display settings",
+      "properties": {
+        "hidden": {
+          "type": "boolean",
+          "default": false,
+          "description": "Hide from workflow list"
+        },
+        "featured": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show in featured section"
+        },
+        "badge": {
+          "type": "string",
+          "enum": ["new", "beta", "popular", "recommended"],
+          "description": "Display badge"
+        },
+        "documentation": {
+          "type": "string",
+          "description": "Link to documentation"
+        },
+        "previewImage": {
+          "type": "string",
+          "description": "Preview image path"
+        }
+      }
+    },
+
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Workflow version"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "importedFrom": {
+          "type": "string",
+          "description": "Source URL or path if imported"
+        },
+        "originalName": {
+          "type": "string",
+          "description": "Original name before normalization"
+        }
+      }
+    }
+  }
+}

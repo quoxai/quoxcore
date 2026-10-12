@@ -1,0 +1,77 @@
+{
+  "spec_id": "basecamp",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:54:49.997Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://3.basecampapi.com/999999999/quox-shapeproof-control-5f3e3024",
+      "status": 404,
+      "latency_ms": 682,
+      "classification": "CONTROL",
+      "body_sha256": "ab075527ef82eeb2d15744e96775ffc69aaa30e29778a4f2b233c6d6caae68e6",
+      "body_excerpt": "<!DOCTYPE html>\n<html lang=\"en\" class=\"viewport\">\n<head>\n  <meta charset=\"utf-8\">\n  <link rel=\"stylesheet\" media=\"all\" href=\"/error.css\">\n  <link rel=\"shortcut icon\" type=\"image/png\" sizes=\"32x32\" hre",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://3.basecampapi.com/999999999/authorization.json",
+      "status": 401,
+      "latency_ms": 296,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "6a6f2f8d04b9a05e12f97fe7b3130594345458039de8e16c86c63fab11dd7127",
+      "body_excerpt": "{\"error\":\"OAuth token could not be verified. The internal checksum failed, so the token data was somehow mangled or tampered with.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "GET",
+      "url": "https://3.basecampapi.com/999999999/projects.json?status=quoxprobe",
+      "status": 404,
+      "latency_ms": 428,
+      "classification": "FAIL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "path_wrong": true
+      }
+    },
+    {
+      "name": "get_project",
+      "method": "GET",
+      "url": "https://3.basecampapi.com/999999999/projects/1.json",
+      "status": 404,
+      "latency_ms": 208,
+      "classification": "FAIL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "path_wrong": true
+      }
+    },
+    {
+      "name": "list_todolists",
+      "method": "GET",
+      "url": "https://3.basecampapi.com/999999999/todosets/1/todolists.json?status=quoxprobe",
+      "status": 404,
+      "latency_ms": 199,
+      "classification": "FAIL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "path_wrong": true
+      }
+    }
+  ],
+  "overall": "FAIL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,43 @@
+{
+  "name": "failure-mode",
+  "cases": [
+    {
+      "name": "file-not-found",
+      "input": {
+        "file_path": "/tmp/nonexistent_file.csv",
+        "delimiter": ",",
+        "has_header": true
+      },
+      "expects": {
+        "contains": ["error", "file-not-found"],
+        "not_contains": ["columns", "rows_sampled"]
+      }
+    },
+    {
+      "name": "empty-file",
+      "input": {
+        "file_path": "/tmp/header_only.csv",
+        "delimiter": ",",
+        "has_header": true
+      },
+      "expects": {
+        "contains": ["error", "empty-file"],
+        "not_contains": ["columns"]
+      },
+      "notes": "File contains only a header row and zero data rows"
+    },
+    {
+      "name": "parse-failed-malformed",
+      "input": {
+        "file_path": "/tmp/malformed.csv",
+        "delimiter": ",",
+        "has_header": true
+      },
+      "expects": {
+        "contains": ["error", "parse-failed"],
+        "not_contains": ["pk_candidates"]
+      },
+      "notes": "File has an unmatched quote mid-file causing a parse error"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "spec_version": 1,
+  "id": "airtable_personal",
+  "name": "Airtable (Personal Token)",
+  "category": "uncategorized",
+  "credentialType": "airtable_personal",
+  "requiredFields": [
+    "personal_token"
+  ],
+  "docs": "https://airtable.com/developers/web/api/introduction",
+  "base_url": "https://api.airtable.com",
+  "auth": {
+    "type": "bearer",
+    "field": "personal_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v0/meta/whoami"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

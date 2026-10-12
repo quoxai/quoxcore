@@ -1,0 +1,89 @@
+{
+  "spec_id": "gong",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:52:35.461Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.gong.io/quox-shapeproof-control-cb37790a",
+      "status": 401,
+      "latency_ms": 1583,
+      "classification": "CONTROL",
+      "body_sha256": "2ffda3931626ea5a561d9ab10a1da23c04c45261fa7c6ebdfeeacc4bef087cde",
+      "body_excerpt": "{\n  \"requestId\" : \"1836o5gt9uv6vtf4iof\",\n  \"errors\" : [ \"Validate credentials failed. Please check your credentials and try again.\" ]\n}\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.gong.io/v2/users",
+      "status": 401,
+      "latency_ms": 309,
+      "classification": "AUTH_WALL",
+      "body_sha256": "7581413f34177699990720b40a2f161fa04b619b44634041e53eac9ac8f23c26",
+      "body_excerpt": "{\n  \"requestId\" : \"6ln2yegr1i7i0ghvne2\",\n  \"errors\" : [ \"Validate credentials failed. Please check your credentials and try again.\" ]\n}\n",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_calls",
+      "method": "GET",
+      "url": "https://api.gong.io/v2/calls?fromDateTime=quoxprobe&toDateTime=quoxprobe&workspaceId=quoxprobe&cursor=quoxprobe",
+      "status": 401,
+      "latency_ms": 275,
+      "classification": "AUTH_WALL",
+      "body_sha256": "593c1ad6131b2d0e7358beb7dceb91c6ea089cdb213edfac03ccb19494597f11",
+      "body_excerpt": "{\n  \"requestId\" : \"48d7hbo6gf8ha3rjcgu\",\n  \"errors\" : [ \"Validate credentials failed. Please check your credentials and try again.\" ]\n}\n",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_users",
+      "method": "GET",
+      "url": "https://api.gong.io/v2/users?cursor=quoxprobe",
+      "status": 401,
+      "latency_ms": 118,
+      "classification": "AUTH_WALL",
+      "body_sha256": "8351a84d612375be0bb2d0348ae4837aa927da139bf882b2332fc2a8c94c545c",
+      "body_excerpt": "{\n  \"requestId\" : \"1d2o4tlk2bipp31495l\",\n  \"errors\" : [ \"Validate credentials failed. Please check your credentials and try again.\" ]\n}\n",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_call",
+      "method": "GET",
+      "url": "https://api.gong.io/v2/calls/quoxprobe",
+      "status": 401,
+      "latency_ms": 144,
+      "classification": "AUTH_WALL",
+      "body_sha256": "74d1da1e99f25d536e700a2afb740f06eda92a06777b1610a32bbf4f358aef2e",
+      "body_excerpt": "{\n  \"requestId\" : \"3t0vcoameoo5uwyx7i1\",\n  \"errors\" : [ \"Validate credentials failed. Please check your credentials and try again.\" ]\n}\n",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

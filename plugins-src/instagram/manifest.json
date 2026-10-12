@@ -1,0 +1,31 @@
+{
+  "id": "instagram",
+  "name": "instagram",
+  "displayName": "Instagram",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "social",
+  "accentColor": "#E4405F",
+  "description": "Governed Instagram professional account publishing and monitoring: a single image, video, or reel by public https URL, media and account reads, media/account insights, comment reads, comment replies, and rolling 24-hour publishing quota. Runs on the SAME shared Meta credential as the Facebook plugin.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/instagram",
+      "label": "Instagram",
+      "icon": "instagram",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/instagram": "InstagramView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

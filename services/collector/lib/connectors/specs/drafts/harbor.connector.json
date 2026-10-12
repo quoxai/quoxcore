@@ -1,0 +1,32 @@
+{
+  "spec_version": 1,
+  "id": "harbor",
+  "name": "Harbor",
+  "category": "infrastructure",
+  "credentialType": "harbor",
+  "requiredFields": [
+    "base_url",
+    "username",
+    "password"
+  ],
+  "docs": "https://goharbor.io/docs/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "username",
+    "passField": "password"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2.0/users/current"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

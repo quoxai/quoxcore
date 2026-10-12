@@ -1,0 +1,26 @@
+{
+  "spec_version": 1,
+  "id": "ifttt",
+  "name": "IFTTT",
+  "category": "uncategorized",
+  "credentialType": "ifttt",
+  "requiredFields": [
+    "service_key"
+  ],
+  "docs": "https://ifttt.com/docs",
+  "base_url": "https://maker.ifttt.com",
+  "auth": null,
+  "test": {
+    "method": "POST",
+    "path": "/trigger/test/with/key/{{service_key}}"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_in_path"
+    ]
+  }
+}

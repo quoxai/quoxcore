@@ -1,0 +1,36 @@
+{
+  "id": "proxmox",
+  "name": "proxmox",
+  "displayName": "Proxmox VE",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "standard",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "infrastructure",
+  "accentColor": "#e65100",
+  "description": "Proxmox VE command centre: cluster health and quorum, the VM/LXC ops table, topology map, per-node and backup views, lifecycle actions, alert rules and the HYPERION chat sidebar. The compact Proxmox panel on NOC stays free and core.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/monitoring/proxmox",
+      "label": "Proxmox",
+      "icon": "proxmox",
+      "minRole": "builder"
+    }
+  ],
+  "routes": {
+    "/monitoring/proxmox": "ProxmoxView"
+  },
+  "routeGuards": {
+    "/monitoring/proxmox": {
+      "minRole": "builder"
+    }
+  },
+  "minQuoxVersion": "1.0.0"
+}

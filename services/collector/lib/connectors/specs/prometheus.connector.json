@@ -1,0 +1,312 @@
+{
+  "spec_version": 1,
+  "id": "prometheus",
+  "name": "Prometheus",
+  "category": "monitoring",
+  "credentialType": "prometheus",
+  "requiredFields": [
+    "base_url",
+    "username",
+    "password"
+  ],
+  "docs": "https://prometheus.io/docs/prometheus/latest/querying/api/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "username",
+    "passField": "password"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/status/config"
+  },
+  "tools_source": "https://prometheus.io/docs/prometheus/latest/querying/api/",
+  "tools": [
+    {
+      "name": "instant_query",
+      "description": "Evaluate a PromQL expression at a single instant and return the matching series with their values (e.g. 'up', 'rate(node_cpu_seconds_total[5m])')",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "PromQL expression to evaluate (e.g. up)"
+          },
+          "time": {
+            "type": "string",
+            "description": "Optional evaluation timestamp, RFC3339 or a Unix timestamp (defaults to now)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/query",
+        "query": {
+          "query": "{{input.query}}",
+          "time": "{{input.time}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "resultType": "data.resultType",
+          "data.result[]": {
+            "metric": "metric",
+            "value": "value"
+          },
+          "warnings": "warnings"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.query": "up"
+      }
+    },
+    {
+      "name": "query_range",
+      "description": "Evaluate a PromQL expression over a time range at a fixed step and return each series as a list of timestamped samples",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "PromQL expression to evaluate (e.g. up)"
+          },
+          "start": {
+            "type": "string",
+            "description": "Range start, RFC3339 or a Unix timestamp"
+          },
+          "end": {
+            "type": "string",
+            "description": "Range end, RFC3339 or a Unix timestamp"
+          },
+          "step": {
+            "type": "string",
+            "description": "Resolution step, a duration such as 60s or 5m, or a number of seconds"
+          }
+        },
+        "required": [
+          "query",
+          "start",
+          "end",
+          "step"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/query_range",
+        "query": {
+          "query": "{{input.query}}",
+          "start": "{{input.start}}",
+          "end": "{{input.end}}",
+          "step": "{{input.step}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "resultType": "data.resultType",
+          "data.result[]": {
+            "metric": "metric",
+            "values": "values"
+          },
+          "warnings": "warnings"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.query": "up",
+        "input.start": "2020-01-01T00:00:00Z",
+        "input.end": "2020-01-01T00:05:00Z",
+        "input.step": "60s"
+      }
+    },
+    {
+      "name": "list_targets",
+      "description": "List the scrape targets Prometheus knows about, with their health, last scrape time and last scrape error",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "dropped",
+              "any"
+            ],
+            "description": "Which targets to return (default any)"
+          },
+          "scrape_pool": {
+            "type": "string",
+            "description": "Optional scrape pool name to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/targets",
+        "query": {
+          "state": "{{input.state}}",
+          "scrapePool": "{{input.scrape_pool}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "data.activeTargets[]": {
+            "job": "labels.job",
+            "instance": "labels.instance",
+            "scrapePool": "scrapePool",
+            "scrapeUrl": "scrapeUrl",
+            "health": "health",
+            "lastError": "lastError",
+            "lastScrape": "lastScrape",
+            "lastScrapeDuration": "lastScrapeDuration",
+            "scrapeInterval": "scrapeInterval",
+            "scrapeTimeout": "scrapeTimeout"
+          },
+          "data.droppedTargets[]": {
+            "job": "discoveredLabels.job",
+            "address": "discoveredLabels.__address__"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.state": "active"
+      }
+    },
+    {
+      "name": "label_values",
+      "description": "List the values a label takes across the series in Prometheus (use __name__ to list every metric name)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Label name to list values for, e.g. __name__, job or instance"
+          },
+          "start": {
+            "type": "string",
+            "description": "Optional start timestamp to bound the lookup, RFC3339 or a Unix timestamp"
+          },
+          "end": {
+            "type": "string",
+            "description": "Optional end timestamp to bound the lookup, RFC3339 or a Unix timestamp"
+          }
+        },
+        "required": [
+          "label"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/label/{{input.label}}/values",
+        "query": {
+          "start": "{{input.start}}",
+          "end": "{{input.end}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "values": "data",
+          "warnings": "warnings"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.label": "__name__"
+      }
+    },
+    {
+      "name": "list_alerts",
+      "description": "List the alerts Prometheus currently holds as pending or firing, with their labels, annotations and active-since time",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/alerts"
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "data.alerts[]": {
+            "state": "state",
+            "activeAt": "activeAt",
+            "value": "value",
+            "labels": "labels",
+            "annotations": "annotations"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "runtime_info",
+      "description": "Get Prometheus runtime information: start time, storage retention, last config reload result and goroutine count",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/status/runtimeinfo"
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "startTime": "data.startTime",
+          "CWD": "data.CWD",
+          "reloadConfigSuccess": "data.reloadConfigSuccess",
+          "lastConfigTime": "data.lastConfigTime",
+          "corruptionCount": "data.corruptionCount",
+          "goroutineCount": "data.goroutineCount",
+          "GOMAXPROCS": "data.GOMAXPROCS",
+          "storageRetention": "data.storageRetention"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:username",
+      "auth_field_optional_in_registry:password",
+      "THE AUTH MISMATCH, VERBATIM, AND IT IS A REAL BLOCKER FOR UNAUTHENTICATED INSTANCES. The scaffolded auth block is kept as-is because the vault entry is what customers actually fill in: services/auth/config/integrationTypeRegistry.js key 'prometheus' declares { key: 'base_url', required: true }, { key: 'username', required: false, placeholder: 'Optional basic auth username' } and { key: 'password', required: false, placeholder: 'Optional basic auth password' }, and its testHeaders read verbatim: 'if (creds.username && creds.password) { ... return { Authorization: `Basic ${auth}` }; } return {};' - that is, the vault SKIPS the header entirely when either field is blank. This spec cannot express that conditional. lib/connectors/declarativeRuntime.js buildAuth for auth.type 'basic' calls requireCredential on userField and passField, which THROWS 'missing credential field' when either is empty, so a customer running stock Prometheus (which ships with NO authentication of any kind, per https://prometheus.io/docs/operating/security/ - 'It is presumed that untrusted users have access to the Prometheus HTTP endpoint and logs') gets a hard error on every tool call while their vault credential still tests green. requiredFields therefore lists username and password even though the vault marks them optional: it documents what THIS connector needs to run, and keeps the two scaffolder warnings above honest rather than deleting them.",
+      "WHAT WOULD CLOSE IT, NOT DONE HERE because it is a RUNTIME or SCHEMA change, not a spec change: either an auth type that omits the header when its fields are empty (an 'optional basic' mode), or a documented convention that an unauthenticated Prometheus is registered with throwaway username/password values that the reverse proxy ignores. Both are decisions above this task. Until one lands, this connector serves Prometheus instances BEHIND BASIC AUTH only, which is why it stays in drafts/.",
+      "NOT PROVEN BY ANY RUN. Prometheus is a CUSTOMER-SUPPLIED HOST: base_url comes fromCredential 'base_url', so there is no public endpoint a shape-proof could reach and no proof artifact was written. Every path, query parameter and picked field name is DOCUMENTARY, from the HTTP API reference (https://prometheus.io/docs/prometheus/latest/querying/api/), not from a 2xx seen here. The LIVE harness against a real ephemeral prom/prometheus container is what must confirm them.",
+      "TEST PATH IS UNCHANGED from the scaffold (GET /api/v1/status/config, the registry's own testEndpoint) but is deliberately NOT exposed as a tool: that endpoint returns the entire prometheus.yml as one string, including every scrape job and remote-write target. Prometheus marshals secret-typed values as '<secret>', so credentials are redacted, but the whole topology is not, and there is no agent-facing question it answers that list_targets does not answer better and smaller.",
+      "NO LIMIT PARAMETER IS SENT, ON PURPOSE. Prometheus documents a `limit` query parameter on the series, labels, label-values and targets-metadata endpoints from 3.0 onwards only. This connector must also serve 2.x instances, where sending it is at best ignored and not documented as safe, so no clamp is declared on any tool here. The response cap is response.truncate 2000 plus the picks, not a server-side page size, which means label_values on a busy instance can return a large array before truncation: __name__ on a real fleet is thousands of strings.",
+      "LIVE-PROOF CONTRACT: every tool carries a tool-level _probe. query probes 'up', which exists on any Prometheus that scrapes itself, and the stock config does. label_values probes '__name__', a documented reserved label. list_targets probes state 'active'. list_alerts and runtime_info take no inputs, so their _probe is deliberately EMPTY ({}) rather than absent, recording that nothing needs substituting. query_range probes a FIXED 2020 five-minute window, which is BEFORE any ephemeral instance existed: the honest expected result is a 200 with an empty matrix, proving routing and the envelope keys but not the sample shape. list_alerts on a fresh instance is likewise a 200 with an empty alerts array, since the stock config loads no alerting rules. No credential is ever hinted.",
+      "PICK SHAPES ARE THE RAW PROMETHEUS ENVELOPE, NOT FLATTENED. query and query_range keep 'metric' as the whole label object and 'value'/'values' as the raw [timestamp, string] pairs the API returns, because flattening them would need computed fields, which Connector Spec v1 does not have. Nested array picks use the dotted-source form the runtime requires (applyPick treats an array key as both source path and output key), so the output keys are literally 'data.result', 'data.activeTargets', 'data.droppedTargets' and 'data.alerts'.",
+      "list_targets ASKS FOR BOTH LISTS AND USUALLY GETS ONE: with state 'active' Prometheus omits droppedTargets, with state 'dropped' it omits activeTargets, and an array pick over a missing path resolves to [] rather than failing, so the absent half is an empty list, not an error. The scrapePool filter is 2.x-era and safe; droppedTargets carries pre-relabel discoveredLabels only, which is why just job and __address__ are picked from it.",
+      "READ-ONLY by design: all six tools are GET and carry write:false. Prometheus's own mutating surface (POST /api/v1/admin/tsdb/delete_series, clean_tombstones, snapshot, and the /-/reload and /-/quit lifecycle endpoints) is not modelled, and all of it is off by default behind --web.enable-admin-api and --web.enable-lifecycle.",
+      "QUERY COST IS NOT BOUNDED BY THIS SPEC. A PromQL expression is caller-supplied by design, and an expensive one (a wide range over high-cardinality series) can load the instance well past what a 30-per-minute limiter suggests. Prometheus's own guards are --query.timeout, --query.max-samples and --query.max-concurrency, all server-side; nothing here can substitute for them, and the optional `timeout` parameter is deliberately not exposed because raising it is the wrong direction.",
+      "rateLimit 30/min is a LOCAL courtesy and spend guard, not a Prometheus number: Prometheus enforces no request rate limit of its own.",
+      "query renamed instant_query 2026-09-12: static TOOL_DEFS ships an exact prometheus_query (hand-written monitoring surface) which wins dispatch, so the connector tool would be unreachable under the original name."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

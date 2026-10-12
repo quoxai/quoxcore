@@ -1,0 +1,31 @@
+{
+  "name": "quox-brain",
+  "version": "1.0.0",
+  "description": "QuoxCORE Brain — knowledge graph / vault indexing service",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test --import ./test/testEnvScrubSetup.mjs test/",
+    "eval": "node eval/runNodebrain.mjs",
+    "eval:served": "node eval/served.mjs",
+    "ingest": "node readers/run.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "gray-matter": "^4.0.3",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "pdf-parse": "^2.4.5",
+    "ulid": "^2.3.0"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

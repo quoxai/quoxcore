@@ -1,0 +1,106 @@
+{
+  "spec_id": "qdrant",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T18:03:01.172Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/collections",
+      "status": 200,
+      "latency_ms": 354,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "551edf0512383bcda859d6e4c6193c0efaec0f890f32c5f0021fefe10d952048",
+      "body_excerpt": "{\"result\":{\"collections\":[{\"name\":\"quoxproof-live\"}]},\"status\":\"ok\",\"time\":0.00002082}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "service_info",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/",
+      "status": 200,
+      "latency_ms": 14,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "2f182292a893c9fa9a7c556c19daa1c446fe95dc97296470afb16826cf919813",
+      "body_excerpt": "{\"title\":\"qdrant - vector search engine\",\"version\":\"1.12.4\",\"commit\":\"5b578c4f34188f0474f901e49d4726213596433d\"}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_collections",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/collections",
+      "status": 200,
+      "latency_ms": 16,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "9f2cebd62a457af632ecc96c312a6d39381b840a467827225b9e8774f584e098",
+      "body_excerpt": "{\"result\":{\"collections\":[{\"name\":\"quoxproof-live\"}]},\"status\":\"ok\",\"time\":5.79e-6}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_collection",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/collections/quoxproof-live",
+      "status": 200,
+      "latency_ms": 14,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "33b03fc3b11f644675fade64f953e9b1ab81dff997e06e9eb7e110f700eb2418",
+      "body_excerpt": "{\"result\":{\"status\":\"green\",\"optimizer_status\":\"ok\",\"indexed_vectors_count\":0,\"points_count\":0,\"segments_count\":8,\"config\":{\"params\":{\"vectors\":{\"size\":4,\"distance\":\"Dot\"},\"shard_number\":1,\"replicatio",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_aliases",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/aliases",
+      "status": 200,
+      "latency_ms": 16,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "94e4cd80a97c17a2033d6e9095f8cdf09f7fecfad1c72caa9f19077ba7f0bd8d",
+      "body_excerpt": "{\"result\":{\"aliases\":[]},\"status\":\"ok\",\"time\":0.000011381}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "cluster_info",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/cluster",
+      "status": 200,
+      "latency_ms": 14,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "2e465f3fdc94b068e4ec703638bd26976425569fcfaff58ee3b28ad93188b24b",
+      "body_excerpt": "{\"result\":{\"status\":\"disabled\"},\"status\":\"ok\",\"time\":6.068e-6}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "telemetry",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/telemetry",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "8a6fa2f96bb9c3d798eadac9f19ff146ac2024c4f8e85f27096a049f7a6e8df5",
+      "body_excerpt": "{\"result\":{\"id\":\"640bdc85-2b2e-4702-9cfe-ed8679116aa1\",\"app\":{\"name\":\"qdrant\",\"version\":\"1.12.4\",\"startup\":\"2026-09-12T17:57:33.710Z\"},\"collections\":{\"number_of_collections\":1},\"cluster\":{\"enabled\":fa",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:qdrant/qdrant:v1.12.4"
+}

@@ -1,0 +1,93 @@
+{
+  "spec_id": "hashicorpvault",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T19:58:36.556Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/sys/health",
+      "status": 200,
+      "latency_ms": 125,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "83c438f107824a08bb8fef0d31dcfccbca4a39a08998aa0a57808f9e4b986bdb",
+      "body_excerpt": "{\"initialized\":true,\"sealed\":false,\"standby\":false,\"performance_standby\":false,\"replication_performance_mode\":\"disabled\",\"replication_dr_mode\":\"disabled\",\"server_time_utc\":1789243115,\"version\":\"1.18.5",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "health",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/sys/health",
+      "status": 200,
+      "latency_ms": 6,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "83c438f107824a08bb8fef0d31dcfccbca4a39a08998aa0a57808f9e4b986bdb",
+      "body_excerpt": "{\"initialized\":true,\"sealed\":false,\"standby\":false,\"performance_standby\":false,\"replication_performance_mode\":\"disabled\",\"replication_dr_mode\":\"disabled\",\"server_time_utc\":1789243115,\"version\":\"1.18.5",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "seal_status",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/sys/seal-status",
+      "status": 200,
+      "latency_ms": 6,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "37c489ddcbd0e6551f0b2ed381fcaa1d0123af27989f68a41c242f663a3585c5",
+      "body_excerpt": "{\"type\":\"shamir\",\"initialized\":true,\"sealed\":false,\"t\":1,\"n\":1,\"progress\":0,\"nonce\":\"\",\"version\":\"1.18.5\",\"build_date\":\"2025-02-24T09:40:28Z\",\"migration\":false,\"cluster_name\":\"vault-cluster-b2b47bd6\",",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_mounts",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/sys/mounts",
+      "status": 200,
+      "latency_ms": 6,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "2853057e915b3af362da41c939c9c3ea69f761f38d87b18c1a2aeecec68b05ec",
+      "body_excerpt": "{\"sys/\":{\"accessor\":\"system_52a1d429\",\"config\":{\"default_lease_ttl\":0,\"force_no_cache\":false,\"max_lease_ttl\":0,\"passthrough_request_headers\":[\"Accept\"]},\"description\":\"system endpoints used for contro",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "read_kv",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/secret/data/quoxproof-live",
+      "status": 200,
+      "latency_ms": 6,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "6d93246d21bb7ac17ef39c9ff3727b67cf5b3f50f8d8be4bae12a094795337b5",
+      "body_excerpt": "{\"request_id\":\"c0c1e3bf-6687-634b-5ea5-087682939d07\",\"lease_id\":\"\",\"renewable\":false,\"lease_duration\":0,\"data\":{\"data\":{\"proof\":\"live\"},\"metadata\":{\"created_time\":\"2026-09-12T19:58:34.877609854Z\",\"cus",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_policies",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/sys/policies/acl?list=true",
+      "status": 200,
+      "latency_ms": 7,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "315b90154c5f0da58fdc36fc778c5e66a00070fbe78443a929b0a092bd0077f2",
+      "body_excerpt": "{\"request_id\":\"ba1f2b6f-f208-f6b9-e6ac-d6002612a14f\",\"lease_id\":\"\",\"renewable\":false,\"lease_duration\":0,\"data\":{\"keys\":[\"default\",\"root\"]},\"wrap_info\":null,\"warnings\":null,\"auth\":null,\"mount_type\":\"sy",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:hashicorp/vault:1.18"
+}

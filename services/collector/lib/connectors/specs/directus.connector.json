@@ -1,0 +1,221 @@
+{
+  "spec_version": 1,
+  "id": "directus",
+  "name": "Directus",
+  "category": "files_knowledge",
+  "credentialType": "directus",
+  "requiredFields": [
+    "base_url",
+    "token"
+  ],
+  "docs": "https://docs.directus.io/reference/introduction.html",
+  "tools_source": "https://github.com/directus/directus/blob/main/api/src/controllers/server.ts + services/server.ts (/server/info, /server/health), api/src/controllers/collections.ts (/collections), api/src/controllers/items.ts (/items/:collection), api/src/controllers/users.ts (/users/me); query parameters per https://docs.directus.io/reference/query.html",
+  "description": "Self-hosted Directus reads: project and version info, instance health, the collections the token can see, the identity behind the static token, and items out of one collection. Read-only; the POST, PATCH and DELETE routes on the same /items, /collections, /users and /fields endpoints are deliberately absent, as is /server/setup.",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/users/me"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "server_info",
+      "description": "Get the Directus project name, version and query limits for the instance this credential points at",
+      "request": {
+        "method": "GET",
+        "path": "/server/info"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "project_name": "data.project.project_name",
+          "project_descriptor": "data.project.project_descriptor",
+          "default_language": "data.project.default_language",
+          "version": "data.version",
+          "query_limit_default": "data.queryLimit.default",
+          "query_limit_max": "data.queryLimit.max",
+          "license_source": "data.license.source"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "server_health",
+      "description": "Get the Directus instance health: overall status plus the per-service checks (database, cache, storage, email)",
+      "request": {
+        "method": "GET",
+        "path": "/server/health"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "release_id": "releaseId",
+          "service_id": "serviceId",
+          "checks": "checks"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_collections",
+      "description": "List the Directus collections the static token is permitted to read, with their notes and display metadata",
+      "request": {
+        "method": "GET",
+        "path": "/collections"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "collection": "collection",
+            "note": "meta.note",
+            "icon": "meta.icon",
+            "hidden": "meta.hidden",
+            "singleton": "meta.singleton",
+            "sort": "meta.sort",
+            "schema_name": "schema.name",
+            "schema_comment": "schema.comment"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_current_user",
+      "description": "Identify the Directus account the stored static token belongs to",
+      "request": {
+        "method": "GET",
+        "path": "/users/me"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "first_name": "data.first_name",
+          "last_name": "data.last_name",
+          "email": "data.email",
+          "status": "data.status",
+          "role": "data.role",
+          "provider": "data.provider",
+          "last_access": "data.last_access"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_items",
+      "description": "Read items out of one Directus collection, optionally narrowed by a field list, a full-text search term or a sort order",
+      "request": {
+        "method": "GET",
+        "path": "/items/{{input.collection}}",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "offset": "{{input.offset}}",
+          "sort": "{{input.sort}}",
+          "search": "{{input.search}}",
+          "fields": "{{input.fields}}",
+          "meta": "{{input.meta}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "collection": {
+            "type": "string",
+            "description": "Collection name to read from. Directus system collections (directus_*) are rejected by the API on this route"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max items to return (default 20, capped at 50 by this connector)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of items to skip before returning results"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Comma-separated field names to sort by; prefix a name with '-' for descending"
+          },
+          "search": {
+            "type": "string",
+            "description": "Full-text search term matched against the collection's string and text fields"
+          },
+          "fields": {
+            "type": "string",
+            "description": "Comma-separated field names to return (Directus defaults to every field the token may read)"
+          },
+          "meta": {
+            "type": "string",
+            "description": "Metadata to compute alongside the items: 'total_count', 'filter_count', or '*' for both"
+          }
+        },
+        "required": [
+          "collection"
+        ]
+      },
+      "response": {
+        "pick": {
+          "meta": "meta",
+          "data": "data"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.collection": "quoxproof-live",
+        "input.limit": 5
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, AND THE VAULT AGREES: the REST reference (https://docs.directus.io/reference/introduction.html) documents a static token as 'Authorization: Bearer <token>', so {type: bearer, field: token} is unchanged. The vault entry (integrationTypeRegistry.directus) sends the identical header in testHeaders and its testEndpoint is base_url + /users/me, which is this spec's test block verbatim. Directus also accepts ?access_token= in the query string; the header form is used because it keeps the credential out of URLs and logs.",
+      "BASE URL IS CUSTOMER-SUPPLIED, SO NOTHING HERE IS PROVABLE BLIND: Directus is self-hosted, base_url comes from the credential ({fromCredential: 'base_url'}), and Directus Cloud instances each carry their own hostname, so there is no vendor-run host to shape-prove against. This spec is NOT SHAPE_PROVEN by a blind 401 sweep; it is marked for the live harness, which stands up an ephemeral Directus container, creates the admin user and a collection named 'quoxproof-live', and drives every tool against it.",
+      "CATEGORY: the scaffold wrote 'uncategorized', which is not one of the twelve values in use across this spec directory (cloud_hosting, commerce_finance, communication, crm_sales, data_ai, developer, files_knowledge, hr_hiring, marketing_email, media, monitoring, project_management). Changed to 'files_knowledge', which is where the other headless CMS and structured-document platforms already sit (contentful, coda, pandadoc). The vault entry says 'documents', which is not a spec-directory value; 'files_knowledge' is its equivalent.",
+      "PROBES RESOLVE ON A FRESH INSTANCE, BY CONSTRUCTION: server_info, server_health, list_collections and get_current_user need no resource at all and carry an empty _probe. list_items is the only tool that needs an existing resource, and it probes collection='quoxproof-live', the exact name the live provisioner creates; an empty collection answers with data: [] rather than an error.",
+      "RESPONSE ENVELOPE IS NOT UNIFORM, AND THE PICKS ENCODE THAT: /server/info, /collections, /items/:collection and /users/me all wrap their payload in {data} (controllers/server.ts sets payload = {data}, items.ts sets {meta, data}), so those picks are dotted through 'data'. /server/health is the ONE exception: services/server.ts returns the health object at the TOP LEVEL, so status/releaseId/serviceId/checks are picked unprefixed. It also answers with Content-Type application/health+json rather than application/json, which the runtime's resp.json() does not care about, and it returns HTTP 503 (not 200) when a dependency is down, which the runtime surfaces as an error rather than as health data.",
+      "TWO FIELDS ARE PRIVILEGE-DEPENDENT, AND THAT IS A MISSING KEY RATHER THAN A FAILURE: services/server.ts only populates info.version when the accountability carries a user, and /server/health returns the full {status, releaseId, serviceId, checks} object ONLY to an admin accountability, degrading to bare {status} for everyone else. A non-admin static token therefore yields null for release_id, service_id and checks. getPath is null-safe, so nothing throws; the live harness should record which of the two token classes it proved.",
+      "list_items CANNOT HAVE A FIELD-LEVEL PICK, SO IT HAS A TWO-KEY ALLOWLIST INSTEAD: every other tool here picks named fields, but the items in a Directus collection are USER-DEFINED, so no field list can be written in advance. The pick is therefore {meta, data}, which still acts as an allowlist against any future top-level envelope key, and truncate 2000 still caps every string inside the rows. The 'fields' input is the real lever for narrowing the payload, and it narrows it SERVER-side.",
+      "LIMIT CLAMP IS OURS AND SITS BELOW DIRECTUS'S OWN: QUERY_LIMIT_DEFAULT is 100 and QUERY_LIMIT_MAX defaults to -1 (unlimited), both readable from server_info's query_limit_default / query_limit_max. The 20/50 clamp therefore never asks for more than an instance will return, and the input description says the cap is this connector's rather than a Directus fact. /collections and /users/me take no limit, so neither carries one.",
+      "READ-ONLY BY CONSTRUCTION, AND THE OMISSIONS ARE THE POINT: all five tools are GETs. The same controllers expose POST/PATCH/DELETE on /items/:collection, /collections, /users and /fields, plus POST /server/setup which creates the first admin. None is wired here. Nothing in this connector may be described as managing a Directus instance.",
+      "ONE ROUTE IS ENV-GATED UPSTREAM: /server/health is only mounted when HEALTHCHECK_ENABLED is not false (controllers/server.ts), so server_health can 404 on an instance that has disabled it. That is a deployment choice, not a spec defect, and the live harness runs with the default."
+    ]
+  }
+}

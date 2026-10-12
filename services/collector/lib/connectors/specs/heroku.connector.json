@@ -1,0 +1,204 @@
+{
+  "spec_version": 1,
+  "id": "heroku",
+  "name": "Heroku",
+  "category": "cloud_hosting",
+  "credentialType": "heroku",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://devcenter.heroku.com/articles/platform-api-reference",
+  "base_url": "https://api.heroku.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "static_headers": {
+    "Accept": "application/vnd.heroku+json; version=3"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/account"
+  },
+  "tools_source": "https://devcenter.heroku.com/articles/platform-api-reference",
+  "tools": [
+    {
+      "name": "list_apps",
+      "description": "List the Heroku apps this API key can see",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max_results": {
+            "type": "number",
+            "description": "Max apps to return (default 50, max 200)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/apps",
+        "headers": {
+          "Range": "id ..; max={{clamp input.max_results 50 200}};"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "web_url": "web_url",
+            "region": "region.name",
+            "stack": "stack.name",
+            "owner": "owner.email",
+            "maintenance": "maintenance",
+            "created_at": "created_at",
+            "released_at": "released_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_app",
+      "description": "Get one Heroku app by name or UUID, with its region, stack, owner and maintenance state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app_name": {
+            "type": "string",
+            "description": "Heroku app name or UUID (from list_apps)"
+          }
+        },
+        "required": [
+          "app_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/apps/{{input.app_name}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "web_url": "web_url",
+          "git_url": "git_url",
+          "region": "region.name",
+          "stack": "stack.name",
+          "build_stack": "build_stack.name",
+          "owner": "owner.email",
+          "maintenance": "maintenance",
+          "created_at": "created_at",
+          "updated_at": "updated_at",
+          "released_at": "released_at"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_dynos",
+      "description": "List the running dynos for one Heroku app, with size, state and current release version",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app_name": {
+            "type": "string",
+            "description": "Heroku app name or UUID (from list_apps)"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Max dynos to return (default 50, max 200)"
+          }
+        },
+        "required": [
+          "app_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/apps/{{input.app_name}}/dynos",
+        "headers": {
+          "Range": "id ..; max={{clamp input.max_results 50 200}};"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "type": "type",
+            "size": "size",
+            "state": "state",
+            "command": "command",
+            "release_version": "release.version",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_releases",
+      "description": "List the releases (deploy and config history) for one Heroku app",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app_name": {
+            "type": "string",
+            "description": "Heroku app name or UUID (from list_apps)"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Max releases to return (default 50, max 200)"
+          }
+        },
+        "required": [
+          "app_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/apps/{{input.app_name}}/releases",
+        "headers": {
+          "Range": "id ..; max={{clamp input.max_results 50 200}};"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "version": "version",
+            "description": "description",
+            "status": "status",
+            "current": "current",
+            "user": "user.email",
+            "slug_id": "slug.id",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Tools written 2026-09-12 from the official Platform API reference (https://devcenter.heroku.com/articles/platform-api-reference): App list/info, Dyno list and Release list. All four are GET reads, write:false; config-vars is deliberately NOT expressed because it returns secrets.",
+      "Scaffolded auth (bearer api_key) and the REQUIRED static Accept: application/vnd.heroku+json; version=3 header both match the official docs and are left unchanged. Without that Accept header the API answers 406, so it stays a static header on every call.",
+      "The Platform API paginates with a Range request header, not a query parameter, so max_results is clamped into a per-tool \"Range: id ..; max=N;\" header (50 default, 200 cap). The shape-proof harness only sends static_headers, so the Range header's effect is documented but NOT proven by this run.",
+      "No _probe hints: Heroku app identifiers accept a plain name, so the harness's generic dummy already matches the documented route shape, and no public tenant ID is needed."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

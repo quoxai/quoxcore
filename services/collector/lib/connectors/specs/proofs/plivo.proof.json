@@ -1,0 +1,77 @@
+{
+  "spec_id": "plivo",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:12:19.503Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.plivo.com/quox-shapeproof-control-4b51ad06",
+      "status": 404,
+      "latency_ms": 1377,
+      "classification": "CONTROL",
+      "body_sha256": "8699bf1eda7e016dec3efeff8db5e3400183e9ebf6ce42355b97b843def2b035",
+      "body_excerpt": "{\"message\":\"Not Found\"}\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.plivo.com/v1/Account/QUOXSHAPEPROOFDUMMYAUTHID/",
+      "status": 401,
+      "latency_ms": 399,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "24ff46a27f15e5dde490336408ef24e925ddccc41b8a2d0b0be5eb047a88cadc",
+      "body_excerpt": "Could not verify your access level for that URL.\nYou have to login with proper credentials",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "account_details",
+      "method": "GET",
+      "url": "https://api.plivo.com/v1/Account/QUOXSHAPEPROOFDUMMYAUTHID/",
+      "status": 401,
+      "latency_ms": 261,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "24ff46a27f15e5dde490336408ef24e925ddccc41b8a2d0b0be5eb047a88cadc",
+      "body_excerpt": "Could not verify your access level for that URL.\nYou have to login with proper credentials",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_messages",
+      "method": "GET",
+      "url": "https://api.plivo.com/v1/Account/QUOXSHAPEPROOFDUMMYAUTHID/Message/?limit=20&offset=1&message_direction=quoxprobe&message_state=quoxprobe",
+      "status": 401,
+      "latency_ms": 289,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "24ff46a27f15e5dde490336408ef24e925ddccc41b8a2d0b0be5eb047a88cadc",
+      "body_excerpt": "Could not verify your access level for that URL.\nYou have to login with proper credentials",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_numbers",
+      "method": "GET",
+      "url": "https://api.plivo.com/v1/Account/QUOXSHAPEPROOFDUMMYAUTHID/Number/?limit=20&offset=1&number_type=quoxprobe&number_startswith=quoxprobe",
+      "status": 401,
+      "latency_ms": 308,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "24ff46a27f15e5dde490336408ef24e925ddccc41b8a2d0b0be5eb047a88cadc",
+      "body_excerpt": "Could not verify your access level for that URL.\nYou have to login with proper credentials",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

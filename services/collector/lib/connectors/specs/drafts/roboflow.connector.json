@@ -1,0 +1,183 @@
+{
+  "spec_version": 1,
+  "id": "roboflow",
+  "name": "Roboflow",
+  "category": "data_ai",
+  "credentialType": "roboflow",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.roboflow.com/",
+  "base_url": "https://api.roboflow.com",
+  "auth": {
+    "type": "query",
+    "param": "api_key",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/"
+  },
+  "tools_source": "https://docs.roboflow.com/rest-api",
+  "tools": [
+    {
+      "name": "get_workspace",
+      "description": "Get the Roboflow workspace the API key belongs to (returns the workspace URL slug used by every other Roboflow read)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/"
+      },
+      "response": {
+        "pick": {
+          "workspace": "workspace"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_projects",
+      "description": "List the computer vision projects in one Roboflow workspace, with image and annotation counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "description": "Roboflow workspace URL slug (from get_workspace)"
+          }
+        },
+        "required": [
+          "workspace"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/{{input.workspace}}"
+      },
+      "response": {
+        "pick": {
+          "name": "workspace.name",
+          "url": "workspace.url",
+          "members": "workspace.members",
+          "workspace.projects[]": {
+            "id": "id",
+            "name": "name",
+            "type": "type",
+            "created": "created",
+            "updated": "updated",
+            "images": "images",
+            "annotation": "annotation",
+            "versions": "versions",
+            "public": "public"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_project",
+      "description": "Get one Roboflow project with its classes, image counts and dataset versions",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "description": "Roboflow workspace URL slug (from get_workspace)"
+          },
+          "project": {
+            "type": "string",
+            "description": "Roboflow project URL slug (from list_projects)"
+          }
+        },
+        "required": [
+          "workspace",
+          "project"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/{{input.workspace}}/{{input.project}}"
+      },
+      "response": {
+        "pick": {
+          "id": "project.id",
+          "name": "project.name",
+          "type": "project.type",
+          "created": "project.created",
+          "updated": "project.updated",
+          "images": "project.images",
+          "unannotated": "project.unannotated",
+          "annotation": "project.annotation",
+          "classes": "project.classes",
+          "public": "project.public",
+          "versions[]": {
+            "id": "id",
+            "name": "name",
+            "created": "created",
+            "images": "images",
+            "splits": "splits"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_version",
+      "description": "Get one Roboflow dataset version, including its train/valid/test splits, preprocessing and any trained model endpoint",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "description": "Roboflow workspace URL slug (from get_workspace)"
+          },
+          "project": {
+            "type": "string",
+            "description": "Roboflow project URL slug (from list_projects)"
+          },
+          "version": {
+            "type": "string",
+            "description": "Dataset version number (e.g. 1)"
+          }
+        },
+        "required": [
+          "workspace",
+          "project",
+          "version"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/{{input.workspace}}/{{input.project}}/{{input.version}}"
+      },
+      "response": {
+        "pick": {
+          "id": "version.id",
+          "name": "version.name",
+          "created": "version.created",
+          "images": "version.images",
+          "splits": "version.splits",
+          "preprocessing": "version.preprocessing",
+          "augmentation": "version.augmentation",
+          "model_id": "version.model.id",
+          "model_endpoint": "version.model.endpoint",
+          "model_name": "version.model.name"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

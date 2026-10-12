@@ -1,0 +1,164 @@
+{
+  "spec_version": 1,
+  "id": "alertmanager",
+  "name": "Alertmanager",
+  "category": "monitoring",
+  "credentialType": "alertmanager",
+  "requiredFields": [
+    "base_url"
+  ],
+  "docs": "https://prometheus.io/docs/alerting/latest/management_api/",
+  "tools_source": "https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml",
+  "description": "Prometheus Alertmanager reads over its v2 HTTP API: cluster status and version, currently firing and suppressed alerts, alert groups, active silences and configured receivers. Read-only; no silence create/delete or config reload is wired here. Alertmanager ships unauthenticated by default (base_url is the only credential); put it behind a reverse proxy for exposure beyond a trusted LAN.",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "none"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/status"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 60
+  },
+  "tools": [
+    {
+      "name": "status",
+      "description": "Get Alertmanager's cluster status, uptime and version",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/status"
+      },
+      "response": {
+        "pick": {
+          "cluster": "cluster",
+          "uptime": "uptime",
+          "version": "versionInfo.version"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_alerts",
+      "description": "List the alerts Alertmanager currently holds, with their status, labels, annotations and active window",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/alerts"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "fingerprint": "fingerprint",
+            "status": "status",
+            "labels": "labels",
+            "annotations": "annotations",
+            "startsAt": "startsAt",
+            "endsAt": "endsAt",
+            "generatorURL": "generatorURL"
+          }
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_alert_groups",
+      "description": "List alerts grouped by their receiver and grouping labels",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/alerts/groups"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "labels": "labels",
+            "receiver": "receiver.name",
+            "alerts": "alerts"
+          }
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_silences",
+      "description": "List active and expired silences, with their matchers, time window and creator",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/silences"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "state": "status.state",
+            "matchers": "matchers",
+            "startsAt": "startsAt",
+            "endsAt": "endsAt",
+            "createdBy": "createdBy",
+            "comment": "comment"
+          }
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_receivers",
+      "description": "List the notification receivers configured in Alertmanager",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/receivers"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-13 observability tranche",
+    "confidence": "live",
+    "needs_review": [
+      "AUTH IS none BY DESIGN: Alertmanager ships with no authentication on its API by default, so base_url is the only credential and auth.type is 'none'. An internet-exposed instance must sit behind a reverse proxy; that is a deployment concern, not a spec one.",
+      "READ-ONLY: all five tools are GET, write:false. Alertmanager's mutating surface (silence create/expire, config reload) is not modelled here.",
+      "status deliberately does NOT pick config.original: that field is the full loaded YAML including SMTP/webhook receiver settings, which is sensitive and far larger than the status tools need.",
+      "list_alerts, list_alert_groups and list_silences return an empty array with a 200 on a fresh instance with no rules loaded; that is a valid live proof of routing and envelope shape, not a failure.",
+      "LIVE-PROOF CONTRACT: every tool takes no input, so every _probe is {}. Proven against docker prom/alertmanager:v0.27.0, then destroyed."
+    ]
+  }
+}

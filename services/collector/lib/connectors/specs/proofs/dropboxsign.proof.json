@@ -1,0 +1,90 @@
+{
+  "spec_id": "dropboxsign",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:53:45.992Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.hellosign.com/quox-shapeproof-control-3afbb993",
+      "status": 404,
+      "latency_ms": 1024,
+      "classification": "CONTROL",
+      "body_sha256": "71b08c40fcc415f865ab8b3c97b54b642667c5776bc94e0ddde3b44e8b657ab5",
+      "body_excerpt": "{\"error\":{\"error_msg\":\"Invalid URI. Make sure you have the correct URI and HTTP method.\",\"error_name\":\"not_found\"}}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.hellosign.com/v3/account",
+      "status": 401,
+      "latency_ms": 213,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "64b436f692b192c4bbcbef1b434dfe385f7ff32d3eec7126115e25039b2e53b6",
+      "body_excerpt": "{\"error\":{\"error_msg\":\"Unauthorized api key\",\"error_name\":\"unauthorized\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "account",
+      "method": "GET",
+      "url": "https://api.hellosign.com/v3/account",
+      "status": 401,
+      "latency_ms": 322,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "64b436f692b192c4bbcbef1b434dfe385f7ff32d3eec7126115e25039b2e53b6",
+      "body_excerpt": "{\"error\":{\"error_msg\":\"Unauthorized api key\",\"error_name\":\"unauthorized\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_signature_requests",
+      "method": "GET",
+      "url": "https://api.hellosign.com/v3/signature_request/list?page=1&page_size=20&query=quoxprobe&account_id=quoxprobe",
+      "status": 401,
+      "latency_ms": 254,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "64b436f692b192c4bbcbef1b434dfe385f7ff32d3eec7126115e25039b2e53b6",
+      "body_excerpt": "{\"error\":{\"error_msg\":\"Unauthorized api key\",\"error_name\":\"unauthorized\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_signature_request",
+      "method": "GET",
+      "url": "https://api.hellosign.com/v3/signature_request/quoxprobe",
+      "status": 401,
+      "latency_ms": 228,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "64b436f692b192c4bbcbef1b434dfe385f7ff32d3eec7126115e25039b2e53b6",
+      "body_excerpt": "{\"error\":{\"error_msg\":\"Unauthorized api key\",\"error_name\":\"unauthorized\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_templates",
+      "method": "GET",
+      "url": "https://api.hellosign.com/v3/template/list?page=1&page_size=20&query=quoxprobe&account_id=quoxprobe",
+      "status": 401,
+      "latency_ms": 246,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "64b436f692b192c4bbcbef1b434dfe385f7ff32d3eec7126115e25039b2e53b6",
+      "body_excerpt": "{\"error\":{\"error_msg\":\"Unauthorized api key\",\"error_name\":\"unauthorized\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,32 @@
+{
+  "id": "browser-q",
+  "name": "Browser-Q",
+  "displayName": "Browser-Q",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "developer-tools",
+  "accentColor": "#06b6d4",
+  "description": "AI web automation — navigate, interact, extract data from any website. Natural language task definition, session recording, visual monitoring, and credential vault integration.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/browser-q",
+      "label": "Browser-Q",
+      "icon": "globe",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/browser-q": "BrowserQView",
+    "/browser-q/run/:objectiveId": "BrowserQRunDetailView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

@@ -1,0 +1,532 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   HeaderScopeSelector — Netflix-profile-style org switcher.
+   Bare chunky org tile (no pill, no panel) + inline expanding logo strip,
+   org name as a bare title, then a light chip opening the division /
+   department scope menu (canonical flyout recipe).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.header-scope {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    align-self: center;
+    gap: 12px;
+    padding: 0 6px;
+    min-width: 0;
+    line-height: 1;
+}
+
+/* ── Org tile: the chunky logo. No container, no framing. ─────────────── */
+.header-scope__tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.25),
+        0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.header-scope__tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.header-scope__tile--initial {
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Collapsed trigger: just the tile (chevron lives after the text) ───── */
+.header-scope__org-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 0;
+    line-height: 0;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    outline: none;
+    transition: transform 0.18s cubic-bezier(0.34, 1.4, 0.64, 1), filter 0.18s ease;
+}
+
+.header-scope__org-btn:hover {
+    transform: scale(1.08);
+    filter: brightness(1.12);
+}
+
+.header-scope__org-btn:focus-visible .header-scope__tile {
+    box-shadow:
+        0 0 0 2px rgba(56, 189, 248, 0.7),
+        0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Netflix strip: portal overlay anchored over the trigger tile.
+      Fixed-positioned so opening it never reflows the header row.
+      Glass pill backdrop for legibility over whatever it floats above. ── */
+@keyframes hswStripIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50%) scale(0.94);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(-50%) scale(1);
+    }
+}
+
+.header-scope__strip {
+    position: fixed;
+    transform: translateY(-50%);
+    transform-origin: left center;
+    z-index: 1000;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px 6px 7px;
+    max-width: min(60vw, 620px);
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-radius: 999px;
+    background: var(--m-bg-float);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+    border: 1px solid var(--m-border-default);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.18),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+        0 16px 40px rgba(0, 0, 0, 0.5);
+    animation: hswStripIn 0.18s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+.header-scope__strip::-webkit-scrollbar {
+    display: none;
+}
+
+/* Hovered (or current) org name lives INSIDE the strip, so the header
+   title underneath never has to change while browsing */
+.header-scope__strip-name {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+    margin-left: 4px;
+    animation: hswFade 0.15s ease both;
+}
+
+.header-scope__strip-name.is-preview {
+    color: rgba(125, 211, 252, 0.95);
+}
+
+@keyframes hswPop {
+    from {
+        opacity: 0;
+        transform: scale(0.35) translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.header-scope__strip-item {
+    position: relative;
+    display: inline-flex;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    outline: none;
+    flex-shrink: 0;
+    animation: hswPop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation-delay: calc(var(--i, 0) * 40ms);
+    transition: transform 0.16s cubic-bezier(0.34, 1.4, 0.64, 1), filter 0.16s ease;
+}
+
+.header-scope__strip-item:hover,
+.header-scope__strip-item:focus-visible {
+    transform: scale(1.15);
+    filter: brightness(1.15);
+    z-index: 2;
+}
+
+.header-scope__strip-item:not(.is-current) .header-scope__tile {
+    opacity: 0.85;
+}
+
+.header-scope__strip-item:hover .header-scope__tile,
+.header-scope__strip-item:focus-visible .header-scope__tile {
+    opacity: 1;
+}
+
+/* Active org wears the purple→cyan ring */
+.header-scope__strip-item.is-current .header-scope__tile {
+    box-shadow:
+        0 0 0 2px rgba(168, 85, 247, 0.85),
+        0 0 14px rgba(56, 189, 248, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.header-scope__check {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: linear-gradient(145deg, rgba(168, 85, 247, 0.95), rgba(56, 189, 248, 0.95));
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+/* ── Org name: a bare title, no containing panel ──────────────────────── */
+@keyframes hswFade {
+    from {
+        opacity: 0;
+        transform: translateY(3px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.header-scope__title {
+    /* matches .breadcrumbs__text: same family, weight, size, tracking */
+    font-family: var(--m-font-display);
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+    color: var(--shell-text, #fff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+    animation: hswFade 0.18s ease both;
+    transition: opacity 0.15s ease;
+}
+
+/* While the strip overlay is open, the in-row title and chip fade out
+   underneath it (they stay mounted, so nothing reflows) */
+.header-scope--open .header-scope__title,
+.header-scope--open .header-scope__chip {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ── Scope chip: light text button for division / department ──────────── */
+.header-scope__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 8px;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.75);
+    font-family: var(--m-font-display);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    outline: none;
+    white-space: nowrap;
+    transition: background 0.16s ease, color 0.16s ease, opacity 0.15s ease;
+}
+
+.header-scope__chip:hover,
+.header-scope__chip--open {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.header-scope__chip--active {
+    background: linear-gradient(145deg, rgba(168, 85, 247, 0.22), rgba(56, 189, 248, 0.12));
+    color: #fff;
+}
+
+.header-scope__chip--active:hover {
+    background: linear-gradient(145deg, rgba(168, 85, 247, 0.3), rgba(56, 189, 248, 0.18));
+}
+
+.header-scope__chip-label {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.header-scope__chip-chevron {
+    display: inline-flex;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.7);
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.header-scope__chip--open .header-scope__chip-chevron {
+    transform: rotate(180deg);
+}
+
+.header-scope__chip-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.header-scope__chip-x:hover {
+    background: rgba(239, 68, 68, 0.45);
+    color: #fff;
+}
+
+/* ── Scope menu (portal, canonical flyout recipe) ─────────────────────── */
+@keyframes hswDrop {
+    from {
+        opacity: 0;
+        transform: translateY(-5px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.header-scope__menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 250px;
+    max-width: 310px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--m-bg-base);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+    border: 1px solid var(--m-border-default);
+    border-radius: var(--qx-radius);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.18),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+        0 24px 64px rgba(0, 0, 0, 0.55);
+    color: #fff;
+    animation: hswDrop 0.16s ease both;
+}
+
+.header-scope__menu::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--qx-edges);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.header-scope__menu > * {
+    position: relative;
+    z-index: 2;
+}
+
+.header-scope__menu-head {
+    padding: 4px 10px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    margin-bottom: 4px;
+}
+
+.header-scope__menu-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.8);
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.header-scope__sect {
+    padding: 8px 10px 4px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Menu rows — flat buttons; division rows are a flex shell hosting the
+   main pick button + optional check + expand toggle */
+.header-scope__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    background: transparent;
+    border: 0;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    outline: none;
+    transition: background 0.14s ease;
+}
+
+.header-scope__item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.header-scope__item.is-active {
+    background: linear-gradient(145deg, rgba(168, 85, 247, 0.22), rgba(56, 189, 248, 0.1));
+}
+
+.header-scope__item-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    outline: none;
+}
+
+.header-scope__item-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+}
+
+.header-scope__item-check {
+    display: inline-flex;
+    align-items: center;
+    color: #7dd3fc;
+    flex-shrink: 0;
+}
+
+.header-scope__expand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    outline: none;
+    flex-shrink: 0;
+    transition: transform 0.18s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.header-scope__expand:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+}
+
+.header-scope__expand.is-open {
+    transform: rotate(180deg);
+}
+
+/* Departments: indented under their division with a hairline spine */
+.header-scope__depts {
+    margin: 2px 0 4px 18px;
+    padding-left: 8px;
+    border-left: 1px solid rgba(255, 255, 255, 0.16);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    animation: hswFade 0.16s ease both;
+}
+
+.header-scope__item--dept {
+    font-size: 12px;
+    padding: 6px 10px;
+}
+
+.header-scope__hint {
+    padding: 6px 10px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.header-scope__clear-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    margin-top: 4px;
+    padding: 7px 10px;
+    background: transparent;
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 0 0 10px 10px;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 11.5px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    outline: none;
+    transition: background 0.14s ease, color 0.14s ease;
+}
+
+.header-scope__clear-item:hover {
+    background: rgba(239, 68, 68, 0.18);
+    color: #fff;
+}
+
+@media (max-width: 900px) {
+    .header-scope {
+        gap: 8px;
+        padding: 0 4px;
+    }
+
+    .header-scope__title {
+        display: none;
+    }
+
+    .header-scope__chip-label {
+        max-width: 90px;
+    }
+
+    .header-scope__strip {
+        max-width: 80vw;
+    }
+}

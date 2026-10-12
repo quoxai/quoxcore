@@ -1,0 +1,115 @@
+{
+  "id": "quoxcore",
+  "type": "team",
+  "version": "1.0.0",
+  "displayName": "QuoxCORE",
+  "description": "Infrastructure operations team — the built-in core agents that manage security, networking, DevOps, monitoring, and analysis across your fleet.",
+  "author": "QUOX",
+  "tier": "free",
+  "price": 0,
+  "priceModel": "included",
+  "icon": "cpu",
+  "accentColor": "#3090ff",
+
+  "orchestrator": {
+    "agentId": "quox",
+    "role": "orchestrator",
+    "domains": ["coordination", "task routing", "response synthesis"]
+  },
+
+  "members": [
+    {
+      "agentId": "sentinel",
+      "role": "manager",
+      "domains": ["security", "threat detection", "vulnerability assessment"]
+    },
+    {
+      "agentId": "cipher",
+      "role": "manager",
+      "domains": ["network", "DNS", "routing", "firewall"]
+    },
+    {
+      "agentId": "nova",
+      "role": "manager",
+      "domains": ["operations", "DevOps", "automation", "deployment"]
+    },
+    {
+      "agentId": "prism",
+      "role": "analyst",
+      "domains": ["analysis", "data processing", "pattern recognition"]
+    },
+    {
+      "agentId": "atlas",
+      "role": "specialist",
+      "domains": ["infrastructure", "virtualization", "Proxmox"]
+    },
+    {
+      "agentId": "metrics",
+      "role": "specialist",
+      "domains": ["monitoring", "Prometheus", "alerting"]
+    },
+    {
+      "agentId": "insight",
+      "role": "specialist",
+      "domains": ["analytics", "dashboards", "Grafana"]
+    },
+    {
+      "agentId": "scholar",
+      "role": "specialist",
+      "domains": ["research", "documentation", "knowledge"]
+    },
+    {
+      "agentId": "beacon",
+      "role": "specialist",
+      "domains": ["availability", "uptime", "health checks"]
+    },
+    {
+      "agentId": "forge",
+      "role": "specialist",
+      "domains": ["deployment", "builds", "CI/CD"]
+    },
+    {
+      "agentId": "archivist",
+      "role": "specialist",
+      "domains": ["knowledge management", "file operations"]
+    },
+    {
+      "agentId": "corey",
+      "role": "specialist",
+      "domains": ["introspection", "cognitive topology", "self-awareness"]
+    },
+    {
+      "agentId": "tester",
+      "role": "specialist",
+      "domains": ["testing", "QA", "validation"]
+    },
+    {
+      "agentId": "netwatch",
+      "role": "specialist",
+      "domains": ["network monitoring", "RouterOS"]
+    },
+    {
+      "agentId": "quoxcode",
+      "role": "specialist",
+      "domains": ["development", "code generation", "terminal AI"]
+    }
+  ],
+
+  "policies": {
+    "maxBudgetTokens": 500000,
+    "maxBudgetToolCalls": 200,
+    "maxDurationMs": 28800000,
+    "maxTaskDurationMs": 1800000,
+    "heartbeatIntervalMs": 15000,
+    "maxParallelTasks": 3,
+    "requireApprovalBeforeStart": true,
+    "checkpointAfterEachTask": false,
+    "voltRequired": true,
+    "allowedChannels": ["slack", "telegram", "discord", "email"]
+  },
+
+  "sharedContext": {
+    "persistent": true,
+    "schema": {}
+  }
+}

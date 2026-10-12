@@ -1,0 +1,103 @@
+{
+  "spec_id": "intercom",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:44.729Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.intercom.io/quox-shapeproof-control-c47b618e",
+      "status": 404,
+      "latency_ms": 3075,
+      "classification": "CONTROL",
+      "body_sha256": "918268bde29349519027d36ab972e5b086741a6ffe4542598362c31e332b86e9",
+      "body_excerpt": "{\n    \"errors\": [\n        {\n            \"code\": \"not_found\",\n            \"message\": \"The requested resource does not exist; check your path and try again\"\n        }\n    ],\n    \"type\": \"error.list\"\n}\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.intercom.io/me",
+      "status": 401,
+      "latency_ms": 120,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9504e42faee4f12be5cb36b992f530b7bbc8aaac915b048a57737000314360d9",
+      "body_excerpt": "{\"type\":\"error.list\",\"request_id\":\"000ceepeimq4bago7rq0\",\"errors\":[{\"code\":\"unauthorized\",\"message\":\"Access Token Invalid\"}]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_me",
+      "method": "GET",
+      "url": "https://api.intercom.io/me",
+      "status": 401,
+      "latency_ms": 134,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "8d8923ad6a62a34e12d134e12bade70a21e79c5d3a7a697faa90d27bbcb739f5",
+      "body_excerpt": "{\"type\":\"error.list\",\"request_id\":\"000cv78nnmfbr5qg2sqg\",\"errors\":[{\"code\":\"unauthorized\",\"message\":\"Access Token Invalid\"}]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_contacts",
+      "method": "GET",
+      "url": "https://api.intercom.io/contacts?per_page=20&starting_after=quoxprobe",
+      "status": 401,
+      "latency_ms": 139,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7f5bf7ae730a65ddeb673d9250001b62db4e3900966b60a752f8e5e868b69410",
+      "body_excerpt": "{\"type\":\"error.list\",\"request_id\":\"000d8q0kmc4lf6af2690\",\"errors\":[{\"code\":\"unauthorized\",\"message\":\"Access Token Invalid\"}]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_conversations",
+      "method": "GET",
+      "url": "https://api.intercom.io/conversations?per_page=20&starting_after=quoxprobe",
+      "status": 401,
+      "latency_ms": 123,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f6046ba094aa8063e6c56732b01bba86ab64e9b5088899a73a43d10fe1c6708c",
+      "body_excerpt": "{\"type\":\"error.list\",\"request_id\":\"000c9m12dns6olgjrnqg\",\"errors\":[{\"code\":\"unauthorized\",\"message\":\"Access Token Invalid\"}]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_admins",
+      "method": "GET",
+      "url": "https://api.intercom.io/admins",
+      "status": 401,
+      "latency_ms": 133,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "29ab5925fd1d47e48da5f6449c577a292bd864c9e4ae5fcee85b427adebc790d",
+      "body_excerpt": "{\"type\":\"error.list\",\"request_id\":\"000c2gcqs30n2mq4h0bg\",\"errors\":[{\"code\":\"unauthorized\",\"message\":\"Access Token Invalid\"}]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_contact",
+      "method": "GET",
+      "url": "https://api.intercom.io/contacts/quoxprobe",
+      "status": 401,
+      "latency_ms": 120,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "090712ae1e5155764e0e98de224e3d6e1bbf1ea0aa474826d7c871a093282ab5",
+      "body_excerpt": "{\"type\":\"error.list\",\"request_id\":\"000d6ddrdi3iip303qfg\",\"errors\":[{\"code\":\"unauthorized\",\"message\":\"Access Token Invalid\"}]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

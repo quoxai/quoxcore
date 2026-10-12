@@ -1,0 +1,157 @@
+{
+  "spec_version": 1,
+  "id": "netlify",
+  "name": "Netlify",
+  "category": "developer",
+  "credentialType": "netlify",
+  "requiredFields": [
+    "token"
+  ],
+  "docs": "https://docs.netlify.com/api/get-started/",
+  "tools_source": "https://docs.netlify.com/api/get-started/",
+  "base_url": "https://api.netlify.com",
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/user"
+  },
+  "tools": [
+    {
+      "name": "get_user",
+      "description": "Get the Netlify account that owns the configured access token",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/user"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "email": "email",
+          "full_name": "full_name",
+          "created_at": "created_at",
+          "last_login": "last_login",
+          "site_count": "site_count"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_sites",
+      "description": "List Netlify sites the token can see, optionally filtered by a site name substring",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Filter sites whose name contains this string"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max sites to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/sites",
+        "query": {
+          "name": "{{input.name}}",
+          "per_page": "{{clamp input.per_page 20 50}}"
+        }
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_site",
+      "description": "Get one Netlify site by its site id",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "string",
+            "description": "Netlify site id (the API id or the site's api_id, e.g. 1234abcd-...)"
+          }
+        },
+        "required": [
+          "site_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/sites/{{input.site_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "url": "url",
+          "ssl_url": "ssl_url",
+          "admin_url": "admin_url",
+          "custom_domain": "custom_domain",
+          "state": "state",
+          "account_name": "account_name",
+          "created_at": "created_at",
+          "updated_at": "updated_at"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_deploys",
+      "description": "List deploys for one Netlify site, newest first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "string",
+            "description": "Netlify site id (the API id or the site's api_id, e.g. 1234abcd-...)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max deploys to return (default 20, max 50)"
+          }
+        },
+        "required": [
+          "site_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/sites/{{input.site_id}}/deploys",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}"
+        }
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "list_sites returns a top-level JSON array, which Connector Spec v1 pick cannot address (pick sources are dotted keys on an object), so the raw array is returned with truncate only instead of picking id/name/url/state (same handling as the datadog list_monitors precedent)",
+      "list_deploys also returns a top-level JSON array, so it is truncate-only for the same reason; id/state/branch/commit_ref/created_at cannot be picked until pick supports array roots",
+      "get_site and list_deploys accept the site id in the path; Netlify accepts either the site's API id or its api_id, and the runtime URL-encodes the value"
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

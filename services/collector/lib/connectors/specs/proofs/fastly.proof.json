@@ -1,0 +1,105 @@
+{
+  "spec_id": "fastly",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:30.188Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.fastly.com/quox-shapeproof-control-0f214b80",
+      "status": 401,
+      "latency_ms": 650,
+      "classification": "CONTROL",
+      "body_sha256": "0a916ca1ea1d02e27938d813c21b59d0c23d1718378be19757f46918c262769b",
+      "body_excerpt": "{\"msg\":\"Provided credentials are missing or invalid\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.fastly.com/current_customer",
+      "status": 401,
+      "latency_ms": 515,
+      "classification": "AUTH_WALL",
+      "body_sha256": "0a916ca1ea1d02e27938d813c21b59d0c23d1718378be19757f46918c262769b",
+      "body_excerpt": "{\"msg\":\"Provided credentials are missing or invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_services",
+      "method": "GET",
+      "url": "https://api.fastly.com/service?per_page=20&page=1",
+      "status": 401,
+      "latency_ms": 552,
+      "classification": "AUTH_WALL",
+      "body_sha256": "0a916ca1ea1d02e27938d813c21b59d0c23d1718378be19757f46918c262769b",
+      "body_excerpt": "{\"msg\":\"Provided credentials are missing or invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_service",
+      "method": "GET",
+      "url": "https://api.fastly.com/service/SU1Z0isxPaozGVKXdv0eY",
+      "status": 401,
+      "latency_ms": 547,
+      "classification": "AUTH_WALL",
+      "body_sha256": "0a916ca1ea1d02e27938d813c21b59d0c23d1718378be19757f46918c262769b",
+      "body_excerpt": "{\"msg\":\"Provided credentials are missing or invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_service_versions",
+      "method": "GET",
+      "url": "https://api.fastly.com/service/SU1Z0isxPaozGVKXdv0eY/version",
+      "status": 401,
+      "latency_ms": 523,
+      "classification": "AUTH_WALL",
+      "body_sha256": "0a916ca1ea1d02e27938d813c21b59d0c23d1718378be19757f46918c262769b",
+      "body_excerpt": "{\"msg\":\"Provided credentials are missing or invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "current_user",
+      "method": "GET",
+      "url": "https://api.fastly.com/current_user",
+      "status": 401,
+      "latency_ms": 566,
+      "classification": "AUTH_WALL",
+      "body_sha256": "0a916ca1ea1d02e27938d813c21b59d0c23d1718378be19757f46918c262769b",
+      "body_excerpt": "{\"msg\":\"Provided credentials are missing or invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

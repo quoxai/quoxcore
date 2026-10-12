@@ -1,0 +1,402 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://quox.local/schemas/tool.v2.schema.json",
+  "title": "Quox ToolCard v2 Manifest",
+  "description": "Enhanced schema for Quox tool manifests with agent instructions, help, and sandbox profiles",
+  "type": "object",
+  "required": ["v", "type", "id", "name", "description", "category", "tools"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "v": {
+      "type": "string",
+      "pattern": "^2\\.\\d+$",
+      "description": "Schema version (must be 2.x for v2 manifests)"
+    },
+    "type": {
+      "type": "string",
+      "const": "tool"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Unique tool package identifier (e.g., 'prometheus', 'docker')"
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 50,
+      "description": "Human-readable package name"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Brief description of the tool package"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "orchestration", "mcp", "data", "dev", "infrastructure", "content",
+        "analytics", "model", "visualization", "governance", "video", "image",
+        "audio", "social", "marketing", "ecommerce", "legal", "hr", "finance",
+        "healthcare", "education", "realestate", "gaming", "iot", "robotics",
+        "science", "translation", "customer_service", "sales", "project_management"
+      ],
+      "description": "Tool category for discovery and filtering"
+    },
+    "subcategory": {
+      "type": "string",
+      "maxLength": 50,
+      "description": "Optional subcategory for finer grouping"
+    },
+    "provider": {
+      "type": "string",
+      "description": "External provider name (e.g., 'prometheus', 'github', 'slack')"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "default": "1.0.0",
+      "description": "Tool package version (semver)"
+    },
+
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"],
+      "default": "low",
+      "description": "Overall risk level for the tool package"
+    },
+    "sandbox_profile": {
+      "type": "string",
+      "enum": ["restricted", "standard", "privileged"],
+      "default": "standard",
+      "description": "Container sandbox profile for execution isolation"
+    },
+    "requires_license": {
+      "type": ["string", "null"],
+      "description": "License tier required (null = free)"
+    },
+
+    "tools": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/tool" },
+      "description": "Individual tools within this package"
+    },
+
+    "endpoints": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Endpoint configuration for the tool provider"
+    },
+
+    "instructions": {
+      "$ref": "#/definitions/instructions",
+      "description": "Agent instructions for using this tool package"
+    },
+
+    "help": {
+      "$ref": "#/definitions/help",
+      "description": "Documentation and help resources"
+    },
+
+    "agent_hints": {
+      "$ref": "#/definitions/agent_hints",
+      "description": "Performance hints for agent context budgeting"
+    }
+  },
+
+  "definitions": {
+    "tool": {
+      "type": "object",
+      "required": ["id", "name", "description"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.]*$",
+          "description": "Unique tool identifier (e.g., 'prometheus.query')"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "accessLevel": {
+          "type": "string",
+          "enum": ["orchestrator", "managers+", "specialists+", "workers+", "all"],
+          "default": "specialists+"
+        },
+        "defconLevel": {
+          "type": "string",
+          "enum": ["GREEN", "BLUE", "AMBER", "ORANGE", "RED"],
+          "default": "GREEN"
+        },
+        "requiresApproval": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "type": "array", "items": { "type": "string" } }
+          ],
+          "default": false,
+          "description": "Whether approval is required (true, false, or list of param patterns)"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/parameter"
+          }
+        },
+        "returns": {
+          "$ref": "#/definitions/return_schema",
+          "description": "Expected return value schema"
+        },
+        "instructions": {
+          "$ref": "#/definitions/tool_instructions",
+          "description": "Tool-specific instructions (overrides package-level)"
+        },
+        "capability": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "QUOX-SECURITY (2026-08-08): abstract capability label (e.g. 'discover_hosts', 'inspect_tls'). Multiple tool ids may declare the same capability, naming distinct concrete providers for the same abstract action. No selection/ranking mechanism exists yet at the schema level, this field only enables one to be built (see lib/capabilityRouter.js)."
+        },
+        "also_grant": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Formalizes an already-load-bearing, previously-undocumented field (entityToolLoader.js reads it at load time). Extra agent ids to grant this specific tool to, beyond agent_hints.primary_agent, via the same license-gated registration path (first use: mikrotik.dhcp.find_free_ip -> atlas, 2026-08-08)."
+        },
+        "aeeIntent": {
+          "type": "string",
+          "description": "Formalizes an already-load-bearing, previously-undocumented field. The AEE envelope intent string this tool's execution is recorded under (e.g. 'quox.noc.mikrotik.dhcp.leases.list')."
+        },
+        "aoclClassification": {
+          "type": "object",
+          "description": "Formalizes an already-load-bearing, previously-undocumented field. Carried on every AEE/VOLT envelope this tool emits as structured audit metadata. NOT independently enforced at runtime, only `requiresApproval` above actually gates execution (confirmed by grep across services/collector, 2026-08-08), do not assume setting risk:HIGH here alone makes a tool require approval.",
+          "properties": {
+            "layer": { "type": "integer", "description": "AOCL layer number this tool's execution is attributed to." },
+            "risk": {
+              "type": "string",
+              "enum": ["LOW", "MEDIUM", "HIGH"],
+              "description": "Audit-trail metadata only. Set requiresApproval explicitly if this tool should actually be gated."
+            },
+            "autonomy": {
+              "type": "string",
+              "enum": ["FULL", "SUPERVISED"],
+              "description": "Audit-trail metadata only, not independently enforced."
+            }
+          }
+        }
+      }
+    },
+
+    "parameter": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["string", "number", "integer", "boolean", "array", "object"]
+        },
+        "required": { "type": "boolean", "default": false },
+        "default": {},
+        "description": { "type": "string" },
+        "enum": { "type": "array" },
+        "pattern": { "type": "string" },
+        "minLength": { "type": "integer" },
+        "maxLength": { "type": "integer" },
+        "minimum": { "type": "number" },
+        "maximum": { "type": "number" },
+        "items": { "type": "object" },
+        "sensitive": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, value is redacted in logs"
+        }
+      }
+    },
+
+    "return_schema": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["string", "number", "boolean", "array", "object", "null"]
+        },
+        "properties": { "type": "object" },
+        "items": { "type": "object" },
+        "description": { "type": "string" }
+      }
+    },
+
+    "instructions": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "One-line summary for agent context injection"
+        },
+        "when_to_use": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Patterns/situations when this tool should be used"
+        },
+        "when_not_to_use": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Patterns/situations when this tool should NOT be used"
+        },
+        "usage_pattern": {
+          "type": "object",
+          "properties": {
+            "format": {
+              "type": "string",
+              "description": "Function signature format (e.g., 'tool.name(param1: type, param2?: type)')"
+            },
+            "common_queries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "intent": { "type": "string" },
+                  "tool": { "type": "string" },
+                  "params": { "type": "object" }
+                }
+              },
+              "description": "Common intent-to-params mappings"
+            }
+          }
+        },
+        "output_interpretation": {
+          "type": "object",
+          "properties": {
+            "success": { "type": "string", "description": "How to interpret successful output" },
+            "empty": { "type": "string", "description": "How to interpret empty results" },
+            "error": { "type": "string", "description": "How to interpret error responses" }
+          }
+        },
+        "error_recovery": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "error": { "type": "string", "description": "Error code or pattern" },
+              "meaning": { "type": "string", "description": "What this error means" },
+              "action": { "type": "string", "description": "Recovery action to take" }
+            },
+            "required": ["error", "meaning", "action"]
+          }
+        },
+        "chaining": {
+          "type": "object",
+          "properties": {
+            "often_used_with": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Tools commonly used together with this one"
+            },
+            "feeds_into": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Downstream consumers of this tool's output"
+            },
+            "requires_first": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Tools that should be called before this one"
+            }
+          }
+        }
+      }
+    },
+
+    "tool_instructions": {
+      "type": "object",
+      "description": "Per-tool instructions (subset of package instructions)",
+      "properties": {
+        "summary": { "type": "string" },
+        "when_to_use": { "type": "array", "items": { "type": "string" } },
+        "when_not_to_use": { "type": "array", "items": { "type": "string" } },
+        "output_interpretation": { "type": "object" },
+        "error_recovery": { "type": "array" }
+      }
+    },
+
+    "help": {
+      "type": "object",
+      "properties": {
+        "man_url": {
+          "type": ["string", "null"],
+          "format": "uri",
+          "description": "URL to official documentation/man page"
+        },
+        "quick_reference": {
+          "type": ["string", "null"],
+          "description": "Path to local cheatsheet (e.g., '/docs/tools/prometheus-cheatsheet.md')"
+        },
+        "examples_url": {
+          "type": ["string", "null"],
+          "description": "Path to examples file"
+        },
+        "video_tutorial": {
+          "type": ["string", "null"],
+          "format": "uri",
+          "description": "URL to video tutorial"
+        },
+        "troubleshooting": {
+          "type": ["string", "null"],
+          "description": "Path to troubleshooting guide"
+        }
+      }
+    },
+
+    "agent_hints": {
+      "type": "object",
+      "properties": {
+        "context_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 100,
+          "description": "Estimated tokens for this tool in agent context"
+        },
+        "typical_latency_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1000,
+          "description": "Typical execution latency in milliseconds"
+        },
+        "cacheable": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether results can be cached"
+        },
+        "cache_ttl_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Cache TTL in seconds (0 = no caching)"
+        },
+        "batch_friendly": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether multiple calls can be batched"
+        },
+        "max_batch_size": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Maximum batch size if batch_friendly"
+        },
+        "idempotent": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether repeated calls produce same result"
+        },
+        "side_effects": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this tool has side effects (writes, sends, etc.)"
+        }
+      }
+    }
+  }
+}

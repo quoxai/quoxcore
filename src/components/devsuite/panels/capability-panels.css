@@ -1,0 +1,40 @@
+/*
+ * Capability panel chrome.
+ *
+ * BUNDLE POLISH D: "promote bespoke inline-style patches to real qx classes".
+ *
+ * `.capability-panel-row` and `.capability-panel-label` were being used as
+ * class names with NO CSS behind them anywhere in the tree, so every single
+ * instance re-declared the same flex layout inline:
+ *
+ *   style={{ display: 'flex', alignItems: 'center', gap: 10,
+ *            flexWrap: 'wrap', padding: '6px 0' }}
+ *
+ * That is the worst of both worlds: a class name that reads as shared styling
+ * and carries none, plus N copies of the real rule that drift independently.
+ * DevBuildPanel alone had fourteen inline style objects, ten of them a
+ * font-size and eight a colour that the design system already names.
+ *
+ * Text styling deliberately does NOT live here. `.qx-hint`, `.qx-hint--sm` and
+ * `.qx-hint--warn` already exist in qx-components.css and match the values the
+ * panels were hardcoding (13px/12px at 0.7 white, and amber for warnings), so
+ * the panels consume those rather than gaining a parallel set here.
+ */
+
+.capability-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+}
+
+/* A section heading inside a panel: quieter than a card title, louder than a
+   hint, and spaced away from whatever preceded it. */
+.capability-panel-label {
+  margin-top: 8px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}

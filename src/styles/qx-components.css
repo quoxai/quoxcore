@@ -1,0 +1,5030 @@
+/**
+ * QX Components — Global reusable utilities for the Quox dashboard.
+ *
+ * Consume these via className in JSX. Do NOT duplicate these specs in
+ * per-view CSS. If a variant is missing, add it here first, then use it.
+ *
+ * Depends on tokens from src/index.css (--qx-*, --m-*) and classes from
+ * src/styles/glass.css (.qx-view, .qx-card, .qx-stack, .qx-grid-*, etc.)
+ *
+ * Sections:
+ *   1. Status atoms (dot, pill, severity, kbd, badge, chip)
+ *   2. Data tiles (stat, stat-row, progress, sparkline placeholder)
+ *   3. Tables (table, tr, th, td, actions)
+ *   4. Lists (host-row, action-card)
+ *   5. Forms (input, textarea, select, field, toggle, checkbox)
+ *   6. Avatars
+ *   7. States (empty-state, skeleton, spinner)
+ *   8. Inline code / keyboards
+ *   9. Terminal shell (legitimate opt-out from glass — dark bg required)
+ *  10. Dividers, sections
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 1. STATUS ATOMS                                                          */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* Breathing status dot. Set --qx-dot-color or use a variant class. */
+.qx-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--qx-dot-color, rgba(255,255,255,0.6));
+  box-shadow: 0 0 6px var(--qx-dot-color, rgba(255,255,255,0.4));
+  display: inline-block;
+  flex-shrink: 0;
+}
+.qx-dot--online    { --qx-dot-color: #30ff90; animation: qx-dot-breathe 2.4s ease-in-out infinite; }
+.qx-dot--degraded  { --qx-dot-color: #f59e0b; animation: qx-dot-breathe 1.8s ease-in-out infinite; }
+.qx-dot--offline   { --qx-dot-color: #ef4444; animation: qx-dot-alarm 1s ease-in-out infinite; }
+.qx-dot--loading   { --qx-dot-color: #38bdf8; animation: qx-dot-scan 1.5s ease-in-out infinite; }
+.qx-dot--idle      { --qx-dot-color: rgba(255,255,255,0.8); }
+.qx-dot--info      { --qx-dot-color: #38bdf8; }
+.qx-dot--sm        { width: 6px; height: 6px; }
+.qx-dot--lg        { width: 10px; height: 10px; }
+
+@keyframes qx-dot-breathe {
+  0%, 100% { opacity: 1;   box-shadow: 0 0 6px  var(--qx-dot-color); }
+  50%      { opacity: 0.7; box-shadow: 0 0 12px var(--qx-dot-color); }
+}
+@keyframes qx-dot-alarm {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.18); opacity: 0.6; }
+}
+@keyframes qx-dot-scan {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1; }
+}
+
+/* Pill — status badges, tags, protocol chips. */
+.qx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--m-border-default);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.qx-pill--online    { background: rgba(48,255,144,0.12);   border-color: rgba(48,255,144,0.35);   color: #30ff90; }
+.qx-pill--degraded  { background: rgba(245,158,11,0.12);   border-color: rgba(245,158,11,0.35);   color: #f59e0b; }
+.qx-pill--warn      { background: rgba(245,158,11,0.12);   border-color: rgba(245,158,11,0.35);   color: #f59e0b; }
+.qx-pill--offline,
+.qx-pill--critical  { background: rgba(239,68,68,0.12);    border-color: rgba(239,68,68,0.35);    color: #f87171; }
+.qx-pill--info      { background: rgba(56,189,248,0.12);   border-color: rgba(56,189,248,0.35);   color: #38bdf8; }
+.qx-pill--purple    { background: rgba(168,85,247,0.12);   border-color: rgba(168,85,247,0.35);   color: #c084fc; }
+.qx-pill--ghost     { background: transparent;             border-color: rgba(255,255,255,0.14); color: rgba(255,255,255,0.85); }
+.qx-pill--sm        { padding: 2px 8px; font-size: 10px; }
+.qx-pill--lg        { padding: 6px 14px; font-size: 12px; }
+
+/* Severity pill — compact, uppercased, for alerts/logs. */
+.qx-severity {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+.qx-severity--critical { background: rgba(239,68,68,0.18);   color: #f87171; }
+.qx-severity--high     { background: rgba(245,101,101,0.18); color: #fc8181; }
+.qx-severity--medium   { background: rgba(245,158,11,0.18);  color: #fbbf24; }
+.qx-severity--low      { background: rgba(56,189,248,0.18);  color: #60a5fa; }
+.qx-severity--info     { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85); }
+
+/* Keyboard badge. */
+.qx-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 2px 6px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--m-border-default);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  line-height: 1.2;
+}
+/* Larger presentation for a device/pairing code the user has to read and
+   type elsewhere (e.g. FreeClaimPanel's connect-account beat). --glow adds
+   the cyan halo for the "code accepted" moment, same recipe as the QX Lab
+   store prototype's inline box-shadow, promoted to a real class. */
+.qx-kbd--lg {
+  min-width: 40px;
+  padding: 9px 14px;
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  border-radius: 8px;
+}
+.qx-kbd--glow {
+  border-color: rgba(56,189,248,0.45);
+  box-shadow: 0 0 12px rgba(56,189,248,0.4);
+}
+
+/* Small numeric/letter badge — e.g. notification count. */
+.qx-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: rgba(56,189,248,0.2);
+  border: 1px solid rgba(56,189,248,0.4);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.qx-badge--alert { background: rgba(239,68,68,0.22); border-color: rgba(239,68,68,0.45); }
+.qx-badge--ok    { background: rgba(48,255,144,0.18); border-color: rgba(48,255,144,0.4); }
+
+/* Chip — clickable tag / filter / suggestion. */
+.qx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  color: rgba(255,255,255,0.88);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.qx-chip:hover {
+  background: rgba(255,255,255,0.09);
+  border-color: rgba(255,255,255,0.22);
+  color: #fff;
+}
+.qx-chip--active {
+  background: linear-gradient(145deg, rgba(168,85,247,0.12), rgba(56,189,248,0.06));
+  border-color: rgba(168,85,247,0.4);
+  color: #fff;
+}
+.qx-chip--brand {
+  border-color: rgba(56,189,248,0.3);
+  color: #38bdf8;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 2. DATA TILES                                                             */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* Stat tile — icon + value + label + optional delta. Drop inside .qx-card or use alone. */
+.qx-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+.qx-stat__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255,255,255,0.7);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.qx-stat__head svg { width: 14px; height: 14px; }
+.qx-stat__value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.qx-stat__value--mono { font-family: var(--font-mono, monospace); font-weight: 600; }
+.qx-stat__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+}
+.qx-stat__delta--up   { color: #30ff90; }
+.qx-stat__delta--down { color: #f87171; }
+.qx-stat__delta--flat { color: rgba(255,255,255,0.7); }
+.qx-stat__sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+}
+
+/* Compact horizontal stat row — label left, value right, optional subvalue. */
+.qx-stat-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.qx-stat-row:last-child { border-bottom: none; }
+.qx-stat-row__label {
+  font-size: 12px;
+  color: rgba(255,255,255,0.75);
+}
+.qx-stat-row__value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Progress bar. Set --qx-progress to 0..1. */
+.qx-progress {
+  --qx-progress: 0;
+  --qx-progress-fill: #38bdf8;
+  position: relative;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+.qx-progress::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: calc(var(--qx-progress) * 100%);
+  background: var(--qx-progress-fill);
+  border-radius: inherit;
+  box-shadow: 0 0 8px var(--qx-progress-fill);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.qx-progress--success { --qx-progress-fill: #30ff90; }
+.qx-progress--warn    { --qx-progress-fill: #f59e0b; }
+.qx-progress--crit    { --qx-progress-fill: #ef4444; }
+.qx-progress--brand   { --qx-progress-fill: linear-gradient(90deg, #38bdf8, #a855f7); }
+.qx-progress--tall    { height: 10px; }
+.qx-progress--slim    { height: 3px; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 3. TABLES                                                                 */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.qx-table thead th {
+  position: sticky;
+  top: 0;
+  padding: 12px 14px;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-align: left;
+  white-space: nowrap;
+  background: linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), var(--m-bg-base);
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  z-index: 1;
+}
+.qx-table tbody td {
+  padding: 12px 14px;
+  color: #fff;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+.qx-table tbody tr { transition: background 0.1s ease; }
+.qx-table tbody tr:hover { background: rgba(255,255,255,0.04); }
+.qx-table tbody tr:last-child td { border-bottom: none; }
+.qx-table tbody tr.qx-table__row--active {
+  background: linear-gradient(90deg, rgba(168,85,247,0.12), rgba(56,189,248,0.04));
+  box-shadow: inset 2px 0 0 #a855f7;
+}
+.qx-table td .qx-mono,
+.qx-table td.qx-mono { font-family: var(--font-mono, monospace); }
+.qx-table td.qx-num { text-align: right; font-family: var(--font-mono, monospace); }
+.qx-table th.qx-num { text-align: right; }
+.qx-table__sort { cursor: pointer; user-select: none; }
+.qx-table__sort::after { content: ' ↕'; opacity: 0.35; font-size: 9px; }
+.qx-table__sort--asc::after  { content: ' ↑'; opacity: 1; color: #38bdf8; }
+.qx-table__sort--desc::after { content: ' ↓'; opacity: 1; color: #38bdf8; }
+
+/* Row actions — icon buttons at the end of a row. */
+.qx-row-actions {
+  display: inline-flex;
+  gap: 4px;
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+tr:hover .qx-row-actions { opacity: 1; }
+.qx-row-action {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: rgba(255,255,255,0.75);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.qx-row-action:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.qx-row-action svg { width: 14px; height: 14px; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 4. LIST ROWS                                                              */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-host-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  transition: background 0.12s ease;
+  cursor: pointer;
+}
+.qx-host-row:hover { background: rgba(255,255,255,0.05); }
+.qx-host-row__dot { flex-shrink: 0; }
+.qx-host-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.qx-host-row__primary {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qx-host-row__secondary {
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  font-family: var(--font-mono, monospace);
+}
+.qx-host-row__meta {
+  font-size: 11px;
+  color: rgba(255,255,255,0.75);
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
+}
+
+/* Action card — large clickable with icon + title + description. */
+.qx-action-card {
+  display: flex;
+  align-items: flex-start;
+  /* Reset the global button{height:var(--m-btn-height-md)} + mobile min-height:
+     this is a content card (icon + title + description), not a fixed-height
+     button, so it must size to its content or multi-line cards clip/overflow. */
+  height: auto;
+  min-height: auto;
+  gap: 14px;
+  padding: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--m-border-default);
+  border-radius: 14px;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.qx-action-card:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.28);
+  transform: translateY(-1px);
+}
+.qx-action-card__icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(168,85,247,0.2), rgba(56,189,248,0.1));
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 10px;
+  color: #fff;
+  flex-shrink: 0;
+}
+.qx-action-card__icon svg { width: 18px; height: 18px; }
+.qx-action-card__body { flex: 1; min-width: 0; }
+.qx-action-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.qx-action-card__desc {
+  font-size: 12px;
+  color: rgba(255,255,255,0.75);
+  line-height: 1.5;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 5. FORMS                                                                  */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-input,
+.qx-textarea,
+.qx-select {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--m-border-default);
+  border-radius: 10px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  box-sizing: border-box;
+}
+.qx-input::placeholder,
+.qx-textarea::placeholder {
+  color: rgba(255,255,255,0.8);
+}
+.qx-input:hover,
+.qx-textarea:hover,
+.qx-select:hover { border-color: rgba(255,255,255,0.28); }
+.qx-input:focus,
+.qx-textarea:focus,
+.qx-select:focus {
+  border-color: rgba(56,189,248,0.55);
+  background: rgba(255,255,255,0.08);
+  box-shadow: 0 0 0 3px rgba(56,189,248,0.12);
+}
+.qx-input:disabled,
+.qx-textarea:disabled,
+.qx-select:disabled { opacity: 0.5; cursor: not-allowed; }
+.qx-textarea { resize: vertical; min-height: 80px; }
+/* Monospace variant — URLs, cron, expressions, codes. */
+.qx-input--mono,
+.qx-textarea--mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.qx-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.7)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 14px 14px;
+  padding-right: 40px;
+}
+
+/* Field wrapper — label + input + helper/error stacked. */
+.qx-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.qx-field__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+.qx-field__label--required::after { content: ' *'; color: #f87171; }
+.qx-field__hint {
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.4;
+}
+.qx-field__error {
+  font-size: 11px;
+  color: #fca5a5;
+}
+
+/* Toggle switch. <label class="qx-toggle"><input type="checkbox"><span/></label> */
+.qx-toggle {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.qx-toggle input { opacity: 0; width: 0; height: 0; }
+.qx-toggle__track {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid var(--m-border-default);
+  border-radius: 999px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.qx-toggle__track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.qx-toggle input:checked ~ .qx-toggle__track {
+  background: linear-gradient(90deg, rgba(168,85,247,0.55), rgba(56,189,248,0.55));
+  border-color: rgba(168,85,247,0.6);
+}
+.qx-toggle input:checked ~ .qx-toggle__track::after { transform: translateX(18px); }
+
+/* Checkbox — visually custom, keeps native semantics. */
+.qx-checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #fff;
+}
+.qx-checkbox input { opacity: 0; width: 0; height: 0; position: absolute; }
+.qx-checkbox__box {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--m-border-default);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.qx-checkbox input:checked ~ .qx-checkbox__box {
+  background: linear-gradient(145deg, rgba(168,85,247,0.4), rgba(56,189,248,0.25));
+  border-color: rgba(168,85,247,0.6);
+}
+.qx-checkbox input:checked ~ .qx-checkbox__box::after {
+  content: '';
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+/* Buttons — quick variants. Prefer .glass-btn from glass.css for pill buttons. */
+.qx-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255,255,255,0.06);
+  /* MORPHISM LAW (owner 2026-09-26): translucent controls carry a backdrop blur, never bare transparency. See glass.css header. */
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  border: 1px solid var(--m-border-default);
+  border-radius: 10px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.qx-btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.28); transform: translateY(-1px); }
+.qx-btn:active { transform: translateY(0); }
+.qx-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.qx-btn--primary {
+  background: linear-gradient(145deg, rgba(168,85,247,0.25), rgba(56,189,248,0.15));
+  border-color: rgba(168,85,247,0.5);
+}
+.qx-btn--primary:hover {
+  background: linear-gradient(145deg, rgba(168,85,247,0.35), rgba(56,189,248,0.22));
+  border-color: rgba(168,85,247,0.7);
+}
+.qx-btn--danger { border-color: rgba(239,68,68,0.4); color: #fca5a5; }
+.qx-btn--danger:hover { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.6); }
+.qx-btn--ghost { background: rgba(255,255,255,0.03); } /* not transparent: keeps the .qx-btn morphism blur + edge (MORPHISM LAW 2026-09-26) */
+.qx-btn--sm { padding: 5px 10px; font-size: 12px; }
+.qx-btn--lg { padding: 10px 20px; font-size: 14px; }
+.qx-btn svg { width: 14px; height: 14px; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 6. AVATARS                                                                */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-avatar {
+  --qx-avatar-size: 40px;
+  --qx-avatar-radius: 10px;
+  position: relative;
+  width: var(--qx-avatar-size);
+  height: var(--qx-avatar-size);
+  border-radius: var(--qx-avatar-radius);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(168,85,247,0.3), rgba(56,189,248,0.2));
+  border: 1px solid rgba(255,255,255,0.14);
+  color: #fff;
+  font-weight: 700;
+  font-size: calc(var(--qx-avatar-size) * 0.4);
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.qx-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.qx-avatar--circle { --qx-avatar-radius: 50%; }
+.qx-avatar--sq     { --qx-avatar-radius: 10px; }  /* alias — default now rounded square */
+.qx-avatar--xs { --qx-avatar-size: 24px; }
+.qx-avatar--sm { --qx-avatar-size: 32px; }
+.qx-avatar--lg { --qx-avatar-size: 56px; }
+.qx-avatar--xl { --qx-avatar-size: 80px; }
+.qx-avatar--ring {
+  box-shadow: 0 0 0 2px var(--qx-avatar-ring, #30ff90), 0 0 12px var(--qx-avatar-ring, #30ff90);
+}
+.qx-avatar__status {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #000;
+  background: var(--qx-avatar-status, #30ff90);
+}
+
+/* Fixed-size list thumbnail (QuoxSignal feed thumbnail column). Deliberately
+   separate from .qx-avatar: an avatar always resolves to something (image or
+   monogram), a thumbnail's "nothing yet" state is the common case and must
+   read as neutral, not broken — so it gets its own quiet placeholder fill
+   instead of a monogram. Fixed width/height so a column of these never
+   collapses or reflows as images arrive. */
+.qx-thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 40px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+.qx-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.qx-thumb__placeholder {
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(135deg, rgba(255,255,255,0.02) 0 6px, rgba(255,255,255,0.05) 6px 12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 7. STATES                                                                 */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 48px 24px;
+  text-align: center;
+  color: rgba(255,255,255,0.75);
+}
+.qx-empty__icon {
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--m-border-default);
+  border-radius: 14px;
+  margin-bottom: 6px;
+  color: rgba(255,255,255,0.85);
+}
+.qx-empty__icon svg { width: 26px; height: 26px; }
+.qx-empty__title { font-size: 15px; font-weight: 600; color: #fff; }
+.qx-empty__body  { font-size: 13px; color: rgba(255,255,255,0.75); max-width: 320px; }
+
+.qx-skeleton {
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.12) 50%,
+    rgba(255,255,255,0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: qx-shimmer 1.5s ease-in-out infinite;
+}
+.qx-skeleton--line-sm  { height: 10px; }
+.qx-skeleton--line-md  { height: 14px; }
+.qx-skeleton--line-lg  { height: 20px; }
+.qx-skeleton--block    { height: 60px; border-radius: 10px; }
+.qx-skeleton--avatar   { width: 40px; height: 40px; border-radius: 50%; }
+@keyframes qx-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.qx-spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.15);
+  border-top-color: #38bdf8;
+  animation: qx-spin 0.8s linear infinite;
+  display: inline-block;
+}
+.qx-spinner--sm { width: 14px; height: 14px; border-width: 1.5px; }
+.qx-spinner--lg { width: 32px; height: 32px; border-width: 3px; }
+@keyframes qx-spin { to { transform: rotate(360deg); } }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 8. INLINE CODE / BLOCKS                                                   */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-code {
+  display: inline;
+  padding: 2px 6px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--m-border-default);
+  border-radius: 4px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.88em;
+  color: #fff;
+}
+
+.qx-code-block {
+  display: block;
+  padding: 14px 16px;
+  background: rgba(10,14,20,0.72);
+  border: 1px solid var(--m-border-default);
+  border-radius: 10px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #e6e9ef;
+  overflow-x: auto;
+  white-space: pre;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 9. TERMINAL SHELL (opt-out from glass — readability demands opaque bg)    */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-terminal {
+  display: flex;
+  flex-direction: column;
+  background: #0a0e14;
+  border: 1px solid var(--m-border-default);
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.qx-terminal__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  color: rgba(255,255,255,0.75);
+}
+.qx-terminal__dots { display: flex; gap: 6px; margin-right: 4px; }
+.qx-terminal__dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.18);
+}
+.qx-terminal__dots span:nth-child(1) { background: #f87171; }
+.qx-terminal__dots span:nth-child(2) { background: #fbbf24; }
+.qx-terminal__dots span:nth-child(3) { background: #30ff90; }
+.qx-terminal__body {
+  padding: 14px 16px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #b3b1ad;
+  min-height: 180px;
+  white-space: pre-wrap;
+  overflow-y: auto;
+}
+.qx-terminal__prompt  { color: #90e1c6; }
+.qx-terminal__user    { color: #53bdfa; }
+.qx-terminal__out     { color: #b3b1ad; }
+.qx-terminal__err     { color: #ea6c73; }
+.qx-terminal__warn    { color: #f9af4f; }
+.qx-terminal__ok      { color: #91b362; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 10. DIVIDERS / SECTION HEADERS                                            */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-divider {
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(90deg, transparent, var(--m-border-default), transparent);
+  margin: 12px 0;
+  border: none;
+}
+.qx-divider--dense { margin: 8px 0; }
+
+.qx-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.75);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0 0 12px 0;
+}
+.qx-section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--m-border-default);
+}
+
+/* Small h-rule between form groups. */
+.qx-hr {
+  border: none;
+  border-top: 1px solid var(--m-border-default);
+  margin: 16px 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 11. POLISH — shine, Q-horn decorators, micro-details                      */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* Q-horn is provided as a React component — src/components/ui/QHorn.jsx.
+   Import: `import QHorn from '@/components/ui/QHorn'`
+   Usage:  `<QHorn size={14} animated />` or `<QHorn size={24} />`
+   CSS animation support: */
+@keyframes qhorn-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+
+/* Upgrade spinner to a conic gradient ring in brand colours. */
+.qx-spinner {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(56,189,248,0.15) 60deg,
+    rgba(56,189,248,0.6) 180deg,
+    #a855f7 340deg,
+    transparent 360deg
+  );
+  -webkit-mask: radial-gradient(circle, transparent 55%, #000 57%);
+          mask: radial-gradient(circle, transparent 55%, #000 57%);
+  border: none;
+}
+.qx-spinner--sm { -webkit-mask: radial-gradient(circle, transparent 52%, #000 54%);          mask: radial-gradient(circle, transparent 52%, #000 54%); }
+.qx-spinner--lg { -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%);          mask: radial-gradient(circle, transparent 58%, #000 60%); }
+
+/* Primary button — inner brand glow + tiny top-highlight. */
+.qx-btn--primary {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    0 0 18px rgba(168,85,247,0.12);
+}
+.qx-btn--primary:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.24),
+    0 0 24px rgba(168,85,247,0.22),
+    0 4px 14px rgba(0,0,0,0.25);
+}
+
+/* Shiny swept highlight on filled portion of progress bars. */
+.qx-progress::after {
+  background-image:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.22) 45%,
+      rgba(255,255,255,0.32) 50%,
+      rgba(255,255,255,0.22) 55%,
+      transparent 100%
+    ),
+    linear-gradient(90deg, var(--qx-progress-fill), var(--qx-progress-fill));
+  background-size: 220% 100%, 100% 100%;
+  background-position: -50% 0, 0 0;
+  animation: qx-progress-shine 2.8s ease-in-out infinite;
+}
+.qx-progress--brand::after {
+  background-image:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.25) 45%,
+      rgba(255,255,255,0.4) 50%,
+      rgba(255,255,255,0.25) 55%,
+      transparent 100%
+    ),
+    linear-gradient(90deg, #38bdf8, #a855f7);
+  background-size: 220% 100%, 100% 100%;
+  background-position: -50% 0, 0 0;
+  animation: qx-progress-shine 2.8s ease-in-out infinite;
+}
+@keyframes qx-progress-shine {
+  0%   { background-position: -50% 0, 0 0; }
+  100% { background-position: 150% 0, 0 0; }
+}
+
+/* Stat values — subtle gradient sheen on large numbers. */
+.qx-stat__value {
+  background: linear-gradient(180deg, #ffffff 0%, #e6e9ef 100%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+}
+.qx-stat__value[style*="color"] {
+  /* When an inline colour is set, respect it and skip the gradient. */
+  background: none;
+  -webkit-text-fill-color: initial;
+}
+
+/* Online pill — subtle pulse on the dot container so it feels live. */
+.qx-pill--online {
+  box-shadow: 0 0 14px rgba(48,255,144,0.08);
+}
+.qx-pill--critical,
+.qx-pill--offline {
+  animation: qx-alarm-glow 1.6s ease-in-out infinite;
+}
+@keyframes qx-alarm-glow {
+  0%, 100% { box-shadow: 0 0 14px rgba(239,68,68,0.12); }
+  50%      { box-shadow: 0 0 22px rgba(239,68,68,0.28); }
+}
+
+/* Active chip — glowing brand edge. */
+.qx-chip--active {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    0 0 16px rgba(168,85,247,0.2);
+}
+
+/* Avatars — soft ring glow on hover. */
+.qx-avatar {
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.qx-avatar:hover {
+  box-shadow: 0 0 20px rgba(56,189,248,0.25), inset 0 0 12px rgba(168,85,247,0.1);
+}
+
+/* Action cards — subtle gradient shine on the icon slot. */
+.qx-action-card__icon {
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15), transparent 60%),
+    linear-gradient(145deg, rgba(168,85,247,0.25), rgba(56,189,248,0.12));
+  box-shadow: 0 0 12px rgba(168,85,247,0.15), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+.qx-action-card:hover .qx-action-card__icon {
+  box-shadow: 0 0 22px rgba(168,85,247,0.35), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+/* Section titles — include <QHorn size={10} /> inline at the start
+   if you want the brand accent. No CSS pseudo-element version. */
+
+/* Inputs — subtle inner top-shade for depth. */
+.qx-input,
+.qx-textarea,
+.qx-select {
+  box-shadow: inset 0 1px 0 rgba(0,0,0,0.25);
+}
+.qx-input:focus,
+.qx-textarea:focus,
+.qx-select:focus {
+  box-shadow:
+    inset 0 1px 0 rgba(0,0,0,0.25),
+    0 0 0 3px rgba(56,189,248,0.14),
+    0 0 14px rgba(56,189,248,0.12);
+}
+
+/* Skeleton — cyan-tinted shimmer instead of flat white. */
+.qx-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(56,189,248,0.14) 50%,
+    rgba(168,85,247,0.1) 65%,
+    rgba(255,255,255,0.04) 80%
+  );
+  background-size: 200% 100%;
+}
+
+/* Host row — a touch of lift on hover. */
+.qx-host-row:hover .qx-host-row__primary {
+  color: #fff;
+}
+.qx-host-row:hover .qx-host-row__dot {
+  box-shadow: 0 0 12px var(--qx-dot-color);
+}
+
+/* Empty-state icon — soft ambient glow behind. */
+.qx-empty__icon {
+  position: relative;
+}
+.qx-empty__icon::after {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle, rgba(56,189,248,0.12), transparent 70%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Terminal — subtle top inner light rim. */
+.qx-terminal__body {
+  background: linear-gradient(180deg, rgba(56,189,248,0.02), transparent 30%);
+}
+
+/* Toggle track — glow when on. */
+.qx-toggle input:checked ~ .qx-toggle__track {
+  box-shadow: 0 0 14px rgba(168,85,247,0.35);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 12. DENSITY MODIFIERS — opt-in tighter or roomier card padding            */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-card--compact { padding: 12px 14px; }
+.qx-card--roomy   { padding: 28px; }
+
+/* State modifiers: tint the card's border/rim so a card needing attention
+   reads as different AT A GLANCE, not only via a pill someone has to read.
+   Added for the Slots deck (a stale slot looked identical to a healthy one),
+   but deliberately generic. The 4-edge ::before shimmer is left alone so the
+   card still reads as a Quox panel. */
+.qx-card--warn {
+  border-color: rgba(251, 191, 36, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18),
+              inset 0 -1px 0 rgba(0,0,0,0.45),
+              inset 0 0 0 1px rgba(251, 191, 36, 0.10);
+}
+.qx-card--danger {
+  border-color: rgba(248, 113, 113, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18),
+              inset 0 -1px 0 rgba(0,0,0,0.45),
+              inset 0 0 0 1px rgba(248, 113, 113, 0.12);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 13. INTERACTIVE FEEL — hover raise, click clunk                           */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-card {
+  transition:
+    transform 0.22s cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+.qx-card--lift { cursor: pointer; }
+.qx-card--lift::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg,
+    transparent 20%,
+    rgba(255,255,255,0.06) 45%,
+    rgba(56,189,248,0.1) 50%,
+    rgba(168,85,247,0.08) 55%,
+    transparent 80%);
+  background-size: 240% 100%;
+  background-position: -50% 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease, background-position 0.9s cubic-bezier(0.2, 0, 0, 1);
+  border-radius: inherit;
+  z-index: 1;
+}
+.qx-card--lift:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255,255,255,0.28);
+  box-shadow:
+    0 14px 48px rgba(0,0,0,0.55),
+    0 0 32px rgba(168,85,247,0.1),
+    inset 0 1px 0 rgba(255,255,255,0.28),
+    inset 0 -1px 0 rgba(0,0,0,0.45);
+}
+.qx-card--lift:hover::after {
+  opacity: 1;
+  background-position: 150% 0;
+}
+.qx-card--lift:active {
+  transform: translateY(1px) scale(0.996);
+  box-shadow:
+    0 3px 10px rgba(0,0,0,0.45),
+    inset 0 2px 4px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  transition-duration: 0.06s;
+}
+
+.qx-action-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 20%, rgba(255,255,255,0.06) 45%, rgba(56,189,248,0.1) 50%, rgba(168,85,247,0.08) 55%, transparent 80%);
+  background-size: 240% 100%;
+  background-position: -50% 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease, background-position 0.9s cubic-bezier(0.2, 0, 0, 1);
+  border-radius: inherit;
+  z-index: 0;
+}
+.qx-action-card:hover::after { opacity: 1; background-position: 150% 0; }
+.qx-action-card:active {
+  transform: translateY(1px) scale(0.996);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4), inset 0 2px 4px rgba(0,0,0,0.32);
+  transition-duration: 0.06s;
+}
+
+.qx-btn {
+  transition:
+    transform 0.15s cubic-bezier(0.2, 0, 0, 1),
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.qx-btn:active:not(:disabled) {
+  transform: translateY(2px) scale(0.98);
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,0.45),
+    inset 0 -1px 0 rgba(255,255,255,0.04);
+  transition-duration: 0.04s;
+}
+.qx-btn--primary:active:not(:disabled) {
+  box-shadow: inset 0 2px 5px rgba(0,0,0,0.5), inset 0 -1px 0 rgba(168,85,247,0.15);
+  background: linear-gradient(145deg, rgba(168,85,247,0.18), rgba(56,189,248,0.08));
+}
+.qx-btn--danger:active:not(:disabled) {
+  box-shadow: inset 0 2px 5px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(239,68,68,0.22);
+}
+.glass-btn:active, .glass-nav:active {
+  transform: translateY(2px) scale(0.995);
+  box-shadow: inset 0 2px 5px rgba(0,0,0,0.4), inset 0 -1px 0 rgba(255,255,255,0.04);
+  transition-duration: 0.05s;
+}
+.qx-row-action:active {
+  transform: translateY(1px);
+  background: rgba(255,255,255,0.02);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.35);
+  transition-duration: 0.04s;
+}
+.qx-chip {
+  transition:
+    transform 0.15s cubic-bezier(0.2, 0, 0, 1),
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.qx-chip:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.35);
+  transition-duration: 0.04s;
+}
+.qx-toggle:active .qx-toggle__track { filter: brightness(0.94); }
+.qx-checkbox:active .qx-checkbox__box {
+  transform: scale(0.92);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.35);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 14. TABS                                                                  */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--m-border-default);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);
+}
+.qx-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: rgba(255,255,255,0.8);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.15s ease;
+  white-space: nowrap;
+}
+.qx-tab:hover:not(:disabled):not(.qx-tab--active) {
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+}
+.qx-tab--active {
+  background: linear-gradient(145deg, rgba(168,85,247,0.18), rgba(56,189,248,0.08));
+  border-color: rgba(168,85,247,0.4);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 0 16px rgba(168,85,247,0.15);
+}
+.qx-tab:active:not(:disabled) {
+  transform: translateY(1px) scale(0.985);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+  transition-duration: 0.04s;
+}
+.qx-tab:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Underline variant */
+.qx-tabs--underline {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--m-border-default);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  gap: 0;
+  width: 100%;
+  display: flex;
+}
+.qx-tabs--underline .qx-tab {
+  border-radius: 0;
+  padding: 10px 16px;
+  position: relative;
+  background: transparent !important;
+  border: none;
+  box-shadow: none !important;
+}
+.qx-tabs--underline .qx-tab--active::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, #38bdf8, #a855f7);
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(168,85,247,0.5);
+}
+
+/* Vertical variant */
+.qx-tabs--vert {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px;
+  min-width: 180px;
+}
+.qx-tabs--vert .qx-tab {
+  justify-content: flex-start;
+  padding: 8px 12px;
+  width: 100%;
+}
+
+/* Segmented control — tighter, connected feel. 3-5 options.
+   <div className="qx-seg">
+     <button className="qx-seg__btn qx-seg__btn--active">Day</button>
+     ...
+   </div> */
+.qx-seg {
+  display: inline-flex;
+  padding: 2px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--m-border-default);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.25);
+}
+.qx-seg__btn {
+  padding: 5px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: rgba(255,255,255,0.8);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.qx-seg__btn:hover:not(.qx-seg__btn--active) { color: #fff; }
+.qx-seg__btn--active {
+  background: linear-gradient(145deg, rgba(168,85,247,0.22), rgba(56,189,248,0.12));
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+}
+/* __item aliases — same visual as __btn, allow both naming conventions */
+.qx-seg__item {
+  padding: 5px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: rgba(255,255,255,0.8);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.qx-seg__item:hover:not(.qx-seg__item--active) { color: #fff; }
+
+/* Range slider (QUOXSOUND-P1). Set --qx-range-fill inline (e.g. 60%).
+   <input type="range" className="qx-range" style={{ '--qx-range-fill': '60%' }} /> */
+.qx-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  max-width: 280px;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(168,85,247,0.75), rgba(56,189,248,0.75)) 0 0 / var(--qx-range-fill, 50%) 100% no-repeat,
+              rgba(255,255,255,0.10);
+  border: 1px solid var(--m-border-default);
+  outline: none;
+  cursor: pointer;
+}
+.qx-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(255,255,255,0.6);
+  box-shadow: 0 0 0 3px rgba(56,189,248,0.25), 0 2px 6px rgba(0,0,0,0.4);
+}
+.qx-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(255,255,255,0.6);
+  box-shadow: 0 0 0 3px rgba(56,189,248,0.25), 0 2px 6px rgba(0,0,0,0.4);
+}
+.qx-range:focus-visible { box-shadow: 0 0 0 2px rgba(56,189,248,0.5); }
+.qx-seg__item--active {
+  background: linear-gradient(145deg, rgba(168,85,247,0.22), rgba(56,189,248,0.12));
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.qx-seg__count {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+}
+.qx-seg__item--active .qx-seg__count {
+  background: rgba(56, 189, 248, 0.16);
+  color: #38bdf8;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 15. PERCENT / GAUGE                                                       */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* Circular conic-gradient ring. Set --qx-pct: 0..100 inline. */
+.qx-percent {
+  --qx-pct: 0;
+  --qx-pct-size: 56px;
+  --qx-pct-thickness: 8%;
+  --qx-pct-color: #38bdf8;
+  --qx-pct-color-2: #a855f7;
+  --qx-pct-track: rgba(255,255,255,0.08);
+  position: relative;
+  width: var(--qx-pct-size);
+  height: var(--qx-pct-size);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+  background:
+    conic-gradient(
+      from 270deg,
+      var(--qx-pct-color) 0deg,
+      var(--qx-pct-color-2) calc(var(--qx-pct) * 3.6deg),
+      var(--qx-pct-track) calc(var(--qx-pct) * 3.6deg)
+    );
+  box-shadow: 0 0 14px rgba(168,85,247,0.1);
+  transition: filter 0.3s ease;
+}
+.qx-percent::before {
+  content: '';
+  position: absolute;
+  inset: var(--qx-pct-thickness);
+  background: rgba(10,12,20,0.9);
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.qx-percent__value,
+.qx-percent__label {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+  text-align: center;
+  line-height: 1;
+}
+.qx-percent__value {
+  font-size: calc(var(--qx-pct-size) * 0.3);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.qx-percent__value i { font-style: normal; font-size: 0.65em; opacity: 0.75; margin-left: 1px; }
+.qx-percent__label {
+  font-size: calc(var(--qx-pct-size) * 0.15);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.8;
+}
+.qx-percent--sm { --qx-pct-size: 40px; }
+.qx-percent--lg { --qx-pct-size: 84px; }
+.qx-percent--xl { --qx-pct-size: 128px; --qx-pct-thickness: 7%; }
+.qx-percent--success { --qx-pct-color: #30ff90; --qx-pct-color-2: #30ff90; }
+.qx-percent--warn    { --qx-pct-color: #f59e0b; --qx-pct-color-2: #f59e0b; }
+.qx-percent--crit    { --qx-pct-color: #ef4444; --qx-pct-color-2: #f87171; }
+
+/* Hero percent value — big gradient number with %. */
+.qx-percent-value {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(180deg, #fff 0%, #e6e9ef 100%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.qx-percent-value i {
+  font-style: normal;
+  font-size: 0.5em;
+  opacity: 0.75;
+  -webkit-text-fill-color: rgba(255,255,255,0.85);
+}
+.qx-percent-value--success { background: none; -webkit-text-fill-color: #30ff90; color: #30ff90; }
+.qx-percent-value--warn    { background: none; -webkit-text-fill-color: #f59e0b; color: #f59e0b; }
+.qx-percent-value--crit    { background: none; -webkit-text-fill-color: #f87171; color: #f87171; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 16. DROPDOWN MENU / OPTION LIST                                           */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* Popover menu container — use for custom dropdowns, context menus,
+   popover option lists. Appears below/above a trigger.
+   <div className="qx-menu">
+     <div className="qx-menu__header">Title</div>
+     <button className="qx-menu__item qx-menu__item--active">
+       <svg/> Label <span className="qx-menu__kbd">⌘K</span>
+     </button>
+     <div className="qx-menu__sep" />
+     <button className="qx-menu__item qx-menu__item--danger">…</button>
+   </div> */
+.qx-menu {
+  min-width: 220px;
+  max-width: 340px;
+  padding: 6px;
+  background: var(--m-bg-base);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+  border: 1px solid var(--m-border-default);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+  position: relative;
+  overflow: hidden;
+}
+.qx-menu::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  pointer-events: none;
+  z-index: 0;
+}
+.qx-menu > * { position: relative; z-index: 1; }
+
+.qx-menu__header {
+  padding: 8px 10px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 4px;
+}
+.qx-menu__search {
+  padding: 6px 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 4px;
+}
+.qx-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, transform 0.12s ease;
+}
+.qx-menu__item svg { width: 14px; height: 14px; flex-shrink: 0; color: rgba(255,255,255,0.85); }
+.qx-menu__item:hover {
+  background: rgba(255,255,255,0.06);
+}
+.qx-menu__item--active {
+  background: linear-gradient(145deg, rgba(168,85,247,0.18), rgba(56,189,248,0.06));
+  color: #fff;
+}
+.qx-menu__item--active::before {
+  content: '';
+  width: 3px;
+  height: 16px;
+  background: linear-gradient(180deg, #a855f7, #38bdf8);
+  border-radius: 2px;
+  margin-right: -4px;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(168,85,247,0.6);
+}
+.qx-menu__item--danger { color: #fca5a5; }
+.qx-menu__item--danger:hover { background: rgba(239,68,68,0.12); color: #fecaca; }
+.qx-menu__item:disabled { opacity: 0.45; cursor: not-allowed; }
+.qx-menu__item:active { transform: scale(0.98); }
+.qx-menu__kbd {
+  margin-left: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  color: rgba(255,255,255,0.8);
+  padding: 2px 6px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+}
+.qx-menu__meta {
+  margin-left: auto;
+  font-size: 11px;
+  color: rgba(255,255,255,0.75);
+  font-family: var(--font-mono, monospace);
+}
+.qx-menu__sep {
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+  margin: 4px -6px;
+}
+
+/* Menu row that hosts a checkbox + label + right-aligned meta (e.g. the
+   RepoBrain cross-repo scope picker). Reuses .qx-menu__item's layout/hover
+   so it drops onto a <label> unchanged; only the checked-state paint is
+   scoped here, mirroring .qx-checkbox's own input:checked ~ box pattern. */
+.qx-menu__item--check {
+  cursor: pointer;
+}
+.qx-menu__item--check input[type="checkbox"] {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.qx-menu__item--check input:checked ~ .qx-checkbox__box {
+  background: linear-gradient(145deg, rgba(168,85,247,0.4), rgba(56,189,248,0.25));
+  border-color: rgba(168,85,247,0.6);
+}
+.qx-menu__item--check input:checked ~ .qx-checkbox__box::after {
+  content: '';
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 17. TOAST NOTIFICATIONS                                                   */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* Single toast shell — position via wrapping container (.qx-toast-stack).
+   <div className="qx-toast-stack">
+     <div className="qx-toast qx-toast--success">
+       <svg className="qx-toast__icon"/>
+       <div className="qx-toast__body">
+         <div className="qx-toast__title">Saved</div>
+         <div className="qx-toast__msg">Playbook executed on 4 hosts.</div>
+       </div>
+       <button className="qx-toast__close">×</button>
+     </div>
+   </div> */
+.qx-toast-stack {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 380px;
+  pointer-events: none;
+}
+.qx-toast-stack--top     { top: 24px; bottom: auto; }
+.qx-toast-stack--top-left  { top: 24px; bottom: auto; left: 24px; right: auto; }
+.qx-toast-stack--bottom-left { left: 24px; right: auto; }
+.qx-toast-stack--center  { left: 50%; right: auto; transform: translateX(-50%); top: 80px; bottom: auto; }
+
+.qx-toast {
+  --qx-toast-accent: #38bdf8;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px 14px 14px;
+  background: rgba(10,12,20,0.9);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+  border: 1px solid var(--m-border-default);
+  border-left: 3px solid var(--qx-toast-accent);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55), 0 0 24px rgba(56,189,248,0.1), inset 0 1px 0 rgba(255,255,255,0.14);
+  color: #fff;
+  pointer-events: auto;
+  min-width: 280px;
+  max-width: 380px;
+  animation: qx-toast-in 0.28s cubic-bezier(0.2, 0, 0, 1);
+  position: relative;
+  overflow: hidden;
+}
+.qx-toast::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  height: 1px;
+  background: var(--qx-shimmer);
+  pointer-events: none;
+}
+@keyframes qx-toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.qx-toast__icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--qx-toast-accent);
+  margin-top: 1px;
+}
+.qx-toast__body { flex: 1; min-width: 0; }
+.qx-toast__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 2px;
+  letter-spacing: 0.01em;
+}
+.qx-toast__msg {
+  font-size: 12px;
+  color: rgba(255,255,255,0.85);
+  line-height: 1.4;
+}
+.qx-toast__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.qx-toast__close {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.8);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+  align-self: flex-start;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.qx-toast__close:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+.qx-toast--success {
+  --qx-toast-accent: #30ff90;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55), 0 0 24px rgba(48,255,144,0.14), inset 0 1px 0 rgba(255,255,255,0.14);
+}
+.qx-toast--warn,
+.qx-toast--warning {
+  --qx-toast-accent: #f59e0b;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55), 0 0 24px rgba(245,158,11,0.14), inset 0 1px 0 rgba(255,255,255,0.14);
+}
+.qx-toast--error,
+.qx-toast--danger {
+  --qx-toast-accent: #ef4444;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55), 0 0 24px rgba(239,68,68,0.14), inset 0 1px 0 rgba(255,255,255,0.14);
+}
+.qx-toast--purple { --qx-toast-accent: #a855f7; }
+
+/* Progress bar inside a toast (for timed auto-dismiss). */
+.qx-toast__progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--qx-toast-accent);
+  box-shadow: 0 0 8px var(--qx-toast-accent);
+  transform-origin: left center;
+  animation: qx-toast-timer var(--qx-toast-timer, 4s) linear forwards;
+}
+@keyframes qx-toast-timer {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 18. BANNER — inline alert strip (static, non-dismissable)                 */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-banner {
+  --qx-banner-accent: #38bdf8;
+  --qx-banner-tint: rgba(56,189,248,0.08);
+  --qx-banner-border: rgba(56,189,248,0.3);
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--qx-banner-tint);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+  border: 1px solid var(--qx-banner-border);
+  border-left: 3px solid var(--qx-banner-accent);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -1px 0 rgba(0,0,0,0.45);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.qx-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  pointer-events: none;
+  z-index: 1;
+}
+.qx-banner > * { position: relative; z-index: 2; }
+.qx-banner__icon { width: 18px; height: 18px; color: var(--qx-banner-accent); flex-shrink: 0; }
+.qx-banner__title { font-weight: 700; margin-right: 4px; }
+.qx-banner__actions { margin-left: auto; display: flex; gap: 8px; }
+.qx-banner--success { --qx-banner-accent: #30ff90; --qx-banner-tint: rgba(48,255,144,0.08);  --qx-banner-border: rgba(48,255,144,0.3); }
+.qx-banner--warn,
+.qx-banner--warning { --qx-banner-accent: #f59e0b; --qx-banner-tint: rgba(245,158,11,0.08);  --qx-banner-border: rgba(245,158,11,0.3); }
+.qx-banner--error,
+.qx-banner--danger  { --qx-banner-accent: #ef4444; --qx-banner-tint: rgba(239,68,68,0.08);   --qx-banner-border: rgba(239,68,68,0.3); }
+/* --info was consumed by six components (X setup wizard, Telegram Pro wizard,
+   Wazuh, Brain2 connect, core-comms banner, workflow library) before it was
+   ever defined, so every one of them fell back to the base accent and an
+   informational banner was indistinguishable from a neutral one. Cyan is the
+   brand's information colour. */
+.qx-banner--info    { --qx-banner-accent: #38bdf8; --qx-banner-tint: rgba(56,189,248,0.08);  --qx-banner-border: rgba(56,189,248,0.3); }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 19. TOOLTIP                                                               */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* CSS-only tooltip via data-attr. Apply to any element:
+   <button className="qx-tip" data-tip="Run playbook">▶</button> */
+.qx-tip { position: relative; }
+.qx-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  padding: 5px 10px;
+  background: rgba(10,12,20,0.95);
+  backdrop-filter: var(--qx-blur);
+  border: 1px solid var(--m-border-default);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  z-index: 1500;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.qx-tip:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.qx-tip--below::after { bottom: auto; top: calc(100% + 8px); }
+.qx-tip--right::after { left: calc(100% + 8px); bottom: 50%; transform: translateY(50%) translateX(4px); top: auto; }
+.qx-tip--right:hover::after { transform: translateY(50%) translateX(0); }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 20. BREADCRUMBS                                                           */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+}
+.qx-crumbs__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255,255,255,0.8);
+  text-decoration: none;
+  padding: 2px 6px;
+  border-radius: 5px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.qx-crumbs__item:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.qx-crumbs__item--current { color: #fff; font-weight: 600; }
+.qx-crumbs__sep { opacity: 0.5; user-select: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 21. PAGINATION                                                            */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-pag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--m-border-default);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);
+}
+.qx-pag__btn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255,255,255,0.85);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.qx-pag__btn:hover:not(:disabled):not(.qx-pag__btn--active) { background: rgba(255,255,255,0.06); color: #fff; }
+.qx-pag__btn--active {
+  background: linear-gradient(145deg, rgba(168,85,247,0.22), rgba(56,189,248,0.1));
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.16);
+}
+.qx-pag__btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.qx-pag__ellipsis { padding: 0 4px; color: rgba(255,255,255,0.8); user-select: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 22. COLLAPSIBLE / DISCLOSURE                                              */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-disclosure {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--m-border-default);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.qx-disclosure__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.15s ease;
+}
+.qx-disclosure__head:hover { background: rgba(255,255,255,0.04); }
+.qx-disclosure__chev {
+  transition: transform 0.2s ease;
+  color: rgba(255,255,255,0.8);
+  margin-left: auto;
+}
+.qx-disclosure[open] .qx-disclosure__chev,
+.qx-disclosure--open .qx-disclosure__chev { transform: rotate(90deg); color: #fff; }
+.qx-disclosure__body {
+  padding: 0 14px 14px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.85);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 12px;
+  margin-top: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 23. TAG INPUT (chip-based input field)                                    */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-tagfield {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--m-border-default);
+  border-radius: 10px;
+  min-height: 40px;
+  cursor: text;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.qx-tagfield:focus-within {
+  border-color: rgba(56,189,248,0.55);
+  box-shadow: 0 0 0 3px rgba(56,189,248,0.14);
+}
+.qx-tagfield__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 4px 3px 8px;
+  background: linear-gradient(145deg, rgba(168,85,247,0.2), rgba(56,189,248,0.08));
+  border: 1px solid rgba(168,85,247,0.35);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+}
+.qx-tagfield__x {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.85);
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.qx-tagfield__x:hover { background: rgba(239,68,68,0.18); color: #fff; }
+.qx-tagfield__input {
+  flex: 1;
+  min-width: 100px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 24. GRAPHS — sparkline + bar chart + trend indicator                      */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* Inline sparkline container — pair with an inline <svg> of the line/area.
+   Size the wrapper; the SVG fills. */
+.qx-spark {
+  display: inline-block;
+  width: 80px;
+  height: 28px;
+  position: relative;
+  line-height: 0;
+}
+.qx-spark svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.qx-spark__line {
+  fill: none;
+  stroke: url(#qx-spark-grad);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 3px rgba(56,189,248,0.4));
+}
+.qx-spark__area { fill: url(#qx-spark-area); opacity: 0.55; }
+.qx-spark__dot {
+  fill: #fff;
+  stroke: #38bdf8;
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 4px rgba(56,189,248,0.8));
+}
+.qx-spark--success .qx-spark__line  { stroke: #30ff90; filter: drop-shadow(0 0 3px rgba(48,255,144,0.5)); }
+.qx-spark--warn    .qx-spark__line  { stroke: #f59e0b; filter: drop-shadow(0 0 3px rgba(245,158,11,0.5)); }
+.qx-spark--crit    .qx-spark__line  { stroke: #ef4444; filter: drop-shadow(0 0 3px rgba(239,68,68,0.5)); }
+.qx-spark--lg      { width: 160px; height: 48px; }
+.qx-spark--xl      { width: 100%;  height: 120px; }
+
+/* CSS-only bar chart. Each bar is a div with inline --qx-h: 0..1.
+   <div className="qx-bars">
+     <div className="qx-bars__bar" style={{ '--qx-h': 0.7 }} />
+     ...
+   </div> */
+.qx-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 60px;
+  padding: 2px 0;
+}
+.qx-bars__bar {
+  --qx-h: 0;
+  --qx-bar-color: #38bdf8;
+  --qx-bar-color-2: #a855f7;
+  flex: 1;
+  min-width: 4px;
+  height: calc(var(--qx-h) * 100%);
+  min-height: 2px;
+  background: linear-gradient(180deg, var(--qx-bar-color), var(--qx-bar-color-2));
+  border-radius: 3px 3px 0 0;
+  box-shadow: 0 0 8px rgba(168,85,247,0.25), inset 0 1px 0 rgba(255,255,255,0.2);
+  transition: height 0.45s cubic-bezier(0.2, 0, 0, 1);
+}
+.qx-bars__bar--success { --qx-bar-color: #30ff90; --qx-bar-color-2: #30ff90; }
+.qx-bars__bar--warn    { --qx-bar-color: #f59e0b; --qx-bar-color-2: #f59e0b; }
+.qx-bars__bar--crit    { --qx-bar-color: #ef4444; --qx-bar-color-2: #f87171; }
+.qx-bars__bar--dim     { --qx-bar-color: rgba(255,255,255,0.2); --qx-bar-color-2: rgba(255,255,255,0.1); box-shadow: none; }
+
+/* Trend indicator — up/down arrow + value + label. */
+.qx-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+}
+.qx-trend--up    { color: #30ff90; }
+.qx-trend--down  { color: #f87171; }
+.qx-trend--flat  { color: rgba(255,255,255,0.8); }
+.qx-trend__arrow {
+  display: inline-flex;
+  width: 10px;
+  height: 10px;
+}
+
+/* Mini horizontal bar with label (used for distribution rows). */
+.qx-hbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.qx-hbar__label {
+  font-size: 11px;
+  color: #fff;
+  min-width: 70px;
+  white-space: nowrap;
+}
+.qx-hbar__track {
+  --qx-h: 0;
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+.qx-hbar__track::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: calc(var(--qx-h) * 100%);
+  background: linear-gradient(90deg, #38bdf8, #a855f7);
+  box-shadow: 0 0 8px rgba(168,85,247,0.4);
+}
+.qx-hbar__value {
+  font-size: 11px;
+  color: #fff;
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+  min-width: 40px;
+  text-align: right;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 25. TREE / HIERARCHY (folder trees, agent family, objective decomp)       */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-tree { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.qx-tree__item {
+  --qx-tree-depth: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  padding-left: calc(10px + var(--qx-tree-depth) * 18px);
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.qx-tree__item:hover { background: rgba(255,255,255,0.05); }
+.qx-tree__item--selected {
+  background: linear-gradient(90deg, rgba(168,85,247,0.14), rgba(56,189,248,0.04));
+  box-shadow: inset 2px 0 0 #a855f7;
+  color: #fff;
+}
+.qx-tree__chev {
+  width: 12px; height: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.8);
+  transition: transform 0.15s ease;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.qx-tree__item--open > .qx-tree__chev { transform: rotate(90deg); color: #fff; }
+.qx-tree__icon { width: 14px; height: 14px; flex-shrink: 0; opacity: 0.9; }
+.qx-tree__label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qx-tree__count {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: rgba(255,255,255,0.75);
+  padding: 1px 6px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 26. LOG LINE / LOG STREAM                                                 */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-log-stream {
+  background: rgba(10,12,20,0.5);
+  border: 1px solid var(--m-border-default);
+  border-radius: 12px;
+  padding: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 12px;
+  line-height: 1.55;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.qx-log-line {
+  display: grid;
+  grid-template-columns: 72px 56px auto 1fr;
+  gap: 10px;
+  align-items: baseline;
+  padding: 3px 8px;
+  border-radius: 5px;
+  color: #fff;
+  transition: background 0.1s ease;
+}
+.qx-log-line:hover { background: rgba(255,255,255,0.04); }
+.qx-log-line__ts     { color: rgba(255,255,255,0.7); font-size: 11px; }
+.qx-log-line__level  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.qx-log-line__level--info  { color: #60a5fa; }
+.qx-log-line__level--warn  { color: #f59e0b; }
+.qx-log-line__level--error { color: #f87171; }
+.qx-log-line__level--ok    { color: #30ff90; }
+.qx-log-line__level--debug { color: rgba(255,255,255,0.75); }
+.qx-log-line__src { color: #c084fc; font-weight: 600; }
+.qx-log-line__msg { color: #fff; word-break: break-word; }
+
+.qx-log-stream__tail {
+  position: sticky;
+  bottom: 8px;
+  margin: 4px auto 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(48,255,144,0.14);
+  border: 1px solid rgba(48,255,144,0.35);
+  border-radius: 999px;
+  color: #30ff90;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  cursor: pointer;
+  animation: qx-dot-breathe 2s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 27. HEATMAP GRID (fleet health, threshold matrices)                       */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-heatmap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 4px;
+}
+.qx-heatmap__cell {
+  --qx-cell-intensity: 0;
+  --qx-cell-color: #38bdf8;
+  aspect-ratio: 1.2 / 1;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.04), rgba(255,255,255,0)) ,
+    color-mix(in srgb, var(--qx-cell-color) calc(var(--qx-cell-intensity) * 100%), transparent);
+  border: 1px solid color-mix(in srgb, var(--qx-cell-color) 30%, transparent);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #fff;
+  font-size: 10px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.qx-heatmap__cell:hover {
+  transform: scale(1.06);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--qx-cell-color) 40%, transparent);
+  z-index: 1;
+}
+.qx-heatmap__cell--healthy { --qx-cell-color: #30ff90; }
+.qx-heatmap__cell--warn    { --qx-cell-color: #f59e0b; }
+.qx-heatmap__cell--crit    { --qx-cell-color: #ef4444; }
+.qx-heatmap__cell--unknown { --qx-cell-color: rgba(255,255,255,0.35); }
+.qx-heatmap__label { font-weight: 700; font-size: 11px; letter-spacing: 0.02em; }
+.qx-heatmap__val   { font-family: var(--font-mono, monospace); font-variant-numeric: tabular-nums; opacity: 0.9; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 28. DIFF VIEW (added / removed lines)                                     */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-diff {
+  background: rgba(10,12,20,0.5);
+  border: 1px solid var(--m-border-default);
+  border-radius: 12px;
+  padding: 4px 0;
+  overflow-x: auto;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.qx-diff__line {
+  display: grid;
+  grid-template-columns: 36px 20px 1fr;
+  gap: 8px;
+  padding: 2px 10px;
+  color: #fff;
+}
+.qx-diff__ln   { color: rgba(255,255,255,0.7); text-align: right; font-size: 11px; }
+.qx-diff__sign { font-weight: 700; text-align: center; }
+.qx-diff__line--add    { background: rgba(48,255,144,0.08); }
+.qx-diff__line--add .qx-diff__sign { color: #30ff90; }
+.qx-diff__line--remove { background: rgba(239,68,68,0.08); }
+.qx-diff__line--remove .qx-diff__sign { color: #f87171; }
+.qx-diff__line--context { background: transparent; }
+.qx-diff__hunk {
+  padding: 4px 12px;
+  color: #c084fc;
+  font-size: 11px;
+  background: rgba(168,85,247,0.07);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  user-select: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 29. CANVAS / NODE / EDGE (workflow, topology)                             */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-canvas {
+  position: relative;
+  background: transparent;
+  border: 1px solid var(--m-border-default);
+  border-radius: 14px;
+  overflow: hidden;
+  background-image:
+    radial-gradient(circle at 50% 30%, rgba(56,189,248,0.06) 0%, transparent 60%),
+    linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: auto, 36px 36px, 36px 36px;
+}
+.qx-canvas__toolbar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  gap: 6px;
+  z-index: 2;
+}
+
+.qx-node {
+  --qx-node-color: #38bdf8;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  min-width: 160px;
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-top: 1px solid color-mix(in srgb, var(--qx-node-color) 55%, rgba(255,255,255,0.2));
+  border-radius: 12px;
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.12);
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.qx-node:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.4), 0 0 22px color-mix(in srgb, var(--qx-node-color) 22%, transparent), inset 0 1px 0 rgba(255,255,255,0.18);
+  border-color: color-mix(in srgb, var(--qx-node-color) 60%, rgba(255,255,255,0.2));
+}
+.qx-node--selected {
+  box-shadow: 0 10px 36px rgba(0,0,0,0.5), 0 0 30px color-mix(in srgb, var(--qx-node-color) 35%, transparent), inset 0 1px 0 rgba(255,255,255,0.2);
+  border-color: var(--qx-node-color);
+}
+.qx-node__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--qx-node-color);
+}
+.qx-node__title { font-size: 13px; font-weight: 600; color: #fff; }
+.qx-node__sub   { font-size: 11px; color: rgba(255,255,255,0.8); font-family: var(--font-mono, monospace); }
+
+.qx-node-handle {
+  --qx-handle-color: #38bdf8;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--qx-handle-color);
+  box-shadow: 0 0 8px var(--qx-handle-color);
+  border: 2px solid rgba(10,12,20,0.9);
+}
+
+.qx-edge {
+  stroke: #38bdf8;
+  stroke-width: 1.6;
+  fill: none;
+  filter: drop-shadow(0 0 4px rgba(56,189,248,0.55));
+}
+.qx-edge--animated {
+  stroke-dasharray: 6 6;
+  animation: qx-edge-flow 1.4s linear infinite;
+}
+@keyframes qx-edge-flow { to { stroke-dashoffset: -24; } }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 30. EVIDENCE / TRAIL (chain of custody)                                   */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-trail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.qx-trail__node {
+  --qx-trail-color: #38bdf8;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 6px;
+  background: color-mix(in srgb, var(--qx-trail-color) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--qx-trail-color) 35%, transparent);
+  border-radius: 6px;
+  color: #fff;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 600;
+}
+.qx-trail__node::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--qx-trail-color);
+  box-shadow: 0 0 6px var(--qx-trail-color);
+}
+.qx-trail__node--aee  { --qx-trail-color: #38bdf8; }
+.qx-trail__node--aocl { --qx-trail-color: #a855f7; }
+.qx-trail__node--volt { --qx-trail-color: #30ff90; }
+.qx-trail__node--ward { --qx-trail-color: #06b6d4; }
+.qx-trail__sep {
+  color: rgba(255,255,255,0.7);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+}
+
+.qx-evidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.85);
+  font-family: var(--font-mono, monospace);
+}
+.qx-evidence__dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #30ff90;
+  box-shadow: 0 0 6px rgba(48,255,144,0.6);
+}
+.qx-evidence__source { font-weight: 600; color: #fff; }
+.qx-evidence__sep    { opacity: 0.5; }
+.qx-evidence__ts     { color: rgba(255,255,255,0.8); }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 31. SCORED SEARCH RESULT                                                  */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-result {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 14px;
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--m-border-default);
+  border-radius: 12px;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.qx-result:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.28);
+  transform: translateY(-1px);
+}
+.qx-result__score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px;
+  background: linear-gradient(145deg, rgba(168,85,247,0.12), rgba(56,189,248,0.06));
+  border: 1px solid rgba(168,85,247,0.3);
+  border-radius: 10px;
+}
+.qx-result__score-val {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.qx-result__score-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.8);
+}
+.qx-result__body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.qx-result__title { font-size: 14px; font-weight: 600; color: #fff; }
+.qx-result__snippet { font-size: 12px; color: rgba(255,255,255,0.88); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.qx-result__snippet mark {
+  background: rgba(56,189,248,0.28);
+  color: #fff;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+.qx-result__meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: rgba(255,255,255,0.8);
+  font-family: var(--font-mono, monospace);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 32. AGENT TILE + CAPABILITY CHIP + PROMPT BOX                             */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-agent-tile {
+  --qx-agent-color: #38bdf8;
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--m-border-default);
+  border-top: 1px solid color-mix(in srgb, var(--qx-agent-color) 45%, rgba(255,255,255,0.18));
+  border-radius: 12px;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.qx-agent-tile:hover {
+  background: rgba(255,255,255,0.08);
+  transform: translateY(-1px);
+}
+.qx-agent-tile__avatar {
+  width: 48px; height: 48px;
+  border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--qx-agent-color) 30%, transparent), rgba(168,85,247,0.12));
+  border: 1px solid color-mix(in srgb, var(--qx-agent-color) 35%, rgba(255,255,255,0.1));
+  color: #fff; font-size: 18px; font-weight: 800; letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+.qx-agent-tile__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.qx-agent-tile__name { font-size: 13px; font-weight: 700; color: #fff; }
+.qx-agent-tile__role {
+  font-size: 10px; font-weight: 700;
+  color: var(--qx-agent-color);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.qx-agent-tile__sub { font-size: 12px; color: rgba(255,255,255,0.85); }
+
+.qx-cap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--m-border-default);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.02em;
+}
+.qx-cap--read  { border-color: rgba(56,189,248,0.35);  color: #38bdf8; background: rgba(56,189,248,0.08); }
+.qx-cap--write { border-color: rgba(245,158,11,0.35);  color: #f59e0b; background: rgba(245,158,11,0.08); }
+.qx-cap--exec  { border-color: rgba(239,68,68,0.35);   color: #f87171; background: rgba(239,68,68,0.08); }
+.qx-cap__dot {
+  width: 5px; height: 5px; border-radius: 50%; background: currentColor;
+}
+
+.qx-prompt {
+  position: relative;
+  background: rgba(10,12,20,0.6);
+  border: 1px solid var(--m-border-default);
+  border-radius: 12px;
+  padding: 14px 16px 14px 16px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #e6e9ef;
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.qx-prompt__toolbar {
+  position: absolute; top: 8px; right: 8px;
+  display: inline-flex; gap: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 33. STICKY ACTIONS (save/discard footer for long forms)                   */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-sticky-actions {
+  position: sticky;
+  bottom: 0;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(10,12,20,0.88);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+  border: 1px solid var(--m-border-default);
+  border-radius: 14px;
+  box-shadow: 0 -8px 30px rgba(0,0,0,0.4);
+  z-index: 10;
+}
+.qx-sticky-actions__status {
+  font-size: 12px;
+  color: rgba(255,255,255,0.85);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.qx-sticky-actions__spacer { flex: 1; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 34. DROPZONE (file drag/drop area)                                        */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 36px 20px;
+  background: rgba(56,189,248,0.04);
+  border: 2px dashed rgba(56,189,248,0.4);
+  border-radius: 14px;
+  color: rgba(255,255,255,0.88);
+  font-size: 13px;
+  text-align: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.qx-dropzone:hover,
+.qx-dropzone--active {
+  background: rgba(56,189,248,0.1);
+  border-color: rgba(56,189,248,0.75);
+  color: #fff;
+  box-shadow: 0 0 32px rgba(56,189,248,0.2), inset 0 0 20px rgba(56,189,248,0.08);
+}
+.qx-dropzone__icon {
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(56,189,248,0.12);
+  border: 1px solid rgba(56,189,248,0.3);
+  border-radius: 10px;
+  color: #38bdf8;
+}
+.qx-dropzone__hint { font-size: 11px; color: rgba(255,255,255,0.8); font-family: var(--font-mono, monospace); }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 35. STACKED SEGMENT BAR (distribution / type breakdown)                   */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-segbar {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--m-border-default);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.qx-segbar__seg {
+  --qx-seg-color: #38bdf8;
+  --qx-seg-w: 0%;
+  width: var(--qx-seg-w);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--qx-seg-color) 100%, transparent), color-mix(in srgb, var(--qx-seg-color) 70%, transparent));
+  transition: width 0.4s cubic-bezier(0.2, 0, 0, 1);
+  border-right: 1px solid rgba(0,0,0,0.3);
+}
+.qx-segbar__seg:last-child { border-right: none; }
+
+.qx-segbar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.85);
+}
+.qx-segbar-legend__item { display: inline-flex; align-items: center; gap: 5px; }
+.qx-segbar-legend__swatch { width: 8px; height: 8px; border-radius: 2px; background: var(--qx-seg-color, #38bdf8); }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 36. SEVERITY TOKENS (for use across log/alert/severity APIs)              */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --qx-sev-info: #60a5fa;
+  --qx-sev-low:  #60a5fa;
+  --qx-sev-warn: #f59e0b;
+  --qx-sev-med:  #f59e0b;
+  --qx-sev-high: #fc8181;
+  --qx-sev-crit: #ef4444;
+  --qx-sev-ok:   #30ff90;
+  --qx-thresh-healthy: #30ff90;
+  --qx-thresh-warn:    #f59e0b;
+  --qx-thresh-crit:    #ef4444;
+  --qx-font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 37. BROWSER-STYLE TABS (conversation tabs, chrome-ish)                    */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-btabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 0 8px;
+  position: relative;
+  min-height: 38px;
+  border-bottom: 1px solid var(--m-border-default);
+}
+.qx-btab {
+  --qx-btab-h: 34px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--qx-btab-h);
+  padding: 0 26px 0 14px;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.8);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  max-width: 220px;
+  min-width: 100px;
+  user-select: none;
+  transition: color 0.15s ease, background 0.15s ease;
+  clip-path: polygon(
+    0 100%,
+    8px 0,
+    calc(100% - 8px) 0,
+    100% 100%
+  );
+}
+.qx-btab::before {
+  content: '';
+  position: absolute;
+  inset: 0 1px;
+  background: rgba(255,255,255,0.03);
+  clip-path: inherit;
+  z-index: -1;
+}
+.qx-btab:hover { color: #fff; }
+.qx-btab:hover::before { background: rgba(255,255,255,0.06); }
+.qx-btab--active { color: #fff; }
+.qx-btab--active::before {
+  background: var(--m-bg-base);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);
+}
+.qx-btab--active::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(0,229,255,0) 0%, rgba(0,229,255,0.85) 30%, rgba(139,92,246,0.85) 70%, rgba(139,92,246,0) 100%);
+  z-index: 1;
+}
+
+.qx-btab__favicon,
+.qx-btab__dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.qx-btab__dot--active { background: #30ff90; box-shadow: 0 0 6px rgba(48,255,144,0.6); animation: qx-dot-breathe 2s ease-in-out infinite; }
+.qx-btab__dot--idle   { background: rgba(255,255,255,0.35); }
+.qx-btab__dot--busy   { background: #38bdf8; animation: qx-dot-scan 1.2s ease-in-out infinite; }
+
+.qx-btab__label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qx-btab__close {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: rgba(255,255,255,0.8);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+  font-size: 14px;
+  line-height: 1;
+}
+.qx-btab:hover .qx-btab__close,
+.qx-btab--active .qx-btab__close { opacity: 1; }
+.qx-btab__close:hover { background: rgba(239,68,68,0.2); color: #fff; }
+
+.qx-btabs__new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 4px;
+  margin-bottom: 3px;
+  background: transparent;
+  border: 1px dashed rgba(255,255,255,0.14);
+  border-radius: 8px;
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.qx-btabs__new:hover {
+  background: rgba(56,189,248,0.1);
+  border-color: rgba(56,189,248,0.4);
+  color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 38. TERMINAL V2 — next-level with scanline, prompt glow, status ribbon    */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-terminal-v2 {
+  position: relative;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(56,189,248,0.08), transparent 60%),
+    #06080f;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-top: 1px solid rgba(56,189,248,0.35);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow:
+    0 10px 50px rgba(0,0,0,0.55),
+    0 0 24px rgba(56,189,248,0.1),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  font-family: var(--qx-font-mono);
+  color: #d6dbe3;
+}
+.qx-terminal-v2::before {
+  /* scanlines */
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(56,189,248,0) 0,
+    rgba(56,189,248,0) 2px,
+    rgba(56,189,248,0.015) 2px,
+    rgba(56,189,248,0.015) 3px
+  );
+  z-index: 1;
+  animation: qx-scan 4s linear infinite;
+}
+@keyframes qx-scan {
+  from { background-position: 0 0; }
+  to   { background-position: 0 40px; }
+}
+.qx-terminal-v2__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: rgba(10,14,22,0.6);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  position: relative;
+  z-index: 2;
+  font-size: 11px;
+}
+.qx-terminal-v2__title { font-weight: 700; color: #fff; letter-spacing: 0.05em; }
+.qx-terminal-v2__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  background: rgba(48,255,144,0.14);
+  border: 1px solid rgba(48,255,144,0.35);
+  border-radius: 999px;
+  color: #30ff90;
+  font-family: var(--qx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+}
+.qx-terminal-v2__body {
+  position: relative;
+  z-index: 2;
+  padding: 14px 18px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  min-height: 180px;
+  max-height: 480px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+.qx-terminal-v2__prompt {
+  color: #38bdf8;
+  text-shadow: 0 0 6px rgba(56,189,248,0.55);
+}
+.qx-terminal-v2__user  { color: #a855f7; text-shadow: 0 0 4px rgba(168,85,247,0.45); }
+.qx-terminal-v2__ok    { color: #30ff90; }
+.qx-terminal-v2__warn  { color: #f59e0b; }
+.qx-terminal-v2__err   { color: #f87171; }
+.qx-terminal-v2__cursor {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  background: #38bdf8;
+  box-shadow: 0 0 6px rgba(56,189,248,0.8);
+  vertical-align: middle;
+  animation: qx-cursor 1.05s steps(2) infinite;
+}
+@keyframes qx-cursor { 50% { opacity: 0; } }
+.qx-terminal-v2__cmdbar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  background: rgba(10,14,22,0.6);
+  font-family: var(--qx-font-mono);
+  font-size: 12.5px;
+}
+.qx-terminal-v2__cmdbar input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-family: inherit;
+  font-size: inherit;
+}
+.qx-terminal-v2__cmdbar input::placeholder { color: rgba(255,255,255,0.55); }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 39. PLUGIN ENABLE EFFECT                                                  */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* State wrapper: add `data-qx-enabled` to a tile to trigger the entrance
+   shimmer + ring burst. Toggle via React/JS — when becoming true,
+   add the attribute and optionally remove after 1.2s. */
+.qx-enableable { position: relative; overflow: visible; }
+.qx-enableable[data-qx-enabled="true"]::before,
+.qx-enableable[data-qx-enabled="true"]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.qx-enableable[data-qx-enabled="true"]::before {
+  box-shadow: 0 0 0 0 rgba(168,85,247,0.6);
+  animation: qx-enable-ring 1s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+.qx-enableable[data-qx-enabled="true"]::after {
+  background: radial-gradient(circle at 50% 50%, rgba(168,85,247,0.35), rgba(56,189,248,0.15) 40%, transparent 70%);
+  opacity: 0;
+  animation: qx-enable-flash 1s ease-out forwards;
+}
+@keyframes qx-enable-ring {
+  0%   { box-shadow: 0 0 0 0   rgba(168,85,247,0.7), 0 0 0 0  rgba(56,189,248,0.5); }
+  50%  { box-shadow: 0 0 0 18px rgba(168,85,247,0.0), 0 0 0 8px rgba(56,189,248,0.15); }
+  100% { box-shadow: 0 0 0 40px rgba(168,85,247,0),    0 0 0 24px rgba(56,189,248,0); }
+}
+@keyframes qx-enable-flash {
+  0%   { opacity: 0; transform: scale(0.9); }
+  30%  { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 0; transform: scale(1.08); }
+}
+
+/* "Live now" state — ongoing glow (post-enable steady-state). */
+.qx-enabled-glow {
+  position: relative;
+  box-shadow: 0 0 0 1px rgba(168,85,247,0.3), 0 0 22px rgba(168,85,247,0.18);
+  animation: qx-enabled-pulse 3s ease-in-out infinite;
+}
+@keyframes qx-enabled-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(168,85,247,0.28), 0 0 22px rgba(168,85,247,0.16); }
+  50%      { box-shadow: 0 0 0 1px rgba(56,189,248,0.38), 0 0 28px rgba(56,189,248,0.28); }
+}
+
+/* Enable toggle visual — swap bordered-grey → gradient-glow state. */
+.qx-plugin-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--m-border-default);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--qx-font-mono);
+  color: rgba(255,255,255,0.8);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: all 0.25s ease;
+}
+.qx-plugin-state::before {
+  content: '';
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(255,255,255,0.35);
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+.qx-plugin-state--on {
+  background: linear-gradient(145deg, rgba(168,85,247,0.18), rgba(56,189,248,0.08));
+  border-color: rgba(168,85,247,0.5);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(168,85,247,0.28);
+}
+.qx-plugin-state--on::before {
+  background: #30ff90;
+  box-shadow: 0 0 8px rgba(48,255,144,0.8);
+  animation: qx-dot-breathe 2.2s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 31. MODAL (qx-modal-overlay + qx-modal)                                  */
+/* Full-screen overlay + centred glass panel. Canonical flyout recipe.      */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.qx-modal {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+
+  /* Glass panel recipe */
+  background: var(--m-bg-base);
+  border: 1px solid var(--m-border-default);
+  border-radius: var(--qx-radius);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -1px 0 rgba(0,0,0,0.45),
+    0 24px 64px rgba(0,0,0,0.55);
+}
+
+/* Luminous 4-edge rim — same pattern as .qx-card */
+.qx-modal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.qx-modal > * { position: relative; z-index: 1; }
+
+/* Modal semantic sub-elements */
+.qx-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.qx-modal__header h2,
+.qx-modal__header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.qx-modal__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.qx-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.qx-modal__success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+.qx-modal__success p { margin: 0; }
+.qx-modal__hint { color: rgba(255,255,255,0.6); font-size: 0.875rem; }
+.qx-modal__desc { color: rgba(255,255,255,0.6); font-size: 0.875rem; margin: 0; }
+
+/* Preview list inside a success banner */
+.qx-modal__preview {
+  flex-direction: column;
+  align-items: flex-start;
+  max-height: 200px;
+  overflow-y: auto;
+  gap: 4px;
+}
+.qx-modal__preview-count { color: rgba(255,255,255,0.7); font-size: 0.8rem; }
+.qx-modal__preview-item  { display: flex; flex-direction: column; gap: 2px; }
+.qx-modal__preview-desc  { font-size: 0.75rem; color: rgba(255,255,255,0.5); }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 32. QX-CARD shell variant (application-feel canonical template)          */
+/* Use on the single card inside .qx-view when the card IS the page.       */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-card.tools-view__shell {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+}
+
+/* Tools-view utility helpers */
+.tools-view__import-label { cursor: pointer; }
+.tools-view__search { flex: 1; }
+.tools-view__filter-label {
+  color: rgba(255,255,255,0.6);
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: center;
+}
+.tools-view__chip { flex-shrink: 0; white-space: nowrap; }
+.tools-view__section { margin-bottom: 16px; }
+.tools-view__section .qx-section-title { margin-bottom: 12px; }
+.tools-view__cat-header { align-items: center; margin-bottom: 12px; }
+.tools-view__cat-name { font-weight: 600; }
+.tools-view__cat-count { color: rgba(255,255,255,0.4); font-size: 0.85rem; }
+.tools-view__plugin-badge { font-size: 0.65rem; }
+.core-category-section { margin-bottom: 16px; }
+.tools-view__desc { color: rgba(255,255,255,0.6); font-size: 0.9rem; margin: 0 0 8px; }
+
+/* Tool detail modal helpers */
+.tool-detail__desc { font-size: 1rem; opacity: 0.9; margin: 0 0 16px; }
+.tool-detail__section { margin-top: 16px; }
+.tool-detail__section-label { font-size: 0.85rem; color: rgba(255,255,255,0.7); margin: 0 0 10px; font-weight: 600; }
+.tool-detail__props { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.tool-detail__agents { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.tool-detail__agent-tag {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+.tool-detail__prop-full { grid-column: 1 / -1; }
+.tool-detail__params { display: flex; flex-direction: column; gap: 6px; }
+.tool-detail__param {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+.tool-detail__param-head { display: flex; align-items: center; gap: 6px; }
+.tool-detail__param-name { font-size: 0.85rem; color: #60a5fa; font-family: var(--qx-font-mono, monospace); }
+.tool-detail__param-name--plugin { color: #a855f7; }
+.tool-detail__param-type { font-size: 0.7rem; color: rgba(255,255,255,0.5); }
+.tool-detail__param-required { font-size: 0.65rem; color: #f59e0b; font-weight: 600; }
+.tool-detail__param-desc { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin: 4px 0 0; }
+.tool-detail__param-enum { font-size: 0.75rem; color: rgba(255,255,255,0.4); margin: 4px 0 0; }
+.tool-detail__source-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: rgba(59,130,246,0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59,130,246,0.3);
+}
+.tool-detail__source-badge--plugin {
+  background: rgba(168,85,247,0.15);
+  color: #a855f7;
+  border-color: rgba(168,85,247,0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 33. QX-CARD--BAR  — compressed vertical padding for header/filter bars   */
+/* Use alongside .qx-card for 64px/56px fixed-height bar panels.            */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-card--bar {
+  padding: 12px 20px;
+  min-height: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 34. TOOLS-GRID-CARD — fixed card height for Panel D tool grids          */
+/* Apply to any .workflow-card / .tool-card rendered inside Panel D.        */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.tools-grid-card {
+  min-height: 180px;
+  max-height: 180px;
+  overflow: hidden;
+}
+
+/* Description ellipsis within fixed-height tool cards */
+.tools-grid-card .workflow-card__description {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 34b. CATALOG-GRID-AUTO — responsive auto-fill grid for /tools catalog    */
+/* Adapts column count to available space: 1-2 wide cards when both         */
+/* sidebars are open, 3-4 cards when more space is available.               */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* Auto-fill catalog grid: adapts column count to available space.
+   At narrow center column (with both sidebars open), shows 1-2 wider cards.
+   At wider center column (one sidebar collapsed), shows 3-4 cards. */
+.catalog-grid-auto {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 35. TOOL-CARD — unified tool card for /tools grid (STUDY-REV-2/P1.A)    */
+/* Fixed 180px height; NO left-edge coloured bar. Use in ToolCard.jsx.     */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.tool-card {
+  height: 180px;
+  width: 100%;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  /* Reset button defaults */
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+.tool-card:hover {
+  transform: translateY(-2px);
+}
+.tool-card:active {
+  transform: translateY(0);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45),
+              0 0 0 1px rgba(168,85,247,0.5), 0 0 0 2px rgba(56,189,248,0.2);
+}
+
+/* Row 1: icon + name + status pill */
+.tool-card__row1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.tool-card__icon {
+  font-size: 18px;
+  opacity: 0.85;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+.tool-card__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+.tool-card__status {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Row 2: description (3-line clamp, grows to fill space) */
+.tool-card__desc {
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.45;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  margin: 0;
+}
+
+/* Row 3: meta strip pinned to bottom */
+.tool-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  flex: 0 0 auto;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 36. TOOL-CAT-ROW — category list rows in the left panel of /tools       */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.tool-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.85);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+  text-align: left;
+}
+.tool-cat-row:hover {
+  background: var(--m-bg-elevated, rgba(255,255,255,0.12));
+}
+.tool-cat-row--active {
+  background: linear-gradient(145deg, rgba(168,85,247,0.18), rgba(56,189,248,0.08));
+  color: #fff;
+  font-weight: 600;
+}
+.tool-cat-row__icon {
+  font-size: 16px;
+  opacity: 0.85;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+.tool-cat-row__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-cat-row__count {
+  margin-left: auto;
+  font-size: 11px;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 36b. TOOL-CAT TREE — parent/subcategory collapsible sidebar tree        */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.tool-cat-group {
+  margin-bottom: 2px;
+}
+
+.tool-cat-parent {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.tool-cat-row--parent {
+  flex: 1;
+  min-width: 0;
+  padding-right: 4px;
+}
+
+.tool-cat-expand-btn {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.5);
+  font-size: 11px;
+  padding: 0 8px 0 0;
+  cursor: pointer;
+  line-height: 38px;
+  transition: color 120ms ease;
+}
+.tool-cat-expand-btn:hover {
+  color: rgba(255,255,255,0.9);
+}
+
+.tool-cat-subcategories {
+  padding-left: 20px;
+  padding-bottom: 4px;
+}
+
+.tool-cat-subrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.75);
+  transition: background 120ms ease, color 120ms ease;
+}
+.tool-cat-subrow:hover {
+  background: var(--m-bg-elevated, rgba(255,255,255,0.08));
+  color: rgba(255,255,255,0.95);
+}
+.tool-cat-subrow__check {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  accent-color: #a855f7;
+  cursor: pointer;
+}
+.tool-cat-subrow__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-cat-show-all {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.45);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 8px 12px;
+  margin-top: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: color 120ms ease;
+}
+.tool-cat-show-all:hover {
+  color: rgba(255,255,255,0.75);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 37. CHIP / PILL XS — scaled-down variants for tool card meta strips     */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-chip--xs {
+  font-size: 10px;
+  padding: 2px 6px;
+  gap: 4px;
+}
+
+.qx-pill--xs {
+  font-size: 10px;
+  padding: 2px 6px;
+}
+
+/* Risk-level pill colours */
+.qx-pill--success { background: rgba(34,197,94,0.12);  border-color: rgba(34,197,94,0.35);  color: #4ade80; }
+.qx-pill--low     { background: rgba(34,197,94,0.12);  border-color: rgba(34,197,94,0.35);  color: #4ade80; }
+.qx-pill--medium  { background: rgba(234,179,8,0.12);  border-color: rgba(234,179,8,0.35);  color: #facc15; }
+.qx-pill--high    { background: rgba(249,115,22,0.12); border-color: rgba(249,115,22,0.35); color: #fb923c; }
+/* Danger / drift alert — bright red, same family as --offline/--critical */
+.qx-pill--danger  { background: rgba(239,68,68,0.12);  border-color: rgba(239,68,68,0.35);  color: #f87171; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 38. PERCENT--BRAND — explicit cyan→purple ring/value variant             */
+/* (referenced by /qx-lab/components already; was missing its definition)  */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-percent--brand { --qx-pct-color: #38bdf8; --qx-pct-color-2: #a855f7; }
+
+.qx-percent-value--brand {
+  background: linear-gradient(90deg, #38bdf8, #a855f7);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 39. BRAIN AMBIENT — tasteful backdrop glow for the Brain2 growth hero,   */
+/* intensifying with the note-growth band (dormant..dense). Lightweight    */
+/* CSS-only (no canvas/force-graph); respects prefers-reduced-motion.      */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-brain-ambient {
+  --qx-ambient-intensity: 0.2;
+  position: absolute;
+  inset: -20%;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(circle at 22% 35%,
+    rgba(56,189,248, calc(var(--qx-ambient-intensity) * 0.35)),
+    rgba(168,85,247, calc(var(--qx-ambient-intensity) * 0.22)) 45%,
+    transparent 70%);
+  filter: blur(28px);
+  animation: qx-brain-ambient-breathe 6s ease-in-out infinite;
+}
+@keyframes qx-brain-ambient-breathe {
+  0%, 100% { opacity: calc(0.6 + var(--qx-ambient-intensity) * 0.2); transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.04); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qx-brain-ambient { animation: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 40. QX-HINT — secondary/tertiary caption text line                       */
+/* (QN Phase 3 Chunk 4 — RepoBrain restyle. Used anywhere a view needs a    */
+/* small helper/status caption without writing per-view CSS.)              */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-hint {
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.6;
+}
+.qx-hint--sm      { font-size: 12px; }
+.qx-hint--success { color: rgba(52,211,153,0.9); }
+.qx-hint--danger  { color: rgba(248,113,113,0.9); }
+/* Between success and danger: the input is usable but probably not what the
+   user meant (e.g. a session name one character off a real one). */
+.qx-hint--warn    { color: rgba(251,191,36,0.92); }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 41. QX-SEARCH-WRAP — icon-left input wrapper (search bars)              */
+/* Wrap a .glass-input or .qx-input with a leading icon.                   */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+}
+.qx-search-wrap .glass-input,
+.qx-search-wrap .qx-input {
+  width: 100%;
+  padding-left: 36px;
+}
+.qx-search-wrap__icon {
+  position: absolute;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  color: rgba(255,255,255,0.7);
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 42. QX-INPUT SIZE MODIFIERS — fixed/flexible width for form rows          */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-input--narrow { flex: 0 0 140px; width: 140px; }
+/* In a column .qx-field the flex basis is the HEIGHT: keep 140px as width only (inputs rendered 140px tall in Settings). */
+.qx-field > .qx-input--narrow { flex: 0 0 auto; }
+.qx-input--grow   { flex: 1; min-width: 160px; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 43. QX-SCROLL-LIST — bounded-height flat scrollable list inside a card    */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-scroll-list {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 44. QX-SNIPPET — full code-preview result card (search result with a    */
+/* syntax-highlighted code block). Distinct from the compact .qx-result    */
+/* (which 2-line-clamps its snippet) — use this when the whole match       */
+/* needs to render, e.g. RepoBrain code search.                            */
+/* Compose as: <div className="qx-card qx-snippet">                        */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-snippet { padding: 0; }
+.qx-snippet__header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--m-border-default);
+}
+.qx-snippet__loc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 12px;
+  color: #c084fc;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.qx-snippet__loc:hover { color: #fff; }
+.qx-snippet__actions { position: relative; z-index: 2; display: flex; gap: 6px; }
+.qx-snippet__reason {
+  position: relative;
+  z-index: 2;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.75);
+  font-style: italic;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.qx-snippet__code {
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  padding: 12px 16px;
+  overflow-x: auto;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.9);
+  white-space: pre;
+  tab-size: 2;
+  background: rgba(0,0,0,0.18);
+}
+.qx-snippet__code .syn-keyword { color: #c084fc; }
+.qx-snippet__code .syn-string  { color: #4ade80; }
+.qx-snippet__code .syn-comment { color: rgba(255,255,255,0.4); font-style: italic; }
+.qx-snippet__code .syn-number  { color: #38bdf8; }
+.qx-snippet__score {
+  position: relative;
+  z-index: 2;
+  padding: 6px 16px 12px;
+  text-align: right;
+  font-size: 10px;
+  color: rgba(56,189,248,0.85);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+}
+
+/* Line-number gutter — sits to the left of .qx-snippet__code in a flex
+   row, sharing its font-size/line-height/vertical padding so rows line
+   up. Numbers start at the snippet's start_line, not 1. */
+.qx-snippet__lines {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  padding: 12px 10px 12px 16px;
+  text-align: right;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.35);
+  user-select: none;
+  background: rgba(0,0,0,0.18);
+  border-right: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Keyboard-focused result card (j/k navigation). Intensifies the parent
+   .qx-card's 4-edge shimmer to a solid cyan top rim + a 1px cyan border. */
+.qx-snippet.qx-snippet--focus {
+  border-color: rgba(56,189,248,0.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 -1px 0 rgba(0,0,0,0.45),
+    0 0 0 1px rgba(56,189,248,0.45),
+    0 0 20px rgba(56,189,248,0.22);
+}
+.qx-snippet.qx-snippet--focus::before {
+  background: linear-gradient(180deg, rgba(56,189,248,1), rgba(168,85,247,0.7) 40%, rgba(255,255,255,0.5));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 45. QX-BTN--SUCCESS — green confirmation modifier (e.g. "copied" state)  */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-btn--success { color: #4ade80; border-color: rgba(52,211,153,0.4); }
+.qx-btn--success:hover { background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.6); }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 46. QX-GRAPH-HUD — floating overlay chrome for a full-bleed WebGL/canvas */
+/* visualization (RepoBrain Codebase Graph). The canvas itself opts out of  */
+/* glass (opaque space-black bg, same rationale as .qx-terminal) — the HUD */
+/* controls floating over it stay pointer-events:auto islands.             */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+.qx-graph-canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: #000005;
+  overflow: hidden;
+}
+.qx-graph-canvas__stage { width: 100%; height: 100%; }
+.qx-graph-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--m-font-sans, inherit);
+}
+.qx-graph-hud__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000005;
+  color: rgba(168,85,247,0.7);
+  font-size: 14px;
+}
+.qx-graph-hud__overlay--error {
+  flex-direction: column;
+  gap: 12px;
+}
+.qx-graph-hud__overlay-title { color: rgba(248,113,113,0.85); font-size: 16px; }
+.qx-graph-hud__bar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+}
+.qx-graph-hud__bar .qx-input { width: 240px; flex: 0 0 auto; }
+.qx-graph-hud__meta {
+  margin-left: auto;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+}
+.qx-graph-hud__legend {
+  position: absolute;
+  top: 54px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: auto;
+}
+.qx-graph-hud__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s ease;
+}
+/* Legend items are click-to-toggle (hide/show a repo's nodes in the graph).
+   Muted = dimmed + the dot goes hollow with a diagonal strike. */
+.qx-graph-hud__legend-item--muted { opacity: 0.35; }
+.qx-graph-hud__legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+  background: var(--qx-node-color, #6366f1);
+}
+.qx-graph-hud__legend-item--muted .qx-graph-hud__legend-dot {
+  background: transparent;
+  border: 1px solid var(--qx-node-color, #6366f1);
+}
+.qx-graph-hud__legend-item--muted .qx-graph-hud__legend-dot::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-top: 1px solid rgba(255,255,255,0.7);
+  transform: rotate(45deg);
+}
+.qx-graph-node-info {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  max-width: 360px;
+  pointer-events: auto;
+}
+.qx-graph-node-info__id {
+  font-size: 12px;
+  color: var(--qx-node-color, #c084fc);
+  word-break: break-all;
+  margin-bottom: 4px;
+  position: relative;
+  z-index: 2;
+}
+.qx-graph-node-info__grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 12px;
+  font-size: 11px;
+}
+.qx-graph-node-info__label { color: rgba(255,255,255,0.7); }
+.qx-graph-node-info__value { color: rgba(255,255,255,0.85); }
+.qx-graph-node-info__value--accent { color: #38bdf8; }
+
+/* Row variants + auto-width select.
+   .qx-select is width:100% by design (forms), which makes a horizontal filter
+   bar stack into one control per line and eat vertical space. --auto opts a
+   select out for toolbar use. Added as design-system utilities rather than
+   per-view CSS so the next filter bar consumes them instead of reinventing. */
+.qx-row--wrap { flex-wrap: wrap; }
+.qx-row--tight { gap: 8px; }
+.qx-row--nowrap { flex-wrap: nowrap; overflow-x: auto; }
+.qx-select--auto { width: auto; min-width: 140px; flex: 0 0 auto; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 47. QX-SPLIT — responsive two-pane layout (SIGNAL-UX item 7: proposal    */
+/* text left, transcript right). Unlike .qx-grid-2 (a fixed 2-column grid   */
+/* with no breakpoint), this collapses to one stacked column on narrow      */
+/* viewports — the two panes are meant to be read side by side on a normal  */
+/* window, never squeezed unreadably thin on a phone-width one.             */
+/* ═══════════════════════════════════════════════════════════════════════ */
+.qx-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.qx-split > * { min-width: 0; }
+@media (max-width: 860px) {
+  .qx-split { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 48. QX-KIND — coloured, larger kind tags (SIGNAL-UX item 8). Distinct    */
+/* from .qx-chip--xs's flat grey: each proposal finding's kind             */
+/* (stream/substream/skill/plugin-feature/alert/fyi — see                  */
+/* quox-signal/lib/analyse.js's triage prompt) gets its own hue so the eye  */
+/* can tell them apart in a scanned list without reading the label.         */
+/* ═══════════════════════════════════════════════════════════════════════ */
+.qx-kind {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.qx-kind--stream         { background: rgba(56,189,248,0.14);  border-color: rgba(56,189,248,0.4);  color: #38bdf8; }
+.qx-kind--substream      { background: rgba(168,85,247,0.14);  border-color: rgba(168,85,247,0.4);  color: #c084fc; }
+.qx-kind--skill          { background: rgba(48,255,144,0.14);  border-color: rgba(48,255,144,0.4);  color: #30ff90; }
+.qx-kind--plugin-feature { background: rgba(234,179,8,0.14);   border-color: rgba(234,179,8,0.4);   color: #facc15; }
+.qx-kind--alert          { background: rgba(239,68,68,0.16);   border-color: rgba(239,68,68,0.45);  color: #f87171; }
+.qx-kind--fyi            { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.75); }
+
+/* ── Stage track: position in a pipeline, not a status badge ────────────────
+ *
+ * WHY this exists rather than another .qx-pill variant: a pill is a STATUS. Three
+ * same-shape capsules distinguished only by hue (cyan, purple, green) have no ordinal
+ * relationship to the eye, so a reader has to already know the taxonomy to read progress.
+ * A pipeline needs POSITION, so fill level and placement do the work and colour only
+ * reinforces it. This reads as progress even squinted.
+ *
+ * Each stage also has to FEEL different, so the reached node is solid and lit, the current
+ * node is larger with a halo, and unreached nodes are a bare track. Reuses the house
+ * purple-to-cyan active gradient (rule 12) rather than inventing a fourth accent, which
+ * also frees cyan/purple/green to go back to meaning system state.
+ */
+.qx-stage-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.qx-stage-track__node {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+  flex-shrink: 0;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.qx-stage-track__bar {
+  width: 14px;
+  height: 2px;
+  background: rgba(255,255,255,0.12);
+  flex-shrink: 0;
+}
+
+/* Reached: solid, on the house gradient. */
+.qx-stage-track__node--done,
+.qx-stage-track__bar--done {
+  background: linear-gradient(145deg, rgba(168,85,247,0.95), rgba(56,189,248,0.95));
+}
+
+/* Current: bigger and haloed, so "where am I" survives a squint. */
+.qx-stage-track__node--current {
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(145deg, rgba(168,85,247,1), rgba(56,189,248,1));
+  box-shadow: 0 0 0 3px rgba(168,85,247,0.22), 0 0 10px rgba(56,189,248,0.45);
+}
+
+/* Terminal stage reached: squared off, so "finished" is a different SHAPE, not just
+   another colour. Shape survives colour blindness and greyscale; hue does not. */
+.qx-stage-track__node--terminal {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: linear-gradient(145deg, rgba(168,85,247,1), rgba(56,189,248,1));
+  box-shadow: 0 0 10px rgba(56,189,248,0.45);
+}
+
+.qx-stage-track__label {
+  margin-left: 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.7);
+  white-space: nowrap;
+}
+.qx-stage-track__label--current { color: #fff; }
+
+/* ══════════════════════════════════════════════════════════════════
+   Objective Fabric components — Fable design pass, 2026-08-10.
+   ObjectiveStateVector, KnotBadge, StandingBadge (see
+   src/components/objectives/ and src/components/agents/).
+   Reuses .qx-dot / .qx-pill / .qx-cap / .qx-menu / .qx-percent /
+   .qx-spark / .qx-trend throughout; only genuinely new vocabulary is
+   defined below. See docs/RECURSIVE_OBJECTIVE_FABRIC_RESEARCH.md and
+   QuoxPlan streams QG / DEVSUITE-DEVMODE for origin and build context.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Objective state vector (.qx-osv) ─────────────────────────── */
+.qx-osv-wrap { position: relative; display: inline-flex; }
+.qx-osv {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--m-border-default);
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--m-text-primary);
+  transition: background 0.15s ease;
+}
+.qx-osv:hover { background: var(--m-bg-elevated); }
+.qx-osv__bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 18px; }
+.qx-osv__bar { width: 4px; border-radius: 1px; min-height: 2px; opacity: 0.9; }
+.qx-osv__bar--cost { background: rgba(255,255,255,0.7); }
+.qx-osv__vel { position: relative; width: 4px; height: 18px; background: rgba(255,255,255,0.08); border-radius: 1px; }
+.qx-osv__vel::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(255,255,255,0.35); }
+.qx-osv__vel-fill { position: absolute; left: 0; right: 0; bottom: 50%; background: #30ff90; border-radius: 1px; }
+.qx-osv__vel-fill--down { bottom: auto; top: 50%; background: #f87171; }
+.qx-osv__headline { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.qx-osv__headline i { font-style: normal; font-size: 0.7em; opacity: 0.75; }
+.qx-osv-detail { position: absolute; top: calc(100% + 8px); left: 0; z-index: 1000; min-width: 280px; }
+.qx-osv-detail__row { display: grid; grid-template-columns: 84px 1fr 44px; align-items: center; gap: 8px; padding: 5px 10px; font-size: 11px; }
+.qx-osv-detail__label { color: var(--m-text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; font-size: 10px; font-weight: 600; }
+.qx-osv-detail__track { position: relative; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.qx-osv-detail__fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; }
+.qx-osv-detail__num { text-align: right; font-variant-numeric: tabular-nums; color: var(--m-text-primary); }
+
+/* ── Event timeline (.qx-evtl) — shared by KnotBadge + StandingBadge.
+      Row grammar matches .volt-waterfall__row / .trace-timeline-row:
+      grid columns, tabular-nums, hover bg, per-kind colored mark. ── */
+.qx-evtl { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
+.qx-evtl__row { display: grid; grid-template-columns: 14px 76px 1fr auto; align-items: center; gap: 6px; padding: 4px 10px; font-size: 11px; border-radius: 6px; }
+.qx-evtl__row:hover { background: rgba(255,255,255,0.06); }
+.qx-evtl__marker { width: 7px; height: 7px; border-radius: 50%; background: var(--qx-evtl-tone, #38bdf8); box-shadow: 0 0 6px var(--qx-evtl-tone, transparent); }
+.qx-evtl__time { font-size: 10px; color: var(--m-text-tertiary); font-variant-numeric: tabular-nums; }
+.qx-evtl__summary { color: var(--m-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qx-evtl__delta { font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* "Something happened here": drop events break the rhythm with a left rule + tint, not just a number */
+.qx-evtl__row--drop { border-left: 2px solid #f87171; background: rgba(239,68,68,0.07); }
+.qx-evtl__row--drop:hover { background: rgba(239,68,68,0.12); }
+
+/* ── Knot badge (.qx-knot) ────────────────────────────────────── */
+.qx-knot-wrap { position: relative; display: inline-flex; }
+.qx-knot {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 9px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  cursor: pointer;
+  color: rgba(255,255,255,0.85);
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.14);
+}
+.qx-knot__glyph { width: 11px; height: 11px; flex-shrink: 0; }
+/* Consequence ladder: ghost → cyan → purple. Red is reserved for a LIVE intervention. */
+.qx-knot--evidential { background: rgba(56,189,248,0.10); border-color: rgba(56,189,248,0.30); color: #38bdf8; }
+.qx-knot--authoritative {
+  background: rgba(168,85,247,0.14); border-color: rgba(168,85,247,0.45); color: #c084fc;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 0 10px rgba(168,85,247,0.18);
+}
+.qx-knot--intervening { background: rgba(239,68,68,0.10); border-color: rgba(239,68,68,0.50); color: #f87171; }
+.qx-knot-detail { position: absolute; top: calc(100% + 8px); left: 0; z-index: 1000; min-width: 300px; max-width: 340px; }
+.qx-knot-detail__caps { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+
+/* ── Standing badge (.qx-standing) ────────────────────────────── */
+.qx-standing-wrap { position: relative; display: inline-flex; }
+.qx-standing {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 4px 10px 4px 4px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--m-border-default);
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--m-text-primary);
+  transition: background 0.15s ease;
+}
+.qx-standing:hover { background: var(--m-bg-elevated); }
+.qx-standing-detail { position: absolute; top: calc(100% + 8px); right: 0; z-index: 1000; min-width: 300px; max-width: 340px; }
+.qx-standing-detail__spark { padding: 8px 10px 4px; }
+
+/* ── Loop replay (.qx-replay) — time-travel over one corr's envelopes.
+      PANEL, not flyout: three simultaneous zones (temporal track,
+      reconstructed belief, causal chain) need real width. Root pairs
+      with .qx-card (or `flat` when embedded in an existing panel).
+      Timeline rows reuse .qx-evtl; only the track/scrub/causal-rail
+      pieces are new. ─────────────────────────────────────────────── */
+.qx-replay { display: flex; flex-direction: column; gap: 12px; --qx-replay-neutral: rgba(255,255,255,0.45); }
+.qx-replay__head { display: flex; align-items: center; gap: 16px; }
+.qx-replay__at { margin-left: auto; font-size: 12px; color: var(--m-text-tertiary); font-variant-numeric: tabular-nums; }
+.qx-replay__at strong { color: var(--m-text-primary); font-weight: 600; }
+.qx-replay__at-count { margin-left: 8px; font-size: 10px; color: var(--m-text-tertiary); }
+.qx-replay__controls { display: flex; gap: 6px; }
+
+/* Temporal track: ticks positioned proportional to ts, so bursts cluster
+   and dead time stretches — the strip is honest about TIME while the
+   range input below steps by EVENT. */
+.qx-replay__track { position: relative; height: 34px; border-radius: 8px; background: rgba(255,255,255,0.05); overflow: hidden; }
+.qx-replay__future { position: absolute; top: 0; bottom: 0; right: 0; background: rgba(0,0,0,0.28); pointer-events: none; }
+.qx-replay__tick {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: 7px; height: 7px; padding: 0; border: none; border-radius: 50%;
+  background: var(--qx-tick-tone, rgba(255,255,255,0.35));
+  opacity: 0.55; cursor: pointer;
+}
+/* Ancestry channel: causal ancestors of the selected envelope grow a stem
+   + glow. Position = adjacency, stem = causality — never the same mark. */
+.qx-replay__tick--causal { opacity: 1; height: 18px; border-radius: 4px; box-shadow: 0 0 8px var(--qx-tick-tone, #38bdf8); }
+.qx-replay__tick--selected { outline: 2px solid rgba(192,132,252,0.85); outline-offset: 2px; }
+.qx-replay__cursor {
+  position: absolute; top: 0; bottom: 0; width: 2px; transform: translateX(-50%);
+  background: linear-gradient(180deg, #c084fc, #38bdf8);
+  pointer-events: none;
+}
+.qx-replay__scrub { width: 100%; accent-color: #38bdf8; cursor: pointer; }
+
+.qx-replay__cols { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+@media (max-width: 720px) { .qx-replay__cols { grid-template-columns: 1fr; } }
+.qx-replay__subhead { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--m-text-tertiary); padding: 0 10px 6px; }
+.qx-replay__vector-ts { font-size: 10px; color: var(--m-text-tertiary); padding: 2px 10px 0; font-variant-numeric: tabular-nums; }
+.qx-replay__novector { font-size: 11px; color: var(--m-text-tertiary); padding: 4px 10px; }
+.qx-replay__pills { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 10px 0; }
+.qx-replay__actors { margin-left: 8px; font-size: 10px; color: var(--m-text-tertiary); }
+.qx-replay__chain .qx-evtl { max-height: 320px; }
+
+/* Causal rail: joins chain rows so the list reads as one thread, not a
+   filtered log. Left offset = padding 10px + marker-cell centre. */
+.qx-evtl__row--causal { position: relative; }
+.qx-evtl__row--causal:not(:first-child)::before,
+.qx-evtl__row--gap + .qx-evtl__row--causal::before {
+  content: ''; position: absolute; left: 13px; top: -5px; width: 1px; height: 9px;
+  background: linear-gradient(180deg, rgba(192,132,252,0.7), rgba(56,189,248,0.7));
+}
+.qx-evtl__row--gap .qx-evtl__marker { background: transparent; border: 1px dashed rgba(255,255,255,0.4); box-shadow: none; }
+.qx-evtl__row--now { background: linear-gradient(145deg, rgba(168,85,247,0.1), rgba(56,189,248,0.04)); border: 1px solid rgba(168,85,247,0.3); }
+
+/* ── Light mode (scoped; dashboard is dark-only today, no light token
+      set exists in index.css — this block covers every literal alpha
+      these components introduce; --m-* tokens follow the future theme) ── */
+:root[data-theme="light"] .qx-osv,
+:root[data-theme="light"] .qx-standing { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.14); color: #14161f; }
+:root[data-theme="light"] .qx-osv:hover,
+:root[data-theme="light"] .qx-standing:hover { background: rgba(0,0,0,0.08); }
+:root[data-theme="light"] .qx-osv__vel,
+:root[data-theme="light"] .qx-osv-detail__track { background: rgba(0,0,0,0.08); }
+:root[data-theme="light"] .qx-osv__vel::before { background: rgba(0,0,0,0.35); }
+:root[data-theme="light"] .qx-osv__bar--cost { background: rgba(0,0,0,0.55); }
+:root[data-theme="light"] .qx-knot { color: rgba(0,0,0,0.65); border-color: rgba(0,0,0,0.18); }
+:root[data-theme="light"] .qx-evtl__row:hover { background: rgba(0,0,0,0.05); }
+:root[data-theme="light"] .qx-evtl__summary { color: #14161f; }
+:root[data-theme="light"] .qx-evtl__time,
+:root[data-theme="light"] .qx-osv-detail__label { color: rgba(0,0,0,0.55); }
+:root[data-theme="light"] .qx-osv-detail__num { color: #14161f; }
+:root[data-theme="light"] .qx-replay__track { background: rgba(0,0,0,0.05); }
+:root[data-theme="light"] .qx-replay__future { background: rgba(0,0,0,0.08); }
+:root[data-theme="light"] .qx-replay { --qx-replay-neutral: rgba(0,0,0,0.45); }
+:root[data-theme="light"] .qx-replay__tick { --qx-tick-tone: rgba(0,0,0,0.35); }
+:root[data-theme="light"] .qx-replay__at strong,
+:root[data-theme="light"] .qx-replay__novector { color: #14161f; }
+:root[data-theme="light"] .qx-replay__at,
+:root[data-theme="light"] .qx-replay__at-count,
+:root[data-theme="light"] .qx-replay__subhead,
+:root[data-theme="light"] .qx-replay__vector-ts,
+:root[data-theme="light"] .qx-replay__actors { color: rgba(0,0,0,0.55); }
+:root[data-theme="light"] .qx-evtl__row--gap .qx-evtl__marker { border-color: rgba(0,0,0,0.35); }
+
+/* ── qx-slot-msg (DEVSUITE-SLOTS P12, bundle polish) ───────────────────────
+   A stacked message row for narrow containers. .qx-log-line is a 4-column
+   grid, which inside a ~1/3-width slot card squeezes the message body to
+   roughly one character per line, so the Slots deck hand-rolled a stacked
+   row out of inline styles instead: 8 style={{}} ops per message, and the
+   class it hung them on (.qx-slot-msg) had no CSS behind it at all.
+   Promoted here so the pattern is reusable and the deck stops carrying
+   layout in JSX. Meta line on top, full-width wrapping text below. */
+.qx-slot-msg {
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.qx-slot-msg:last-child { border-bottom: none; }
+.qx-slot-msg__meta {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+.qx-slot-msg__meta .qx-log-line__ts { margin-left: auto; }
+.qx-slot-msg__body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: rgba(255,255,255,0.85);
+}
+:root[data-theme="light"] .qx-slot-msg { border-bottom-color: rgba(0,0,0,0.08); }
+:root[data-theme="light"] .qx-slot-msg__body { color: rgba(0,0,0,0.82); }
+
+/* ── Gamified activation (LL-8 store vision) ──────────────────────────────
+   .qx-locked  — a capability present but not yet unlocked: dimmed, slightly
+                 desaturated, lifts back to life on hover (the shelf effect).
+   .qx-levelup — celebration pulse for a level-up moment on a panel: two soft
+                 cyan→purple glow waves. Apply for ~2.4s then remove. */
+.qx-locked {
+  opacity: 0.62;
+  filter: saturate(0.75);
+  transition: opacity 240ms ease, filter 240ms ease, transform 240ms ease;
+}
+.qx-locked:hover { opacity: 0.92; filter: saturate(1); transform: translateY(-2px); }
+
+.qx-levelup { animation: qx-levelup-pulse 1.2s ease-out 2; }
+@keyframes qx-levelup-pulse {
+  0%   { box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45), 0 0 0 0 rgba(56,189,248,0.45); }
+  50%  { box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45), 0 0 34px 6px rgba(168,85,247,0.28); }
+  100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45), 0 0 0 0 rgba(56,189,248,0); }
+}
+
+/* ── The Board (motherboard store, LL-8 vision) ───────────────────────────
+   The store rendered as a circuit board: plugins are sockets Manhattan-routed
+   to a central core chip; activation seats a chip, lights its trace in the
+   plugin accent and pulses energy toward the core. Dark substrate is
+   LEGITIMATE here (same category as .qx-terminal): it is the board, floating
+   inside a glass panel, and stays translucent over the cinematic.
+   Demo: /qx-lab/store. Components: .qx-board, .qx-trace(--lit), .qx-via,
+   .qx-bchip (--socket/--on/--seat/--waiting), .qx-bcore. */
+.qx-board {
+  --qx-board-power: 0; /* 0..1 — how alive the board feels */
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1200 / 660;
+  border-radius: 12px;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 50%, rgba(56,189,248, calc(0.04 + var(--qx-board-power) * 0.10)), transparent 70%),
+    radial-gradient(ellipse 40% 40% at 50% 50%, rgba(168,85,247, calc(0.03 + var(--qx-board-power) * 0.08)), transparent 75%),
+    repeating-linear-gradient(0deg, rgba(150,190,255,0.028) 0 1px, transparent 1px 37px),
+    repeating-linear-gradient(90deg, rgba(150,190,255,0.028) 0 1px, transparent 1px 37px),
+    linear-gradient(160deg, rgba(13,18,32,0.92), rgba(18,13,34,0.92));
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -1px 0 rgba(0,0,0,0.5);
+  transition: background 800ms ease;
+}
+.qx-board__svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.qx-trace { fill: none; stroke: rgba(150,190,255,0.11); stroke-width: 2.5; stroke-linejoin: round; }
+.qx-trace--lit {
+  stroke: var(--trace-c, #38bdf8);
+  stroke-width: 2.5;
+  opacity: 0.9;
+  stroke-dasharray: 7 13;
+  filter: drop-shadow(0 0 5px var(--trace-c, #38bdf8));
+  animation: qx-trace-flow 1.4s linear infinite;
+}
+@keyframes qx-trace-flow { to { stroke-dashoffset: -40; } }
+.qx-via { fill: rgba(150,190,255,0.20); }
+.qx-via--lit { filter: drop-shadow(0 0 4px currentColor); }
+
+/* Chip package / socket. Position with left/top % + translate(-50%,-50%). */
+.qx-bchip {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 9px;
+  cursor: pointer;
+  z-index: 2;
+  padding: 4px 10px;
+  transition: box-shadow 400ms ease, border-color 400ms ease, background 400ms ease, transform 200ms ease;
+}
+/* pin rails on both long edges */
+.qx-bchip::before, .qx-bchip::after {
+  content: '';
+  position: absolute;
+  top: 12%; bottom: 12%;
+  width: 5px;
+  background: repeating-linear-gradient(180deg, rgba(220,230,255,0.35) 0 4px, transparent 4px 11px);
+  border-radius: 2px;
+}
+.qx-bchip::before { left: -5px; }
+.qx-bchip::after  { right: -5px; }
+
+.qx-bchip--socket {
+  background: rgba(150,190,255,0.03);
+  border: 1.5px dashed rgba(150,190,255,0.28);
+}
+.qx-bchip--socket:hover { border-color: var(--chip-c, #38bdf8); background: rgba(150,190,255,0.07); transform: translate(-50%, -50%) scale(1.04); }
+.qx-bchip--socket::before, .qx-bchip--socket::after { opacity: 0.4; }
+.qx-bchip--waiting { animation: qx-socket-breathe 3.2s ease-in-out infinite; }
+@keyframes qx-socket-breathe { 50% { border-color: rgba(150,190,255,0.5); } }
+
+.qx-bchip--on {
+  background: linear-gradient(160deg, #202638, #141726);
+  border: 1px solid color-mix(in srgb, var(--chip-c, #38bdf8) 65%, rgba(255,255,255,0.2));
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--chip-c, #38bdf8) 45%, transparent),
+    inset 0 1px 0 rgba(255,255,255,0.14),
+    inset 0 -2px 5px rgba(0,0,0,0.5);
+}
+.qx-bchip--on .qx-bchip__silk { color: #fff; }
+.qx-bchip--seat { animation: qx-chip-seat 650ms cubic-bezier(0.2, 1.4, 0.4, 1); }
+@keyframes qx-chip-seat {
+  0%   { transform: translate(-50%, -68%) scale(1.25); opacity: 0; filter: brightness(2); }
+  55%  { transform: translate(-50%, -47%) scale(0.96); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+}
+
+.qx-bchip__die { width: 26%; max-width: 34px; aspect-ratio: 1; transition: stroke 400ms ease, filter 400ms ease; }
+.qx-bchip--on .qx-bchip__die { filter: drop-shadow(0 0 6px var(--chip-c, #38bdf8)); }
+.qx-bchip__silk {
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(7px, 0.85vw, 11px);
+  letter-spacing: 0.12em;
+  color: rgba(255,255,255,0.72);
+  white-space: nowrap;
+}
+.qx-bchip__tag {
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(6px, 0.7vw, 9.5px);
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--chip-c, #38bdf8) 80%, white 20%);
+  white-space: nowrap;
+}
+.qx-bchip__amp {
+  position: absolute; top: -8px; right: -6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 8px; letter-spacing: 0.1em;
+  padding: 1px 5px; border-radius: 999px;
+  background: linear-gradient(90deg, rgba(168,85,247,0.5), rgba(56,189,248,0.5));
+  border: 1px solid rgba(255,255,255,0.3);
+  color: #fff;
+}
+
+/* The core chip */
+.qx-bcore {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 14.2%;
+  aspect-ratio: 170 / 120;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border-radius: 12px;
+  z-index: 3;
+  background: linear-gradient(160deg, #232a40, #161a2c);
+  border: 1px solid rgba(255,255,255,0.28);
+  box-shadow:
+    0 0 calc(18px + var(--qx-board-power, 0) * 42px) rgba(56,189,248, calc(0.25 + var(--qx-board-power, 0) * 0.4)),
+    0 0 calc(30px + var(--qx-board-power, 0) * 60px) rgba(168,85,247, calc(0.15 + var(--qx-board-power, 0) * 0.3)),
+    inset 0 1px 0 rgba(255,255,255,0.2),
+    inset 0 -2px 6px rgba(0,0,0,0.55);
+  animation: qx-core-breathe 3.6s ease-in-out infinite;
+  transition: box-shadow 800ms ease;
+}
+@keyframes qx-core-breathe { 50% { filter: brightness(1.14); } }
+.qx-bcore::before, .qx-bcore::after {
+  content: '';
+  position: absolute; left: 10%; right: 10%; height: 5px;
+  background: repeating-linear-gradient(90deg, rgba(220,230,255,0.4) 0 4px, transparent 4px 11px);
+  border-radius: 2px;
+}
+.qx-bcore::before { top: -5px; }
+.qx-bcore::after  { bottom: -5px; }
+.qx-bcore__silk { font-family: var(--font-mono, monospace); font-size: clamp(8px, 0.95vw, 12px); letter-spacing: 0.22em; color: #fff; }
+.qx-bcore__sub  { font-family: var(--font-mono, monospace); font-size: clamp(7px, 0.75vw, 10px); color: rgba(255,255,255,0.72); }
+
+/* Bottom silkscreen readout strip */
+.qx-board__readout {
+  position: absolute; left: 12px; right: 12px; bottom: 8px;
+  z-index: 4;
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(8px, 0.85vw, 11.5px);
+  color: rgba(255,255,255,0.85);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* ── Sectioned boards (store v3: programmatic bus architecture) ───────────
+   Layout follows the plugin page (sections of cards in responsive grids);
+   materials stay hardware (chips, wires, glows). Wires are PROGRAMMATIC:
+   each board carries a bus rail; every chip-card drops a stub trace onto
+   it; deeper rows connect through vias. No coordinates: chips flow with
+   the grid, panels come and go freely. Demo: /qx-lab/store. */
+.qx-board--flow { aspect-ratio: auto; padding: 4px 12px 18px; }
+
+.qx-board__head {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; padding: 10px 8px;
+  background: none; border: none; cursor: pointer; color: #fff;
+  text-align: left;
+}
+.qx-board__title { font-size: 14px; font-weight: 700; letter-spacing: 0.02em; }
+.qx-board__silkname {
+  font-family: var(--font-mono, monospace);
+  font-size: 9.5px; letter-spacing: 0.18em;
+  color: rgba(150,190,255,0.6);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.qx-board__chev { width: 16px; height: 16px; display: inline-flex; opacity: 0.8; transition: transform 250ms ease; }
+.qx-board__chev--closed { transform: rotate(-90deg); }
+
+.qx-busrail {
+  position: relative;
+  height: 4px; margin: 0 8px; border-radius: 2px;
+  background: linear-gradient(90deg, rgba(150,190,255,0.18), rgba(150,190,255,0.05));
+  overflow: hidden;
+}
+.qx-busrail--live {
+  box-shadow: 0 0 10px rgba(56,189,248,0.35);
+}
+.qx-busrail--live::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 16px, rgba(56,189,248,0.85) 16px 22px, rgba(168,85,247,0.6) 22px 26px, transparent 26px 44px);
+  animation: qx-rail-flow 1.1s linear infinite;
+}
+@keyframes qx-rail-flow { to { background-position-x: 44px; } }
+
+.qx-chipgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 28px 16px;
+  padding: 26px 8px 4px;
+}
+
+/* Chip card: plugin-page card content, IC-package skin. */
+.qx-chipcard {
+  position: relative;
+  isolation: isolate; /* keeps the -1 z-index bloom behind content, above the board */
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: box-shadow 350ms ease, border-color 350ms ease, background 350ms ease, transform 200ms ease;
+}
+.qx-chipcard::before, .qx-chipcard::after {
+  content: '';
+  position: absolute; top: 14%; bottom: 14%; width: 5px;
+  background: repeating-linear-gradient(180deg, rgba(220,230,255,0.32) 0 4px, transparent 4px 11px);
+  border-radius: 2px;
+}
+.qx-chipcard::before { left: -5px; }
+.qx-chipcard::after  { right: -5px; }
+
+.qx-chipcard--socket {
+  background: rgba(150,190,255,0.03);
+  border: 1.5px dashed rgba(150,190,255,0.28);
+}
+.qx-chipcard--socket:hover { border-color: var(--chip-c, #38bdf8); background: rgba(150,190,255,0.06); transform: translateY(-2px); }
+.qx-chipcard--socket::before, .qx-chipcard--socket::after { opacity: 0.4; }
+
+.qx-chipcard--on {
+  /* promo-page recipe: light-from-above sheen over the dark package, hot
+     accent border, twin glow (tight + soft drop) */
+  background:
+    linear-gradient(160deg, rgba(255,255,255,0.10), transparent 45%),
+    linear-gradient(160deg, #242b40, #151827);
+  border: 1px solid color-mix(in srgb, var(--chip-c, #38bdf8) 78%, rgba(255,255,255,0.25));
+  box-shadow:
+    0 0 26px color-mix(in srgb, var(--chip-c, #38bdf8) 55%, transparent),
+    0 10px 34px color-mix(in srgb, var(--chip-c, #38bdf8) 22%, transparent),
+    inset 0 1px 0 rgba(255,255,255,0.28),
+    inset 0 -2px 5px rgba(0,0,0,0.5);
+}
+/* Bloom: the promo chip's blurred accent halo, as a real layer behind the
+   package (box-shadow alone reads flat). Add <span class="qx-chip-bloom"/>
+   as the first child of any chip that should breathe light. */
+.qx-chip-bloom {
+  position: absolute;
+  inset: -14% -10%;
+  z-index: -1;
+  border-radius: 20px;
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--chip-c, #38bdf8) 45%, transparent), transparent 70%);
+  filter: blur(20px);
+  opacity: 0;
+  transition: opacity 450ms ease;
+  pointer-events: none;
+}
+.qx-chipcard--on .qx-chip-bloom, .qx-bcore:not(.qx-bcore--socket) .qx-chip-bloom { opacity: 0.5; }
+.qx-chipcard--on:hover .qx-chip-bloom { opacity: 0.8; }
+.qx-minichip--on .qx-chip-bloom { opacity: 0.45; }
+.qx-chipcard--seat { animation: qx-cardseat 700ms cubic-bezier(0.2, 1.4, 0.4, 1); }
+@keyframes qx-cardseat {
+  0%   { transform: translateY(-18px) scale(1.07); opacity: 0; filter: brightness(2.2); }
+  55%  { transform: translateY(3px) scale(0.98); opacity: 1; }
+  100% { transform: translateY(0) scale(1); filter: brightness(1); }
+}
+
+.qx-chipcard__stub {
+  position: absolute; top: -27px; left: 50%; transform: translateX(-50%);
+  width: 2.5px; height: 27px;
+  background: rgba(150,190,255,0.15);
+  transition: background 400ms ease, box-shadow 400ms ease;
+}
+.qx-chipcard__stub::before {
+  content: '';
+  position: absolute; top: -4px; left: 50%; transform: translateX(-50%);
+  width: 7px; height: 7px; border-radius: 50%;
+  background: inherit;
+}
+.qx-chipcard--on .qx-chipcard__stub { background: var(--chip-c, #38bdf8); box-shadow: 0 0 7px var(--chip-c, #38bdf8); }
+
+.qx-chipcard__die { width: 34px; height: 34px; flex-shrink: 0; display: inline-flex; transition: filter 400ms ease; }
+.qx-chipcard__die svg { width: 100%; height: 100%; }
+.qx-chipcard--on .qx-chipcard__die { filter: drop-shadow(0 0 5px var(--chip-c, #38bdf8)) drop-shadow(0 0 14px color-mix(in srgb, var(--chip-c, #38bdf8) 60%, transparent)); }
+.qx-chipcard__name { font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qx-chipcard__silk {
+  font-family: var(--font-mono, monospace);
+  font-size: 9px; letter-spacing: 0.14em;
+  color: color-mix(in srgb, var(--chip-c, #38bdf8) 72%, white 28%);
+}
+.qx-chipcard--socket .qx-chipcard__silk { color: color-mix(in srgb, var(--chip-c, #38bdf8) 55%, rgba(255,255,255,0.5)); }
+.qx-chipcard__desc { margin: 0; font-size: 11.5px; color: rgba(255,255,255,0.72); flex: 1; }
+.qx-chipcard__act { margin-top: 2px; }
+.qx-chipcard__amp {
+  position: absolute; top: -9px; right: 8px;
+  font-family: var(--font-mono, monospace);
+  font-size: 8px; letter-spacing: 0.1em;
+  padding: 1px 6px; border-radius: 999px;
+  background: linear-gradient(90deg, rgba(168,85,247,0.5), rgba(56,189,248,0.5));
+  border: 1px solid rgba(255,255,255,0.3);
+  color: #fff;
+}
+
+/* Core chip, static-flow + unseated-socket variants (store hero) */
+.qx-bcore--static {
+  position: static; transform: none;
+  width: 216px; aspect-ratio: 170 / 118;
+  flex-shrink: 0;
+  isolation: isolate;
+  /* promo top-face sheen over the package base */
+  background:
+    linear-gradient(160deg, rgba(255,255,255,0.10), transparent 45%),
+    linear-gradient(160deg, #262e46, #171a2c);
+}
+.qx-bcore--static:not(.qx-bcore--socket) {
+  border: 1px solid color-mix(in srgb, #38bdf8 55%, rgba(255,255,255,0.35));
+  box-shadow:
+    0 0 calc(24px + var(--qx-board-power, 0) * 46px) rgba(56,189,248, calc(0.4 + var(--qx-board-power, 0) * 0.4)),
+    0 0 calc(40px + var(--qx-board-power, 0) * 64px) rgba(168,85,247, calc(0.26 + var(--qx-board-power, 0) * 0.3)),
+    inset 0 1px 0 rgba(255,255,255,0.3),
+    inset 0 -2px 6px rgba(0,0,0,0.55);
+}
+.qx-bcore--static .qx-bcore__silk { font-size: 13px; }
+.qx-bcore--static .qx-bcore__sub { font-size: 10.5px; }
+.qx-bcore--socket {
+  background: rgba(150,190,255,0.04);
+  border: 1.5px dashed rgba(150,190,255,0.4);
+  box-shadow: none;
+  animation: qx-socket-breathe 3.2s ease-in-out infinite;
+}
+.qx-bcore--socket .qx-bcore__silk { color: rgba(255,255,255,0.7); }
+
+/* ── Mini chips (core systems that ship with QuoxCORE) ────────────────────
+   Tiny IC packages on the hero row: dark silicon until the core seats,
+   then they ripple online (staggered via inline animation-delay). Not
+   individually activatable — they ARE the value reveal of activating core.
+   Demo: /qx-lab/store. */
+.qx-minichip-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(64px, 78px));
+  gap: 14px 10px;
+  align-content: center;
+}
+.qx-minichip-row__silk {
+  grid-column: 1 / -1;
+  font-family: var(--font-mono, monospace);
+  font-size: 8.5px; letter-spacing: 0.2em;
+  color: rgba(150,190,255,0.55);
+  text-align: center;
+}
+.qx-minichip {
+  position: relative;
+  isolation: isolate;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  padding: 8px 4px 6px;
+  border-radius: 7px;
+  background: rgba(150,190,255,0.035);
+  border: 1px dashed rgba(150,190,255,0.22);
+  transition: background 400ms ease, border-color 400ms ease, box-shadow 400ms ease;
+}
+.qx-minichip::before, .qx-minichip::after {
+  content: '';
+  position: absolute; left: 16%; right: 16%; height: 4px;
+  background: repeating-linear-gradient(90deg, rgba(220,230,255,0.28) 0 3px, transparent 3px 9px);
+  border-radius: 2px;
+}
+.qx-minichip::before { top: -4px; }
+.qx-minichip::after  { bottom: -4px; }
+.qx-minichip__die { width: 16px; height: 16px; display: inline-flex; }
+.qx-minichip__die svg { width: 100%; height: 100%; }
+.qx-minichip__silk {
+  font-family: var(--font-mono, monospace);
+  font-size: 7px; letter-spacing: 0.12em;
+  color: rgba(255,255,255,0.6);
+  white-space: nowrap;
+  /* Ellipsis, not overflow: a plugin display name (e.g. "System
+     Maintenance") runs longer than the short core-system silkscreen
+     labels (AGENTS, FLOW) this class was built for. */
+  max-width: 68px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qx-minichip--on {
+  background:
+    linear-gradient(160deg, rgba(255,255,255,0.09), transparent 45%),
+    linear-gradient(160deg, #222840, #141726);
+  border: 1px solid color-mix(in srgb, var(--chip-c, #38bdf8) 72%, rgba(255,255,255,0.22));
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--chip-c, #38bdf8) 50%, transparent),
+    0 6px 18px color-mix(in srgb, var(--chip-c, #38bdf8) 20%, transparent),
+    inset 0 1px 0 rgba(255,255,255,0.22);
+  animation: qx-cardseat 600ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.qx-minichip--on .qx-minichip__silk { color: #fff; }
+.qx-minichip--on .qx-minichip__die { filter: drop-shadow(0 0 4px var(--chip-c, #38bdf8)); }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 40. CONNECT RING — SVG stroke-dash arc for a connecting/reconnecting     */
+/*     state, wrapped around a focal element (e.g. the voice popup eye).   */
+/*     Consumer renders <svg class="qx-connect-ring" viewBox="0 0 100 100">*/
+/*     <circle cx="50" cy="50" r="46" /></svg> absolutely positioned over   */
+/*     its target; this class supplies sizing + the spin + the stroke.     */
+/* ═══════════════════════════════════════════════════════════════════════ */
+.qx-connect-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 4;
+}
+.qx-connect-ring circle {
+  fill: none;
+  stroke: #38bdf8;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 60 220;
+  opacity: 0.7;
+  transform-origin: 50% 50%;
+  animation: qx-connect-ring-spin 1.6s linear infinite;
+}
+@keyframes qx-connect-ring-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .qx-connect-ring circle { animation: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 41. OPAQUE-BACKED SURFACE — fixes glass-on-glass: a translucent          */
+/*     .qx-card/.qx-tabs nested inside another translucent surface can't   */
+/*     composite (backdrop-filter has nothing solid beneath it to blur),   */
+/*     and reads as transparent/unreadable. Add this modifier alongside    */
+/*     the base class (e.g. class="qx-card qx-surface--backed") to paint   */
+/*     an opaque undercoat + static sheen instead of blurring. Siblings of */
+/*     the base rules above, not overrides — .qx-card's border, radius and */
+/*     ::before rim are left intact. See QX_INDEX.md "Opaque-backed        */
+/*     surfaces" for when to reach for this vs. real translucent blur.     */
+/* ═══════════════════════════════════════════════════════════════════════ */
+.qx-surface--backed {
+  background-color: var(--qx-surface-base-opaque);
+  background-image: var(--qx-surface-sheen, none);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.qx-tabs--plain {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 42. MASTER-DETAIL — container-query list/reader split, promoted out of  */
+/*     InboxQ (InboxQ UX Pass 3, 2026-09-26). Gates the wide split on      */
+/*     [data-detail-open="true"] so the list gets full width by default    */
+/*     and only splits once something is actually open — closed state is  */
+/*     full-width list at EVERY container width, no empty reader pane.    */
+/* ═══════════════════════════════════════════════════════════════════════ */
+.qx-master-detail {
+  container-type: inline-size;
+  container-name: qx-md;
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.qx-master-detail__list,
+.qx-master-detail__reader {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.qx-master-detail__reader { display: none; }
+.qx-master-detail[data-detail-open="true"] .qx-master-detail__list { display: none; }
+.qx-master-detail[data-detail-open="true"] .qx-master-detail__reader { display: flex; }
+@container qx-md (min-width: 1120px) {
+  .qx-master-detail[data-detail-open="true"] .qx-master-detail__list {
+    display: flex;
+    flex: 0 1 clamp(360px, 34%, 440px);
+  }
+  .qx-master-detail[data-detail-open="true"] .qx-master-detail__reader {
+    display: flex;
+    flex: 1 1 480px;
+    min-width: 480px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 43. BUTTON TINT — colour-accented secondary action, driven by           */
+/*     --qx-btn-tint. Fills the gap between --ghost (no colour) and        */
+/*     --primary/--danger (only two colours available) for zone/severity-  */
+/*     mapped quick actions (InboxQ UX Pass 3, 2026-09-26).                */
+/* ═══════════════════════════════════════════════════════════════════════ */
+.qx-btn--tint {
+  --qx-btn-tint: #38bdf8;
+  background: color-mix(in srgb, var(--qx-btn-tint) 16%, transparent);
+  border-color: color-mix(in srgb, var(--qx-btn-tint) 55%, transparent);
+  color: var(--qx-btn-tint);
+}
+.qx-btn--tint:hover {
+  background: color-mix(in srgb, var(--qx-btn-tint) 26%, transparent);
+  border-color: color-mix(in srgb, var(--qx-btn-tint) 75%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 44. SCROLL PANE — one shared block-flow scroller contract, promoted out  */
+/*     of the InboxQ layout audit (2026-09-26). `.qx-pad`'s missing         */
+/*     no-padding, flex-fill scroll sibling: a flex child that reliably     */
+/*     owns "the rest of the available height scrolls" instead of shrinking */
+/*     and clipping its own content (`overflow:hidden` on a flex item lets  */
+/*     it shrink below its content height with no warning). Compose padding */
+/*     via `.qx-pad` or `.qx-card` when the scroller also needs a surface;  */
+/*     this utility never redefines `.qx-card`/`.qx-stack` itself.          */
+/* ═══════════════════════════════════════════════════════════════════════ */
+.qx-scroll-pane,
+.qx-card.qx-scroll-pane {
+  display: block;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 49. CALM-LAYOUT UTILITIES (ContactsQ UX pass, 2026-10-09). One glass     */
+/*     panel per view with FLAT panes inside it, popover menus that are     */
+/*     not clipped, and static status dots for dense grids.                 */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* Card whose children (popover menus) must be able to leave it. The 4-edge
+   rim is an inset pseudo, so it still draws; only the clip is lifted. */
+.qx-card--visible { overflow: visible; }
+
+/* Anchor + floating panel. Trigger is any button; panel is a .qx-menu.
+   <div class="qx-popover"><button/><div class="qx-menu qx-popover__panel">…</div></div> */
+.qx-popover { position: relative; display: inline-block; }
+.qx-popover__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1000;
+  min-width: 240px;
+  max-height: 340px;
+  overflow-y: auto;
+  background-color: var(--qx-surface-raised-opaque);
+  background-image: var(--qx-surface-sheen, none);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45), 0 24px 64px rgba(0,0,0,0.55);
+}
+.qx-popover__panel--end { left: auto; right: 0; }
+/* Portalled to <body> and placed from the trigger's rect (ContactsQ Popover): no scrolling or overflow:hidden
+   ancestor can clip it. top/left/max-height are set inline by the component. */
+.qx-popover__panel--float { position: fixed; right: auto; z-index: 2000; width: max-content; max-width: min(340px, calc(100vw - 16px)); padding: 6px; box-sizing: border-box; }
+.qx-menu__item-text { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.qx-menu__item-text > small { font-size: 11px; color: rgba(255,255,255,0.75); }
+
+/* Status dot without the breathing/alarm animation, for grids of many dots. */
+.qx-dot--static { animation: none; }
+
+/* Master/detail inside ONE card: narrow list pane + wide detail pane, a
+   hairline rule between them, stacked (rule becomes a top border) below 860px. */
+.qx-split--master { grid-template-columns: minmax(280px, 2fr) 3fr; gap: 20px; }
+.qx-split--master > * + * { border-left: 1px solid var(--m-border-default); padding-left: 20px; }
+@media (max-width: 860px) {
+  .qx-split--master { grid-template-columns: 1fr; }
+  .qx-split--master > * + * { border-left: none; padding-left: 0; border-top: 1px solid var(--m-border-default); padding-top: 16px; }
+}
+
+/* Dense table + de-emphasised row (e.g. unreviewed candidates). */
+.qx-table--dense tbody td { padding: 7px 10px; }
+.qx-table--dense thead th { padding: 8px 10px; }
+.qx-table tbody tr.qx-table__row--muted td { color: rgba(255,255,255,0.8); font-style: italic; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 60. CHIP HUES — glassy coloured chips (ContactsQ restructure, 2026-10-09)  */
+/*     A tinted-glass chip, one hue per MEANING (relationship, severity,     */
+/*     status, channel). The hue classes only set --chip-rgb; the shared     */
+/*     look below reads it. Compose:                                         */
+/*       <span class="qx-chip qx-chip--xs qx-chip--static qx-chip--hue-teal">*/
+/*     Never write a per-view colour for a chip: pick a hue here. Text stays */
+/*     near-white (tinted), never grey, so it passes the no-grey-text rule.  */
+/* ═══════════════════════════════════════════════════════════════════════ */
+[class*="qx-chip--hue-"] {
+  --chip-rgb: 203, 213, 225;
+  background: linear-gradient(145deg, rgba(var(--chip-rgb), 0.32), rgba(var(--chip-rgb), 0.12));
+  border-color: rgba(var(--chip-rgb), 0.58);
+  color: color-mix(in srgb, rgb(var(--chip-rgb)) 22%, #fff);
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.24), inset 0 -1px 0 rgba(0,0,0,0.25), 0 0 12px rgba(var(--chip-rgb), 0.16);
+}
+[class*="qx-chip--hue-"]:hover {
+  background: linear-gradient(145deg, rgba(var(--chip-rgb), 0.42), rgba(var(--chip-rgb), 0.18));
+  border-color: rgba(var(--chip-rgb), 0.75);
+  color: #fff;
+}
+[class*="qx-chip--hue-"] svg { width: 12px; height: 12px; flex-shrink: 0; }
+.qx-chip--hue-red     { --chip-rgb: 248, 113, 113; }
+.qx-chip--hue-orange  { --chip-rgb: 251, 146, 60; }
+.qx-chip--hue-amber   { --chip-rgb: 245, 158, 11; }
+.qx-chip--hue-yellow  { --chip-rgb: 250, 204, 21; }
+.qx-chip--hue-lime    { --chip-rgb: 163, 230, 53; }
+.qx-chip--hue-green   { --chip-rgb: 52, 211, 153; }
+.qx-chip--hue-teal    { --chip-rgb: 45, 212, 191; }
+.qx-chip--hue-cyan    { --chip-rgb: 34, 211, 238; }
+.qx-chip--hue-sky     { --chip-rgb: 56, 189, 248; }
+.qx-chip--hue-blue    { --chip-rgb: 96, 165, 250; }
+.qx-chip--hue-indigo  { --chip-rgb: 129, 140, 248; }
+.qx-chip--hue-violet  { --chip-rgb: 167, 139, 250; }
+.qx-chip--hue-purple  { --chip-rgb: 192, 132, 252; }
+.qx-chip--hue-fuchsia { --chip-rgb: 232, 121, 249; }
+.qx-chip--hue-pink    { --chip-rgb: 244, 114, 182; }
+.qx-chip--hue-rose    { --chip-rgb: 251, 113, 133; }
+.qx-chip--hue-slate   { --chip-rgb: 226, 232, 240; }
+/* A chip that only labels (no click, no hover lift). */
+.qx-chip--static { cursor: default; }
+.qx-chip--static:hover { transform: none; }
+/* A chip that is a toggle: unlit when aria-pressed="false", lit (tint + ring) when "true". */
+.qx-chip--toggle { cursor: pointer; user-select: none; }
+.qx-chip--toggle[aria-pressed="false"] {
+  background: rgba(var(--chip-rgb), 0.06);
+  border-color: rgba(var(--chip-rgb), 0.3);
+  color: rgba(255,255,255,0.85);
+  font-weight: 500;
+  box-shadow: none;
+}
+.qx-chip--toggle[aria-pressed="false"]:hover { background: rgba(var(--chip-rgb), 0.16); border-color: rgba(var(--chip-rgb), 0.6); color: #fff; }
+.qx-chip--toggle[aria-pressed="true"] {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), 0 0 0 1px rgba(var(--chip-rgb), 0.55), 0 0 14px rgba(var(--chip-rgb), 0.3);
+  color: #fff;
+}
+.qx-chip--toggle:focus-visible { outline: 2px solid rgba(var(--chip-rgb), 0.9); outline-offset: 2px; }
+
+/* Avatar tinted from a hue (deterministic initials avatar): set --qx-avatar-hue (0 to 359) inline. */
+.qx-avatar--tint {
+  background: linear-gradient(135deg, hsl(var(--qx-avatar-hue, 260) 75% 56% / 0.58), hsl(calc(var(--qx-avatar-hue, 260) + 40) 75% 44% / 0.38));
+  border-color: hsl(var(--qx-avatar-hue, 260) 85% 72% / 0.6);
+}
+/* An avatar that is a button (click to change the photo); the edit glyph shows on hover or focus. */
+button.qx-avatar { padding: 0; font: inherit; cursor: pointer; }
+.qx-avatar__edit {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.55); color: #fff; opacity: 0; transition: opacity 0.15s ease;
+}
+button.qx-avatar:hover .qx-avatar__edit, button.qx-avatar:focus-visible .qx-avatar__edit { opacity: 1; }
+button.qx-avatar:focus-visible { outline: 2px solid var(--m-border-focus, #38bdf8); outline-offset: 2px; }
+
+/* Tooltip that wraps (a sentence, not a label) and also opens on keyboard focus. */
+.qx-tip--wrap::after { white-space: normal; width: max-content; max-width: 240px; text-align: left; line-height: 1.35; }
+.qx-tip:focus-visible::after { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Stat value sizes: one hero number and quieter secondary numbers (ContactsQ History). */
+.qx-stat__value--hero { font-size: 48px; line-height: 1; }
+.qx-stat__value--sm { font-size: 18px; }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* QX-FORM-GRID: proportional form layout (ContactsQ owner review 2026-10-10:
+   "strangely equal field sizes"). A 12-column grid inside an inline-size
+   container: each .qx-field sets --span (wide) and optionally --span-sm (used
+   when the form is under 560px, e.g. beside a docked agent panel). Inputs and
+   selects fill their cell. Markup: .qx-form-grid > .qx-form-grid__cells > fields. */
+/* ═══════════════════════════════════════════════════════════════════════ */
+.qx-form-grid { container-type: inline-size; min-width: 0; }
+.qx-form-grid__cells { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px 16px; align-items: start; }
+.qx-form-grid__cells > * { grid-column: span var(--span, 12); min-width: 0; }
+.qx-form-grid__cells .qx-input,
+.qx-form-grid__cells .qx-select { width: 100%; min-width: 0; }
+@container (max-width: 560px) {
+  .qx-form-grid__cells > * { grid-column: span var(--span-sm, 12); }
+}
+
+/* QX-TABS--GLASS: a top-level tab bar that is its own glass surface (same recipe as .qx-card:
+   base fill, blur, border, rim insets, 4-edge shimmer), for a page nav sitting directly on the cinematic. */
+.qx-tabs--glass {
+  position: relative;
+  background: var(--m-bg-base);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+  border: 1px solid var(--m-border-default);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+  padding: 6px;
+}
+.qx-tabs--glass::before { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: var(--qx-edges); }
+.qx-tabs--glass > .qx-tab { position: relative; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   READING + AUTHORING SURFACES (born in NotesQ, 2026-10-10; owner: "carry
+   it forward to the other plugins, especially the AssistantQ bundle").
+   See glass-design-system skill, "The NotesQ look".
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Obsidian slate: the ONE sanctioned dark surface (rule 6 exception). The
+   thing a person reads or writes for minutes at a time (a note, an email
+   body, a draft, a transcript) sits on a sheet of black glass, set apart from
+   the translucent chrome and easier to read. Use it for the content body
+   only, never for chrome, lists or sidebars, and at most one per view.
+   Compose with .qx-card: <div class="qx-card qx-card--compact qx-slate">.
+   Text size: set --qx-text-zoom (see TextSizeControl); slate text scales. */
+.qx-slate {
+  --m-text-primary: #eef0f5;
+  --m-text-secondary: #b9bfcc;
+  --m-text-tertiary: #7f8696;
+  --qx-slate-fs: calc(15px * var(--qx-text-zoom, 1));
+  color-scheme: dark;
+  color: var(--m-text-primary);
+  font-size: var(--qx-slate-fs);
+  background:
+    linear-gradient(118deg, rgba(255,255,255,0.075) 0%, rgba(255,255,255,0.02) 18%, transparent 34%),
+    radial-gradient(120% 70% at 85% 110%, rgba(139,92,246,0.10), transparent 60%),
+    radial-gradient(90% 60% at 0% -10%, rgba(56,189,248,0.07), transparent 55%),
+    linear-gradient(165deg, #12141a 0%, #07080b 55%, #0b0a10 100%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(255,255,255,0.09);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.14),
+    inset 0 -1px 0 rgba(0,0,0,0.8),
+    inset 0 0 0 1px rgba(0,0,0,0.55),
+    inset 0 0 40px rgba(0,0,0,0.55),
+    0 22px 48px -18px rgba(0,0,0,0.85),
+    0 2px 6px rgba(0,0,0,0.45);
+}
+/* The sheen is on the element, not a pseudo, so it stays put while content scrolls. */
+.qx-slate::before { background: none; }
+/* Fields inside the slate go transparent so the sheet shows through. */
+.qx-slate textarea, .qx-slate .qx-textarea { background: transparent; border-color: rgba(255,255,255,0.06); color: var(--m-text-primary); }
+
+/* Tinted tool groups: a toolbar broken into .qx-seg groups, ONE accent hue per
+   group (formatting, lists, blocks, links, media...). Bold glyphs, a soft glow,
+   the active button lit in its own hue. This is what keeps a dense control
+   surface from reading as bland glass. Hues mirror the .qx-chip palette.
+   <div class="qx-seg qx-seg--tint qx-tint--sky" role="group">
+     <button class="qx-seg__btn qx-tint__btn qx-seg__btn--active">B</button> */
+.qx-seg--tint { --tint-rgb: 56, 189, 248; border-color: rgba(var(--tint-rgb), 0.32); background: rgba(var(--tint-rgb), 0.07); }
+.qx-tint--sky { --tint-rgb: 56, 189, 248; }
+.qx-tint--violet { --tint-rgb: 167, 139, 250; }
+.qx-tint--teal { --tint-rgb: 45, 212, 191; }
+.qx-tint--amber { --tint-rgb: 251, 191, 36; }
+.qx-tint--fuchsia { --tint-rgb: 232, 121, 249; }
+.qx-tint--green { --tint-rgb: 74, 222, 128; }
+.qx-tint__btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 34px; height: 32px; padding: 0 8px; font-size: 14px; font-weight: 800;
+  color: color-mix(in srgb, rgb(var(--tint-rgb)) 70%, #fff);
+  border: 1px solid transparent;
+}
+.qx-tint__btn svg { display: block; filter: drop-shadow(0 0 4px rgba(var(--tint-rgb), 0.35)); }
+.qx-tint__btn:hover:not(.qx-seg__btn--active) { color: #fff; background: rgba(var(--tint-rgb), 0.22); border-color: rgba(var(--tint-rgb), 0.5); }
+.qx-tint__btn:focus-visible { outline: 2px solid rgb(var(--tint-rgb)); outline-offset: 1px; }
+.qx-tint__btn.qx-seg__btn--active {
+  color: #fff;
+  background: linear-gradient(145deg, rgba(var(--tint-rgb), 0.5), rgba(var(--tint-rgb), 0.24));
+  border-color: rgba(var(--tint-rgb), 0.85);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 0 10px rgba(var(--tint-rgb), 0.35);
+}
+
+/* Pane rail: a collapsed pane becomes a slim glass strip in the SAME grid
+   column (never display:none), so hiding a pane is always visibly reversible.
+   The whole rail is clickable; the chevron is the keyboard control. Label
+   reads bottom-to-top like a book spine. Compose with .qx-card.qx-card--compact. */
+.qx-pane-rail { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 4px; min-width: 0; min-height: 0; overflow: hidden; cursor: pointer; }
+.qx-pane-rail .qx-btn { padding-inline: 8px; }
+.qx-pane-rail__icon { display: inline-flex; color: var(--m-text-primary); }
+.qx-pane-rail__label { writing-mode: vertical-rl; transform: rotate(180deg); font-weight: 600; letter-spacing: 0.04em; color: var(--m-text-primary); white-space: nowrap; }
+.qx-pane-rail__count { margin-top: auto; }
+
+/* Text size control (TextSizeControl.jsx): A- | 100% | A+ in a .qx-seg. */
+.qx-textsize .qx-seg__btn { min-width: 0; padding-inline: 8px; display: inline-flex; align-items: center; }
+.qx-textsize__pct { font-variant-numeric: tabular-nums; min-width: 3.4em; justify-content: center; }
+
+/* QX-KV: label/value list where the value sits NEXT TO its label (owner 2026-10-10: "field too far from value,
+   void in between"). Wrap .qx-stat-row children in .qx-kv: a fixed label column, value left-aligned beside it. */
+.qx-kv { display: flex; flex-direction: column; }
+.qx-kv > .qx-stat-row { display: grid; grid-template-columns: var(--qx-kv-label, 8.5rem) minmax(0, 1fr); align-items: center; gap: 12px; padding: 8px 0; }
+.qx-kv > .qx-stat-row > :first-child { color: rgba(255,255,255,0.75); font-size: 13px; min-width: 0; }
+.qx-kv > .qx-stat-row > :nth-child(2) { justify-self: start; justify-content: flex-start; text-align: left; min-width: 0; }

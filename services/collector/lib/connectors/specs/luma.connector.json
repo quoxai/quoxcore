@@ -1,0 +1,163 @@
+{
+  "spec_version": 1,
+  "id": "luma",
+  "name": "Luma AI",
+  "category": "data_ai",
+  "credentialType": "luma",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "READ-ONLY Luma AI Dream Machine API v1 connector: list past generations, poll one generation's state and finished asset URLs, read the API credit balance, and list the camera concept keys a generation request may use. Every Dream Machine generation endpoint SPENDS CREDITS (create, image, audio, upscale, reframe, modify), so none of them is exposed here; this connector only reads state that generation has already created.",
+  "docs": "https://docs.lumalabs.ai/",
+  "base_url": "https://api.lumalabs.ai",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/dream-machine/v1/generations",
+    "query": {
+      "limit": "1"
+    }
+  },
+  "tools_source": "https://docs.lumalabs.ai/reference/listgenerations.md",
+  "tools": [
+    {
+      "name": "list_generations",
+      "description": "List past Dream Machine generations newest first, with each one's state, model, prompt and finished asset URLs",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max generations to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional number of generations to skip, for paging (default 0)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/dream-machine/v1/generations",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "has_more": "has_more",
+          "count": "count",
+          "limit": "limit",
+          "offset": "offset",
+          "generations[]": {
+            "id": "id",
+            "generation_type": "generation_type",
+            "state": "state",
+            "failure_reason": "failure_reason",
+            "created_at": "created_at",
+            "model": "model",
+            "assets": "assets",
+            "prompt": "request.prompt"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_generation",
+      "description": "Get one Dream Machine generation by ID: its state (queued, dreaming, completed, failed), failure reason, model, prompt and finished video or image asset URLs",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "generation_id": {
+            "type": "string",
+            "description": "Luma generation ID (a UUID, as returned by list_generations)"
+          }
+        },
+        "required": [
+          "generation_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/dream-machine/v1/generations/{{input.generation_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "generation_type": "generation_type",
+          "state": "state",
+          "failure_reason": "failure_reason",
+          "created_at": "created_at",
+          "model": "model",
+          "assets": "assets",
+          "prompt": "request.prompt",
+          "aspect_ratio": "request.aspect_ratio",
+          "resolution": "request.resolution",
+          "duration": "request.duration"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.generation_id": "00000000-0000-0000-0000-000000000000"
+      }
+    },
+    {
+      "name": "get_credits",
+      "description": "Get the Luma API credit balance for the account behind this key (documented as available credits in USD cents)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/dream-machine/v1/credits"
+      },
+      "response": {
+        "pick": {
+          "credit_balance": "credit_balance"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_camera_concepts",
+      "description": "List the camera concept keys Dream Machine accepts (pan_left, dolly_zoom, aerial_drone and the rest), useful for composing a generation request elsewhere",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/dream-machine/v1/generations/concepts/list"
+      },
+      "response": {
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "WHICH 'LUMA' THIS IS, SETTLED FROM THE VAULT ENTRY BEFORE ANYTHING ELSE WAS BUILT: services/auth/config/integrationTypeRegistry.js key 'luma' reads name: 'Luma AI', description: 'Dream Machine video generation', testEndpoint: 'https://api.lumalabs.ai/v1/generations', testHeaders: Authorization: `Bearer ${creds.api_key}`, docs: 'https://docs.lumalabs.ai/'. So this connector is Luma AI (Dream Machine, api.lumalabs.ai, bearer), NOT lu.ma events (api.lu.ma/public/v1, x-luma-api-key header). The bare id 'luma' is ambiguous in the wider world and a customer may well mean the events product; that would need its own credentialType with its own field and host, and must not be folded into this one.",
+      "test AND ALL PATHS (SCAFFOLD WAS WRONG, corrected this wave): the vault's testEndpoint path /v1/generations does not exist. Verbatim, probed 2026-09-12: GET https://api.lumalabs.ai/v1/generations with a dummy bearer answered 404 {\"detail\":\"Not Found\"}, and the same path with no Authorization header answered 404 {\"detail\":\"Not Found\"} as well. The documented server is verbatim from the Dream Machine API 1.1.0 OpenAPI definition embedded in https://docs.lumalabs.ai/reference/listgenerations.md: \"servers\": [ { \"url\": \"https://api.lumalabs.ai/dream-machine/v1\" } ]. base_url stays at the host and every path in this spec carries the /dream-machine/v1 prefix, which is what the runtime needs to keep one base_url for all four tools.",
+      "auth KEPT AS SCAFFOLDED (bearer in Authorization), AND THE DOCS AGREE, BUT THIS RUN DOES NOT PROVE IT: verbatim from the same OpenAPI definition: \"security\": [ { \"BearerAuth\": [] } ] and \"securitySchemes\": { \"BearerAuth\": { \"type\": \"http\", \"scheme\": \"bearer\", \"bearerFormat\": \"JWT\" } }, and the docs' own curl sample sends 'authorization: Bearer luma-xxxx'. What the probe CANNOT separate: api.lumalabs.ai answers 403 {\"detail\":\"Not authenticated\"} identically with a dummy bearer AND with no Authorization header at all (both observed on GET /dream-machine/v1/generations?limit=1, 2026-09-12), so the header name and scheme rest on Luma's documentation, not on this run. A real luma- key is needed to turn any call here 2xx.",
+      "PATHS ARE PROVEN BY THE CONTROL DIFFERENTIAL, because routing runs BEFORE auth on this host. Verbatim, all probed 2026-09-12 with the same dummy bearer: /dream-machine/v1/quox-bogus-954f7752 answered 404 {\"detail\":\"Not Found\"}, /dream-machine/v1/generations/quox-bogus-954f7752/nope answered 404 {\"detail\":\"Not Found\"} and /dream-machine/v2/generations answered 404 {\"detail\":\"Not Found\"}, while /dream-machine/v1/generations?limit=1, /dream-machine/v1/generations/00000000-0000-0000-0000-000000000000, /dream-machine/v1/credits and /dream-machine/v1/generations/concepts/list all answered 403 {\"detail\":\"Not authenticated\"}. A different status from the control at the same host means all four tool paths matched a real route, so they are SHAPE_PROVEN rather than documentary.",
+      "READ-ONLY BY CONSTRUCTION, BECAUSE GENERATION COSTS MONEY: POST /generations (create a video), POST /generations/image, POST /generations/audio, POST /generations/{id}/upscale, the reframe and modify variants and DELETE /generations/{id} are all deliberately absent from this spec. Nothing here can start a render or spend a Luma credit; get_credits only reads the balance. Note that api.lumalabs.ai also answers GET /dream-machine/v1/ping with 200 {\"message\":\"pong\"} UNAUTHENTICATED (observed 2026-09-12), which is why it is not used as the test call: a 2xx with a dummy credential proves nothing about the credential path.",
+      "THE CAMERA CONCEPTS PATH COMES FROM THE CHANGELOG, NOT THE REFERENCE: https://docs.lumalabs.ai/llms.txt lists no reference page for it. Verbatim from https://docs.lumalabs.ai/changelog/concepts.md: \"We have this new `/concepts/list` api one can hit to get list of concepts available.\", with the sample call --url 'https://api.lumalabs.ai/dream-machine/v1/generations/concepts/list'. The legacy /dream-machine/v1/generations/camera_motion/list also answers 403 (so it is still routed), but the documented path is the one shipped. Its documented response is a BARE JSON array of strings ([\"truck_left\", \"pan_right\", ...]), so this tool declares no pick at all: applyPick cannot map an array of scalars, and truncate 2000 carries the list instead.",
+      "CLAMPS AND RESPONSE SHAPES REST ON DOCUMENTARY PROVENANCE: limit is documented as an integer query parameter with default 100; it is clamped here to default 20, max 100, so one listing stays inside truncate 2000. The picks follow the documented envelopes exactly: ListGenerationResponse (has_more, count, limit, offset, generations) and Generation (id, generation_type, state, failure_reason, created_at, assets, model, request), with State documented as one of queued, dreaming, completed, failed, and Credits as a single credit_balance field described verbatim as \"Available credits balance in USD cents\". request.prompt, request.aspect_ratio, request.resolution and request.duration sit on the request object, whose schema is a oneOf across seven generation-request variants, so any single response fills only the fields its own variant carries. No 2xx has ever been observed on this connector, so an unexpected key would silently pick nothing rather than error, and every pick is worth re-checking on the first real key.",
+      "A NEWER LUMA API EXISTS AND THIS IS NOT IT: every Dream Machine reference page carries this callout verbatim: \"Looking for the latest Luma API? Create and manage API access in the Luma API Platform (https://platform.lumalabs.ai/). For current API guides and reference, visit the Luma Agents API documentation (https://docs.agents.lumalabs.ai/).\" The vault entry describes Dream Machine and holds a single api_key, so this wave ships Dream Machine v1 and says so in the description. An Agents-API connector would be a separate spec with its own credential, not a silent retarget of this one.",
+      "PROBE VALUES ARE HARMLESS AND READ-ONLY: _probe supplies generation_id 00000000-0000-0000-0000-000000000000, the nil UUID, so the blind harness can route the identifier path without naming a real generation; with a dummy key the call never reaches a lookup anyway. Credentials are never hinted, and _probe sits at TOOL level because the harness reads tool._probe and ignores one nested inside request."
+    ]
+  }
+}

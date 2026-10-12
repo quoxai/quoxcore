@@ -1,0 +1,763 @@
+/* QuoxBastion Panel Styles — Cyan-refactored to consume qx-* tokens.
+   Class names preserved for backward compat; rules re-pointed at globals. */
+
+/* .bastion-panel IS the view's glass frame (swapped in, not wrapped).
+   Fills the view's flex height, scrolls internally. Matches .qx-card spec. */
+.bastion-panel {
+  flex: 1;
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--m-bg-base, rgba(255,255,255,0.08));
+  backdrop-filter: var(--qx-blur, blur(32px) saturate(1.6));
+  -webkit-backdrop-filter: var(--qx-blur, blur(32px) saturate(1.6));
+  border: 1px solid var(--m-border-default, rgba(255,255,255,0.18));
+  border-radius: var(--qx-radius, 20px);
+  box-shadow:
+    
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -1px 0 rgba(0,0,0,0.45);
+  position: relative;
+}
+.bastion-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  pointer-events: none;
+  z-index: 1;
+}
+.bastion-panel > * { position: relative; z-index: 2; }
+
+/* Setup Banner - shown when not configured */
+.bastion-setup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.bastion-setup-banner {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+  background: var(--m-bg-base, rgba(255,255,255,0.08));
+  backdrop-filter: var(--qx-blur, blur(32px) saturate(1.6));
+  -webkit-backdrop-filter: var(--qx-blur, blur(32px) saturate(1.6));
+  border: 1px solid var(--m-border-default, rgba(255,255,255,0.18));
+  border-radius: var(--qx-radius, 20px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+  padding: 2rem;
+  max-width: 600px;
+  position: relative;
+  overflow: hidden;
+}
+.bastion-setup-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  pointer-events: none;
+  z-index: 1;
+}
+.bastion-setup-banner > * { position: relative; z-index: 2; }
+
+.bastion-setup-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  background: rgba(14, 165, 233, 0.2);
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+
+.bastion-setup-icon svg {
+  width: 32px;
+  height: 32px;
+  color: #0ea5e9;
+}
+
+.bastion-setup-content h2 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+.bastion-setup-tagline {
+  margin: 0 0 1rem 0;
+  color: rgba(255,255,255,0.8);
+  font-size: 0.9rem;
+}
+
+.bastion-setup-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem 0;
+}
+
+.bastion-setup-features li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  color: rgba(255,255,255,0.8);
+  font-size: 0.9rem;
+}
+
+.bastion-setup-features li svg {
+  color: #22c55e;
+  flex-shrink: 0;
+}
+
+.bastion-setup-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bastion-setup-hint {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.7);
+}
+
+/* Loading state */
+.bastion-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 200px;
+  color: rgba(255,255,255,0.8);
+}
+
+.bastion-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(14, 165, 233, 0.3);
+  border-top-color: #0ea5e9;
+  border-radius: 50%;
+  animation: bastion-spin 0.8s linear infinite;
+}
+
+@keyframes bastion-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error state */
+.bastion-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 14px;
+  max-width: 560px;
+  margin: 2rem auto;
+}
+
+.bastion-error svg {
+  color: #ef4444;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.bastion-error h3 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary, #fff);
+}
+
+.bastion-error p {
+  margin: 0 0 0.5rem 0;
+  color: rgba(255,255,255,0.8);
+  font-size: 0.9rem;
+}
+
+.bastion-hint {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.7);
+}
+
+.bastion-hint-secondary {
+  margin-top: 0.25rem;
+}
+
+.bastion-hint code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-family: 'Fira Code', monospace;
+}
+
+.bastion-diag-details {
+  margin-top: 0.5rem;
+}
+
+.bastion-troubleshoot {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.bastion-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0.4rem 0 0 0;
+}
+
+.bastion-checklist li {
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.7);
+  padding: 0.15rem 0;
+  padding-left: 1.2rem;
+  position: relative;
+}
+
+.bastion-checklist li::before {
+  content: '•';
+  position: absolute;
+  left: 0.3rem;
+  color: rgba(239, 68, 68, 0.5);
+}
+
+/* Header — title + status pill + actions on one row, no wrap */
+.bastion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0;
+  flex-wrap: nowrap;
+  gap: 16px;
+  min-width: 0;
+}
+
+.bastion-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.bastion-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+}
+
+.bastion-title h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.bastion-count {
+  background: rgba(14, 165, 233, 0.2);
+  color: #0ea5e9;
+  padding: 0.2rem 0.6rem;
+  border-radius: 14px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.bastion-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Buttons — Cyan spec */
+.bastion-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--m-border-default, rgba(255,255,255,0.18));
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.2,0,0,1), background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  text-decoration: none;
+}
+
+.bastion-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+.bastion-btn:active {
+  transform: translateY(2px) scale(0.98);
+  box-shadow: inset 0 2px 5px rgba(0,0,0,0.45);
+  transition-duration: 0.04s;
+}
+
+.bastion-btn-primary {
+  background: linear-gradient(145deg, rgba(168,85,247,0.25), rgba(56,189,248,0.15));
+  border-color: rgba(168,85,247,0.5);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 0 18px rgba(168,85,247,0.12);
+}
+
+.bastion-btn-primary:hover {
+  background: linear-gradient(145deg, rgba(168,85,247,0.35), rgba(56,189,248,0.22));
+  border-color: rgba(168,85,247,0.7);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.24), 0 0 24px rgba(168,85,247,0.22), 0 4px 14px rgba(0,0,0,0.25);
+}
+
+.bastion-btn-spinning svg {
+  animation: bastion-spin 0.8s linear infinite;
+}
+
+/* Status bar */
+.bastion-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.8);
+  margin-bottom: 1rem;
+}
+
+.bastion-status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.bastion-status-version {
+  margin-left: auto;
+  opacity: 0.7;
+}
+
+.bastion-status-uptime,
+.bastion-status-hosts {
+  opacity: 0.5;
+  font-size: 0.8rem;
+  margin-left: 0.75rem;
+}
+
+/* Alert */
+.bastion-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.bastion-alert-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+.bastion-alert-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0.25rem;
+  opacity: 0.7;
+}
+
+.bastion-alert-close:hover {
+  opacity: 1;
+}
+
+/* Modal */
+.bastion-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.bastion-modal {
+  background: var(--m-bg-base, rgba(255,255,255,0.08));
+  backdrop-filter: var(--qx-blur, blur(32px) saturate(1.6));
+  -webkit-backdrop-filter: var(--qx-blur, blur(32px) saturate(1.6));
+  border: 1px solid var(--m-border-default, rgba(255,255,255,0.18));
+  border-radius: var(--qx-radius, 20px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+  padding: 1.5rem;
+  min-width: 400px;
+  max-width: 90vw;
+  position: relative;
+  overflow: hidden;
+}
+.bastion-modal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  pointer-events: none;
+  z-index: 1;
+}
+.bastion-modal > * { position: relative; z-index: 2; }
+
+.bastion-modal h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+}
+
+.bastion-form-group {
+  margin-bottom: 1rem;
+}
+
+.bastion-form-group label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.8);
+}
+
+.bastion-form-group input,
+.bastion-form-group textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: var(--text-primary, #fff);
+  font-size: 0.9rem;
+}
+
+.bastion-form-group input:focus,
+.bastion-form-group textarea:focus {
+  outline: none;
+  border-color: #0ea5e9;
+}
+
+.bastion-form-hint {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.7);
+}
+
+.bastion-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+/* Host list */
+.bastion-hosts {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.bastion-host {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--m-border-default, rgba(255,255,255,0.18));
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bastion-host:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+}
+
+.bastion-host:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+  transition-duration: 0.05s;
+}
+
+.bastion-host.selected {
+  background: linear-gradient(145deg, rgba(168,85,247,0.15), rgba(56,189,248,0.05));
+  border-color: rgba(168,85,247,0.45);
+  box-shadow: 0 0 20px rgba(168,85,247,0.15), inset 0 1px 0 rgba(255,255,255,0.16);
+}
+
+.bastion-host-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.bastion-host-name {
+  font-weight: 500;
+  color: var(--text-primary, #fff);
+}
+
+.bastion-host-ip {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.8);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.bastion-host-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bastion-host-group {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.8);
+}
+
+.bastion-host-health {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.bastion-host-actions {
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.bastion-host:hover .bastion-host-actions {
+  opacity: 1;
+}
+
+.bastion-host-actions button {
+  padding: 0.4rem;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.8);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.bastion-host-actions button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #fff);
+}
+
+/* Command panel */
+.bastion-command {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+}
+
+.bastion-command h3 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bastion-command-input {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.bastion-command-input input {
+  flex: 1;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: var(--text-primary, #fff);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+}
+
+.bastion-command-result {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(255,255,255,0.06);
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.bastion-command-result.success {
+  border-left: 3px solid #22c55e;
+}
+
+.bastion-command-result.error {
+  border-left: 3px solid #ef4444;
+  color: #fca5a5;
+}
+
+/* ============================================
+   FRONTEND-21ST ENHANCEMENTS
+   ============================================ */
+
+/* --- Status indicator: breathing dot with ring halo --- */
+@keyframes bastion-health-breathe {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px currentColor; }
+  50% { opacity: 0.65; box-shadow: 0 0 8px currentColor, 0 0 16px currentColor; }
+}
+
+.bastion-host-health {
+  position: relative;
+  animation: bastion-health-breathe 2.5s ease-in-out infinite;
+}
+
+.bastion-host-health::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0.3;
+}
+
+/* --- Host rows: accent left border on hover --- */
+.bastion-host:hover {
+  border-left: 2px solid rgba(14, 165, 233, 0.5);
+  padding-left: calc(1rem - 1px);
+}
+
+.bastion-host.selected {
+  border-left: 2px solid #0ea5e9;
+  padding-left: calc(1rem - 1px);
+}
+
+/* --- Host IP: monospace with tabular nums --- */
+.bastion-host-ip {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* --- Group badge: colour-coded by common group names --- */
+.bastion-host-group {
+  transition: all 0.15s;
+}
+
+.bastion-host:hover .bastion-host-group {
+  background: rgba(14, 165, 233, 0.15);
+  color: #7dd3fc;
+}
+
+/* --- Command input: enhanced focus ring --- */
+.bastion-command-input input:focus {
+  outline: none;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1), 0 0 12px rgba(14, 165, 233, 0.06);
+}
+
+/* --- Command result: syntax-coloured accents --- */
+.bastion-command-result.success {
+  border-left: 3px solid #22c55e;
+  box-shadow: inset 2px 0 8px rgba(34, 197, 94, 0.06);
+}
+
+.bastion-command-result.error {
+  box-shadow: inset 2px 0 8px rgba(239, 68, 68, 0.06);
+}
+
+/* --- Header: title gradient --- */
+.bastion-title h2 {
+  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* --- Count badge: breathing when hosts are online --- */
+.bastion-count {
+  transition: all 0.2s;
+}
+
+.bastion-count:hover {
+  background: rgba(14, 165, 233, 0.3);
+}
+
+/* --- Status bar: connected indicator glow --- */
+.bastion-status-indicator {
+  position: relative;
+}
+
+.bastion-status-indicator[style*="green"],
+.bastion-status-indicator[style*="#22c55e"] {
+  animation: bastion-health-breathe 2.5s ease-in-out infinite;
+  color: #22c55e;
+}
+
+/* --- Buttons: hover lift --- */
+.bastion-btn {
+  transition: all 0.15s ease;
+}
+
+.bastion-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.bastion-btn-primary:hover {
+  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.3);
+  transform: translateY(-1px);
+}
+
+/* --- Setup banner: subtle entrance animation --- */
+@keyframes bastion-setup-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.bastion-setup-banner {
+  animation: bastion-setup-enter 0.4s ease-out;
+}
+
+/* --- Modal: glassmorphic --- */
+.bastion-modal-overlay {
+  backdrop-filter: blur(6px);
+}
+
+.bastion-modal {
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(14, 165, 233, 0.08);
+}
+
+/* --- Empty host list: dashed zone --- */
+.bastion-hosts:empty::after {
+  content: 'No hosts registered';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: #52525b;
+  font-size: 0.9rem;
+  font-style: italic;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+}

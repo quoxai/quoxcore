@@ -1,0 +1,606 @@
+/**
+ * Flowchart Component Styles
+ * QuoxCORE Design System - Dark theme with #38bdf8 accent
+ *
+ * Background: #0a0a0f (deep)
+ * Surface: #12121a
+ * Accent: #38bdf8
+ */
+
+/* ============================================
+   VIEWER CONTAINER
+   ============================================ */
+
+.flowchart-viewer {
+  display: flex;
+  flex-direction: column;
+  background: #0a0a0f;
+  border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.08));
+  border-radius: var(--m-radius-xl, 12px);
+  overflow: hidden;
+  position: relative;
+}
+
+.flowchart-viewer__header {
+  padding: var(--m-space-3, 12px) var(--m-space-4, 16px);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.flowchart-viewer__title {
+  font-size: var(--m-text-sm, 13px);
+  font-weight: var(--m-weight-semibold, 600);
+  color: var(--m-text-primary, #fff);
+  margin: 0;
+  letter-spacing: var(--m-tracking-wide, 0.02em);
+  text-transform: uppercase;
+}
+
+.flowchart-viewer__canvas {
+  flex: 1;
+  min-height: 0;
+  background: #0a0a0f;
+}
+
+/* Empty state */
+.flowchart-viewer--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flowchart-viewer__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--m-space-2, 8px);
+  color: var(--m-text-tertiary, rgba(255, 255, 255, 0.52));
+}
+
+.flowchart-viewer__empty-icon {
+  font-size: 32px;
+  opacity: 0.5;
+}
+
+.flowchart-viewer__empty-text {
+  font-size: var(--m-text-sm, 13px);
+}
+
+/* ============================================
+   REACT FLOW OVERRIDES
+   ============================================ */
+
+.flowchart-viewer .react-flow {
+  background: #0a0a0f !important;
+}
+
+/* Panel background override */
+.flowchart-viewer .react-flow__panel {
+  background: transparent;
+}
+
+/* Controls styling */
+.flowchart-viewer .react-flow__controls {
+  background: #12121a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--m-radius-md, 6px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.flowchart-viewer .react-flow__controls-button {
+  background: #12121a;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--m-text-secondary, rgba(255, 255, 255, 0.72));
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+  transition: all 0.15s ease;
+}
+
+.flowchart-viewer .react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.flowchart-viewer .react-flow__controls-button:hover {
+  background: rgba(255, 51, 51, 0.1);
+  color: #38bdf8;
+}
+
+.flowchart-viewer .react-flow__controls-button svg {
+  fill: currentColor;
+  width: 14px;
+  height: 14px;
+}
+
+/* Attribution hide (pro mode) */
+.flowchart-viewer .react-flow__attribution {
+  display: none;
+}
+
+/* ============================================
+   NODE BASE STYLES
+   ============================================ */
+
+.flowchart-node {
+  min-width: 140px;
+  max-width: 220px;
+  font-family: var(--m-font-sans, 'Inter', -apple-system, BlinkMacSystemFont, sans-serif);
+}
+
+.flowchart-node__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--m-space-1, 4px);
+  padding: var(--m-space-3, 12px) var(--m-space-4, 16px);
+  background: #12121a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--m-radius-md, 6px);
+  transition: all 0.2s ease;
+}
+
+.flowchart-node__label {
+  font-size: var(--m-text-sm, 13px);
+  font-weight: var(--m-weight-medium, 500);
+  color: var(--m-text-primary, #fff);
+  text-align: center;
+  line-height: 1.3;
+}
+
+.flowchart-node__description {
+  font-size: var(--m-text-xs, 11px);
+  color: var(--m-text-tertiary, rgba(255, 255, 255, 0.52));
+  text-align: center;
+  line-height: 1.4;
+}
+
+.flowchart-node__icon {
+  font-size: 10px;
+  margin-bottom: var(--m-space-1, 4px);
+}
+
+/* Hover state */
+.flowchart-node:hover .flowchart-node__content {
+  border-color: rgba(255, 51, 51, 0.4);
+  box-shadow: 0 0 20px rgba(255, 51, 51, 0.15);
+}
+
+/* Selected state */
+.react-flow__node.selected .flowchart-node__content {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(255, 51, 51, 0.2), 0 0 20px rgba(255, 51, 51, 0.2);
+}
+
+/* ============================================
+   NODE TYPE: DEFAULT
+   ============================================ */
+
+.flowchart-node--default .flowchart-node__content {
+  background: linear-gradient(180deg, #151519 0%, #12121a 100%);
+}
+
+/* ============================================
+   NODE TYPE: INPUT (Start)
+   ============================================ */
+
+.flowchart-node--input .flowchart-node__content {
+  background: linear-gradient(180deg, rgba(74, 222, 128, 0.08) 0%, #12121a 100%);
+  border-color: rgba(74, 222, 128, 0.3);
+}
+
+.flowchart-node--input .flowchart-node__icon {
+  color: #4ade80;
+}
+
+.flowchart-node--input:hover .flowchart-node__content {
+  border-color: rgba(74, 222, 128, 0.6);
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.15);
+}
+
+/* ============================================
+   NODE TYPE: OUTPUT (End)
+   ============================================ */
+
+.flowchart-node--output .flowchart-node__content {
+  background: linear-gradient(180deg, rgba(248, 113, 113, 0.08) 0%, #12121a 100%);
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.flowchart-node--output .flowchart-node__icon {
+  color: #f87171;
+}
+
+.flowchart-node--output:hover .flowchart-node__content {
+  border-color: rgba(248, 113, 113, 0.6);
+  box-shadow: 0 0 20px rgba(248, 113, 113, 0.15);
+}
+
+/* ============================================
+   NODE TYPE: DECISION (Diamond)
+   ============================================ */
+
+.flowchart-node--decision {
+  min-width: 100px;
+  max-width: 160px;
+}
+
+.flowchart-node--decision .flowchart-node__diamond {
+  transform: rotate(45deg);
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.1) 0%, #12121a 100%);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: var(--m-radius-sm, 4px);
+  padding: var(--m-space-4, 16px);
+  transition: all 0.2s ease;
+}
+
+.flowchart-node--decision .flowchart-node__content {
+  transform: rotate(-45deg);
+  background: transparent;
+  border: none;
+  padding: var(--m-space-2, 8px);
+}
+
+.flowchart-node--decision .flowchart-node__label {
+  font-size: var(--m-text-xs, 11px);
+  font-weight: var(--m-weight-semibold, 600);
+  color: #fbbf24;
+}
+
+.flowchart-node--decision:hover .flowchart-node__diamond {
+  border-color: rgba(251, 191, 36, 0.7);
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.2);
+}
+
+.react-flow__node.selected .flowchart-node--decision .flowchart-node__diamond {
+  border-color: #fbbf24;
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2), 0 0 20px rgba(251, 191, 36, 0.2);
+}
+
+/* ============================================
+   NODE TYPE: ACTION (Highlighted)
+   ============================================ */
+
+.flowchart-node--action .flowchart-node__content {
+  background: linear-gradient(180deg, rgba(255, 51, 51, 0.12) 0%, #12121a 100%);
+  border-color: rgba(255, 51, 51, 0.4);
+}
+
+.flowchart-node--action .flowchart-node__label {
+  color: #38bdf8;
+}
+
+.flowchart-node--action:hover .flowchart-node__content {
+  border-color: rgba(255, 51, 51, 0.7);
+  box-shadow: 0 0 20px rgba(255, 51, 51, 0.25);
+}
+
+/* ============================================
+   HANDLES (Connection Points)
+   ============================================ */
+
+.flowchart-node .react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: #2a2a35;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.15s ease;
+}
+
+.flowchart-node .react-flow__handle:hover {
+  background: #38bdf8;
+  border-color: #38bdf8;
+  transform: scale(1.3);
+}
+
+.flowchart-node .react-flow__handle-top {
+  top: -4px;
+}
+
+.flowchart-node .react-flow__handle-bottom {
+  bottom: -4px;
+}
+
+.flowchart-node .react-flow__handle-left {
+  left: -4px;
+}
+
+.flowchart-node .react-flow__handle-right {
+  right: -4px;
+}
+
+/* Decision node handles need special positioning */
+.flowchart-node--decision .react-flow__handle {
+  background: rgba(251, 191, 36, 0.3);
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+.flowchart-node--decision .react-flow__handle:hover {
+  background: #fbbf24;
+  border-color: #fbbf24;
+}
+
+/* ============================================
+   EDGES (Connections)
+   ============================================ */
+
+.flowchart-viewer .react-flow__edge-path {
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 2;
+}
+
+.flowchart-viewer .react-flow__edge.selected .react-flow__edge-path {
+  stroke: #38bdf8;
+  stroke-width: 2;
+}
+
+.flowchart-viewer .react-flow__edge:hover .react-flow__edge-path {
+  stroke: rgba(255, 51, 51, 0.6);
+}
+
+/* Animated edges */
+.flowchart-viewer .react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 5;
+  animation: flowchart-dash 0.5s linear infinite;
+}
+
+@keyframes flowchart-dash {
+  from {
+    stroke-dashoffset: 10;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Edge labels */
+.flowchart-viewer .react-flow__edge-text {
+  font-size: var(--m-text-xs, 11px);
+  fill: var(--m-text-tertiary, rgba(255, 255, 255, 0.52));
+}
+
+.flowchart-viewer .react-flow__edge-textbg {
+  fill: #0a0a0f;
+}
+
+/* ============================================
+   MINIMAP (if enabled)
+   ============================================ */
+
+.flowchart-viewer .react-flow__minimap {
+  background: #0a0a0f;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--m-radius-md, 6px);
+}
+
+.flowchart-viewer .react-flow__minimap-mask {
+  fill: rgba(255, 51, 51, 0.1);
+}
+
+.flowchart-viewer .react-flow__minimap-node {
+  fill: #2a2a35;
+  stroke: rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================ */
+
+@media (max-width: 768px) {
+  .flowchart-node {
+    min-width: 100px;
+    max-width: 160px;
+  }
+
+  .flowchart-node__content {
+    padding: var(--m-space-2, 8px) var(--m-space-3, 12px);
+  }
+
+  .flowchart-node__label {
+    font-size: var(--m-text-xs, 11px);
+  }
+
+  .flowchart-viewer .react-flow__controls {
+    transform: scale(0.85);
+    transform-origin: bottom left;
+  }
+}
+
+/* ============================================
+   THEME: MONO (White on Black - Clean & Minimal)
+   ============================================ */
+
+.flowchart-viewer--mono,
+.flowchart-viewer--mono .flowchart-viewer__canvas,
+.flowchart-viewer--mono .react-flow {
+  background: #000 !important;
+}
+
+.flowchart-viewer--mono .flowchart-viewer__header {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.flowchart-viewer--mono .flowchart-viewer__title {
+  color: #fff;
+}
+
+.flowchart-viewer--mono .flowchart-node__content {
+  background: transparent !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.flowchart-viewer--mono .flowchart-node__label {
+  color: #fff !important;
+}
+
+.flowchart-viewer--mono .flowchart-node__description {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.flowchart-viewer--mono .flowchart-node__icon {
+  color: #fff !important;
+}
+
+/* Mono: All node types use same white styling */
+.flowchart-viewer--mono .flowchart-node--input .flowchart-node__content,
+.flowchart-viewer--mono .flowchart-node--output .flowchart-node__content,
+.flowchart-viewer--mono .flowchart-node--action .flowchart-node__content {
+  background: transparent !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.flowchart-viewer--mono .flowchart-node--decision .flowchart-node__diamond {
+  background: transparent !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.flowchart-viewer--mono .flowchart-node--decision .flowchart-node__label {
+  color: #fff !important;
+}
+
+/* Mono: Hover states */
+.flowchart-viewer--mono .flowchart-node:hover .flowchart-node__content,
+.flowchart-viewer--mono .flowchart-node--decision:hover .flowchart-node__diamond {
+  border-color: #fff !important;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Mono: Selected states */
+.flowchart-viewer--mono .react-flow__node.selected .flowchart-node__content,
+.flowchart-viewer--mono .react-flow__node.selected .flowchart-node--decision .flowchart-node__diamond {
+  border-color: #fff !important;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3), 0 0 20px rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Mono: Handles */
+.flowchart-viewer--mono .flowchart-node .react-flow__handle {
+  background: #000;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.flowchart-viewer--mono .flowchart-node .react-flow__handle:hover {
+  background: #fff;
+  border-color: #fff;
+}
+
+.flowchart-viewer--mono .flowchart-node--decision .react-flow__handle {
+  background: #000;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Mono: Edges */
+.flowchart-viewer--mono .react-flow__edge-path {
+  stroke: rgba(255, 255, 255, 0.35) !important;
+}
+
+.flowchart-viewer--mono .react-flow__edge.selected .react-flow__edge-path,
+.flowchart-viewer--mono .react-flow__edge:hover .react-flow__edge-path {
+  stroke: #fff !important;
+}
+
+.flowchart-viewer--mono .react-flow__edge-text {
+  fill: rgba(255, 255, 255, 0.7) !important;
+}
+
+.flowchart-viewer--mono .react-flow__edge-textbg {
+  fill: #000 !important;
+}
+
+/* Mono: Controls */
+.flowchart-viewer--mono .react-flow__controls {
+  background: #000;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.flowchart-viewer--mono .react-flow__controls-button {
+  background: #000;
+  color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.flowchart-viewer--mono .react-flow__controls-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* Mono: Background dots */
+.flowchart-viewer--mono .react-flow__background pattern circle {
+  fill: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ============================================
+   THEME: COLOR (Full colors for node types)
+   Already the default styling above
+   ============================================ */
+
+/* ============================================
+   THEME: ACCENT (Mono with red accent)
+   ============================================ */
+
+.flowchart-viewer--accent,
+.flowchart-viewer--accent .flowchart-viewer__canvas,
+.flowchart-viewer--accent .react-flow {
+  background: #000 !important;
+}
+
+.flowchart-viewer--accent .flowchart-viewer__header {
+  background: transparent;
+  border-color: rgba(255, 51, 51, 0.3);
+}
+
+.flowchart-viewer--accent .flowchart-node__content {
+  background: transparent !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.flowchart-viewer--accent .flowchart-node__label {
+  color: #fff !important;
+}
+
+/* Accent: Action nodes get the red */
+.flowchart-viewer--accent .flowchart-node--action .flowchart-node__content {
+  border-color: rgba(255, 51, 51, 0.6) !important;
+}
+
+.flowchart-viewer--accent .flowchart-node--action .flowchart-node__label {
+  color: #38bdf8 !important;
+}
+
+/* Accent: Hover/selected use red */
+.flowchart-viewer--accent .flowchart-node:hover .flowchart-node__content {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 15px rgba(255, 51, 51, 0.25) !important;
+}
+
+.flowchart-viewer--accent .react-flow__edge-path {
+  stroke: rgba(255, 255, 255, 0.3) !important;
+}
+
+.flowchart-viewer--accent .react-flow__edge:hover .react-flow__edge-path {
+  stroke: #38bdf8 !important;
+}
+
+/* ============================================
+   PRINT STYLES
+   ============================================ */
+
+@media print {
+  .flowchart-viewer {
+    background: white !important;
+    border-color: #e5e5e5 !important;
+  }
+
+  .flowchart-viewer .react-flow__controls {
+    display: none !important;
+  }
+
+  .flowchart-node__content {
+    background: white !important;
+    border-color: #333 !important;
+  }
+
+  .flowchart-node__label {
+    color: #000 !important;
+  }
+}

@@ -1,0 +1,251 @@
+{
+  "spec_version": 1,
+  "id": "terraform",
+  "name": "Terraform Cloud",
+  "category": "cloud_hosting",
+  "credentialType": "terraform",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://developer.hashicorp.com/terraform/cloud-docs/api-docs",
+  "base_url": "https://app.terraform.io",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "static_headers": {
+    "Content-Type": "application/vnd.api+json"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/account/details"
+  },
+  "tools_source": "https://developer.hashicorp.com/terraform/cloud-docs/api-docs",
+  "tools": [
+    {
+      "name": "get_account_details",
+      "description": "Get the HCP Terraform account the API token belongs to (username, email, auth method, whether it is a service account)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/account/details"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "type": "data.type",
+          "username": "data.attributes.username",
+          "email": "data.attributes.email",
+          "auth_method": "data.attributes.auth-method",
+          "is_service_account": "data.attributes.is-service-account",
+          "is_site_admin": "data.attributes.is-site-admin",
+          "two_factor": "data.attributes.two-factor-conformant"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_organizations",
+      "description": "List the HCP Terraform organizations the token can see (name, external id, notification email, plan), optionally narrowed by a search string",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "search": {
+            "type": "string",
+            "description": "Optional search string; organizations are searchable by name and notification email"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to return (default 1)"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Organizations per page (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/organizations",
+        "query": {
+          "q": "{{input.search}}",
+          "page[number]": "{{clamp input.page 1 1000}}",
+          "page[size]": "{{clamp input.page_size 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "attributes.name",
+            "external_id": "attributes.external-id",
+            "email": "attributes.email",
+            "plan_identifier": "attributes.plan-identifier",
+            "plan_expired": "attributes.plan-expired",
+            "default_execution_mode": "attributes.default-execution-mode",
+            "created_at": "attributes.created-at"
+          },
+          "total_count": "meta.pagination.total-count",
+          "current_page": "meta.pagination.current-page",
+          "total_pages": "meta.pagination.total-pages"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_workspaces",
+      "description": "List the workspaces in one HCP Terraform organization (name, execution mode, Terraform version, resource count, lock state), optionally narrowed by name or tag",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_name": {
+            "type": "string",
+            "description": "Organization name from list_organizations (e.g. hashicorp)"
+          },
+          "search_name": {
+            "type": "string",
+            "description": "Optional fuzzy name search; restricts results to workspaces whose name matches"
+          },
+          "search_tags": {
+            "type": "string",
+            "description": "Optional tag, or comma-separated tags; results match all of the tags given"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to return (default 1)"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Workspaces per page (default 20, max 100)"
+          }
+        },
+        "required": [
+          "org_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/organizations/{{input.org_name}}/workspaces",
+        "query": {
+          "search[name]": "{{input.search_name}}",
+          "search[tags]": "{{input.search_tags}}",
+          "page[number]": "{{clamp input.page 1 1000}}",
+          "page[size]": "{{clamp input.page_size 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "attributes.name",
+            "description": "attributes.description",
+            "environment": "attributes.environment",
+            "execution_mode": "attributes.execution-mode",
+            "terraform_version": "attributes.terraform-version",
+            "resource_count": "attributes.resource-count",
+            "run_failures": "attributes.run-failures",
+            "locked": "attributes.locked",
+            "auto_apply": "attributes.auto-apply",
+            "source": "attributes.source",
+            "latest_change_at": "attributes.latest-change-at",
+            "updated_at": "attributes.updated-at"
+          },
+          "total_count": "meta.pagination.total-count",
+          "current_page": "meta.pagination.current-page",
+          "total_pages": "meta.pagination.total-pages"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_runs",
+      "description": "List the runs in one HCP Terraform workspace, newest first (status, message, source, trigger reason, whether the plan has changes), optionally filtered by status or operation",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "description": "Workspace id from list_workspaces (e.g. ws-6jrRyVDv1J8zQMB5)"
+          },
+          "status": {
+            "type": "string",
+            "description": "Optional comma-separated list of run statuses to filter by (e.g. pending,planning,applied,errored)"
+          },
+          "operation": {
+            "type": "string",
+            "description": "Optional comma-separated list of run operations to filter by; plan_only runs are excluded unless asked for (e.g. plan_only,plan_and_apply,destroy)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to return (default 1)"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Runs per page (default 20, max 100)"
+          }
+        },
+        "required": [
+          "workspace_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/workspaces/{{input.workspace_id}}/runs",
+        "query": {
+          "filter[status]": "{{input.status}}",
+          "filter[operation]": "{{input.operation}}",
+          "page[number]": "{{clamp input.page 1 1000}}",
+          "page[size]": "{{clamp input.page_size 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "status": "attributes.status",
+            "message": "attributes.message",
+            "source": "attributes.source",
+            "trigger_reason": "attributes.trigger-reason",
+            "has_changes": "attributes.has-changes",
+            "is_destroy": "attributes.is-destroy",
+            "plan_only": "attributes.plan-only",
+            "auto_apply": "attributes.auto-apply",
+            "refresh_only": "attributes.refresh-only",
+            "created_at": "attributes.created-at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Paths, query parameters and picked field names come from the HCP Terraform API reference pages fetched on 2026-09-12 (api-docs overview, api-docs/account, api-docs/organizations, api-docs/workspaces, api-docs/run), not from a live 2xx: no HCP Terraform account was held, so the proof below covers wiring only, never payload shape.",
+      "The scaffolded bearer auth stands. The overview page says verbatim: 'All requests must be authenticated with a bearer token. Use the HTTP header Authorization with the value Bearer <token> . If the token is absent or invalid, HCP Terraform responds with HTTP status 401 and a JSON API error object . The 401 status code is reserved for problems with the authentication token; forbidden requests with a valid token result in a 404.' Nothing was changed.",
+      "static_headers adds Content-Type: application/vnd.api+json because this is a JSON:API surface, and every sample request in the docs carries that header verbatim: 'curl \\ --header \"Authorization: Bearer $TOKEN\" \\ --header \"Content-Type: application/vnd.api+json\" \\ --request GET \\ https://app.terraform.io/api/v2/account/details'. The declarative runtime otherwise defaults to application/json, so without this header the connector would announce the wrong media type on every call.",
+      "Every path carries the /api/v2 prefix in full because the endpoint pages document relative paths: 'All V2 API endpoints use /api/v2 as a prefix unless otherwise specified. For example, if the API endpoint documentation defines the path /runs then the full path is /api/v2/runs .'",
+      "page[size] is clamped to the documented ceiling: 'page[size] Optional. If omitted, the endpoint will return 20 items per page. The maximum page size is 100.' page[number] carries a client-side cap of 1000 that the API does not document; the clamp helper needs a max, and a four-digit page is far past anything an agent should walk one request at a time (spec v1 allows one request per tool, so there is no pagination follow-up tool).",
+      "list_organizations always sends page[size], deliberately: 'Currently, this endpoint returns a full, unpaginated list of organizations (without pagination metadata) if both of the pagination query parameters are omitted. To avoid inconsistent behavior, we recommend always supplying pagination parameters when building against this API.' Sending it also makes the meta.pagination block this tool picks present.",
+      "list_runs picks no meta.pagination block. The documented sample response for GET /workspaces/:workspace_id/runs shows a links object and no meta, unlike the organizations and workspaces samples, so claiming those three counters here would be inventing them. That endpoint also carries its own lower limit: 'This endpoint has an adjusted rate limit of 30 requests per minute. Note that most endpoints are limited to 30 requests per second.'",
+      "JSON:API attribute names are hyphenated on the wire (execution-mode, latest-change-at, plan-identifier), so every pick maps a readable snake_case key onto the hyphenated dotted source. The permissions and actions sub-objects are deliberately NOT picked: they are large capability maps that say what the token may do rather than what the resource is, and they would dominate the 2000-character truncate budget.",
+      "rateLimit is 30 requests per 60s, one order of magnitude under the documented allowance ('You can make up to 30 requests per second to most API endpoints as an authenticated or unauthenticated request'), which also keeps the list_runs per-minute limit safe.",
+      "All four tools are READ-ONLY GETs (write: false). The Runs API's apply, discard and cancel actions are POSTs and are deliberately absent: applying infrastructure changes is not something a blind-proven connector should be able to do.",
+      "No _probe hints are set and none would help: with an invalid token every real path answers 401 before any organization name or workspace id is looked up, so a made-up slug and a real one are indistinguishable to a blind probe.",
+      "What the shape-proof can and cannot say here: app.terraform.io answers the deliberately bogus control path with a structured 404 ({\"errors\":[{\"status\":\"404\",\"title\":\"not found\"}]}) and every real /api/v2 path with a structured JSON:API 401 ({\"errors\":[{\"status\":\"401\",\"title\":\"unauthorized\"}]}). The differing control is what keeps this out of AUTH_WALL, and each tool's own structured 401 is the flag recorded (structured_body: json), so host, TLS, base_url, path and the Authorization header name are proven per tool. It proves nothing about response fields, and a real token is what would flip those same calls to 2xx."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

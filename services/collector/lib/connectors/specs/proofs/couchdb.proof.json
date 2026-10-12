@@ -1,0 +1,106 @@
+{
+  "spec_id": "couchdb",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T18:03:03.651Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/_session",
+      "status": 200,
+      "latency_ms": 319,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "7e2be9af8fecb5c130257c9da34853665b32050a4198098b4f4a36b9976e2ac2",
+      "body_excerpt": "{\"ok\":true,\"userCtx\":{\"name\":\"[LIVE_REDACTED]\",\"roles\":[\"_admin\"]},\"info\":{\"authentication_handlers\":[\"cookie\",\"default\"],\"authenticated\":\"default\"}}\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "server_info",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/",
+      "status": 200,
+      "latency_ms": 15,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "0cbeca13fe67cfcca4d17bb8ac85e017ae904a6209db5089714ab57182a62818",
+      "body_excerpt": "{\"couchdb\":\"Welcome\",\"version\":\"3.4.3\",\"git_sha\":\"e12b967d7\",\"uuid\":\"44747811dd3a074e7215cf157bc6fc74\",\"features\":[\"access-ready\",\"partitioned\",\"pluggable-storage-engines\",\"reshard\",\"scheduler\"],\"vend",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "whoami",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/_session",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "7e2be9af8fecb5c130257c9da34853665b32050a4198098b4f4a36b9976e2ac2",
+      "body_excerpt": "{\"ok\":true,\"userCtx\":{\"name\":\"[LIVE_REDACTED]\",\"roles\":[\"_admin\"]},\"info\":{\"authentication_handlers\":[\"cookie\",\"default\"],\"authenticated\":\"default\"}}\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_databases",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/_all_dbs?limit=20",
+      "status": 200,
+      "latency_ms": 25,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "5f220da26bb57eac55698be476fb117aacc909a1e5c0a0683ad84bbff5030aa2",
+      "body_excerpt": "[\"_users\",\"[LIVE_REDACTED]-live\"]\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_database",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/[LIVE_REDACTED]-live",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "97d7428ba69ffd6727c6e150f07e040f56fdbde9ed3f16aaeb13c503689a4d17",
+      "body_excerpt": "{\"instance_start_time\":\"1789236153\",\"db_name\":\"[LIVE_REDACTED]-live\",\"purge_seq\":\"0-g1AAAABPeJzLYWBgYMpgTmHgzcvPy09JdcjLz8gvLskBCeexAEmGBiD1HwiyEhlwqEtkSKqHKMgCAIT2GV4\",\"update_seq\":\"0-g1AAAACLeJzLYWBgYMpgT",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_docs",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/[LIVE_REDACTED]-live/_all_docs?limit=20",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "c278f2dbf7098d4360391f050ecc1d689295936571a49823a7d5060efb0178e7",
+      "body_excerpt": "{\"total_rows\":0,\"offset\":0,\"rows\":[\r\n\r\n]}\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_changes",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/[LIVE_REDACTED]-live/_changes?limit=20",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "f2b02b8ba2dc3c08be2d7924af4b45d9a057f142352cd29d22fb8650f0e018c9",
+      "body_excerpt": "{\"results\":[\n\n],\n\"last_seq\":\"0-g1AAAACLeJzLYWBgYMpgTmHgzcvPy09JdcjLz8gvLskBCScyJNX___8_K4M5kSEXKMBubJhikmhijq4Yh_Y8FiDJ0ACk_qOYYmGUZmGEaUoWADsYKic\",\"pending\":0}\n\n",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:couchdb:3.4"
+}

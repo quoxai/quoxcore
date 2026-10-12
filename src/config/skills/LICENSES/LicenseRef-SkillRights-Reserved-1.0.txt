@@ -1,0 +1,156 @@
+SkillRights Reserved Licence
+Version 1.0 (2026-09-10)
+
+Summary, not part of the licence: only Authorised Recipients may use the
+Work, within the stated scope. Training and redistribution are not
+granted. Mandatory legal exceptions may apply. Note: a public copy of
+this licence cannot itself preserve trade-secret status; for genuinely
+secret material use gated access and an executed agreement.
+
+1. DEFINITIONS
+
+"Licensor" means the person or legal entity offering the Work under this
+licence.
+
+"Work" means the files and material that the Licensor identifies as
+subject to this licence in a copyright notice, licence notice, or
+distribution record, including the skill, instructions, prompts, code,
+resources, and accompanying files. It does not include material merely
+linked from the Work. This licence applies only to rights in that
+material that the Licensor owns or controls; nothing in it asserts
+rights over ideas, methods, or processes as such.
+
+"Execute" means to read, load, interpret, follow, retrieve, or otherwise
+use the Work at run-time to perform a task, including loading or
+retrieving the Work in the context of an AI model at inference time.
+Rights granted to an Authorised Recipient extend to AI or software
+systems acting on its behalf.
+
+"Train" means, to the extent that the activity requires permission from
+the Licensor, using all or part of the Work as input, data, or source
+material to develop, train, pre-train, fine-tune, align, evaluate with a
+view to improve, distil into, or otherwise improve a machine-learning
+model, or to create synthetic training data from the Work for any such
+activity. Train includes placing the Work in a dataset, embedding or
+vector corpus, cache, or index used for any such activity.
+
+Train does not include making or retaining a copy, embedding or vector
+index, cache, or corpus solely to retrieve the Work at inference time
+for Execute, provided that it is not subsequently used for Train.
+
+"Redistribute" means to reproduce, publish, host, mirror, convey, or
+make available all or a material part of the Work to another person or
+legal entity, in original or modified form.
+
+"Authorised Recipient" means a person or legal entity expressly
+identified in a written agreement, order form, account entitlement, or
+other durable record issued by or on behalf of the Licensor as
+permitted to Execute the Work. It includes that entity's employees and
+contractors solely to the extent that they act on its behalf and are
+bound by written obligations at least as protective as this licence. It
+excludes affiliates, customers, and other third parties unless the
+relevant record expressly includes them.
+
+2. GRANT
+
+Subject to this licence, the Licensor grants each Authorised Recipient
+a non-exclusive, non-transferable, non-sublicensable licence to
+reproduce, load, store, and Execute the Work only as reasonably
+necessary for its internal business purposes. It may make the Work
+available only to its permitted employees and contractors.
+
+An Authorised Recipient may not Execute the Work to provide a service
+to a third party, or otherwise for the benefit of a third party, unless
+the Licensor has separately agreed in writing.
+
+3. RESERVATIONS
+
+Except for the express permissions in section 2, all rights are
+reserved. Permission to Train is not granted. Permission to
+Redistribute is not granted.
+
+To the extent that the Licensor is the relevant rightholder, the
+Licensor expressly reserves, for the purposes of Article 4(3) of
+Directive (EU) 2019/790 and the laws implementing it, the rights to
+reproduce and extract the Work for text and data mining, including text
+and data mining for Train. This reservation applies to every copy of
+the Work however encountered, whether or not a given copy carries a
+licence header.
+
+This section does not restrict an act that an applicable mandatory
+exception or limitation permits.
+
+4. CONFIDENTIALITY
+
+The Work and non-public information supplied with it are Confidential
+Information. Each Authorised Recipient must protect them using at least
+reasonable care, use them only as section 2 permits, and disclose them
+only to permitted employees and contractors bound by written
+obligations at least as protective as this section.
+
+This section does not apply to information that the Authorised
+Recipient can document was lawfully public without breach, already
+known without a duty of confidence, independently developed without use
+of the Work, or lawfully received without a duty of confidence.
+
+On termination or the Licensor's written request, the Authorised
+Recipient must stop using the Work and, where practicable, delete its
+copies, except for one archival copy retained solely to comply with law
+or resolve a dispute.
+
+5. NOTICES AND MARKS
+
+An Authorised Recipient must retain the copyright, attribution,
+reservation, and licence notices supplied with the Work. This licence
+does not grant permission to use the Licensor's trademarks, service
+marks, or logos, or the SkillRights name.
+
+6. PATENT
+
+To the extent the Licensor owns or controls patent claims that would be
+infringed only by exercising an express permission under this licence,
+the Licensor grants each Authorised Recipient a worldwide,
+royalty-free, non-exclusive patent licence under those claims for that
+exercise. This paragraph does not grant permission to Train.
+
+7. TERMINATION AND REINSTATEMENT
+
+The permissions granted terminate automatically on any material breach
+of this licence. A breach other than a completed act of Train or an
+unauthorised disclosure of Confidential Information may be reinstated
+by cure within 30 days after written notice from the Licensor. A
+completed act of Train, or an unauthorised disclosure, may be
+reinstated only by the Licensor's express written agreement. Sections
+3, 4, 5, 8 and 9 survive termination.
+
+8. NO WARRANTY; LIMITATION
+
+To the maximum extent permitted by applicable law, the Work is provided
+"as is" and "as available", without warranties, conditions, or
+representations of any kind, whether express, implied, or statutory,
+including as to accuracy, completeness, fitness for a particular
+purpose, non-infringement, merchantability, or availability.
+
+Unless the Licensor separately agrees otherwise in writing, the Work is
+general informational material. It is not tailored professional advice
+and does not create a professional-client relationship. An Authorised
+Recipient is responsible for independently assessing the Work and its
+outputs.
+
+Nothing in this licence excludes or limits liability that applicable
+law does not permit the Licensor to exclude or limit, including
+liability for death or personal injury caused by negligence, or for
+fraud or fraudulent misrepresentation, where applicable.
+
+9. MISCELLANEOUS
+
+If a provision of this licence is unenforceable, the remainder stands.
+
+Except for the permissions expressly granted, the Licensor does not
+grant or imply consent to use the Work. This licence is evidence of
+that stated reservation, but it does not by itself create a contract
+with a person who has not agreed to it. A platform or other access
+provider may require a separate agreement as a condition of access.
+
+Identifier: LicenseRef-SkillRights-Reserved-1.0
+Canonical URL: https://skillrights.org/reserved/1.0

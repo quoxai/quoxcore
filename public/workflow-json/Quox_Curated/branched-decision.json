@@ -1,0 +1,100 @@
+{
+  "id": "wf-quox-branched-decision",
+  "name": "Branched Decision",
+  "description": "Demonstrates a branching pattern: a webhook fires, a condition routes to either an AI-assisted response path or a human-review path based on a threshold value.",
+  "source": "quox-curated",
+  "category": "automation",
+  "tags": ["branch", "condition", "webhook", "assistant", "human-in-the-loop", "decision", "demo", "routing"],
+  "nodes": [
+    {
+      "id": "trig",
+      "type": "trigger:webhook",
+      "name": "Receive Event",
+      "category": "trigger",
+      "config": {
+        "method": "POST",
+        "path": "/decision/route",
+        "authentication": "none"
+      },
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "condition",
+      "type": "flow:condition",
+      "name": "Score > Threshold?",
+      "category": "logic",
+      "config": {
+        "expression": "input.score > (input.threshold || 50)",
+        "trueLabel": "Auto-Handle",
+        "falseLabel": "Human Review"
+      },
+      "position": { "x": 400, "y": 300 }
+    },
+    {
+      "id": "auto-handle",
+      "type": "assistant:invoke",
+      "name": "Auto-Handle Response",
+      "category": "action",
+      "config": {
+        "assistant_id": "quox",
+        "prompt": "Process this high-confidence event automatically. Event data: ${JSON.stringify(input)}. Generate an appropriate action response.",
+        "name": "Auto-Handle Response"
+      },
+      "position": { "x": 700, "y": 150 }
+    },
+    {
+      "id": "auto-deliver",
+      "type": "notification:deliver",
+      "name": "Notify Auto Result",
+      "category": "notification",
+      "config": {
+        "title": "Event Auto-Handled",
+        "message": "${nodes['auto-handle'].output.result}",
+        "assignTo": ["*"],
+        "priority": "low"
+      },
+      "position": { "x": 1000, "y": 150 }
+    },
+    {
+      "id": "human-review",
+      "type": "human:task",
+      "name": "Human Review",
+      "category": "human",
+      "config": {
+        "title": "Low-Confidence Event Requires Review",
+        "message": "Score: **${input.score}** (below threshold ${input.threshold || 50}).\n\nEvent: ${JSON.stringify(input)}\n\nPlease review and take action.",
+        "assignTo": ["*"],
+        "priority": "normal",
+        "actions": [
+          { "action": "approve", "label": "Accept", "style": "primary" },
+          { "action": "reject", "label": "Reject", "style": "secondary" }
+        ]
+      },
+      "position": { "x": 700, "y": 450 }
+    },
+    {
+      "id": "human-action",
+      "type": "call",
+      "name": "Execute Human Decision",
+      "category": "action",
+      "config": {
+        "url": "{{ACTION_WEBHOOK_URL}}",
+        "method": "POST",
+        "timeout": 10000
+      },
+      "position": { "x": 1000, "y": 450 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trig", "target": "condition" },
+    { "id": "e2", "source": "condition", "target": "auto-handle", "label": "Auto-Handle" },
+    { "id": "e3", "source": "condition", "target": "human-review", "label": "Human Review" },
+    { "id": "e4", "source": "auto-handle", "target": "auto-deliver" },
+    { "id": "e5", "source": "human-review", "target": "human-action" }
+  ],
+  "meta": {
+    "version": "1.0.0",
+    "createdBy": "quox-curated",
+    "estimatedRuntime": "30s (auto) or + human review"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "spec_id": "upstash",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:19:40.172Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.upstash.com/quox-shapeproof-control-99d211b2",
+      "status": 404,
+      "latency_ms": 1254,
+      "classification": "CONTROL",
+      "body_sha256": "99eb12f2ab3c4866a353e098ffa3cb7a967e617c49b98480394ec5d8ea92b094",
+      "body_excerpt": "404 page not found",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.upstash.com/v2/redis/databases",
+      "status": 401,
+      "latency_ms": 314,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3be5b8e53fdc8b0a2996590589456db33504977f3d1ce9bb75016c8a707e1a71",
+      "body_excerpt": "{\"error\":\"Unauthorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_redis_databases",
+      "method": "GET",
+      "url": "https://api.upstash.com/v2/redis/databases",
+      "status": 401,
+      "latency_ms": 406,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3be5b8e53fdc8b0a2996590589456db33504977f3d1ce9bb75016c8a707e1a71",
+      "body_excerpt": "{\"error\":\"Unauthorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_redis_database",
+      "method": "GET",
+      "url": "https://api.upstash.com/v2/redis/database/quoxprobe?credentials=hide",
+      "status": 401,
+      "latency_ms": 272,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3be5b8e53fdc8b0a2996590589456db33504977f3d1ce9bb75016c8a707e1a71",
+      "body_excerpt": "{\"error\":\"Unauthorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

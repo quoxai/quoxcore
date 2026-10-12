@@ -1,0 +1,173 @@
+{
+  "spec_version": 1,
+  "id": "openweathermap",
+  "name": "OpenWeatherMap",
+  "category": "data_ai",
+  "credentialType": "openweathermap",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://openweathermap.org/api",
+  "base_url": "https://api.openweathermap.org",
+  "auth": {
+    "type": "query",
+    "param": "appid",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/data/2.5/weather",
+    "query": {
+      "q": "London"
+    }
+  },
+  "tools_source": "https://openweathermap.org/api",
+  "tools": [
+    {
+      "name": "current_weather",
+      "description": "Get current weather for a city from OpenWeatherMap (temperature, conditions, humidity, wind)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string",
+            "description": "City name, optionally with state and ISO 3166 country code (e.g. London or London,GB)"
+          },
+          "units": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "metric",
+              "imperial"
+            ],
+            "description": "Optional unit system (default standard = Kelvin; metric = Celsius, imperial = Fahrenheit)"
+          }
+        },
+        "required": [
+          "city"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/data/2.5/weather",
+        "query": {
+          "q": "{{input.city}}",
+          "units": "{{input.units}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "country": "sys.country",
+          "condition": "weather.0.main",
+          "description": "weather.0.description",
+          "temp": "main.temp",
+          "feels_like": "main.feels_like",
+          "humidity": "main.humidity",
+          "pressure": "main.pressure",
+          "wind_speed": "wind.speed",
+          "clouds": "clouds.all",
+          "dt": "dt"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "forecast",
+      "description": "Get the OpenWeatherMap 5 day / 3 hour forecast for a city, as a list of timestamped entries",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string",
+            "description": "City name, optionally with state and ISO 3166 country code (e.g. London or London,GB)"
+          },
+          "cnt": {
+            "type": "number",
+            "description": "Number of 3-hour timestamps to return (default 8 = 24 hours, max 40 = 5 days)"
+          },
+          "units": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "metric",
+              "imperial"
+            ],
+            "description": "Optional unit system (default standard = Kelvin; metric = Celsius, imperial = Fahrenheit)"
+          }
+        },
+        "required": [
+          "city"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/data/2.5/forecast",
+        "query": {
+          "q": "{{input.city}}",
+          "cnt": "{{clamp input.cnt 8 40}}",
+          "units": "{{input.units}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "city": "city.name",
+          "country": "city.country",
+          "cnt": "cnt",
+          "list[]": {
+            "time": "dt_txt",
+            "dt": "dt",
+            "condition": "weather.0.main",
+            "description": "weather.0.description",
+            "temp": "main.temp",
+            "feels_like": "main.feels_like",
+            "humidity": "main.humidity",
+            "wind_speed": "wind.speed"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "geocode",
+      "description": "Resolve a place name to coordinates using the OpenWeatherMap geocoding API (returns matching locations with lat/lon)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Place name, optionally with state and ISO 3166 country code (e.g. Paris or Paris,FR)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max locations to return (default 5, max 5)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/geo/1.0/direct",
+        "query": {
+          "q": "{{input.query}}",
+          "limit": "{{clamp input.limit 5 5}}"
+        }
+      },
+      "response": {
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

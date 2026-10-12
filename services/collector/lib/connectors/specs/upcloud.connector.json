@@ -1,0 +1,178 @@
+{
+  "spec_version": 1,
+  "id": "upcloud",
+  "name": "UpCloud",
+  "category": "cloud_hosting",
+  "credentialType": "upcloud",
+  "requiredFields": [
+    "username",
+    "password"
+  ],
+  "docs": "https://developers.upcloud.com/",
+  "base_url": "https://api.upcloud.com",
+  "auth": {
+    "type": "basic",
+    "userField": "username",
+    "passField": "password"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/1.3/account"
+  },
+  "tools_source": "https://developers.upcloud.com/1.3/",
+  "tools": [
+    {
+      "name": "get_account",
+      "description": "Get the UpCloud account: username, remaining credits and the account resource limits",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/1.3/account"
+      },
+      "response": {
+        "pick": {
+          "username": "account.username",
+          "credits": "account.credits",
+          "limit_cores": "account.resource_limits.cores",
+          "limit_memory_mib": "account.resource_limits.memory",
+          "limit_storage_total_mib": "account.resource_limits.storage_total",
+          "limit_storage_maxiops_mib": "account.resource_limits.storage_maxiops",
+          "limit_public_ipv4": "account.resource_limits.public_ipv4",
+          "limit_public_ipv6": "account.resource_limits.public_ipv6",
+          "limit_load_balancers": "account.resource_limits.load_balancers",
+          "limit_managed_databases": "account.resource_limits.managed_databases"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_servers",
+      "description": "List the cloud servers on the UpCloud account, optionally filtered by state or a free-text search",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max servers to return (default 20, max 100)"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "started",
+              "stopped",
+              "maintenance",
+              "error"
+            ],
+            "description": "Optional server state to filter by"
+          },
+          "search": {
+            "type": "string",
+            "description": "Optional pattern matched against name, title, uuid, zone, IP address, hostname, tag or template name"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/1.3/server",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "state": "{{input.state}}",
+          "search": "{{input.search}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "servers.server[]": {
+            "uuid": "uuid",
+            "title": "title",
+            "hostname": "hostname",
+            "plan": "plan",
+            "state": "state",
+            "zone": "zone",
+            "core_number": "core_number",
+            "memory_amount": "memory_amount",
+            "license": "license",
+            "tags": "tags.tag"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_storages",
+      "description": "List the storages accessible to the UpCloud account, with size, tier, state and zone",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/1.3/storage"
+      },
+      "response": {
+        "pick": {
+          "storages.storage[]": {
+            "uuid": "uuid",
+            "title": "title",
+            "type": "type",
+            "access": "access",
+            "size": "size",
+            "tier": "tier",
+            "state": "state",
+            "zone": "zone",
+            "encrypted": "encrypted",
+            "part_of_plan": "part_of_plan",
+            "origin": "origin",
+            "created": "created"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_zones",
+      "description": "List the UpCloud zones available to the account, including private cloud zones and their parents",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/1.3/zone"
+      },
+      "response": {
+        "pick": {
+          "zones.zone[]": {
+            "id": "id",
+            "description": "description",
+            "public": "public",
+            "parent_zone": "parent_zone"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Tools written 2026-09-12 from the official API 1.3 documentation (sections 3-accounts, 5-zones, 8-servers, 9-storages): every path, query parameter, state enum and response key above is copied from the documented example responses. UpCloud nests its collections one level deep (servers.server[], storages.storage[], zones.zone[]), so the picks address them with dotted array keys.",
+      "Scaffolded auth (HTTP basic, username plus password) stands: the API 1.3 documentation authenticates every request with basic auth on the UpCloud username and password, and the live host answers a dummy pair with a structured AUTHENTICATION_FAILED 401.",
+      "No _probe hints are needed or supplied: all four reads are parameter-free account-level routes, so the blind harness reaches each documented path without substituting anything.",
+      "Only list_servers documents pagination (limit/offset) and filters, so only it carries a clamp. Storage listing narrows by PATH segment (/1.3/storage/private, /1.3/storage/template and so on) rather than by query, so this tool reads the unfiltered list; adding the type variants would mean four more tools rather than an input."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

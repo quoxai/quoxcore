@@ -1,0 +1,221 @@
+{
+  "spec_version": 1,
+  "id": "hubspot",
+  "name": "HubSpot",
+  "category": "crm_sales",
+  "credentialType": "hubspot",
+  "requiredFields": [
+    "private_app_token"
+  ],
+  "docs": "https://developers.hubspot.com/docs/api/overview",
+  "base_url": "https://api.hubapi.com",
+  "auth": {
+    "type": "bearer",
+    "field": "private_app_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/crm/v3/objects/contacts",
+    "query": {
+      "limit": "1"
+    }
+  },
+  "tools_source": "https://developers.hubspot.com/docs/api/overview",
+  "tools": [
+    {
+      "name": "list_contacts",
+      "description": "List HubSpot CRM contacts (id, name, email, created date)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max_results": {
+            "type": "number",
+            "description": "Contacts to return (default 20, max 50)"
+          },
+          "properties": {
+            "type": "string",
+            "description": "Optional comma-separated HubSpot property names to include"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/crm/v3/objects/contacts",
+        "query": {
+          "limit": "{{clamp input.max_results 20 50}}",
+          "properties": "{{input.properties}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "id": "id",
+            "firstname": "properties.firstname",
+            "lastname": "properties.lastname",
+            "email": "properties.email",
+            "createdAt": "createdAt"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_contact",
+      "description": "Get a single HubSpot CRM contact by record id",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "HubSpot contact record id"
+          },
+          "properties": {
+            "type": "string",
+            "description": "Optional comma-separated HubSpot property names to include"
+          }
+        },
+        "required": [
+          "contact_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/crm/v3/objects/contacts/{{input.contact_id}}",
+        "query": {
+          "properties": "{{input.properties}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "firstname": "properties.firstname",
+          "lastname": "properties.lastname",
+          "email": "properties.email",
+          "createdAt": "createdAt"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_companies",
+      "description": "List HubSpot CRM companies (id, name, domain)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max_results": {
+            "type": "number",
+            "description": "Companies to return (default 20, max 50)"
+          },
+          "properties": {
+            "type": "string",
+            "description": "Optional comma-separated HubSpot property names to include"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/crm/v3/objects/companies",
+        "query": {
+          "limit": "{{clamp input.max_results 20 50}}",
+          "properties": "{{input.properties}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "id": "id",
+            "name": "properties.name",
+            "domain": "properties.domain"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_deals",
+      "description": "List HubSpot CRM deals (id, deal name, amount, stage)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max_results": {
+            "type": "number",
+            "description": "Deals to return (default 20, max 50)"
+          },
+          "properties": {
+            "type": "string",
+            "description": "Optional comma-separated HubSpot property names to include"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/crm/v3/objects/deals",
+        "query": {
+          "limit": "{{clamp input.max_results 20 50}}",
+          "properties": "{{input.properties}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "id": "id",
+            "dealname": "properties.dealname",
+            "amount": "properties.amount",
+            "dealstage": "properties.dealstage"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "search_contacts",
+      "description": "Search HubSpot CRM contacts by free-text query (read-only search endpoint)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Free-text search term"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Contacts to return (default 20, max 50)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/crm/v3/objects/contacts/search",
+        "body": {
+          "query": "{{input.query}}",
+          "limit": "{{clamp input.max_results 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "id": "id",
+            "firstname": "properties.firstname",
+            "lastname": "properties.lastname",
+            "email": "properties.email",
+            "createdAt": "createdAt"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T20:46:44.333Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,241 @@
+{
+  "spec_version": 1,
+  "id": "beehiiv",
+  "name": "beehiiv",
+  "category": "marketing_email",
+  "credentialType": "beehiiv",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developers.beehiiv.com/",
+  "base_url": "https://api.beehiiv.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/publications"
+  },
+  "tools_source": "https://developers.beehiiv.com/api-reference",
+  "tools": [
+    {
+      "name": "list_publications",
+      "description": "List the beehiiv publications the API key can access (id, name, organization, created date)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max publications to return (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number of results to return (default 1)"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "description": "Optional sort direction, defaults to asc"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/publications",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "page": "{{input.page}}",
+          "direction": "{{input.direction}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "organization_name": "organization_name",
+            "referral_program_enabled": "referral_program_enabled",
+            "created": "created"
+          },
+          "limit": "limit",
+          "page": "page",
+          "total_results": "total_results",
+          "total_pages": "total_pages"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_posts",
+      "description": "List posts belonging to one beehiiv publication, optionally filtered by status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "publication_id": {
+            "type": "string",
+            "description": "Prefixed beehiiv publication ID (e.g. pub_00000000-0000-0000-0000-000000000000), from list_publications"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max posts to return (default 20, max 100)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "confirmed",
+              "archived",
+              "all"
+            ],
+            "description": "Optional post status filter, defaults to all"
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "free",
+              "premium",
+              "all"
+            ],
+            "description": "Optional audience filter, defaults to all"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "description": "Optional sort direction, defaults to asc"
+          }
+        },
+        "required": [
+          "publication_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/publications/{{input.publication_id}}/posts",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "status": "{{input.status}}",
+          "audience": "{{input.audience}}",
+          "direction": "{{input.direction}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "title": "title",
+            "subtitle": "subtitle",
+            "status": "status",
+            "audience": "audience",
+            "platform": "platform",
+            "slug": "slug",
+            "web_url": "web_url",
+            "publish_date": "publish_date",
+            "created": "created"
+          },
+          "limit": "limit",
+          "page": "page",
+          "total_results": "total_results",
+          "total_pages": "total_pages"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_subscriptions",
+      "description": "List subscriptions for one beehiiv publication, optionally filtered by status, tier or exact email",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "publication_id": {
+            "type": "string",
+            "description": "Prefixed beehiiv publication ID (e.g. pub_00000000-0000-0000-0000-000000000000), from list_publications"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max subscriptions to return (default 20, max 100)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "validating",
+              "invalid",
+              "pending",
+              "active",
+              "inactive",
+              "all"
+            ],
+            "description": "Optional subscription status filter, defaults to all"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "premium",
+              "all"
+            ],
+            "description": "Optional subscription tier filter, defaults to all"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional exact email address to find one subscription (case insensitive)"
+          }
+        },
+        "required": [
+          "publication_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/publications/{{input.publication_id}}/subscriptions",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "status": "{{input.status}}",
+          "tier": "{{input.tier}}",
+          "email": "{{input.email}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "email": "email",
+            "status": "status",
+            "created": "created",
+            "subscription_tier": "subscription_tier",
+            "utm_source": "utm_source",
+            "utm_medium": "utm_medium",
+            "referral_code": "referral_code"
+          },
+          "limit": "limit",
+          "total_results": "total_results",
+          "total_pages": "total_pages",
+          "has_more": "has_more"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Scaffolded bearer auth, base_url and test block all stand: the official reference (https://developers.beehiiv.com/api-reference/publications/index) documents Authorization: Bearer <token> on api.beehiiv.com and GET /v2/publications as the call that returns every publication the key can reach, so no auth change was needed.",
+      "list_posts and list_subscriptions both need a prefixed publication_id path parameter and beehiiv publishes no public publication ID, so no _probe hint is supplied: the blind harness cannot route a made-up identifier, and the shape proof records that honestly rather than guessing one."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

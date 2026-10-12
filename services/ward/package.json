@@ -1,0 +1,20 @@
+{
+  "name": "ward-service",
+  "version": "0.2.0",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "ward-verify": "./bin/ward-verify.js"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "asn1js": "^3.0.10",
+    "better-sqlite3": "^11.0.0",
+    "pkijs": "^3.4.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
+}

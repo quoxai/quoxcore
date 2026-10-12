@@ -1,0 +1,90 @@
+{
+  "spec_id": "dataforseo",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:22.144Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.dataforseo.com/quox-shapeproof-control-1af6c9cd",
+      "status": 404,
+      "latency_ms": 183,
+      "classification": "CONTROL",
+      "body_sha256": "07f292459402bc3a00319986d8a03a05b63134e53f76cc586e5b42de3160797b",
+      "body_excerpt": "{\n    \"status\": \"error\",\n    \"error\": {\n        \"code\": 404,\n        \"message\": \"'\\/quox-shapeproof-control-1af6c9cd' Not Found.\"\n    }\n}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.dataforseo.com/v3/appendix/user_data",
+      "status": 401,
+      "latency_ms": 114,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a95cffd301620333ff27efe55d459479d53b7731da4c1ed43385ebccb094a5a2",
+      "body_excerpt": "{\"version\":\"0.1.20260902\",\"status_code\":40100,\"status_message\":\"You are not authorized to access this resource. See your login details here: https:\\/\\/app.dataforseo.com\\/api-access .\",\"time\":\"0 sec.\"",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "user_data",
+      "method": "GET",
+      "url": "https://api.dataforseo.com/v3/appendix/user_data",
+      "status": 401,
+      "latency_ms": 81,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a95cffd301620333ff27efe55d459479d53b7731da4c1ed43385ebccb094a5a2",
+      "body_excerpt": "{\"version\":\"0.1.20260902\",\"status_code\":40100,\"status_message\":\"You are not authorized to access this resource. See your login details here: https:\\/\\/app.dataforseo.com\\/api-access .\",\"time\":\"0 sec.\"",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "serp_google_organic_live",
+      "method": "POST",
+      "url": "https://api.dataforseo.com/v3/serp/google/organic/live/advanced",
+      "status": 401,
+      "latency_ms": 129,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "13c631eaa72a2771d5c64a52febd52fcadf7e80e050e1758d2272dcce0d05255",
+      "body_excerpt": "{\n    \"version\": \"0.1.20260902\",\n    \"status_code\": 40100,\n    \"status_message\": \"You are not authorized to access this resource. See your login details here: https:\\/\\/app.dataforseo.com\\/api-access ",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "keywords_data_search_volume",
+      "method": "POST",
+      "url": "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
+      "status": 401,
+      "latency_ms": 112,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "13c631eaa72a2771d5c64a52febd52fcadf7e80e050e1758d2272dcce0d05255",
+      "body_excerpt": "{\n    \"version\": \"0.1.20260902\",\n    \"status_code\": 40100,\n    \"status_message\": \"You are not authorized to access this resource. See your login details here: https:\\/\\/app.dataforseo.com\\/api-access ",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "backlinks_summary",
+      "method": "POST",
+      "url": "https://api.dataforseo.com/v3/backlinks/summary/live",
+      "status": 401,
+      "latency_ms": 80,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a95cffd301620333ff27efe55d459479d53b7731da4c1ed43385ebccb094a5a2",
+      "body_excerpt": "{\"version\":\"0.1.20260902\",\"status_code\":40100,\"status_message\":\"You are not authorized to access this resource. See your login details here: https:\\/\\/app.dataforseo.com\\/api-access .\",\"time\":\"0 sec.\"",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

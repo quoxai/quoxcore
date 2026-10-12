@@ -1,0 +1,217 @@
+{
+  "spec_version": 1,
+  "id": "dbt_cloud",
+  "name": "dbt Cloud",
+  "category": "data_ai",
+  "description": "Read-only dbt Cloud Administrative API v2 access: accounts the service token can see, and the projects, job definitions and job runs on one account. Nothing is triggered, cancelled or edited; running a job is a billable POST and is deliberately not exposed.",
+  "credentialType": "dbt_cloud",
+  "requiredFields": [
+    "api_token",
+    "account_id"
+  ],
+  "docs": "https://docs.getdbt.com/docs/dbt-cloud-apis/overview",
+  "base_url": "https://cloud.getdbt.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "Token {{api_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/accounts/{{account_id}}/"
+  },
+  "tools_source": "https://docs.getdbt.com/dbt-cloud/api-v2",
+  "tools": [
+    {
+      "name": "list_accounts",
+      "description": "List the dbt Cloud accounts the service token can see, with plan and state. Returns the account IDs every other dbt Cloud call is scoped by",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/accounts/"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "plan": "plan",
+            "state": "state",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_projects",
+      "description": "List the projects on one dbt Cloud account (get the account_id from list_accounts)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "dbt Cloud account ID (from list_accounts)"
+          }
+        },
+        "required": [
+          "account_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/accounts/{{input.account_id}}/projects/"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "account_id": "account_id",
+            "description": "description",
+            "state": "state",
+            "dbt_project_subdirectory": "dbt_project_subdirectory",
+            "repository_id": "repository_id",
+            "connection_id": "connection_id",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "total_count": "extra.pagination.total_count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_jobs",
+      "description": "List the job definitions on one dbt Cloud account, optionally narrowed to a single project (get the IDs from list_accounts and list_projects). Definitions only: no job is triggered",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "dbt Cloud account ID (from list_accounts)"
+          },
+          "project_id": {
+            "type": "number",
+            "description": "Optional dbt Cloud project ID to filter by (from list_projects)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max jobs to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional number of jobs to skip, for paging"
+          }
+        },
+        "required": [
+          "account_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/accounts/{{input.account_id}}/jobs/",
+        "query": {
+          "project_id": "{{input.project_id}}",
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "account_id": "account_id",
+            "project_id": "project_id",
+            "environment_id": "environment_id",
+            "description": "description",
+            "dbt_version": "dbt_version",
+            "state": "state",
+            "generate_docs": "generate_docs",
+            "schedule_cron": "schedule.cron",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "total_count": "extra.pagination.total_count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_runs",
+      "description": "List job runs on one dbt Cloud account, newest first, optionally narrowed to a single job definition (get the IDs from list_accounts and list_jobs). Returns status, git ref and timings per run",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "dbt Cloud account ID (from list_accounts)"
+          },
+          "job_definition_id": {
+            "type": "number",
+            "description": "Optional dbt Cloud job ID to filter by (from list_jobs)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max runs to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional number of runs to skip, for paging"
+          }
+        },
+        "required": [
+          "account_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/accounts/{{input.account_id}}/runs/",
+        "query": {
+          "job_definition_id": "{{input.job_definition_id}}",
+          "order_by": "-created_at",
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "job_definition_id": "job_definition_id",
+            "project_id": "project_id",
+            "environment_id": "environment_id",
+            "status": "status",
+            "status_humanized": "status_humanized",
+            "dbt_version": "dbt_version",
+            "git_branch": "git_branch",
+            "git_sha": "git_sha",
+            "created_at": "created_at",
+            "started_at": "started_at",
+            "finished_at": "finished_at",
+            "duration_humanized": "duration_humanized",
+            "is_complete": "is_complete",
+            "is_error": "is_error"
+          },
+          "total_count": "extra.pagination.total_count"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

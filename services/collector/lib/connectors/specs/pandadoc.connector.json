@@ -1,0 +1,397 @@
+{
+  "spec_version": 1,
+  "id": "pandadoc",
+  "name": "PandaDoc",
+  "category": "files_knowledge",
+  "credentialType": "pandadoc",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developers.pandadoc.com/",
+  "base_url": "https://api.pandadoc.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "API-Key {{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/public/v1/members/current"
+  },
+  "tools_source": "https://developers.pandadoc.com/reference/about",
+  "tools": [
+    {
+      "name": "get_current_member",
+      "description": "Get the PandaDoc workspace member the API key belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/public/v1/members/current"
+      },
+      "response": {
+        "pick": {
+          "user_id": "user_id",
+          "membership_id": "membership_id",
+          "email": "email",
+          "first_name": "first_name",
+          "last_name": "last_name",
+          "role": "role",
+          "is_active": "is_active"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_members",
+      "description": "List the members of the PandaDoc workspace the API key belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/public/v1/members"
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "user_id": "user_id",
+            "membership_id": "membership_id",
+            "email": "email",
+            "first_name": "first_name",
+            "last_name": "last_name",
+            "role": "role",
+            "is_active": "is_active"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_documents",
+      "description": "List PandaDoc documents, optionally filtered by search text, status, template or folder",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Max documents to return (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "1-based page of results to return (default 1)"
+          },
+          "q": {
+            "type": "string",
+            "description": "Optional search text matched against the document name"
+          },
+          "status": {
+            "type": "string",
+            "description": "Optional PandaDoc document status filter, passed through unchanged (see the List Documents reference for the accepted values)"
+          },
+          "template_id": {
+            "type": "string",
+            "description": "Optional template ID to return only documents created from that template"
+          },
+          "folder_uuid": {
+            "type": "string",
+            "description": "Optional document folder UUID to list, from list_document_folders"
+          },
+          "order_by": {
+            "type": "string",
+            "description": "Optional sort field, e.g. name, date_created, date_modified, date_completed; prefix with '-' to reverse"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/public/v1/documents",
+        "query": {
+          "count": "{{clamp input.count 20 100}}",
+          "page": "{{input.page}}",
+          "q": "{{input.q}}",
+          "status": "{{input.status}}",
+          "template_id": "{{input.template_id}}",
+          "folder_uuid": "{{input.folder_uuid}}",
+          "order_by": "{{input.order_by}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "date_created": "date_created",
+            "date_modified": "date_modified",
+            "date_completed": "date_completed",
+            "expiration_date": "expiration_date",
+            "version": "version"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_document_status",
+      "description": "Get the current status of one PandaDoc document by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "PandaDoc document ID, from list_documents"
+          }
+        },
+        "required": [
+          "document_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/public/v1/documents/{{input.document_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "status": "status",
+          "date_created": "date_created",
+          "date_modified": "date_modified",
+          "expiration_date": "expiration_date",
+          "version": "version"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_document_details",
+      "description": "Get the full detail of one PandaDoc document: recipients, totals and creator",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "PandaDoc document ID, from list_documents"
+          }
+        },
+        "required": [
+          "document_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/public/v1/documents/{{input.document_id}}/details"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "status": "status",
+          "date_created": "date_created",
+          "date_modified": "date_modified",
+          "date_completed": "date_completed",
+          "expiration_date": "expiration_date",
+          "version": "version",
+          "created_by_email": "created_by.email",
+          "grand_total_amount": "grand_total.amount",
+          "grand_total_currency": "grand_total.currency",
+          "recipients[]": {
+            "id": "id",
+            "email": "email",
+            "first_name": "first_name",
+            "last_name": "last_name",
+            "recipient_type": "recipient_type",
+            "role": "role",
+            "has_completed": "has_completed",
+            "signing_order": "signing_order"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_templates",
+      "description": "List PandaDoc templates, optionally filtered by search text, tag or folder",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Max templates to return (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "1-based page of results to return (default 1)"
+          },
+          "q": {
+            "type": "string",
+            "description": "Optional search text matched against the template name"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Optional tag to filter templates by"
+          },
+          "folder_uuid": {
+            "type": "string",
+            "description": "Optional template folder UUID to list, from list_template_folders"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/public/v1/templates",
+        "query": {
+          "count": "{{clamp input.count 20 100}}",
+          "page": "{{input.page}}",
+          "q": "{{input.q}}",
+          "tag": "{{input.tag}}",
+          "folder_uuid": "{{input.folder_uuid}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "id": "id",
+            "name": "name",
+            "date_created": "date_created",
+            "date_modified": "date_modified",
+            "version": "version"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_template_details",
+      "description": "Get the detail of one PandaDoc template: roles, tokens and creator",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "template_id": {
+            "type": "string",
+            "description": "PandaDoc template ID, from list_templates"
+          }
+        },
+        "required": [
+          "template_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/public/v1/templates/{{input.template_id}}/details"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "date_created": "date_created",
+          "date_modified": "date_modified",
+          "version": "version",
+          "created_by_email": "created_by.email",
+          "roles[]": {
+            "name": "name"
+          },
+          "tokens[]": {
+            "name": "name",
+            "value": "value"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_document_folders",
+      "description": "List PandaDoc document folders, optionally inside one parent folder",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "parent_uuid": {
+            "type": "string",
+            "description": "Optional parent folder UUID; omit for the workspace root"
+          },
+          "count": {
+            "type": "number",
+            "description": "Max folders to return (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "1-based page of results to return (default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/public/v1/documents/folders",
+        "query": {
+          "parent_uuid": "{{input.parent_uuid}}",
+          "count": "{{clamp input.count 20 100}}",
+          "page": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "uuid": "uuid",
+            "name": "name",
+            "date_created": "date_created"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_template_folders",
+      "description": "List PandaDoc template folders, optionally inside one parent folder",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "parent_uuid": {
+            "type": "string",
+            "description": "Optional parent folder UUID; omit for the workspace root"
+          },
+          "count": {
+            "type": "number",
+            "description": "Max folders to return (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "1-based page of results to return (default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/public/v1/templates/folders",
+        "query": {
+          "parent_uuid": "{{input.parent_uuid}}",
+          "count": "{{clamp input.count 20 100}}",
+          "page": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "uuid": "uuid",
+            "name": "name",
+            "date_created": "date_created"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

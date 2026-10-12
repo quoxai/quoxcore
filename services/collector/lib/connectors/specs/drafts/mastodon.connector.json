@@ -1,0 +1,30 @@
+{
+  "spec_version": 1,
+  "id": "mastodon",
+  "name": "Mastodon",
+  "category": "productivity",
+  "credentialType": "mastodon",
+  "requiredFields": [
+    "access_token",
+    "instance_url"
+  ],
+  "docs": "https://docs.joinmastodon.org/api/",
+  "base_url": {
+    "fromCredential": "instance_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/accounts/verify_credentials"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

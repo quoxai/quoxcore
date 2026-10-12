@@ -1,0 +1,153 @@
+{
+  "spec_id": "salesloft",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:50:16.141Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.salesloft.com/quox-shapeproof-control-0d56d1e2",
+      "status": 401,
+      "latency_ms": 5970,
+      "classification": "CONTROL",
+      "body_sha256": "df38add166a4e510fde39264a0ff3ed5e321aece6639ec7d4cdabebcfbbfd1fa",
+      "body_excerpt": "{\"error\":\"Invalid Bearer token\"}\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.salesloft.com/v2/me.json",
+      "status": 401,
+      "latency_ms": 143,
+      "classification": "AUTH_WALL",
+      "body_sha256": "df38add166a4e510fde39264a0ff3ed5e321aece6639ec7d4cdabebcfbbfd1fa",
+      "body_excerpt": "{\"error\":\"Invalid Bearer token\"}\n",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_current_user",
+      "method": "GET",
+      "url": "https://api.salesloft.com/v2/me.json",
+      "status": 401,
+      "latency_ms": 131,
+      "classification": "AUTH_WALL",
+      "body_sha256": "df38add166a4e510fde39264a0ff3ed5e321aece6639ec7d4cdabebcfbbfd1fa",
+      "body_excerpt": "{\"error\":\"Invalid Bearer token\"}\n",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_people",
+      "method": "GET",
+      "url": "https://api.salesloft.com/v2/people.json?per_page=25&page=1&email_addresses%5B%5D=quoxprobe",
+      "status": 401,
+      "latency_ms": 155,
+      "classification": "AUTH_WALL",
+      "body_sha256": "df38add166a4e510fde39264a0ff3ed5e321aece6639ec7d4cdabebcfbbfd1fa",
+      "body_excerpt": "{\"error\":\"Invalid Bearer token\"}\n",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_person",
+      "method": "GET",
+      "url": "https://api.salesloft.com/v2/people/quoxprobe.json",
+      "status": 401,
+      "latency_ms": 129,
+      "classification": "AUTH_WALL",
+      "body_sha256": "df38add166a4e510fde39264a0ff3ed5e321aece6639ec7d4cdabebcfbbfd1fa",
+      "body_excerpt": "{\"error\":\"Invalid Bearer token\"}\n",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_accounts",
+      "method": "GET",
+      "url": "https://api.salesloft.com/v2/accounts.json?per_page=25&page=1&domain=quoxprobe",
+      "status": 401,
+      "latency_ms": 202,
+      "classification": "AUTH_WALL",
+      "body_sha256": "df38add166a4e510fde39264a0ff3ed5e321aece6639ec7d4cdabebcfbbfd1fa",
+      "body_excerpt": "{\"error\":\"Invalid Bearer token\"}\n",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_cadences",
+      "method": "GET",
+      "url": "https://api.salesloft.com/v2/cadences.json?per_page=25&page=1",
+      "status": 401,
+      "latency_ms": 216,
+      "classification": "AUTH_WALL",
+      "body_sha256": "df38add166a4e510fde39264a0ff3ed5e321aece6639ec7d4cdabebcfbbfd1fa",
+      "body_excerpt": "{\"error\":\"Invalid Bearer token\"}\n",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_users",
+      "method": "GET",
+      "url": "https://api.salesloft.com/v2/users.json?per_page=25&page=1",
+      "status": 401,
+      "latency_ms": 193,
+      "classification": "AUTH_WALL",
+      "body_sha256": "df38add166a4e510fde39264a0ff3ed5e321aece6639ec7d4cdabebcfbbfd1fa",
+      "body_excerpt": "{\"error\":\"Invalid Bearer token\"}\n",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_emails",
+      "method": "GET",
+      "url": "https://api.salesloft.com/v2/emails.json?per_page=25&page=1",
+      "status": 401,
+      "latency_ms": 171,
+      "classification": "AUTH_WALL",
+      "body_sha256": "df38add166a4e510fde39264a0ff3ed5e321aece6639ec7d4cdabebcfbbfd1fa",
+      "body_excerpt": "{\"error\":\"Invalid Bearer token\"}\n",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

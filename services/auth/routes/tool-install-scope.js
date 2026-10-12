@@ -1,0 +1,248 @@
+/**
+ * STUDY-REV-2 / P4.0.A — Install-to-Scope Endpoints
+ *
+ * Three endpoints for managing tool installations at org scope:
+ *   GET    /tools/installed?scope_id=:orgId
+ *   POST   /tools/install-to-scope
+ *   DELETE /tools/install-to-scope/:tool_id
+ *
+ * org_id is derived from JWT (req.user.org_id) or query param scope_id
+ * (JWT wins on conflict). No :orgId URL param required.
+ *
+ * Auth pattern mirrors routes/plugins.js:
+ *   - requireUserAuth short-circuits if req.user already set (tests inject this)
+ *   - Falls through to requireAuth for production JWT validation
+ */
+
+import { Router } from 'express';
+import { getDb } from '../db/index.js';
+import { requireAuth } from '../middleware/auth.js';
+import { ulid } from '../utils/helpers.js';
+
+const router = Router();
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Use injected req.db (tests) or singleton getDb() (production). */
+function dbFor(req) { return req.db || getDb(); }
+
+/**
+ * Short-circuits if req.user is already populated (test injection).
+ * Falls through to requireAuth (JWT verification) for production requests.
+ */
+function requireUserAuth(req, res, next) {
+    if (req.user) return next();
+    return requireAuth(req, res, next);
+}
+
+// ── GET /tools/installed ─────────────────────────────────────────────────────
+
+/**
+ * GET /tools/installed?scope_id=:orgId
+ * Returns tools the org has explicitly installed-to-scope.
+ * Joins tool_installations (install metadata) with tool_definitions (library def).
+ *
+ * orgId source precedence: JWT org_id > scope_id query param.
+ * Response: { installations: [{ id, tool_id, name, description, category,
+ *              enabled, installed_at, ... }] }
+ */
+router.get('/tools/installed', requireUserAuth, (req, res) => {
+    const orgId = req.user.org_id || req.query.scope_id;
+    if (!orgId) {
+        return res.status(400).json({
+            error: 'scope_id_required',
+            message: 'scope_id query param or org_id in JWT is required',
+        });
+    }
+
+    try {
+        const db = dbFor(req);
+        const installations = db.prepare(`
+            SELECT
+                ti.id, ti.org_id, ti.tool_definition_id,
+                ti.config_json, ti.enabled, ti.pinned_version,
+                ti.installed_by, ti.installed_at, ti.updated_at,
+                ti.disabled_at,
+                td.tool_id, td.name, td.description, td.category, td.subcategory,
+                td.provider, td.version as catalog_version,
+                td.risk_level, td.sandbox_profile, td.icon
+            FROM tool_installations ti
+            JOIN tool_definitions td ON ti.tool_definition_id = td.id
+            WHERE ti.org_id = ?
+            ORDER BY td.name
+        `).all(orgId);
+
+        for (const inst of installations) {
+            inst.config = JSON.parse(inst.config_json || '{}');
+            delete inst.config_json;
+        }
+
+        return res.json({ installations });
+    } catch (err) {
+        console.error('Error listing installed tools:', err);
+        return res.status(500).json({ error: 'Failed to list installed tools' });
+    }
+});
+
+// ── POST /tools/install-to-scope ─────────────────────────────────────────────
+
+/**
+ * POST /tools/install-to-scope
+ * Body: { tool_id: string, config?: object, pinned_version?: string }
+ *
+ * Idempotent on (org_id, tool_definition_id):
+ *   - New row  → INSERT, returns 201
+ *   - Existing → UPDATE (re-enable + refresh config), returns 201 with same id
+ *
+ * Validates tool_id against tool_definitions. 404 if not found.
+ * org_id derived from JWT.
+ */
+router.post('/tools/install-to-scope', requireUserAuth, (req, res) => {
+    const orgId = req.user.org_id;
+    if (!orgId) {
+        return res.status(400).json({
+            error: 'org_id_required',
+            message: 'org_id must be present in JWT',
+        });
+    }
+
+    const { tool_id, config, pinned_version } = req.body || {};
+    if (!tool_id) {
+        return res.status(400).json({
+            error: 'tool_id_required',
+            message: 'tool_id is required',
+        });
+    }
+
+    try {
+        const db = dbFor(req);
+
+        // Validate tool_id exists in catalog
+        const toolDef = db.prepare('SELECT * FROM tool_definitions WHERE tool_id = ?').get(tool_id);
+        if (!toolDef) {
+            return res.status(404).json({
+                error: 'tool_not_found',
+                message: `tool_id '${tool_id}' not found in catalog`,
+            });
+        }
+
+        // Check for existing installation (idempotent upsert)
+        const existing = db.prepare(
+            'SELECT * FROM tool_installations WHERE org_id = ? AND tool_definition_id = ?'
+        ).get(orgId, toolDef.id);
+
+        if (existing) {
+            // Re-enable + optionally update config
+            const configJson = config !== undefined ? JSON.stringify(config) : existing.config_json;
+            db.prepare(`
+                UPDATE tool_installations
+                SET enabled = 1, config_json = ?, updated_at = datetime('now'), disabled_at = NULL
+                WHERE id = ?
+            `).run(configJson, existing.id);
+
+            const updated = db.prepare(`
+                SELECT ti.*, td.tool_id, td.name, td.description, td.category
+                FROM tool_installations ti
+                JOIN tool_definitions td ON ti.tool_definition_id = td.id
+                WHERE ti.id = ?
+            `).get(existing.id);
+
+            return res.status(201).json({
+                installation: {
+                    ...updated,
+                    config: JSON.parse(updated.config_json || '{}'),
+                    config_json: undefined,
+                },
+            });
+        }
+
+        // New installation
+        const id = ulid();
+        db.prepare(`
+            INSERT INTO tool_installations
+                (id, org_id, tool_definition_id, config_json, enabled, pinned_version, installed_by)
+            VALUES (?, ?, ?, ?, 1, ?, ?)
+        `).run(
+            id, orgId, toolDef.id,
+            JSON.stringify(config || {}),
+            pinned_version || null,
+            req.user.id
+        );
+
+        const installation = db.prepare(`
+            SELECT ti.*, td.tool_id, td.name, td.description, td.category
+            FROM tool_installations ti
+            JOIN tool_definitions td ON ti.tool_definition_id = td.id
+            WHERE ti.id = ?
+        `).get(id);
+
+        return res.status(201).json({
+            installation: {
+                ...installation,
+                config: JSON.parse(installation.config_json || '{}'),
+                config_json: undefined,
+            },
+        });
+    } catch (err) {
+        console.error('Error installing tool to scope:', err);
+        return res.status(500).json({ error: 'Failed to install tool' });
+    }
+});
+
+// ── DELETE /tools/install-to-scope/:tool_id ──────────────────────────────────
+
+/**
+ * DELETE /tools/install-to-scope/:tool_id
+ *
+ * Soft-disables the installation: sets enabled=0 and disabled_at.
+ * Idempotent — returns ok=true, removed=false if no installation exists.
+ * org_id derived from JWT.
+ *
+ * Response: { ok: true, removed: boolean }
+ */
+router.delete('/tools/install-to-scope/:tool_id', requireUserAuth, (req, res) => {
+    const orgId = req.user.org_id;
+    if (!orgId) {
+        return res.status(400).json({
+            error: 'org_id_required',
+            message: 'org_id must be present in JWT',
+        });
+    }
+
+    const { tool_id } = req.params;
+
+    try {
+        const db = dbFor(req);
+
+        // Resolve tool_id → internal id
+        const toolDef = db.prepare('SELECT id FROM tool_definitions WHERE tool_id = ?').get(tool_id);
+        if (!toolDef) {
+            // Unknown tool — idempotent no-op
+            return res.json({ ok: true, removed: false });
+        }
+
+        const existing = db.prepare(
+            'SELECT id FROM tool_installations WHERE org_id = ? AND tool_definition_id = ?'
+        ).get(orgId, toolDef.id);
+
+        if (!existing) {
+            return res.json({ ok: true, removed: false });
+        }
+
+        db.prepare(`
+            UPDATE tool_installations
+            SET enabled = 0,
+                disabled_at = datetime('now'),
+                disabled_by = ?,
+                updated_at = datetime('now')
+            WHERE id = ?
+        `).run(req.user.id, existing.id);
+
+        return res.json({ ok: true, removed: true });
+    } catch (err) {
+        console.error('Error disabling tool installation:', err);
+        return res.status(500).json({ error: 'Failed to disable tool installation' });
+    }
+});
+
+export default router;

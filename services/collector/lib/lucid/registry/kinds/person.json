@@ -1,0 +1,19 @@
+{
+  "kind": "person", "prefixes": ["person:"], "area": "people",
+  "ok_statuses": ["resolved", "ok"],
+  "variants": [
+    { "id": "unknown_caller", "when": { "issue": "unknown_caller" },
+      "urgency": [{ "is": "whenever" }],
+      "short": "{who} is waiting for review",
+      "L0": "{who} is waiting for your review in Contacts",
+      "L1": { "who": "{who}", "what": "They got in touch and are not in your address book yet.", "why": "ContactsQ keeps them as a candidate until you keep or discard them, and clears them automatically when the retention period ends." },
+      "how": "Review the caller in Contacts.",
+      "measures": ["open_contacts_review"] },
+    { "id": "status",
+      "urgency": [{ "is": "fyi" }],
+      "short": "{who}",
+      "L0": "{who}",
+      "L1": { "who": "{who}", "what": "Nothing needs doing.", "why": "" },
+      "how": "Nothing to do.", "measures": [] }
+  ]
+}

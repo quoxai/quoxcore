@@ -1,0 +1,30 @@
+{
+  "spec_version": 1,
+  "id": "klarna",
+  "name": "Klarna",
+  "category": "uncategorized",
+  "credentialType": "klarna",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.klarna.com/",
+  "base_url": "https://api.klarna.com",
+  "auth": {
+    "type": "basic",
+    "userField": "",
+    "passField": ""
+  },
+  "test": {
+    "method": "GET",
+    "path": "/payments/v1/sessions"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "basic_literal_user"
+    ]
+  }
+}

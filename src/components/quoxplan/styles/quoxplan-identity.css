@@ -1,0 +1,373 @@
+/**
+ * QuoxPlan Visual Identity v2 — "instrument, not gloss" (P2.5, owner
+ * feedback 2026-07-25: the P2 look read "like every Claude project ever").
+ * Imported after quoxplan.css so it wins the cascade on shared classes
+ * (.qx-card, .qxp-card-accent) purely by source order, no specificity games.
+ * Everything here composes qx- / --m- / --qx- prefixed tokens; color-mix()
+ * derives anything a token doesn't have a direct value for.
+ */
+
+/* ── 1. Octahedron status glyph ───────────────────────────────────────── */
+
+.qxp-octa-glyph {
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* ── 2. Cards: flatter surfaces, hairline borders, top-edge accent ──────
+   Kills the .qxp-card-accent full-height left border. Reduced blur/radius
+   apply to every .qx-card in the app (this identity pass is app-wide, not
+   just the accented cards) via the shared class, low-alpha hairline border. */
+
+.qx-card {
+  border-color: color-mix(in srgb, var(--m-border-default) 65%, transparent);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+}
+
+.qxp-card-accent {
+  border-radius: calc(var(--qx-radius) - 8px);
+}
+
+.qx-card.qxp-card-accent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: auto;
+  bottom: auto;
+  height: 2px;
+  width: 40%;
+  background: linear-gradient(90deg, var(--qxp-accent-color, var(--m-border-strong)), transparent);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* ── 3. Tier as a notched corner (replaces TierChip pill on cards) ──────── */
+
+.qxp-tier-notch {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 26px;
+  height: 26px;
+  clip-path: polygon(100% 0, 0 0, 100% 100%);
+  background: color-mix(in srgb, var(--qxp-tier-color, var(--m-border-default)) 60%, transparent);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 3px 4px 0 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.qxp-tier-notch__num {
+  font-family: var(--m-font-mono);
+  font-size: 9px;
+  font-weight: var(--m-weight-bold);
+  color: var(--m-text-primary);
+  line-height: 1;
+}
+
+/* ── 4. Statuses as tinted text + glyph (read mode) ─────────────────────
+   Filled pills (.qx-pill via StatusPill/TierChip) stay reserved for the
+   interactive edit-mode menu triggers (StatusMenu/TierMenu chip-trigger). */
+
+.qxp-status-read {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--m-text-sm);
+  font-weight: var(--m-weight-semibold);
+  white-space: nowrap;
+}
+
+/* ── 5. Phase progress as segmented micro-blocks ────────────────────────── */
+
+.qxp-phase-blocks {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.qxp-phase-block {
+  width: 8px;
+  height: 3px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.qxp-phase-block--done { background: var(--m-success); }
+.qxp-phase-block--active { background: var(--m-warning); }
+.qxp-phase-block--todo {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--m-text-tertiary) 50%, transparent);
+}
+
+/* ── 6. Mono-first data — utility class itself lives in quoxplan.css ──── */
+
+/* ── 7. Timeline restyle — critical path: offset outline, not blur glow ── */
+
+.qxp-bar--critical-path {
+  filter: none;
+}
+
+/* Sections 8 (brand lockup) and 9 (collapsible sidebar) intentionally NOT
+   ported — owner course-correction 2026-07-25: no ported wordmark, no
+   ported sidebar. QuoxPlanView uses the dashboard's own chrome. */
+
+/* ── 10. ROADY rail (shell only — live wiring lands with the embed phase) ── */
+
+/* The canonical glass panel recipe, matching .bastion-sidebar. This rail used to be a
+   bare wash with only a left border: no radius, no rim, no shimmer, which read as "no
+   background" and sat oddly against every other sidebar agent in the product. The blur
+   lives on the ::before pseudo rather than the element, because a backdrop-filter on the
+   parent isolates any flyout a descendant tries to open. */
+.qxp-roady-rail {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--m-bg-base);
+  border: 1px solid var(--m-border-default);
+  border-radius: var(--qx-radius);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+}
+
+.qxp-roady-rail::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.qxp-roady-rail > * { position: relative; z-index: 2; }
+
+.qxp-roady-rail__head {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--m-border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.qxp-roady-rail__avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--m-bg-elevated);
+  border: 1px solid var(--m-border-default);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.qxp-roady-rail__title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.qxp-roady-rail__name {
+  font-weight: var(--m-weight-semibold);
+  font-size: var(--m-text-sm);
+}
+
+.qxp-roady-rail__subtitle {
+  font-size: var(--m-text-xs);
+  color: var(--m-text-tertiary);
+}
+
+.qxp-roady-rail__body {
+  flex: 1;
+  min-height: 0;
+  padding: 24px;
+}
+
+/* QUOXPLAN-P4: live chat — messages replace the shell's centered empty
+   state, so this variant switches to a scrollable column of bubbles. */
+.qxp-roady-rail__messages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.qxp-roady-rail__msg {
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: var(--m-text-sm);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 92%;
+}
+
+.qxp-roady-rail__msg--user {
+  align-self: flex-end;
+  background: color-mix(in srgb, var(--m-quox-primary) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--m-quox-primary) 30%, transparent);
+}
+
+.qxp-roady-rail__msg--assistant {
+  align-self: flex-start;
+  background: var(--m-bg-elevated);
+  border: 1px solid var(--m-border-subtle);
+}
+
+.qxp-roady-rail__typing {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.qxp-roady-rail__typing span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--m-text-tertiary);
+  animation: qxp-roady-typing 1.1s infinite ease-in-out;
+}
+
+.qxp-roady-rail__typing span:nth-child(2) { animation-delay: 0.15s; }
+.qxp-roady-rail__typing span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes qxp-roady-typing {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-2px); }
+}
+
+.qxp-roady-rail__composer {
+  padding: 12px;
+  border-top: 1px solid var(--m-border-subtle);
+}
+
+/* ROADY bubbles render markdown; keep type compact inside the rail. */
+.qxp-roady-rail__md {
+  font-size: var(--m-text-sm);
+}
+.qxp-roady-rail__md p {
+  margin-bottom: 8px;
+}
+.qxp-roady-rail__md p:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings inside the rail stay body-scale; a 300px chat pane is not a page. */
+.qxp-roady-rail__md h1,
+.qxp-roady-rail__md h2,
+.qxp-roady-rail__md h3 {
+  font-size: var(--m-text-base);
+  margin: 10px 0 6px;
+}
+
+/* Owner feedback 2026-07-25: bring the frosted morphism back to the Gantt
+   surface (the identity pass over-flattened it). Token-derived translucency
+   plus the house blur; content stays legible, chrome regains depth. */
+.qxp-gantt {
+  background: color-mix(in srgb, var(--m-bg-base) 72%, transparent);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+}
+.qxp-gantt__rows {
+  background: color-mix(in srgb, var(--m-bg-base) 55%, transparent);
+}
+
+/* Board lens toggle ("By tier" / "By status", owner feedback 2026-07-25 wave
+   2, item 5): same token-derived translucency + house blur as .qxp-gantt
+   above, so the two frosted surfaces read as one visual language. */
+.qxp-lens-tabs {
+  background: color-mix(in srgb, var(--m-bg-base) 72%, transparent);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+}
+
+/* Skeleton loader frost (QUOXPLAN-UIFIX follow-up, owner feedback: loves
+   the coloured shimmer sweep — components/AsyncBoundary.jsx's Skeleton —
+   and wants morphism layered under it too, same house frost recipe as
+   .qxp-gantt / .qxp-lens-tabs above / the streams-table header). Two
+   background layers on top of the shared `.qx-skeleton` cyan/purple
+   shimmer (qx-components.css): the animated gradient stays on top and keeps
+   moving (this only redeclares `background-image`/`background-size`, not
+   the `animation`), a translucent color-mix fill sits behind it, and
+   backdrop-filter blurs whatever renders underneath — colour is kept, not
+   lost. Scoped to `.qxp-skeleton-line` (only applied by QuoxPlan's own
+   Skeleton) rather than the shared `.qx-skeleton` class, so this doesn't
+   bleed into skeletons elsewhere in the app. */
+.qxp-skeleton-line {
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.04) 25%,
+      rgba(56, 189, 248, 0.18) 50%,
+      rgba(168, 85, 247, 0.14) 65%,
+      rgba(255, 255, 255, 0.04) 80%
+    ),
+    linear-gradient(
+      color-mix(in srgb, var(--m-bg-base) 72%, transparent),
+      color-mix(in srgb, var(--m-bg-base) 72%, transparent)
+    );
+  background-size: 200% 100%, 100% 100%;
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+}
+
+/* ── 11. Onboarding wizard (QUOXPLAN-P7 first-run, owner feedback wave 2
+   item 2) — one glass card, centered, progress dots above the step title. */
+.qxp-onboarding {
+  max-width: 520px;
+  margin: 40px auto;
+}
+
+.qxp-onboarding__dots {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.qxp-onboarding__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--m-border-default) 80%, transparent);
+}
+
+.qxp-onboarding__dot--active {
+  background: var(--m-quox-primary);
+  box-shadow: 0 0 8px var(--m-quox-glow);
+}
+
+/* The view header bar hosts the Edit/ROADY hover tooltips. The global .qx-card
+   rule sets overflow: hidden (for border-radius content clipping), which was
+   clipping those tooltips inside the bar. Let this specific bar overflow
+   visibly, and raise it above the content below so the tooltip is never
+   painted behind the panel. Tooltips also render below the buttons
+   (qx-tip--below) so they land in the open gap, not the chrome above. */
+.qxp-view-bar {
+  overflow: visible;
+  position: relative;
+  z-index: 5;
+}
+
+/* The Edit/ROADY tips sit at the far right of the bar; a centre-anchored
+   tooltip would overflow the viewport's right edge. Anchor their right edge to
+   the button so they open inward (leftward) and stay on screen. */
+.qxp-view-bar .qx-tip--below::after {
+  left: auto;
+  right: 0;
+  transform: translateY(4px);
+}
+.qxp-view-bar .qx-tip--below:hover::after {
+  transform: translateY(0);
+}

@@ -1,0 +1,93 @@
+{
+  "spec_id": "kong",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T19:16:59.919Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/status",
+      "status": 200,
+      "latency_ms": 165,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "477b746b85eb9b34b42472e5dbcc05087fa69e9d54c972057eab8bf9cabd3bd3",
+      "body_excerpt": "{\"memory\":{\"lua_shared_dicts\":{\"kong_healthchecks\":{\"allocated_slabs\":\"0.04 MiB\",\"capacity\":\"5.00 MiB\"},\"kong_cluster_events\":{\"allocated_slabs\":\"0.04 MiB\",\"capacity\":\"5.00 MiB\"},\"kong_rate_limiting_c",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_status",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/status",
+      "status": 200,
+      "latency_ms": 14,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "8cfc01e07435ee110d98f83c8f4defd90cd93c094d8676a4b822426dd506616c",
+      "body_excerpt": "{\"memory\":{\"lua_shared_dicts\":{\"kong_healthchecks\":{\"allocated_slabs\":\"0.04 MiB\",\"capacity\":\"5.00 MiB\"},\"kong_cluster_events\":{\"allocated_slabs\":\"0.04 MiB\",\"capacity\":\"5.00 MiB\"},\"kong_rate_limiting_c",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "node_info",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/",
+      "status": 200,
+      "latency_ms": 18,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "9b8b54229774bc24004a5725af98e4516052b9acd24badf2b0f4f17180c063f9",
+      "body_excerpt": "{\"hostname\":\"d5024f811a69\",\"lua_version\":\"LuaJIT 2.1.0-20231117.1\",\"tagline\":\"Welcome to kong\",\"edition\":\"community\",\"configuration\":{\"nginx_main_user\":\"kong kong\",\"ssl_cert_key\":\"******\",\"new_dns_cli",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_services",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/services?size=20",
+      "status": 200,
+      "latency_ms": 14,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "a20b6daff718c3a828fe8235c35708878738a83e568f90d5cb1950b0136cd344",
+      "body_excerpt": "{\"data\":[],\"next\":null}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_routes",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/routes?size=20",
+      "status": 200,
+      "latency_ms": 14,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "a20b6daff718c3a828fe8235c35708878738a83e568f90d5cb1950b0136cd344",
+      "body_excerpt": "{\"data\":[],\"next\":null}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_plugins",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/plugins?size=20",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "a20b6daff718c3a828fe8235c35708878738a83e568f90d5cb1950b0136cd344",
+      "body_excerpt": "{\"data\":[],\"next\":null}",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:kong:3.8"
+}

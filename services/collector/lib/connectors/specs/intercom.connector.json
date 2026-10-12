@@ -1,0 +1,207 @@
+{
+  "spec_version": 1,
+  "id": "intercom",
+  "name": "Intercom",
+  "category": "communication",
+  "credentialType": "intercom",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://developers.intercom.com/docs",
+  "base_url": "https://api.intercom.io",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "static_headers": {
+    "Accept": "application/json"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/me"
+  },
+  "tools_source": "https://developers.intercom.com/docs/references/rest-api/api.intercom.io",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the Intercom admin and workspace the current access token belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "type": "type",
+          "name": "name",
+          "email": "email",
+          "app_id": "app.id_code",
+          "app_name": "app.name",
+          "app_region": "app.region",
+          "app_timezone": "app.timezone"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_contacts",
+      "description": "List Intercom contacts (users and leads), most recent first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max contacts to return (default 20, max 50)"
+          },
+          "starting_after": {
+            "type": "string",
+            "description": "Optional pagination cursor from a previous page (pages.next.starting_after)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/contacts",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}",
+          "starting_after": "{{input.starting_after}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "role": "role",
+            "email": "email",
+            "name": "name",
+            "phone": "phone",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "last_seen_at": "last_seen_at"
+          },
+          "total_count": "total_count",
+          "next_cursor": "pages.next.starting_after"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_conversations",
+      "description": "List Intercom conversations with their state and priority",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max conversations to return (default 20, max 50)"
+          },
+          "starting_after": {
+            "type": "string",
+            "description": "Optional pagination cursor from a previous page (pages.next.starting_after)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/conversations",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}",
+          "starting_after": "{{input.starting_after}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "conversations[]": {
+            "id": "id",
+            "title": "title",
+            "state": "state",
+            "open": "open",
+            "read": "read",
+            "priority": "priority",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "waiting_since": "waiting_since"
+          },
+          "total_count": "total_count",
+          "next_cursor": "pages.next.starting_after"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_admins",
+      "description": "List the admins (teammates) in the Intercom workspace",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/admins"
+      },
+      "response": {
+        "pick": {
+          "admins[]": {
+            "id": "id",
+            "name": "name",
+            "email": "email",
+            "job_title": "job_title",
+            "away_mode_enabled": "away_mode_enabled",
+            "has_inbox_seat": "has_inbox_seat"
+          },
+          "type": "type"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_contact",
+      "description": "Get one Intercom contact by contact ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "Intercom contact ID (e.g. 63a0979a5eeacb5ba3f0e1b9)"
+          }
+        },
+        "required": [
+          "contact_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/contacts/{{input.contact_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "role": "role",
+          "email": "email",
+          "name": "name",
+          "phone": "phone",
+          "external_id": "external_id",
+          "created_at": "created_at",
+          "updated_at": "updated_at",
+          "last_seen_at": "last_seen_at",
+          "signed_up_at": "signed_up_at"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

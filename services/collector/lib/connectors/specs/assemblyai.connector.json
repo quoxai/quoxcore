@@ -1,0 +1,116 @@
+{
+  "spec_version": 1,
+  "id": "assemblyai",
+  "name": "AssemblyAI",
+  "category": "data_ai",
+  "description": "Read-only AssemblyAI access: list the transcripts on the account and read one transcript's text, status and confidence. Submitting audio for transcription is a billable POST, so it is deliberately not exposed here; the submitted audio_url is not returned either, because it is frequently a signed URL.",
+  "credentialType": "assemblyai",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://www.assemblyai.com/docs",
+  "base_url": "https://api.assemblyai.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/transcript",
+    "query": {
+      "limit": "1"
+    }
+  },
+  "tools_source": "https://www.assemblyai.com/docs/api-reference/transcripts/list",
+  "tools": [
+    {
+      "name": "list_transcripts",
+      "description": "List the transcripts on the AssemblyAI account, newest first, optionally filtered by status. Returns the transcript IDs get_transcript is called with. The submitted audio_url is deliberately not returned (it is often a signed URL)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max transcripts to return (default 20, max 100)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "processing",
+              "completed",
+              "error"
+            ],
+            "description": "Optional transcript status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/transcript",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "transcripts[]": {
+            "id": "id",
+            "status": "status",
+            "created": "created",
+            "completed": "completed",
+            "resource_url": "resource_url",
+            "error": "error"
+          },
+          "result_count": "page_details.result_count",
+          "limit": "page_details.limit"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_transcript",
+      "description": "Get one AssemblyAI transcript by ID: status, detected language, duration, confidence and the transcript text (get the transcript_id from list_transcripts). The word-level timing array and the submitted audio_url are deliberately not returned",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "transcript_id": {
+            "type": "string",
+            "description": "AssemblyAI transcript ID (from list_transcripts)"
+          }
+        },
+        "required": [
+          "transcript_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/transcript/{{input.transcript_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "status": "status",
+          "language_code": "language_code",
+          "audio_duration": "audio_duration",
+          "confidence": "confidence",
+          "text": "text",
+          "error": "error"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

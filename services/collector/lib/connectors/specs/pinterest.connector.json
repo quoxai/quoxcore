@@ -1,0 +1,306 @@
+{
+  "spec_version": 1,
+  "id": "pinterest",
+  "name": "Pinterest",
+  "category": "media",
+  "credentialType": "pinterest",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://developers.pinterest.com/docs/api/v5/",
+  "base_url": "https://api.pinterest.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v5/user_account"
+  },
+  "tools_source": "https://developers.pinterest.com/docs/api/v5/introduction/",
+  "tools": [
+    {
+      "name": "get_user_account",
+      "description": "Get the Pinterest account behind this token: username, account type, and board, pin, follower and monthly-view counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "ad_account_id": {
+            "type": "string",
+            "description": "Optional ad account ID whose owner becomes the operation user_account (Business Access)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v5/user_account",
+        "query": {
+          "ad_account_id": "{{input.ad_account_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "username": "username",
+          "account_type": "account_type",
+          "business_name": "business_name",
+          "about": "about",
+          "website_url": "website_url",
+          "profile_image": "profile_image",
+          "board_count": "board_count",
+          "pin_count": "pin_count",
+          "follower_count": "follower_count",
+          "following_count": "following_count",
+          "monthly_views": "monthly_views"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_boards",
+      "description": "List the Pinterest boards owned by this account plus group boards it collaborates on, newest first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Boards per page (default 25, max 250)"
+          },
+          "bookmark": {
+            "type": "string",
+            "description": "Optional cursor from a previous response, to fetch the next page"
+          },
+          "privacy": {
+            "type": "string",
+            "enum": [
+              "ALL",
+              "PUBLIC",
+              "PROTECTED",
+              "SECRET",
+              "PUBLIC_AND_SECRET"
+            ],
+            "description": "Optional privacy filter (default returns every board the token's scopes allow)"
+          },
+          "ad_account_id": {
+            "type": "string",
+            "description": "Optional ad account ID whose owner becomes the operation user_account (Business Access)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v5/boards",
+        "query": {
+          "page_size": "{{clamp input.page_size 25 250}}",
+          "bookmark": "{{input.bookmark}}",
+          "privacy": "{{input.privacy}}",
+          "ad_account_id": "{{input.ad_account_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "privacy": "privacy",
+            "pin_count": "pin_count",
+            "follower_count": "follower_count",
+            "collaborator_count": "collaborator_count",
+            "created_at": "created_at",
+            "board_pins_modified_at": "board_pins_modified_at",
+            "owner": "owner.username",
+            "cover_image_url": "media.image_cover_url"
+          },
+          "bookmark": "bookmark"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_pins",
+      "description": "List the Pins owned by this Pinterest account across all of its boards",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Pins per page (default 25, max 250)"
+          },
+          "bookmark": {
+            "type": "string",
+            "description": "Optional cursor from a previous response, to fetch the next page"
+          },
+          "pin_filter": {
+            "type": "string",
+            "enum": [
+              "exclude_native",
+              "exclude_repins",
+              "has_been_promoted"
+            ],
+            "description": "Optional filter to apply to the Pins"
+          },
+          "include_protected_pins": {
+            "type": "boolean",
+            "description": "Whether to include protected Pins (default false)"
+          },
+          "domain": {
+            "type": "string",
+            "description": "Optional exact link domain to filter by, with no 'www.' prefix (e.g. quox.ai)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v5/pins",
+        "query": {
+          "page_size": "{{clamp input.page_size 25 250}}",
+          "bookmark": "{{input.bookmark}}",
+          "pin_filter": "{{input.pin_filter}}",
+          "include_protected_pins": "{{input.include_protected_pins}}",
+          "domain": "{{input.domain}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "title": "title",
+            "description": "description",
+            "alt_text": "alt_text",
+            "link": "link",
+            "board_id": "board_id",
+            "board_section_id": "board_section_id",
+            "created_at": "created_at",
+            "creative_type": "creative_type",
+            "dominant_color": "dominant_color",
+            "has_been_promoted": "has_been_promoted",
+            "is_standard": "is_standard",
+            "parent_pin_id": "parent_pin_id",
+            "media_type": "media.media_type"
+          },
+          "bookmark": "bookmark"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_board",
+      "description": "Get one Pinterest board by ID, including its Pin, follower and collaborator counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "board_id": {
+            "type": "string",
+            "description": "Pinterest board ID, digits only (e.g. 549755885175)"
+          }
+        },
+        "required": [
+          "board_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v5/boards/{{input.board_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "description": "description",
+          "privacy": "privacy",
+          "pin_count": "pin_count",
+          "follower_count": "follower_count",
+          "collaborator_count": "collaborator_count",
+          "created_at": "created_at",
+          "board_pins_modified_at": "board_pins_modified_at",
+          "owner": "owner.username",
+          "cover_image_url": "media.image_cover_url"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.board_id": "549755885175"
+      }
+    },
+    {
+      "name": "list_board_pins",
+      "description": "List the Pins on one Pinterest board owned by or shared with this account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "board_id": {
+            "type": "string",
+            "description": "Pinterest board ID, digits only (e.g. 549755885175)"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Pins per page (default 25, max 250)"
+          },
+          "bookmark": {
+            "type": "string",
+            "description": "Optional cursor from a previous response, to fetch the next page"
+          }
+        },
+        "required": [
+          "board_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v5/boards/{{input.board_id}}/pins",
+        "query": {
+          "page_size": "{{clamp input.page_size 25 250}}",
+          "bookmark": "{{input.bookmark}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "title": "title",
+            "description": "description",
+            "alt_text": "alt_text",
+            "link": "link",
+            "board_id": "board_id",
+            "board_section_id": "board_section_id",
+            "created_at": "created_at",
+            "creative_type": "creative_type",
+            "dominant_color": "dominant_color",
+            "media_type": "media.media_type"
+          },
+          "bookmark": "bookmark"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.board_id": "549755885175"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "auth left as scaffolded (bearer on access_token) because the v5 reference confirms it: every operation's security block is pinterest_oauth2 / client_credentials, and Pinterest's own generated code sample for GET /v5/user_account sets the header verbatim 'Authorization: Bearer <access_token>'. The pinterest vault type collects exactly one field, access_token, which is the wire shape this API wants.",
+      "NOT blind-provable beyond the auth wall, and a lifecycle caveat the vault cannot express: Pinterest access tokens are OAuth-issued and expire, so a pasted token works until it does not. Promoting this connector to oauth2_refresh would need client_id, client_secret and refresh_token fields added to the pinterest vault type first. The WIRE format is right either way, so the spec stays bearer.",
+      "category set to media (was uncategorized). Pinterest is a content/social surface, which is where twitch, spotify, canva and unsplash already sit; the wave's allowed list has no 'social' or plain 'marketing' value.",
+      "tools_source is the v5 reference itself. Every path, parameter, enum and response field below was read from the OpenAPI document embedded in developers.pinterest.com/docs/api/v5/ (operations user_account/get, boards/list, pins/list, boards/get, boards/list_pins), not from memory.",
+      "page_size clamps to default 25 / max 250 on all three list tools, verbatim from the reference: page_size schema is {\"type\":\"integer\",\"minimum\":1,\"maximum\":250,\"default\":25}. Pagination is bookmark-cursor based, so bookmark is a passthrough input rather than an offset.",
+      "board_id carries a _probe hint of 549755885175, which is Pinterest's own public example board ID from the boards/get response schema. Its board_id parameter schema is pattern ^\\d+$, so the harness's generic 'quoxprobe' input could only ever produce a validation error; a well-formed but nonexistent numeric ID exercises the real route. It is a documentation value, never a credential.",
+      "list_pins omits the documented creative_types and domains parameters: both are array-valued and joined comma-separated on the wire, which this spec's query templating does not express. The scalar domain filter is included instead.",
+      "Shape-proof outcome: SHAPE_PROVEN, 6 of 6 probes. The bogus control path on api.pinterest.com answers 404 while every declared path answers 401 application/json with a dummy bearer, so the differential proves host, TLS, base_url, the Authorization header name and all five routes. Only the credential is missing; the token lifecycle caveat above is still not proven by this run.",
+      "No analytics tools here. GET /v5/user_account/analytics and the per-pin analytics operations all require start_date/end_date plus metric_types, and the reference notes known performance issues on the filtered pin paths, so they are left for a later pass rather than half-declared."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

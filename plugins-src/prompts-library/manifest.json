@@ -1,0 +1,31 @@
+{
+  "id": "prompts-library",
+  "name": "Prompts Library",
+  "displayName": "Prompts Library",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "free",
+  "license": "free",
+  "badge": "FREE",
+  "category": "productivity",
+  "accentColor": "#8b5cf6",
+  "description": "Save, version, and deploy your own prompts. Every edit is auto-versioned, full-text searchable, and deployable straight into the chat composer or as a slash command.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/prompts-library",
+      "label": "Prompts",
+      "icon": "fileText",
+      "minRole": "builder"
+    }
+  ],
+  "routes": {
+    "/prompts-library": "PromptsLibraryView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

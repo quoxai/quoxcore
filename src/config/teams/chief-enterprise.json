@@ -1,0 +1,112 @@
+{
+  "id": "chief-enterprise",
+  "type": "team",
+  "version": "1.0.0",
+  "displayName": "Chief Team — Enterprise",
+  "description": "A full-scale enterprise executive suite with 51 chiefs spanning global operations. Regional CEOs, COOs, CFOs, and CMOs for EMEA, APAC, and Americas. Specialised CTO, CLO, and CISO variants. VP-level execution leaders. Complete C-suite coverage for multinational operations.",
+  "author": "Quox",
+  "tier": "tier_c",
+  "price": 15,
+  "priceModel": "one-time",
+  "icon": "globe",
+  "accentColor": "#1e293b",
+
+  "orchestrator": {
+    "agentId": "ceo",
+    "role": "orchestrator",
+    "domains": ["strategic leadership", "global coordination", "enterprise governance"]
+  },
+
+  "members": [
+    { "agentId": "coo", "role": "specialist", "domains": ["operations", "process optimization", "supply chain"] },
+    { "agentId": "cfo", "role": "specialist", "domains": ["finance", "budgeting", "fundraising"] },
+    { "agentId": "cmo", "role": "specialist", "domains": ["marketing", "brand strategy", "growth"] },
+    { "agentId": "cto", "role": "specialist", "domains": ["technology strategy", "architecture", "innovation"] },
+    { "agentId": "cpo-people", "role": "specialist", "domains": ["human resources", "culture", "talent"] },
+    { "agentId": "ciso", "role": "specialist", "domains": ["information security", "cyber risk", "compliance"] },
+    { "agentId": "clo", "role": "specialist", "domains": ["legal strategy", "governance", "regulatory"] },
+    { "agentId": "cpo-product", "role": "specialist", "domains": ["product strategy", "roadmap", "user research"] },
+    { "agentId": "cro-revenue", "role": "specialist", "domains": ["revenue strategy", "sales", "pricing"] },
+    { "agentId": "cco-comms", "role": "specialist", "domains": ["communications", "PR", "crisis management"] },
+    { "agentId": "cio", "role": "specialist", "domains": ["IT strategy", "enterprise systems", "digital infrastructure"] },
+    { "agentId": "cdo-data", "role": "specialist", "domains": ["data strategy", "analytics", "data governance"] },
+    { "agentId": "cao", "role": "specialist", "domains": ["administration", "corporate services", "facilities"] },
+
+    { "agentId": "cpo-procurement", "role": "specialist", "domains": ["procurement", "vendor management", "cost optimization", "supply chain"] },
+    { "agentId": "cto-infra", "role": "specialist", "domains": ["cloud infrastructure", "scalability", "reliability", "SRE"] },
+    { "agentId": "cto-platform", "role": "specialist", "domains": ["platform engineering", "developer experience", "API design"] },
+    { "agentId": "cto-ai", "role": "specialist", "domains": ["AI strategy", "ML operations", "data science", "LLM integration"] },
+    { "agentId": "clo-corporate", "role": "specialist", "domains": ["corporate law", "M&A", "board governance", "entity structure"] },
+    { "agentId": "clo-ip", "role": "specialist", "domains": ["intellectual property", "patents", "trademarks", "licensing"] },
+    { "agentId": "clo-compliance", "role": "specialist", "domains": ["regulatory compliance", "data protection", "GDPR", "industry standards"] },
+
+    { "agentId": "ceo-emea", "role": "manager", "domains": ["EMEA strategy", "EU regulation", "European market expansion"] },
+    { "agentId": "ceo-apac", "role": "manager", "domains": ["APAC strategy", "Asian markets", "cross-cultural leadership"] },
+    { "agentId": "ceo-americas", "role": "manager", "domains": ["Americas strategy", "US/LATAM markets", "continental growth"] },
+
+    { "agentId": "coo-emea", "role": "specialist", "domains": ["EMEA operations", "EU logistics", "regulatory compliance ops"] },
+    { "agentId": "coo-apac", "role": "specialist", "domains": ["APAC operations", "Asian supply chain", "manufacturing ops"] },
+    { "agentId": "coo-americas", "role": "specialist", "domains": ["Americas operations", "US/LATAM logistics", "nearshoring"] },
+
+    { "agentId": "cfo-emea", "role": "specialist", "domains": ["EMEA finance", "multi-currency", "EU financial regulation"] },
+    { "agentId": "cfo-apac", "role": "specialist", "domains": ["APAC finance", "forex management", "regional tax strategy"] },
+    { "agentId": "cfo-americas", "role": "specialist", "domains": ["Americas finance", "SEC reporting", "capital markets"] },
+
+    { "agentId": "cmo-emea", "role": "specialist", "domains": ["EMEA marketing", "brand localization", "multilingual campaigns"] },
+    { "agentId": "cmo-apac", "role": "specialist", "domains": ["APAC marketing", "mobile-first strategy", "social commerce"] },
+    { "agentId": "cmo-americas", "role": "specialist", "domains": ["Americas marketing", "performance marketing", "scale-up growth"] },
+
+    { "agentId": "ciso-emea", "role": "specialist", "domains": ["EMEA security", "GDPR", "NIS2", "EU cyber regulation"] },
+    { "agentId": "ciso-apac", "role": "specialist", "domains": ["APAC security", "cyber sovereignty", "regional compliance"] },
+    { "agentId": "ciso-americas", "role": "specialist", "domains": ["Americas security", "SOC2", "FedRAMP", "threat intelligence"] },
+
+    { "agentId": "cso", "role": "specialist", "domains": ["corporate strategy", "competitive analysis", "M&A strategy", "market positioning"] },
+    { "agentId": "cxo", "role": "specialist", "domains": ["customer experience", "UX strategy", "journey mapping", "satisfaction metrics"] },
+    { "agentId": "chro", "role": "specialist", "domains": ["talent strategy", "organizational design", "culture building", "DEI"] },
+    { "agentId": "cco-customer", "role": "specialist", "domains": ["customer success", "retention", "NPS", "advocacy programs"] },
+    { "agentId": "cco-compliance", "role": "specialist", "domains": ["enterprise compliance", "ethics", "audit readiness", "whistleblower"] },
+    { "agentId": "cdo-digital", "role": "specialist", "domains": ["digital transformation", "emerging tech", "innovation labs"] },
+    { "agentId": "cro-risk", "role": "specialist", "domains": ["enterprise risk", "scenario planning", "business continuity", "insurance"] },
+
+    { "agentId": "vp-engineering", "role": "specialist", "domains": ["engineering execution", "team scaling", "technical debt", "delivery"] },
+    { "agentId": "vp-sales", "role": "specialist", "domains": ["sales execution", "pipeline management", "deal strategy", "territory planning"] },
+    { "agentId": "vp-product", "role": "specialist", "domains": ["product management", "feature prioritization", "sprint planning"] },
+    { "agentId": "vp-marketing", "role": "specialist", "domains": ["marketing execution", "campaigns", "demand generation", "content"] },
+    { "agentId": "vp-finance", "role": "specialist", "domains": ["financial planning", "budgeting", "forecasting", "reporting"] },
+    { "agentId": "vp-operations", "role": "specialist", "domains": ["operational execution", "process optimization", "logistics"] },
+
+    { "agentId": "cko", "role": "specialist", "domains": ["knowledge management", "organizational learning", "documentation strategy"] },
+    { "agentId": "cgo", "role": "specialist", "domains": ["growth strategy", "market expansion", "product-led growth", "experimentation"] }
+  ],
+
+  "policies": {
+    "maxBudgetTokens": 2000000,
+    "maxBudgetToolCalls": 800,
+    "maxDurationMs": 28800000,
+    "maxTaskDurationMs": 1800000,
+    "heartbeatIntervalMs": 15000,
+    "maxParallelTasks": 10,
+    "requireApprovalBeforeStart": false,
+    "checkpointAfterEachTask": false,
+    "voltRequired": true,
+    "allowedChannels": ["slack", "telegram", "discord", "email"]
+  },
+
+  "sharedContext": {
+    "persistent": true,
+    "schema": {
+      "companyName": "",
+      "industry": "",
+      "stage": "",
+      "headcount": 0,
+      "annualRevenue": "",
+      "keyMetrics": {},
+      "strategicPriorities": [],
+      "quarterlyOKRs": [],
+      "competitiveLandscape": {},
+      "regions": { "emea": {}, "apac": {}, "americas": {} },
+      "boardPriorities": [],
+      "riskRegister": []
+    }
+  }
+}

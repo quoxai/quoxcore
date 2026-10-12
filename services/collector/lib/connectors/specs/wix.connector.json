@@ -1,0 +1,177 @@
+{
+  "spec_version": 1,
+  "id": "wix",
+  "name": "Wix",
+  "category": "commerce_finance",
+  "credentialType": "wix",
+  "requiredFields": [
+    "api_key",
+    "site_id"
+  ],
+  "description": "Read-only Wix REST access to one site: site properties, Stores catalog products and eCommerce orders",
+  "docs": "https://dev.wix.com/docs/rest",
+  "base_url": "https://www.wixapis.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "{{api_key}}"
+  },
+  "static_headers": {
+    "wix-site-id": "{{site_id}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/site-properties/v4/properties"
+  },
+  "tools_source": "https://dev.wix.com/docs/api-reference/business-management/site-properties/properties/get-site-properties",
+  "tools": [
+    {
+      "name": "get_site_properties",
+      "description": "Get the connected Wix site's own properties (display name, business name, currency, time zone, locale and contact details)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/site-properties/v4/properties"
+      },
+      "response": {
+        "pick": {
+          "version": "version",
+          "siteDisplayName": "properties.siteDisplayName",
+          "businessName": "properties.businessName",
+          "description": "properties.description",
+          "email": "properties.email",
+          "phone": "properties.phone",
+          "paymentCurrency": "properties.paymentCurrency",
+          "timeZone": "properties.timeZone",
+          "language": "properties.language",
+          "localeLanguageCode": "properties.locale.languageCode",
+          "localeCountry": "properties.locale.country",
+          "externalSiteUrl": "properties.externalSiteUrl",
+          "companyId": "properties.companyId"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_products",
+      "description": "List products in the site's Wix Stores catalog (read-only catalog query), most relevant fields only",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max products to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional number of products to skip, for paging past the first page"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "path": "/stores/v1/products/query",
+        "body": {
+          "query": {
+            "paging": {
+              "limit": "{{clamp input.limit 20 100}}",
+              "offset": "{{input.offset}}"
+            }
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "products[]": {
+            "id": "id",
+            "name": "name",
+            "slug": "slug",
+            "visible": "visible",
+            "productType": "productType",
+            "sku": "sku",
+            "price": "priceData.price",
+            "currency": "priceData.currency",
+            "inStock": "stock.inStock",
+            "inventoryStatus": "stock.inventoryStatus",
+            "brand": "brand",
+            "ribbon": "ribbon",
+            "lastUpdated": "lastUpdated",
+            "createdDate": "createdDate"
+          },
+          "returned": "metadata.items",
+          "totalResults": "totalResults"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_orders",
+      "description": "List the site's Wix eCommerce orders, newest first, with payment and fulfillment status (read-only order search)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max orders to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "path": "/ecom/v1/orders/search",
+        "body": {
+          "search": {
+            "cursorPaging": {
+              "limit": "{{clamp input.limit 20 100}}"
+            }
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "orders[]": {
+            "id": "id",
+            "number": "number",
+            "createdDate": "createdDate",
+            "status": "status",
+            "paymentStatus": "paymentStatus",
+            "fulfillmentStatus": "fulfillmentStatus",
+            "currency": "currency",
+            "total": "priceSummary.total.formattedAmount",
+            "buyerEmail": "buyerInfo.email",
+            "archived": "archived"
+          },
+          "count": "metadata.count",
+          "hasNext": "metadata.hasNext"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "medium",
+    "needs_review": [
+      "Tools written 2026-09-12 from the official Wix REST reference: Site Properties V4 Get Site Properties (tools_source), Stores Catalog V1 Query Products (https://dev.wix.com/docs/api-reference/business-solutions/stores/catalog-v1/catalog/query-products) and eCommerce Orders Search Orders (https://dev.wix.com/docs/api-reference/business-solutions/e-commerce/orders/orders/search-orders). All three are write:false.",
+      "list_products and list_orders are POST, which is Wix's shape for a READ: the two operations are CatalogReadApi.QueryProducts (documented permission WIX_STORES.READ_PRODUCTS) and Orders.SearchOrders (documented permission ECOM.READ_ORDERS). The verb is POST only because the query/search object rides in the body; neither mutates. The write flag stays false on both, so the shape-proof harness fires them without --include-writes.",
+      "Scaffolded auth is UNCHANGED (the raw API key in the Authorization header, no Bearer prefix), matching the vault registry's live-tested testHeaders for 'wix'. static_headers adds wix-site-id from the site_id credential field, which the official auth article requires verbatim: \"an API key isn't bound to a single site, so each request must also identify its target: send a wix-site-id header for site-level calls or a wix-account-id header for account-level calls, but not both\" (https://dev.wix.com/docs/api-reference/articles/rest-authentication/rest-api-authentication).",
+      "test.path was MOVED off the scaffolded /site-list/v2/sites to /site-properties/v4/properties. Evidence, curl 2026-09-12: /site-list/v2/sites answers 302 to https://users.wix.com/signin?... with an API key in Authorization, because it is an ACCOUNT-level call and the vault holds no account id, only site_id; /site-properties/v4/properties answers a structured 401 {\"message\":\"MetaSiteId was not found on request\",\"details\":{\"applicationError\":{\"code\":\"META_SITE_NOT_FOUND\"}}}. The registry entry (services/auth/config/integrationTypeRegistry.js, key 'wix') still points its testEndpoint at the account-level path: not changed here, flagged.",
+      "Shape-proof 2026-09-12 (proofs/wix.proof.json): SHAPE_PROVEN on all 4 calls. /site-properties/v4/properties 401 {\"message\":\"MetaSiteId was not found on request\",...\"code\":\"META_SITE_NOT_FOUND\"}; /stores/v1/products/query 401 {\"message\":\"No Metasite Context in identity.\",...\"code\":\"UNAUTHORIZED\"}; /ecom/v1/orders/search 403 {\"message\":\"read order: permission denied\",...\"code\":\"READ_ORDER_FORBIDDEN\"}; control bogus path on the same host 404 with an EMPTY body. Caveat: every /stores/v1/* path answers that SAME 401 identity error (verified by curl against /stores/v1/collections/query and /stores/v1/products/{id}), so within that namespace the proof rests on the control differential rather than on a path-specific error.",
+      "Payload field names come from the documented schemas, NOT from a live 2xx: no Wix site was held for this draft. products picks priceData.* (the documented Product price block) rather than convertedPriceData, whose value depends on the caller's currency context. Order picks priceSummary.total.formattedAmount, the documented Price envelope field.",
+      "Catalog V1 is expressed, not Catalog V3: /stores/v3/products/query answered 403 with an EMPTY body under a dummy key, so its route cannot be blind-proved, while V1 answers a structured 401. Catalog V1 QueryProducts is documented GA with paging.limit maximum 100, which is the clamp cap used here. A V3 migration is an owner decision, not a blind one.",
+      "No filter or sort inputs: both Wix query objects take Wix Query Language filter structs, which an agent cannot be trusted to compose blind against a customer catalog. Paging only (limit, offset for products; cursorPaging.limit for orders, documented default 100). Search Orders also omits PENDING and REJECTED orders by default, per its own docs note: that default is left in place.",
+      "category set to 'commerce_finance' to match the shipped taxonomy (stripe, shopify, paddle). The scaffolded 'ecommerce' is not one of the 12 shipped buckets."
+    ]
+  }
+}

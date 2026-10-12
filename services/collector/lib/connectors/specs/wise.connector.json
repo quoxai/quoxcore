@@ -1,0 +1,149 @@
+{
+  "spec_version": 1,
+  "id": "wise",
+  "name": "Wise",
+  "category": "commerce_finance",
+  "credentialType": "wise",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://docs.wise.com/",
+  "base_url": "https://api.wise.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/profiles"
+  },
+  "tools_source": "https://docs.wise.com/api-reference",
+  "tools": [
+    {
+      "name": "list_profiles",
+      "description": "List the Wise profiles (personal and business) the API token can act for. Most other Wise calls need one of these profile IDs",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/profiles"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "type": "type",
+            "fullName": "fullName",
+            "currentState": "currentState",
+            "createdAt": "createdAt"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_accounts",
+      "description": "List the STANDARD multi-currency balance accounts held by one Wise profile, with available and reserved amounts per currency",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "profile_id": {
+            "type": "number",
+            "description": "Wise profile ID (from list_profiles)"
+          }
+        },
+        "required": [
+          "profile_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v4/profiles/{{input.profile_id}}/balances",
+        "query": {
+          "types": "STANDARD"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "currency": "currency",
+            "type": "type",
+            "name": "name",
+            "investmentState": "investmentState",
+            "amount": "amount.value",
+            "reservedAmount": "reservedAmount.value",
+            "totalWorth": "totalWorth.value",
+            "modificationTime": "modificationTime"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_transfers",
+      "description": "List Wise transfers for a profile, optionally filtered by status, with amounts, currencies and current state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "profile_id": {
+            "type": "number",
+            "description": "Optional Wise profile ID to list transfers for (defaults to the token's personal profile)"
+          },
+          "status": {
+            "type": "string",
+            "description": "Optional comma-separated transfer statuses to filter by (e.g. outgoing_payment_sent,funds_refunded)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max transfers to return (default 20, capped at 100 by this connector)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional starting record number for paging"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/transfers",
+        "query": {
+          "profile": "{{input.profile_id}}",
+          "status": "{{input.status}}",
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "status": "status",
+            "created": "created",
+            "sourceCurrency": "sourceCurrency",
+            "sourceValue": "sourceValue",
+            "targetCurrency": "targetCurrency",
+            "targetValue": "targetValue",
+            "rate": "rate",
+            "reference": "details.reference",
+            "hasActiveIssues": "hasActiveIssues",
+            "targetAccount": "targetAccount"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

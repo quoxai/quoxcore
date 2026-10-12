@@ -1,0 +1,285 @@
+{
+  "spec_version": 1,
+  "id": "dataforseo",
+  "name": "DataForSEO",
+  "category": "data_ai",
+  "credentialType": "dataforseo",
+  "requiredFields": [
+    "login",
+    "password"
+  ],
+  "docs": "https://docs.dataforseo.com/v3/",
+  "base_url": "https://api.dataforseo.com",
+  "auth": {
+    "type": "basic",
+    "userField": "login",
+    "passField": "password"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v3/appendix/user_data"
+  },
+  "tools_source": "https://docs.dataforseo.com/v3/",
+  "tools": [
+    {
+      "name": "user_data",
+      "description": "Get the DataForSEO account status: remaining balance, total spend, and the per-day and per-minute limits the account is subject to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/appendix/user_data"
+      },
+      "response": {
+        "pick": {
+          "status_code": "status_code",
+          "status_message": "status_message",
+          "cost": "cost",
+          "tasks[]": {
+            "id": "id",
+            "status_code": "status_code",
+            "status_message": "status_message",
+            "result[]": {
+              "login": "login",
+              "timezone": "timezone",
+              "balance": "money.balance",
+              "total_spend": "money.total",
+              "spend_limit_day": "money.limits.day",
+              "spend_limit_minute": "money.limits.minute",
+              "rate_limit_day": "rates.limits.day",
+              "rate_limit_minute": "rates.limits.minute"
+            }
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "serp_google_organic_live",
+      "description": "Fetch live Google organic search results for one keyword in a given location and language, returning ranked organic items with position, domain, title, URL and snippet",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "description": "Search term to look up (e.g. self-hosted agent platform)"
+          },
+          "location_code": {
+            "type": "number",
+            "description": "DataForSEO location code (e.g. 2840 United States, 2826 United Kingdom, 2276 Germany)"
+          },
+          "language_code": {
+            "type": "string",
+            "description": "DataForSEO language code (e.g. en, de, fr)"
+          },
+          "depth": {
+            "type": "number",
+            "description": "Number of results to crawl (default 10, max 100). Higher depth costs more."
+          }
+        },
+        "required": [
+          "keyword",
+          "location_code",
+          "language_code"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/v3/serp/google/organic/live/advanced",
+        "body": [
+          {
+            "keyword": "{{input.keyword}}",
+            "location_code": "{{input.location_code}}",
+            "language_code": "{{input.language_code}}",
+            "depth": "{{clamp input.depth 10 100}}"
+          }
+        ]
+      },
+      "response": {
+        "pick": {
+          "status_code": "status_code",
+          "status_message": "status_message",
+          "cost": "cost",
+          "tasks[]": {
+            "id": "id",
+            "status_code": "status_code",
+            "status_message": "status_message",
+            "result[]": {
+              "keyword": "keyword",
+              "location_code": "location_code",
+              "language_code": "language_code",
+              "check_url": "check_url",
+              "datetime": "datetime",
+              "se_results_count": "se_results_count",
+              "items_count": "items_count",
+              "items[]": {
+                "type": "type",
+                "rank_group": "rank_group",
+                "rank_absolute": "rank_absolute",
+                "domain": "domain",
+                "title": "title",
+                "url": "url",
+                "description": "description",
+                "breadcrumb": "breadcrumb"
+              }
+            }
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "keywords_data_search_volume",
+      "description": "Get Google Ads search volume, competition and cost-per-click for a list of keywords in a given location and language",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Keywords to look up (one array of search terms)"
+          },
+          "location_code": {
+            "type": "number",
+            "description": "DataForSEO location code (e.g. 2840 United States, 2826 United Kingdom, 2276 Germany)"
+          },
+          "language_code": {
+            "type": "string",
+            "description": "DataForSEO language code (e.g. en, de, fr)"
+          }
+        },
+        "required": [
+          "keywords",
+          "location_code",
+          "language_code"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/v3/keywords_data/google_ads/search_volume/live",
+        "body": [
+          {
+            "keywords": "{{input.keywords}}",
+            "location_code": "{{input.location_code}}",
+            "language_code": "{{input.language_code}}"
+          }
+        ]
+      },
+      "response": {
+        "pick": {
+          "status_code": "status_code",
+          "status_message": "status_message",
+          "cost": "cost",
+          "tasks[]": {
+            "id": "id",
+            "status_code": "status_code",
+            "status_message": "status_message",
+            "result[]": {
+              "keyword": "keyword",
+              "location_code": "location_code",
+              "language_code": "language_code",
+              "search_volume": "search_volume",
+              "competition": "competition",
+              "competition_index": "competition_index",
+              "cpc": "cpc",
+              "low_top_of_page_bid": "low_top_of_page_bid",
+              "high_top_of_page_bid": "high_top_of_page_bid"
+            }
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "backlinks_summary",
+      "description": "Get a backlink profile summary for a domain, subdomain or page: total backlinks, referring domains, referring IPs, spam score and rank",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Domain, subdomain or page to summarise (e.g. example.com, no protocol for a domain target)"
+          },
+          "backlinks_status_type": {
+            "type": "string",
+            "enum": [
+              "all",
+              "live",
+              "lost"
+            ],
+            "description": "Which backlinks to count (defaults to live when omitted)"
+          },
+          "internal_list_limit": {
+            "type": "number",
+            "description": "Max entries per internal breakdown list such as referring TLDs (default 10, max 1000)"
+          }
+        },
+        "required": [
+          "target"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/v3/backlinks/summary/live",
+        "body": [
+          {
+            "target": "{{input.target}}",
+            "backlinks_status_type": "{{input.backlinks_status_type}}",
+            "internal_list_limit": "{{clamp input.internal_list_limit 10 1000}}"
+          }
+        ]
+      },
+      "response": {
+        "pick": {
+          "status_code": "status_code",
+          "status_message": "status_message",
+          "cost": "cost",
+          "tasks[]": {
+            "id": "id",
+            "status_code": "status_code",
+            "status_message": "status_message",
+            "result[]": {
+              "target": "target",
+              "first_seen": "first_seen",
+              "lost_date": "lost_date",
+              "rank": "rank",
+              "backlinks": "backlinks",
+              "backlinks_spam_score": "backlinks_spam_score",
+              "broken_backlinks": "broken_backlinks",
+              "broken_pages": "broken_pages",
+              "referring_domains": "referring_domains",
+              "referring_domains_nofollow": "referring_domains_nofollow",
+              "referring_main_domains": "referring_main_domains",
+              "referring_pages": "referring_pages",
+              "referring_ips": "referring_ips",
+              "referring_subnets": "referring_subnets",
+              "internal_links_count": "internal_links_count",
+              "external_links_count": "external_links_count"
+            }
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Array-of-objects bodies ARE expressible in spec v1: declarativeRuntime.renderBody walks arrays, specSchema accepts an array request.body, and a solo placeholder keeps its resolved JSON type (verified: [{keywords: '{{input.keywords}}'}] renders the real array, and an absent optional key is dropped). No fallback to GET-only endpoints was needed.",
+      "Only DataForSEO Live endpoints are modelled. The cheaper Standard queue flow (task_post then task_get) needs two chained calls, which spec v1 does not support (one request per tool), so it is deliberately excluded rather than half-expressed.",
+      "location_code and language_code are required inputs on the SERP and search-volume tools because DataForSEO rejects a task that carries neither location_code nor location_name, and spec v1 has no default-value helper for strings. The numeric defaults it does have are applied via clamp (depth 10, internal_list_limit 10).",
+      "Every Live call is billed per task by DataForSEO. rateLimit 20/min is a spend guard chosen here, not a documented API ceiling; the account's real ceilings are readable at runtime via the user_data tool (rate_limit_minute, spend_limit_day).",
+      "Response picks follow the documented tasks[].result[] envelope. Field presence is taken from the DataForSEO v3 docs, not from a live 2xx: no account was held, so the proof below covers wiring only, not payload shape."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 20
+  }
+}

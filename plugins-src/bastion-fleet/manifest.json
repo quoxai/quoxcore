@@ -1,0 +1,36 @@
+{
+  "id": "bastion-fleet",
+  "name": "bastion-fleet",
+  "displayName": "QuoxBastion Fleet Manager",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "infrastructure",
+  "accentColor": "#0ea5e9",
+  "description": "Centralized host registry and secure remote command execution for QuoxCORE. Discover and group hosts across the estate, run commands with a full AEE audit trail, and drive it all through the CIPHER/DAEDALUS agents.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/bastion",
+      "label": "Bastion",
+      "icon": "database",
+      "minRole": "builder"
+    }
+  ],
+  "routes": {
+    "/bastion": "BastionView"
+  },
+  "routeGuards": {
+    "/bastion": {
+      "minRole": "builder"
+    }
+  },
+  "minQuoxVersion": "1.0.0"
+}

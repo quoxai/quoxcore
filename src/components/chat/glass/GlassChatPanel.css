@@ -1,0 +1,293 @@
+/**
+ * GlassChatPanel — Glass Design System Styles
+ *
+ * Uses tokens from src/styles/glass.css
+ * No grey text — minimum opacity 0.6 on white
+ * Purple (--protocol-aocl) for AOCL/thinking states
+ * Cyan (--q-cyan) for active/interactive states
+ */
+
+/* ═══ CONTAINER ═══ */
+
+.gcp {
+    display: flex;
+    flex-direction: column;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    background: var(--glass-bg);
+    border-top: 1px solid var(--glass-edge-light);
+    border-left: 1px solid var(--glass-edge-left);
+    border-right: 1px solid var(--glass-edge-dim);
+    border-bottom: 1px solid var(--glass-edge-dim);
+    border-radius: var(--glass-radius-card);
+    box-shadow: var(--glass-shadow);
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    contain: style;
+}
+
+.gcp--active {
+    /* Active state: subtle brightening, NOT purple-cyan gradient. The gradient
+       tints the whole panel (including the input area) blue/purple, which is
+       wrong for neutral glass. Keep the border/shadow as the active indicator. */
+    background: rgba(255,255,255,0.1);
+    border-top-color: rgba(255,255,255,0.28);
+    border-left-color: rgba(255,255,255,0.22);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.22),
+        inset 0 -1px 0 rgba(0,0,0,0.45),
+        0 8px 24px rgba(0,0,0,0.4);
+}
+
+/* Edge hairlines (Quox design system — 4-edge rim, NOT full-fill gradient).
+   Previously used --glass-shimmer which is a full linear-gradient that
+   painted the entire panel cyan→purple — that's what made the message
+   area look blue. Now uses --qx-edges which is rim-only. */
+.gcp__shimmer {
+    position: absolute;
+    inset: 0;
+    background: var(--qx-edges);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ═══ MESSAGES SLOT ═══ */
+
+.gcp__messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    position: relative;
+    z-index: 1;
+}
+
+/* Scrollbar */
+.gcp__messages::-webkit-scrollbar {
+    width: 4px;
+}
+
+.gcp__messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.gcp__messages::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+}
+
+.gcp__messages::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* ═══ STATUS BAR ═══ */
+
+.gcp-status {
+    position: relative;
+    z-index: 1;
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
+}
+
+/* Full variant status */
+.gcp-status--full {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.gcp-status__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease;
+}
+
+.gcp-status__header:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Compact variant status */
+.gcp-status--compact {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* Pulse dot */
+.gcp-status__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
+    transition: background 0.2s ease;
+}
+
+.gcp-status__dot--active {
+    background: var(--protocol-aocl);
+    animation: gcp-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes gcp-pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.5);
+        opacity: 0.6;
+    }
+}
+
+/* Label */
+.gcp-status__label {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.7);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gcp--active .gcp-status__label {
+    color: var(--protocol-aocl);
+}
+
+/* AOCL layer dots */
+.gcp-status__layers {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin: 0 4px;
+}
+
+.gcp-status__layer-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.gcp-status__layer-dot--current {
+    background: var(--protocol-aocl);
+    transform: scale(1.5);
+    box-shadow: 0 0 6px rgba(168, 85, 247, 0.5);
+}
+
+/* Elapsed time badge */
+.gcp-status__elapsed {
+    padding: 1px 5px;
+    background: rgba(168, 85, 247, 0.15);
+    border-radius: 4px;
+    color: var(--protocol-aocl);
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+/* Step count */
+.gcp-status__count {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+/* Chevron */
+.gcp-status__chevron {
+    display: flex;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.8);
+    flex-shrink: 0;
+}
+
+/* Expanded detail panel */
+.gcp-status__detail {
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 0 12px 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.gcp-status__step {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 3px 0;
+    font-size: 11px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.gcp-status__step:last-child {
+    border-bottom: none;
+}
+
+.gcp-status__step--latest {
+    background: rgba(168, 85, 247, 0.08);
+    margin: 0 -12px;
+    padding: 3px 12px;
+    border-radius: 4px;
+}
+
+.gcp-status__step-agent {
+    font-weight: 600;
+    color: var(--protocol-aocl);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    min-width: 50px;
+    flex-shrink: 0;
+    font-size: 10px;
+}
+
+.gcp-status__step-msg {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.4;
+}
+
+.gcp-status__step-time {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+/* Detail scrollbar */
+.gcp-status__detail::-webkit-scrollbar {
+    width: 3px;
+}
+
+.gcp-status__detail::-webkit-scrollbar-thumb {
+    background: rgba(168, 85, 247, 0.2);
+    border-radius: 2px;
+}
+
+/* ═══ INPUT AREA ═══ */
+
+.gcp-input {
+    position: relative;
+    z-index: 1;
+}
+
+/* Let ChatInput's own glass styles handle everything.
+   Just tighten padding for the glass panel context. */
+.gcp-input .chat-input {
+    padding: 8px 10px;
+    background: transparent;
+    border-top: none;
+}
+
+/* ═══ COMPACT VARIANT OVERRIDES ═══ */
+
+.gcp--compact {
+    border-radius: var(--glass-radius-badge, 6px);
+}
+
+.gcp--compact .gcp-input .chat-input {
+    padding: 6px 8px;
+}

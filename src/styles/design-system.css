@@ -1,0 +1,481 @@
+/**
+ * QuoxCORE Unified Design System
+ * =============================
+ * A cohesive visual language for the entire application
+ * Combines HAL aesthetics with enterprise workspace needs
+ *
+ * This file extends the base design tokens in index.css
+ * with unified layout tokens and component patterns.
+ */
+
+/* ============================================
+   UNIFIED LAYOUT TOKENS
+   ============================================ */
+
+:root {
+  /* === SIDEBAR DIMENSIONS === */
+  --sidebar-width-collapsed: 56px;
+  --sidebar-width-expanded: 240px;
+  --sidebar-transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* === HEADER DIMENSIONS === */
+  --header-height: 52px;
+
+  /* === CONTENT AREAS === */
+  --content-max-width: 1600px;
+  --content-padding: var(--m-space-6);
+
+  /* === Z-INDEX SCALE (Issue #164 fix) === */
+  /* Reference --m-z-* from index.css as source of truth to prevent conflicts */
+  --z-base: var(--m-z-base, 0);
+  --z-dropdown: var(--m-z-dropdown, 100);
+  --z-sticky: var(--m-z-sticky, 200);
+  --z-fixed: var(--m-z-overlay, 300);         /* Maps to overlay */
+  --z-drawer: var(--m-z-modal, 400);          /* Maps to modal level */
+  --z-modal-backdrop: var(--m-z-modal, 400);  /* Same as modal */
+  --z-modal: var(--m-z-modal, 400);
+  --z-popover: var(--m-z-toast, 500);         /* Above modal */
+  --z-tooltip: var(--m-z-tooltip, 600);
+  --z-toast: var(--m-z-tooltip, 600);         /* Same as tooltip (highest) */
+  --z-max: 9999;                              /* Escape hatch - use sparingly */
+
+  /* === UNIFIED COLOR PALETTE (Quox-themed) === */
+
+  /* Quox Brand - Trust/Enterprise/Professional
+   * DEPRECATED: The --hal-red variables have misleading names.
+   * They now map to Quox brand cyan for backward compatibility.
+   * For new code, use --m-quox-primary/secondary from index.css instead.
+   */
+  --hal-red: var(--m-quox-primary, #38bdf8);           /* DEPRECATED -> Quox cyan */
+  --hal-red-soft: var(--m-quox-secondary, #a78bfa);    /* DEPRECATED -> Quox violet */
+  --hal-red-muted: var(--m-quox-muted, rgba(56, 189, 248, 0.15));
+  --hal-red-glow: var(--m-quox-glow, rgba(56, 189, 248, 0.4));
+  --hal-red-bg: rgba(56, 189, 248, 0.08);
+
+  /* Green - Healthy/Success/Online */
+  --status-green: #30ff90;
+  --status-green-soft: #50ffa0;
+  --status-green-muted: rgba(48, 255, 144, 0.15);
+  --status-green-glow: rgba(48, 255, 144, 0.3);
+  --status-green-bg: rgba(48, 255, 144, 0.08);
+
+  /* Blue - Info/Links/Secondary */
+  --status-blue: #3090ff;
+  --status-blue-soft: #50a0ff;
+  --status-blue-muted: rgba(48, 144, 255, 0.15);
+  --status-blue-glow: rgba(48, 144, 255, 0.3);
+  --status-blue-bg: rgba(48, 144, 255, 0.08);
+
+  /* Purple - Premium/Special */
+  --status-purple: #9d4edd;
+  --status-purple-soft: #b060ff;
+  --status-purple-muted: rgba(157, 78, 221, 0.15);
+  --status-purple-glow: rgba(157, 78, 221, 0.3);
+  --status-purple-bg: rgba(157, 78, 221, 0.08);
+
+  /* Amber - Warning/Caution */
+  --status-amber: #ffbf00;
+  --status-amber-soft: #ffd040;
+  --status-amber-muted: rgba(255, 191, 0, 0.15);
+  --status-amber-glow: rgba(255, 191, 0, 0.3);
+  --status-amber-bg: rgba(255, 191, 0, 0.08);
+
+  /* Cyan - System/Data */
+  --status-cyan: #00d4ff;
+  --status-cyan-soft: #40e0ff;
+  --status-cyan-muted: rgba(0, 212, 255, 0.15);
+
+  /* === UNIFIED BACKGROUNDS (H27 fix: Use index.css tokens as source of truth) === */
+  --bg-void: #000000;
+  --bg-deepest: var(--m-bg-deepest, #09090b);
+  --bg-deep: var(--m-bg-deep, rgba(255, 255, 255, 0.03));
+  --bg-base: var(--m-bg-base, rgba(255, 255, 255, 0.04));
+  --bg-elevated: var(--m-bg-elevated, rgba(255, 255, 255, 0.05));
+  --bg-surface: var(--m-bg-float, #1f1f24);
+  --bg-hover: #202026;
+  --bg-active: var(--m-bg-wash, #26262c);
+
+  /* === UNIFIED BORDERS === */
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --border-bright: rgba(255, 255, 255, 0.20);
+
+  /* === TEXT HIERARCHY (H27 fix: Use index.css tokens as source of truth) === */
+  --text-bright: #ffffff;
+  --text-primary: var(--m-text-primary, #fff);
+  --text-secondary: var(--m-text-secondary, rgba(255, 255, 255, 0.72));
+  --text-tertiary: var(--m-text-tertiary, rgba(255, 255, 255, 0.52));
+  --text-muted: var(--m-text-disabled, #52525b);
+
+  /* === ICON SIDEBAR SPECIFIC === */
+  --icon-size-sm: 16px;
+  --icon-size-md: 20px;
+  --icon-size-lg: 24px;
+  --icon-color-default: var(--text-tertiary);
+  --icon-color-hover: var(--text-secondary);
+  --icon-color-active: var(--hal-red);
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Text Colors */
+.text-hal { color: var(--hal-red) !important; }
+.text-green { color: var(--status-green) !important; }
+.text-blue { color: var(--status-blue) !important; }
+.text-purple { color: var(--status-purple) !important; }
+.text-amber { color: var(--status-amber) !important; }
+.text-cyan { color: var(--status-cyan) !important; }
+
+/* Background Colors */
+.bg-hal { background-color: var(--hal-red-bg) !important; }
+.bg-green { background-color: var(--status-green-bg) !important; }
+.bg-blue { background-color: var(--status-blue-bg) !important; }
+.bg-purple { background-color: var(--status-purple-bg) !important; }
+.bg-amber { background-color: var(--status-amber-bg) !important; }
+
+/* Glow Effects */
+.glow-hal { box-shadow: 0 0 20px var(--hal-red-glow) !important; }
+.glow-green { box-shadow: 0 0 20px var(--status-green-glow) !important; }
+.glow-blue { box-shadow: 0 0 20px var(--status-blue-glow) !important; }
+.glow-purple { box-shadow: 0 0 20px var(--status-purple-glow) !important; }
+
+/* Status Indicators */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.status-dot.online { background: var(--status-green); box-shadow: 0 0 8px var(--status-green-glow); }
+.status-dot.warning { background: var(--status-amber); box-shadow: 0 0 8px var(--status-amber-glow); }
+.status-dot.error { background: var(--hal-red); box-shadow: 0 0 8px var(--hal-red-glow); }
+.status-dot.offline { background: var(--text-muted); }
+.status-dot.active { background: var(--status-blue); box-shadow: 0 0 8px var(--status-blue-glow); }
+
+/* ============================================
+   SPACING UTILITIES
+   ============================================ */
+
+.gap-1 { gap: var(--m-space-1); }
+.gap-2 { gap: var(--m-space-2); }
+.gap-3 { gap: var(--m-space-3); }
+.gap-4 { gap: var(--m-space-4); }
+.gap-6 { gap: var(--m-space-6); }
+.gap-8 { gap: var(--m-space-8); }
+
+.p-1 { padding: var(--m-space-1); }
+.p-2 { padding: var(--m-space-2); }
+.p-3 { padding: var(--m-space-3); }
+.p-4 { padding: var(--m-space-4); }
+.p-6 { padding: var(--m-space-6); }
+
+.px-2 { padding-left: var(--m-space-2); padding-right: var(--m-space-2); }
+.px-3 { padding-left: var(--m-space-3); padding-right: var(--m-space-3); }
+.px-4 { padding-left: var(--m-space-4); padding-right: var(--m-space-4); }
+
+.py-2 { padding-top: var(--m-space-2); padding-bottom: var(--m-space-2); }
+.py-3 { padding-top: var(--m-space-3); padding-bottom: var(--m-space-3); }
+.py-4 { padding-top: var(--m-space-4); padding-bottom: var(--m-space-4); }
+
+/* ============================================
+   FLEX UTILITIES
+   ============================================ */
+
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-1 { flex: 1; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+
+/* ============================================
+   TYPOGRAPHY UTILITIES
+   ============================================ */
+
+.font-mono { font-family: var(--m-font-mono); }
+.font-sans { font-family: var(--m-font-sans); }
+
+.text-xs { font-size: var(--m-text-xs); }
+.text-sm { font-size: var(--m-text-sm); }
+.text-base { font-size: var(--m-text-base); }
+.text-lg { font-size: var(--m-text-lg); }
+.text-xl { font-size: var(--m-text-xl); }
+.text-2xl { font-size: var(--m-text-2xl); }
+
+.font-medium { font-weight: var(--m-weight-medium); }
+.font-semibold { font-weight: var(--m-weight-semibold); }
+.font-bold { font-weight: var(--m-weight-bold); }
+
+.uppercase { text-transform: uppercase; }
+.tracking-wide { letter-spacing: var(--m-tracking-wide); }
+.tracking-wider { letter-spacing: var(--m-tracking-wider); }
+
+/* ============================================
+   INTERACTIVE STATES
+   ============================================ */
+
+.interactive {
+  cursor: pointer;
+  transition: all var(--m-duration-normal) var(--m-ease-default);
+}
+
+.interactive:hover {
+  background: var(--bg-hover);
+}
+
+.interactive:active {
+  background: var(--bg-active);
+}
+
+.interactive.active {
+  background: var(--bg-active);
+  color: var(--hal-red);
+}
+
+/* Focus ring for keyboard navigation */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg-deep), 0 0 0 4px var(--hal-red-soft);
+}
+
+/* ============================================
+   CARD PATTERNS
+   ============================================ */
+
+.card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--m-radius-lg);
+}
+
+.card-header {
+  padding: var(--m-space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.card-body {
+  padding: var(--m-space-4);
+}
+
+.card-footer {
+  padding: var(--m-space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ============================================
+   BADGE PATTERNS
+   ============================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--m-space-1);
+  padding: var(--m-space-1) var(--m-space-2);
+  font-size: var(--m-text-xs);
+  font-weight: var(--m-weight-medium);
+  border-radius: var(--m-radius-full);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+
+.badge.badge-hal {
+  background: var(--hal-red-muted);
+  color: var(--hal-red);
+}
+
+.badge.badge-green {
+  background: var(--status-green-muted);
+  color: var(--status-green);
+}
+
+.badge.badge-blue {
+  background: var(--status-blue-muted);
+  color: var(--status-blue);
+}
+
+.badge.badge-purple {
+  background: var(--status-purple-muted);
+  color: var(--status-purple);
+}
+
+.badge.badge-amber {
+  background: var(--status-amber-muted);
+  color: var(--status-amber);
+}
+
+/* ============================================
+   BUTTON VARIANTS (UNIFIED)
+   ============================================ */
+
+.btn-unified {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--m-space-2);
+  height: var(--m-btn-height-md);
+  padding: 0 var(--m-space-4);
+  font-size: var(--m-text-sm);
+  font-weight: var(--m-weight-medium);
+  border-radius: var(--m-radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--m-duration-normal) var(--m-ease-default);
+  outline: none;
+}
+
+.btn-unified:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-unified.btn-hal {
+  background: var(--hal-red);
+  color: white;
+  border-color: var(--hal-red);
+}
+
+.btn-unified.btn-hal:hover:not(:disabled) {
+  background: var(--hal-red-soft);
+  box-shadow: 0 0 20px var(--hal-red-glow);
+}
+
+.btn-unified.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: transparent;
+}
+
+.btn-unified.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btn-unified.btn-outline {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.btn-unified.btn-outline:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+/* ============================================
+   SCROLLBAR STYLING
+   ============================================ */
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) transparent;
+}
+
+/* ============================================
+   ANIMATION UTILITIES
+   ============================================ */
+
+@keyframes pulse-hal {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 10px var(--hal-red-glow); }
+  50% { box-shadow: 0 0 20px var(--hal-red-glow), 0 0 30px var(--hal-red-glow); }
+}
+
+.animate-pulse-hal {
+  animation: pulse-hal 2s ease-in-out infinite;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* M2 fix: Common utility animations - single definitions to prevent duplicates */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideOut {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+/* Utility classes for common animations */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-blink {
+  animation: blink 1.5s ease-in-out infinite;
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ============================================
+   RESPONSIVE BREAKPOINTS
+   ============================================ */
+
+/* Note: Use these in media queries */
+/* --breakpoint-sm: 640px */
+/* --breakpoint-md: 768px */
+/* --breakpoint-lg: 1024px */
+/* --breakpoint-xl: 1280px */
+/* --breakpoint-2xl: 1536px */

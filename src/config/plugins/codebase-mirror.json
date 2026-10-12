@@ -1,0 +1,90 @@
+{
+  "name": "codebase-mirror",
+  "version": "1.0.0",
+  "displayName": "Codebase Mirror",
+  "tagline": "Your AI knows your code.",
+  "description": "Structural code awareness across all scanned projects. Indexes registries, routes, services, schemas, and detects drift automatically. Agents get code context injected without reading entire files.",
+  "shortDescription": "Codebase indexing and drift detection for AI agents",
+  "author": "QUOX",
+  "license": "free",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "free",
+  "tier": "free",
+  "featured": true,
+  "icon": "layers",
+  "accentColor": "#4f46e5",
+  "infoUrl": "https://quox.ai/plugins/codebase-mirror",
+  "docsUrl": "https://quox.ai/docs/plugins/codebase-mirror",
+  "marketingPoints": [
+    "Auto-detect project types (React, Go, TypeScript, Rust, Python)",
+    "Registry sync validation — catch mismatches before they break things",
+    "30-token context injection — agents know your architecture without reading files",
+    "Drift detection — see exactly what changed between scans",
+    "Remote scanning via QuoxAgent — index code on any fleet machine"
+  ],
+  "features": {
+    "scan": {
+      "name": "Project Scanning",
+      "description": "Detect project type, extract registries, routes, services, schemas",
+      "icon": "search",
+      "highlight": true,
+      "premiumOnly": false
+    },
+    "drift": {
+      "name": "Drift Detection",
+      "description": "Compare scans over time, detect added/removed/modified elements",
+      "icon": "git-compare",
+      "highlight": true,
+      "premiumOnly": false
+    },
+    "query": {
+      "name": "Query API",
+      "description": "Agents query specific elements on demand via /api/v1/codebase/:id/query",
+      "icon": "database",
+      "highlight": false,
+      "premiumOnly": false
+    },
+    "implant": {
+      "name": "Cognitive Implant",
+      "description": "Codebase Fabric implant in Cognitive Topology with live metrics",
+      "icon": "cpu",
+      "highlight": false,
+      "premiumOnly": false
+    },
+    "visualization": {
+      "name": "Visual Explorer",
+      "description": "Browse project structure, registries, routes, and invariants in the dashboard",
+      "icon": "layout",
+      "highlight": false,
+      "premiumOnly": false
+    }
+  },
+  "limits": {
+    "free": {
+      "maxProjects": 20,
+      "scanCooldownMs": 30000,
+      "driftHistoryDays": 30,
+      "remoteScanning": true
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "integration": {
+    "client": "src/services/cognitiveTopologyService.js",
+    "view": "src/pages/views/CodebaseMirrorView.jsx"
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-03-04",
+      "changes": [
+        "Initial release: scanner engine, storage, diff engine",
+        "API endpoints: scan, query, diff, summary, markdown",
+        "Cognitive Topology implant: Codebase Fabric",
+        "Dashboard view: project cards, registry explorer, invariant panel"
+      ]
+    }
+  },
+  "category": "Productivity"
+}

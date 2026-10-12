@@ -1,0 +1,103 @@
+{
+  "spec_id": "newrelic",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:58.893Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.newrelic.com/quox-shapeproof-control-7b58c07c",
+      "status": 404,
+      "latency_ms": 2239,
+      "classification": "CONTROL",
+      "body_sha256": "1e9e7a1fd8ba4700c4e0086111fc2737e4880220f36f4964c627aee36d027c1a",
+      "body_excerpt": "<!DOCTYPE html>\n<html lang='en'>\n  <head>\n    <title>Oops! Error page (404)</title>\n    <meta charset='utf-8'>\n    <meta content='noindex, nofollow' name='robots'>\n    <meta content='2008-20 New Relic",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "POST",
+      "url": "https://api.newrelic.com/graphql",
+      "status": 401,
+      "latency_ms": 370,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "446178723ec6e17dd7c0164096d30d0c9e19a26d24369db7a5435ac49ce3dd1a",
+      "body_excerpt": "{\"errors\":[{\"message\":\"authentication required\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_user",
+      "method": "POST",
+      "url": "https://api.newrelic.com/graphql",
+      "status": 401,
+      "latency_ms": 335,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "446178723ec6e17dd7c0164096d30d0c9e19a26d24369db7a5435ac49ce3dd1a",
+      "body_excerpt": "{\"errors\":[{\"message\":\"authentication required\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_accounts",
+      "method": "POST",
+      "url": "https://api.newrelic.com/graphql",
+      "status": 401,
+      "latency_ms": 267,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "446178723ec6e17dd7c0164096d30d0c9e19a26d24369db7a5435ac49ce3dd1a",
+      "body_excerpt": "{\"errors\":[{\"message\":\"authentication required\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "nrql_query",
+      "method": "POST",
+      "url": "https://api.newrelic.com/graphql",
+      "status": 401,
+      "latency_ms": 292,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "446178723ec6e17dd7c0164096d30d0c9e19a26d24369db7a5435ac49ce3dd1a",
+      "body_excerpt": "{\"errors\":[{\"message\":\"authentication required\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "search_entities",
+      "method": "POST",
+      "url": "https://api.newrelic.com/graphql",
+      "status": 401,
+      "latency_ms": 242,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "446178723ec6e17dd7c0164096d30d0c9e19a26d24369db7a5435ac49ce3dd1a",
+      "body_excerpt": "{\"errors\":[{\"message\":\"authentication required\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_alert_policies",
+      "method": "POST",
+      "url": "https://api.newrelic.com/graphql",
+      "status": 401,
+      "latency_ms": 232,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "446178723ec6e17dd7c0164096d30d0c9e19a26d24369db7a5435ac49ce3dd1a",
+      "body_excerpt": "{\"errors\":[{\"message\":\"authentication required\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

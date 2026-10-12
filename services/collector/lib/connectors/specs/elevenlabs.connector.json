@@ -1,0 +1,184 @@
+{
+  "spec_version": 1,
+  "id": "elevenlabs",
+  "name": "ElevenLabs",
+  "category": "data_ai",
+  "credentialType": "elevenlabs",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Read-only ElevenLabs access: the account's subscription tier and remaining character quota, the voice and model catalogues, and past generation history. Text-to-speech (POST /v1/text-to-speech/{voice_id}) spends the account's character quota and returns raw audio bytes rather than JSON, so it is modelled write:true and HITL-gated and never fired here; every read below is a zero-spend authed GET.",
+  "docs": "https://docs.elevenlabs.io/api-reference",
+  "base_url": "https://api.elevenlabs.io",
+  "auth": {
+    "type": "header",
+    "header": "xi-api-key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/user"
+  },
+  "tools_source": "https://docs.elevenlabs.io/api-reference",
+  "tools": [
+    {
+      "name": "get_user",
+      "description": "Get the ElevenLabs account behind this API key: subscription tier and remaining character quota (used and limit). The cheap balance read and the spec's auth-proving test call",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/user"
+      },
+      "response": {
+        "pick": {
+          "subscription_tier": "subscription.tier",
+          "character_count": "subscription.character_count",
+          "character_limit": "subscription.character_limit",
+          "can_extend_character_limit": "subscription.can_extend_character_limit",
+          "next_character_count_reset_unix": "subscription.next_character_count_reset_unix"
+        },
+        "truncate": 1500
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_voices",
+      "description": "List voices available to this account, from ElevenLabs's shared library and any cloned voices, with id, name and category",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/voices"
+      },
+      "response": {
+        "pick": {
+          "voices[]": {
+            "voice_id": "voice_id",
+            "name": "name",
+            "category": "category",
+            "labels": "labels"
+          }
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_models",
+      "description": "List the text-to-speech models available on this account, with id, name and supported languages",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/models"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "model_id": "model_id",
+            "name": "name",
+            "languages": "languages",
+            "can_be_finetuned": "can_be_finetuned"
+          }
+        },
+        "truncate": 2500
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_history",
+      "description": "List past generations (text-to-speech, dubbing, etc) on this account, most recent first, with the voice used and generation date",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max history items to return (default 100, max 1000)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/history",
+        "query": {
+          "page_size": "{{clamp input.page_size 100 1000}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "history[]": {
+            "history_item_id": "history_item_id",
+            "voice_id": "voice_id",
+            "voice_name": "voice_name",
+            "date_unix": "date_unix",
+            "text": "text"
+          },
+          "has_more": "has_more",
+          "last_history_item_id": "last_history_item_id"
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "text_to_speech",
+      "description": "Generate speech audio from text using a specific voice. This spends the account's character quota and returns raw audio bytes (not JSON), so it is HITL-gated and never fired by the shape-proof harness (write:true means blind proof always SKIPs it; a real credential would also need --include-writes)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "voice_id": {
+            "type": "string",
+            "description": "ElevenLabs voice id to speak with, from list_voices"
+          },
+          "text": {
+            "type": "string",
+            "description": "Text to convert to speech"
+          },
+          "model_id": {
+            "type": "string",
+            "description": "Optional model id to use, from list_models (API default: eleven_multilingual_v2)"
+          }
+        },
+        "required": [
+          "voice_id",
+          "text"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/v1/text-to-speech/{{input.voice_id}}",
+        "body": {
+          "text": "{{input.text}}",
+          "model_id": "{{input.model_id}}"
+        }
+      },
+      "write": true
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-16, viral-AI-tools tranche voice connector (project_viral_ai_build_plan_2026_09_16)",
+    "confidence": "high",
+    "needs_review": [
+      "NO LIVE CREDENTIAL AT AUTHORING TIME: this spec is shape-proved blind only. LIVE_PROVEN should be clean and free once a real key is supplied: /v1/user, /v1/voices, /v1/models and /v1/history are all zero-spend authed GETs per the build plan.",
+      "text_to_speech deliberately carries no response block: the real 2xx response body is raw audio bytes (audio/mpeg), not JSON, so there is nothing to pick even if this tool were ever fired; it is documented write:true and HITL-gated specifically because a JSON pick would be dishonest here.",
+      "REPLACES A SCAFFOLD STUB: an earlier connector-scaffold.mjs pass generated services/collector/lib/connectors/specs/drafts/elevenlabs.connector.json (tools: [], never registered — drafts/ is not read by registry.js) from the vault type alone. That stub had zero tools to carry forward; nothing was dropped by building this version from scratch in the live specs/ directory instead.",
+      "Vault credentialType 'elevenlabs' ALREADY EXISTED in integrationTypeRegistry.js (field api_key, testEndpoint https://api.elevenlabs.io/v1/user, header xi-api-key) and was reused as-is; no new registration added, no integrationTestDepth count change for this connector.",
+      "Dubbing (POST /v1/dubbing, async submit-then-poll like fal/Replicate) is explicitly out of scope per the build plan's Phase A/B split: this connector covers the synchronous voice/model/quota/history reads and the (never-fired) TTS write only; dubbing is a Phase-B addition."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

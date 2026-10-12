@@ -1,0 +1,214 @@
+{
+  "spec_version": 1,
+  "id": "docker_hub",
+  "name": "Docker Hub",
+  "category": "cloud_hosting",
+  "credentialType": "docker_hub",
+  "requiredFields": [
+    "username",
+    "access_token"
+  ],
+  "description": "Read-only Docker Hub access to PUBLIC registry data: repositories in a namespace, repository detail and image tags. Unauthenticated: private repositories are not reachable through this connector.",
+  "docs": "https://docs.docker.com/reference/api/hub/latest/",
+  "base_url": "https://hub.docker.com",
+  "auth": {
+    "type": "none"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/namespaces/library/repositories",
+    "query": {
+      "page_size": "1"
+    }
+  },
+  "tools_source": "https://docs.docker.com/reference/api/hub/latest.yaml",
+  "tools": [
+    {
+      "name": "list_repositories",
+      "description": "List public Docker Hub repositories in one namespace (organisation or user), newest activity first when ordering is set",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "description": "Docker Hub namespace: an organisation or user name (e.g. library for Docker Official Images)"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Repositories per page (default 25, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional page number to fetch (default 1)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional partial repository name to filter by"
+          },
+          "ordering": {
+            "type": "string",
+            "enum": [
+              "name",
+              "-name",
+              "last_updated",
+              "-last_updated",
+              "pull_count",
+              "-pull_count"
+            ],
+            "description": "Optional ordering field; prefix with - for descending"
+          }
+        },
+        "required": [
+          "namespace"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/namespaces/{{input.namespace}}/repositories",
+        "query": {
+          "page_size": "{{clamp input.page_size 25 100}}",
+          "page": "{{input.page}}",
+          "name": "{{input.name}}",
+          "ordering": "{{input.ordering}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "count": "count",
+          "results[]": {
+            "name": "name",
+            "namespace": "namespace",
+            "repository_type": "repository_type",
+            "description": "description",
+            "is_private": "is_private",
+            "star_count": "star_count",
+            "pull_count": "pull_count",
+            "last_updated": "last_updated"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.namespace": "library",
+        "input.name": "nginx",
+        "input.ordering": "-last_updated"
+      }
+    },
+    {
+      "name": "get_repository",
+      "description": "Get one public Docker Hub repository (short description, pull and star counts, last update)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "description": "Docker Hub namespace: an organisation or user name (e.g. library)"
+          },
+          "repository": {
+            "type": "string",
+            "description": "Repository name within the namespace (e.g. nginx)"
+          }
+        },
+        "required": [
+          "namespace",
+          "repository"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/namespaces/{{input.namespace}}/repositories/{{input.repository}}"
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "namespace": "namespace",
+          "repository_type": "repository_type",
+          "description": "description",
+          "status_description": "status_description",
+          "is_private": "is_private",
+          "star_count": "star_count",
+          "pull_count": "pull_count",
+          "last_updated": "last_updated",
+          "date_registered": "date_registered"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.namespace": "library",
+        "input.repository": "nginx"
+      }
+    },
+    {
+      "name": "list_tags",
+      "description": "List image tags for one public Docker Hub repository (tag name, size, digest, last push)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "description": "Docker Hub namespace: an organisation or user name (e.g. library)"
+          },
+          "repository": {
+            "type": "string",
+            "description": "Repository name within the namespace (e.g. nginx)"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Tags per page (default 25, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional page number to fetch (default 1)"
+          }
+        },
+        "required": [
+          "namespace",
+          "repository"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/namespaces/{{input.namespace}}/repositories/{{input.repository}}/tags",
+        "query": {
+          "page_size": "{{clamp input.page_size 25 100}}",
+          "page": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "count": "count",
+          "results[]": {
+            "name": "name",
+            "full_size": "full_size",
+            "digest": "digest",
+            "tag_status": "tag_status",
+            "content_type": "content_type",
+            "last_updated": "last_updated",
+            "tag_last_pushed": "tag_last_pushed"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.namespace": "library",
+        "input.repository": "nginx"
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "medium",
+    "needs_review": [
+      "AUTH DECISION, auth.type 'none' AND PUBLIC READS ONLY: the Docker Hub API documents exactly one way in. Its OpenAPI (https://docs.docker.com/reference/api/hub/latest.yaml) declares a single securityScheme, bearerAuth with bearerFormat JWT, and states of every credential type including a personal access token: 'You must use each authentication type with the Create access token route to obtain a bearer token' (POST /v2/auth/token, or POST /v2/users/login). A dckr_pat_ token is therefore NOT usable directly as a bearer against hub.docker.com/v2, so auth {type: header, template: Bearer {{access_token}}} would be a false claim. Verified against the live host 2026-09-12: a dummy bearer returns 401 on /v2/user/ AND on the public /v2/namespaces/library/repositories, so sending an unexchanged PAT would BREAK reads that succeed unauthenticated. Spec v1 cannot chain a login call into a later request, so this connector ships auth {type: none} with public read tools only. The validator's 'will call the provider unauthenticated' warning is the honest, expected outcome here, not an oversight.",
+      "VAULT FIELDS ARE STORED BUT NOT SENT: requiredFields keeps username and access_token to match integrationTypeRegistry.js key docker_hub, so the existing vault credential and its test endpoint stay valid, but no tool references either field. Private repositories, organisation membership and audit logs are NOT reachable through this connector, and nothing here should be described as authenticated Docker Hub access.",
+      "ESCAPE HATCH NEEDED FOR AUTHENTICATED READS: reaching private repositories needs a token-exchange step spec v1 does not have (POST /v2/auth/token with {identifier, secret} then Bearer the returned JWT, which expires). Two routes exist: a custom_tools_module for docker_hub, or a spec-level auth type in the oauth2_client_credentials family that exchanges username plus PAT for a JWT and caches it. Until one lands, the private surface is out of scope rather than half-wired.",
+      "DOCUMENTED PATHS CHOSEN OVER THE LEGACY ALIASES: the current docs use /v2/namespaces/{namespace}/repositories, /v2/namespaces/{namespace}/repositories/{repository} and .../tags. The older /v2/repositories/{namespace}/... forms still answer 200 (checked live 2026-09-12) but are absent from the published OpenAPI, so the documented forms are used. The repositories list and repository detail routes document anonymous access explicitly (security: bearerAuth or {}); the tags route documents bearerAuth only, yet answers public repositories anonymously (library/nginx, 200, verified 2026-09-12). That gap between docs and behaviour is recorded here rather than assumed permanent.",
+      "PROBE VALUES ARE PUBLIC DATA: _probe supplies namespace 'library' and repository 'nginx' (the Docker Official Images namespace) so the blind harness can route paths that need identifiers, plus name 'nginx' and ordering '-last_updated' on list_repositories because the generic dummy 'quoxprobe' is not a valid ordering value and drew a 400 instead of a read. All four are world-readable and read-only; credentials are never hinted. _probe sits at TOOL level, not inside request: the harness reads tool._probe, and a _probe nested in request is silently ignored (it validated clean and proved nothing on the first run here)."
+    ]
+  }
+}

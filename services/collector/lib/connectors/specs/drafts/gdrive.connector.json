@@ -1,0 +1,30 @@
+{
+  "spec_version": 1,
+  "id": "gdrive",
+  "name": "Google Drive",
+  "category": "storage",
+  "credentialType": "gdrive",
+  "requiredFields": [
+    "integration_token"
+  ],
+  "docs": "https://developers.google.com/drive/api/guides/about-sdk",
+  "base_url": "https://www.googleapis.com",
+  "auth": {
+    "type": "bearer",
+    "field": "integration_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/drive/v3/about",
+    "query": {
+      "fields": "user"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

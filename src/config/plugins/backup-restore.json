@@ -1,0 +1,192 @@
+{
+  "name": "backup-restore",
+  "version": "1.0.0",
+  "displayName": "Backup, Restore & Migration",
+  "tagline": "Protect Your AI Infrastructure",
+  "description": "Complete backup and restore solution with DEFCON-style audit logging, SHA-256 verification proofs, automated scheduling, and selective component restore. Never lose your AI configurations, memories, or workflows again.",
+  "shortDescription": "Backup, restore, and migrate your entire QuoxCORE installation.",
+  "author": "QUOX",
+  "license": "free",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "free",
+  "tier": "free",
+  "featured": true,
+  "icon": "archive",
+  "infoUrl": "https://quox.ai/plugins/backup-restore",
+  "docsUrl": "https://quox.ai/docs/plugins/backup-restore",
+  "accentColor": "#10b981",
+  "marketingPoints": [
+    "Full system backups with one click",
+    "SHA-256 cryptographic verification proofs",
+    "DEFCON-style audit logging for all operations",
+    "Selective component backup and restore",
+    "Dry-run mode for safe restore previews",
+    "Automated backup scheduling (hourly, daily, weekly, monthly)",
+    "Inbox notifications for backup status",
+    "Migration support between installations"
+  ],
+  "features": {
+    "fullBackup": {
+      "name": "Full Backup",
+      "description": "Backup all 11 critical components including databases, memory, uploads, workflows, and configurations.",
+      "icon": "archive",
+      "highlight": true
+    },
+    "selectiveBackup": {
+      "name": "Selective Backup",
+      "description": "Choose specific components to backup - databases, uploads, n8n workflows, agent configs, and more.",
+      "icon": "check-square",
+      "highlight": true
+    },
+    "verification": {
+      "name": "SHA-256 Verification",
+      "description": "Cryptographic proofs ensure backup integrity. Verify archives haven't been tampered with or corrupted.",
+      "icon": "shield",
+      "highlight": true
+    },
+    "dryRunRestore": {
+      "name": "Dry-Run Restore",
+      "description": "Preview what a restore will do before committing changes. Safe simulation mode for testing.",
+      "icon": "eye",
+      "highlight": true
+    },
+    "scheduling": {
+      "name": "Automated Scheduling",
+      "description": "Configure recurring backups - hourly, daily, weekly, or monthly with retention policies.",
+      "icon": "clock"
+    },
+    "auditLogging": {
+      "name": "DEFCON Audit Logging",
+      "description": "Military-style audit trail with risk levels (GREEN→RED) for all backup and restore operations.",
+      "icon": "shield-alert"
+    },
+    "notifications": {
+      "name": "Inbox Notifications",
+      "description": "Receive alerts via inbox when backups complete or fail. Integrates with email, Slack, Telegram.",
+      "icon": "bell"
+    },
+    "migration": {
+      "name": "Migration Support",
+      "description": "Move your entire QuoxCORE installation to a new server with full data preservation.",
+      "icon": "arrow-right-circle"
+    }
+  },
+  "limits": {
+    "free": {
+      "maxBackups": 50,
+      "maxBackupSize": "unlimited",
+      "hasScheduling": true,
+      "hasVerification": true,
+      "hasDryRun": true,
+      "hasAuditLog": true,
+      "hasNotifications": true,
+      "retentionDays": 90
+    }
+  },
+  "comparison": {
+    "free": {
+      "backups": "50 backups",
+      "scheduling": true,
+      "verification": true,
+      "dryRun": true,
+      "auditLog": true,
+      "notifications": true
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "integration": {
+    "service": "src/services/backup/backupService.js",
+    "auditLogger": "src/services/backup/backupIntents.js",
+    "panel": "src/components/backup/BackupPanel.jsx",
+    "view": "src/pages/views/BackupView.jsx",
+    "routes": "services/auth/routes/backups.js",
+    "schema": "services/auth/db/schema-backups.sql"
+  },
+  "components": [
+    {
+      "key": "auth_db",
+      "name": "Auth Database",
+      "category": "core",
+      "priority": 1
+    },
+    {
+      "key": "memory_system",
+      "name": "Memory System",
+      "category": "data",
+      "priority": 2
+    },
+    {
+      "key": "qdrant_vectors",
+      "name": "Qdrant Vectors",
+      "category": "data",
+      "priority": 3
+    },
+    {
+      "key": "user_uploads",
+      "name": "User Uploads",
+      "category": "data",
+      "priority": 4
+    },
+    {
+      "key": "n8n_workflows",
+      "name": "n8n Workflows",
+      "category": "workflow",
+      "priority": 5
+    },
+    {
+      "key": "env_secrets",
+      "name": "Environment Secrets",
+      "category": "config",
+      "priority": 6
+    },
+    {
+      "key": "plugin_configs",
+      "name": "Plugin Configurations",
+      "category": "config",
+      "priority": 7
+    },
+    {
+      "key": "agent_definitions",
+      "name": "Agent Definitions",
+      "category": "config",
+      "priority": 8
+    },
+    {
+      "key": "tool_definitions",
+      "name": "Tool Definitions",
+      "category": "config",
+      "priority": 9
+    },
+    {
+      "key": "quoxagent_playbooks",
+      "name": "QuoxAgent Playbooks",
+      "category": "workflow",
+      "priority": 10
+    },
+    {
+      "key": "host_configs",
+      "name": "Host Configurations",
+      "category": "infrastructure",
+      "priority": 11
+    }
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2025-01-31",
+      "changes": [
+        "Initial release as free plugin",
+        "Full and selective backup support",
+        "SHA-256 verification proofs",
+        "DEFCON-style audit logging",
+        "Automated scheduling with retention policies",
+        "Dry-run restore mode",
+        "Multi-step restore wizard",
+        "Inbox notifications integration"
+      ]
+    }
+  },
+  "category": "Operations"
+}

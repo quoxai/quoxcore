@@ -1,0 +1,54 @@
+{
+  "spec_id": "gotify",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T18:14:26.588Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/health",
+      "status": 200,
+      "latency_ms": 282,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "027c5ef9bba18c3d44a4bdcfef87b3af96d973be1f1a08a2c3d0bb96e2a6eeb4",
+      "body_excerpt": "{\"health\":\"green\",\"database\":\"green\"}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "health",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/health",
+      "status": 200,
+      "latency_ms": 10,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "027c5ef9bba18c3d44a4bdcfef87b3af96d973be1f1a08a2c3d0bb96e2a6eeb4",
+      "body_excerpt": "{\"health\":\"green\",\"database\":\"green\"}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "version",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/version",
+      "status": 200,
+      "latency_ms": 11,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "b2ad30fcd47485f3805662e508a11739347e3889456bbccc4195fe8a7f0a9cc0",
+      "body_excerpt": "{\"version\":\"2.5.0\",\"commit\":\"69c939ed9410406bd57fa9cd7b2a7eae1859490d\",\"buildDate\":\"2024-06-23-17:12:59\"}",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:gotify/server:2.5"
+}

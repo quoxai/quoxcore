@@ -1,0 +1,126 @@
+{
+  "id": "browser-q",
+  "name": "browser-q",
+  "version": "0.1.0",
+  "displayName": "Browser-Q",
+  "tagline": "Web Automation",
+  "description": "AI web automation — navigate, interact, extract data from any website. Natural language task definition, session recording, visual monitoring, and credential vault integration.",
+  "shortDescription": "AI web automation — navigate, interact, and extract data from any website.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 10,
+  "priceDisplay": "$10/mo",
+  "priceModel": "monthly",
+  "tier": "premium",
+  "featured": false,
+  "badge": "NEW",
+  "icon": "globe",
+  "accentColor": "#06b6d4",
+  "heroGradient": "linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #1e40af 100%)",
+  "infoUrl": "https://quox.ai/plugins/browser-q",
+  "docsUrl": "https://quox.ai/docs/plugins/browser-q",
+  "category": "automation",
+  "marketingPoints": [
+    "Navigate any website with natural language instructions",
+    "Take screenshots and monitor pages for visual changes",
+    "Extract structured data from web pages (tables, lists, text)",
+    "Fill forms and interact with web UIs autonomously",
+    "Session recording and replay for repeatable automations",
+    "Credential vault integration — passwords never stored in agent memory"
+  ],
+  "features": {
+    "navigation": {
+      "name": "Web Navigation",
+      "description": "Navigate to any URL with intelligent page load detection and redirect handling.",
+      "icon": "globe",
+      "highlight": true
+    },
+    "screenshots": {
+      "name": "Screenshot Capture",
+      "description": "Capture full-page or element-specific screenshots with automatic storage.",
+      "icon": "camera",
+      "highlight": true
+    },
+    "extraction": {
+      "name": "Data Extraction",
+      "description": "Extract structured data from web pages — tables, lists, links, text, and images.",
+      "icon": "database",
+      "highlight": true
+    },
+    "formFilling": {
+      "name": "Form Filling",
+      "description": "Click elements, type text, and fill forms using CSS selectors or natural language descriptions.",
+      "icon": "edit"
+    },
+    "monitoring": {
+      "name": "Visual Monitoring",
+      "description": "Schedule visual diff monitoring to detect when pages change.",
+      "icon": "eye"
+    },
+    "sessionRecording": {
+      "name": "Session Recording",
+      "description": "Record and replay automation sequences for repeatable tasks.",
+      "icon": "video"
+    }
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "navigation": false,
+      "screenshots": false,
+      "extraction": false,
+      "formFilling": false,
+      "monitoring": false,
+      "sessionRecording": false,
+      "board": "No web automation"
+    },
+    "tier_a": {
+      "name": "Browser-Q",
+      "navigation": true,
+      "screenshots": true,
+      "extraction": true,
+      "formFilling": true,
+      "monitoring": true,
+      "sessionRecording": true,
+      "board": "Full web automation suite"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "requiresService": "screencap",
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "route": "/browser-q",
+  "integration": {
+    "view": "src/pages/views/BrowserQView.jsx"
+  },
+  "permissions": [
+    "browser:read",
+    "browser:write",
+    "browser:navigate"
+  ],
+  "futureFeatures": [
+    "Credential vault integration with HITL login approval",
+    "Session recording and replay with self-healing",
+    "Visual diff monitoring with scheduled captures",
+    "Cross-agent browser requests (any agent can request browser actions)",
+    "Site intelligence profiles (learned navigation patterns)",
+    "Live session viewer with real-time screenshot feed"
+  ],
+  "changelog": {
+    "0.1.0": {
+      "date": "2026-03-27",
+      "changes": [
+        "Initial release (BQ-0 Foundation)",
+        "Agent registration (BROWSER-Q)",
+        "Navigation, screenshot, and wait tools (stub)",
+        "Basic BrowserQView with chat sidebar",
+        "Use case suggestion chips"
+      ]
+    }
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "spec_id": "influxdb",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T18:03:05.741Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/orgs",
+      "status": 200,
+      "latency_ms": 273,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "3ba3605a2132113d0ef09718cdac9015fdf0cffdec691fb24a73a26db1b4e8fc",
+      "body_excerpt": "{\n\t\"links\": {\n\t\t\"self\": \"/api/v2/orgs\"\n\t},\n\t\"orgs\": [\n\t\t{\n\t\t\t\"links\": {\n\t\t\t\t\"buckets\": \"/api/v2/buckets?org=[LIVE_REDACTED]\",\n\t\t\t\t\"dashboards\": \"/api/v2/dashboards?org=[LIVE_REDACTED]\",\n\t\t\t\t\"labels\": \"/",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "health",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/health",
+      "status": 200,
+      "latency_ms": 10,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "986ebe505d40ad50e010a72e1acfc43f84376288eaecc57619dbe7931518aefa",
+      "body_excerpt": "{\"name\":\"influxdb\", \"message\":\"ready for queries and writes\", \"status\":\"pass\", \"checks\":[], \"version\": \"v2.7.12\", \"commit\": \"ec9dcde5d6\"}\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_current_user",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/me",
+      "status": 200,
+      "latency_ms": 11,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "c2f05f189c35d55cd01bdb0fcb08c6aba982d313b5a504c24b3d19fa1c300d0a",
+      "body_excerpt": "{\n\t\"links\": {\n\t\t\"self\": \"/api/v2/users/1151b160a31ef000\"\n\t},\n\t\"id\": \"1151b160a31ef000\",\n\t\"name\": \"quoxproof\",\n\t\"status\": \"active\"\n}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_orgs",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/orgs?org=[LIVE_REDACTED]&limit=20",
+      "status": 200,
+      "latency_ms": 13,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "3ba3605a2132113d0ef09718cdac9015fdf0cffdec691fb24a73a26db1b4e8fc",
+      "body_excerpt": "{\n\t\"links\": {\n\t\t\"self\": \"/api/v2/orgs\"\n\t},\n\t\"orgs\": [\n\t\t{\n\t\t\t\"links\": {\n\t\t\t\t\"buckets\": \"/api/v2/buckets?org=[LIVE_REDACTED]\",\n\t\t\t\t\"dashboards\": \"/api/v2/dashboards?org=[LIVE_REDACTED]\",\n\t\t\t\t\"labels\": \"/",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_buckets",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/buckets?org=[LIVE_REDACTED]&name=[LIVE_REDACTED]&limit=20",
+      "status": 200,
+      "latency_ms": 9,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "167568d219cb88738ba79b975ba6a98bab810e85bc82a401d21f460518b768de",
+      "body_excerpt": "{\n\t\"links\": {\n\t\t\"self\": \"/api/v2/buckets?bucket=[LIVE_REDACTED]\\u0026descending=false\\u0026limit=20\\u0026offset=0\\u0026org=[LIVE_REDACTED]\"\n\t},\n\t\"buckets\": [\n\t\t{\n\t\t\t\"id\": \"b7540cd1124d1c6f\",\n\t\t\t\"orgID\":",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_tasks",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/tasks?org=[LIVE_REDACTED]&limit=20",
+      "status": 200,
+      "latency_ms": 14,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "24525d3a914658dc295b415f228385194926d666896cc209681804f3a4921f6a",
+      "body_excerpt": "{\"links\":{\"self\":\"/api/v2/tasks?limit=20\\u0026org=[LIVE_REDACTED]\\u0026orgID=f303714a533c806b\"},\"tasks\":[]}\n",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:influxdb:2.7"
+}

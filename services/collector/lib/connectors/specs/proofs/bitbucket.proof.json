@@ -1,0 +1,121 @@
+{
+  "spec_id": "bitbucket",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:09.283Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.bitbucket.org/quox-shapeproof-control-490414ac",
+      "status": 401,
+      "latency_ms": 552,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.bitbucket.org/2.0/user",
+      "status": 401,
+      "latency_ms": 244,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    },
+    {
+      "name": "get_user",
+      "method": "GET",
+      "url": "https://api.bitbucket.org/2.0/user",
+      "status": 401,
+      "latency_ms": 314,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "method": "GET",
+      "url": "https://api.bitbucket.org/2.0/workspaces?pagelen=20",
+      "status": 401,
+      "latency_ms": 231,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    },
+    {
+      "name": "list_repositories",
+      "method": "GET",
+      "url": "https://api.bitbucket.org/2.0/repositories/atlassian?role=quoxprobe&pagelen=20",
+      "status": 401,
+      "latency_ms": 367,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    },
+    {
+      "name": "get_repository",
+      "method": "GET",
+      "url": "https://api.bitbucket.org/2.0/repositories/atlassian/atlassian-frontend-mirror",
+      "status": 401,
+      "latency_ms": 339,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    },
+    {
+      "name": "list_pullrequests",
+      "method": "GET",
+      "url": "https://api.bitbucket.org/2.0/repositories/atlassian/atlassian-frontend-mirror/pullrequests?state=quoxprobe&pagelen=20",
+      "status": 401,
+      "latency_ms": 314,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

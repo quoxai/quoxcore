@@ -1,0 +1,462 @@
+/**
+ * WorkflowExplainer Styles
+ * Styling for the workflow import and explanation component
+ */
+
+/* =============================================================================
+   MAIN CONTAINER
+   ============================================================================= */
+
+.wf-explainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--ui-bg-primary, #12121a);
+  color: var(--ui-text, #fff);
+}
+
+.wf-explainer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+}
+
+.wf-explainer__header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.wf-explainer__close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--ui-text-muted, rgba(255, 255, 255, 0.6));
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.wf-explainer__close:hover {
+  background: var(--ui-surface-2, #252540);
+  color: var(--ui-text, #fff);
+}
+
+/* =============================================================================
+   IMPORT FORM
+   ============================================================================= */
+
+.wf-import-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.wf-import-form__header {
+  margin-bottom: 20px;
+}
+
+.wf-import-form__header h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.wf-import-form__header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ui-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.wf-import-form__dropzone {
+  flex: 1;
+  min-height: 200px;
+  border: 2px dashed var(--ui-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.wf-import-form__dropzone--active {
+  border-color: var(--ui-blue, #3b82f6);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.wf-import-form__textarea {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  padding: 16px;
+  background: transparent;
+  border: none;
+  color: var(--ui-text, #fff);
+  font-family: 'SF Mono', Monaco, 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: none;
+}
+
+.wf-import-form__textarea:focus {
+  outline: none;
+}
+
+.wf-import-form__textarea::placeholder {
+  color: var(--ui-text-muted, rgba(255, 255, 255, 0.52));
+}
+
+.wf-import-form__error {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: var(--color-danger, #ef4444);
+  font-size: 13px;
+}
+
+.wf-import-form__actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* =============================================================================
+   CONTENT AREA
+   ============================================================================= */
+
+.wf-explainer__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wf-explainer__info {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+}
+
+.wf-explainer__title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wf-explainer__title h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.wf-explainer__badge {
+  padding: 4px 10px;
+  background: var(--ui-surface-2, #252540);
+  border-radius: 12px;
+  font-size: 12px;
+  color: var(--ui-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.wf-explainer__meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ui-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+/* =============================================================================
+   TABS
+   ============================================================================= */
+
+.wf-explainer__tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+}
+
+.wf-explainer__tab {
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--ui-text-muted, rgba(255, 255, 255, 0.6));
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s ease;
+}
+
+.wf-explainer__tab:hover {
+  color: var(--ui-text, #fff);
+}
+
+.wf-explainer__tab--active {
+  color: var(--ui-blue, #3b82f6);
+  border-bottom-color: var(--ui-blue, #3b82f6);
+}
+
+/* =============================================================================
+   PANEL
+   ============================================================================= */
+
+.wf-explainer__panel {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.wf-explainer__json {
+  margin: 0;
+  padding: 16px;
+  background: var(--ui-surface-1, rgba(255, 255, 255, 0.05));
+  border-radius: 8px;
+  font-family: 'SF Mono', Monaco, 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ui-text-muted, #aaa);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.wf-explainer__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--ui-text-muted, rgba(255, 255, 255, 0.52));
+  font-size: 14px;
+}
+
+/* =============================================================================
+   EXPLANATION PANEL
+   ============================================================================= */
+
+.wf-explanation {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.wf-explanation__section {
+  padding: 16px;
+  background: var(--ui-surface-1, rgba(255, 255, 255, 0.05));
+  border-radius: 8px;
+}
+
+.wf-explanation__section h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text-muted, rgba(255, 255, 255, 0.6));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wf-explanation__section p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ui-text, #fff);
+}
+
+.wf-explanation__section ul {
+  margin: 0;
+  padding: 0 0 0 20px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--ui-text, #fff);
+}
+
+.wf-explanation__section--suggestions {
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.wf-explanation__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wf-explanation__tag {
+  padding: 4px 10px;
+  background: var(--ui-surface-2, #252540);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--ui-text, #fff);
+}
+
+/* =============================================================================
+   NODE FLOW VISUALIZATION
+   ============================================================================= */
+
+.wf-node-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.wf-node-flow__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.wf-node-flow__node {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--ui-surface-1, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  width: 100%;
+  max-width: 400px;
+  transition: all 0.15s ease;
+}
+
+.wf-node-flow__node:hover {
+  border-color: var(--ui-border-hover, rgba(255, 255, 255, 0.2));
+}
+
+.wf-node-flow__icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ui-surface-2, #252540);
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ui-blue, #3b82f6);
+}
+
+.wf-node-flow__details {
+  flex: 1;
+  min-width: 0;
+}
+
+.wf-node-flow__name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ui-text, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wf-node-flow__type {
+  font-size: 12px;
+  color: var(--ui-text-muted, rgba(255, 255, 255, 0.6));
+  margin-top: 2px;
+}
+
+.wf-node-flow__connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+  margin-left: 30px;
+}
+
+.wf-node-flow__line {
+  width: 2px;
+  height: 16px;
+  background: var(--ui-border, rgba(255, 255, 255, 0.2));
+}
+
+.wf-node-flow__line--dashed {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--ui-border, rgba(255, 255, 255, 0.2)) 0px,
+    var(--ui-border, rgba(255, 255, 255, 0.2)) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.wf-node-flow__arrow {
+  font-size: 12px;
+  color: var(--ui-text-muted, rgba(255, 255, 255, 0.52));
+  line-height: 1;
+}
+
+/* =============================================================================
+   ACTIONS
+   ============================================================================= */
+
+.wf-explainer__actions {
+  display: flex;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+}
+
+.wf-explainer__actions .btn {
+  padding: 10px 16px;
+  border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-text, #fff);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.wf-explainer__actions .btn:hover {
+  background: var(--ui-surface-2, #252540);
+  border-color: var(--ui-border-hover, rgba(255, 255, 255, 0.2));
+}
+
+.wf-explainer__actions .btn--primary {
+  background: var(--ui-blue, #3b82f6);
+  border-color: var(--ui-blue, #3b82f6);
+}
+
+.wf-explainer__actions .btn--primary:hover {
+  background: var(--ui-blue-hover, #2563eb);
+}
+
+.wf-explainer__actions .btn--secondary {
+  border-color: var(--color-success, #22c55e);
+  color: var(--color-success, #22c55e);
+}
+
+.wf-explainer__actions .btn--secondary:hover {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+/* =============================================================================
+   RESPONSIVE
+   ============================================================================= */
+
+@media (max-width: 640px) {
+  .wf-explainer__tabs {
+    overflow-x: auto;
+    padding: 0 16px;
+  }
+
+  .wf-explainer__tab {
+    white-space: nowrap;
+  }
+
+  .wf-explainer__actions {
+    flex-wrap: wrap;
+  }
+
+  .wf-explainer__actions .btn {
+    flex: 1;
+    min-width: calc(50% - 6px);
+  }
+
+  .wf-node-flow__node {
+    max-width: 100%;
+  }
+}

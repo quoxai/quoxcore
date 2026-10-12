@@ -1,0 +1,103 @@
+{
+  "spec_id": "datadog",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:21.839Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.datadoghq.com/quox-shapeproof-control-4d8bd97f",
+      "status": 404,
+      "latency_ms": 343,
+      "classification": "CONTROL",
+      "body_sha256": "6bad201c324903d8484614f06ed9efccda00a73f8870cb608c30b3d9f9b50b78",
+      "body_excerpt": "<!DOCTYPE html>\n<html lang=\"en\" data-version=\"35.137040641\" data-app-mode=\"golang-static-spa\">\n\n<head>\n    \n    <meta charset=\"UTF-8\">\n    <link rel=\"icon\" type=\"image/x-icon\" href=\"https://static.dat",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.datadoghq.com/api/v1/validate",
+      "status": 403,
+      "latency_ms": 105,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d6ff9a57b5008378b925600b1aeb27a9bc53ef1dda00436722cadc9d70be2964",
+      "body_excerpt": "{\"errors\":[\"Forbidden\"]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_monitors",
+      "method": "GET",
+      "url": "https://api.datadoghq.com/api/v1/monitor?name=quoxprobe",
+      "status": 401,
+      "latency_ms": 115,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "6d0f673e7bb9c6a7cd60f77b45dc61e2a081ee1106a122894c37aa46f7725647",
+      "body_excerpt": "{\"errors\":[\"Unauthorized\"]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_monitor",
+      "method": "GET",
+      "url": "https://api.datadoghq.com/api/v1/monitor/quoxprobe",
+      "status": 401,
+      "latency_ms": 148,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "6d0f673e7bb9c6a7cd60f77b45dc61e2a081ee1106a122894c37aa46f7725647",
+      "body_excerpt": "{\"errors\":[\"Unauthorized\"]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_dashboards",
+      "method": "GET",
+      "url": "https://api.datadoghq.com/api/v1/dashboard",
+      "status": 401,
+      "latency_ms": 123,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "6d0f673e7bb9c6a7cd60f77b45dc61e2a081ee1106a122894c37aa46f7725647",
+      "body_excerpt": "{\"errors\":[\"Unauthorized\"]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_events",
+      "method": "GET",
+      "url": "https://api.datadoghq.com/api/v1/events?start=1&end=1",
+      "status": 401,
+      "latency_ms": 123,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "6d0f673e7bb9c6a7cd60f77b45dc61e2a081ee1106a122894c37aa46f7725647",
+      "body_excerpt": "{\"errors\":[\"Unauthorized\"]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "validate_key",
+      "method": "GET",
+      "url": "https://api.datadoghq.com/api/v1/validate",
+      "status": 403,
+      "latency_ms": 123,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d6ff9a57b5008378b925600b1aeb27a9bc53ef1dda00436722cadc9d70be2964",
+      "body_excerpt": "{\"errors\":[\"Forbidden\"]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

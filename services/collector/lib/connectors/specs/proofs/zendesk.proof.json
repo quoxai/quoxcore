@@ -1,0 +1,90 @@
+{
+  "spec_id": "zendesk",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:35.319Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://support.zendesk.com/quox-shapeproof-control-e473f24d",
+      "status": 404,
+      "latency_ms": 418,
+      "classification": "CONTROL",
+      "body_sha256": "d83b0d7393018577186fca72b3cf67d214ddeacb5c519911a3e4904aacd01316",
+      "body_excerpt": "<!DOCTYPE html>\n<html dir=\"ltr\" lang=\"en-US\">\n<head>\n  <meta charset=\"utf-8\" />\n  <!-- v27921 -->\n\n\n  <title>The page you were looking for doesn't exist &ndash; Zendesk help</title>\n\n  \n\n  <meta name=",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://support.zendesk.com/api/v2/users/me",
+      "status": 401,
+      "latency_ms": 470,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c9800b093767dcb7a7bcb385d30d62fd895f2784302dd7c7f18a6fe36802fabf",
+      "body_excerpt": "{\"error\":{\"title\":\"Unauthorized\",\"message\":\"Couldn't authenticate you\"}}\n",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_tickets",
+      "method": "GET",
+      "url": "https://support.zendesk.com/api/v2/tickets.json?per_page=25",
+      "status": 401,
+      "latency_ms": 260,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c1a845b8a64d8ab187ac6bb6e1e0c39f75706ef9129af19fda9c4b2257a5d2b6",
+      "body_excerpt": "{\"error\":\"Couldn't authenticate you\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_ticket",
+      "method": "GET",
+      "url": "https://support.zendesk.com/api/v2/tickets/1.json",
+      "status": 401,
+      "latency_ms": 324,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c1a845b8a64d8ab187ac6bb6e1e0c39f75706ef9129af19fda9c4b2257a5d2b6",
+      "body_excerpt": "{\"error\":\"Couldn't authenticate you\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_users",
+      "method": "GET",
+      "url": "https://support.zendesk.com/api/v2/users.json?per_page=25&role=quoxprobe",
+      "status": 401,
+      "latency_ms": 201,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c1a845b8a64d8ab187ac6bb6e1e0c39f75706ef9129af19fda9c4b2257a5d2b6",
+      "body_excerpt": "{\"error\":\"Couldn't authenticate you\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "search",
+      "method": "GET",
+      "url": "https://support.zendesk.com/api/v2/search.json?query=quoxprobe&per_page=25",
+      "status": 401,
+      "latency_ms": 215,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c1a845b8a64d8ab187ac6bb6e1e0c39f75706ef9129af19fda9c4b2257a5d2b6",
+      "body_excerpt": "{\"error\":\"Couldn't authenticate you\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

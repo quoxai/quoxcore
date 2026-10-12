@@ -1,0 +1,243 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "security-extended",
+
+  "name": "Security Extended Tools",
+  "description": "Extended security tools for compliance, certificates, and auditing",
+  "category": "security",
+  "subcategory": "compliance",
+  "provider": "quox",
+  "version": "1.0.0",
+
+  "risk_level": "low",
+  "sandbox_profile": "standard",
+
+  "tools": [
+    {
+      "id": "security.certificate_check",
+      "name": "SSL Certificate Check",
+      "description": "Check SSL/TLS certificate expiration for domains or endpoints",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "targets": {
+          "type": "array",
+          "required": true,
+          "description": "List of domains or host:port to check (e.g., ['example.com', 'api.example.com:8443'])"
+        },
+        "warn_days": {
+          "type": "number",
+          "required": false,
+          "default": 30,
+          "description": "Days before expiry to flag as warning"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "certificates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "domain": { "type": "string" },
+                "issuer": { "type": "string" },
+                "expires": { "type": "string" },
+                "days_remaining": { "type": "number" },
+                "status": { "type": "string", "enum": ["valid", "expiring", "expired", "error"] }
+              }
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "number" },
+              "valid": { "type": "number" },
+              "expiring": { "type": "number" },
+              "expired": { "type": "number" }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Check SSL certificate expiration dates to prevent outages",
+        "when_to_use": [
+          "User asks about SSL certificate expiry",
+          "Checking if certificates need renewal",
+          "Security audit of HTTPS endpoints",
+          "Proactive certificate monitoring"
+        ]
+      }
+    },
+    {
+      "id": "security.failed_logins",
+      "name": "Failed Login Analysis",
+      "description": "Analyze failed login attempts with IP grouping and pattern detection",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "hours": {
+          "type": "number",
+          "required": false,
+          "default": 24,
+          "description": "Time window in hours"
+        },
+        "threshold": {
+          "type": "number",
+          "required": false,
+          "default": 5,
+          "description": "Min failures from same IP to flag as suspicious"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "total_failures": { "type": "number" },
+          "unique_ips": { "type": "number" },
+          "suspicious_ips": { "type": "array" },
+          "by_hour": { "type": "object" },
+          "top_usernames": { "type": "array" }
+        }
+      },
+      "instructions": {
+        "summary": "Detect brute force attacks and suspicious login patterns",
+        "when_to_use": [
+          "User asks about failed logins",
+          "Investigating potential brute force attacks",
+          "Security incident response",
+          "Daily security review"
+        ]
+      }
+    },
+    {
+      "id": "security.active_sessions",
+      "name": "Active Sessions",
+      "description": "List all active user sessions with location and device info",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "user_id": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by specific user (omit for all)"
+        }
+      },
+      "instructions": {
+        "summary": "View all active login sessions for security review",
+        "when_to_use": [
+          "User asks who is logged in",
+          "Checking for unauthorized sessions",
+          "Before revoking sessions"
+        ]
+      }
+    },
+    {
+      "id": "security.session_revoke",
+      "name": "Revoke Session",
+      "description": "Force logout a user session by ID",
+      "accessLevel": "managers+",
+      "defconLevel": "YELLOW",
+      "requiresApproval": true,
+      "parameters": {
+        "session_id": {
+          "type": "string",
+          "required": true,
+          "description": "Session ID to revoke"
+        },
+        "reason": {
+          "type": "string",
+          "required": false,
+          "description": "Reason for revocation (logged)"
+        }
+      },
+      "instructions": {
+        "summary": "Force logout a potentially compromised session",
+        "when_to_use": [
+          "User reports suspicious activity",
+          "Responding to security incident",
+          "User requests logout of other sessions"
+        ]
+      }
+    },
+    {
+      "id": "security.permission_audit",
+      "name": "Permission Audit",
+      "description": "Audit file and directory permissions for security issues",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "path": {
+          "type": "string",
+          "required": true,
+          "description": "Directory path to audit"
+        },
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "localhost"
+        },
+        "check_world_writable": {
+          "type": "boolean",
+          "required": false,
+          "default": true
+        },
+        "check_setuid": {
+          "type": "boolean",
+          "required": false,
+          "default": true
+        }
+      },
+      "instructions": {
+        "summary": "Find insecure file permissions (world-writable, setuid, etc.)",
+        "when_to_use": [
+          "Security compliance audit",
+          "Checking for permission vulnerabilities",
+          "Post-deployment security review"
+        ]
+      }
+    },
+    {
+      "id": "security.user_audit",
+      "name": "User Account Audit",
+      "description": "Audit user accounts for security issues (inactive, no MFA, etc.)",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "check_inactive_days": {
+          "type": "number",
+          "required": false,
+          "default": 90,
+          "description": "Flag accounts inactive for this many days"
+        },
+        "check_mfa": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Flag accounts without MFA"
+        }
+      },
+      "instructions": {
+        "summary": "Find inactive accounts and security policy violations",
+        "when_to_use": [
+          "Quarterly access review",
+          "Security compliance audit",
+          "User account cleanup"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {"base": "internal", "api": "bastion_ssh"},
+
+  "agent_hints": {
+    "primary_agent": "sentinel",
+    "delegation_keywords": ["certificate", "ssl", "https", "expir", "failed login", "brute force", "session", "permission", "audit", "compliance"]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "description": "BLIND held-out set 3, authored 2026-10-06 ~18:00 UTC after all W10 tuning choices were made and before any W10 measurement on it. Never use for tuning. Questions avoid each target note's distinctive words; near-misses are on corpus topics with the answer absent.",
+  "paraphrases": [
+    { "noteId": "76d791a2f4ec90e19f86befa45c32a8a25bef27b", "question": "what is the product for one operator to watch and manage many of their own installations from one console" },
+    { "noteId": "6dde700e64d50d0d45dfcd78311ba7189e5f3ac1", "question": "how does the owner reliably steer running sessions from their phone messaging app" },
+    { "noteId": "d4fa6400ef17f0f3247d5ef0e2c38c5fae1aed9f", "question": "why might my rebuild request silently not include my latest edit when another session asked at the same moment" },
+    { "noteId": "6c2cfb8d4f590c3865a313b6c0e1bd0e04a8a8ef", "question": "what is the second version of the plan for the writing app inside the assistant suite" },
+    { "noteId": "4a04ba77b96856005a296ff8ce3ada7586e1677c", "question": "where do I keep a running list of every complaint I raised so closed ones can be checked" },
+    { "noteId": "6d63d816638606394e04f0a94a0fecd3f266ee1d", "question": "the old page inspection helper left headless browsers running and burning the processor, what happened" },
+    { "noteId": "f70dc2062b0d8786cd9703d816b99861a231e3f8", "question": "how should we spend the unused picture generation allowance each month" }
+  ],
+  "nearMisses": [
+    { "query": "what was the uptime percentage of the public website last february", "topic": "website" },
+    { "query": "which colour palette did the owner choose for the printed brochure", "topic": "brand" },
+    { "query": "how many employees does the company plan to hire in 2027", "topic": "company" },
+    { "query": "what is the exact monthly price of the managed hosting plan in euros for german customers", "topic": "pricing" },
+    { "query": "which customer signed the first annual enterprise contract for the fleet console", "topic": "qluster" }
+  ]
+}

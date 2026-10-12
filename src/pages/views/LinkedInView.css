@@ -1,0 +1,307 @@
+/* LinkedInView — Plugin Dashboard */
+
+.linkedin-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, #0f1020 50%, rgba(255, 255, 255, 0.04) 100%);
+}
+
+.linkedin-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), var(--m-bg-base);
+  -webkit-backdrop-filter: var(--qx-blur);
+  backdrop-filter: var(--qx-blur);
+  flex-shrink: 0;
+}
+
+.linkedin-view__title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.linkedin-view__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.linkedin-view__error {
+  font-size: 12px;
+  color: rgba(248, 113, 113, 0.9);
+  margin-left: 12px;
+}
+
+.linkedin-view__refresh {
+  padding: 6px 14px;
+  background: rgba(10, 102, 194, 0.15);
+  border: 1px solid rgba(10, 102, 194, 0.25);
+  border-radius: 6px;
+  color: rgba(10, 102, 194, 0.9);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.linkedin-view__refresh:hover:not(:disabled) {
+  background: rgba(10, 102, 194, 0.25);
+}
+
+.linkedin-view__refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Tab Switcher ─────────────────────────────────── */
+.linkedin-view__tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.linkedin-view__tab {
+  padding: 5px 12px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.linkedin-view__tab:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.linkedin-view__tab--active {
+  background: rgba(10, 102, 194, 0.2);
+  color: rgba(10, 102, 194, 0.95);
+}
+
+/* ─── Setup Wizard ─────────────────────────────────── */
+.linkedin-view__setup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.linkedin-view__setup-card {
+  max-width: 520px;
+  padding: 32px;
+  background: rgba(15, 16, 32, 0.8);
+  border: 1px solid rgba(10, 102, 194, 0.2);
+  border-radius: 16px;
+}
+
+.linkedin-view__setup-card h3 {
+  margin: 12px 0 8px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 20px;
+}
+
+.linkedin-view__setup-card > p {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
+
+.linkedin-view__setup-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.linkedin-view__setup-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.linkedin-view__setup-num {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(10, 102, 194, 0.2);
+  color: rgba(10, 102, 194, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.linkedin-view__setup-step strong {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+}
+
+.linkedin-view__setup-step p {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  margin: 2px 0 0;
+  line-height: 1.4;
+}
+
+.linkedin-view__setup-step code {
+  background: rgba(10, 102, 194, 0.12);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: rgba(10, 102, 194, 0.85);
+}
+
+/* ─── Dashboard + Chat Layout ──────────────────────── */
+.linkedin-view__layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.linkedin-view__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  transition: flex 0.25s ease;
+}
+
+.linkedin-view__grid--full {
+  flex: 1;
+}
+
+.linkedin-view__top {
+  flex-shrink: 0;
+}
+
+.linkedin-view__main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+.linkedin-view__left {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.linkedin-view__left .li-panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.linkedin-view__right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+/* ─── Chat Sidebar (collapsible) ───────────────────── */
+.linkedin-view__chat-sidebar {
+  width: 340px;
+  min-width: 340px;
+  max-width: 340px;
+  height: 100%;
+  overflow: hidden;
+  transition: width 0.25s ease, min-width 0.25s ease, opacity 0.2s ease;
+  border-left: 1px solid rgba(10, 102, 194, 0.1);
+}
+
+.linkedin-view__chat-sidebar--collapsed {
+  width: 0;
+  min-width: 0;
+  max-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  border-left: none;
+}
+
+.linkedin-view__chat-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  backdrop-filter: blur(8px);
+}
+
+.linkedin-view__chat-toggle:hover {
+  background: rgba(10, 102, 194, 0.15);
+  border-color: rgba(10, 102, 194, 0.3);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.linkedin-view__layout:has(.linkedin-view__chat-sidebar:not(.linkedin-view__chat-sidebar--collapsed)) .linkedin-view__chat-toggle {
+  right: 348px;
+}
+
+/* ─── Full Chat Tab ────────────────────────────────── */
+.linkedin-view__chat-full {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.linkedin-view__chat-full .li-chat-sidebar {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* ─── Responsive ───────────────────────────────────── */
+@media (max-width: 1100px) {
+  .linkedin-view__chat-sidebar {
+    width: 300px;
+    min-width: 300px;
+    max-width: 300px;
+  }
+}
+
+@media (max-width: 900px) {
+  .linkedin-view__main {
+    grid-template-columns: 1fr;
+  }
+  .linkedin-view__chat-sidebar {
+    display: none;
+  }
+}
+
+/* P11 tab-content wrapper: single-column tabs (Compose, Activity, Health, About) */
+.linkedin-view__single {
+  margin: 0 auto;
+  padding: 8px 4px 24px;
+  width: 100%;
+}

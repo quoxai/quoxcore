@@ -1,0 +1,105 @@
+{
+  "spec_id": "clickup",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:16.293Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.clickup.com/quox-shapeproof-control-c0d67255",
+      "status": 404,
+      "latency_ms": 696,
+      "classification": "CONTROL",
+      "body_sha256": "c340dc018e372ba66044c917f27a1d9f489f3df1b096d0fd8664e12e833350ab",
+      "body_excerpt": "something went wrong",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.clickup.com/api/v2/user",
+      "status": 401,
+      "latency_ms": 198,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1eb737b7543b532e9f9679408bface7efbee996111672965ee12b1ae92250cff",
+      "body_excerpt": "{\"err\":\"Oauth token not found\",\"ECODE\":\"OAUTH_019\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_user",
+      "method": "GET",
+      "url": "https://api.clickup.com/api/v2/user",
+      "status": 401,
+      "latency_ms": 199,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1eb737b7543b532e9f9679408bface7efbee996111672965ee12b1ae92250cff",
+      "body_excerpt": "{\"err\":\"Oauth token not found\",\"ECODE\":\"OAUTH_019\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_teams",
+      "method": "GET",
+      "url": "https://api.clickup.com/api/v2/team",
+      "status": 401,
+      "latency_ms": 196,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1eb737b7543b532e9f9679408bface7efbee996111672965ee12b1ae92250cff",
+      "body_excerpt": "{\"err\":\"Oauth token not found\",\"ECODE\":\"OAUTH_019\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_spaces",
+      "method": "GET",
+      "url": "https://api.clickup.com/api/v2/team/quoxprobe/space?archived=false",
+      "status": 400,
+      "latency_ms": 183,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "52feb9b4f18330d6353abdb1445535e0873bcde346b7bc69b28cab7a8d0a3c9c",
+      "body_excerpt": "{\"err\":\"Invalid workspace id: quoxprobe\",\"ECODE\":\"SHARD_024\"}",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 404
+      }
+    },
+    {
+      "name": "list_tasks",
+      "method": "GET",
+      "url": "https://api.clickup.com/api/v2/list/quoxprobe/task?page=1&archived=false&include_closed=false&subtasks=false",
+      "status": 401,
+      "latency_ms": 200,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1eb737b7543b532e9f9679408bface7efbee996111672965ee12b1ae92250cff",
+      "body_excerpt": "{\"err\":\"Oauth token not found\",\"ECODE\":\"OAUTH_019\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_task",
+      "method": "GET",
+      "url": "https://api.clickup.com/api/v2/task/quoxprobe",
+      "status": 401,
+      "latency_ms": 191,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1eb737b7543b532e9f9679408bface7efbee996111672965ee12b1ae92250cff",
+      "body_excerpt": "{\"err\":\"Oauth token not found\",\"ECODE\":\"OAUTH_019\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,372 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://quox.local/schemas/assistant.schema.json",
+  "title": "Quox Assistant Manifest",
+  "description": "Schema for Quox assistant entity manifests",
+  "type": "object",
+  "required": ["v", "type", "id", "identity", "hierarchy", "capabilities", "rules", "safety"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this schema"
+    },
+    "v": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Manifest version (e.g., '1.0')"
+    },
+    "type": {
+      "type": "string",
+      "const": "assistant",
+      "description": "Entity type"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Unique identifier (lowercase, alphanumeric)"
+    },
+    "identity": {
+      "type": "object",
+      "required": ["name", "shortName", "tagline", "description", "personality", "color"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Display name (e.g., 'CIPHER')"
+        },
+        "shortName": {
+          "type": "string",
+          "maxLength": 3,
+          "description": "Badge abbreviation (e.g., 'C')"
+        },
+        "tagline": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Brief role description"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Full description of assistant's purpose"
+        },
+        "personality": {
+          "type": "object",
+          "required": ["tone", "style", "voice"],
+          "properties": {
+            "tone": {
+              "type": "string",
+              "description": "Communication tone"
+            },
+            "style": {
+              "type": "string",
+              "enum": ["concise", "detailed", "technical", "conversational"],
+              "description": "Response style preference"
+            },
+            "traits": {
+              "type": "array",
+              "items": { "type": "string" },
+              "maxItems": 10,
+              "description": "Personality traits"
+            },
+            "voice": {
+              "type": "string",
+              "enum": ["jarvis", "hal", "cyberpunk", "trinity"],
+              "description": "Voice mode for TTS"
+            },
+            "catchphrases": {
+              "type": "array",
+              "items": { "type": "string" },
+              "maxItems": 10,
+              "description": "Signature phrases"
+            }
+          }
+        },
+        "avatar": {
+          "type": "string",
+          "description": "Path to avatar image"
+        },
+        "color": {
+          "type": "object",
+          "required": ["primary"],
+          "properties": {
+            "primary": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "description": "Primary hex color"
+            },
+            "rgb": {
+              "type": "string",
+              "description": "RGB tuple (e.g., '255, 48, 48')"
+            },
+            "secondary": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "description": "Secondary hex color"
+            }
+          }
+        }
+      }
+    },
+    "hierarchy": {
+      "type": "object",
+      "required": ["role", "level"],
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": ["orchestrator", "manager", "analyst", "specialist"],
+          "description": "Role in the agent hierarchy"
+        },
+        "level": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3,
+          "description": "Hierarchy level (0=orchestrator, 1=managers, 2=specialists)"
+        },
+        "manages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "IDs of agents this assistant manages"
+        },
+        "reportsTo": {
+          "type": ["string", "null"],
+          "description": "ID of managing assistant (null for orchestrator)"
+        },
+        "canDelegateTo": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "IDs of agents this assistant can delegate to"
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "required": ["domains", "intents"],
+      "properties": {
+        "domains": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Expertise domains"
+        },
+        "intents": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "AEE intents this assistant handles"
+        },
+        "toolAccess": {
+          "type": "string",
+          "enum": ["orchestrator", "managers+", "specialists+", "all"],
+          "description": "Access level for dynamic tool discovery"
+        },
+        "toolCapabilities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tool capabilities this assistant can use"
+        },
+        "workflows": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Workflow IDs this assistant owns"
+        }
+      }
+    },
+    "rules": {
+      "type": "object",
+      "properties": {
+        "always": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Rules this assistant always follows"
+        },
+        "never": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Things this assistant never does"
+        },
+        "escalateTo": {
+          "type": "object",
+          "properties": {
+            "agent": {
+              "type": "string",
+              "description": "Agent to escalate to"
+            },
+            "when": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Conditions that trigger escalation"
+            }
+          }
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["defconLevel"],
+      "properties": {
+        "defconLevel": {
+          "type": "string",
+          "enum": ["GREEN", "BLUE", "AMBER", "ORANGE", "RED"],
+          "description": "Default DEFCON level for this assistant's operations"
+        },
+        "requiresApproval": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Operations that always require human approval"
+        },
+        "autoApproved": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Operations that can run without approval"
+        }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "description": "LLM provider and model configuration",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["anthropic", "openai", "gemini", "perplexity"],
+          "default": "anthropic",
+          "description": "LLM provider to use for this assistant"
+        },
+        "model": {
+          "type": "string",
+          "description": "Specific model to use (e.g., claude-sonnet-4-6, gpt-4o)"
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "default": 0.7,
+          "description": "Sampling temperature (0-2)"
+        },
+        "maxTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200000,
+          "default": 4096,
+          "description": "Maximum tokens in response"
+        }
+      }
+    },
+    "llmPolicy": {
+      "type": "object",
+      "description": "Runtime policy for whether this LLM choice is advisory or locked",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["recommendation", "locked"],
+          "description": "Whether the configured model is advisory or enforced"
+        },
+        "lockScope": {
+          "type": "string",
+          "enum": ["none", "soft", "hard"],
+          "description": "Strength of the lock when mode is locked"
+        },
+        "reason": {
+          "type": ["string", "null"],
+          "description": "Short machine-friendly reason for the runtime policy"
+        },
+        "note": {
+          "type": ["string", "null"],
+          "description": "Human-readable explanation of the runtime policy"
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "systemPromptAdditions": {
+          "type": "string",
+          "description": "Additional text for system prompt"
+        },
+        "knowledgeFiles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths to knowledge files to include"
+        },
+        "startupQueries": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "API endpoints to query at startup"
+        }
+      }
+    },
+    "ownership": {
+      "type": "object",
+      "description": "Entity ownership and visibility classification",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["core", "user", "marketplace", "imported"],
+          "description": "Origin of the entity: core (system), user (org-created), marketplace, or imported"
+        },
+        "createdBy": {
+          "type": ["string", "null"],
+          "description": "User ID who created this entity (null for core entities)"
+        },
+        "orgId": {
+          "type": ["string", "null"],
+          "description": "Organization ID that owns this entity (null for core entities)"
+        },
+        "divisionId": {
+          "type": ["string", "null"],
+          "description": "Division ID if scoped to a division"
+        },
+        "teamId": {
+          "type": ["string", "null"],
+          "description": "Team ID if scoped to a team"
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["system", "organization", "division", "team", "private"],
+          "description": "Visibility scope: system (all orgs), organization (org-wide), division, team, or private"
+        },
+        "forkedFrom": {
+          "type": ["string", "null"],
+          "description": "ID of the entity this was forked from (for customizations)"
+        }
+      },
+      "required": ["source"]
+    },
+    "ui": {
+      "type": "object",
+      "properties": {
+        "settingsEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this assistant appears in settings"
+        },
+        "visualizer": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["commander-sigil", "hal", "minimal", "custom"],
+              "default": "commander-sigil"
+            },
+            "colorPrimary": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "colorSecondary": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "pulseSpeed": {
+              "type": "string",
+              "enum": ["slow", "normal", "fast"],
+              "default": "normal"
+            }
+          }
+        },
+        "suggestions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "maxItems": 12,
+          "description": "Starter prompts for this assistant"
+        }
+      }
+    }
+  }
+}

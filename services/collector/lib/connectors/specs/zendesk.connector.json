@@ -1,0 +1,209 @@
+{
+  "spec_version": 1,
+  "id": "zendesk",
+  "name": "Zendesk",
+  "category": "crm_sales",
+  "credentialType": "zendesk",
+  "requiredFields": [
+    "subdomain",
+    "email",
+    "api_token"
+  ],
+  "description": "Read-only Zendesk Support access: tickets, users and cross-object search on one tenant instance",
+  "docs": "https://developer.zendesk.com/api-reference/",
+  "base_url": {
+    "template": "https://{{subdomain}}.zendesk.com",
+    "_probe": {
+      "subdomain": "support"
+    }
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "email",
+    "userSuffix": "/token",
+    "passField": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/users/me"
+  },
+  "tools_source": "https://developer.zendesk.com/api-reference/ticketing/tickets/tickets/",
+  "tools": [
+    {
+      "name": "list_tickets",
+      "description": "List Zendesk support tickets, most recently requested first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max tickets to return (default 25, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/tickets.json",
+        "query": {
+          "per_page": "{{clamp input.per_page 25 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "tickets[]": {
+            "id": "id",
+            "subject": "subject",
+            "status": "status",
+            "priority": "priority",
+            "requester_id": "requester_id",
+            "assignee_id": "assignee_id",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "count": "count",
+          "next_page": "next_page"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_ticket",
+      "description": "Get one Zendesk ticket by its numeric ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "ticket_id": {
+            "type": "number",
+            "description": "Zendesk ticket ID (e.g. 12345)"
+          }
+        },
+        "required": [
+          "ticket_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/tickets/{{input.ticket_id}}.json"
+      },
+      "response": {
+        "pick": {
+          "id": "ticket.id",
+          "subject": "ticket.subject",
+          "description": "ticket.description",
+          "status": "ticket.status",
+          "priority": "ticket.priority",
+          "type": "ticket.type",
+          "requester_id": "ticket.requester_id",
+          "assignee_id": "ticket.assignee_id",
+          "created_at": "ticket.created_at",
+          "updated_at": "ticket.updated_at"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_users",
+      "description": "List Zendesk users (agents and end users), optionally filtered by role",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max users to return (default 25, max 100)"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "end-user",
+              "agent",
+              "admin"
+            ],
+            "description": "Optional role to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/users.json",
+        "query": {
+          "per_page": "{{clamp input.per_page 25 100}}",
+          "role": "{{input.role}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "users[]": {
+            "id": "id",
+            "name": "name",
+            "email": "email",
+            "role": "role",
+            "active": "active",
+            "created_at": "created_at"
+          },
+          "count": "count",
+          "next_page": "next_page"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "search",
+      "description": "Search Zendesk across tickets, users and organizations with the Zendesk search syntax (e.g. 'type:ticket status:open')",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Zendesk search query (e.g. 'type:ticket status:open priority:urgent')"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max results to return (default 25, max 100)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/search.json",
+        "query": {
+          "query": "{{input.query}}",
+          "per_page": "{{clamp input.per_page 25 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "id": "id",
+            "result_type": "result_type",
+            "subject": "subject",
+            "name": "name",
+            "status": "status",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "count": "count",
+          "next_page": "next_page"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "AUTH SHAPE NOW MATCHES THE LIVE-TESTED REGISTRY FORM, BUT HAS NOT BEEN RUN AGAINST A REAL INSTANCE. Spec v1.1 gained auth.userSuffix on basic auth, so this spec sends Basic base64(\"{{email}}/token:{{api_token}}\"), the same bytes as services/auth/config/integrationTypeRegistry.js key 'zendesk', which is Zendesk's documented API-token form. What is proven: the runtime assembles that username (services/collector/test/connectorDeclarativeRuntime.test.js, 'basic auth userSuffix'), and the shape-proof below proves host, TLS, base_url template rendering and every path, because Zendesk answers a rejected credential with a structured 401 at the real paths and a 404 InvalidEndpoint at a bogus one. What is NOT proven: no Zendesk credential was held, so a 2xx has never been observed on this connector.",
+      "base_url is now the Spec v1.1 template form \"https://{{subdomain}}.zendesk.com\", matching the registry's testEndpoint; the scaffolded fromCredential key was dropped because the credential holds a bare subdomain slug, not a host. base_url._probe substitutes the public subdomain \"support\" (Zendesk's own support.zendesk.com instance) so the blind harness has a host that resolves. The probe value is read-only, used with a dummy credential, and the runtime ignores _probe entirely.",
+      "Category set to 'communication' to match the shipped taxonomy used by the other support desks (front, crisp); the scaffolded 'uncategorized' is not a real bucket.",
+      "Payload field names come from the Zendesk developer documentation (tools_source), not from a live 2xx: no Zendesk instance was held for this draft, so response picks are documentary. get_ticket declares ticket_id as a number because Zendesk ticket IDs are numeric."
+    ]
+  }
+}

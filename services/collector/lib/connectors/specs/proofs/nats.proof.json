@@ -1,0 +1,93 @@
+{
+  "spec_id": "nats",
+  "spec_version": 1,
+  "checked_at": "2026-09-13T00:32:04.007Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/varz",
+      "status": 200,
+      "latency_ms": 137,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "157f088001fea7c7cbc63f85b8d95a52ec9f6d38f5de25ed0708d8a875a45f74",
+      "body_excerpt": "{\n  \"server_id\": \"ND27UZ4KV5UHCBPP2JNOXRAHRH6FOIJ3VGSFUAVGGIJ66HGLXB47UZP7\",\n  \"server_name\": \"ND27UZ4KV5UHCBPP2JNOXRAHRH6FOIJ3VGSFUAVGGIJ66HGLXB47UZP7\",\n  \"version\": \"2.10.29\",\n  \"proto\": 1,\n  \"git_c",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "server_info",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/varz",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "399bfddb9062653aaed91e8079a163df20c30e4c661bea5cef3c7e55d7b49b55",
+      "body_excerpt": "{\n  \"server_id\": \"ND27UZ4KV5UHCBPP2JNOXRAHRH6FOIJ3VGSFUAVGGIJ66HGLXB47UZP7\",\n  \"server_name\": \"ND27UZ4KV5UHCBPP2JNOXRAHRH6FOIJ3VGSFUAVGGIJ66HGLXB47UZP7\",\n  \"version\": \"2.10.29\",\n  \"proto\": 1,\n  \"git_c",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "connections",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/connz",
+      "status": 200,
+      "latency_ms": 11,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "aa69cdbc69dfe616a24cf04c0eb40f1084d4b2d5110b03c0f12d74a58232d11f",
+      "body_excerpt": "{\n  \"server_id\": \"ND27UZ4KV5UHCBPP2JNOXRAHRH6FOIJ3VGSFUAVGGIJ66HGLXB47UZP7\",\n  \"now\": \"2026-09-13T00:32:03.063836211Z\",\n  \"num_connections\": 0,\n  \"total\": 0,\n  \"offset\": 0,\n  \"limit\": 1024,\n  \"connect",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "subscriptions",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/subsz",
+      "status": 200,
+      "latency_ms": 10,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "ccf559ca573f7186e8c929490c7234f94467d3c12c62eba94bcbb5d81ad87fe6",
+      "body_excerpt": "{\n  \"num_subscriptions\": 63,\n  \"num_cache\": 5,\n  \"num_inserts\": 63,\n  \"num_removes\": 0,\n  \"num_matches\": 47,\n  \"cache_hit_rate\": 0.8936170212765957,\n  \"max_fanout\": 1,\n  \"avg_fanout\": 0.8\n}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "jetstream",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/jsz",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "e7caa2700b0fffb42e3ac0feef70d8ae03508789f0b3c6390dd6732f4d5e3197",
+      "body_excerpt": "{\n  \"memory\": 0,\n  \"storage\": 0,\n  \"reserved_memory\": 0,\n  \"reserved_storage\": 0,\n  \"accounts\": 1,\n  \"ha_assets\": 0,\n  \"api\": {\n    \"total\": 0,\n    \"errors\": 0\n  },\n  \"server_id\": \"ND27UZ4KV5UHCBPP2JN",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "routes",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/routez",
+      "status": 200,
+      "latency_ms": 8,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "28a85fa6c734a4e6fb81330fa2375b9c902e66b840958c721970b13ccf4ae846",
+      "body_excerpt": "{\n  \"server_id\": \"ND27UZ4KV5UHCBPP2JNOXRAHRH6FOIJ3VGSFUAVGGIJ66HGLXB47UZP7\",\n  \"server_name\": \"\",\n  \"now\": \"2026-09-13T00:32:04.002941588Z\",\n  \"num_routes\": 0,\n  \"routes\": []\n}",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "nats:2.10"
+}

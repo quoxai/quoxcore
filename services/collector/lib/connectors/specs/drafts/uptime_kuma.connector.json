@@ -1,0 +1,28 @@
+{
+  "spec_version": 1,
+  "id": "uptime_kuma",
+  "name": "Uptime Kuma",
+  "category": "monitoring",
+  "credentialType": "uptime_kuma",
+  "requiredFields": [
+    "base_url"
+  ],
+  "docs": "https://github.com/louislam/uptime-kuma/wiki/API",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": null,
+  "test": {
+    "method": "GET",
+    "path": "/api/status-page/heartbeat/default"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "no_auth_detected"
+    ]
+  }
+}

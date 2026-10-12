@@ -1,0 +1,190 @@
+{
+  "spec_version": 1,
+  "id": "bigcommerce",
+  "name": "BigCommerce",
+  "category": "commerce_finance",
+  "credentialType": "bigcommerce",
+  "requiredFields": [
+    "store_hash",
+    "access_token"
+  ],
+  "description": "Read-only BigCommerce store access: store profile, catalog products, orders and customers",
+  "docs": "https://developer.bigcommerce.com/docs/rest",
+  "base_url": {
+    "template": "https://api.bigcommerce.com/stores/{{store_hash}}",
+    "_probe": {
+      "store_hash": "n0i50vy"
+    }
+  },
+  "auth": {
+    "type": "header",
+    "header": "X-Auth-Token",
+    "template": "{{access_token}}"
+  },
+  "static_headers": {
+    "Accept": "application/json"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/store"
+  },
+  "tools_source": "https://developer.bigcommerce.com/docs/rest",
+  "tools": [
+    {
+      "name": "list_products",
+      "description": "List BigCommerce catalog products (id, name, sku, price, stock level, visibility)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max products to return (default 20, max 250)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/catalog/products",
+        "query": {
+          "limit": "{{clamp input.limit 20 250}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "sku": "sku",
+            "price": "price",
+            "inventory_level": "inventory_level",
+            "is_visible": "is_visible",
+            "type": "type",
+            "date_modified": "date_modified"
+          },
+          "total": "meta.pagination.total",
+          "count": "meta.pagination.count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_orders",
+      "description": "List BigCommerce orders (Orders V2) with status, total and customer id",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max orders to return (default 20, max 250)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/orders",
+        "query": {
+          "limit": "{{clamp input.limit 20 250}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "status": "status",
+            "status_id": "status_id",
+            "total_inc_tax": "total_inc_tax",
+            "currency_code": "currency_code",
+            "items_total": "items_total",
+            "customer_id": "customer_id",
+            "date_created": "date_created"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_customers",
+      "description": "List BigCommerce customers (Customers V3)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max customers to return (default 20, max 250)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/customers",
+        "query": {
+          "limit": "{{clamp input.limit 20 250}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "email": "email",
+            "first_name": "first_name",
+            "last_name": "last_name",
+            "company": "company",
+            "phone": "phone",
+            "customer_group_id": "customer_group_id",
+            "date_created": "date_created",
+            "date_modified": "date_modified"
+          },
+          "total": "meta.pagination.total",
+          "count": "meta.pagination.count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "store_info",
+      "description": "Get the connected BigCommerce store's own profile (name, domain, currency, plan, status)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/store"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "domain": "domain",
+          "secure_url": "secure_url",
+          "admin_email": "admin_email",
+          "status": "status",
+          "currency": "currency",
+          "currency_symbol": "currency_symbol",
+          "plan_name": "plan_name",
+          "plan_level": "plan_level",
+          "timezone_name": "timezone.name"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "medium",
+    "needs_review": [
+      "base_url is the object/template form \"https://api.bigcommerce.com/stores/{{store_hash}}\" (NOT the brief's \".../v3\"), because this store mixes API versions: catalog products and customers are V3 while orders and the store profile are V2 (/v2/store is exactly the endpoint the vault registry's live-tested testEndpoint uses, services/auth/config/integrationTypeRegistry.js key 'bigcommerce'). A /v3 base_url could not express /v2/store at all. The version prefix therefore lives in each tool path.",
+      "store_hash is a vault credential field, so it rides in the PATH. A wrong or absent store hash makes every subpath unroutable: verified by curl 2026-09-12, store hash 'qx9shapeprobe' answers an openresty HTML 404 identically at /v2/store, /v3/catalog/products, /v2/orders, /v3/customers AND at the control path, with no JSON envelope at all. The blind harness reads an HTML 404 that matches its control as path_wrong, so with an unknown hash the whole spec would report FAIL for a reason that is not a wiring defect.",
+      "base_url._probe substitutes store_hash = 'n0i50vy', which is BigCommerce's OWN Cornerstone theme demo store (hash read from the cdn11.bigcommerce.com/s-n0i50vy asset URLs on https://cornerstone-light-demo.mybigcommerce.com/, 2026-09-12), not a merchant's store. With that hash the API surface routes: every tool path answers 401 {\"status\":401,\"title\":\"Unauthorized\",...} while the control path answers 404 {\"status\":404,\"title\":\"Not found\",...}, so the differential is real. The probe is read-only with a dummy token and the runtime ignores _probe entirely.",
+      "Orders uses V2 (/v2/orders), the documented list-orders endpoint. /v3/orders also routed (401 rather than the control's 404) on 2026-09-12, so a V3 orders surface exists, but which V3 order operations are list-capable is UNVERIFIED and V2 is what the REST docs list for this. Caveat for consumers: V2 /v2/orders answers 204 No Content (empty body, no array) when a store has no matching orders, so an empty result is not an error.",
+      "Category set to 'commerce_finance' to match the shipped taxonomy (stripe, shopify, square, paddle); the scaffolded 'ecommerce' is not a bucket any shipped spec uses.",
+      "static_headers Accept: application/json is declared because the V2 API is content-negotiated; the V3 endpoints answer JSON regardless. Same pattern as postmark and intercom.",
+      "Every response pick comes from the REST documentation (tools_source), not from a live 2xx: no BigCommerce store was held for this draft, so field names, the V3 {data, meta.pagination} envelope and the V2 top-level array shape are documentary. list_products deliberately picks inventory_level rather than a variant-level stock figure, which is per-variant and not present on the product row."
+    ]
+  }
+}

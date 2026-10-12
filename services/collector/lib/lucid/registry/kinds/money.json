@@ -1,0 +1,20 @@
+{
+  "kind": "money", "prefixes": ["money:"], "area": "money",
+  "ok_statuses": ["ok", "normal"],
+  "variants": [
+    { "id": "near_limit", "when": { "status": ["near_limit", "at_limit"] },
+      "urgency": [{ "is": "today" }],
+      "short": "AI usage near its limit",
+      "L0": "AI usage is near its limit for this window ({pct}%)",
+      "L1": { "who": "Metron (usage monitor)", "what": "{summary}", "why": "Sessions and agents slow down or stop when the subscription limit is hit." },
+      "how": "Ease off heavy sessions until {resets}, or move long work to a cheaper model.",
+      "measures": [] },
+    { "id": "normal",
+      "urgency": [{ "is": "fyi" }],
+      "short": "{summary}",
+      "L0": "{summary}",
+      "L1": { "who": "Metron (usage monitor)", "what": "{summary}", "why": "" },
+      "how": "Nothing to do.",
+      "measures": [] }
+  ]
+}

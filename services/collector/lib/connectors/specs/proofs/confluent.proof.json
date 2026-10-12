@@ -1,0 +1,77 @@
+{
+  "spec_id": "confluent",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:44:56.259Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.confluent.cloud/quox-shapeproof-control-21c211de",
+      "status": 404,
+      "latency_ms": 1733,
+      "classification": "CONTROL",
+      "body_sha256": "d2f131ec467a2539e11b8635c5862d6a57512fa6ff742aef0ad5dd84e121f5f2",
+      "body_excerpt": "{\n  \"errors\": [\n    {\n      \"status\": \"404\",\n      \"code\": \"route_not_found\",\n      \"detail\": \"Route not found\",\n      \"source\": {}\n    }\n  ]\n}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.confluent.cloud/org/v2/organizations",
+      "status": 401,
+      "latency_ms": 439,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c387ea22eef6dde3a8b4e8d20aca56baabb23e53e05c4f04d6bec38aa72cb494",
+      "body_excerpt": "{\n  \"errors\": [\n    {\n      \"id\": \"26826ca7ab5bf83ab63ec43becd26bc6\",\n      \"status\": \"401\",\n      \"detail\": \"invalid API key: make sure you're using a Cloud or Global API Key, and not a Cluster API K",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_environments",
+      "method": "GET",
+      "url": "https://api.confluent.cloud/org/v2/environments?page_size=20",
+      "status": 401,
+      "latency_ms": 286,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7a35deea741c5275e5d4b6590ea9e478322fffe387ac4cdc98fc044797a69a24",
+      "body_excerpt": "{\n  \"errors\": [\n    {\n      \"id\": \"1dafb373a40d06b6f0f391e4bfd49552\",\n      \"status\": \"401\",\n      \"detail\": \"invalid API key: make sure you're using a Cloud or Global API Key, and not a Cluster API K",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_clusters",
+      "method": "GET",
+      "url": "https://api.confluent.cloud/cmk/v2/clusters?environment=quoxprobe&page_size=20",
+      "status": 401,
+      "latency_ms": 351,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "437797f0f95d2bdc902d55bdf2db8a92e143bf14e00722cc87c6acc850b47ceb",
+      "body_excerpt": "{\n  \"errors\": [\n    {\n      \"id\": \"96804d98a9ac97d24fb1f03bfc7c54d0\",\n      \"status\": \"401\",\n      \"detail\": \"invalid API key: make sure you're using a Cloud or Global API Key, and not a Cluster API K",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_service_accounts",
+      "method": "GET",
+      "url": "https://api.confluent.cloud/iam/v2/service-accounts?page_size=20",
+      "status": 401,
+      "latency_ms": 278,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "78faebdb8e83703101409088e18f4ee298ee58459642837d96a434e256e1126d",
+      "body_excerpt": "{\n  \"errors\": [\n    {\n      \"id\": \"e05b20b2e731b760b81b80e095e2e954\",\n      \"status\": \"401\",\n      \"detail\": \"invalid API key: make sure you're using a Cloud or Global API Key, and not a Cluster API K",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

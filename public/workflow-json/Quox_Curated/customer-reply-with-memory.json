@@ -1,0 +1,87 @@
+{
+  "id": "wf-quox-customer-reply-with-memory",
+  "name": "Customer Reply with Memory Recall",
+  "description": "When an inbound message arrives, searches memory for past context about the customer, drafts a personalised reply, waits for human review, then sends the approved message.",
+  "source": "quox-curated",
+  "category": "communication",
+  "tags": ["customer", "reply", "memory", "assistant", "human-in-the-loop", "event", "notification", "communication"],
+  "nodes": [
+    {
+      "id": "trig",
+      "type": "trigger:event",
+      "name": "Inbound Message",
+      "category": "trigger",
+      "config": {
+        "event": "message.inbound",
+        "source": "",
+        "filter": ""
+      },
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "memory-search",
+      "type": "call",
+      "name": "Search Memory",
+      "category": "action",
+      "config": {
+        "url": "{{MEMORY_URL}}/api/search",
+        "method": "POST",
+        "timeout": 10000
+      },
+      "position": { "x": 400, "y": 300 }
+    },
+    {
+      "id": "draft",
+      "type": "assistant:invoke",
+      "name": "Draft Reply",
+      "category": "action",
+      "config": {
+        "assistant_id": "corey",
+        "prompt": "Draft a helpful, professional reply to this customer message. Customer: ${input.senderName}. Message: ${input.body}. Past context from memory: ${nodes['memory-search'].output}. Keep the reply concise, friendly, and directly address their question or request.",
+        "name": "Draft Reply"
+      },
+      "position": { "x": 700, "y": 300 }
+    },
+    {
+      "id": "review",
+      "type": "human:task",
+      "name": "Review Draft",
+      "category": "human",
+      "config": {
+        "title": "Review Reply to ${input.senderName}",
+        "message": "Draft reply ready for review:\n\n---\n${nodes['draft'].output.result}\n---\n\nApprove to send, or reject to discard.",
+        "assignTo": ["*"],
+        "priority": "normal",
+        "actions": [
+          { "action": "approve", "label": "Send", "style": "primary" },
+          { "action": "reject", "label": "Discard", "style": "secondary" }
+        ]
+      },
+      "position": { "x": 1000, "y": 300 }
+    },
+    {
+      "id": "send",
+      "type": "notification:deliver",
+      "name": "Notify: Reply Sent",
+      "category": "notification",
+      "config": {
+        "title": "Reply sent to ${input.senderName}",
+        "message": "Your reply was sent successfully.",
+        "assignTo": ["*"],
+        "priority": "low"
+      },
+      "position": { "x": 1300, "y": 300 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trig", "target": "memory-search" },
+    { "id": "e2", "source": "memory-search", "target": "draft" },
+    { "id": "e3", "source": "draft", "target": "review" },
+    { "id": "e4", "source": "review", "target": "send" }
+  ],
+  "meta": {
+    "version": "1.0.0",
+    "createdBy": "quox-curated",
+    "estimatedRuntime": "30s + human review"
+  }
+}

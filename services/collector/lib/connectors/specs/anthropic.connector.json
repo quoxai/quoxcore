@@ -1,0 +1,113 @@
+{
+  "spec_version": 1,
+  "id": "anthropic",
+  "name": "Anthropic",
+  "category": "data_ai",
+  "credentialType": "anthropic",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Read-only Anthropic access: the account's catalogue of available Claude models. Sending a message is a billable POST against the account's usage, so it is modelled as write:true and HITL-gated rather than fired here. Auth is TWO parts: the x-api-key header (the secret) plus a constant anthropic-version header Anthropic requires on every request, which this spec sets as a static_headers entry since it is a public API version string, not a credential.",
+  "docs": "https://docs.anthropic.com/en/api",
+  "base_url": "https://api.anthropic.com/v1",
+  "auth": {
+    "type": "header",
+    "header": "x-api-key",
+    "template": "{{api_key}}"
+  },
+  "static_headers": {
+    "anthropic-version": "2023-06-01"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/models"
+  },
+  "tools_source": "https://docs.anthropic.com/en/api/models-list",
+  "tools": [
+    {
+      "name": "list_models",
+      "description": "List the Claude models available to this API key, with their display name and creation date",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/models"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "display_name": "display_name",
+            "created_at": "created_at"
+          },
+          "has_more": "has_more"
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "send_message",
+      "description": "Send a message to a Claude model via the Messages API. This spends the account's token usage, so it is HITL-gated and never fired by the shape-proof harness (write:true means blind proof always SKIPs it; a real credential would also need --include-writes)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Anthropic model id to route to (e.g. claude-3-5-haiku-20241022), from list_models"
+          },
+          "messages": {
+            "type": "array",
+            "description": "Anthropic-format messages array: [{role, content}, ...]"
+          },
+          "max_tokens": {
+            "type": "number",
+            "description": "Maximum tokens to generate (required by the Messages API)"
+          }
+        },
+        "required": [
+          "model",
+          "messages",
+          "max_tokens"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/messages",
+        "body": {
+          "model": "{{input.model}}",
+          "messages": "{{input.messages}}",
+          "max_tokens": "{{input.max_tokens}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "model": "model",
+          "content": "content",
+          "stop_reason": "stop_reason",
+          "usage": "usage"
+        },
+        "truncate": 2000
+      },
+      "write": true
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-16, frontier-LLM gap fill batch B (project_ai_tools_coverage_gaps_2026_09_16)",
+    "confidence": "high",
+    "needs_review": [
+      "NO LIVE CREDENTIAL AT AUTHORING TIME: this spec is shape-proved blind only. LIVE_PROVEN needs one real sk-ant- key against /v1/models, a zero-spend authed read per the coverage-gap plan.",
+      "The anthropic-version header (2023-06-01) is a documented public API version constant, not a secret; it is committed as a static_headers literal and applies to every request the runtime and the shape-proof harness fire, including /v1/models.",
+      "send_message is the only write:true tool: it is modelled for completeness but deliberately carries no _probe and is skipped by the shape-proof harness by default (writes_not_included), and even with --include-writes it only fires if the test call already proved an auth gate.",
+      "credentialType 'anthropic' reuses the PRE-EXISTING vault type in integrationTypeRegistry.js (api_key field, sk-ant- prefix); no vault change needed for this connector."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

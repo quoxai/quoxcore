@@ -1,0 +1,287 @@
+{
+  "spec_version": 1,
+  "id": "windmill",
+  "name": "Windmill",
+  "category": "developer",
+  "credentialType": "windmill",
+  "requiredFields": [
+    "base_url",
+    "token"
+  ],
+  "docs": "https://app.windmill.dev/openapi.html",
+  "tools_source": "https://github.com/windmill-labs/windmill/blob/main/backend/windmill-api/openapi.yaml (the source app.windmill.dev/openapi.html renders; servers: [{url: /api}], so every path below carries the /api prefix) plus https://github.com/windmill-labs/windmill/blob/main/openflow.openapi.yaml for the OpenFlow summary/description fields",
+  "description": "Self-hosted Windmill reads: instance health and backend version, the identity behind the token, the workspaces that identity can see, and the deployed scripts and flows in one workspace. Read-only; the job-running endpoints (/jobs/run/*, /jobs/run_wait_result/*), every script/flow/schedule/variable/resource create and update route, and the whole /settings admin surface are deliberately absent.",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/users/whoami"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "server_health",
+      "description": "Get the Windmill backend version and detailed health: database reachability and latency, active worker count, and queue state",
+      "request": {
+        "method": "GET",
+        "path": "/api/health/detailed"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "version": "version",
+          "checked_at": "checked_at",
+          "database_healthy": "checks.database.healthy",
+          "database_latency_ms": "checks.database.latency_ms",
+          "workers_healthy": "checks.workers.healthy",
+          "workers_active_count": "checks.workers.active_count",
+          "worker_groups": "checks.workers.worker_groups",
+          "queue": "checks.queue",
+          "readiness_healthy": "checks.readiness.healthy"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "whoami",
+      "description": "Identify the Windmill account or service account the stored token belongs to, instance-wide",
+      "request": {
+        "method": "GET",
+        "path": "/api/users/whoami"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "email": "email",
+          "username": "username",
+          "name": "name",
+          "company": "company",
+          "login_type": "login_type",
+          "super_admin": "super_admin",
+          "devops": "devops",
+          "operator_only": "operator_only",
+          "is_workspace_admin": "is_workspace_admin",
+          "role_source": "role_source",
+          "verified": "verified",
+          "disabled": "disabled",
+          "workspace_id": "workspace_id"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_workspaces",
+      "description": "List the Windmill workspaces visible to the token's identity",
+      "request": {
+        "method": "GET",
+        "path": "/api/workspaces/list"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "owner": "owner",
+            "domain": "domain",
+            "color": "color",
+            "parent_workspace_id": "parent_workspace_id",
+            "deleted": "deleted",
+            "is_dev_workspace": "is_dev_workspace",
+            "dev_workspace_label": "dev_workspace_label"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_scripts",
+      "description": "List the scripts deployed in one Windmill workspace, optionally filtered by path prefix or script kind",
+      "request": {
+        "method": "GET",
+        "path": "/api/w/{{input.workspace}}/scripts/list",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}",
+          "page": "{{input.page}}",
+          "path_start": "{{input.path_start}}",
+          "kinds": "{{input.kinds}}",
+          "languages": "{{input.languages}}",
+          "starred_only": "{{input.starred_only}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "description": "Workspace id, as returned by list_workspaces"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max scripts to return (default 20, capped at 50 by this connector)"
+          },
+          "page": {
+            "type": "number",
+            "description": "1-based page number"
+          },
+          "path_start": {
+            "type": "string",
+            "description": "Return only scripts whose path starts with this prefix, for example 'u/alice/' or 'f/etl/'"
+          },
+          "kinds": {
+            "type": "string",
+            "description": "Comma-separated script kinds to filter by: script, failure, trigger, command, approval, preprocessor"
+          },
+          "languages": {
+            "type": "string",
+            "description": "Comma-separated script languages to filter by, for example 'python3,bun'"
+          },
+          "starred_only": {
+            "type": "boolean",
+            "description": "Return only starred scripts (Windmill defaults to all)"
+          }
+        },
+        "required": [
+          "workspace"
+        ]
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "path": "path",
+            "summary": "summary",
+            "description": "description",
+            "hash": "hash",
+            "language": "language",
+            "kind": "kind",
+            "tag": "tag",
+            "created_by": "created_by",
+            "created_at": "created_at",
+            "archived": "archived",
+            "draft_only": "draft_only",
+            "is_draft": "is_draft",
+            "starred": "starred",
+            "is_template": "is_template"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.workspace": "quoxproof-live",
+        "input.per_page": 5
+      }
+    },
+    {
+      "name": "list_flows",
+      "description": "List the flows deployed in one Windmill workspace, optionally filtered by path prefix",
+      "request": {
+        "method": "GET",
+        "path": "/api/w/{{input.workspace}}/flows/list",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}",
+          "page": "{{input.page}}",
+          "path_start": "{{input.path_start}}",
+          "starred_only": "{{input.starred_only}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "description": "Workspace id, as returned by list_workspaces"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max flows to return (default 20, capped at 50 by this connector)"
+          },
+          "page": {
+            "type": "number",
+            "description": "1-based page number"
+          },
+          "path_start": {
+            "type": "string",
+            "description": "Return only flows whose path starts with this prefix, for example 'f/etl/'"
+          },
+          "starred_only": {
+            "type": "boolean",
+            "description": "Return only starred flows (Windmill defaults to all)"
+          }
+        },
+        "required": [
+          "workspace"
+        ]
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "path": "path",
+            "summary": "summary",
+            "description": "description",
+            "tag": "tag",
+            "edited_by": "edited_by",
+            "edited_at": "edited_at",
+            "archived": "archived",
+            "draft_only": "draft_only",
+            "is_draft": "is_draft",
+            "starred": "starred",
+            "ws_error_handler_muted": "ws_error_handler_muted"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.workspace": "quoxproof-live",
+        "input.per_page": 5
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, AND THE OPENAPI SAYS THE SAME THING: the spec declares a global `security: [bearerAuth, cookieAuth]`, and bearerAuth is an http/bearer scheme, so {type: bearer, field: token} is unchanged. The vault entry (integrationTypeRegistry.windmill) sends the identical header in testHeaders and its testEndpoint is base_url + /api/users/whoami, which is this spec's test block verbatim. cookieAuth is deliberately not used: a session cookie is not a storable credential.",
+      "EVERY PATH CARRIES /api BECAUSE THE OPENAPI'S SERVER BLOCK DOES: openapi.yaml declares `servers: [{url: /api}]`, so the document's `/users/whoami` is really `/api/users/whoami` against base_url. The scaffolded test block already had the prefix; all five tool paths follow it.",
+      "GET /api/version IS NOT WIRED, AND THAT IS A RUNTIME CONSTRAINT NOT AN OVERSIGHT: the brief named it, but openapi.yaml types its 200 as `content: text/plain` and the handler is `async fn git_v() -> String` (backend/windmill-api/src/lib.rs), returning a BARE version string such as 'CE v1.615.3-abc1234'. declarativeRuntime.request() ends in `return resp.json()` unconditionally, so that body would throw a JSON parse error on every call. /api/uptodate and /api/ee_license answer text/plain for the same reason and are also out. server_health uses GET /api/health/detailed instead, which IS application/json and carries the same version string in its `version` field ('EE 1.615.3'), so the version claim is still served. CAVEAT FOR THE LIVE HARNESS: /api/health/detailed is a newer route than /api/version, so it can 404 on an older self-hosted instance; the harness should record the container tag it proved against.",
+      "server_health IS AUTHENTICATED, WHICH IS WHY IT IS THE HEALTH TOOL WE PICKED: /api/health/status carries `security: []` and answers unauthenticated, so it proves nothing about the credential. /api/health/detailed inherits the global bearerAuth, so a 200 from it proves the token as well as the instance. It also answers HTTP 503 rather than 200 when the database is unreachable, which the runtime surfaces as an error rather than as health data.",
+      "CATEGORY: the scaffold wrote 'uncategorized', which is not one of the twelve values in use across this spec directory (cloud_hosting, commerce_finance, communication, crm_sales, data_ai, developer, files_knowledge, hr_hiring, marketing_email, media, monitoring, project_management). Changed to 'developer', which is where the other workflow and automation control planes already sit (make, tray, workato, pipedream). The vault entry says 'automation', which is not a spec-directory value; 'developer' is its equivalent.",
+      "BASE URL IS CUSTOMER-SUPPLIED, SO NOTHING HERE IS PROVABLE BLIND: base_url comes from the credential ({fromCredential: 'base_url'}); it is app.windmill.dev for the hosted product and an arbitrary host for a self-hosted one. This spec is NOT SHAPE_PROVEN by a blind 401 sweep; it is marked for the live harness, which stands up an ephemeral Windmill container, mints a user token, creates a workspace with id 'quoxproof-live', and drives every tool against it.",
+      "PROBES RESOLVE ON A FRESH INSTANCE, BY CONSTRUCTION: server_health, whoami and list_workspaces need no resource at all and carry an empty _probe. list_scripts and list_flows are the only tools that need one, and both probe workspace='quoxproof-live', the exact id the live provisioner creates. An empty workspace answers with a top-level [] on both routes rather than an error, so neither probe depends on a script or flow existing.",
+      "RESPONSE SHAPES COME FROM THE OPENAPI SCHEMAS: picked fields are HealthChecks/DatabaseHealth/WorkersHealth/ReadinessHealth (status, version, checked_at, checks.database.healthy, checks.database.latency_ms, checks.workers.healthy, checks.workers.active_count, checks.workers.worker_groups, checks.readiness.healthy), GlobalUserInfo (email, username, name, company, login_type, super_admin, devops, operator_only, is_workspace_admin, role_source, verified, disabled, workspace_id), Workspace (id, name, owner, domain, color, parent_workspace_id, deleted, is_dev_workspace, dev_workspace_label), Script plus the list-only is_draft flag, and Flow = OpenFlow (summary, description) + FlowMetadata (path, tag, edited_by, edited_at, archived, draft_only, starred, ws_error_handler_muted) plus the list-only is_draft flag. /api/workspaces/list, /scripts/list and /flows/list all answer with a TOP-LEVEL array, hence the '[]' root pick on those three. The live harness is what confirms these field names against a real instance.",
+      "THE HEAVY FIELDS ARE DELIBERATELY NOT PICKED: Script.content is the full source of a script and Script.schema / Flow.value are whole JSON documents, any of which can dwarf a tool response. None is picked. Script.description and OpenFlow.description are picked but capped by truncate 2000. Windmill also offers is_workspace_admin only for service accounts, so a human token yields null there; getPath is null-safe, so nothing throws.",
+      "PER_PAGE CLAMP IS OURS AND SITS BELOW WINDMILL'S OWN: the shared PerPage parameter documents 'default 30, max 100'. The 20/50 clamp therefore never asks for more than the server will return, and the input descriptions say the cap is this connector's rather than a Windmill fact. The input is named per_page to match the vendor parameter exactly.",
+      "READ-ONLY BY CONSTRUCTION, AND THE OMISSIONS ARE THE POINT: all five tools are GETs. The same API can START JOBS (POST /api/w/{workspace}/jobs/run/p/{path}, /jobs/run_wait_result/*), create and deploy scripts and flows, edit schedules and triggers, and read decrypted variables and resource values (/variables/get_value/*, /resources/get_value/*) which would exfiltrate customer secrets through a read tool. None is wired here. Nothing in this connector may be described as running or managing Windmill jobs.",
+      "GET /api/w/{workspace}/users/whoami EXISTS TOO AND IS NOT WIRED: it returns the WORKSPACE-scoped User (with the workspace role) rather than the instance-wide GlobalUserInfo, and it needs a workspace id the caller may not have yet. The instance-wide route is used because it is what the vault already tests against and it needs no argument, which is also what makes its _probe empty."
+    ]
+  }
+}

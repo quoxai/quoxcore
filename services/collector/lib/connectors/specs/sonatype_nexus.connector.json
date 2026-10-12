@@ -1,0 +1,234 @@
+{
+  "spec_version": 1,
+  "id": "sonatype_nexus",
+  "name": "Sonatype Nexus",
+  "category": "developer",
+  "credentialType": "sonatype_nexus",
+  "requiredFields": [
+    "base_url",
+    "username",
+    "password"
+  ],
+  "description": "Self-hosted Sonatype Nexus Repository 3 reads: the instance's own status checks, the repositories the account may browse, one repository's configuration, the components in a repository, and a component search across formats. Read-only; component upload and delete, repository create and update, cleanup policies, tasks, blob stores and user administration all live on the same API and are deliberately absent.",
+  "docs": "https://help.sonatype.com/repomanager3/integrations/rest-and-integration-api",
+  "tools_source": "https://help.sonatype.com/en/rest-and-integration-api.html",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "username",
+    "passField": "password"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/service/rest/v1/repositories"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "status_check",
+      "description": "Get the results of the Nexus Repository system status checks (one entry per check, each with healthy, message and duration). These report Nexus Repository's own internal state, not the hardware or an external database",
+      "request": {
+        "method": "GET",
+        "path": "/service/rest/v1/status/check"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_repositories",
+      "description": "List the repositories this account has browse permission on (name, format, type, browse URL, stored size)",
+      "request": {
+        "method": "GET",
+        "path": "/service/rest/v1/repositories"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name",
+            "format": "format",
+            "type": "type",
+            "url": "url",
+            "size": "size"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_repository",
+      "description": "Get the limited configuration Nexus Repository reports for one repository by name (format, type, browse URL). Format-specific and type-specific settings are only available from the per-format endpoints, which this connector does not wire",
+      "request": {
+        "method": "GET",
+        "path": "/service/rest/v1/repositories/{{input.repository}}"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string",
+            "description": "Repository name exactly as list_repositories reports it (e.g. quoxproof-live)"
+          }
+        },
+        "required": [
+          "repository"
+        ]
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.repository": "quoxproof-live"
+      }
+    },
+    {
+      "name": "list_components",
+      "description": "List the components stored in one repository (id, format, group, name, version). Nexus Repository returns 100 components per page and hands back a continuationToken when more remain",
+      "request": {
+        "method": "GET",
+        "path": "/service/rest/v1/components",
+        "query": {
+          "repository": "{{input.repository}}",
+          "continuationToken": "{{input.continuation_token}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string",
+            "description": "Repository name to list components from (e.g. quoxproof-live)"
+          },
+          "continuation_token": {
+            "type": "string",
+            "description": "Optional continuationToken from a previous call, to fetch the next page. Page size is fixed at 100 by Nexus Repository and is not configurable"
+          }
+        },
+        "required": [
+          "repository"
+        ]
+      },
+      "response": {
+        "pick": {
+          "continuationToken": "continuationToken",
+          "items[]": {
+            "id": "id",
+            "repository": "repository",
+            "format": "format",
+            "group": "group",
+            "name": "name",
+            "version": "version"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.repository": "quoxproof-live"
+      }
+    },
+    {
+      "name": "search_components",
+      "description": "Search components across Nexus Repository by repository, format, group, name or version, using the same mechanism the Repository Manager UI uses. An omitted criterion is treated as no criterion rather than a wildcard",
+      "request": {
+        "method": "GET",
+        "path": "/service/rest/v1/search",
+        "query": {
+          "repository": "{{input.repository}}",
+          "format": "{{input.format}}",
+          "group": "{{input.group}}",
+          "name": "{{input.name}}",
+          "version": "{{input.version}}",
+          "continuationToken": "{{input.continuation_token}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string",
+            "description": "Optional repository name to search within (e.g. quoxproof-live)"
+          },
+          "format": {
+            "type": "string",
+            "description": "Optional component format: maven2, npm, pypi, docker, nuget, raw and so on"
+          },
+          "group": {
+            "type": "string",
+            "description": "Optional component group (a Maven groupId, an npm scope)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional component name"
+          },
+          "version": {
+            "type": "string",
+            "description": "Optional component version"
+          },
+          "continuation_token": {
+            "type": "string",
+            "description": "Optional continuationToken from a previous call, to fetch the next page of results"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "continuationToken": "continuationToken",
+          "items[]": {
+            "id": "id",
+            "repository": "repository",
+            "format": "format",
+            "group": "group",
+            "name": "name",
+            "version": "version"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.repository": "quoxproof-live"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, AND THE DOCS SHOW THE SAME THING IN EVERY EXAMPLE: basic with userField username and passField password sends base64(username + ':' + password), identical to the vault entry integrationTypeRegistry.js key sonatype_nexus, whose testHeaders is ``const auth = Buffer.from(`${creds.username}:${creds.password}`).toString('base64')`` with testEndpoint base_url + /service/rest/v1/status (this spec's test block verbatim). Every REST example in the Sonatype docs uses the same scheme, e.g. Components API (https://help.sonatype.com/en/components-api.html, fetched 2026-09-12): ``curl -u admin:admin123 -X GET 'http://localhost:8081/service/rest/v1/components?repository=maven-central'`` and Repositories API: ``curl -u admin:admin123 -X GET http://localhost:8081/service/rest/v1/repositories``. Unchanged.",
+      "THE BRIEFED read_only_status TOOL IS DELIBERATELY ABSENT BECAUSE THE VENDOR REMOVED THE ENDPOINT. Read-Only API (https://help.sonatype.com/en/read-only-api.html, fetched 2026-09-12) now contains only two sentences, verbatim: 'The Read-Only API was removed in Nexus Repository 3.91.0.' and 'The read-only/freeze capability applied only to installs that used the legacy OrientDB embedded database.' GET /service/rest/v1/read-only would therefore 404 on any current instance, and the live harness pulls a current image. There is no JSON-bodied replacement: the nearest equivalent, GET /service/rest/v1/status/writable, answers with a STATUS CODE ONLY ('A 200 indicates the instance can serve write and read requests, a 503 otherwise'), and declarativeRuntime.js calls resp.json() on every 2xx, so an empty 200 body would throw rather than return a result. That is also why the bare GET /service/rest/v1/status stays in the spec's `test` block, where the harness reads the code and not the body, and is NOT exposed as a tool.",
+      "STATUS TOOL USES THE CHECK ENDPOINT, WHICH IS VERSION-DEPENDENT: Status API (https://help.sonatype.com/en/status-api.html, fetched 2026-09-12) says verbatim 'For versions before 3.81, the Check endpoint is: /service/metrics/healthcheck' and 'Starting from version 3.81 and later, the endpoint has been updated to: GET /service/rest/v1/status/check'. This spec targets 3.81 and later. The documented response is a map keyed by CHECK NAME (the doc example uses additionalProp1, additionalProp2 placeholders), each value carrying healthy, message, error, details, time, duration and timestamp. Dynamic keys cannot be addressed by a pick map, so status_check ships with truncate only and no pick, the same shape as the existing acuity, datadog and sentry list tools. The docs also caution that 'These checks only relay Nexus Repository's state and are not hardware checks', which the tool description repeats so nobody sells it as infrastructure monitoring.",
+      "RESPONSE SHAPES COME FROM THE VENDOR'S OWN EXAMPLES, VERBATIM. Repositories API: GET /service/rest/v1/repositories answers with a TOP-LEVEL JSON array of {name, format, type, url, size, attributes}, hence the '[]' root pick; the docs state it 'lists the repositories the authenticated user has the browse permission to access' and that results are 'not alphabetical nor paginated'. The per-repository attributes object is format-specific and type-specific ('Scripts using the API should first test for the presence of parameters before accessing them'), so it is not picked, and get_repository ships with truncate only rather than a pick that would silently drop whatever that instance happens to return. Components API: GET /service/rest/v1/components?repository= answers {items: [{id, repository, format, group, name, version, assets: [...], tags: []}], continuationToken}. Search API: GET /service/rest/v1/search answers items in the identical component shape with continuationToken. The per-component assets array (download URLs, checksums, blob metadata, uploader IP) is deliberately not picked: it is the bulk of the payload and none of it is needed to answer 'what is in this repository'.",
+      "NO PAGE-SIZE CLAMP ON THE TWO LISTING TOOLS, BECAUSE NEXUS REPOSITORY DOES NOT ACCEPT ONE. Components API says verbatim: 'As of release 3.74.0, pagination defaults to showing 100 items at a time; this setting is not configurable.' Paging is by continuationToken only, so the usual {{clamp input.page_size ...}} has nothing to clamp and inventing a ps parameter would be a silently ignored query argument. The 100-per-page fact is stated in the tool description and in the continuation_token input description instead.",
+      "SEARCH SEMANTICS CHANGED IN 3.88.0 AND THE DESCRIPTIONS REFLECT IT: Search API (https://help.sonatype.com/en/search-api.html, fetched 2026-09-12) says 'In version 3.88.0, Sonatype Nexus Repository moved fully to SQL search and removed Elasticsearch. With this change, search behavior is more precise, and some previously supported wildcard patterns no longer work.' and 'Empty values are treated as no value instead of a wildcard.' The second sentence is why every search_components input is optional and why the description says an omitted criterion is no criterion: under the old Elasticsearch behaviour an empty value would have widened the search instead of dropping the filter.",
+      "CATEGORY: the scaffold wrote 'developer', one of the twelve values in use across this spec directory (cloud_hosting, commerce_finance, communication, crm_sales, data_ai, developer, files_knowledge, hr_hiring, marketing_email, media, monitoring, project_management), which puts Nexus Repository next to the other build and artefact control planes. The vault entry says 'kubernetes', which is not a spec-directory value and is in any case wrong for an artefact repository. Unchanged from the scaffold.",
+      "BASE URL IS CUSTOMER-SUPPLIED, SO NOTHING HERE IS PROVABLE BLIND: Nexus Repository is self-hosted, base_url comes from the credential ({fromCredential: 'base_url'}), and Sonatype runs no public instance to shape-prove against (the doc examples all point at http://localhost:8081). This spec is NOT SHAPE_PROVEN by a blind 401 sweep; it is marked for the live harness, which stands up an ephemeral sonatype/nexus3 container, uses its admin account, and creates a hosted repository named quoxproof-live.",
+      "PROBES RESOLVE ON A FRESH INSTANCE, BY CONSTRUCTION: status_check and list_repositories need no resource at all (a fresh instance ships maven-central, maven-public, maven-releases, maven-snapshots and nuget defaults, so the list is never empty). get_repository, list_components and search_components are the only tools that name a resource, and all three probe repository='quoxproof-live', the exact name the live provisioner creates. An empty repository still answers 200 with items: [], so no component needs to be uploaded for the run to pass.",
+      "PRIVILEGES THE LIVE RUN NEEDS: the listing and search endpoints are scoped to what the account may browse (Repositories API: 'lists the repositories the authenticated user has the browse permission to access'), and the status check endpoint needs the metrics-read privilege, which the built-in admin account holds. A least-privilege customer account will legitimately see fewer repositories than the admin used for the proof, so a short list is not evidence of a broken connector.",
+      "READ-ONLY BY CONSTRUCTION, AND THE OMISSIONS ARE THE POINT: all five tools are GETs. The same REST API exposes POST /service/rest/v1/components (component upload), DELETE on components and assets, repository create and update per format and type, cleanup policies, scheduled tasks, blob stores, security realms, users, roles and privileges. None is wired here. Nothing in this connector may be described as managing or publishing to a Nexus Repository instance.",
+      "test moved from /service/rest/v1/status to /service/rest/v1/repositories 2026-09-12: /status answers HTTP 200 with an EMPTY body (proven live vs nexus3:3.75.0), which proves liveness but not auth and cannot be parsed; repositories is authenticated JSON."
+    ]
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "spec_id": "paddle",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:03.650Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.paddle.com/quox-shapeproof-control-a2afeec4",
+      "status": 404,
+      "latency_ms": 953,
+      "classification": "CONTROL",
+      "body_sha256": "eac4eec905fe483d42d87aa09b1fc2f09b19f28bfd3e8cb67fb0ab2718ce3526",
+      "body_excerpt": "{\"error\":{\"type\":\"request_error\",\"code\":\"invalid_url\",\"detail\":\"URL called is invalid.\",\"documentation_url\":\"https://developer.paddle.com/v1/errors/shared/invalid_url\"},\"meta\":{\"request_id\":\"18fd98d3-",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.paddle.com/products",
+      "status": 403,
+      "latency_ms": 244,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "ce9f7aad99c4622481feb2e172fd909550ada6c5bcc78bc803add5058f99b752",
+      "body_excerpt": "{\"error\":{\"type\":\"request_error\",\"code\":\"authentication_malformed\",\"detail\":\"Authentication header included, but incorrectly formatted.\",\"documentation_url\":\"https://developer.paddle.com/v1/errors/sha",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_products",
+      "method": "GET",
+      "url": "https://api.paddle.com/products?per_page=20&status=quoxprobe",
+      "status": 403,
+      "latency_ms": 306,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0c14c5762873300de9f23e4a4a88f94c5525579686a8c27becf8741a077e0f22",
+      "body_excerpt": "{\"error\":{\"type\":\"request_error\",\"code\":\"authentication_malformed\",\"detail\":\"Authentication header included, but incorrectly formatted.\",\"documentation_url\":\"https://developer.paddle.com/v1/errors/sha",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_prices",
+      "method": "GET",
+      "url": "https://api.paddle.com/prices?per_page=20&product_id=quoxprobe&status=quoxprobe",
+      "status": 403,
+      "latency_ms": 409,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "959adaf6316b9207bb97f1d0f4d49275f11a567cd77689c29de09c1fedfebead",
+      "body_excerpt": "{\"error\":{\"type\":\"request_error\",\"code\":\"authentication_malformed\",\"detail\":\"Authentication header included, but incorrectly formatted.\",\"documentation_url\":\"https://developer.paddle.com/v1/errors/sha",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_transactions",
+      "method": "GET",
+      "url": "https://api.paddle.com/transactions?per_page=20&customer_id=quoxprobe&status=quoxprobe",
+      "status": 403,
+      "latency_ms": 434,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "5c3e574db0d84a687fa422df3ce6af323d8560ec48b9404569158ba32711dd8f",
+      "body_excerpt": "{\"error\":{\"type\":\"request_error\",\"code\":\"authentication_malformed\",\"detail\":\"Authentication header included, but incorrectly formatted.\",\"documentation_url\":\"https://developer.paddle.com/v1/errors/sha",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_customers",
+      "method": "GET",
+      "url": "https://api.paddle.com/customers?per_page=20&email=quoxprobe&status=quoxprobe",
+      "status": 403,
+      "latency_ms": 898,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0cbd005fb3a50f66e618b6e2ad8807d1be57c1c9475e8b463bfc7c737d6231ca",
+      "body_excerpt": "{\"error\":{\"type\":\"request_error\",\"code\":\"authentication_malformed\",\"detail\":\"Authentication header included, but incorrectly formatted.\",\"documentation_url\":\"https://developer.paddle.com/v1/errors/sha",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,35 @@
+{
+  "spec_version": 1,
+  "id": "backstage",
+  "name": "Backstage",
+  "category": "uncategorized",
+  "credentialType": "backstage",
+  "requiredFields": [
+    "base_url",
+    "api_token"
+  ],
+  "docs": "https://backstage.io/docs/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/catalog/entities",
+    "query": {
+      "limit": "1"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:api_token"
+    ]
+  }
+}

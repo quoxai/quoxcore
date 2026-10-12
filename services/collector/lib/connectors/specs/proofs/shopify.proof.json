@@ -1,0 +1,90 @@
+{
+  "spec_id": "shopify",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:16.977Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://security-incidents-dont-delete-me.myshopify.com/quox-shapeproof-control-8a722665",
+      "status": 302,
+      "latency_ms": 465,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://security-incidents-dont-delete-me.myshopify.com/admin/api/2025-01/shop.json",
+      "status": 401,
+      "latency_ms": 245,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "43fc2bd97fb24c15f45de38dfeeb93618f6b906de1785a6c7706035a07ef98ac",
+      "body_excerpt": "{\"errors\":\"[API] Invalid API key or access token (unrecognized login or wrong password)\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_shop",
+      "method": "GET",
+      "url": "https://security-incidents-dont-delete-me.myshopify.com/admin/api/2025-01/shop.json",
+      "status": 401,
+      "latency_ms": 249,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "43fc2bd97fb24c15f45de38dfeeb93618f6b906de1785a6c7706035a07ef98ac",
+      "body_excerpt": "{\"errors\":\"[API] Invalid API key or access token (unrecognized login or wrong password)\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_products",
+      "method": "GET",
+      "url": "https://security-incidents-dont-delete-me.myshopify.com/admin/api/2025-01/products.json?limit=20&status=quoxprobe",
+      "status": 401,
+      "latency_ms": 236,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "43fc2bd97fb24c15f45de38dfeeb93618f6b906de1785a6c7706035a07ef98ac",
+      "body_excerpt": "{\"errors\":\"[API] Invalid API key or access token (unrecognized login or wrong password)\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_orders",
+      "method": "GET",
+      "url": "https://security-incidents-dont-delete-me.myshopify.com/admin/api/2025-01/orders.json?limit=20&status=any&financial_status=quoxprobe",
+      "status": 401,
+      "latency_ms": 243,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "43fc2bd97fb24c15f45de38dfeeb93618f6b906de1785a6c7706035a07ef98ac",
+      "body_excerpt": "{\"errors\":\"[API] Invalid API key or access token (unrecognized login or wrong password)\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_customers",
+      "method": "GET",
+      "url": "https://security-incidents-dont-delete-me.myshopify.com/admin/api/2025-01/customers.json?limit=20",
+      "status": 401,
+      "latency_ms": 268,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "43fc2bd97fb24c15f45de38dfeeb93618f6b906de1785a6c7706035a07ef98ac",
+      "body_excerpt": "{\"errors\":\"[API] Invalid API key or access token (unrecognized login or wrong password)\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

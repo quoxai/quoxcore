@@ -1,0 +1,44 @@
+# Quox Sandbox - Restricted Profile
+# No network, read-only filesystem, minimal attack surface
+#
+# Use cases: Pure compute, parsing, validation, transformations
+
+FROM alpine:3.19
+
+# Install minimal runtime dependencies
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    nodejs \
+    npm \
+    jq \
+    bash \
+    && pip3 install --no-cache-dir --break-system-packages \
+        pydantic \
+        jsonschema \
+    && npm install -g typescript esbuild \
+    && rm -rf /root/.cache /root/.npm
+
+# Create sandbox user
+RUN adduser -D -u 1000 sandbox
+
+# Create work directory
+WORKDIR /sandbox
+RUN chown sandbox:sandbox /sandbox
+
+# Copy tool runner script
+COPY --chmod=755 runner.sh /sandbox/runner
+
+# Remove unnecessary binaries for security
+RUN rm -f /bin/su /usr/bin/passwd /usr/bin/wget /usr/bin/curl
+
+# Switch to sandbox user
+USER sandbox
+
+# Default command - wait for exec
+CMD ["tail", "-f", "/dev/null"]
+
+# Labels
+LABEL quox.sandbox.profile="restricted"
+LABEL quox.sandbox.network="none"
+LABEL quox.sandbox.filesystem="readonly"

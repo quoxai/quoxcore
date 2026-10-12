@@ -1,0 +1,36 @@
+{
+  "spec_version": 1,
+  "id": "copper",
+  "name": "Copper",
+  "category": "crm",
+  "credentialType": "copper",
+  "requiredFields": [
+    "api_key",
+    "email"
+  ],
+  "docs": "https://developer.copper.com/",
+  "base_url": "https://api.copper.com",
+  "auth": {
+    "type": "header",
+    "header": "X-PW-AccessToken",
+    "template": "{{api_key}}"
+  },
+  "static_headers": {
+    "X-PW-Application": "developer_api",
+    "Content-Type": "application/json",
+    "X-PW-UserEmail": "{{email}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/developer_api/v1/account"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "multi_auth_headers"
+    ]
+  }
+}

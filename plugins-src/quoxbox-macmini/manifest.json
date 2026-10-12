@@ -1,0 +1,36 @@
+{
+  "id": "quoxbox-macmini",
+  "name": "QuoxBox",
+  "displayName": "QuoxBox — Mac mini",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "enterprise",
+  "license": "commercial",
+  "badge": "ENTERPRISE",
+  "category": "governance",
+  "accentColor": "#38bdf8",
+  "description": "Governed, verifiable control of an always-on Mac mini. Every screen read, click and keystroke runs through a policy engine that enforces human-in-the-loop approval on high-risk actions, verifies the effect of every step, and writes a tamper-evident evidence chain.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/quoxbox",
+      "label": "QuoxBox",
+      "icon": "server"
+    }
+  ],
+  "routes": {
+    "/quoxbox": "QuoxBoxView"
+  },
+  "routeGuards": {
+    "/quoxbox": {
+      "minRole": "admin",
+      "auditorAllowed": true
+    }
+  },
+  "minQuoxVersion": "1.0.0"
+}

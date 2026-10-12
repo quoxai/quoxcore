@@ -1,0 +1,28 @@
+{
+  "spec_version": 1,
+  "id": "webhook",
+  "name": "Generic Webhook",
+  "category": "communication",
+  "credentialType": "webhook",
+  "requiredFields": [
+    "url"
+  ],
+  "docs": null,
+  "base_url": {
+    "fromCredential": "url"
+  },
+  "auth": null,
+  "test": {
+    "method": "HEAD",
+    "path": "/"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "no_auth_detected"
+    ]
+  }
+}

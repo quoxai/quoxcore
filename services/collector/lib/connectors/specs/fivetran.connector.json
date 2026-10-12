@@ -1,0 +1,218 @@
+{
+  "spec_version": 1,
+  "id": "fivetran",
+  "name": "Fivetran",
+  "category": "data_ai",
+  "credentialType": "fivetran",
+  "requiredFields": [
+    "api_key",
+    "api_secret"
+  ],
+  "docs": "https://fivetran.com/docs/rest-api",
+  "base_url": "https://api.fivetran.com",
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": "api_secret"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/users"
+  },
+  "tools_source": "https://fivetran.com/docs/rest-api/api-reference",
+  "tools": [
+    {
+      "name": "list_groups",
+      "description": "List Fivetran groups (destination workspaces) in the account, newest cursor page first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max groups to return (default 20, max 100)"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Optional pagination cursor from a previous call's next_cursor"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/groups",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "cursor": "{{input.cursor}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data.items[]": {
+            "id": "id",
+            "name": "name",
+            "created_at": "created_at"
+          },
+          "next_cursor": "data.nextCursor",
+          "code": "code"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_connectors",
+      "description": "List the connectors inside one Fivetran group, with sync and setup state per connector",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "description": "Fivetran group ID (from list_groups)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max connectors to return (default 20, max 100)"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Optional pagination cursor from a previous call's next_cursor"
+          },
+          "schema": {
+            "type": "string",
+            "description": "Optional destination schema name to filter by (exact match)"
+          }
+        },
+        "required": [
+          "group_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/groups/{{input.group_id}}/connectors",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "cursor": "{{input.cursor}}",
+          "schema": "{{input.schema}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data.items[]": {
+            "id": "id",
+            "group_id": "group_id",
+            "service": "service",
+            "schema": "schema",
+            "paused": "paused",
+            "sync_frequency": "sync_frequency",
+            "succeeded_at": "succeeded_at",
+            "failed_at": "failed_at",
+            "setup_state": "status.setup_state",
+            "sync_state": "status.sync_state",
+            "update_state": "status.update_state",
+            "is_historical_sync": "status.is_historical_sync"
+          },
+          "next_cursor": "data.nextCursor",
+          "code": "code"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_connector",
+      "description": "Get one Fivetran connector by ID, including its setup and sync status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "connector_id": {
+            "type": "string",
+            "description": "Fivetran connector ID (from list_connectors)"
+          }
+        },
+        "required": [
+          "connector_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/connectors/{{input.connector_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "group_id": "data.group_id",
+          "service": "data.service",
+          "service_version": "data.service_version",
+          "schema": "data.schema",
+          "paused": "data.paused",
+          "pause_after_trial": "data.pause_after_trial",
+          "sync_frequency": "data.sync_frequency",
+          "created_at": "data.created_at",
+          "succeeded_at": "data.succeeded_at",
+          "failed_at": "data.failed_at",
+          "setup_state": "data.status.setup_state",
+          "sync_state": "data.status.sync_state",
+          "update_state": "data.status.update_state",
+          "is_historical_sync": "data.status.is_historical_sync",
+          "code": "code"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_destinations",
+      "description": "List the destinations (warehouses) configured in the Fivetran account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max destinations to return (default 20, max 100)"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Optional pagination cursor from a previous call's next_cursor"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/destinations",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "cursor": "{{input.cursor}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data.items[]": {
+            "id": "id",
+            "group_id": "group_id",
+            "service": "service",
+            "region": "region",
+            "time_zone_offset": "time_zone_offset",
+            "setup_status": "setup_status"
+          },
+          "next_cursor": "data.nextCursor",
+          "code": "code"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, and it matches the vault entry byte for byte: Basic base64(api_key:api_secret). services/auth/config/integrationTypeRegistry.js key 'fivetran' (line 4219) collects api_key and api_secret and its testHeaders builds `Basic ${Buffer.from(`${creds.api_key}:${creds.api_secret}`).toString('base64')}` against testEndpoint https://api.fivetran.com/v1/users, which is exactly what auth {type: basic, userField api_key, passField api_secret} plus test GET /v1/users sends. No new vault field was needed and none was invented.",
+      "SHAPE-PROOF RESULT (real run, 2026-09-12, 1 iteration): verbatim overall line 'fivetran  SHAPE_PROVEN  proven=5 authwall=0 ambiguous=0 failed=0 inconclusive=0 skipped=0'. The differential is strong here because Fivetran routes BEFORE it authenticates: the control probe at the bogus path https://api.fivetran.com/quox-shapeproof-control-b35a1639 answered 404 with {\"code\":\"NotFound\",\"message\":\"HTTP 404 Not Found\"}, while the test call and all four tool paths answered 401 with {\"code\":\"AuthFailed\",\"message\":\"Invalid authorization credentials\"}. Different status AND different error code at the real paths, so host, TLS, base_url, the Basic auth header and every path below are proven. WHAT IS NOT PROVEN: no Fivetran credential was held, so a 2xx has never been observed on this connector and no response body has ever been seen. Beta at best, never Stable on this evidence.",
+      "RESPONSE PICKS ARE DOCUMENTARY, NOT OBSERVED. Every Fivetran v1 response is wrapped in {\"code\":\"Success\",\"data\":{...}}, so the picks are data-prefixed and list picks read data.items[] with next_cursor from data.nextCursor; 'code' is surfaced deliberately so a non-Success envelope is visible to the caller rather than silently shaped away. The field sets come from the REST API reference, not from a 2xx we have seen, so a pick may be over- or under-selective (most likely on list_destinations, where region, time_zone_offset and setup_status are the fields the docs describe).",
+      "list_destinations uses the account-wide GET /v1/destinations. The 401-versus-404 differential above is what makes that path claim real rather than a guess: a route Fivetran does not know answers 404 NotFound on this host, and /v1/destinations answered 401 AuthFailed like every other live path. Per-group destination detail (GET /v1/destinations/{destination_id}) is not modelled.",
+      "READ-ONLY BY CONSTRUCTION: all four tools are GETs and none is marked write:true. Fivetran's mutating surface is deliberately unmodelled, including POST/PATCH/DELETE on /v1/connectors, /v1/groups and /v1/destinations, connector schema changes (PATCH /v1/connectors/{id}/schemas) and the sync triggers POST /v1/connectors/{id}/sync and /resync. Adding any of those needs write:true and the write-path review, not a draft edit.",
+      "PAGINATION IS CURSOR-BASED AND MANUAL. limit is clamped to a default of 20 and a maximum of 100 (the API itself allows up to 1000); the caller pages by feeding next_cursor back into the cursor input. Spec v1 has no auto-pagination, so a large account is only ever seen one page at a time."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

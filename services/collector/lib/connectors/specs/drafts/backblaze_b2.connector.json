@@ -1,0 +1,35 @@
+{
+  "spec_version": 1,
+  "id": "backblaze_b2",
+  "name": "Backblaze B2",
+  "category": "cloud_hosting",
+  "credentialType": "backblaze_b2",
+  "requiredFields": [
+    "application_key_id",
+    "application_key"
+  ],
+  "description": "Backblaze B2 native API. Only the b2_authorize_account exchange is expressible in Connector Spec v1: that call takes Basic keyID:applicationKey and returns a short-lived session authorizationToken PLUS a per-account apiUrl host, and every other B2 call (b2_list_buckets, b2_list_file_names, b2_get_file_info) needs both of those values. A spec cannot chain one call's response into a later call's host and Authorization header, so no read tools are declared here. The S3-compatible endpoint is no escape: it requires AWS SigV4 request signing, which v1 also cannot express. BLOCKED pending a session-exchange auth type (exchange once, cache the token, take base_url from the exchange response).",
+  "docs": "https://www.backblaze.com/docs/cloud-storage",
+  "base_url": "https://api.backblazeb2.com",
+  "auth": {
+    "type": "basic",
+    "userField": "application_key_id",
+    "passField": "application_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/b2api/v3/b2_authorize_account"
+  },
+  "tools_source": "https://www.backblaze.com/apidocs/b2-authorize-account",
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

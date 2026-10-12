@@ -1,0 +1,67 @@
+{
+  "name": "notesq",
+  "version": "0.1.0",
+  "displayName": "NotesQ",
+  "tagline": "Markdown notes that feed the brain.",
+  "description": "A notebook for you and your org. Markdown notes organised by collections, tags and properties, with a full revision history you can restore from, and every note searchable by every Quox agent through Qortex. Personal notes stay yours, org notes are shared.",
+  "shortDescription": "Markdown notebook with revision history, searchable by every Quox agent",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 19,
+  "priceDisplay": "$19",
+  "priceModel": "one-time",
+  "tier": "premium",
+  "featured": false,
+  "icon": "file-text",
+  "accentColor": "#a78bfa",
+  "marketingPoints": [
+    "Markdown notes with collections, tags and properties, personal or shared with your org",
+    "Revision history on every note, with one-click restore",
+    "Searchable by every Quox agent through Qortex, so what you write gets used",
+    "Autosave with conflict detection: your text is never silently overwritten"
+  ],
+  "features": {
+    "notebook": {
+      "name": "Notebook",
+      "description": "Markdown notes with collections, tags, properties, pinning and archiving.",
+      "icon": "file-text",
+      "highlight": true
+    },
+    "history": {
+      "name": "Revision history",
+      "description": "Every save is a revision. Restore any earlier version.",
+      "icon": "history",
+      "highlight": true
+    },
+    "brainSearch": {
+      "name": "Qortex search",
+      "description": "Notes are indexed so every Quox agent can search them.",
+      "icon": "brain",
+      "highlight": true
+    }
+  },
+  "safety": {
+    "destructiveActions": [
+      "notesq.note.delete"
+    ],
+    "requiresApproval": [],
+    "aeeRequired": false,
+    "killSwitchEnabled": false
+  },
+  "requirements": {
+    "quox": ">=4.0.0"
+  },
+  "integration": {
+    "client": "src/components/notesq/lib/api.js",
+    "view": "src/components/notesq/NotesQView.jsx"
+  },
+  "changelog": {
+    "0.1.0": {
+      "date": "2026-10-03",
+      "changes": [
+        "P1 notebook: list, search, facets, markdown editor with autosave and conflict handling, properties, backlinks, revision history and restore"
+      ]
+    }
+  },
+  "category": "Productivity"
+}

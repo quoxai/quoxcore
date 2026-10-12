@@ -1,0 +1,159 @@
+{
+  "spec_version": 1,
+  "id": "telegram",
+  "name": "Telegram Bot",
+  "category": "communication",
+  "credentialType": "telegram",
+  "requiredFields": [
+    "bot_token"
+  ],
+  "description": "Read-only Telegram Bot API access: bot identity, chat metadata, member counts and pending updates",
+  "docs": "https://core.telegram.org/bots/api",
+  "base_url": {
+    "template": "https://api.telegram.org/bot{{bot_token}}"
+  },
+  "auth": {
+    "type": "none"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/getMe"
+  },
+  "tools_source": "https://core.telegram.org/bots/api",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the authenticated Telegram bot's own identity and capability flags",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/getMe"
+      },
+      "response": {
+        "pick": {
+          "id": "result.id",
+          "is_bot": "result.is_bot",
+          "first_name": "result.first_name",
+          "username": "result.username",
+          "can_join_groups": "result.can_join_groups",
+          "can_read_all_group_messages": "result.can_read_all_group_messages",
+          "supports_inline_queries": "result.supports_inline_queries"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_chat",
+      "description": "Get metadata for one Telegram chat (group, supergroup, channel or private chat)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "chat_id": {
+            "type": "string",
+            "description": "Chat ID (e.g. -1001234567890) or @channelusername"
+          }
+        },
+        "required": [
+          "chat_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/getChat",
+        "query": {
+          "chat_id": "{{input.chat_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "result.id",
+          "type": "result.type",
+          "title": "result.title",
+          "username": "result.username",
+          "first_name": "result.first_name",
+          "last_name": "result.last_name",
+          "description": "result.description"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_chat_member_count",
+      "description": "Get the number of members in one Telegram chat",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "chat_id": {
+            "type": "string",
+            "description": "Chat ID (e.g. -1001234567890) or @channelusername"
+          }
+        },
+        "required": [
+          "chat_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/getChatMemberCount",
+        "query": {
+          "chat_id": "{{input.chat_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "member_count": "result"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_updates",
+      "description": "Read pending Telegram updates (incoming messages and events) without long polling",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max updates to return (default 10, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/getUpdates",
+        "query": {
+          "limit": "{{clamp input.limit 10 50}}",
+          "timeout": "0"
+        }
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "update_id": "update_id",
+            "message_id": "message.message_id",
+            "date": "message.date",
+            "chat_id": "message.chat.id",
+            "chat_type": "message.chat.type",
+            "chat_title": "message.chat.title",
+            "from_username": "message.from.username",
+            "text": "message.text"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

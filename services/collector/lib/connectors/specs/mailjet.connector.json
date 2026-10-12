@@ -1,0 +1,178 @@
+{
+  "spec_version": 1,
+  "id": "mailjet",
+  "name": "Mailjet",
+  "category": "marketing_email",
+  "credentialType": "mailjet",
+  "requiredFields": [
+    "api_key",
+    "secret_key"
+  ],
+  "description": "Mailjet email delivery and marketing: read-only contact, campaign, sender and message-statistics views over the v3 REST API",
+  "docs": "https://dev.mailjet.com/",
+  "base_url": "https://api.mailjet.com",
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": "secret_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v3/REST/user"
+  },
+  "tools_source": "https://dev.mailjet.com/email/reference/",
+  "tools": [
+    {
+      "name": "list_contacts",
+      "description": "List Mailjet contacts (email, name, delivered count and exclusion state)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max contacts to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/REST/contact",
+        "query": {
+          "Limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "Count": "Count",
+          "Total": "Total",
+          "Data[]": {
+            "ID": "ID",
+            "Email": "Email",
+            "Name": "Name",
+            "CreatedAt": "CreatedAt",
+            "LastActivityAt": "LastActivityAt",
+            "DeliveredCount": "DeliveredCount",
+            "IsExcludedFromCampaigns": "IsExcludedFromCampaigns"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_campaigns",
+      "description": "List Mailjet campaigns (subject, sender, status and send window)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max campaigns to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/REST/campaign",
+        "query": {
+          "Limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "Count": "Count",
+          "Total": "Total",
+          "Data[]": {
+            "ID": "ID",
+            "Subject": "Subject",
+            "FromEmail": "FromEmail",
+            "FromName": "FromName",
+            "Status": "Status",
+            "SendStartAt": "SendStartAt",
+            "CreatedAt": "CreatedAt"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "sender_addresses",
+      "description": "List the sender addresses registered on the Mailjet account, with their validation status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max sender addresses to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/REST/sender",
+        "query": {
+          "Limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "Count": "Count",
+          "Total": "Total",
+          "Data[]": {
+            "ID": "ID",
+            "Email": "Email",
+            "Name": "Name",
+            "Status": "Status",
+            "IsDefaultSender": "IsDefaultSender",
+            "CreatedAt": "CreatedAt"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "message_statistics",
+      "description": "Get lifetime message counters for the API key (sent, opened, clicked, bounced, spam, unsubscribed, blocked)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/REST/statcounters",
+        "query": {
+          "CounterSource": "APIKey",
+          "CounterTiming": "Message",
+          "CounterResolution": "Lifetime"
+        }
+      },
+      "response": {
+        "pick": {
+          "Count": "Count",
+          "Total": "Total",
+          "Data[]": {
+            "APIKeyID": "APIKeyID",
+            "MessageSentCount": "MessageSentCount",
+            "MessageOpenedCount": "MessageOpenedCount",
+            "MessageClickedCount": "MessageClickedCount",
+            "MessageHardBouncedCount": "MessageHardBouncedCount",
+            "MessageSoftBouncedCount": "MessageSoftBouncedCount",
+            "MessageSpamCount": "MessageSpamCount",
+            "MessageUnsubscribedCount": "MessageUnsubscribedCount",
+            "MessageBlockedCount": "MessageBlockedCount"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

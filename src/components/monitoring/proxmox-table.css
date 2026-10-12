@@ -1,0 +1,360 @@
+/* ProxmoxTable — Dense ops table */
+
+.pxt {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ── Filter bar ── */
+.pxt-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.pxt-type-tabs,
+.pxt-status-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.pxt-tab {
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+.pxt-tab:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.04);
+}
+.pxt-tab--active {
+  color: #ff6b30;
+  background: rgba(255, 107, 48, 0.12);
+}
+
+.pxt-pill {
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: all 0.15s;
+}
+.pxt-pill:first-child { border-radius: 10px 4px 4px 10px; }
+.pxt-pill:last-child { border-radius: 4px 10px 10px 4px; }
+.pxt-pill:hover {
+  color: rgba(255, 255, 255, 0.65);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.pxt-pill--active {
+  color: #ff6b30;
+  border-color: rgba(255, 107, 48, 0.3);
+  background: rgba(255, 107, 48, 0.08);
+}
+
+/* ── Table ── */
+.pxt-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.pxt-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.pxt-head-row {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.pxt-th {
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), var(--m-bg-base);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
+  user-select: none;
+}
+.pxt-th--sortable {
+  cursor: pointer;
+}
+.pxt-th--sortable:hover {
+  color: #38bdf8;
+}
+
+.pxt-sort-arrow {
+  font-size: 8px;
+  margin-left: 3px;
+  color: #ff6b30;
+}
+
+/* ── Rows ── */
+.pxt-row {
+  height: 34px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+.pxt-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.pxt-row--stopped {
+  opacity: 0.55;
+}
+.pxt-row--stopped:hover {
+  opacity: 0.8;
+}
+.pxt-row--selected {
+  background: rgba(255, 107, 48, 0.08);
+  border-left: 2px solid #ff6b30;
+}
+.pxt-row--selected:hover {
+  background: rgba(255, 107, 48, 0.12);
+}
+
+.pxt-td {
+  padding: 4px 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.pxt-td--name {
+  font-weight: 500;
+}
+
+.pxt-td--status {
+  width: 32px;
+  text-align: center;
+  padding: 0;
+}
+
+.pxt-td--type {
+  width: 52px;
+}
+
+.pxt-mono {
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.pxt-cell-muted {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Status dot with breathing + ring halo ── */
+.pxt-status-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 16px;
+  height: 16px;
+}
+
+.pxt-status-dot__inner {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.pxt-status-dot--running .pxt-status-dot__inner {
+  animation: pxt-breathe 3s ease-in-out infinite;
+}
+
+.pxt-status-dot__ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid;
+  opacity: 0.25;
+  transform: translate(-50%, -50%);
+  animation: pxt-ring-pulse 3s ease-in-out infinite;
+}
+
+@keyframes pxt-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+
+@keyframes pxt-ring-pulse {
+  0%, 100% { opacity: 0.25; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.08; transform: translate(-50%, -50%) scale(1.15); }
+}
+
+/* ── Type badge ── */
+.pxt-type-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+.pxt-type-badge--qemu {
+  background: rgba(255, 107, 48, 0.12);
+  color: #ff6b30;
+}
+.pxt-type-badge--lxc {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+}
+
+/* ── CPU / Memory micro bars ── */
+.pxt-cpu-cell,
+.pxt-mem-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pxt-cpu-value,
+.pxt-mem-value {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.pxt-micro-bar {
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.pxt-micro-bar__fill {
+  height: 100%;
+  border-radius: 1px;
+  transition: width 0.5s ease;
+}
+
+/* ── Placeholder states ── */
+.pxt-placeholder {
+  text-align: center;
+  padding: 32px 16px;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 13px;
+}
+.pxt-placeholder--error {
+  color: #ff6b30;
+}
+.pxt-placeholder--warn {
+  color: #ffb030;
+}
+
+/* ── Controls (group toggle + status pills) ── */
+.pxt-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Group toggle button ── */
+.pxt-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.pxt-group-toggle:hover {
+  color: rgba(255, 255, 255, 0.65);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.pxt-group-toggle--active {
+  color: #ff6b30;
+  border-color: rgba(255, 107, 48, 0.3);
+  background: rgba(255, 107, 48, 0.08);
+}
+
+.pxt-group-toggle__icon {
+  font-size: 10px;
+}
+
+/* ── Group header row ── */
+.pxt-group-header {
+  cursor: pointer;
+}
+
+.pxt-group-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pxt-group-header__td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 12px;
+}
+
+.pxt-group-header__arrow {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 10px;
+  margin-right: 6px;
+}
+
+.pxt-group-header__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.pxt-group-header__name {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  margin-right: 8px;
+}
+
+.pxt-group-header__count {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+}
+
+/* ── Sparkline ── */
+.pxt-sparkline {
+  opacity: 0.85;
+}

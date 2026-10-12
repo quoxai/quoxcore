@@ -1,0 +1,32 @@
+{
+  "spec_version": 1,
+  "id": "zep",
+  "name": "Zep",
+  "category": "ai",
+  "credentialType": "zep",
+  "requiredFields": [
+    "api_url",
+    "api_key"
+  ],
+  "docs": "https://docs.getzep.com/",
+  "base_url": {
+    "fromCredential": "api_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/healthz"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:api_key"
+    ]
+  }
+}

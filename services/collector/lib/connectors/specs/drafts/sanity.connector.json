@@ -1,0 +1,36 @@
+{
+  "spec_version": 1,
+  "id": "sanity",
+  "name": "Sanity",
+  "category": "uncategorized",
+  "credentialType": "sanity",
+  "requiredFields": [
+    "project_id",
+    "token"
+  ],
+  "docs": "https://www.sanity.io/docs/http-api",
+  "base_url": {
+    "fromCredential": "project_id",
+    "template": "https://{{project_id}}.api.sanity.io"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2024-01-01/data/query/production",
+    "query": {
+      "query": "*[_type==\"__ping__\"]"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url_template"
+    ]
+  }
+}

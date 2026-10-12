@@ -1,0 +1,230 @@
+/**
+ * Shape of Quox HUD — widget styles.
+ *
+ * Glass-only: relies on the shared .qx-card recipe (src/styles/glass.css) for
+ * the panel shell (background: var(--m-bg-base), border rgba(255,255,255,0.18),
+ * ::before edge shimmer via var(--qx-edges) + var(--qx-blur), inset-only rim
+ * shadow). Nothing in this file adds a second glass layer inside a .qx-card —
+ * interior sections stay transparent.
+ */
+
+/* ── Shared layout ─────────────────────────────────────────────────────── */
+
+.hud-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hud-widget__loading {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+/* ── MiniBrain ─────────────────────────────────────────────────────────── */
+
+.hud-mini-brain {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+}
+
+.hud-mini-brain__constellation {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hud-mini-brain__svg {
+  width: 168px;
+  height: 184px;
+}
+
+.hud-edge {
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 1;
+  fill: none;
+}
+
+.hud-node--pulse {
+  animation: hud-node-pulse 2.8s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes hud-node-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-node--pulse { animation: none; }
+}
+
+.hud-node--locked {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.4);
+  stroke-width: 1.4;
+}
+
+.hud-node--dim {
+  fill: none;
+  stroke-width: 1.4;
+  opacity: 0.3;
+}
+
+.hud-node__lock {
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 1.1;
+  fill: none;
+}
+
+.hud-mini-brain__rail {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hud-mini-brain__rail-tiles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hud-mini-brain__subline {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.hud-mini-brain__footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.hud-mini-brain__link {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.hud-mini-brain__link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* ── HudPrimaryStat ────────────────────────────────────────────────────── */
+
+.hud-primary-stat {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.hud-primary-stat__ring {
+  flex: 0 0 auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hud-primary-stat__ring-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-primary-stat__ring-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.75);
+  margin-top: 2px;
+}
+
+.hud-primary-stat__tiles {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+/* ── CycleTabsControl ──────────────────────────────────────────────────── */
+
+.hud-cycle-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The toggle + interval chips carry BOTH .qx-btn/.qx-chip (global base) AND
+   these classes. Those globals define their own background/border at the SAME
+   specificity (0,1,0), so on a cascade tie the later-loaded global was winning
+   and the pill rendered flat (owner: "still no morphism", 3x). Scoping every
+   rule under .hud-cycle-control (0,2,0) makes these win regardless of load
+   order, and adds the real house-glass signal the flat pill was missing:
+   translucent base + backdrop blur + inset rim. */
+.hud-cycle-control .hud-cycle-control__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--m-bg-base);
+  -webkit-backdrop-filter: var(--qx-blur);
+  backdrop-filter: var(--qx-blur);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+.hud-cycle-control .hud-cycle-control__toggle:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.hud-cycle-control .hud-cycle-control__toggle--active {
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.22), rgba(56, 189, 248, 0.12));
+  border-color: rgba(168, 85, 247, 0.45);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 16px rgba(168, 85, 247, 0.18);
+}
+
+.hud-cycle-control__intervals {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hud-cycle-control .hud-cycle-control__interval {
+  padding: 5px 11px;
+  font-size: 12px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.88);
+  background: var(--m-bg-base);
+  -webkit-backdrop-filter: var(--qx-blur);
+  backdrop-filter: var(--qx-blur);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.hud-cycle-control .hud-cycle-control__interval.qx-chip--active {
+  color: #fff;
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.4), rgba(56, 189, 248, 0.22));
+  border-color: rgba(168, 85, 247, 0.55);
+}

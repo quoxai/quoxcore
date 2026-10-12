@@ -1,0 +1,2851 @@
+/**
+ * AppShell - Unified Application Shell Styles
+ *
+ * Design System:
+ * - Dark theme with red accent (HAL-inspired)
+ * - Clean, minimal interface
+ * - Smooth transitions
+ * - Mobile responsive
+ */
+
+/* === Variables - mapped to design system ===
+ * Note: Uses main design tokens from index.css with fallbacks
+ */
+:root {
+    --shell-sidebar-width: 260px;
+    --shell-sidebar-collapsed: 64px;
+    --shell-header-height: 64px;
+
+    /* Map to design system with fallbacks */
+    --shell-bg: transparent;
+    --shell-sidebar-bg: var(--m-bg-base, rgba(255, 255, 255, 0.04));
+    --shell-header-bg: var(--m-bg-base, rgba(255, 255, 255, 0.04));
+    --shell-border: var(--m-border-default, rgba(255, 255, 255, 0.08));
+    --shell-text: var(--m-text-primary, #fff);
+    --shell-text-muted: var(--m-text-secondary, rgba(255, 255, 255, 0.72));
+    --shell-accent: var(--m-hal-red, #38bdf8);
+    --shell-accent-dim: var(--m-hal-red-muted, rgba(56, 189, 248, 0.15));
+    --shell-hover: var(--m-bg-elevated, rgba(255, 255, 255, 0.05));
+    --shell-active: var(--m-bg-float, #1f1f24);
+    --shell-transition: 0.2s ease;
+}
+
+/* === Mini HAL Eye === */
+.mini-hal-eye {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, var(--hal-color, #38bdf8), #0a1628);
+    box-shadow: 0 0 20px var(--hal-color, #38bdf8), inset 0 0 10px rgba(0, 0, 0, 0.5);
+    position: relative;
+    animation: hal-pulse 2s ease-in-out infinite;
+}
+
+.mini-hal-eye__inner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #000 40%, transparent 70%);
+}
+
+@keyframes hal-pulse {
+    0%, 100% { box-shadow: 0 0 15px var(--hal-color, #38bdf8); }
+    50% { box-shadow: 0 0 25px var(--hal-color, #38bdf8), 0 0 40px var(--hal-color, #38bdf8); }
+}
+
+.loader-eye .mini-hal-eye {
+    width: 80px;
+    height: 80px;
+}
+
+.loader-eye .mini-hal-eye__inner {
+    width: 32px;
+    height: 32px;
+}
+
+/* === Base Shell — Glass Panel Layout === */
+.app-shell {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    min-height: 100vh;
+    background: var(--shell-bg);
+    color: var(--shell-text);
+    padding: 16px;
+    gap: 16px;
+    overflow: hidden;
+}
+
+/* Glass panel — shared treatment for header, rail, main, footer (Cyan refactor) */
+.glass-panel {
+    background: var(--m-bg-base);
+    /* NO direct backdrop-filter — it creates a stacking context that
+       nullifies descendant flyouts' own backdrop-filter. Blur moves
+       to the ::before pseudo (z-index:-1) with isolation:isolate on
+       the parent, so chrome gets its glass AND flyouts blur correctly. */
+    border: 1px solid var(--m-border-default);
+    border-radius: var(--qx-radius);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+    position: relative;
+    isolation: isolate;
+}
+
+/* The ::before carries the blur AND the 4-edge cyan→purple shimmer.
+   z-index:-1 keeps it behind content, isolation:isolate on parent
+   ensures the negative z-index doesn't escape the panel. */
+.glass-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: var(--qx-edges);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+}
+
+/* Body: icon rail + main content sit below the full-width header */
+.app-shell__body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+    gap: 16px;
+}
+
+/* SDK-DX P4: right-side agent chat dock (plugin-summoned via
+   pluginApi.chat.openSidebar → quox-open-agent-chat). AgentChatPanel
+   styles its own glass surface; the dock is just the flex slot. */
+.app-shell__agent-dock {
+    flex-shrink: 0;
+    display: flex;
+    min-height: 0;
+}
+
+.agent-dock__header {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+    padding: 8px 8px 0;
+}
+
+.agent-dock__header button {
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+}
+
+.agent-dock__header button:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 900px) {
+    .app-shell__agent-dock {
+        display: none;
+    }
+}
+
+/* .app-shell's three-row grid template puts this state's single child in the auto-sized
+   first row, which pins it to the top no matter what align-items says. Collapse to one
+   full-height row here so centring actually has room to work. */
+.app-shell--loading {
+    grid-template-rows: 1fr;
+    align-items: center;
+    justify-content: center;
+    align-content: center;
+}
+
+.app-shell__loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.app-shell__loader .loader-brand {
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* QHorn sets its float animation inline, so !important is needed here to override it */
+@media (prefers-reduced-motion: reduce) {
+    .app-shell__loader .loader-brand svg { animation: none !important; }
+}
+
+.app-shell__loader span {
+    color: var(--shell-text-muted);
+    font-size: 14px;
+    letter-spacing: 0.6px;
+    font-weight: 500;
+}
+
+/* === Icon Rail Sidebar — glass panel === */
+.app-shell__rail {
+    width: 76px;
+    display: flex;
+    flex-shrink: 0;
+    position: relative;
+    z-index: var(--z-dropdown, 100);
+    overflow: visible !important; /* flyout must not be clipped */
+    transition: width var(--shell-transition);
+}
+
+/* SIDEBAR-RESTORE: expanded, labelled rail (default state). Restores the
+   expand/collapse capability an unauthorised 2026-04-11 refactor (1aed117c)
+   removed. Collapsed state (no modifier class) keeps the original icon-only
+   76px rail unchanged. */
+.app-shell__rail--expanded {
+    width: 220px;
+}
+
+.rail__icons {
+    width: 76px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 4px;
+    gap: 2px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100%;
+}
+
+.app-shell__rail--expanded .rail__icons {
+    width: 220px;
+    align-items: stretch;
+    padding: 8px 8px;
+}
+
+.rail__collapse-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 8px 0;
+    margin-bottom: 4px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--shell-border);
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    font: inherit;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.rail__collapse-toggle:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.app-shell__rail--expanded .rail__collapse-toggle {
+    justify-content: flex-end;
+    padding: 8px 10px;
+}
+
+/* Icon Rail Group */
+.rail__group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    cursor: pointer;
+    padding: 4px 0;
+    width: 100%;
+}
+
+/* rail__group is a real <button> for keyboard operability (a11y fix,
+   fleet #429/#349), so reset the browser's default button chrome to
+   keep it looking like the plain div it used to be. */
+button.rail__group {
+    background: transparent;
+    border: none;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    text-align: center;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.rail__icon-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid transparent;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+/* Hover — same purple/cyan glow as active/open */
+.rail__icon-btn:hover,
+.rail__group:hover .rail__icon-btn {
+    background: linear-gradient(145deg, rgba(168, 85, 247, 0.08) 0%, rgba(56, 189, 248, 0.04) 100%);
+    border-top-color: rgba(168, 85, 247, 0.4);
+    border-left-color: rgba(56, 189, 248, 0.2);
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.08), 0 4px 12px rgba(0, 0, 0, 0.3);
+    transform: translateY(-1px);
+}
+
+/* Open state — stronger purple/cyan glow */
+.rail__icon-btn--open {
+    background: linear-gradient(145deg, rgba(168, 85, 247, 0.12) 0%, rgba(56, 189, 248, 0.06) 100%) !important;
+    border-top-color: rgba(168, 85, 247, 0.5) !important;
+    border-left-color: rgba(56, 189, 248, 0.3) !important;
+    box-shadow: 0 0 30px rgba(168, 85, 247, 0.15), 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Active child highlight — subtle top border */
+.rail__group--active-child .rail__icon-btn:not(.rail__icon-btn--open) {
+    border-top-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.rail__icon {
+    width: 23px;
+    height: 23px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.8);
+    transition: color 0.15s ease;
+}
+
+.rail__icon svg {
+    width: 23px;
+    height: 23px;
+}
+
+.rail__group:hover .rail__icon {
+    color: #a855f7;
+}
+
+.rail__group--active-child .rail__icon {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.rail__group--open .rail__icon {
+    color: #a855f7;
+}
+
+.rail__icon-label {
+    font-size: 9px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: 0.3px;
+    text-align: center;
+    line-height: 1;
+    transition: color 0.15s ease;
+    max-width: 68px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rail__group:hover .rail__icon-label {
+    color: #fff;
+}
+
+.rail__group--active-child .rail__icon-label {
+    color: #fff;
+}
+
+.rail__group--open .rail__icon-label {
+    color: #fff;
+    font-weight: 700;
+}
+
+/* Collapsed desktop rail is icon-only: the 9px caption ellipsised long
+   labels into "Commun…" fragments under every icon. The button's
+   title/aria-label still carries the name. (<=1024px block re-shows the
+   caption for the mobile drawer.) */
+.app-shell__rail:not(.app-shell__rail--expanded) .rail__icon-label {
+    display: none;
+}
+
+/* SIDEBAR-RESTORE: expanded rail — row layout (icon + readable label side
+   by side) instead of the stacked icon-over-tiny-caption collapsed layout.
+   Click behaviour (opens the flyout for sub-items) is unchanged. */
+.app-shell__rail--expanded .rail__group {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    text-align: left;
+}
+
+.app-shell__rail--expanded .rail__icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    flex-shrink: 0;
+}
+
+.app-shell__rail--expanded .rail__icon-label {
+    font-size: 13px;
+    max-width: none;
+    text-align: left;
+    flex: 1;
+    min-width: 0;
+}
+
+/* Dev/Preview badge at bottom of rail */
+.rail__dev-badge {
+    margin-top: auto;
+    padding: 4px 8px;
+    font-size: 9px;
+    font-weight: 700;
+    color: #4a8a4a;
+    background: #1a2a1a;
+    border: 1px solid #2a4a2a;
+    border-radius: 4px;
+    text-align: center;
+    letter-spacing: 0.5px;
+}
+
+/* === Flyout Panel === */
+.rail__flyout {
+    position: absolute;
+    /* relative to .app-shell__rail (position: relative), so this tracks the
+       rail's actual width whether collapsed (76px) or expanded (220px) */
+    left: calc(100% + 16px);
+    top: 0;
+    bottom: 0;
+    width: 280px;
+    overflow-y: auto;
+    background: var(--m-bg-base);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+    border: 1px solid var(--m-border-default);
+    border-radius: var(--qx-radius);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+    z-index: 20;
+    animation: flyoutSlideIn 0.15s ease-out;
+    display: flex;
+    flex-direction: column;
+}
+
+.rail__flyout::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--qx-edges);
+    pointer-events: none;
+}
+
+@keyframes flyoutSlideIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.flyout__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 14px 10px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    border-bottom: 1px solid var(--shell-border);
+}
+
+.flyout__header-icon {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+}
+
+.flyout__header-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Flyout Search */
+.flyout__search {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--shell-border);
+}
+
+.flyout__search-input {
+    width: 100%;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--shell-border);
+    border-radius: 10px;
+    color: #fff;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.flyout__search-input:focus {
+    border-color: rgba(56, 189, 248, 0.5);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+}
+
+.flyout__search-input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* Flyout Items */
+.flyout__items {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.flyout__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    color: #fff;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+}
+
+.flyout__item:hover {
+    background: var(--shell-hover);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+.flyout__item--active {
+    background: linear-gradient(145deg, rgba(168, 85, 247, 0.1) 0%, rgba(56, 189, 248, 0.04) 100%);
+    color: #fff;
+    font-weight: 700;
+    border-top-color: rgba(168, 85, 247, 0.4);
+    border-left-color: rgba(56, 189, 248, 0.25);
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.06);
+}
+
+.flyout__item--active:hover {
+    background: linear-gradient(145deg, rgba(168, 85, 247, 0.12) 0%, rgba(56, 189, 248, 0.06) 100%);
+}
+
+.flyout__item-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.flyout__item-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.flyout__item--active .flyout__item-icon {
+    color: #fff;
+}
+
+.flyout__item-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.flyout__item-badge {
+    margin-left: auto;
+    padding: 2px 6px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.flyout__item-badge--new {
+    background: rgba(52, 211, 153, 0.15);
+    color: #34d399;
+}
+
+.flyout__item-badge--beta {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+}
+
+.flyout__item-badge--premium {
+    background: rgba(168, 85, 247, 0.15);
+    color: #a855f7;
+}
+
+/* Numeric/other badges */
+.flyout__item-badge:not(.flyout__item-badge--new):not(.flyout__item-badge--beta):not(.flyout__item-badge--premium) {
+    background: var(--shell-accent-dim);
+    color: var(--shell-accent);
+    min-width: 16px;
+    text-align: center;
+}
+
+.flyout__item-urgent {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--m-error, #ef4444);
+    animation: pulse-urgent 2s infinite;
+    flex-shrink: 0;
+}
+
+/* Legacy sidebar nav item (still used by sub-items in flyout) */
+.sidebar__nav-item--sub {
+    font-size: 12px;
+    padding: 5px 8px 5px 16px;
+    opacity: 0.85;
+}
+
+.sidebar__nav-item--sub .sidebar__nav-icon {
+    width: 16px;
+    height: 16px;
+}
+
+.sidebar__nav-item--sub .sidebar__nav-icon svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Urgent dot animation */
+@keyframes pulse-urgent {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* === Mobile Overlay === */
+.app-shell__overlay {
+    display: none;
+}
+
+/* === Main Content — glass panel === */
+.app-shell__main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    position: relative;
+}
+
+/* Header — full-width glass panel */
+.app-shell__header {
+    position: relative;
+    min-height: var(--shell-header-height);
+    display: flex;
+    align-items: center;
+    padding: 10px 18px;
+    gap: 12px;
+    flex-shrink: 0;
+    z-index: 200;
+}
+
+/* Centre slot: breadcrumb trail + page title pinned to the header's true
+   centre so nothing to its left (org strip expanding) can reflow it */
+.app-shell__header-center {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 36vw;
+    overflow: hidden;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    z-index: 1;
+}
+
+.app-shell__header-center .breadcrumbs__list {
+    flex-wrap: nowrap;
+}
+
+@media (max-width: 1100px) {
+    .app-shell__header-center {
+        max-width: 20vw;
+    }
+}
+
+@media (max-width: 768px) {
+    .app-shell__header-center {
+        display: none;
+    }
+}
+
+.app-shell__mobile-toggle {
+    display: none;
+}
+
+/* Header left section: Q logo + breadcrumbs */
+.app-shell__header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* QUOX logo — uses the real brand asset */
+.header-quox-logo {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    transition: opacity 0.15s ease;
+}
+
+.header-quox-logo:hover {
+    opacity: 0.8;
+}
+
+.header-quox-logo__img {
+    height: 26px;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.3));
+}
+
+/* === QuickBar === */
+.quickbar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.quickbar__trigger {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.quickbar__trigger:hover {
+    border-color: rgba(168, 85, 247, 0.3);
+    background: rgba(168, 85, 247, 0.06);
+}
+
+.quickbar__trigger--open {
+    border-color: rgba(168, 85, 247, 0.4);
+    background: linear-gradient(145deg, rgba(168, 85, 247, 0.08) 0%, rgba(56, 189, 248, 0.04) 100%);
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.08);
+}
+
+.quickbar__trigger--empty {
+    opacity: 0.6;
+}
+
+.quickbar__count {
+    font-size: 9px;
+    font-weight: 700;
+    color: #a855f7;
+    background: rgba(168, 85, 247, 0.15);
+    border-radius: 8px;
+    padding: 1px 5px;
+    font-family: 'SF Mono', 'JetBrains Mono', monospace;
+}
+
+.quickbar__dropdown {
+    position: absolute;
+    top: calc(100% + 16px);
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 240px;
+    max-width: 320px;
+    background: var(--m-bg-base);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+    border: 1px solid var(--m-border-default);
+    border-radius: var(--qx-radius);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+    z-index: 1000;
+    animation: slideUp 0.15s ease-out;
+    overflow: hidden;
+}
+
+.quickbar__dropdown::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--qx-edges);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.quickbar__header {
+    padding: 10px 14px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--shell-text-muted);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.quickbar__items {
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.quickbar__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    text-align: left;
+    width: 100%;
+    font-family: inherit;
+}
+
+.quickbar__item:hover {
+    background: var(--shell-hover);
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+.quickbar__item--active {
+    background: linear-gradient(145deg, rgba(168, 85, 247, 0.08) 0%, rgba(56, 189, 248, 0.04) 100%);
+    border-top-color: rgba(168, 85, 247, 0.3);
+    color: #fff;
+    font-weight: 600;
+}
+
+.quickbar__item-icon {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.quickbar__item-icon svg {
+    width: 15px;
+    height: 15px;
+}
+
+.quickbar__item-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.quickbar__item-unpin {
+    background: none;
+    border: none;
+    color: #f59e0b;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px;
+    opacity: 0.5;
+    transition: opacity 0.12s;
+    flex-shrink: 0;
+}
+
+.quickbar__item-unpin:hover {
+    opacity: 1;
+}
+
+.quickbar__empty {
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+    color: var(--shell-text-muted);
+    font-size: 12px;
+}
+
+.quickbar__empty-hint {
+    font-size: 10px;
+    opacity: 0.5;
+}
+
+/* Flyout pin star */
+.flyout__item-pin {
+    background: none;
+    border: none;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    padding: 2px 4px;
+    flex-shrink: 0;
+    transition: color 0.12s;
+    margin-left: auto;
+}
+
+.flyout__item-pin:hover {
+    color: rgba(245, 158, 11, 0.6);
+}
+
+.flyout__item-pin--active {
+    color: #f59e0b;
+}
+
+/* Flyout "View All" link */
+.flyout__view-all {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 11px;
+    color: var(--shell-text-muted);
+    text-decoration: none;
+    transition: all 0.12s ease;
+    flex-shrink: 0;
+}
+
+.flyout__view-all:hover {
+    color: #a855f7;
+    background: rgba(168, 85, 247, 0.04);
+}
+
+/* Header — ops controls */
+.app-shell__header-ops {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    box-shadow: none;
+    position: relative;
+    flex-shrink: 0;
+}
+
+/* Header — right section: ops + utility actions */
+.app-shell__header-utils {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    position: relative;
+}
+
+/* Thin vertical divider between control groups */
+.header-divider {
+    width: 1px;
+    height: 24px;
+    background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.08) 30%,
+        rgba(255, 255, 255, 0.08) 70%,
+        transparent 100%
+    );
+    margin: 0 1px;
+    flex-shrink: 0;
+}
+
+/* Icon buttons for settings, docs, etc. */
+.header-icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--shell-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+
+.header-icon-btn:hover {
+    background: var(--shell-hover);
+    color: var(--shell-text);
+}
+
+.header-icon-btn svg {
+    flex-shrink: 0;
+}
+
+/* User avatar button */
+.header-user-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.header-user-btn:hover {
+    box-shadow: 0 0 0 2px var(--shell-border);
+}
+
+.header-user-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(56, 189, 248, 0.08));
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0.02em;
+}
+
+/* User dropdown */
+.header-user-dropdown {
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    min-width: 240px;
+    background: var(--m-bg-base);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+    border: 1px solid var(--m-border-default);
+    border-radius: var(--qx-radius);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.header-user-dropdown::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--qx-edges);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.header-user-dropdown__info {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.header-user-dropdown__name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--shell-text);
+}
+
+.header-user-dropdown__role {
+    font-size: 11px;
+    color: var(--shell-text-muted);
+}
+
+.header-user-dropdown__divider {
+    height: 1px;
+    background: var(--shell-border);
+}
+
+.header-user-dropdown__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 14px;
+    background: none;
+    border: none;
+    color: var(--shell-text-muted);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+}
+
+.header-user-dropdown__item:hover {
+    background: var(--shell-hover);
+    color: var(--shell-text);
+}
+
+.header-user-dropdown__item svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+/* Profile slot (M-P5 profiles): real photo in the header avatar with the
+   existing monogram styling as fallback. The wrapper anchors the dropdown
+   to the avatar button instead of the whole utils group. */
+.header-user-menu {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.header-user-avatar {
+    overflow: hidden;
+}
+
+.header-user-avatar img,
+.header-user-dropdown__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block;
+}
+
+.header-user-dropdown__identity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+}
+
+.header-user-dropdown__avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(56, 189, 248, 0.08));
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.header-user-dropdown__email {
+    font-size: 11px;
+    color: var(--shell-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 190px;
+}
+
+.header-user-dropdown__error {
+    padding: 6px 14px 10px;
+    font-size: 11px;
+    color: #f87171;
+}
+
+/* Kill Switch Overlay */
+.app-shell__kill-switch-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: var(--z-max, 9999);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: kill-switch-flash 2s ease-in-out infinite;
+}
+
+@keyframes kill-switch-flash {
+    0%, 100% { background: rgba(0, 0, 0, 0.9); }
+    50% { background: rgba(50, 0, 0, 0.95); }
+}
+
+.kill-switch-message {
+    text-align: center;
+    color: #38bdf8;
+    padding: 40px;
+}
+
+.kill-switch-message svg {
+    margin-bottom: 20px;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+.kill-switch-message h2 {
+    font-size: 32px;
+    letter-spacing: 4px;
+    margin-bottom: 16px;
+    text-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+}
+
+.kill-switch-message p {
+    font-size: 14px;
+    color: #999;
+    max-width: 400px;
+}
+
+.app-shell__status-badge {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    color: var(--shell-text-muted);
+    position: relative;
+    padding: 5px 10px;
+    border-radius: 6px;
+    transition: background 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.app-shell__status-badge:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--shell-text);
+}
+
+.status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.status-dot::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+    opacity: 0.2;
+}
+
+.status-dot--online {
+    background: #30ff90;
+    box-shadow: 0 0 6px rgba(48, 255, 144, 0.5);
+    color: #30ff90;
+    /* No pulse when green — only draw attention on problems */
+}
+
+.status-dot--offline {
+    background: #ff5555;
+    box-shadow: 0 0 8px rgba(255, 85, 85, 0.6);
+    color: #ff5555;
+    animation: dot-alarm 1s ease-in-out infinite;
+}
+
+.status-dot--degraded {
+    background: #ffb030;
+    box-shadow: 0 0 6px rgba(255, 176, 48, 0.4);
+    color: #ffb030;
+    animation: dot-breathe 2s ease-in-out infinite;
+}
+
+.status-dot--loading {
+    background: var(--shell-text-muted);
+    color: var(--shell-text-muted);
+    animation: dot-scan 1.5s ease-in-out infinite;
+}
+
+@keyframes dot-breathe {
+    0%, 100% { opacity: 1; box-shadow: 0 0 6px currentColor; }
+    50% { opacity: 0.7; box-shadow: 0 0 10px currentColor; }
+}
+
+@keyframes dot-alarm {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.15); }
+}
+
+@keyframes dot-scan {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.8; }
+}
+
+/* Health badge dropdown */
+.health-badge-dropdown {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    right: 0;
+    background: var(--m-bg-base);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+    border: 1px solid var(--m-border-default);
+    border-radius: var(--qx-radius);
+    padding: 8px 0;
+    min-width: 240px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+    z-index: 1000;
+    animation: voltDropIn 0.15s ease-out;
+    overflow: hidden;
+}
+
+.health-badge-dropdown::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--qx-edges);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.health-badge-dropdown__title {
+    padding: 6px 12px 8px;
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--shell-text-muted);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 4px;
+}
+
+.health-badge-dropdown__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.health-badge-dropdown__name {
+    flex: 1;
+    color: var(--shell-text-primary, #e0e0e0);
+}
+
+.health-badge-dropdown__status {
+    font-size: 10px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+}
+
+.health-badge-dropdown__status--down {
+    color: #ff5555;
+}
+
+.health-badge-dropdown__status--degraded {
+    color: #ffb030;
+}
+
+/* ── AI Running Indicator ── */
+.ai-running { cursor: pointer; }
+.ai-running__dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    position: relative;
+}
+.ai-running__dot::after {
+    content: ''; position: absolute; inset: -3px; border-radius: 50%;
+    border: 1px solid currentColor; opacity: 0.2;
+}
+.ai-running__dot--idle {
+    background: rgba(255, 255, 255, 0.25); color: rgba(255, 255, 255, 0.25);
+}
+.ai-running__dot--active {
+    background: #6366f1; color: #6366f1;
+    box-shadow: 0 0 6px rgba(99, 102, 241, 0.5);
+    animation: dot-breathe 3s ease-in-out infinite;
+}
+.ai-running__dot--stale {
+    background: #ffb030; color: #ffb030;
+    box-shadow: 0 0 6px rgba(255, 176, 48, 0.4);
+    animation: dot-breathe 2s ease-in-out infinite;
+}
+.ai-running__dot--stuck {
+    background: #ff5555; color: #ff5555;
+    box-shadow: 0 0 8px rgba(255, 85, 85, 0.6);
+    animation: dot-alarm 1s ease-in-out infinite;
+}
+
+.ai-running__dropdown {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 0;
+    min-width: 280px;
+    max-width: 360px;
+    background: var(--m-bg-base);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+    border: 1px solid var(--m-border-default);
+    border-radius: var(--qx-radius);
+    padding: 8px;
+    z-index: 100;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+    overflow: hidden;
+}
+
+.ai-running__dropdown::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--qx-edges);
+    pointer-events: none;
+    z-index: 1;
+}
+.ai-running__dropdown-title {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: rgba(255, 255, 255, 0.8);
+    padding: 6px 10px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 4px;
+}
+.ai-running__dropdown-item {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 7px 10px; background: transparent; border: none;
+    border-radius: 6px; cursor: pointer; font: inherit;
+    color: rgba(255, 255, 255, 0.8); text-align: left;
+    transition: background 0.12s ease;
+}
+.ai-running__dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+.ai-running__dropdown-label {
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; font-size: 12px;
+}
+.ai-running__dropdown-tasks {
+    font-size: 10px; color: rgba(255, 255, 255, 0.8);
+    font-variant-numeric: tabular-nums; flex-shrink: 0;
+}
+.ai-running__dropdown-time {
+    font-size: 10px; font-variant-numeric: tabular-nums; flex-shrink: 0;
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+.ai-running__dropdown-time--active { color: rgba(99, 102, 241, 0.8); }
+.ai-running__dropdown-time--stale { color: #ffb030; }
+.ai-running__dropdown-time--stuck { color: #ff5555; font-weight: 600; }
+.ai-running__dropdown-viewall {
+    display: block; width: 100%; padding: 6px 10px;
+    background: transparent; border: none; border-top: 1px solid rgba(255, 255, 255, 0.06);
+    color: rgba(99, 102, 241, 0.8); font-size: 11px; text-align: center;
+    cursor: pointer; margin-top: 4px; border-radius: 0 0 6px 6px;
+    font: inherit; transition: color 0.12s;
+}
+.ai-running__dropdown-viewall:hover { color: #818cf8; }
+
+/* Content */
+.app-shell__content {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0;
+}
+
+/* === InboxQ route-scoped viewport bound (layout audit, 2026-09-26) ===
+   `.iq-view` has no PageLayout wrapper of its own and installs one internal
+   document scroller (`.qx-scroll-pane`) instead of relying on
+   `.app-shell__content`'s scroll — without a bounded height chain down to
+   it, that internal scroller's flex ancestors can shrink and clip instead
+   of the pane actually scrolling. Scoped to routes carrying `.iq-view` via
+   `:has()` so this never changes scroll behaviour on any other route; check
+   other `.app-shell__content` consumers before ever promoting this rule. */
+.app-shell:has(.iq-view) {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.app-shell__body:has(.iq-view),
+.app-shell__main:has(.iq-view) {
+    min-width: 0;
+    min-height: 0;
+}
+.app-shell__content:has(.iq-view) {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.app-shell__content:has(.iq-view) > :not(.iq-view) {
+    flex: 0 0 auto; /* optional shell notices keep their natural height */
+}
+
+/* === Calendar-Q route-scoped viewport bound (AQ-9B L2-C1b) ===
+   Same reasoning as the InboxQ block above: `.cq-view` installs its own
+   internal chat dock + main scroller rather than relying on
+   `.app-shell__content`'s scroll, so the height chain down to it needs the
+   same bound. Scoped via :has() so no other route changes. */
+/* === NotesQ route-scoped viewport bound (AQ-9D) ===
+   Same pattern as .iq-view: the three panes each own an internal scroller, so
+   the height chain must be bounded down to `.nq-view` (which otherwise
+   collapses to 0px, since the route has no PageLayout wrapper). */
+.app-shell:has(.cq-view),
+.app-shell:has(.nq-view),
+.app-shell:has(.cnq-view),
+.app-shell:has(.qvc-view) {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.app-shell__body:has(.cq-view),
+.app-shell__main:has(.cq-view) {
+    min-width: 0;
+    min-height: 0;
+}
+.app-shell__body:has(.nq-view),
+.app-shell__main:has(.nq-view),
+.app-shell__body:has(.cnq-view),
+.app-shell__main:has(.cnq-view),
+.app-shell__body:has(.qvc-view),
+.app-shell__main:has(.qvc-view) {
+    min-width: 0;
+    min-height: 0;
+}
+.app-shell__content:has(.cq-view),
+.app-shell__content:has(.nq-view),
+.app-shell__content:has(.cnq-view),
+.app-shell__content:has(.qvc-view) {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.app-shell__content:has(.cq-view) > :not(.cq-view),
+.app-shell__content:has(.nq-view) > :not(.nq-view),
+.app-shell__content:has(.cnq-view) > :not(.cnq-view),
+.app-shell__content:has(.qvc-view) > :not(.qvc-view) {
+    flex: 0 0 auto;
+}
+
+/* === AgentActivitySurface route-scoped viewport bound (VULCAN-DASH) ===
+   Same pattern as .iq-view above: the surface installs its own internal
+   scroller (the History list), so `.app-shell__content`'s own overflow-y:auto
+   must be turned off and the height chain bounded, or the whole page scrolls
+   instead of the history list. Scoped via :has() so no other route changes. */
+.app-shell:has(.agent-activity-view) {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.app-shell__body:has(.agent-activity-view),
+.app-shell__main:has(.agent-activity-view) {
+    min-width: 0;
+    min-height: 0;
+}
+.app-shell__content:has(.agent-activity-view) {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.app-shell__content:has(.agent-activity-view) > :not(.agent-activity-view) {
+    flex: 0 0 auto;
+}
+
+/* === Quoxperticus resident route-scoped viewport bound (GRIPE-699) ===
+   `.qp-view` (/quoxperticus/:hostId) has no PageLayout wrapper and owns two
+   internal scrollers (.qp-main and the chat rail log). Without this bounded
+   chain `.app-shell__content` scrolled the whole page and the chat rail grew
+   with every slot message ("sidebar scrolls for miles"). Same pattern as
+   .iq-view above; scoped via :has() so no other route changes. */
+.app-shell:has(.qp-view) {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.app-shell__body:has(.qp-view),
+.app-shell__main:has(.qp-view) {
+    min-width: 0;
+    min-height: 0;
+}
+.app-shell__content:has(.qp-view) {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.app-shell__content:has(.qp-view) > :not(.qp-view) {
+    flex: 0 0 auto;
+}
+
+/* === Responsive === */
+
+/* Prevent horizontal scrolling on mobile */
+html, body {
+    overflow-x: hidden;
+}
+
+.app-shell {
+    overflow-x: hidden;
+}
+
+/* Tablet breakpoint — rail slides out */
+@media (max-width: 1024px) {
+    .app-shell__rail {
+        position: fixed;
+        top: var(--shell-header-height);
+        left: 0;
+        bottom: 0;
+        width: 76px;
+        transform: translateX(-100%);
+        transition: transform var(--shell-transition), visibility 0s linear 0.2s;
+        z-index: var(--z-toast, 600);
+        visibility: hidden;
+    }
+
+    .app-shell__rail--open {
+        transform: translateX(0);
+        visibility: visible;
+        transition: transform var(--shell-transition), visibility 0s linear 0s;
+    }
+
+    /* SIDEBAR-RESTORE: the rail is a slide-in overlay drawer below 1024px
+       (position: fixed, does not affect main content layout), so keep it
+       icon-only here regardless of the desktop expand/collapse preference —
+       avoids the wider expanded rail overflowing its fixed-width container. */
+    .app-shell__rail--expanded {
+        width: 76px;
+    }
+
+    .app-shell__rail--expanded .rail__icons {
+        width: 76px;
+        align-items: center;
+        padding: 8px 4px;
+    }
+
+    .app-shell__rail--expanded .rail__group {
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        padding: 4px 0;
+        text-align: center;
+    }
+
+    .app-shell__rail--expanded .rail__icon-btn {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+    }
+
+    .app-shell__rail--expanded .rail__icon-label {
+        font-size: 9px;
+        max-width: 68px;
+        text-align: center;
+    }
+
+    .app-shell__overlay {
+        position: fixed;
+        top: var(--shell-header-height);
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: var(--z-tooltip, 600);
+        backdrop-filter: blur(2px);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity var(--shell-transition), visibility 0s linear 0.2s;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .app-shell__overlay--visible {
+        opacity: 1;
+        visibility: visible;
+        transition: opacity var(--shell-transition), visibility 0s linear 0s;
+    }
+
+    .app-shell__mobile-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        min-height: 40px;
+        background: transparent;
+        border: 1px solid var(--shell-border);
+        border-radius: 8px;
+        color: var(--shell-text);
+        cursor: pointer;
+        flex-shrink: 0;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .app-shell__mobile-toggle:hover {
+        background: var(--shell-hover);
+        border-color: #444;
+    }
+
+    .app-shell__mobile-toggle:active {
+        background: var(--shell-active);
+    }
+
+    .app-shell__mobile-toggle svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .app-shell__content {
+        padding: 20px;
+    }
+
+    .app-shell__header {
+        padding: 0 12px;
+        gap: 10px;
+    }
+}
+
+/* Mobile breakpoint */
+@media (max-width: 768px) {
+    .app-shell__overlay {
+        background: rgba(0, 0, 0, 0.6);
+    }
+
+    .app-shell__mobile-toggle {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .app-shell__mobile-toggle svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .app-shell__header {
+        padding: 0 10px;
+    }
+
+    /* On mobile, hide status badge text — just show dots */
+    .app-shell__header-ops .app-shell__status-badge {
+        font-size: 0;
+        gap: 0;
+    }
+    .app-shell__header-ops .app-shell__status-badge .status-dot {
+        width: 8px;
+        height: 8px;
+    }
+
+    .app-shell__content {
+        padding: 16px;
+        overflow-x: hidden;
+    }
+}
+
+/* Small mobile breakpoint */
+@media (max-width: 480px) {
+    .app-shell__header {
+        padding: 0 8px;
+        gap: 8px;
+    }
+
+    .app-shell__content {
+        padding: 12px;
+    }
+}
+
+/* Extra small mobile breakpoint (iPhone SE, small Android) */
+@media (max-width: 375px) {
+    .app-shell__header {
+        padding: 0 6px;
+        gap: 6px;
+        height: 48px;
+    }
+
+    .app-shell__content {
+        padding: 10px;
+    }
+}
+
+/* === Scrollbar Styling === */
+
+/* Scrollbars — 1px hairline, cyan→purple gradient, fade on hover */
+/* Rail: no visible scrollbar, still scrolls */
+.rail__icons {
+    scrollbar-width: none;
+}
+.rail__icons::-webkit-scrollbar {
+    display: none;
+}
+
+/* Flyout + content: thin gradient scrollbar */
+.rail__flyout,
+.flyout__items,
+.app-shell__content {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(168, 85, 247, 0.15) transparent;
+}
+
+.rail__flyout::-webkit-scrollbar,
+.flyout__items::-webkit-scrollbar,
+.app-shell__content::-webkit-scrollbar {
+    width: 2px;
+}
+.rail__icons::-webkit-scrollbar-track,
+.rail__flyout::-webkit-scrollbar-track,
+.flyout__items::-webkit-scrollbar-track,
+.app-shell__content::-webkit-scrollbar-track {
+    background: transparent;
+}
+.rail__icons::-webkit-scrollbar-thumb,
+.rail__flyout::-webkit-scrollbar-thumb,
+.flyout__items::-webkit-scrollbar-thumb,
+.app-shell__content::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(56,189,248,0.25) 0%, rgba(168,85,247,0.25) 100%);
+    border-radius: 1px;
+}
+.rail__icons::-webkit-scrollbar-thumb:hover,
+.rail__flyout::-webkit-scrollbar-thumb:hover,
+.flyout__items::-webkit-scrollbar-thumb:hover,
+.app-shell__content::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(56,189,248,0.5) 0%, rgba(168,85,247,0.5) 100%);
+}
+
+/* Search is now integrated into the flyout panel — see .flyout__search */
+
+/* === Footer — glass panel === */
+.app-shell__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 16px;
+    flex-shrink: 0;
+    z-index: 200;
+    overflow: visible !important;
+}
+
+.footer__left,
+.footer__right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    z-index: 1;
+}
+
+/* footer__badge and footer__dot removed — replaced with feedback + shortcuts */
+
+.footer__feedback-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--shell-text-muted);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+}
+
+.footer__feedback-btn:hover {
+    color: var(--shell-text);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.footer__shortcuts {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.8);
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+    margin-left: 8px;
+}
+
+.footer__shortcuts kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 9px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.8);
+    margin-right: 2px;
+    font-family: inherit;
+}
+
+/* Footer dropdowns open UPWARD (drop-up) */
+.app-shell__footer .health-badge-dropdown,
+.app-shell__footer .volt-badge-dropdown,
+.app-shell__footer .aee-badge-dropdown,
+.app-shell__footer .aocl-badge-dropdown,
+.app-shell__footer .ward-badge-dropdown {
+    top: auto;
+    bottom: calc(100% + 12px);
+}
+
+.app-shell__footer .ai-running__dropdown {
+    top: auto;
+    bottom: calc(100% + 6px);
+    left: auto;
+    right: 0;
+}
+
+/* AOCL layer stack in drop-up */
+.aocl-layer-stack {
+    padding: 6px 0;
+}
+
+.aocl-layer-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.aocl-layer-id {
+    width: 24px;
+    font-weight: 700;
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+.aocl-layer-name {
+    width: 56px;
+    font-weight: 600;
+    color: var(--shell-text, #f4f4f5);
+    flex-shrink: 0;
+}
+
+.aocl-layer-desc {
+    color: var(--shell-text-muted, #a1a1aa);
+    font-size: 10px;
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* === Breadcrumbs — inline in header === */
+.breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0;
+    min-width: 0;
+    flex: 1;
+}
+
+.breadcrumbs__list {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.breadcrumbs__actions {
+    margin-left: 8px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.breadcrumbs__item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.breadcrumbs__separator {
+    display: flex;
+    align-items: center;
+    color: var(--shell-text-muted);
+    opacity: 0.5;
+}
+
+.breadcrumbs__separator svg {
+    width: 14px;
+    height: 14px;
+}
+
+.breadcrumbs__link {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--shell-text-muted);
+    font-family: var(--m-font-display);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: all var(--shell-transition);
+    white-space: nowrap;
+}
+
+.breadcrumbs__link:hover {
+    background: var(--shell-hover);
+    color: var(--shell-accent);
+}
+
+.breadcrumbs__icon {
+    display: flex;
+    align-items: center;
+}
+
+.breadcrumbs__icon svg {
+    width: 17px;
+    height: 17px;
+}
+
+.breadcrumbs__text {
+    font-family: var(--m-font-display);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--shell-text-muted);
+    padding: 2px 0;
+    white-space: nowrap;
+}
+
+.breadcrumbs__text--current {
+    color: var(--shell-text);
+    font-weight: 600;
+}
+
+/* Breadcrumbs responsive — hide middle items on small screens */
+@media (max-width: 768px) {
+    .breadcrumbs__item:not(:first-child):not(:last-child) {
+        display: none;
+    }
+    .breadcrumbs__actions {
+        display: none;
+    }
+}
+
+/* === Extensions Section === */
+.sidebar__extensions {
+    border-top: 1px solid var(--shell-border);
+    margin-top: 8px;
+    padding-top: 8px;
+}
+
+.sidebar__extensions-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 16px;
+    margin: 0 8px;
+    border-radius: 6px;
+    background: transparent;
+    border: none;
+    color: var(--shell-text-muted);
+    cursor: pointer;
+    transition: all var(--shell-transition);
+    box-sizing: border-box;
+    width: calc(100% - 16px);
+}
+
+.sidebar__extensions-header:hover {
+    background: var(--shell-hover);
+    color: var(--shell-text);
+}
+
+.sidebar__extensions--expanded .sidebar__extensions-header {
+    color: var(--shell-text);
+}
+
+.sidebar__extensions-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.sidebar__extensions-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar__extensions-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.sidebar__extensions-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sidebar__extensions-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    background: var(--shell-accent-dim);
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--shell-accent);
+}
+
+.sidebar__extensions-chevron {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.6;
+    transition: opacity var(--shell-transition);
+}
+
+.sidebar__extensions-header:hover .sidebar__extensions-chevron {
+    opacity: 1;
+}
+
+.sidebar__extensions-chevron svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Extensions Content */
+.sidebar__extensions-content {
+    animation: extensionsSlideDown 0.2s ease-out;
+}
+
+@keyframes extensionsSlideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Extensions Search */
+.sidebar__extensions-search-wrapper {
+    padding: 8px 16px;
+}
+
+.sidebar__extensions-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--shell-bg);
+    border: 1px solid var(--shell-border);
+    border-radius: 6px;
+}
+
+.sidebar__extensions-search svg {
+    width: 14px;
+    height: 14px;
+    color: var(--shell-text-muted);
+    flex-shrink: 0;
+}
+
+.sidebar__extensions-search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--shell-text);
+    font-size: 12px;
+    outline: none;
+    min-width: 0;
+}
+
+.sidebar__extensions-search-input::placeholder {
+    color: var(--shell-text-muted);
+}
+
+.sidebar__extensions-search-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--shell-text-muted);
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all var(--shell-transition);
+}
+
+.sidebar__extensions-search-clear:hover {
+    background: var(--shell-hover);
+    color: var(--shell-text);
+}
+
+.sidebar__extensions-search-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid var(--shell-border);
+    border-radius: 6px;
+    color: var(--shell-text-muted);
+    cursor: pointer;
+    font-size: 11px;
+    transition: all var(--shell-transition);
+    width: 100%;
+}
+
+.sidebar__extensions-search-toggle:hover {
+    background: var(--shell-hover);
+    color: var(--shell-text);
+}
+
+.sidebar__extensions-search-toggle svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Extension Categories */
+.sidebar__extensions-categories {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.sidebar__extensions-category {
+    margin-bottom: 4px;
+}
+
+.sidebar__extensions-category-label {
+    padding: 10px 16px 6px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--shell-text-muted);
+    opacity: 0.7;
+}
+
+.sidebar__extensions-items {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* Extension Item */
+.sidebar__extension-item {
+    position: relative;
+}
+
+.sidebar__extension-badge {
+    margin-left: auto;
+    padding: 2px 6px;
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 4px;
+}
+
+.sidebar__extension-badge--new {
+    background: rgba(52, 211, 153, 0.15);
+    color: #34d399;
+}
+
+.sidebar__extension-badge--beta {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+}
+
+/* Numeric badges for notifications */
+.sidebar__extension-badge:not(.sidebar__extension-badge--new):not(.sidebar__extension-badge--beta) {
+    background: var(--shell-accent-dim);
+    color: var(--shell-accent);
+    min-width: 16px;
+    text-align: center;
+}
+
+/* Collapsed Extensions List (when section is collapsed but sidebar is expanded) */
+.sidebar__extensions-collapsed-list {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 16px;
+    flex-wrap: wrap;
+}
+
+.sidebar__extension-collapsed-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    color: var(--shell-text-muted);
+    text-decoration: none;
+    transition: all var(--shell-transition);
+}
+
+.sidebar__extension-collapsed-item:hover {
+    background: var(--shell-hover);
+    color: var(--shell-text);
+}
+
+.sidebar__extension-collapsed-item--active {
+    background: var(--shell-accent-dim);
+    color: var(--shell-accent);
+}
+
+.sidebar__extension-collapsed-item svg {
+    width: 16px;
+    height: 16px;
+}
+
+.sidebar__extensions-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--shell-text-muted);
+    background: var(--shell-hover);
+    border-radius: 6px;
+}
+
+/* Sidebar collapsed mode - vertical icons list */
+.sidebar__extensions-icons {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* No Results */
+.sidebar__extensions-no-results {
+    padding: 16px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--shell-text-muted);
+}
+
+/* Extensions section hidden in rail mode — plugins appear in their nav section */
+
+/* Tablet responsiveness for extensions */
+@media (max-width: 1024px) {
+    .sidebar__extensions-categories {
+        max-height: none;
+    }
+
+    .sidebar__extension-item {
+        min-height: 44px;
+    }
+
+    .sidebar__extensions-header {
+        min-height: 44px;
+    }
+}
+
+/* Mobile responsiveness for extensions */
+@media (max-width: 768px) {
+    .sidebar__extension-item {
+        min-height: 48px;
+    }
+
+    .sidebar__extensions-header {
+        min-height: 48px;
+    }
+}
+
+/* ============================================
+   REDUCED MOTION SUPPORT
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+    .mini-hal-eye { animation: none; }
+    .app-shell__rail { transition: none; }
+    .rail__icon-btn { transition: none; }
+    .rail__flyout { animation: none; }
+    .flyout__item { transition: none; }
+    .app-shell__overlay { transition: none; }
+    .app-shell__kill-switch-overlay { animation: none; }
+    .kill-switch-message svg { animation: none; }
+    .header-icon-btn, .header-user-btn { transition: none; }
+}
+
+/* ============================================
+   KEYBOARD NAVIGATION - FOCUS STYLES
+   ============================================ */
+
+/* Enhanced focus indicators for keyboard navigation */
+.rail__group:focus-visible .rail__icon-btn {
+    outline: 2px solid var(--shell-accent);
+    outline-offset: -2px;
+}
+
+.flyout__item:focus-visible {
+    outline: 2px solid var(--shell-accent);
+    outline-offset: -2px;
+    background: var(--shell-hover);
+}
+
+/* Screen reader only class for skip links */
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--shell-accent);
+    color: var(--shell-bg);
+    padding: 8px 16px;
+    z-index: var(--z-max, 9999);
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 0 0 4px 0;
+}
+
+.skip-link:focus {
+    top: 0;
+}
+
+/* === Inbox notification toast === */
+.inbox-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 12px 16px;
+    z-index: var(--z-toast, 600);
+    cursor: pointer;
+    animation: inbox-toast-in 0.3s ease-out;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    max-width: 360px;
+    color: var(--m-color-text-primary, #e2e8f0);
+}
+
+.inbox-toast:hover {
+    background: rgba(15, 23, 42, 0.78);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.inbox-toast svg {
+    flex-shrink: 0;
+    color: #22d3ee;
+}
+
+.inbox-toast__content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.inbox-toast__label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--m-color-text-secondary, #94a3b8);
+}
+
+.inbox-toast__title {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--m-color-text-primary, #f1f5f9);
+}
+
+.inbox-toast__badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--m-color-primary, #6366f1);
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+}
+
+@keyframes inbox-toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================
+ * VoltStatusBadge — header VOLT indicator
+ * ============================================ */
+
+.volt-badge {
+    position: relative;
+    z-index: 9999;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary, #94a3b8);
+    padding: 5px 10px;
+    border-radius: 6px;
+    transition: background 0.15s ease, color 0.15s ease;
+    position: relative;
+    user-select: none;
+}
+
+.volt-badge:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--shell-text, #f4f4f5);
+}
+
+.volt-badge--off {
+    opacity: 0.5;
+}
+
+.volt-badge--off:hover {
+    opacity: 0.75;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.volt-badge-dropdown {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    right: 0;
+    width: 260px;
+    background: var(--m-bg-base);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+    border: 1px solid var(--m-border-default);
+    border-radius: var(--qx-radius);
+    padding: 0;
+    z-index: 9999;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+    animation: voltDropIn 0.15s ease-out;
+    overflow: hidden;
+}
+
+.volt-badge-dropdown::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--qx-edges);
+    pointer-events: none;
+    z-index: 1;
+}
+
+@keyframes voltDropIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.volt-badge-dropdown__title {
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #10b981;
+    padding: 10px 14px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.volt-badge-dropdown__stats {
+    padding: 8px 14px;
+}
+
+.volt-badge-dropdown__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 11px;
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+    color: var(--text-secondary, #94a3b8);
+}
+
+.volt-badge-dropdown__value {
+    font-weight: 600;
+    color: var(--text-primary, #e2e8f0);
+    font-variant-numeric: tabular-nums;
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.volt-badge-dropdown__value--warn {
+    color: #f59e0b;
+}
+
+.volt-badge-dropdown__link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 14px;
+    border: none;
+    border-top: 1px solid var(--border-subtle, #2a2f3e);
+    background: transparent;
+    color: #10b981;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.volt-badge-dropdown__link:hover {
+    background: rgba(16, 185, 129, 0.06);
+}
+
+/* ============================================================================
+   BRAIN2-V2 Phase 2a "immersive" variant — RETIRED (quox#589, owner call
+   2026-09-23). It hid the global nav rail on /brain2 so the workspace could
+   take the full width, leaving only Brain2's own Library rail; the owner
+   ruled BOTH navs must coexist, like every other AppShell view. The
+   app-shell--immersive class is no longer emitted; if a future route truly
+   needs a chromeless mode, that is an owner decision, not a stream default.
+   ============================================================================ */
+
+/* ============================================================
+   Top-bar pass (Phase 2) — global search, footer ops, home crumb
+   ============================================================ */
+
+/* #4 Global search trigger (header pill) */
+.global-search__trigger {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 30px; padding: 0 10px; border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.72); cursor: pointer;
+    font-size: 12.5px; transition: background 0.15s, border-color 0.15s;
+}
+.global-search__trigger:hover { background: rgba(255, 255, 255, 0.09); border-color: rgba(56, 189, 248, 0.5); color: #fff; }
+.global-search__trigger-label { opacity: 0.85; }
+.global-search__kbd {
+    font: 600 10px/1 ui-monospace, monospace; padding: 2px 5px; border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+@media (max-width: 900px) { .global-search__trigger-label, .global-search__kbd { display: none; } }
+
+/* #4b Owner call: the bar was pointless (the palette does the searching), so the
+   trigger is now an icon button, sized to sit with the settings/docs/account row. */
+.global-search__trigger--icon {
+    width: 34px; height: 34px; padding: 0; gap: 0;
+    justify-content: center; border-radius: 9px;
+}
+
+/* #4 Palette overlay + panel */
+.global-search__overlay {
+    position: fixed; inset: 0; z-index: 9500;
+    background: rgba(4, 8, 16, 0.55); backdrop-filter: blur(3px);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding-top: 12vh;
+}
+.global-search__panel {
+    width: min(560px, 92vw); border-radius: 14px; overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.global-search__inputrow {
+    display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.6);
+}
+.global-search__input {
+    flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+    color: #fff; font-size: 15px;
+}
+.global-search__input::placeholder { color: rgba(255, 255, 255, 0.4); }
+.global-search__results { max-height: 46vh; overflow-y: auto; padding: 6px; }
+.global-search__result {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 9px 12px; border-radius: 8px; background: transparent; border: none;
+    color: rgba(255, 255, 255, 0.85); cursor: pointer; text-align: left;
+}
+.global-search__result--active { background: rgba(56, 189, 248, 0.14); color: #fff; }
+.global-search__result-label { font-size: 13.5px; font-weight: 500; }
+.global-search__result-section { font-size: 11px; color: rgba(255, 255, 255, 0.45); flex-shrink: 0; }
+.global-search__empty { padding: 22px 16px; text-align: center; color: rgba(255, 255, 255, 0.45); font-size: 13px; }
+
+/* #7 Footer ops cluster (E-STOP + DEFCON relocated from header) */
+.footer__ops { display: inline-flex; align-items: center; gap: 8px; }
+
+/* #3 Home breadcrumb as compact icon-only link */
+.breadcrumbs__link--home { padding-left: 2px; padding-right: 2px; opacity: 0.7; }
+.breadcrumbs__link--home:hover { opacity: 1; }
+
+
+/* GRIPE-701: an ISOLATED plugin route renders PluginSandbox's plain
+   [data-plugin-root] div around PluginFrameView's .qx-view. That block div
+   broke the flex height chain, so the iframe fell back to 150px. Scoped with
+   :has() to frame routes only, so in-parent (official) plugins keep their
+   current flow layout. */
+[data-plugin-root]:has(> .qx-view > [data-plugin-frame]) {
+  display: flex;
+  flex-direction: column;
+  /* the route parent is a BLOCK scroller with a definite height (measured
+     540px live), so flex:1 alone resolves to 0: height:100% is what binds. */
+  height: 100%;
+  min-height: 0;
+}
+
+/* === #781 phone-width fit (<=600px) ===
+   Root cause: .app-shell is a grid whose implicit column is `auto`, so grid
+   items' min-width:auto let the widest child (header / footer / wide card)
+   stretch the whole column past the viewport. minmax(0,1fr) pins it to the
+   viewport at every width (a no-op on desktop, where content already fits). */
+.app-shell {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 600px) {
+    .app-shell {
+        padding: 8px;
+        gap: 8px;
+        max-width: 100vw;
+    }
+
+    /* Top bar: hamburger + logo + compact scope chip. Everything else lives
+       in the drawer / one tap away. */
+    .app-shell__header-mid .quickbar,
+    .app-shell__header-utils .header-icon-btn,
+    .header-scope__title,
+    .header-scope__org-btn,
+    .header-scope__strip {
+        display: none;
+    }
+    .app-shell__header-left {
+        gap: 8px;
+    }
+    .header-scope {
+        gap: 6px;
+        padding: 0;
+    }
+    .header-scope__chip {
+        max-width: 38vw;
+    }
+    .header-scope__chip-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+    }
+
+    .app-shell__content {
+        padding: 8px; /* + 8px shell padding = 16px gutter */
+    }
+
+    /* Footer status bar: wrap instead of overflowing (its drop-up menus need
+       overflow visible, so it cannot scroll internally). */
+    .app-shell__footer {
+        flex-wrap: wrap;
+        gap: 6px 10px;
+        padding: 6px 10px;
+        max-width: 100%;
+    }
+    .footer__left,
+    .footer__right,
+    .footer__ops {
+        flex-wrap: wrap;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    /* Auto grids collapse to one column (their 280px min otherwise exceeds
+       the 358px content box once gutters + gaps apply). */
+    .qx-grid-auto,
+    .qx-grid-2,
+    .qx-grid-3,
+    .qx-grid-4 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

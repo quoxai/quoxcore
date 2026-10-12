@@ -1,0 +1,267 @@
+{
+  "spec_version": 1,
+  "id": "replicate",
+  "name": "Replicate",
+  "category": "data_ai",
+  "credentialType": "replicate",
+  "requiredFields": [
+    "api_token"
+  ],
+  "description": "Run-any-model hub with the cleanest async submit-then-poll API in the market: read the account, browse curated collections, inspect a specific model, and poll or list predictions. Every read here is a zero-spend authed GET. Starting a prediction (POST /predictions) is a billable generation, so it is modelled write:true and HITL-gated; the poll tool GET /predictions/{id} is the read half of that async pair and the reference shape every other submit-then-poll connector on this factory copies.",
+  "docs": "https://replicate.com/docs/reference/http",
+  "base_url": "https://api.replicate.com/v1",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/account"
+  },
+  "tools_source": "https://replicate.com/docs/reference/http",
+  "tools": [
+    {
+      "name": "get_account",
+      "description": "Get the Replicate account that owns this API token: username and account type. The cheap balance-free identity read and the spec's auth-proving call",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/account"
+      },
+      "response": {
+        "pick": {
+          "username": "username",
+          "type": "type"
+        },
+        "truncate": 1000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_collections",
+      "description": "List Replicate's curated model collections (e.g. text-to-image, language-models), each with a name and slug",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/collections"
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "name": "name",
+            "slug": "slug"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_model",
+      "description": "Get a specific public model by owner and name: description, latest version id, and total run count",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Model owner (organisation or user), e.g. stability-ai"
+          },
+          "name": {
+            "type": "string",
+            "description": "Model name, e.g. sdxl"
+          }
+        },
+        "required": [
+          "owner",
+          "name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/models/{{input.owner}}/{{input.name}}"
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "owner": "owner",
+          "latest_version_id": "latest_version.id",
+          "run_count": "run_count"
+        },
+        "truncate": 1500
+      },
+      "write": false,
+      "_probe": {
+        "input.owner": "stability-ai",
+        "input.name": "sdxl"
+      }
+    },
+    {
+      "name": "list_models",
+      "description": "List public models on Replicate, most recent first (browse the catalogue): owner, name, description, run count and latest version id",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "sort_by": {
+            "type": "string",
+            "enum": [
+              "model_created_at",
+              "latest_version_created_at"
+            ],
+            "description": "Optional field to sort by (API default: latest_version_created_at)"
+          },
+          "sort_direction": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "description": "Optional sort direction (API default: desc)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/models",
+        "query": {
+          "sort_by": "{{input.sort_by}}",
+          "sort_direction": "{{input.sort_direction}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "owner": "owner",
+            "name": "name",
+            "description": "description",
+            "visibility": "visibility",
+            "url": "url",
+            "run_count": "run_count",
+            "latest_version_id": "latest_version.id"
+          },
+          "next": "next",
+          "previous": "previous"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_prediction",
+      "description": "Poll a prediction by id for its current status and, once finished, its output and run metrics. This is the ASYNC POLL half of the submit-then-poll pattern: create_prediction (write:true) starts a job and returns an id, this tool is the zero-spend authed read that checks on it",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Prediction id returned by create_prediction or list_predictions"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/predictions/{{input.id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "status": "status",
+          "output": "output",
+          "metrics": "metrics",
+          "error": "error"
+        },
+        "truncate": 3000
+      },
+      "write": false
+    },
+    {
+      "name": "list_predictions",
+      "description": "List this account's recent predictions with their id, status and model, most recent first",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/predictions"
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "id": "id",
+            "status": "status",
+            "model": "model"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "create_prediction",
+      "description": "Start a new prediction (run a model version against an input). This is the ASYNC SUBMIT half of the submit-then-poll pattern: it is a billable generation, so it is HITL-gated and never fired by the shape-proof harness. Poll the returned id with get_prediction once approved and started",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "Model version id to run, from get_model's latest_version_id"
+          },
+          "input": {
+            "type": "object",
+            "description": "Model-specific input fields (varies per model, see the model's schema)"
+          }
+        },
+        "required": [
+          "version",
+          "input"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/predictions",
+        "body": {
+          "version": "{{input.version}}",
+          "input": "{{input.input}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "status": "status",
+          "urls": "urls"
+        },
+        "truncate": 1500
+      },
+      "write": true
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-16, viral-AI-tools tranche async reference (project_viral_ai_build_plan_2026_09_16)",
+    "confidence": "high",
+    "needs_review": [
+      "NO LIVE CREDENTIAL AT AUTHORING TIME: this spec is shape-proved blind only. LIVE_PROVEN needs one real r8_ token; the build plan flags /account, /collections, /models/{owner}/{name} and /predictions as all zero-spend authed GETs, so live proof should be clean and free once a token is supplied.",
+      "REFERENCE SHAPE: this is the intended template for every other async submit-then-poll connector on the factory (fal.ai next): a write:true submit tool that returns a job id, plus a write:false poll tool (get_prediction here) that reads its status. Copy this split rather than re-deriving it.",
+      "get_prediction has no _probe because a real prediction id cannot be known ahead of a submit; the shape-proof harness fires it with a dummy string id, which is sufficient to prove the route and auth wall blind.",
+      "vault credentialType 'replicate' already existed in integrationTypeRegistry.js before this build (field api_token, prefix r8_, testEndpoint /v1/collections) and was reused as-is, no new registration added.",
+      "AUTH PREFIX: Replicate's docs (2026-09-16 check) state Authorization: Bearer <token> is current, with Authorization: Token <token> kept as a legacy alias; this spec uses auth.type 'bearer'. The vault's own testHeaders (integrationTypeRegistry.js) still sends 'Token', which this build deliberately left untouched (out of scope, reuse-only); a real token should confirm both prefixes still work before anyone relies on the vault's test-connection button matching this spec's behaviour.",
+      "REPLACES A PRE-EXISTING SPEC: a declarative replicate.connector.json already existed from an earlier bulk-generation wave (6.5-P5, commit a3e54114), already SHAPE_PROVEN and already counted in connectors.export.json (hence this build leaves the export count at 208 rather than raising it to 209). That version was read-only (get_account, list_predictions, get_prediction, list_models with query filters) and had no submit tool at all. This version REPLACES it to add the create_prediction/get_prediction async submit-poll pair the build plan asked for; get_prediction's tool name is unchanged, but list_models (owner+name filterable list) was dropped in favour of get_model (single owner/name lookup) and list_collections was added. No other file in the repo referenced the dropped tool names at replacement time (grepped clean)."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

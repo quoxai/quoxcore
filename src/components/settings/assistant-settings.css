@@ -1,0 +1,744 @@
+/* AssistantSettings + AssistantCard — Premium Dark Theme
+ * Design: Linear-inspired dense ops dashboard with agent personality.
+ * Font: System monospace for data, sans-serif for labels.
+ * Colors: Agent-specific with glassmorphic containers.
+ */
+
+/* ── Settings Container — flat (parent .settings-layout__content provides glass + padding) ── */
+.assistant-settings {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+  gap: 16px;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #fff;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-title h2 {
+  margin: 0 0 2px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  letter-spacing: -0.01em;
+}
+
+.header-title p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 13px;
+}
+
+.header-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ── View Toggle (Grid / Hierarchy) ── */
+.view-toggle {
+  display: flex;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.view-toggle button {
+  padding: 6px 14px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.view-toggle button.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.view-toggle button:hover:not(.active) {
+  color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── Reset All ── */
+.reset-all-btn {
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: rgba(239, 68, 68, 0.7);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.reset-all-btn:hover {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+
+/* ── Filter Bar ── */
+.filter-bar {
+  display: flex;
+  gap: 10px;
+}
+
+.search-input {
+  flex: 1;
+  max-width: 320px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  transition: border-color 0.15s;
+}
+
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.role-filter {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.role-filter:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.role-filter option {
+  background: #0e101a;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* ── Settings Content ── */
+.settings-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.settings-content::-webkit-scrollbar {
+  width: 4px;
+}
+.settings-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.settings-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+}
+
+/* ── Card Grid ── */
+.assistant-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+/* ── No Results ── */
+.no-results {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 60px 40px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.no-results__icon {
+  font-size: 32px;
+  color: rgba(255, 255, 255, 0.15);
+  margin-bottom: 12px;
+}
+
+.no-results__title {
+  margin: 0 0 6px 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.no-results__description {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.35);
+  max-width: 280px;
+}
+
+.no-results__clear {
+  margin-top: 16px;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s;
+}
+
+.no-results__clear:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ════════════════════════════════════════════
+   ASSISTANT CARD — Premium Agent Identity
+   ════════════════════════════════════════════ */
+
+.ac {
+  position: relative;
+  isolation: isolate;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* Top accent line using agent color (sits over qx-edges rim) */
+.ac::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--ac-color);
+  opacity: 0.7;
+  transition: opacity 0.2s;
+  z-index: 2;
+}
+
+/* qx-edges rim */
+.ac::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+  pointer-events: none;
+}
+
+.ac:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.26);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.ac:hover::after {
+  opacity: 1;
+}
+
+.ac--selected {
+  border-color: var(--ac-color);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ac--selected::before {
+  opacity: 1;
+}
+
+/* ── Card Header Row ── */
+.ac__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+/* Agent avatar — circular with color ring */
+.ac__avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid var(--ac-color);
+}
+
+.ac__avatar-letter {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ac-color);
+  letter-spacing: 0.02em;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+/* DEFCON dot — positioned on avatar */
+.ac__defcon {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid rgba(10, 10, 15, 0.9);
+}
+
+.ac__defcon--green {
+  background: #30ff90;
+  box-shadow: 0 0 6px rgba(48, 255, 144, 0.4);
+  animation: ac-breathe-green 3s ease-in-out infinite;
+}
+
+.ac__defcon--amber {
+  background: #ffb030;
+  box-shadow: 0 0 6px rgba(255, 176, 48, 0.4);
+  animation: ac-breathe-amber 2.5s ease-in-out infinite;
+}
+
+.ac__defcon--red {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+  animation: ac-breathe-red 1.5s ease-in-out infinite;
+}
+
+@keyframes ac-breathe-green {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(48, 255, 144, 0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 3px rgba(48, 255, 144, 0.2); }
+}
+@keyframes ac-breathe-amber {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(255, 176, 48, 0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 3px rgba(255, 176, 48, 0.2); }
+}
+@keyframes ac-breathe-red {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(239, 68, 68, 0.5); }
+  50% { opacity: 0.8; box-shadow: 0 0 4px rgba(239, 68, 68, 0.3); }
+}
+
+/* Identity block */
+.ac__identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.ac__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  line-height: 1.2;
+}
+
+.ac__custom-mark {
+  color: var(--ac-color);
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.ac__tagline {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Badges Row ── */
+.ac__badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.ac__badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.ac__badge--role {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.ac__badge--level {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.ac__badge--llm {
+  font-weight: 600;
+  text-transform: none;
+}
+
+/* ── Domains ── */
+.ac__domains {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.ac__domain {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* ── Footer: Visualizer + Voice + Configure ── */
+.ac__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.ac__meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ac__meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.ac__meta-icon {
+  font-size: 12px;
+  opacity: 0.5;
+}
+
+.ac__configure-btn {
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.02em;
+}
+
+.ac__configure-btn:hover {
+  background: var(--ac-color);
+  border-color: var(--ac-color);
+  color: #000;
+}
+
+/* ── Manages info ── */
+.ac__manages {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  margin-bottom: 8px;
+}
+
+/* ── Agent Capabilities Row ── */
+.ac__capabilities {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.ac__cap-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ac__cap-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.ac__cap-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ac-color);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+/* ── Delegation Info ── */
+.ac__delegation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.ac__delegation-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.ac__delegation-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ac-color);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+/* ════════════════════════════════════════════
+   CATEGORY BAR — Agents / Assistants Toggle
+   ════════════════════════════════════════════ */
+
+.category-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.category-toggle {
+  display: flex;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.category-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.category-btn:hover:not(.category-btn--active) {
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.category-btn--active {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.category-count {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.category-btn--active .category-count {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ════════════════════════════════════════════
+   TOOLS & WORKFLOWS TAB
+   ════════════════════════════════════════════ */
+
+.tools-section {
+  margin-bottom: 0;
+}
+
+.section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0 0 4px 0;
+  letter-spacing: -0.01em;
+}
+
+.section-desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  margin: 0 0 12px 0;
+}
+
+.tool-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tool-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 5px;
+  transition: all 0.15s;
+}
+
+.tool-chip:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.tool-chip__icon {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.tool-chip__name {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  text-transform: capitalize;
+}
+
+.tool-chip--workflow {
+  border-color: rgba(56, 189, 248, 0.15);
+  background: rgba(56, 189, 248, 0.04);
+}
+
+.tool-chip--workflow .tool-chip__icon {
+  color: rgba(56, 189, 248, 0.6);
+}
+
+.tool-chip--workflow .tool-chip__name {
+  color: rgba(56, 189, 248, 0.8);
+}
+
+.tool-chip--cap {
+  border-color: rgba(168, 85, 247, 0.15);
+  background: rgba(168, 85, 247, 0.04);
+}
+
+.tool-chip--cap .tool-chip__name {
+  color: rgba(168, 85, 247, 0.8);
+}
+
+.empty-state-small {
+  padding: 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.06);
+}
+
+/* ════════════════════════════════════════════
+   DELEGATION TAB
+   ════════════════════════════════════════════ */
+
+.delegation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.delegation-target {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.delegation-target:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.delegation-target__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.delegation-target__domain {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: capitalize;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}

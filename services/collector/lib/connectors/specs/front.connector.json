@@ -1,0 +1,160 @@
+{
+  "spec_version": 1,
+  "id": "front",
+  "name": "Front",
+  "category": "communication",
+  "credentialType": "front",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://dev.frontapp.com/docs/getting-started",
+  "base_url": "https://api2.frontapp.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/me"
+  },
+  "tools_source": "https://dev.frontapp.com/reference/introduction",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the Front identity the API token belongs to (the company the token authenticates as)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_inboxes",
+      "description": "List the Front inboxes the token can see (id, name, private or public)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/inboxes"
+      },
+      "response": {
+        "pick": {
+          "_results[]": {
+            "id": "id",
+            "name": "name",
+            "is_private": "is_private",
+            "is_public": "is_public"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_conversations",
+      "description": "List recent Front conversations across the inboxes the token can see",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max conversations to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/conversations",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "_results[]": {
+            "id": "id",
+            "subject": "subject",
+            "status": "status",
+            "status_category": "status_category",
+            "created_at": "created_at",
+            "waiting_since": "waiting_since",
+            "is_private": "is_private",
+            "assignee_email": "assignee.email",
+            "recipient_handle": "recipient.handle"
+          },
+          "next_page_token": "_pagination.next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_conversation",
+      "description": "Get one Front conversation by ID (subject, status, assignee, recipient, tags)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "Front conversation ID (e.g. cnv_123)"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/conversations/{{input.conversation_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "subject": "subject",
+          "status": "status",
+          "status_category": "status_category",
+          "created_at": "created_at",
+          "waiting_since": "waiting_since",
+          "is_private": "is_private",
+          "assignee_email": "assignee.email",
+          "recipient_handle": "recipient.handle",
+          "tags[]": {
+            "id": "id",
+            "name": "name"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "auth kept as scaffolded (bearer on api_token): Front documents a static API token sent as Authorization: Bearer, so the scaffolded model is the real one. No correction was needed.",
+      "READ-ONLY by design: no tool is marked write:true. /inboxes, /conversations and /conversations/{id} all accept POST/PATCH/DELETE, which are deliberately not modelled.",
+      "paths, parameters and every picked field name come from Front's OWN OpenAPI document (frontapp/front-api-specs, core-api/core-api.json, servers: https://api2.frontapp.com), NOT from a live 2xx: the shape-proof stops at 401, so no body was ever data. A wrong pick source yields empty output silently, so the first run with a real token must confirm them.",
+      "get_me returns the TOKEN IDENTITY (documented as the company: _links, id, name), not a teammate. It is picked as id and name only; do not expect an email address there.",
+      "list_inboxes and list_conversations answer with a {_results: [...]} envelope, and applyPick names an array output from its KEY, so the output key reads '_results' rather than 'inboxes' or 'conversations'. Functional but ugly (same handling as the monday precedent); a spec v2 'from' on array picks would fix it.",
+      "only limit is exposed on list_conversations (clamped 20/100, the OpenAPI maximum). The documented q search-query object, sort_by, sort_order and page_token are NOT exposed: q takes a structured query object that spec v1 cannot build safely from a string input, and page_token has no second call to spend it on (one request per tool).",
+      "GET /conversations/{id} answers 301 Moved Permanently for a merged conversation, with the new URI in the Location header. The runtime does not follow it, so a merged conversation reads as a redirect rather than as data.",
+      "rateLimit 30/min is a local courtesy and spend guard chosen here. Front rate limits per plan tier (a published per-plan band, not one fixed number), so no documented ceiling was copied.",
+      "shape-proof 2026-09-11 is overall AUTH_WALL, runner line verbatim: 'front  AUTH_WALL  proven=0 authwall=5 ambiguous=0 failed=0 inconclusive=0 skipped=0'. Front answers EVERY path, the deliberately bogus control path included, with the byte-identical 401 {\"_error\":{\"status\":401,\"title\":\"Unauthenticated\",\"message\":\"Invalid token\"}} (control_match: body_sha). Host, TLS, base_url and the bearer header are proven; the five routes are NOT, because the auth wall sits in front of routing and no blind probe can get behind it. The paths rest on Front's own OpenAPI document, not on this run. Same ceiling as the pagerduty and calendly precedents; nothing was altered to chase a better class."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

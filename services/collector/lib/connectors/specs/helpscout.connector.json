@@ -1,0 +1,211 @@
+{
+  "spec_version": 1,
+  "id": "helpscout",
+  "name": "Help Scout",
+  "category": "crm_sales",
+  "credentialType": "helpscout",
+  "requiredFields": [
+    "client_id",
+    "client_secret"
+  ],
+  "docs": "https://developer.helpscout.com/",
+  "base_url": "https://api.helpscout.net",
+  "auth": {
+    "type": "oauth2_client_credentials",
+    "token_url": "https://api.helpscout.net/v2/oauth2/token",
+    "clientIdField": "client_id",
+    "clientSecretField": "client_secret",
+    "client_auth": "form"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/users/me"
+  },
+  "tools_source": "https://developer.helpscout.com/mailbox-api/",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the Help Scout user the credential belongs to (name, email, role, timezone)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/users/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "firstName": "firstName",
+          "lastName": "lastName",
+          "email": "email",
+          "role": "role",
+          "type": "type",
+          "timezone": "timezone",
+          "createdAt": "createdAt"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_mailboxes",
+      "description": "List the Help Scout inboxes (mailboxes) the credential can see",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "description": "Page number to fetch (default 1, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/mailboxes",
+        "query": {
+          "page": "{{clamp input.page 1 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "_embedded.mailboxes[]": {
+            "id": "id",
+            "name": "name",
+            "slug": "slug",
+            "email": "email",
+            "createdAt": "createdAt"
+          },
+          "page_number": "page.number",
+          "total_elements": "page.totalElements",
+          "total_pages": "page.totalPages"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_conversations",
+      "description": "List Help Scout conversations, optionally filtered by status, inbox or search query",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "all",
+              "closed",
+              "open",
+              "pending",
+              "spam"
+            ],
+            "description": "Conversation status filter (Help Scout defaults to active)"
+          },
+          "mailbox": {
+            "type": "string",
+            "description": "Optional inbox id to filter by, or comma-separated ids (e.g. 123,567)"
+          },
+          "query": {
+            "type": "string",
+            "description": "Optional advanced search query, e.g. (subject:\"rainbow\") or (tag:\"vip\")"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to fetch (default 1, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/conversations",
+        "query": {
+          "status": "{{input.status}}",
+          "mailbox": "{{input.mailbox}}",
+          "query": "{{input.query}}",
+          "page": "{{clamp input.page 1 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "_embedded.conversations[]": {
+            "id": "id",
+            "number": "number",
+            "subject": "subject",
+            "status": "status",
+            "preview": "preview",
+            "mailboxId": "mailboxId",
+            "createdAt": "createdAt",
+            "assignee_email": "assignee.email",
+            "customer_email": "primaryCustomer.email"
+          },
+          "page_number": "page.number",
+          "total_elements": "page.totalElements",
+          "total_pages": "page.totalPages"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_conversation",
+      "description": "Get one Help Scout conversation by ID (subject, status, assignee, primary customer)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "Help Scout conversation ID (numeric, e.g. 123)"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/conversations/{{input.conversation_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "number": "number",
+          "subject": "subject",
+          "status": "status",
+          "state": "state",
+          "preview": "preview",
+          "mailboxId": "mailboxId",
+          "folderId": "folderId",
+          "threads": "threads",
+          "createdAt": "createdAt",
+          "closedAt": "closedAt",
+          "assignee_email": "assignee.email",
+          "customer_email": "primaryCustomer.email"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "NO LONGER BLOCKED on auth, and the swap is applied. Help Scout's Inbox (Mailbox) API v2 has NO static API key. https://developer.helpscout.com/mailbox-api/overview/authentication/ documents OAuth2 only, in two flows: authorization_code (issues access_token + refresh_token) and client_credentials (application id + secret, issues an access token and NO refresh token). Both of the two changes this draft said it needed have now landed, so auth.type is 'oauth2_client_credentials' against token_url https://api.helpscout.net/v2/oauth2/token, clientIdField client_id, clientSecretField client_secret, client_auth 'form' (Help Scout's docs put both in the POST body, not in a Basic header). This closes the LIFECYCLE gap that was the real defect: the connector now mints and re-mints its own token rather than depending on an access token pasted into api_key that expires after 172800 seconds with no renewal path.",
+      "UNBLOCKED since this draft was written: Connector Spec v1 now HAS the grant. auth.type 'oauth2_client_credentials' is in specSchema.js AUTH_TYPES, validated with token_url + clientIdField + clientSecretField + optional scope/grant_type/client_auth/extra_form; declarativeRuntime.js getClientCredentialsToken mints the token with grant_type=client_credentials, caches it for expires_in minus a buffer, single-flights concurrent calls and keys the cache per pooled instance so a token never crosses tenants; and the shape-proof harness lists the type in TOKEN_FLOW_AUTH_TYPES, probing the API surface with a dummy bearer. The earlier finding that spec v1 could not express this is now STALE.",
+      "VAULT-SIDE BLOCKER LIFTED by an ADDITIVE change: services/auth/config/integrationTypeRegistry.js 'helpscout' now carries client_id and client_secret alongside api_key, and the generated copies (src/config/integrationTypes.js, services/auth/config/integration-types.export.json) were regenerated by scripts/sync-integration-types.mjs, which a drift test enforces. requiredFields here is now client_id + client_secret, mirroring the vault field keys as the docker_hub draft requires.",
+      "the new client_id and client_secret vault fields are required:false ON PURPOSE, so the addition could not invalidate credentials already stored against this type. The consequence is honest and worth stating: a helpscout credential saved before this change holds only api_key, so this CONNECTOR will throw 'missing credential field client_id' on its first call until the user edits the vault entry. The vault UI will not warn them, because the fields are optional there. Nothing regresses today because this is a draft, but promotion needs that migration story decided.",
+      "the vault TEST path still exercises the LEGACY token field, and deliberately so: testEndpoint/testMethod/testHeaders for this type were left untouched, so the vault's live test still sends 'Authorization: Bearer <api_key>' against /v2/users/me and proves only that a pasted token works. It does NOT exercise the client-credentials exchange this connector now uses, so a green vault test is not evidence this connector can authenticate. api_key therefore stays in the registry (existing stored credentials keep testing green) while it is NO LONGER in this spec's requiredFields. Modernising testHeaders to mint a token the way the connector does is a separate AUTH-SIDE decision, out of scope for this file.",
+      "the wire format of an authenticated call did NOT change in the swap, which is why nothing else in this file moved: Help Scout expects 'Authorization: Bearer <access token>' on every v2 call either way. What changed is WHERE the token comes from (a minted, renewable one rather than a pasted api_key that expires after 172800 seconds, 2 days, documented). base_url, every path, every pick, the clamps and the rateLimit are untouched by the auth change.",
+      "READ-ONLY by design: no tool is marked write:true. The v2 API has create/update/delete endpoints for conversations, threads, customers and tags; none is modelled.",
+      "paths and every picked field name are taken verbatim from the official endpoint pages (users/me, mailboxes/list, conversations/list, conversations/get), NOT from a live 2xx: the shape-proof stops at 401, so no body was ever data. A wrong pick source yields empty output silently, so the first run with a real token must confirm them.",
+      "the API answers application/hal+json, so lists arrive as {_embedded: {mailboxes|conversations: [...]}, page: {...}}. applyPick names an array output from its KEY, so the output keys read '_embedded.mailboxes' and '_embedded.conversations' rather than 'mailboxes' / 'conversations'. Functional but ugly (same handling as the monday precedent).",
+      "GET /v2/conversations has no result-size parameter: pagination is page-only with a server-chosen page size, so page is clamped 1/100 and no limit clamp exists to apply. embed=threads is deliberately not exposed (it returns truncated chat threads by design and inflates the payload).",
+      "GET /v2/conversations/{id} answers 301 Moved Permanently for a merged conversation, with the new URI in the Location header for 60 days and a 404 after that. The runtime does not follow the redirect.",
+      "rateLimit 30/min is a local courtesy and spend guard chosen here; it is not Help Scout's documented ceiling (their rate-limiting page publishes per-plan limits rather than one number).",
+      "shape-proof re-run 2026-09-12 AFTER the auth swap, unchanged from 2026-09-11 and still overall SHAPE_PROVEN, runner line verbatim: 'helpscout  SHAPE_PROVEN  proven=5 authwall=0 ambiguous=0 failed=0 inconclusive=0 skipped=0'. The proof artifact now also carries the harness note 'oauth2_client_credentials auth: probed with a dummy bearer token; the token-acquisition flow is NOT proven by this run.', which is the honest limit of this evidence: the API surface is proven, the token exchange is not, and cannot be blind. All five real paths answer 401 with {\"error_description\":\"The access token is invalid or has expired\",\"error\":\"invalid_token\"} (that key order is what the wire returns), while the bogus control path answers a different 404 {\"message\":\"no route and no API found with those values\"}, so host, TLS, base_url, the bearer header and every route are proven distinct from the control. What the proof does NOT cover: the OAuth2 token acquisition above, which no blind run can exercise, and no response body was ever data."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

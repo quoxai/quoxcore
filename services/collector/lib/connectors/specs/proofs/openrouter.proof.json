@@ -1,0 +1,91 @@
+{
+  "spec_id": "openrouter",
+  "spec_version": 1,
+  "checked_at": "2026-09-16T16:10:26.774Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://openrouter.ai/api/v1/quox-shapeproof-control-7f871cbf",
+      "status": 404,
+      "latency_ms": 1505,
+      "classification": "CONTROL",
+      "body_sha256": "7ce9f0fdd52a7f74fe60d9b31d3c87b6ff9b186ca88bc166e206c69925c267ad",
+      "body_excerpt": "<!DOCTYPE html><html data-dpl-id=\"dpl_5vtXxLY1P6BXifyMmDY5EvN1dR8W\" id=\"__next_error__\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, minimum-scale=1",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://openrouter.ai/api/v1/key",
+      "status": 401,
+      "latency_ms": 224,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a5c01dc568ef16f02c4e04e7a2919ffe2cbd02224b4c2ba8f5d053a5f5c0297d",
+      "body_excerpt": "{\"error\":{\"message\":\"Missing Authentication header\",\"code\":401}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_key",
+      "method": "GET",
+      "url": "https://openrouter.ai/api/v1/key",
+      "status": 401,
+      "latency_ms": 213,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a5c01dc568ef16f02c4e04e7a2919ffe2cbd02224b4c2ba8f5d053a5f5c0297d",
+      "body_excerpt": "{\"error\":{\"message\":\"Missing Authentication header\",\"code\":401}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_models",
+      "method": "GET",
+      "url": "https://openrouter.ai/api/v1/models",
+      "status": 200,
+      "latency_ms": 687,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "42ebb9d4b828cb1223b8660b757eea0bcfd4d2d93d07ddfddd1fc19678778bc7",
+      "body_excerpt": "{\"data\":[{\"id\":\"stealth/union-alpha\",\"canonical_slug\":\"stealth/union-alpha\",\"hugging_face_id\":null,\"name\":\"Union Alpha\",\"created\":1789569723,\"description\":\"Union Alpha is a multimodal model built for ",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "get_credits",
+      "method": "GET",
+      "url": "https://openrouter.ai/api/v1/credits",
+      "status": 401,
+      "latency_ms": 216,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a5c01dc568ef16f02c4e04e7a2919ffe2cbd02224b4c2ba8f5d053a5f5c0297d",
+      "body_excerpt": "{\"error\":{\"message\":\"Missing Authentication header\",\"code\":401}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "chat_completion",
+      "method": "POST",
+      "url": null,
+      "status": null,
+      "latency_ms": null,
+      "classification": "SKIPPED_WRITE",
+      "body_sha256": null,
+      "body_excerpt": null,
+      "flags": {
+        "reason": "writes_not_included"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,119 @@
+{
+  "spec_id": "chroma",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T19:18:19.256Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/heartbeat",
+      "status": 200,
+      "latency_ms": 268,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "23772c9c46ef0174a5ac7335b437a02d956d358e5b6b0224d849b8932c4cc7d2",
+      "body_excerpt": "{\"nanosecond heartbeat\":1789240697032209922}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "heartbeat",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/heartbeat",
+      "status": 200,
+      "latency_ms": 11,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "f6ff8e874c56c28eba1422574e014620b2345a7d51725b23ea5e91f72e3ea08e",
+      "body_excerpt": "{\"nanosecond heartbeat\":1789240697401242050}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "version",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/version",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "5ad96df4a77a2a0ffec422e860ba790f7f814923b9c7ddbe24e7f44083c44bbb",
+      "body_excerpt": "\"0.5.23\"",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "pre_flight_checks",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/pre-flight-checks",
+      "status": 200,
+      "latency_ms": 9,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "820f7af985044d4c4c06ea137f9e4c23a2f2d59e8104156e0869eb931cb70fc4",
+      "body_excerpt": "{\"max_batch_size\":41666}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "identity",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/auth/identity",
+      "status": 200,
+      "latency_ms": 8,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "def76b3e1e8a48b076da2bb8b1198c6eed332ceb7c9fae2bb2a9c615e5457bc7",
+      "body_excerpt": "{\"user_id\":\"\",\"tenant\":\"default_tenant\",\"databases\":[\"default_database\"],\"attributes\":null}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_collections",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/tenants/default_tenant/databases/default_database/collections?limit=20",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "3aedc52e44e2bc0ad91b290004bdfd714bfe25c43b463914bdf433aa607e983b",
+      "body_excerpt": "[{\"id\":\"eb3779ab-76ef-4e79-b828-1e7d08c546f5\",\"name\":\"quoxproof-live\",\"configuration_json\":{\"hnsw_configuration\":{\"space\":\"l2\",\"ef_construction\":100,\"ef_search\":10,\"num_threads\":8,\"M\":16,\"resize_facto",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "count_collections",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/tenants/default_tenant/databases/default_database/collections_count",
+      "status": 200,
+      "latency_ms": 8,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "body_excerpt": "1",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_collection",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/tenants/default_tenant/databases/default_database/collections/quoxproof-live",
+      "status": 200,
+      "latency_ms": 8,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "17cd6ae11d732dafde9e93636efbbe6a412784c08760d53d250196f9115b5134",
+      "body_excerpt": "{\"id\":\"eb3779ab-76ef-4e79-b828-1e7d08c546f5\",\"name\":\"quoxproof-live\",\"configuration_json\":{\"hnsw_configuration\":{\"space\":\"l2\",\"ef_construction\":100,\"ef_search\":10,\"num_threads\":8,\"M\":16,\"resize_factor",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:chromadb/chroma:0.5.23"
+}

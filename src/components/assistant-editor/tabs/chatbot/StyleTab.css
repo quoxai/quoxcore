@@ -1,0 +1,149 @@
+/* StyleTab — QCX-5h */
+
+.style-tab {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) minmax(360px, 480px);
+  gap: 18px;
+  padding: 16px;
+  height: 100%;
+  min-height: 0;
+}
+@media (max-width: 920px) {
+  .style-tab {
+    grid-template-columns: 1fr;
+  }
+}
+
+.style-tab__editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.style-tab__editor h2 {
+  font-size: 16px;
+  margin: 0;
+  font-weight: 600;
+}
+.style-tab__subtitle {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  margin: 0 0 6px 0;
+  line-height: 1.5;
+}
+
+.style-tab__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+.style-tab__field > span {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+}
+.style-tab__field > small {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+}
+.style-tab__field input[type="text"],
+.style-tab__field select,
+.style-tab__field textarea {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.style-tab__field input[type="text"]:focus,
+.style-tab__field select:focus,
+.style-tab__field textarea:focus {
+  border-color: var(--q-cyan, #00e5ff);
+}
+.style-tab__field textarea {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 240px;
+}
+
+.style-tab__color-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.style-tab__color-row input[type="color"] {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.style-tab__color-row input[type="text"] {
+  flex: 1;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+}
+
+.style-tab__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+.style-tab__save {
+  background: var(--q-cyan, #00e5ff);
+  color: #000;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.style-tab__save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.style-tab__saved {
+  color: #86efac;
+  font-size: 12px;
+}
+.style-tab__error {
+  color: #fca5a5;
+  font-size: 12px;
+}
+
+.style-tab__preview {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 480px;
+}
+.style-tab__preview-head {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+.style-tab__iframe {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #0b0f17;
+  min-height: 0;
+}

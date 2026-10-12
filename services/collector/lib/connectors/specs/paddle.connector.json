@@ -1,0 +1,241 @@
+{
+  "spec_version": 1,
+  "id": "paddle",
+  "name": "Paddle",
+  "category": "commerce_finance",
+  "credentialType": "paddle",
+  "requiredFields": [
+    "api_key",
+    "environment"
+  ],
+  "docs": "https://developer.paddle.com/api-reference/",
+  "base_url": "https://api.paddle.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/products"
+  },
+  "tools_source": "https://developer.paddle.com/api-reference/overview",
+  "tools": [
+    {
+      "name": "list_products",
+      "description": "List Paddle catalogue products, optionally filtered by status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max products to return (default 20, max 200)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "description": "Optional product status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/products",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 200}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "type": "type",
+            "tax_category": "tax_category",
+            "status": "status",
+            "created_at": "created_at"
+          },
+          "has_more": "meta.pagination.has_more"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_prices",
+      "description": "List Paddle prices, optionally filtered to one product or by status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max prices to return (default 20, max 200)"
+          },
+          "product_id": {
+            "type": "string",
+            "description": "Optional Paddle product ID to filter by (e.g. pro_123)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "description": "Optional price status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/prices",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 200}}",
+          "product_id": "{{input.product_id}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "product_id": "product_id",
+            "name": "name",
+            "description": "description",
+            "type": "type",
+            "status": "status",
+            "amount": "unit_price.amount",
+            "currency_code": "unit_price.currency_code",
+            "billing_interval": "billing_cycle.interval",
+            "billing_frequency": "billing_cycle.frequency"
+          },
+          "has_more": "meta.pagination.has_more"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_transactions",
+      "description": "List Paddle transactions, optionally filtered by customer or status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max transactions to return (default 20, max 200)"
+          },
+          "customer_id": {
+            "type": "string",
+            "description": "Optional Paddle customer ID to filter by (e.g. ctm_123)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "ready",
+              "billed",
+              "paid",
+              "completed",
+              "canceled",
+              "past_due"
+            ],
+            "description": "Optional transaction status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/transactions",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 200}}",
+          "customer_id": "{{input.customer_id}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "status": "status",
+            "customer_id": "customer_id",
+            "subscription_id": "subscription_id",
+            "invoice_number": "invoice_number",
+            "currency_code": "currency_code",
+            "origin": "origin",
+            "billed_at": "billed_at",
+            "created_at": "created_at",
+            "grand_total": "details.totals.grand_total"
+          },
+          "has_more": "meta.pagination.has_more"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_customers",
+      "description": "List Paddle customers, optionally filtered by exact email address or status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max customers to return (default 20, max 200)"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional exact email address to filter by"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "description": "Optional customer status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/customers",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 200}}",
+          "email": "{{input.email}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "email": "email",
+            "status": "status",
+            "locale": "locale",
+            "created_at": "created_at"
+          },
+          "has_more": "meta.pagination.has_more"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "sandbox_host_not_switchable: the environment credential field is collected by the vault but this spec pins the LIVE host https://api.paddle.com. Paddle's sandbox is a different host (https://sandbox-api.paddle.com) with its own API keys, and spec v1 base_url has no conditional form (only a literal, {fromCredential} or a {template} over credential values), so an environment='sandbox' credential would still be sent to production. A sandbox user needs either a separate spec or a base_url mapping helper in spec v2.",
+      "read_only_surface: all four tools are GET. Paddle's write surface (create/update product, price, customer, transaction, subscription operations) is deliberately excluded from this wave, so no tool carries write:true.",
+      "per_page clamp max 200 follows Paddle's documented maximum page size; the default of 20 is a local choice to keep tool responses small, not Paddle's own default.",
+      "rateLimit 30/min is a local courtesy and spend guard chosen here. Paddle publishes its own per-endpoint ceilings via the Rate-Limit response headers, which this spec does not read.",
+      "pick sources follow the documented data[] plus meta.pagination envelope from the Paddle API reference, not a live 2xx: no account was held, so the proof below covers wiring only, never payload shape."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

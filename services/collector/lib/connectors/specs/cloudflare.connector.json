@@ -1,0 +1,194 @@
+{
+  "spec_version": 1,
+  "id": "cloudflare",
+  "name": "Cloudflare",
+  "category": "cloud_hosting",
+  "credentialType": "cloudflare",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://developers.cloudflare.com/api/",
+  "base_url": "https://api.cloudflare.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/client/v4/user/tokens/verify"
+  },
+  "tools_source": "https://developers.cloudflare.com/api/",
+  "tools": [
+    {
+      "name": "verify_token",
+      "description": "Verify the Cloudflare API token and report its status",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/client/v4/user/tokens/verify"
+      },
+      "response": {
+        "pick": {
+          "id": "result.id",
+          "status": "result.status"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_zones",
+      "description": "List Cloudflare zones (domains), optionally filtered by exact zone name",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Exact zone name to filter by, e.g. example.com"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Zones per page (max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/client/v4/zones",
+        "query": {
+          "name": "{{input.name}}",
+          "per_page": "{{clamp input.per_page 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "paused": "paused"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_zone",
+      "description": "Get a single Cloudflare zone by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "zone_id": {
+            "type": "string",
+            "description": "Cloudflare zone ID"
+          }
+        },
+        "required": [
+          "zone_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/client/v4/zones/{{input.zone_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "result.id",
+          "name": "result.name",
+          "status": "result.status",
+          "paused": "result.paused"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_dns_records",
+      "description": "List DNS records for a Cloudflare zone, optionally filtered by record type",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "zone_id": {
+            "type": "string",
+            "description": "Cloudflare zone ID"
+          },
+          "type": {
+            "type": "string",
+            "description": "DNS record type filter, e.g. A, AAAA, CNAME, TXT, MX"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Records per page (max 50)"
+          }
+        },
+        "required": [
+          "zone_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/client/v4/zones/{{input.zone_id}}/dns_records",
+        "query": {
+          "type": "{{input.type}}",
+          "per_page": "{{clamp input.per_page 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "type": "type",
+            "name": "name",
+            "content": "content",
+            "ttl": "ttl"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_accounts",
+      "description": "List Cloudflare accounts the API token can access",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Accounts per page (max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/client/v4/accounts",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T20:46:44.333Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Shape-proof 2026-09-11 is overall FAIL: 4 AMBIGUOUS, 2 FAIL, 0 AUTH_WALL. Cloudflare answers an invalid Authorization header with HTTP 400 (code 6003 / 6111), not 401, so no probe can reach AUTH_WALL or SHAPE_PROVEN with a dummy credential. The 400 bodies are structured Cloudflare API errors at every path, which is evidence of host, TLS, base_url and route, but the harness cannot class it as proof.",
+      "get_zone and list_dns_records class FAIL on a 404 with code 7003 ('Could not route to ..., perhaps your object identifier is invalid?'). The harness substitutes the literal string 'quoxprobe' for zone_id, and Cloudflare requires a 32-hex object identifier. The control probe returns a DIFFERENT 404 (code 10404, 'No route for that URI'), so the two are distinguishable, but only a real zone ID can settle it. Paths are verbatim from https://developers.cloudflare.com/api/ and were NOT altered to chase a class.",
+      "rateLimit is not declared (schema warning). Cloudflare's documented global limit is 1200 requests per five minutes per user; a band was not invented here."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

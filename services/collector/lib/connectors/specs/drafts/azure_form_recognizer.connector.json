@@ -1,0 +1,34 @@
+{
+  "spec_version": 1,
+  "id": "azure_form_recognizer",
+  "name": "Azure Document Intelligence",
+  "category": "forms",
+  "credentialType": "azure_form_recognizer",
+  "requiredFields": [
+    "endpoint",
+    "api_key"
+  ],
+  "docs": "https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/",
+  "base_url": {
+    "fromCredential": "endpoint"
+  },
+  "auth": {
+    "type": "header",
+    "header": "Ocp-Apim-Subscription-Key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/documentintelligence/documentModels",
+    "query": {
+      "api-version": "2024-11-30"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

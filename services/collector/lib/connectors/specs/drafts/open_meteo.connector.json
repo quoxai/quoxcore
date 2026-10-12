@@ -1,0 +1,29 @@
+{
+  "spec_version": 1,
+  "id": "open_meteo",
+  "name": "Open-Meteo",
+  "category": "uncategorized",
+  "credentialType": "open_meteo",
+  "requiredFields": [],
+  "docs": "https://open-meteo.com/en/docs",
+  "base_url": "https://api.open-meteo.com",
+  "auth": null,
+  "test": {
+    "method": "GET",
+    "path": "/v1/forecast",
+    "query": {
+      "latitude": "51.5",
+      "longitude": "-0.1",
+      "current_weather": "true"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "no_auth_detected"
+    ]
+  }
+}

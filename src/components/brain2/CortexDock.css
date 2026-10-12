@@ -1,0 +1,337 @@
+/**
+ * CortexDock styles - brain-scoped chat dock ("Cortex") on the Brain2 page.
+ * Layout only; colors follow the app's existing --m-* / glass tokens so the
+ * dock matches the surrounding chat surfaces without introducing new ones.
+ */
+
+.cortex-dock {
+  --cortex-accent: var(--m-accent, #00d4ff);
+  --cortex-bg: var(--m-bg-elevated, rgba(20, 20, 34, 0.85));
+  --cortex-border: var(--m-border-default, rgba(255, 255, 255, 0.12));
+  --cortex-text: var(--m-text-primary, #e6e6f0);
+  --cortex-muted: var(--m-text-tertiary, #8b8ba7);
+
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--cortex-bg);
+  color: var(--cortex-text);
+  border: 1px solid var(--cortex-border);
+  border-radius: 16px;
+  overflow: hidden;
+  backdrop-filter: var(--glass-blur, blur(24px) saturate(1.4));
+}
+
+.cortex-dock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--cortex-border);
+  flex: 0 0 auto;
+}
+
+.cortex-dock-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--cortex-text);
+}
+
+.cortex-dock-title svg {
+  color: var(--cortex-accent);
+}
+
+.cortex-dock-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--cortex-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cortex-dock-close:hover {
+  color: var(--cortex-text);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--cortex-border);
+}
+
+.cortex-dock-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+}
+
+.cortex-dock-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  color: var(--cortex-muted);
+  text-align: center;
+  padding: 24px;
+}
+
+.cortex-dock-empty svg {
+  opacity: 0.5;
+  width: 32px;
+  height: 32px;
+}
+
+.cortex-msg {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.cortex-msg--user {
+  flex-direction: row-reverse;
+}
+
+.cortex-msg-avatar {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--cortex-accent);
+}
+
+.cortex-msg-body {
+  min-width: 0;
+  max-width: 84%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cortex-msg--user .cortex-msg-body {
+  align-items: flex-end;
+}
+
+.cortex-msg-text {
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--cortex-border);
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.cortex-msg--user .cortex-msg-text {
+  background: rgba(0, 212, 255, 0.12);
+  border-color: rgba(0, 212, 255, 0.25);
+}
+
+.cortex-msg-text--markdown p {
+  margin: 0 0 8px 0;
+}
+
+.cortex-msg-text--markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.cortex-msg-text--markdown code {
+  background: rgba(0, 0, 0, 0.35);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.cortex-typing {
+  display: flex;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.cortex-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cortex-muted);
+  animation: cortex-typing-bounce 1.2s infinite ease-in-out;
+}
+
+.cortex-typing span:nth-child(2) { animation-delay: 0.15s; }
+.cortex-typing span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes cortex-typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* Cited notes row */
+.cortex-cite-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--cortex-muted);
+}
+
+.cortex-cite-row--muted {
+  font-style: italic;
+}
+
+.cortex-cite-row--warn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  color: #f59e0b;
+}
+
+.cortex-cite-grounded {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--cortex-accent);
+  font-weight: 600;
+}
+
+.cortex-cite-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cortex-cite-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--cortex-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--cortex-text);
+  font-size: 11px;
+  cursor: pointer;
+  max-width: 220px;
+  transition: all 0.15s ease;
+}
+
+.cortex-cite-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cortex-cite-chip:hover {
+  background: rgba(0, 212, 255, 0.15);
+  border-color: rgba(0, 212, 255, 0.35);
+}
+
+.cortex-dock-error {
+  margin: 0 14px 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+
+.cortex-dock-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--cortex-border);
+  flex: 0 0 auto;
+}
+
+.cortex-dock-input {
+  flex: 1;
+  min-height: 36px;
+  max-height: 120px;
+  resize: vertical;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--cortex-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--cortex-text);
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.cortex-dock-input:focus {
+  outline: none;
+  border-color: var(--cortex-accent);
+}
+
+.cortex-dock-send {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--cortex-border);
+  background: var(--cortex-accent);
+  color: #0a0a14;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cortex-dock-send:disabled {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--cortex-muted);
+  cursor: not-allowed;
+}
+
+.cortex-dock-send:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+.cortex-cite-row--ungrounded {
+  font-style: italic;
+}
+
+.cortex-cite-ungrounded {
+  color: var(--cortex-muted, rgba(255, 255, 255, 0.55));
+  border: 1px dashed currentColor;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 0.85em;
+}
+
+.cortex-inline-cite {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 1px;
+  padding: 0 5px;
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--cortex-accent);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+}
+
+/* BRAIN2-W2 2: cited but not lexically supported by the passage */
+.cortex-cite-chip--unsupported { opacity: 0.6; border-style: dashed; }

@@ -1,0 +1,98 @@
+/**
+ * IconButton Styles
+ *
+ * Guaranteed icon visibility with explicit dimensions.
+ */
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--m-text-secondary, rgba(255, 255, 255, 0.72));
+  border-radius: var(--m-radius-md, 6px);
+  flex-shrink: 0;
+}
+
+.icon-button:hover:not(:disabled) {
+  color: var(--m-text-primary, #fff);
+  background: var(--m-bg-elevated, rgba(255, 255, 255, 0.08));
+}
+
+.icon-button:active:not(:disabled) {
+  background: var(--m-bg-float, rgba(255, 255, 255, 0.12));
+}
+
+.icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.icon-button:focus-visible {
+  outline: 2px solid var(--m-hal-red, #38bdf8);
+  outline-offset: 2px;
+}
+
+/* Sizes */
+.icon-button--sm {
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+}
+
+.icon-button--md {
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+}
+
+.icon-button--lg {
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+}
+
+/* Variants */
+.icon-button--ghost {
+  background: transparent;
+}
+
+.icon-button--outline {
+  border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.1));
+  background: var(--m-bg-base, rgba(255, 255, 255, 0.04));
+}
+
+.icon-button--outline:hover:not(:disabled) {
+  border-color: var(--m-hal-red, #38bdf8);
+  background: var(--m-bg-elevated, rgba(255, 255, 255, 0.05));
+}
+
+.icon-button--solid {
+  background: var(--m-bg-elevated, rgba(255, 255, 255, 0.05));
+}
+
+.icon-button--solid:hover:not(:disabled) {
+  background: var(--m-bg-float, #1f1f24);
+}
+
+/* Ensure SVG icons are always visible */
+.icon-button svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Size-specific SVG dimensions */
+.icon-button--sm svg {
+  width: 14px;
+  height: 14px;
+}
+
+.icon-button--lg svg {
+  width: 20px;
+  height: 20px;
+}

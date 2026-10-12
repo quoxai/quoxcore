@@ -1,0 +1,258 @@
+/* Category Landing Page — Glass Design System */
+
+.cat-landing {
+    padding: 20px;
+}
+
+/* Header — big icon + title + intro */
+.cat-landing__header {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 28px;
+    align-items: flex-start;
+}
+
+.cat-landing__header-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: linear-gradient(145deg, rgba(168, 85, 247, 0.08) 0%, rgba(56, 189, 248, 0.04) 100%);
+    border-top: 1px solid rgba(168, 85, 247, 0.3);
+    border-left: 1px solid rgba(56, 189, 248, 0.2);
+    border-right: 1px solid transparent;
+    border-bottom: 1px solid transparent;
+    box-shadow: 0 5px 19px rgba(0, 0, 0, 0.35), inset 0 1px 2px rgba(168, 85, 247, 0.1);
+    color: #a855f7;
+    position: relative;
+    overflow: hidden;
+}
+
+.cat-landing__header-icon::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(105deg, rgba(255, 255, 255, 0.05) 0%, transparent 35%, transparent 65%, rgba(255, 255, 255, 0.01) 100%);
+}
+
+.cat-landing__header-text {
+    min-width: 0;
+}
+
+.cat-landing__title {
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+}
+
+.cat-landing__subtitle {
+    font-size: 14px;
+    font-weight: 600;
+    color: #a855f7;
+    margin: 0 0 12px;
+    letter-spacing: 0.02em;
+}
+
+.cat-landing__intro {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+    line-height: 1.6;
+    max-width: 700px;
+}
+
+.cat-landing__count {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.8);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+/* Card grid */
+.cat-landing__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+}
+
+/* Glass card */
+.cat-card {
+    position: relative;
+    overflow: hidden;
+    padding: 20px;
+    border-radius: 14px;
+    background: var(--shell-sidebar-bg, rgba(255, 255, 255, 0.04));
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+    box-shadow: 0 5px 19px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cat-card:hover {
+    background: linear-gradient(145deg, rgba(168, 85, 247, 0.06) 0%, rgba(56, 189, 248, 0.03) 100%);
+    border-top-color: rgba(168, 85, 247, 0.4);
+    border-left-color: rgba(56, 189, 248, 0.25);
+    transform: translateY(-2px) scale(1.008);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 40px rgba(168, 85, 247, 0.06), inset 0 1px 3px rgba(255, 255, 255, 0.08);
+}
+
+.cat-card:active {
+    transform: translateY(1px) scale(0.995);
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3), inset 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Shimmer layer */
+.cat-card__shimmer {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(105deg, rgba(255, 255, 255, 0.04) 0%, transparent 35%, transparent 65%, rgba(255, 255, 255, 0.008) 100%);
+}
+
+.cat-card__top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 1;
+}
+
+.cat-card__icon-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.7);
+    transition: all 0.2s ease;
+}
+
+.cat-card__icon {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cat-card__icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.cat-card:hover .cat-card__icon-wrap {
+    color: #a855f7;
+    border-color: rgba(168, 85, 247, 0.25);
+    background: rgba(168, 85, 247, 0.06);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.1);
+}
+
+.cat-card__pin {
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: rgba(255, 255, 255, 0.15);
+    cursor: pointer;
+    padding: 4px;
+    transition: all 0.15s ease;
+    position: relative;
+    z-index: 2;
+}
+
+.cat-card__pin:hover {
+    color: rgba(245, 158, 11, 0.6);
+    transform: scale(1.15);
+}
+
+.cat-card__pin--active {
+    color: #f59e0b;
+}
+
+.cat-card__body {
+    position: relative;
+    z-index: 1;
+}
+
+.cat-card__label-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.cat-card__label {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.cat-card__badge {
+    padding: 2px 7px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 5px;
+    flex-shrink: 0;
+}
+
+.cat-card__badge--new {
+    background: rgba(52, 211, 153, 0.15);
+    color: #34d399;
+}
+
+.cat-card__badge--beta {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+}
+
+.cat-card__badge--premium {
+    background: rgba(168, 85, 247, 0.15);
+    color: #a855f7;
+}
+
+.cat-card__desc {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0;
+    line-height: 1.5;
+}
+
+.cat-landing__empty {
+    padding: 60px 24px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .cat-landing {
+        padding: 20px;
+    }
+    .cat-landing__header {
+        flex-direction: column;
+        gap: 16px;
+    }
+    .cat-landing__grid {
+        grid-template-columns: 1fr;
+    }
+}

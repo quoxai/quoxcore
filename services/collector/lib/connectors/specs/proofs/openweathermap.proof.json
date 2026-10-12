@@ -1,0 +1,77 @@
+{
+  "spec_id": "openweathermap",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:59.097Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.openweathermap.org/quox-shapeproof-control-06bfcd3d?appid=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 404,
+      "latency_ms": 1132,
+      "classification": "CONTROL",
+      "body_sha256": "ee1a27178227546d3dcc49e611a6d72e4f1c30080ee4493ae4085b58a49e28e6",
+      "body_excerpt": "<html>\r\n<head><title>404 Not Found</title></head>\r\n<body>\r\n<center><h1>404 Not Found</h1></center>\r\n<hr><center>openresty</center>\r\n</body>\r\n</html>\r\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.openweathermap.org/data/2.5/weather?q=London&appid=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 401,
+      "latency_ms": 213,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "edf1748d755101b0c38b24b5132495051a6565bea04d48350cdb06100fd68fd0",
+      "body_excerpt": "{\"cod\":401, \"message\": \"Invalid API key. Please see https://openweathermap.org/faq#error401 for more info.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "current_weather",
+      "method": "GET",
+      "url": "https://api.openweathermap.org/data/2.5/weather?q=quoxprobe&units=quoxprobe&appid=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 401,
+      "latency_ms": 175,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "edf1748d755101b0c38b24b5132495051a6565bea04d48350cdb06100fd68fd0",
+      "body_excerpt": "{\"cod\":401, \"message\": \"Invalid API key. Please see https://openweathermap.org/faq#error401 for more info.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "forecast",
+      "method": "GET",
+      "url": "https://api.openweathermap.org/data/2.5/forecast?q=quoxprobe&cnt=8&units=quoxprobe&appid=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 401,
+      "latency_ms": 163,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "edf1748d755101b0c38b24b5132495051a6565bea04d48350cdb06100fd68fd0",
+      "body_excerpt": "{\"cod\":401, \"message\": \"Invalid API key. Please see https://openweathermap.org/faq#error401 for more info.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "geocode",
+      "method": "GET",
+      "url": "https://api.openweathermap.org/geo/1.0/direct?q=quoxprobe&limit=5&appid=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 401,
+      "latency_ms": 173,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "edf1748d755101b0c38b24b5132495051a6565bea04d48350cdb06100fd68fd0",
+      "body_excerpt": "{\"cod\":401, \"message\": \"Invalid API key. Please see https://openweathermap.org/faq#error401 for more info.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

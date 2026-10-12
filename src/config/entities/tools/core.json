@@ -1,0 +1,91 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "core",
+
+  "name": "Core Tools",
+  "description": "Quox core system tools for health monitoring and orchestration",
+  "category": "system",
+  "subcategory": "core",
+  "provider": "quox",
+  "version": "1.0.0",
+
+  "risk_level": "low",
+  "sandbox_profile": "standard",
+  "requires_license": null,
+
+  "tools": [
+    {
+      "id": "core.health",
+      "name": "System Health",
+      "description": "Aggregate health check for all core Quox services",
+      "accessLevel": "all",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {},
+      "returns": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "degraded", "critical"]
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "number" },
+              "healthy": { "type": "number" },
+              "degraded": { "type": "number" },
+              "down": { "type": "number" }
+            }
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "status": { "type": "string" },
+                "error": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Check the health of all core Quox services",
+        "when_to_use": [
+          "User asks about system health",
+          "User wants to know if services are running",
+          "User asks 'is everything working?'",
+          "Starting a troubleshooting session"
+        ],
+        "when_not_to_use": [
+          "User wants detailed metrics (use metrics tools)",
+          "User wants logs (use logging tools)"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {
+    "base": "internal",
+    "api": "core_health"
+  },
+
+  "agent_hints": {
+    "primary_agent": "quox",
+    "delegation_keywords": ["health", "status", "working", "services", "system health"]
+  },
+
+  "help": {
+    "examples": [
+      "Check system health",
+      "Is everything running?",
+      "Service status",
+      "Are all services healthy?"
+    ],
+    "man_url": null
+  }
+}

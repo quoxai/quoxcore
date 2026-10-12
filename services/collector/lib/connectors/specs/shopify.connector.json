@@ -1,0 +1,205 @@
+{
+  "spec_version": 1,
+  "id": "shopify",
+  "name": "Shopify",
+  "category": "commerce_finance",
+  "credentialType": "shopify",
+  "requiredFields": [
+    "access_token",
+    "shop_domain"
+  ],
+  "description": "Read-only Shopify Admin REST access on one store: shop profile, products, orders and customers",
+  "docs": "https://shopify.dev/docs/api/admin-rest",
+  "base_url": {
+    "template": "https://{{shop_domain}}",
+    "_probe": {
+      "shop_domain": "security-incidents-dont-delete-me.myshopify.com"
+    }
+  },
+  "auth": {
+    "type": "header",
+    "header": "X-Shopify-Access-Token",
+    "template": "{{access_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/admin/api/2025-01/shop.json"
+  },
+  "tools_source": "https://shopify.dev/docs/api/admin-rest/2025-01",
+  "tools": [
+    {
+      "name": "get_shop",
+      "description": "Get the connected Shopify store's own profile (name, primary domain, plan, currency, timezone)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/admin/api/2025-01/shop.json"
+      },
+      "response": {
+        "pick": {
+          "id": "shop.id",
+          "name": "shop.name",
+          "email": "shop.email",
+          "domain": "shop.domain",
+          "myshopify_domain": "shop.myshopify_domain",
+          "plan_name": "shop.plan_name",
+          "currency": "shop.currency",
+          "country_code": "shop.country_code",
+          "timezone": "shop.timezone",
+          "created_at": "shop.created_at"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_products",
+      "description": "List Shopify products, optionally filtered by publication status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max products to return (default 20, max 250)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived",
+              "draft"
+            ],
+            "description": "Optional product status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/admin/api/2025-01/products.json",
+        "query": {
+          "limit": "{{clamp input.limit 20 250}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "products[]": {
+            "id": "id",
+            "title": "title",
+            "handle": "handle",
+            "status": "status",
+            "vendor": "vendor",
+            "product_type": "product_type",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_orders",
+      "description": "List Shopify orders of any status (open, closed and cancelled), most recent first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max orders to return (default 20, max 250)"
+          },
+          "financial_status": {
+            "type": "string",
+            "enum": [
+              "authorized",
+              "pending",
+              "paid",
+              "partially_paid",
+              "refunded",
+              "voided",
+              "partially_refunded",
+              "unpaid"
+            ],
+            "description": "Optional payment status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/admin/api/2025-01/orders.json",
+        "query": {
+          "limit": "{{clamp input.limit 20 250}}",
+          "status": "any",
+          "financial_status": "{{input.financial_status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "orders[]": {
+            "id": "id",
+            "name": "name",
+            "email": "email",
+            "financial_status": "financial_status",
+            "fulfillment_status": "fulfillment_status",
+            "total_price": "total_price",
+            "currency": "currency",
+            "created_at": "created_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_customers",
+      "description": "List Shopify customers, most recently created first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max customers to return (default 20, max 250)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/admin/api/2025-01/customers.json",
+        "query": {
+          "limit": "{{clamp input.limit 20 250}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "customers[]": {
+            "id": "id",
+            "email": "email",
+            "first_name": "first_name",
+            "last_name": "last_name",
+            "state": "state",
+            "verified_email": "verified_email",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "medium",
+    "needs_review": [
+      "base_url is \"https://{{shop_domain}}\", NOT \"https://{{shop_domain}}.myshopify.com\". The brief asked for the suffixed form, but the vault credential field is a FULL hostname: the registry entry (services/auth/config/integrationTypeRegistry.js, key 'shopify') labels shop_domain with placeholder 'your-store.myshopify.com' and its live-tested testEndpoint is `https://${creds.shop_domain}/admin/api/...`. Appending .myshopify.com in the template would render 'your-store.myshopify.com.myshopify.com' for every credential already stored, breaking every call. If the field is ever redefined as a bare slug, the template must change with it, in the same commit as the registry.",
+      "base_url._probe substitutes shop_domain = 'security-incidents-dont-delete-me.myshopify.com' so the blind harness has a store that exists. Chosen because it is Shopify's OWN parked instance, not a merchant's: demo.myshopify.com answers 301 with location https://security-incidents-dont-delete-me.myshopify.com/. Verified by curl 2026-09-12: a non-existent store (quickstart-1a2b3c4d.myshopify.com) answers 404 {\"errors\":\"Not Found\"} because *.myshopify.com is wildcard DNS, while this host answers 401 {\"errors\":\"[API] Invalid API key or access token ...\"}. Read-only, dummy credential, and the runtime ignores _probe.",
+      "API version pinned to 2025-01, not the 2024-10 the brief named: 2025-01 is the version the live-tested registry entry uses, so it is the only Shopify version anything in this repo has exercised. UNVERIFIED which versions Shopify currently supports; 2024-10, 2025-01, 2025-10 and 2026-07 all answered byte-identical 401s at the auth wall on 2026-09-12, so the blind shape-proof CANNOT distinguish a supported pin from an unsupported one. A version pin needs an owner refresh policy; the proof below does not cover it.",
+      "Category set to 'commerce_finance' to match the shipped taxonomy (stripe, square, paddle); the scaffolded 'ecommerce' is not a bucket any shipped spec uses.",
+      "Payload field names come from the Admin REST documentation (tools_source), not from a live 2xx: no Shopify store was held for this draft. list_customers deliberately does not pick orders_count or total_spent, whose availability varies across Admin API versions."
+    ]
+  }
+}

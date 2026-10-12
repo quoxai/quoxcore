@@ -1,0 +1,16 @@
+-- QUOXCHAT-PRO — visitor name collected before human handoff.
+--
+-- widget_conversations.visitor_name stores the name the visitor gives the
+-- widget's pre-handoff form (or a data-user-name / QuoxChat.identify()
+-- host-page hint). It feeds the handoff HITL inbox title ("Sarah asked for
+-- a human"), the Matrix room label ("QuoxChat · Sarah"), the visitor puppet
+-- displayname ("Sarah (website)"), org alert payloads, and the LogsTab
+-- conversation list.
+--
+-- The column (and its visitor_email sibling) already ships in
+-- 000-baseline.sql, so on every DB created from the baseline this ALTER
+-- throws "duplicate column name" and the runner records it as a tolerated
+-- no-op (see lib/runMigrations.js, TOLERATED_ERROR). It exists as a real
+-- migration so any pre-baseline database picks the column up, and so the
+-- append-only migration history documents when the write path went live.
+ALTER TABLE widget_conversations ADD COLUMN visitor_name TEXT;

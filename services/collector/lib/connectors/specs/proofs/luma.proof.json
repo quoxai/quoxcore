@@ -1,0 +1,90 @@
+{
+  "spec_id": "luma",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T04:00:25.762Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.lumalabs.ai/quox-shapeproof-control-53009c20",
+      "status": 404,
+      "latency_ms": 2026,
+      "classification": "CONTROL",
+      "body_sha256": "37ec4665a8102d115ffd1ac20dae94c98b4dac64b0c1a68228aa2a531caeb35d",
+      "body_excerpt": "{\"detail\":\"Not Found\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.lumalabs.ai/dream-machine/v1/generations?limit=1",
+      "status": 403,
+      "latency_ms": 340,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "cfec9feffbcc0dabaa0f92491e3609eeb1e9bc8d17625cd7f043be03b609c812",
+      "body_excerpt": "{\"detail\":\"Not authenticated\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_generations",
+      "method": "GET",
+      "url": "https://api.lumalabs.ai/dream-machine/v1/generations?limit=20&offset=1",
+      "status": 403,
+      "latency_ms": 233,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "cfec9feffbcc0dabaa0f92491e3609eeb1e9bc8d17625cd7f043be03b609c812",
+      "body_excerpt": "{\"detail\":\"Not authenticated\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_generation",
+      "method": "GET",
+      "url": "https://api.lumalabs.ai/dream-machine/v1/generations/00000000-0000-0000-0000-000000000000",
+      "status": 403,
+      "latency_ms": 240,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "cfec9feffbcc0dabaa0f92491e3609eeb1e9bc8d17625cd7f043be03b609c812",
+      "body_excerpt": "{\"detail\":\"Not authenticated\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_credits",
+      "method": "GET",
+      "url": "https://api.lumalabs.ai/dream-machine/v1/credits",
+      "status": 403,
+      "latency_ms": 240,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "cfec9feffbcc0dabaa0f92491e3609eeb1e9bc8d17625cd7f043be03b609c812",
+      "body_excerpt": "{\"detail\":\"Not authenticated\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_camera_concepts",
+      "method": "GET",
+      "url": "https://api.lumalabs.ai/dream-machine/v1/generations/concepts/list",
+      "status": 403,
+      "latency_ms": 160,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "cfec9feffbcc0dabaa0f92491e3609eeb1e9bc8d17625cd7f043be03b609c812",
+      "body_excerpt": "{\"detail\":\"Not authenticated\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

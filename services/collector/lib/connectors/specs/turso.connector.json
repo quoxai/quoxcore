@@ -1,0 +1,184 @@
+{
+  "spec_version": 1,
+  "id": "turso",
+  "name": "Turso",
+  "category": "data_ai",
+  "credentialType": "turso",
+  "requiredFields": [
+    "api_token"
+  ],
+  "description": "Read-only Turso Platform API access: the organizations a platform API token can see, plus the databases, one database's detail and the groups inside one organization. Create, delete, transfer and token-rotation routes are deliberately not exposed.",
+  "docs": "https://docs.turso.tech/api-reference/",
+  "base_url": "https://api.turso.tech",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/organizations"
+  },
+  "tools_source": "https://turso.tech/openapi.json",
+  "tools": [
+    {
+      "name": "list_organizations",
+      "description": "List the Turso organizations this API token can see (slug, account type, plan and blocked-read/write status). Run this first: every other Turso tool needs an organization slug",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/organizations"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name",
+            "slug": "slug",
+            "type": "type",
+            "plan_id": "plan_id",
+            "plan_timeline": "plan_timeline",
+            "blocked_reads": "blocked_reads",
+            "blocked_writes": "blocked_writes",
+            "platform": "platform"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_databases",
+      "description": "List the databases in one Turso organization (name, UUID, libSQL hostname, group, primary region, blocked-read/write and delete-protection status), optionally filtered to one group",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_slug": {
+            "type": "string",
+            "description": "Organization slug from list_organizations (for a personal account this is your username)"
+          },
+          "group": {
+            "type": "string",
+            "description": "Optional group name to filter the databases by (e.g. default)"
+          }
+        },
+        "required": [
+          "org_slug"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/organizations/{{input.org_slug}}/databases",
+        "query": {
+          "group": "{{input.group}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "databases[]": {
+            "Name": "Name",
+            "DbId": "DbId",
+            "Hostname": "Hostname",
+            "group": "group",
+            "primaryRegion": "primaryRegion",
+            "regions": "regions",
+            "block_reads": "block_reads",
+            "block_writes": "block_writes",
+            "delete_protection": "delete_protection"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_database",
+      "description": "Get one Turso database by name (UUID, libSQL hostname, group, primary and replica regions, blocked-read/write and delete-protection status)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_slug": {
+            "type": "string",
+            "description": "Organization slug from list_organizations (for a personal account this is your username)"
+          },
+          "database_name": {
+            "type": "string",
+            "description": "Database name, unique across the organization (from list_databases)"
+          }
+        },
+        "required": [
+          "org_slug",
+          "database_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/organizations/{{input.org_slug}}/databases/{{input.database_name}}"
+      },
+      "response": {
+        "pick": {
+          "Name": "database.Name",
+          "DbId": "database.DbId",
+          "Hostname": "database.Hostname",
+          "group": "database.group",
+          "primaryRegion": "database.primaryRegion",
+          "regions": "database.regions",
+          "block_reads": "database.block_reads",
+          "block_writes": "database.block_writes",
+          "delete_protection": "database.delete_protection"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_groups",
+      "description": "List the database groups in one Turso organization (name, UUID, primary location, replica locations, libSQL server version, delete-protection status)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_slug": {
+            "type": "string",
+            "description": "Organization slug from list_organizations (for a personal account this is your username)"
+          }
+        },
+        "required": [
+          "org_slug"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/organizations/{{input.org_slug}}/groups"
+      },
+      "response": {
+        "pick": {
+          "groups[]": {
+            "name": "name",
+            "uuid": "uuid",
+            "primary": "primary",
+            "locations": "locations",
+            "version": "version",
+            "delete_protection": "delete_protection"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED AND CONFIRMED LIVE: bearer on api_token matches integrationTypeRegistry.js key turso, whose testHeaders is `'Authorization': `Bearer ${creds.api_token}`` against testEndpoint https://api.turso.tech/v1/organizations. Verified against the live host 2026-09-12: a dummy bearer draws 401 {\"error\":\"token contains an invalid number of segments\"} on /v1/organizations and on all three organization-scoped paths, while a deliberately bogus path answers 404 {\"code\":\"route_not_found\",\"error\":\"no such route\",\"hint\":\"see https://docs.turso.tech/api-reference or https://turso.tech/openapi.json for available endpoints\"}. That differential is what the shape-proof run turns into path proof; nothing here claims a real token was ever held.",
+      "READ-ONLY BY CHOICE: the Platform API also documents POST and DELETE on the same resources (POST /v1/organizations/{organizationSlug}/databases, DELETE .../databases/{databaseName}, POST .../databases/{databaseName}/auth/rotate, POST .../groups/{groupName}/transfer and friends). None are exposed. A Turso database token or group token rotation is destructive to running clients, so those stay out of this connector rather than shipping half-guarded.",
+      "PICKED FIELDS COME FROM THE PUBLISHED OPENAPI: turso.tech/openapi.json (info.title 'Turso Platform API', version 0.1.0) declares the Database schema with MIXED casing, capitalised 'Name', 'DbId', 'Hostname' next to snake_case 'block_reads', 'block_writes', 'delete_protection'. Verbatim: Name is 'The database name, **unique** across your organization.', DbId is 'The database universal unique identifier (UUID).', Hostname is 'The DNS hostname used for client libSQL and HTTP connections.'. The picks keep the provider's own casing rather than normalising it, so a caller reading the API docs sees the same field names.",
+      "GROUP FIELDS ARE DOCS-DERIVED, AND TWO OF THEM ARE FLAGGED DEPRECATED: the Group schema in turso.tech/openapi.json ships with NO declared properties, so list_groups picks the fields the published reference for GET /v1/organizations/{organizationSlug}/groups declares instead (name, version, uuid, locations, primary, delete_protection). That reference marks two of them deprecated:true, version ('The current libSQL server version the databases in that group are running.') and locations ('An array of location keys the group is located.'). Both are still picked because they are what the endpoint returns today; a caller should expect them to disappear and not build on them.",
+      "ORG SLUG IS AN INPUT, NEVER A CREDENTIAL: three of the four tools need an organization slug in the path. openapi.json describes Organization.slug as 'The organization slug. This will be your username for `personal` accounts.', so it is account data an agent can discover, which is exactly why list_organizations ships as the first tool. No _probe hint is supplied for it: Turso rejects an invalid token before it routes, so a made-up slug changes nothing about the probe.",
+      "NO PAGINATION TO CLAMP: none of the four GETs document a page or per-page parameter. GET .../databases takes only the filters group, schema and parent; GET .../groups and GET /v1/organizations take none at all. There is therefore no clamp on this connector and no page-size guard should be claimed for it. The single filter that is exposed here is group; schema and parent are omitted because they only apply to schema-database setups, which this read surface does not otherwise cover.",
+      "TRUNCATE IS THE ONLY SIZE GUARD: with no page-size parameter to clamp, a large organization's database list is bounded only by response.truncate 2000, so a big account will see a truncated list rather than a paged one. That is a real limit of the provider's API surface, not of this spec."
+    ]
+  }
+}

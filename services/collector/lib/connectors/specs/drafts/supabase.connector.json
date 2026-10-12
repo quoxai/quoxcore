@@ -1,0 +1,31 @@
+{
+  "spec_version": 1,
+  "id": "supabase",
+  "name": "Supabase",
+  "category": "uncategorized",
+  "credentialType": "supabase",
+  "requiredFields": [
+    "project_url",
+    "anon_key"
+  ],
+  "docs": "https://supabase.com/docs",
+  "base_url": {
+    "fromCredential": "project_url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "apikey",
+    "template": "{{anon_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/rest/v1/"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

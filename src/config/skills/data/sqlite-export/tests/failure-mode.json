@@ -1,0 +1,44 @@
+{
+  "name": "failure-mode",
+  "cases": [
+    {
+      "name": "db-not-found",
+      "input": {
+        "db_path": "/data/nonexistent/missing.db",
+        "source": "events",
+        "output_format": "csv",
+        "output_path": "/tmp/events_export.csv"
+      },
+      "expects": {
+        "contains": ["error", "db-not-found"],
+        "not_contains": ["rows_exported"]
+      }
+    },
+    {
+      "name": "unsupported-format",
+      "input": {
+        "db_path": "/data/quox-memory/memory.db",
+        "source": "memories",
+        "output_format": "xlsx",
+        "output_path": "/tmp/memories.xlsx"
+      },
+      "expects": {
+        "contains": ["error", "unsupported-format"],
+        "not_contains": ["rows_exported"]
+      }
+    },
+    {
+      "name": "query-failed-bad-table",
+      "input": {
+        "db_path": "/data/quox-memory/memory.db",
+        "source": "nonexistent_table",
+        "output_format": "json",
+        "output_path": "/tmp/output.json"
+      },
+      "expects": {
+        "contains": ["error", "query-failed"],
+        "not_contains": ["rows_exported"]
+      }
+    }
+  ]
+}

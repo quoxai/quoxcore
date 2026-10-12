@@ -1,0 +1,77 @@
+{
+  "spec_id": "dialpad",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:53:45.546Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://dialpad.com/quox-shapeproof-control-3a2ec44d",
+      "status": 301,
+      "latency_ms": 1313,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://dialpad.com/api/v2/users/me",
+      "status": 401,
+      "latency_ms": 293,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f7f2f13e0e107d9bb85a8af2e3b259f1cb73557de82da88645a65ea6ebfdc3a0",
+      "body_excerpt": "{\n    \"error\": {\n        \"code\": 401,\n        \"errors\": [\n            {\n                \"domain\": \"global\",\n                \"message\": \"A valid API key must be provided.\",\n                \"reason\": \"r",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_users",
+      "method": "GET",
+      "url": "https://dialpad.com/api/v2/users?limit=25&cursor=quoxprobe&state=quoxprobe&email=quoxprobe&company_admin=false",
+      "status": 401,
+      "latency_ms": 347,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f7f2f13e0e107d9bb85a8af2e3b259f1cb73557de82da88645a65ea6ebfdc3a0",
+      "body_excerpt": "{\n    \"error\": {\n        \"code\": 401,\n        \"errors\": [\n            {\n                \"domain\": \"global\",\n                \"message\": \"A valid API key must be provided.\",\n                \"reason\": \"r",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_user",
+      "method": "GET",
+      "url": "https://dialpad.com/api/v2/users/quoxprobe",
+      "status": 401,
+      "latency_ms": 279,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f7f2f13e0e107d9bb85a8af2e3b259f1cb73557de82da88645a65ea6ebfdc3a0",
+      "body_excerpt": "{\n    \"error\": {\n        \"code\": 401,\n        \"errors\": [\n            {\n                \"domain\": \"global\",\n                \"message\": \"A valid API key must be provided.\",\n                \"reason\": \"r",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_calls",
+      "method": "GET",
+      "url": "https://dialpad.com/api/v2/call?started_after=1&started_before=1&include_anonymized=false&cursor=quoxprobe",
+      "status": 401,
+      "latency_ms": 289,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f7f2f13e0e107d9bb85a8af2e3b259f1cb73557de82da88645a65ea6ebfdc3a0",
+      "body_excerpt": "{\n    \"error\": {\n        \"code\": 401,\n        \"errors\": [\n            {\n                \"domain\": \"global\",\n                \"message\": \"A valid API key must be provided.\",\n                \"reason\": \"r",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,31 @@
+{
+  "id": "action-tracker",
+  "name": "Action Tracker",
+  "displayName": "Action Tracker",
+  "version": "1.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "productivity",
+  "accentColor": "#f59e0b",
+  "description": "A Kanban-style action board with drag-and-drop, streaks, confetti celebrations, and AI integration. Track real-world action items through TODO, DOING, and DONE columns.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/actions",
+      "label": "Actions",
+      "icon": "clipboardList",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/actions": "ActionsView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

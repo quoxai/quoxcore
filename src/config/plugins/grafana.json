@@ -1,0 +1,118 @@
+{
+  "name": "grafana",
+  "version": "1.0.0",
+  "displayName": "Grafana",
+  "tagline": "Dashboards at Your Fingertips",
+  "description": "Connect QUOX to your Grafana instance. Discover dashboards, view alert rules, and access your visualization library directly from the command center.",
+  "shortDescription": "Dashboard discovery and alert visibility.",
+  "author": "QUOX",
+  "license": "free",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "free",
+  "tier": "free",
+  "featured": false,
+  "icon": "bar-chart-2",
+  "accentColor": "#f46800",
+  "infoUrl": "https://quox.ai/plugins/grafana",
+  "docsUrl": "https://quox.ai/docs/plugins/grafana",
+  "marketingPoints": [
+    "Browse all your Grafana dashboards",
+    "View active alert rules",
+    "Quick-link to specific dashboards",
+    "See alert states at a glance",
+    "Search dashboards by name"
+  ],
+  "features": {
+    "dashboardDiscovery": {
+      "name": "Dashboard Discovery",
+      "description": "Automatically find and list all dashboards in your Grafana instance.",
+      "icon": "search",
+      "highlight": true
+    },
+    "alertRules": {
+      "name": "Alert Rules",
+      "description": "View all configured Grafana alert rules and their current states.",
+      "icon": "bell"
+    },
+    "quickLinks": {
+      "name": "Quick Links",
+      "description": "Jump directly to any dashboard from within QUOX.",
+      "icon": "external-link"
+    },
+    "folderBrowsing": {
+      "name": "Folder Browsing",
+      "description": "Navigate dashboards organized by folder structure.",
+      "icon": "folder"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "Grafana instance with API access"
+  },
+  "route": "/monitoring/grafana",
+  "integration": {
+    "client": "src/services/grafanaClient.js",
+    "panel": "src/components/core/monitoring/GrafanaEmbed.jsx",
+    "view": "src/pages/views/GrafanaView.jsx"
+  },
+  "nocIntegration": {
+    "tab": {
+      "label": "Grafana",
+      "icon": "monitoring",
+      "order": 30
+    },
+    "quickActions": [
+      {
+        "id": "grafana-alerts",
+        "label": "Grafana Alerts",
+        "icon": "logs",
+        "description": "Check active Grafana alert rules and firing alerts",
+        "severity": "warning",
+        "prompt": "Show current Grafana alerts and their states"
+      },
+      {
+        "id": "grafana-dashboards",
+        "label": "Dashboard List",
+        "icon": "health",
+        "description": "List all available Grafana dashboards",
+        "severity": "info",
+        "prompt": "List all Grafana dashboards with their folders"
+      }
+    ],
+    "schedulable": true,
+    "templateVariables": [
+      {
+        "name": "dashboard_uid",
+        "description": "Grafana dashboard UID"
+      },
+      {
+        "name": "time_range",
+        "description": "Time range (e.g. 1h, 6h, 24h)"
+      }
+    ]
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2025-01-25",
+      "changes": [
+        "Initial release",
+        "Dashboard search and discovery",
+        "Alert rule visibility",
+        "Folder browsing",
+        "Quick links to dashboards"
+      ]
+    }
+  },
+  "category": "Monitoring",
+  "safety": {
+    "destructiveActions": [
+      "dashboard.delete",
+      "datasource.delete"
+    ],
+    "requiresApproval": [
+      "dashboard.delete",
+      "datasource.delete"
+    ]
+  }
+}

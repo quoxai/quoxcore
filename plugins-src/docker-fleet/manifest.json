@@ -1,0 +1,36 @@
+{
+  "id": "docker-fleet",
+  "name": "Docker Fleet",
+  "displayName": "Docker Fleet",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "infrastructure",
+  "accentColor": "#2496ed",
+  "description": "Fleet-wide Docker visibility for QuoxCORE. Discover hosts and containers across the estate, inspect disk usage and logs, and drive it all through the DOCKULA agent with evidence-backed answers.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/docker",
+      "label": "Docker Fleet",
+      "icon": "docker",
+      "minRole": "builder"
+    }
+  ],
+  "routes": {
+    "/docker": "DockerView"
+  },
+  "routeGuards": {
+    "/docker": {
+      "minRole": "builder"
+    }
+  },
+  "minQuoxVersion": "1.0.0"
+}

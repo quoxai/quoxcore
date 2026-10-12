@@ -1,0 +1,194 @@
+{
+  "spec_id": "wrike",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:32:41.580Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://www.wrike.com/quox-shapeproof-control-0549e836",
+      "status": 301,
+      "latency_ms": 1117,
+      "classification": "CONTROL",
+      "body_sha256": "9e17cb15dd75bbbd5dbb984eda674863c3b10ab72613cf8a39a00c3e11a8492a",
+      "body_excerpt": "<html>\r\n<head><title>301 Moved Permanently</title></head>\r\n<body>\r\n<center><h1>301 Moved Permanently</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://www.wrike.com/api/v4/contacts?me=true",
+      "status": 401,
+      "latency_ms": 331,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62deb85d387584f07e115f4b905155587791ec5d1e40f20e4cef010b7a99a602",
+      "body_excerpt": "{\"errorDescription\":\"Access token is unknown or invalid\",\"error\":\"not_authorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_current_contact",
+      "method": "GET",
+      "url": "https://www.wrike.com/api/v4/contacts?me=true",
+      "status": 401,
+      "latency_ms": 327,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62deb85d387584f07e115f4b905155587791ec5d1e40f20e4cef010b7a99a602",
+      "body_excerpt": "{\"errorDescription\":\"Access token is unknown or invalid\",\"error\":\"not_authorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_account",
+      "method": "GET",
+      "url": "https://www.wrike.com/api/v4/account",
+      "status": 401,
+      "latency_ms": 337,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62deb85d387584f07e115f4b905155587791ec5d1e40f20e4cef010b7a99a602",
+      "body_excerpt": "{\"errorDescription\":\"Access token is unknown or invalid\",\"error\":\"not_authorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_contacts",
+      "method": "GET",
+      "url": "https://www.wrike.com/api/v4/contacts?deleted=false",
+      "status": 401,
+      "latency_ms": 311,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62deb85d387584f07e115f4b905155587791ec5d1e40f20e4cef010b7a99a602",
+      "body_excerpt": "{\"errorDescription\":\"Access token is unknown or invalid\",\"error\":\"not_authorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_spaces",
+      "method": "GET",
+      "url": "https://www.wrike.com/api/v4/spaces?archived=false",
+      "status": 401,
+      "latency_ms": 372,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62deb85d387584f07e115f4b905155587791ec5d1e40f20e4cef010b7a99a602",
+      "body_excerpt": "{\"errorDescription\":\"Access token is unknown or invalid\",\"error\":\"not_authorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_folders",
+      "method": "GET",
+      "url": "https://www.wrike.com/api/v4/folders?project=false&deleted=false",
+      "status": 401,
+      "latency_ms": 384,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62deb85d387584f07e115f4b905155587791ec5d1e40f20e4cef010b7a99a602",
+      "body_excerpt": "{\"errorDescription\":\"Access token is unknown or invalid\",\"error\":\"not_authorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_folder",
+      "method": "GET",
+      "url": "https://www.wrike.com/api/v4/folders/quoxprobe",
+      "status": 401,
+      "latency_ms": 268,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62deb85d387584f07e115f4b905155587791ec5d1e40f20e4cef010b7a99a602",
+      "body_excerpt": "{\"errorDescription\":\"Access token is unknown or invalid\",\"error\":\"not_authorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_tasks",
+      "method": "GET",
+      "url": "https://www.wrike.com/api/v4/tasks?limit=20&status=quoxprobe&importance=quoxprobe&title=quoxprobe&sortField=quoxprobe&sortOrder=quoxprobe",
+      "status": 401,
+      "latency_ms": 343,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62deb85d387584f07e115f4b905155587791ec5d1e40f20e4cef010b7a99a602",
+      "body_excerpt": "{\"errorDescription\":\"Access token is unknown or invalid\",\"error\":\"not_authorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_folder_tasks",
+      "method": "GET",
+      "url": "https://www.wrike.com/api/v4/folders/quoxprobe/tasks?limit=20&status=quoxprobe&descendants=false",
+      "status": 401,
+      "latency_ms": 322,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62deb85d387584f07e115f4b905155587791ec5d1e40f20e4cef010b7a99a602",
+      "body_excerpt": "{\"errorDescription\":\"Access token is unknown or invalid\",\"error\":\"not_authorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_task",
+      "method": "GET",
+      "url": "https://www.wrike.com/api/v4/tasks/quoxprobe",
+      "status": 401,
+      "latency_ms": 294,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62deb85d387584f07e115f4b905155587791ec5d1e40f20e4cef010b7a99a602",
+      "body_excerpt": "{\"errorDescription\":\"Access token is unknown or invalid\",\"error\":\"not_authorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_workflows",
+      "method": "GET",
+      "url": "https://www.wrike.com/api/v4/workflows",
+      "status": 401,
+      "latency_ms": 320,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62deb85d387584f07e115f4b905155587791ec5d1e40f20e4cef010b7a99a602",
+      "body_excerpt": "{\"errorDescription\":\"Access token is unknown or invalid\",\"error\":\"not_authorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_timelogs",
+      "method": "GET",
+      "url": "https://www.wrike.com/api/v4/timelogs?me=false",
+      "status": 401,
+      "latency_ms": 341,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62deb85d387584f07e115f4b905155587791ec5d1e40f20e4cef010b7a99a602",
+      "body_excerpt": "{\"errorDescription\":\"Access token is unknown or invalid\",\"error\":\"not_authorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_task_timelogs",
+      "method": "GET",
+      "url": "https://www.wrike.com/api/v4/tasks/quoxprobe/timelogs",
+      "status": 401,
+      "latency_ms": 346,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62deb85d387584f07e115f4b905155587791ec5d1e40f20e4cef010b7a99a602",
+      "body_excerpt": "{\"errorDescription\":\"Access token is unknown or invalid\",\"error\":\"not_authorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

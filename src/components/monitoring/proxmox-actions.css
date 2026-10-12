@@ -1,0 +1,111 @@
+/* ProxmoxActions — Quick actions sidebar */
+
+.pxa {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: transparent;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── Section ── */
+.pxa-section {
+  padding: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.pxa-section__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.pxa-section__icon {
+  font-size: 10px;
+  color: #ff6b30;
+}
+
+.pxa-section__meta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Button group ── */
+.pxa-btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pxa-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  text-align: left;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pxa-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+.pxa-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.pxa-btn--danger:hover:not(:disabled) {
+  border-color: rgba(255, 107, 48, 0.3);
+  color: #ff6b30;
+}
+.pxa-btn--running {
+  border-color: rgba(255, 107, 48, 0.3);
+  background: rgba(255, 107, 48, 0.06);
+}
+
+.pxa-btn__icon {
+  font-size: 13px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.pxa-btn__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pxa-empty-hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.2);
+  padding: 8px 4px;
+  text-align: center;
+}
+
+/* ── Results area ── */
+.pxa-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}

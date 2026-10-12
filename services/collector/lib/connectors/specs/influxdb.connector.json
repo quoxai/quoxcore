@@ -1,0 +1,251 @@
+{
+  "spec_version": 1,
+  "id": "influxdb",
+  "name": "InfluxDB",
+  "category": "data_ai",
+  "credentialType": "influxdb",
+  "requiredFields": [
+    "url",
+    "token",
+    "org"
+  ],
+  "docs": "https://docs.influxdata.com/influxdb/",
+  "base_url": {
+    "fromCredential": "url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "Token {{token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/orgs"
+  },
+  "tools_source": "https://docs.influxdata.com/influxdb/v2/api/v2/",
+  "tools": [
+    {
+      "name": "health",
+      "description": "Check whether the InfluxDB instance is ready for queries and writes, and read its version",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/health"
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "message": "message",
+          "status": "status",
+          "version": "version",
+          "commit": "commit"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_current_user",
+      "description": "Get the InfluxDB user the API token belongs to (id, name, active status)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "status": "status"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_orgs",
+      "description": "List the InfluxDB organizations the API token can see, optionally filtered to one organization name",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_name": {
+            "type": "string",
+            "description": "Optional exact organization name to filter by"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max organizations to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional number of organizations to skip, for paging"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/orgs",
+        "query": {
+          "org": "{{input.org_name}}",
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "orgs[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "createdAt": "createdAt",
+            "updatedAt": "updatedAt"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.org_name": "quoxproof-live"
+      }
+    },
+    {
+      "name": "list_buckets",
+      "description": "List the buckets in the credential's InfluxDB organization, with their retention rules, optionally filtered to one bucket name",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Optional exact bucket name to filter by"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max buckets to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional number of buckets to skip, for paging"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/buckets",
+        "query": {
+          "org": "{{org}}",
+          "name": "{{input.name}}",
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "buckets[]": {
+            "id": "id",
+            "name": "name",
+            "orgID": "orgID",
+            "type": "type",
+            "description": "description",
+            "retentionRules": "retentionRules",
+            "createdAt": "createdAt",
+            "updatedAt": "updatedAt"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.name": "quoxproof-live"
+      }
+    },
+    {
+      "name": "list_tasks",
+      "description": "List the scheduled Flux tasks in the credential's InfluxDB organization, with their schedule, status and last run result",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Optional exact task name to filter by"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "description": "Optional task status to filter by"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max tasks to return (default 20, max 500)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/tasks",
+        "query": {
+          "org": "{{org}}",
+          "name": "{{input.name}}",
+          "status": "{{input.status}}",
+          "limit": "{{clamp input.limit 20 500}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "tasks[]": {
+            "id": "id",
+            "name": "name",
+            "orgID": "orgID",
+            "status": "status",
+            "every": "every",
+            "cron": "cron",
+            "offset": "offset",
+            "latestCompleted": "latestCompleted",
+            "lastRunStatus": "lastRunStatus",
+            "lastRunError": "lastRunError",
+            "createdAt": "createdAt",
+            "updatedAt": "updatedAt"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.limit": 5
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "NOT PROVEN BY ANY RUN. InfluxDB is a CUSTOMER-SUPPLIED HOST: base_url comes fromCredential 'url', so there is no public endpoint a shape-proof could reach and no proof artifact was written. Every path, query parameter and picked field name below is DOCUMENTARY, taken from the InfluxDB v2 API reference (https://docs.influxdata.com/influxdb/v2/api/v2/), not from a 2xx seen here. A wrong pick source yields empty output silently, so the LIVE harness against a real ephemeral influxdb:2 container is what must confirm them.",
+      "AUTH IS UNCHANGED FROM THE SCAFFOLD AND MATCHES THE VAULT: services/auth/config/integrationTypeRegistry.js key 'influxdb' declares fields url, token and org, all three required, and its own testHeaders build `Authorization: Token ${creds.token}`. The spec's auth block is {type: header, header: Authorization, template: 'Token {{token}}'}, which is the same header the v2 API documents. The placeholder is {{token}} because that is the vault FIELD NAME; it is not an api_token field and was not renamed.",
+      "TEST PATH IS UNCHANGED: GET /api/v2/orgs is both the registry testEndpoint and a documented authenticated read, so there was nothing to correct.",
+      "THE FLUX QUERY ENDPOINT IS DELIBERATELY NOT MODELLED. POST /api/v2/query looks read-only but Flux is not: the language's own to() function WRITES points into a bucket (https://docs.influxdata.com/flux/v0/stdlib/influxdata/influxdb/to/), and the experimental http package can POST to arbitrary hosts, which is an egress hole as well as a write. Exposing an arbitrary-Flux tool to an agent would therefore ship a write and an SSRF behind a read-only-looking name. A second, independent blocker: the endpoint answers annotated CSV (text/csv), not JSON, so response.pick cannot address it at all. If Flux reads are ever wanted, the honest shape is a NARROW tool per question (buckets(), schema.measurements) with the Flux script built server-side from typed inputs, never a passthrough query string.",
+      "/health IS UNAUTHENTICATED on InfluxDB OSS v2. A 200 from the health tool proves the host, TLS and base_url, and NOTHING about the token. get_current_user (GET /api/v2/me) is the cheapest tool that does prove the token, and list_orgs is the one the vault already tests.",
+      "ORG SCOPING: list_buckets and list_tasks send the credential's org NAME as the `org` query parameter ({{org}}), which is required to scope reads on InfluxDB Cloud and filters correctly on OSS. list_orgs does NOT send it, because filtering the org list by the credential's own org would always return exactly one row and defeat the tool; its optional org_name input is a caller-supplied name filter instead.",
+      "CLAMPS come from the documented pagination ranges: buckets and orgs are limit default 20 / max 100, tasks is max 500 (the reference documents default 100; 20 is used here as the cheaper agent-facing default). The clamp helper always renders its default, so a limit is sent on every call even when the caller omits it.",
+      "LIVE-PROOF CONTRACT: every tool carries a tool-level _probe. health and get_current_user take no inputs, so their _probe is deliberately EMPTY ({}) rather than absent, recording that nothing needs substituting. list_orgs probes org_name 'quoxproof-live' and list_buckets probes name 'quoxproof-live', the exact org and bucket name the live provisioner creates, so both resolve on a FRESH instance. list_tasks probes limit 5 only: a fresh instance has no tasks, so the honest expected result is a 200 with an empty tasks array, which proves routing and the container key but not the row shape. No credential is ever hinted.",
+      "get_bucket BY ID IS NOT MODELLED, ON PURPOSE: GET /api/v2/buckets/{bucketID} needs a bucket ID, and no ID is knowable on a fresh instance, so it could carry no probe that resolves. Fetching a bucket by name is already covered by list_buckets with the name filter.",
+      "AUTHORIZATIONS ARE NOT MODELLED, ON PURPOSE: GET /api/v2/authorizations lists API tokens and, for the token that created them, has historically returned the token VALUE in the response body. A read tool that can echo credentials back through an agent transcript is not a read tool worth shipping.",
+      "READ-ONLY by design: all five tools are GET and carry write:false. The v2 API's create, update and delete routes for buckets, orgs, tasks, dashboards, checks and the whole /api/v2/write path are not modelled.",
+      "rateLimit 30/min is a LOCAL courtesy and spend guard, not an InfluxData number. InfluxDB OSS applies no request rate limit of its own; InfluxDB Cloud enforces per-plan read and write limits that are far tighter than this, so a Cloud credential can hit a provider 429 before this limiter trips."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "spec_version": 1,
+  "id": "klaviyo",
+  "name": "Klaviyo",
+  "category": "marketing_email",
+  "credentialType": "klaviyo",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developers.klaviyo.com/en/reference/",
+  "base_url": "https://a.klaviyo.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "Klaviyo-API-Key {{api_key}}"
+  },
+  "static_headers": {
+    "revision": "2024-10-15",
+    "Accept": "application/json"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/accounts/"
+  },
+  "tools_source": "https://developers.klaviyo.com/en/reference/api_overview",
+  "tools": [
+    {
+      "name": "list_lists",
+      "description": "List Klaviyo lists (audience segments people can subscribe to), newest revision of each list's name and timestamps",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/lists/"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "attributes.name",
+            "created": "attributes.created",
+            "updated": "attributes.updated"
+          },
+          "next": "links.next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_campaigns",
+      "description": "List Klaviyo email campaigns with their status and send timestamps",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/campaigns/",
+        "query": {
+          "filter": "equals(messages.channel,'email')"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "attributes.name",
+            "status": "attributes.status",
+            "archived": "attributes.archived",
+            "created_at": "attributes.created_at",
+            "scheduled_at": "attributes.scheduled_at",
+            "send_time": "attributes.send_time"
+          },
+          "next": "links.next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_metrics",
+      "description": "List Klaviyo metrics (the tracked events such as Opened Email or Placed Order) available in the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/metrics/"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "attributes.name",
+            "integration": "attributes.integration.name",
+            "created": "attributes.created",
+            "updated": "attributes.updated"
+          },
+          "next": "links.next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_profiles",
+      "description": "List Klaviyo profiles (contacts) with their email, name and subscription timestamps",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max profiles to return per page (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/profiles/",
+        "query": {
+          "page[size]": "{{clamp input.page_size 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "email": "attributes.email",
+            "phone_number": "attributes.phone_number",
+            "first_name": "attributes.first_name",
+            "last_name": "attributes.last_name",
+            "created": "attributes.created",
+            "updated": "attributes.updated"
+          },
+          "next": "links.next"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

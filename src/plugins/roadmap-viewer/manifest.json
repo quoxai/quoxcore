@@ -1,0 +1,13 @@
+{
+  "id": "roadmap-viewer",
+  "name": "Strategic Roadmap",
+  "version": "0.1.0",
+  "author": "Quox Internal",
+  "description": "Live view of the strategic roadmap with stream status, priorities, phases, and completion tracking.",
+  "category": "Productivity",
+  "license": "free",
+  "permissions": ["sidebar", "network"],
+  "sidebar": [{ "path": "/plugins/roadmap-viewer", "label": "Roadmap", "icon": "target" }],
+  "routes": { "/plugins/roadmap-viewer": "RoadmapView" },
+  "minQuoxVersion": "1.0.0"
+}

@@ -1,0 +1,90 @@
+{
+  "spec_id": "lemon_squeezy",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:49.457Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.lemonsqueezy.com/quox-shapeproof-control-bf20082c",
+      "status": 403,
+      "latency_ms": 732,
+      "classification": "CONTROL",
+      "body_sha256": "7e02d99c04e56bf23bd716e726da0b10504ca9b675b106077d12afa4f9b8efbd",
+      "body_excerpt": "{\"jsonapi\":{\"version\":\"1.0\"},\"errors\":[{\"detail\":\"This store has not been activated.\",\"status\":\"403\",\"title\":\"Forbidden\"}]}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.lemonsqueezy.com/v1/users/me",
+      "status": 401,
+      "latency_ms": 257,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e803b63b594cbf81f0c6251a2e09046c6bf64de1bded630fe0a31ecb574a164c",
+      "body_excerpt": "{\"jsonapi\":{\"version\":\"1.0\"},\"errors\":[{\"detail\":\"Unauthenticated.\",\"status\":\"401\",\"title\":\"Unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_user",
+      "method": "GET",
+      "url": "https://api.lemonsqueezy.com/v1/users/me",
+      "status": 401,
+      "latency_ms": 243,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e803b63b594cbf81f0c6251a2e09046c6bf64de1bded630fe0a31ecb574a164c",
+      "body_excerpt": "{\"jsonapi\":{\"version\":\"1.0\"},\"errors\":[{\"detail\":\"Unauthenticated.\",\"status\":\"401\",\"title\":\"Unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_stores",
+      "method": "GET",
+      "url": "https://api.lemonsqueezy.com/v1/stores?page%5Bsize%5D=20&page%5Bnumber%5D=1",
+      "status": 401,
+      "latency_ms": 248,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e803b63b594cbf81f0c6251a2e09046c6bf64de1bded630fe0a31ecb574a164c",
+      "body_excerpt": "{\"jsonapi\":{\"version\":\"1.0\"},\"errors\":[{\"detail\":\"Unauthenticated.\",\"status\":\"401\",\"title\":\"Unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_products",
+      "method": "GET",
+      "url": "https://api.lemonsqueezy.com/v1/products?filter%5Bstore_id%5D=quoxprobe&page%5Bsize%5D=20&page%5Bnumber%5D=1",
+      "status": 401,
+      "latency_ms": 237,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e803b63b594cbf81f0c6251a2e09046c6bf64de1bded630fe0a31ecb574a164c",
+      "body_excerpt": "{\"jsonapi\":{\"version\":\"1.0\"},\"errors\":[{\"detail\":\"Unauthenticated.\",\"status\":\"401\",\"title\":\"Unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_orders",
+      "method": "GET",
+      "url": "https://api.lemonsqueezy.com/v1/orders?filter%5Bstore_id%5D=quoxprobe&filter%5Buser_email%5D=quoxprobe&page%5Bsize%5D=20&page%5Bnumber%5D=1",
+      "status": 401,
+      "latency_ms": 222,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e803b63b594cbf81f0c6251a2e09046c6bf64de1bded630fe0a31ecb574a164c",
+      "body_excerpt": "{\"jsonapi\":{\"version\":\"1.0\"},\"errors\":[{\"detail\":\"Unauthenticated.\",\"status\":\"401\",\"title\":\"Unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

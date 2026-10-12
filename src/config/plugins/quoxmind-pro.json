@@ -1,0 +1,58 @@
+{
+  "name": "quoxmind-pro",
+  "version": "1.0.0",
+  "displayName": "QuoxMind Pro",
+  "tagline": "Strategic intelligence for your AI platform.",
+  "description": "Unlocks the strategic tier of the QuoxMind Cognitive Implant Suite: QuoxInsight (significance recognition), QuoxExecutive (goal-directed action), QuoxPredict (anticipatory intelligence), plus advanced QuoxGuard authority levels and full QuoxMemory capabilities.",
+  "shortDescription": "Strategic cognitive implants",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 29,
+  "priceDisplay": "$29",
+  "priceModel": "one-time",
+  "tier": "tier_b",
+  "featured": true,
+  "icon": "brain",
+  "accentColor": "#a855f7",
+  "infoUrl": "https://quox.ai/solutions/quoxmind",
+  "docsUrl": "https://quox.ai/docs/quoxmind",
+  "marketingPoints": [
+    "QuoxInsight: Pattern detection and significance recognition",
+    "QuoxExecutive: Smart decomposition and agent delegation",
+    "QuoxPredict: Success probability and pre-flight intelligence",
+    "QuoxGuard Pro: Autonomous abort authority (Level 3-4)",
+    "QuoxMemory Pro: Vector search, WSM, truth arbitration"
+  ],
+  "unlockedImplants": ["quox-insight", "quox-executive", "quox-predict"],
+  "features": {
+    "insight": {
+      "name": "QuoxInsight Implant",
+      "description": "Recognises significance, detects patterns, and synthesises meaning across operations. Inspired by the association cortex.",
+      "icon": "sparkles"
+    },
+    "executive": {
+      "name": "QuoxExecutive Implant",
+      "description": "Directs purposeful action with smart decomposition, performance-aware delegation, and behavioural inhibition. Inspired by the prefrontal cortex.",
+      "icon": "target"
+    },
+    "predict": {
+      "name": "QuoxPredict Implant",
+      "description": "Estimates success probability, forecasts outcomes, and provides pre-flight intelligence before every operation. Inspired by predictive processing.",
+      "icon": "trending-up"
+    }
+  },
+  "limits": {
+    "free": {},
+    "paid": {
+      "allProImplantsActive": true,
+      "guardAuthorityLevel": 4,
+      "memoryVectorSearch": true,
+      "memoryWSM": true,
+      "memoryTruthArbitration": true
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0"
+  },
+  "category": "AI & Intelligence"
+}

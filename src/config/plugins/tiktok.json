@@ -1,0 +1,167 @@
+{
+  "name": "tiktok",
+  "version": "1.0.0",
+  "displayName": "TikTok",
+  "tagline": "Publish and Monitor TikTok from QuoxCORE",
+  "description": "Governed TikTok video publishing and draft uploads on your own dedicated TikTok credential: direct video publish from the org media library, draft uploads to the account's TikTok inbox, profile and recent-video reads, per-video stats, and publish-status lookups. Two hard external truths shape this plugin honestly: an unaudited TikTok app is restricted to private (SELF_ONLY) viewing until TikTok approves the app audit, and access tokens live exactly 24 hours with no automatic refresh built yet.",
+  "shortDescription": "TikTok video publishing and draft uploads on your own dedicated TikTok credential.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 2,
+  "priceDisplay": "$2",
+  "priceModel": "one-time",
+  "tier": "tier_a",
+  "featured": false,
+  "badge": "NEW",
+  "icon": "tiktok",
+  "heroGradient": "linear-gradient(135deg, #FE2C55 0%, #25F4EE 100%)",
+  "accentColor": "#FE2C55",
+  "infoUrl": "https://quox.ai/plugins/tiktok",
+  "docsUrl": "https://quox.ai/docs/plugins/tiktok",
+  "route": "/tiktok",
+  "marketingPoints": [
+    "Publish a video from your org's media library with a governed, human-approved flow",
+    "Upload a video as a TikTok inbox draft, the recommended pre-audit workhorse",
+    "Read the connected profile, recent videos, and per-video stats",
+    "Honest 24-hour token countdown, amber under 12h and red under 4h",
+    "Every published post honestly stated as SELF_ONLY until your TikTok app audit clears",
+    "Your own dedicated TikTok credential, not shared with any other plugin"
+  ],
+  "features": {
+    "publishing": {
+      "name": "Video Publishing",
+      "description": "Publish a video from a file already under the org's TikTok media root. Every publish files a human approval card first, then uploads and requests the chosen privacy level exactly as asked.",
+      "icon": "send",
+      "highlight": true
+    },
+    "drafts": {
+      "name": "Draft Uploads",
+      "description": "Upload a video to the connected account's TikTok inbox as a draft, finished and published manually inside the TikTok app. The recommended path before your app audit clears.",
+      "icon": "file-text",
+      "highlight": true
+    },
+    "profile": {
+      "name": "Profile & Video Reads",
+      "description": "Read the connected profile (display name, avatar, follower/video counts) and recent videos with cover thumbnails and engagement counts.",
+      "icon": "user"
+    },
+    "stats": {
+      "name": "Video Stats & Publish Status",
+      "description": "Look up engagement stats for specific videos by id and check the status of a publish or draft upload by publish_id.",
+      "icon": "bar-chart"
+    },
+    "tokenHealth": {
+      "name": "24h Token Health",
+      "description": "An honest hours-remaining countdown on the Health tab for the access token's 24-hour lifetime, since there is no automatic refresh built yet.",
+      "icon": "activity",
+      "highlight": true
+    }
+  },
+  "specialist": {
+    "name": "TIKTOK",
+    "description": "TikTok video publishing and draft upload specialist on your own dedicated credential",
+    "avatar": "/assets/agents/tiktok.svg",
+    "capabilities": [
+      "Publish a video from the org media library (human approval required)",
+      "Upload a video as a TikTok inbox draft (human approval required)",
+      "Read the connected profile and recent videos",
+      "Look up per-video stats and publish status",
+      "Track the 24-hour access token countdown"
+    ]
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "A TikTok developer app with the Content Posting and Display API products, and an access_token/refresh_token/client_key/client_secret quad stored in the vault"
+  },
+  "integration": {
+    "connector": "tiktok",
+    "view": "src/pages/views/TikTokView.jsx",
+    "agent": "tiktok"
+  },
+  "permissions": [
+    "vault:read",
+    "network:external"
+  ],
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "configSchema": {},
+  "safety": {
+    "destructiveActions": [
+      "tiktok_publish_video",
+      "tiktok_upload_draft"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": true
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "publishing": false,
+      "drafts": false,
+      "profile": false,
+      "stats": false,
+      "tokenHealth": false
+    },
+    "tier_a": {
+      "name": "TikTok ($2)",
+      "publishing": true,
+      "drafts": true,
+      "profile": true,
+      "stats": true,
+      "tokenHealth": true
+    }
+  },
+  "limits": {
+    "free": {
+      "accounts": 0,
+      "features": []
+    },
+    "starter": {
+      "accounts": 1,
+      "features": [
+        "publishing",
+        "drafts",
+        "profile",
+        "stats",
+        "tokenHealth"
+      ]
+    },
+    "professional": {
+      "accounts": 3,
+      "features": [
+        "publishing",
+        "drafts",
+        "profile",
+        "stats",
+        "tokenHealth",
+        "autoApprove",
+        "analyticsExport"
+      ]
+    }
+  },
+  "futureFeatures": [
+    "Automatic token refresh (separate stream, YT-O-2 shared machinery)",
+    "Public (non-SELF_ONLY) publishing at scale once the app audit clears",
+    "Comment reads and replies",
+    "Post scheduling via Herald supervisor",
+    "Music/sound search",
+    "Direct browser video upload (files must already sit in the org media root today)"
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-09-18",
+      "changes": [
+        "Initial release",
+        "Governed video publishing from the org media library (human approval required)",
+        "Governed TikTok inbox draft uploads (human approval required)",
+        "Profile and recent-video reads",
+        "Per-video stats and publish status lookups",
+        "24-hour access token countdown on the Health tab"
+      ]
+    }
+  },
+  "category": "social"
+}

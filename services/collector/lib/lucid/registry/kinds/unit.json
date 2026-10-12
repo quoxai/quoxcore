@@ -1,0 +1,40 @@
+{
+  "kind": "unit", "prefixes": ["unit:"], "area": "systems", "derive": "unit",
+  "ok_statuses": ["active", "running", "ok", "up"],
+  "friendly": {
+    "node_exporter.service": { "name": "Server metrics exporter", "note": "It feeds the monitoring graphs." },
+    "openipmi.service": { "name": "Hardware sensor driver (IPMI)", "note": "It reads physical hardware sensors, which a virtual machine usually does not have.", "urgency": "whenever" },
+    "motd-news.service": { "name": "Login news banner", "note": "It is cosmetic: only the message shown at SSH login.", "urgency": "whenever" }
+  },
+  "variants": [
+    { "id": "leftover", "when": { "exit_status": "203", "is_ok": "false" },
+      "urgency": [{ "is": "whenever" }],
+      "short": "{key} is a leftover",
+      "L0": "{label} is a leftover service",
+      "L1": {
+        "who": "Server {host}{usernote}",
+        "what": "{desc_raw} ({unit}) points at a program that no longer exists, so it fails every time it starts.{notesp}",
+        "why": "The program was removed or replaced (often by a packaged version under another name), but the old service was left behind."
+      },
+      "how": "Remove the leftover: {ctl} disable --now {unit} && {ctl} reset-failed {unit}",
+      "measures": ["remove_leftover_unit", "show_log"] },
+    { "id": "up", "when": { "is_ok": "true" },
+      "urgency": [{ "is": "fyi" }],
+      "short": "{key} is running",
+      "L0": "{label} is running",
+      "L1": { "who": "Server {host}{usernote}", "what": "{desc_raw} ({unit}) is running.", "why": "Nothing is wrong." },
+      "how": "Nothing to do.",
+      "measures": [] },
+    { "id": "down",
+      "urgency": [{ "when": { "friendly_urgency": "whenever" }, "is": "whenever" }, { "is": "today" }],
+      "short": "{key} is down",
+      "L0": "{label} is down",
+      "L1": {
+        "who": "Server {host}{usernote}",
+        "what": "{desc_raw} ({unit}) stopped and has not come back.{notesp}",
+        "why": "It crashed or failed to start, and nothing restarts it automatically."
+      },
+      "how": "Ask me to restart it, or run: {ctl} restart {unit}",
+      "measures": ["restart_unit", "show_log"] }
+  ]
+}

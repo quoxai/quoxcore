@@ -1,0 +1,225 @@
+{
+  "spec_version": 1,
+  "id": "webex",
+  "name": "Cisco Webex",
+  "category": "communication",
+  "credentialType": "webex",
+  "requiredFields": [
+    "access_token"
+  ],
+  "description": "Read-only Cisco Webex messaging access: the token owner's own details, the spaces and teams that token belongs to, and the messages in one space. No sending, editing or deleting messages, and no meetings, calling or admin surfaces.",
+  "docs": "https://developer.webex.com/docs/api/getting-started",
+  "base_url": "https://webexapis.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/people/me"
+  },
+  "tools_source": "https://developer.webex.com/docs/api/v1/rooms/list-rooms",
+  "tools": [
+    {
+      "name": "me",
+      "description": "Get the Webex identity behind this access token: display name, email addresses, org ID, account type and status",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/people/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "displayName": "displayName",
+          "nickName": "nickName",
+          "emails": "emails",
+          "orgId": "orgId",
+          "type": "type",
+          "status": "status",
+          "created": "created",
+          "lastActivity": "lastActivity"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_rooms",
+      "description": "List the Webex spaces this access token belongs to, optionally limited to one team or to direct (1-to-1) or group spaces, sorted by ID, last activity or creation date",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "description": "Optional team ID to limit the spaces to those associated with that team"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "group"
+            ],
+            "description": "Optional space type: direct returns all 1-to-1 spaces, group returns all group spaces; omit for both"
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": [
+              "id",
+              "lastactivity",
+              "created"
+            ],
+            "description": "Optional sort order: space ID, most recent activity, or most recently created"
+          },
+          "max": {
+            "type": "number",
+            "description": "Max spaces to return (default 50, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/rooms",
+        "query": {
+          "teamId": "{{input.team_id}}",
+          "type": "{{input.type}}",
+          "sortBy": "{{input.sort_by}}",
+          "max": "{{clamp input.max 50 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "title": "title",
+            "type": "type",
+            "teamId": "teamId",
+            "isLocked": "isLocked",
+            "lastActivity": "lastActivity",
+            "created": "created",
+            "creatorId": "creatorId"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_messages",
+      "description": "List messages in one Webex space, newest first, optionally only those in a thread, only those mentioning the caller, or only those sent before a given time or message",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "room_id": {
+            "type": "string",
+            "description": "The Webex space (room) ID to list messages for"
+          },
+          "parent_id": {
+            "type": "string",
+            "description": "Optional parent message ID, to list only the replies in that thread"
+          },
+          "mentioned_people": {
+            "type": "string",
+            "description": "Optional filter to messages mentioning a person: 'me' for the token owner, or a personId"
+          },
+          "before": {
+            "type": "string",
+            "description": "Optional ISO8601 timestamp; list only messages sent before it"
+          },
+          "before_message": {
+            "type": "string",
+            "description": "Optional message ID; list only messages sent before that message"
+          },
+          "max": {
+            "type": "number",
+            "description": "Max messages to return (default 50, max 100)"
+          }
+        },
+        "required": [
+          "room_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/messages",
+        "query": {
+          "roomId": "{{input.room_id}}",
+          "parentId": "{{input.parent_id}}",
+          "mentionedPeople": "{{input.mentioned_people}}",
+          "before": "{{input.before}}",
+          "beforeMessage": "{{input.before_message}}",
+          "max": "{{clamp input.max 50 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "roomId": "roomId",
+            "roomType": "roomType",
+            "parentId": "parentId",
+            "text": "text",
+            "personId": "personId",
+            "personEmail": "personEmail",
+            "mentionedPeople": "mentionedPeople",
+            "created": "created",
+            "updated": "updated"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_teams",
+      "description": "List the Webex teams this access token belongs to (name, creator and creation date)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max": {
+            "type": "number",
+            "description": "Max teams to return (default 50, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/teams",
+        "query": {
+          "max": "{{clamp input.max 50 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "name": "name",
+            "creatorId": "creatorId",
+            "created": "created"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "medium",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, AND THE LIVE API STATES THE RULE ITSELF: webexapis.com answers every unauthenticated call with 401 and the body {\"message\":\"The request requires a valid access token set in the Authorization request header.\",\"errors\":[{\"description\":\"The request requires a valid access token set in the Authorization request header.\"}],\"trackingId\":\"ROUTERGW_...\"} (probed 2026-09-12). Bearer in the Authorization header is therefore correct and the scaffolded auth {type: bearer, field: access_token} is unchanged.",
+      "BASE URL IS THE PORTAL'S OWN CONFIGURED HOST: developer.webex.com ships its API host in the page state it serves to every visitor, 'apiHostAndPath': 'https://webexapis.com/v1' (read from the rendered HTML of https://developer.webex.com/docs/api/v1/rooms/list-rooms, 2026-09-12). base_url is https://webexapis.com with /v1 carried on each tool path, matching how the rest of this spec directory splits host from version.",
+      "DOCUMENTARY PROVENANCE IS SECOND-HAND FOR FIELD SHAPES, AND THAT IS A REAL WEAKNESS: developer.webex.com renders its API reference entirely client-side and fetches the content from an authenticated portal endpoint. /api/content/api/v1/rooms/list-rooms returns {\"error\":\"Unauthorized\",\"reason\":\"EBADCSRFTOKEN\"} without a session, and 401 Unauthorized even with the portal's own csrfToken and cookie jar; the served HTML contains no endpoint text, and no public OpenAPI document was found (api-portal.webex.com/openapi.json unreachable, webexapis.com/v1/openapi.json answers the same 401 auth envelope, github.com/webex/webex-api-specs 404). Query parameters and response fields here were therefore taken from the Webex Python SDK (github.com/WebexCommunity/WebexPythonSDK, src/webexpythonsdk), which is a published client rather than Cisco's reference text. Anyone who can reach the reference pages should re-check these shapes against them.",
+      "WHAT THE SDK ACTUALLY SAYS, VERBATIM: rooms.list documents 'By default, lists rooms to which the authenticated user belongs.' with teamId 'Limit the rooms to those associated with a team, by ID.', type \"'direct' returns all 1-to-1 rooms. `group` returns all group rooms. If not specified or values not matched, will return all room types.\", and sortBy 'Sort results by room ID (`id`), most recent activity (`lastactivity`), or most recently created (`created`).' messages.list documents 'Lists messages in a room.' and 'The list API sorts the messages in descending order by creation date.' with roomId required and parentId, mentionedPeople ('List messages where the caller is mentioned by specifying \"me\" or the caller `personId`'), before ('in ISO8601 format'), beforeMessage. teams.list documents 'List teams to which the authenticated user belongs.' people.me documents 'Get the details of the person accessing the API.' and calls people/me. The enum values in list_rooms are copied from those two sentences, including the lowercase 'lastactivity'.",
+      "ROOT ENVELOPE IS items[], PROVEN FROM THE SDK'S PAGINATOR: restsession.get_items yields 'individual `items` from Webex\"s top-level {\"items\": [...]}' and raises when the key is absent ('items' key not found in JSON data). Every list tool here picks items[] rather than a root array. Link-header (RFC5988) pagination is NOT wired: Webex pages via a Link header, which Connector Spec v1 cannot read, so these tools return the first page only and max is the whole budget. That is a capability gap, not a cosmetic one, and it should be stated wherever this connector is described.",
+      "MAX CLAMPS ARE OURS: the SDK defaults max to 100 for rooms and teams and 50 for messages, and documents it only as 'Limit the maximum number of items returned from the Webex service per request' with no ceiling. The 50/100 clamp on all four tools is a connector-side guard chosen for a uniform budget, not a Webex-published limit.",
+      "READ-ONLY BY CONSTRUCTION: all four tools are GETs. The same API surface can create, update and delete spaces, post and delete messages, and manage team memberships. None is wired. This connector must not be described as posting to Webex; a send-message tool needs an approval path in front of it first.",
+      "SCOPE, NOT JUST CREDENTIAL, DECIDES WHETHER THIS WORKS: a Webex access token carries OAuth scopes. The scope catalogue developer.webex.com serves to every visitor (read 2026-09-12 from the same page state as the API host) lists exactly the four this connector needs, with these descriptions verbatim: spark:rooms_read 'List the titles of rooms that you are in', spark:messages_read 'Read the content of rooms that you are in', spark:teams_read \"List the teams your user's a member of\", spark:people_read \"Read your users' company directory\". A token missing one can still pass the connector test and then fail the matching tool, and the blind harness cannot tell a scope refusal from a bad credential. The vault entry's single 'Access Token' field says nothing about scopes today, which is where that surprise would land on a customer.",
+      "PROOF EXPECTATION RECORDED BEFORE THE RUN: probed live 2026-09-12 with a dummy bearer, webexapis.com answers /v1/people/me, /v1/rooms, /v1/messages and /v1/teams AND a deliberately bogus control path with the same 401 and the same error identity (only trackingId varies per request). The auth wall therefore sits in front of routing, so AUTH_WALL is the honest ceiling for this spec: host, TLS and auth rejection are proven by this run, and the paths rest on the SDK provenance above rather than on the probe."
+    ]
+  }
+}

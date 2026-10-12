@@ -1,0 +1,34 @@
+{
+  "spec_version": 1,
+  "id": "vonage",
+  "name": "Vonage (Nexmo)",
+  "category": "communication",
+  "credentialType": "vonage",
+  "requiredFields": [
+    "api_key",
+    "api_secret"
+  ],
+  "docs": "https://developer.vonage.com/api",
+  "base_url": "https://api.nexmo.com",
+  "auth": {
+    "type": "query",
+    "param": "api_key",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/account/get-balance",
+    "query": {
+      "api_secret": "{{api_secret}}"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "multi_query_auth"
+    ]
+  }
+}

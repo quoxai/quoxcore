@@ -1,0 +1,103 @@
+{
+  "spec_id": "pinterest",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:26:53.035Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.pinterest.com/quox-shapeproof-control-75348dc2",
+      "status": 404,
+      "latency_ms": 798,
+      "classification": "CONTROL",
+      "body_sha256": "bcd2aa7765264bf1465eaf0275833443aca5584f1cf2d8326c35b0a2c6d22c55",
+      "body_excerpt": "{\"status\":\"failure\",\"code\":11,\"message\":\"API method not found.\",\"endpoint_name\":null,\"data\":null}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.pinterest.com/v5/user_account",
+      "status": 401,
+      "latency_ms": 117,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f1c0fdab670d8119f8043231972a8d75a9ba2fff9ee96448ff22784e94684e4c",
+      "body_excerpt": "{\"code\":2,\"message\":\"Authentication failed.\",\"status\":\"failure\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_user_account",
+      "method": "GET",
+      "url": "https://api.pinterest.com/v5/user_account?ad_account_id=quoxprobe",
+      "status": 401,
+      "latency_ms": 102,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f1c0fdab670d8119f8043231972a8d75a9ba2fff9ee96448ff22784e94684e4c",
+      "body_excerpt": "{\"code\":2,\"message\":\"Authentication failed.\",\"status\":\"failure\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_boards",
+      "method": "GET",
+      "url": "https://api.pinterest.com/v5/boards?page_size=25&bookmark=quoxprobe&privacy=quoxprobe&ad_account_id=quoxprobe",
+      "status": 401,
+      "latency_ms": 105,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f1c0fdab670d8119f8043231972a8d75a9ba2fff9ee96448ff22784e94684e4c",
+      "body_excerpt": "{\"code\":2,\"message\":\"Authentication failed.\",\"status\":\"failure\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_pins",
+      "method": "GET",
+      "url": "https://api.pinterest.com/v5/pins?page_size=25&bookmark=quoxprobe&pin_filter=quoxprobe&include_protected_pins=false&domain=quoxprobe",
+      "status": 401,
+      "latency_ms": 103,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f1c0fdab670d8119f8043231972a8d75a9ba2fff9ee96448ff22784e94684e4c",
+      "body_excerpt": "{\"code\":2,\"message\":\"Authentication failed.\",\"status\":\"failure\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_board",
+      "method": "GET",
+      "url": "https://api.pinterest.com/v5/boards/549755885175",
+      "status": 401,
+      "latency_ms": 108,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f1c0fdab670d8119f8043231972a8d75a9ba2fff9ee96448ff22784e94684e4c",
+      "body_excerpt": "{\"code\":2,\"message\":\"Authentication failed.\",\"status\":\"failure\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_board_pins",
+      "method": "GET",
+      "url": "https://api.pinterest.com/v5/boards/549755885175/pins?page_size=25&bookmark=quoxprobe",
+      "status": 401,
+      "latency_ms": 113,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f1c0fdab670d8119f8043231972a8d75a9ba2fff9ee96448ff22784e94684e4c",
+      "body_excerpt": "{\"code\":2,\"message\":\"Authentication failed.\",\"status\":\"failure\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

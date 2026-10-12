@@ -1,0 +1,118 @@
+/* FullTraceView — end-to-end trace timeline */
+.full-trace {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(139, 92, 246, 0.12);
+  border-radius: 10px;
+  padding: 1rem;
+  backdrop-filter: blur(8px);
+}
+
+.full-trace--loading,
+.full-trace--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.trace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.trace-corr-id {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: rgba(167, 139, 250, 0.8);
+}
+
+.trace-event-count {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.trace-empty {
+  text-align: center;
+  padding: 1rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8rem;
+}
+
+/* Timeline */
+.trace-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.trace-event {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
+  padding-left: 0.75rem;
+  margin-left: 3.5rem;
+  position: relative;
+}
+
+.trace-event-time {
+  position: absolute;
+  left: -4.5rem;
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: 'JetBrains Mono', monospace;
+  width: 3.5rem;
+  text-align: right;
+}
+
+.trace-event-line {
+  position: absolute;
+  left: -0.35rem;
+  top: 0.55rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.trace-event-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.trace-event-from {
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.trace-event-summary {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Layer colours */
+.trace-event--human { border-left-color: #30ff90; }
+.trace-event--human .trace-event-line { background: #30ff90; }
+.trace-event--human .trace-event-from { color: #30ff90; }
+
+.trace-event--agent { border-left-color: #a78bfa; }
+.trace-event--agent .trace-event-line { background: #a78bfa; }
+.trace-event--agent .trace-event-from { color: #a78bfa; }
+
+.trace-event--bastion { border-left-color: #38bdf8; }
+.trace-event--bastion .trace-event-line { background: #38bdf8; }
+.trace-event--bastion .trace-event-from { color: #38bdf8; }
+
+.trace-event--workflow { border-left-color: #fbbf24; }
+.trace-event--workflow .trace-event-line { background: #fbbf24; }
+.trace-event--workflow .trace-event-from { color: #fbbf24; }
+
+.trace-event--system { border-left-color: rgba(255, 255, 255, 0.8); }
+.trace-event--system .trace-event-line { background: rgba(255, 255, 255, 0.3); }

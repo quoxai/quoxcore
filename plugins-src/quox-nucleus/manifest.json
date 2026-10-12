@@ -1,0 +1,31 @@
+{
+  "id": "quox-nucleus",
+  "name": "quox-nucleus",
+  "displayName": "RepoBrain",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "paid",
+  "badge": "PAID",
+  "category": "AI & Intelligence",
+  "accentColor": "#06b6d4",
+  "description": "Codebase intelligence for your agents. They answer with file:line citations from actual indexed source code. CogCore3D nucleus becomes a live galaxy of your codebase. Code search, cross-repo queries, and import graph visualisation.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/nucleus",
+      "label": "RepoBrain",
+      "icon": "code-2",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/nucleus": "RepoBrainView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

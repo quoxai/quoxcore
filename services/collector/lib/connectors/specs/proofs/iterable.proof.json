@@ -1,0 +1,90 @@
+{
+  "spec_id": "iterable",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:46.577Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.iterable.com/quox-shapeproof-control-1000d7ff",
+      "status": 404,
+      "latency_ms": 543,
+      "classification": "CONTROL",
+      "body_sha256": "7b6d51613cf26659c48993ff8027ec0e48900c0741c21ae44fd9f21e5d8767f1",
+      "body_excerpt": "\n\n\n\n    <!doctype html>\n    <html>\n        <head>\n            <meta charset=\"utf-8\">\n            <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\">\n            <title ng-non-bindable>Actio",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.iterable.com/api/channels",
+      "status": 401,
+      "latency_ms": 125,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a0d7c9c9dfa7e169cbf37b64adaac83d00694d708cf556772973b5cd22823305",
+      "body_excerpt": "{\"msg\":\"Invalid API key\",\"code\":\"Unauthorized\",\"params\":{\"ip\":\"[EGRESS_IP_REDACTED],[RFC1918_REDACTED]\",\"endpoint\":\"/api/channels\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_campaigns",
+      "method": "GET",
+      "url": "https://api.iterable.com/api/campaigns",
+      "status": 401,
+      "latency_ms": 133,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c88f616adca6a0cc76ae59c4be2ec56a950ef70fa9a2e977ad0a55bc08dd2503",
+      "body_excerpt": "{\"msg\":\"Invalid API key\",\"code\":\"Unauthorized\",\"params\":{\"ip\":\"[EGRESS_IP_REDACTED],[RFC1918_REDACTED]\",\"endpoint\":\"/api/campaigns\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_lists",
+      "method": "GET",
+      "url": "https://api.iterable.com/api/lists",
+      "status": 401,
+      "latency_ms": 282,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1450d2248c506f8c4fc0586f2ba5aa1e09a000d395a9b6a61ba518ba88ceaf38",
+      "body_excerpt": "{\"msg\":\"Invalid API key\",\"code\":\"Unauthorized\",\"params\":{\"ip\":\"[EGRESS_IP_REDACTED],[RFC1918_REDACTED]\",\"endpoint\":\"/api/lists\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_channels",
+      "method": "GET",
+      "url": "https://api.iterable.com/api/channels",
+      "status": 401,
+      "latency_ms": 108,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a0d7c9c9dfa7e169cbf37b64adaac83d00694d708cf556772973b5cd22823305",
+      "body_excerpt": "{\"msg\":\"Invalid API key\",\"code\":\"Unauthorized\",\"params\":{\"ip\":\"[EGRESS_IP_REDACTED],[RFC1918_REDACTED]\",\"endpoint\":\"/api/channels\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_message_types",
+      "method": "GET",
+      "url": "https://api.iterable.com/api/messageTypes",
+      "status": 401,
+      "latency_ms": 112,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f08f2a36e7e4b493278f4ae368eaa656454371e9b7545afff9fbbec665b9e962",
+      "body_excerpt": "{\"msg\":\"Invalid API key\",\"code\":\"Unauthorized\",\"params\":{\"ip\":\"[EGRESS_IP_REDACTED],[RFC1918_REDACTED]\",\"endpoint\":\"/api/messageTypes\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

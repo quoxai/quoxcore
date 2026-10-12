@@ -1,0 +1,77 @@
+{
+  "spec_id": "deepl",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:23.857Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.deepl.com/quox-shapeproof-control-4dd9e938",
+      "status": 404,
+      "latency_ms": 291,
+      "classification": "CONTROL",
+      "body_sha256": "a1f2153c7b0df0b0709353219aeb42ed6867e3e4a0882856b47abbd1f96ea806",
+      "body_excerpt": "<!DOCTYPE html><html lang=\"en\"><title>404 Not Found</title><body><h1>404 Not Found</h1></body></html>",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.deepl.com/v2/usage",
+      "status": 403,
+      "latency_ms": 108,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0562ce0fa39af5e3fe415dea923883c2f5a856b10d192278a301ae0ee4bdfae7",
+      "body_excerpt": "{\"message\":\"Authentication failed, provided API key is invalid. You can find more info in our docs: https://developers.deepl.com/docs/getting-started/auth\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_usage",
+      "method": "GET",
+      "url": "https://api.deepl.com/v2/usage",
+      "status": 403,
+      "latency_ms": 137,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0562ce0fa39af5e3fe415dea923883c2f5a856b10d192278a301ae0ee4bdfae7",
+      "body_excerpt": "{\"message\":\"Authentication failed, provided API key is invalid. You can find more info in our docs: https://developers.deepl.com/docs/getting-started/auth\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_glossaries",
+      "method": "GET",
+      "url": "https://api.deepl.com/v2/glossaries",
+      "status": 401,
+      "latency_ms": 169,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3e7db788e384631f8a9f299d1797e6f8af6d16d643a1c91f9e83ae15212de45c",
+      "body_excerpt": "{\"message\":\"Unauthorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "glossary_language_pairs",
+      "method": "GET",
+      "url": "https://api.deepl.com/v2/glossary-language-pairs",
+      "status": 401,
+      "latency_ms": 96,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3e7db788e384631f8a9f299d1797e6f8af6d16d643a1c91f9e83ae15212de45c",
+      "body_excerpt": "{\"message\":\"Unauthorized\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

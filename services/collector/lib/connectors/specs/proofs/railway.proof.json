@@ -1,0 +1,109 @@
+{
+  "spec_id": "railway",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:11.137Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://backboard.railway.com/quox-shapeproof-control-e34d1c90",
+      "status": 404,
+      "latency_ms": 275,
+      "classification": "CONTROL",
+      "body_sha256": "4d85f3737b1ed1627e2fc97d1a3e120f01c64244a24283df07c6b03f337bf4dc",
+      "body_excerpt": "{\"message\":\"Not Found\",\"requestId\":\"899c1e13-1a86-4416-96dd-5f26cb185061\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "POST",
+      "url": "https://backboard.railway.com/graphql/v2",
+      "status": 200,
+      "latency_ms": 171,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "5dfc66fb0a0787042d3a4a622e51c45e41ef1557fc1c100948205a92250e36c9",
+      "body_excerpt": "{\"errors\":[{\"message\":\"Not Authorized\",\"locations\":[{\"line\":1,\"column\":3}],\"path\":[\"me\"],\"extensions\":{\"code\":\"INTERNAL_SERVER_ERROR\"},\"traceId\":\"3987566760008958562\"}],\"data\":null}\n",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "me",
+      "method": "POST",
+      "url": "https://backboard.railway.com/graphql/v2",
+      "status": 200,
+      "latency_ms": 172,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a7eb924d23beecb400f234fafb3697224b12538b3e9248efe6b681ca0e985b5a",
+      "body_excerpt": "{\"errors\":[{\"message\":\"Not Authorized\",\"locations\":[{\"line\":1,\"column\":9}],\"path\":[\"me\"],\"extensions\":{\"code\":\"INTERNAL_SERVER_ERROR\"},\"traceId\":\"5959268309220957128\"}],\"data\":null}\n",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "POST",
+      "url": "https://backboard.railway.com/graphql/v2",
+      "status": 200,
+      "latency_ms": 179,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "238360e3233b33ced472e69c714f71689aa84c1a309a383248dd8ee9a686ea5d",
+      "body_excerpt": "{\"errors\":[{\"message\":\"Not Authorized\",\"locations\":[{\"line\":1,\"column\":23}],\"path\":[\"projects\"],\"extensions\":{\"code\":\"INTERNAL_SERVER_ERROR\"},\"traceId\":\"8728407890218450221\"}],\"data\":null}\n",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "get_project",
+      "method": "POST",
+      "url": "https://backboard.railway.com/graphql/v2",
+      "status": 200,
+      "latency_ms": 280,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "726e663c93af882874b5942a004bcb6443639acdb71f940c8fde4666b1e12b8b",
+      "body_excerpt": "{\"errors\":[{\"message\":\"Project not found\",\"locations\":[{\"line\":1,\"column\":24}],\"path\":[\"project\"],\"extensions\":{\"code\":\"INTERNAL_SERVER_ERROR\"},\"traceId\":\"5268831096116411017\"}],\"data\":null}\n",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "get_service",
+      "method": "POST",
+      "url": "https://backboard.railway.com/graphql/v2",
+      "status": 200,
+      "latency_ms": 204,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3002f2066f168dfd6f42a1eea113b73f3a24fbc9ede3f5d86b6b70b37233c5b0",
+      "body_excerpt": "{\"errors\":[{\"message\":\"Not Authorized\",\"locations\":[{\"line\":1,\"column\":24}],\"path\":[\"service\"],\"extensions\":{\"code\":\"INTERNAL_SERVER_ERROR\"},\"traceId\":\"948265193571412055\"}],\"data\":null}\n",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "list_deployments",
+      "method": "POST",
+      "url": "https://backboard.railway.com/graphql/v2",
+      "status": 200,
+      "latency_ms": 257,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "2acdbf1e30dae21f733a60b450150bb85740be8de438757a68c53e9e20071968",
+      "body_excerpt": "{\"errors\":[{\"message\":\"Not Authorized\",\"locations\":[{\"line\":1,\"column\":53}],\"path\":[\"deployments\"],\"extensions\":{\"code\":\"INTERNAL_SERVER_ERROR\"},\"traceId\":\"5168856089209895896\"}],\"data\":null}\n",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

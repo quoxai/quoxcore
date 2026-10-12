@@ -1,0 +1,34 @@
+{
+  "spec_version": 1,
+  "id": "zoho_desk",
+  "name": "Zoho Desk",
+  "category": "uncategorized",
+  "credentialType": "zoho_desk",
+  "requiredFields": [
+    "org_id",
+    "access_token"
+  ],
+  "docs": "https://desk.zoho.com/DeskAPIDocument",
+  "base_url": "https://desk.zoho.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "Zoho-oauthtoken {{access_token}}"
+  },
+  "static_headers": {
+    "orgId": "{{org_id}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/tickets"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "multi_auth_headers"
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "quoxseo",
+  "name": "quoxseo",
+  "displayName": "QuoxSEO",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "paid",
+  "badge": "PAID",
+  "category": "AI & Intelligence",
+  "accentColor": "#34d399",
+  "description": "First-party SEO and AI-visibility intelligence on the Quox evidence substrate. Daily crawl + Google Search Console joined into one org-scoped URL warehouse; every crawl WARD-witnessed on an append-only chain and diffed into signed change events, independently verifiable.",
+  "permissions": [
+    "sidebar",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/quoxseo",
+      "label": "QuoxSEO",
+      "icon": "trending-up",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/quoxseo/*": "QuoxSEOView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

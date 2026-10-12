@@ -1,0 +1,73 @@
+{
+  "name": "quox-brain2",
+  "version": "1.0.0",
+  "displayName": "Qortex",
+  "tagline": "A second brain that feeds itself.",
+  "description": "A self-feeding knowledge graph that grows on its own — sources you connect (dev sessions, notes, vaults, team conversations) are indexed automatically into ONE governed brain, and every agent can search and cite it. Not a chat log: a living, provenanced knowledge graph humans can explore and agents consume via quoxbrain_search.",
+  "shortDescription": "Self-feeding second brain — agents answer from it",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 29,
+  "priceDisplay": "$29",
+  "priceModel": "one-time",
+  "tier": "tier_b",
+  "featured": true,
+  "icon": "network",
+  "accentColor": "#38bdf8",
+  "infoUrl": "https://quox.ai/solutions/brain2",
+  "docsUrl": "https://quox.ai/docs/plugins/brain2",
+  "marketingPoints": [
+    "Grows on its own — connect a source once, it keeps feeding itself",
+    "Agents answer from it via quoxbrain_search — no manual copy/paste into prompts",
+    "One governed, provenanced knowledge graph, not a pile of chat logs",
+    "Every source scoped (org/user/shared) and toggleable — the moat is governance",
+    "2D/3D graph explorer with facets, search, and note reader"
+  ],
+  "features": {
+    "knowledgeGraph": {
+      "name": "Knowledge Graph",
+      "description": "A unioned, scope-aware graph of every connected source — explore in 2D/3D, filter by scope/source/language, and read notes with backlinks/outlinks.",
+      "icon": "network",
+      "highlight": true
+    },
+    "agentSearch": {
+      "name": "quoxbrain_search",
+      "description": "Agents query the brain directly during conversations and cite what they find — no manual context-stuffing.",
+      "icon": "search",
+      "highlight": true
+    },
+    "sourceFeed": {
+      "name": "Source Feed",
+      "description": "Connect sources (this machine's work, a folder, Obsidian, Notion, team conversations) and the brain ingests continuously without manual re-import.",
+      "icon": "refresh-cw"
+    }
+  },
+  "limits": {
+    "free": {},
+    "paid": {
+      "brain2Enabled": true,
+      "agentSearchEnabled": true,
+      "graphExplorerEnabled": true,
+      "sourceFeedEnabled": true
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0"
+  },
+  "integration": {
+    "client": "src/services/quoxbrainClient.js",
+    "view": "src/pages/views/QuoxbrainView.jsx",
+    "settings": "src/components/settings/Brain2Settings.jsx"
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-07-19",
+      "changes": [
+        "Initial release as the Brain2 licensed plugin (opt-in)",
+        "Packages the existing QuoxBrain engine/view behind the plugin licensing + enable gate",
+        "User-facing rebrand: QuoxBrain -> Brain2 / Brain2 (internal quoxbrain route/service unchanged)"
+      ]
+    }
+  },
+  "category": "AI & Intelligence"
+}

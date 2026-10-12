@@ -1,0 +1,144 @@
+{
+  "spec_version": 1,
+  "id": "viber",
+  "name": "Viber Bot",
+  "category": "communication",
+  "credentialType": "viber",
+  "requiredFields": [
+    "auth_token"
+  ],
+  "docs": "https://developers.viber.com/docs/api/rest-bot-api/",
+  "base_url": "https://chatapi.viber.com",
+  "auth": {
+    "type": "header",
+    "header": "X-Viber-Auth-Token",
+    "template": "{{auth_token}}"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/pa/get_account_info",
+    "body": {}
+  },
+  "tools_source": "https://developers.viber.com/docs/api/rest-bot-api/",
+  "tools": [
+    {
+      "name": "get_account_info",
+      "description": "Get the Viber public account the auth token belongs to (name, uri, category, country, webhook, subscriber count). READ-ONLY: the Viber bot API is POST-based even for reads, so this issues a POST with an empty body and mutates nothing.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "POST",
+        "path": "/pa/get_account_info",
+        "body": {}
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "status_message": "status_message",
+          "id": "id",
+          "name": "name",
+          "uri": "uri",
+          "icon": "icon",
+          "category": "category",
+          "subcategory": "subcategory",
+          "country": "country",
+          "webhook": "webhook",
+          "event_types": "event_types",
+          "subscribers_count": "subscribers_count",
+          "members[]": {
+            "id": "id",
+            "name": "name",
+            "role": "role"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_user_details",
+      "description": "Get details of one Viber user who is subscribed to this public account (name, country, language, device, Viber version). READ-ONLY: POST is how the Viber bot API expresses this read; nothing is mutated.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Viber subscriber id from a webhook event or from get_account_info members (e.g. 01234567890A=)"
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/pa/get_user_details",
+        "body": {
+          "id": "{{input.user_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "status_message": "status_message",
+          "id": "user.id",
+          "name": "user.name",
+          "country": "user.country",
+          "language": "user.language",
+          "primary_device_os": "user.primary_device_os",
+          "device_type": "user.device_type",
+          "viber_version": "user.viber_version",
+          "api_version": "user.api_version"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_online_status",
+      "description": "Get the online status of up to 100 Viber subscribers of this public account. READ-ONLY: POST is how the Viber bot API expresses this read; nothing is mutated.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_ids": {
+            "type": "array",
+            "description": "Viber subscriber ids to check, max 100 (e.g. [\"01234567890A=\"])"
+          }
+        },
+        "required": [
+          "user_ids"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/pa/get_online",
+        "body": {
+          "ids": "{{input.user_ids}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "status_message": "status_message",
+          "users[]": {
+            "id": "id",
+            "online_status": "online_status",
+            "online_status_message": "online_status_message",
+            "last_online": "last_online"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

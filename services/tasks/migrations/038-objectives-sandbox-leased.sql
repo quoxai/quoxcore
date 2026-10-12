@@ -1,0 +1,11 @@
+-- 038-objectives-sandbox-leased.sql — QUOXPERTICUS P0b (DEC-9).
+--
+-- A loop objective dispatched while the sandbox approval grant is active
+-- (disposable_test instance + unexpired test-approver lease, read server-side
+-- from the auth service) is stamped sandbox_leased=1. Its event consumer
+-- re-checks the grant every turn and halts the live session the moment the
+-- lease lapses: lease expiry must halt in-flight execution, not just deny new
+-- approvals, or an exercise approved under a lease simply outlives it
+-- (leased, not latched). On a real instance the grant is never active, so
+-- this stays 0 and nothing changes.
+ALTER TABLE objectives ADD COLUMN sandbox_leased INTEGER NOT NULL DEFAULT 0;

@@ -1,0 +1,239 @@
+{
+  "spec_version": 1,
+  "id": "lever",
+  "name": "Lever",
+  "category": "hr_hiring",
+  "credentialType": "lever",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://hire.lever.co/developer/documentation",
+  "base_url": "https://api.lever.co",
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": ""
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/users"
+  },
+  "tools_source": "https://hire.lever.co/developer/documentation",
+  "tools": [
+    {
+      "name": "list_opportunities",
+      "description": "List Lever pipeline opportunities (candidates in the hiring pipeline), optionally filtered by stage, posting, email, tag or archived state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max opportunities to return (default 20, max 100)"
+          },
+          "stage_id": {
+            "type": "string",
+            "description": "Optional stage ID to filter by (from list_stages)"
+          },
+          "posting_id": {
+            "type": "string",
+            "description": "Optional posting ID to filter by (from list_postings)"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional exact contact email address to filter by"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Optional tag to filter by (case sensitive)"
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Optional archive filter: true for archived only, false for active only. Unset returns both."
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/opportunities",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "stage_id": "{{input.stage_id}}",
+          "posting_id": "{{input.posting_id}}",
+          "email": "{{input.email}}",
+          "tag": "{{input.tag}}",
+          "archived": "{{input.archived}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "headline": "headline",
+            "stage": "stage",
+            "owner": "owner",
+            "origin": "origin",
+            "createdAt": "createdAt",
+            "lastInteractionAt": "lastInteractionAt",
+            "archivedAt": "archivedAt"
+          },
+          "hasNext": "hasNext"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_postings",
+      "description": "List Lever job postings, optionally filtered by state, team, department, location or commitment",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max postings to return (default 20, max 100)"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "published",
+              "internal",
+              "closed",
+              "draft",
+              "pending",
+              "rejected"
+            ],
+            "description": "Optional posting state to filter by"
+          },
+          "team": {
+            "type": "string",
+            "description": "Optional team name to filter by (case sensitive, e.g. Engineering)"
+          },
+          "department": {
+            "type": "string",
+            "description": "Optional department name to filter by (case sensitive)"
+          },
+          "location": {
+            "type": "string",
+            "description": "Optional location to filter by (case sensitive, e.g. San Francisco)"
+          },
+          "commitment": {
+            "type": "string",
+            "description": "Optional work type to filter by (case sensitive, e.g. Full-time)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/postings",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "state": "{{input.state}}",
+          "team": "{{input.team}}",
+          "department": "{{input.department}}",
+          "location": "{{input.location}}",
+          "commitment": "{{input.commitment}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "text": "text",
+            "state": "state",
+            "team": "categories.team",
+            "department": "categories.department",
+            "location": "categories.location",
+            "commitment": "categories.commitment",
+            "workplaceType": "workplaceType",
+            "createdAt": "createdAt",
+            "updatedAt": "updatedAt"
+          },
+          "hasNext": "hasNext"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_users",
+      "description": "List Lever users (recruiters, hiring managers, interviewers), optionally filtered by email or access role",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max users to return (default 20, max 100)"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional exact user email address to filter by"
+          },
+          "accessRole": {
+            "type": "string",
+            "description": "Optional access role to filter by: 'super admin', 'admin', 'team member', 'limited team member', 'interviewer', or a custom role ID"
+          },
+          "includeDeactivated": {
+            "type": "boolean",
+            "description": "Include deactivated users alongside active ones (default false)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/users",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "email": "{{input.email}}",
+          "accessRole": "{{input.accessRole}}",
+          "includeDeactivated": "{{input.includeDeactivated}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "email": "email",
+            "accessRole": "accessRole",
+            "jobTitle": "jobTitle",
+            "createdAt": "createdAt",
+            "deactivatedAt": "deactivatedAt"
+          },
+          "hasNext": "hasNext"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_stages",
+      "description": "List the pipeline stages configured in this Lever account (stage IDs for filtering opportunities)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/stages"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "text": "text"
+          },
+          "hasNext": "hasNext"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "version": "1.0.0",
+  "tools": [
+    {
+      "name": "tailscale_list_devices",
+      "description": "List all devices on the Tailscale mesh with status, IPs, routes, and health summary",
+      "category": "read",
+      "aeeIntent": "tailscale.devices.list",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "parameters": {
+        "filter": { "type": "string", "description": "Optional filter by hostname, FQDN, IP, or tag" }
+      }
+    },
+    {
+      "name": "tailscale_device_details",
+      "description": "Get full details of a specific Tailscale device including connectivity, latency, and routes",
+      "category": "read",
+      "aeeIntent": "tailscale.device.details",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "parameters": {
+        "device_id": { "type": "string", "description": "Tailscale device ID", "required": true }
+      }
+    },
+    {
+      "name": "tailscale_get_routes",
+      "description": "Get advertised and enabled subnet routes for a Tailscale device",
+      "category": "read",
+      "aeeIntent": "tailscale.routes.get",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "parameters": {
+        "device_id": { "type": "string", "description": "Tailscale device ID", "required": true }
+      }
+    },
+    {
+      "name": "tailscale_get_acl",
+      "description": "Get the Tailscale ACL policy with groups, rules, tag owners, and a human-readable summary",
+      "category": "read",
+      "aeeIntent": "tailscale.acl.get",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "parameters": {}
+    },
+    {
+      "name": "tailscale_get_dns",
+      "description": "Get Tailscale DNS configuration: nameservers, MagicDNS, search paths, and split DNS rules",
+      "category": "read",
+      "aeeIntent": "tailscale.dns.get",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "parameters": {}
+    },
+    {
+      "name": "tailscale_list_keys",
+      "description": "List all auth keys on the tailnet with expiry status and summary",
+      "category": "read",
+      "aeeIntent": "tailscale.keys.list",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "parameters": {}
+    },
+    {
+      "name": "tailscale_audit_log",
+      "description": "Get recent Tailscale configuration audit log entries",
+      "category": "read",
+      "aeeIntent": "tailscale.audit.query",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "parameters": {
+        "since": { "type": "string", "description": "ISO date — show events after this date" },
+        "actor": { "type": "string", "description": "Filter by actor email" },
+        "action": { "type": "string", "description": "Filter by action type" },
+        "limit": { "type": "number", "description": "Max entries to return" }
+      }
+    },
+    {
+      "name": "tailscale_authorize_device",
+      "description": "Authorize or deauthorize a Tailscale device. Deauthorizing disconnects it from the tailnet.",
+      "category": "write",
+      "aeeIntent": "tailscale.device.authorize",
+      "aoclClassification": { "layer": 3, "risk": "MEDIUM", "autonomy": "SUPERVISED" },
+      "requiresApproval": true,
+      "parameters": {
+        "device_id": { "type": "string", "description": "Tailscale device ID", "required": true },
+        "authorized": { "type": "boolean", "description": "true to authorize, false to deauthorize", "required": true }
+      }
+    },
+    {
+      "name": "tailscale_set_device_tags",
+      "description": "Set tags on a Tailscale device. Replaces all existing tags.",
+      "category": "write",
+      "aeeIntent": "tailscale.device.tags",
+      "aoclClassification": { "layer": 3, "risk": "MEDIUM", "autonomy": "SUPERVISED" },
+      "parameters": {
+        "device_id": { "type": "string", "description": "Tailscale device ID", "required": true },
+        "tags": { "type": "array", "description": "Tags to set", "required": true }
+      }
+    },
+    {
+      "name": "tailscale_manage_routes",
+      "description": "Enable or disable subnet routes on a Tailscale device.",
+      "category": "write",
+      "aeeIntent": "tailscale.routes.manage",
+      "aoclClassification": { "layer": 3, "risk": "MEDIUM", "autonomy": "SUPERVISED" },
+      "requiresApproval": true,
+      "parameters": {
+        "device_id": { "type": "string", "description": "Tailscale device ID", "required": true },
+        "routes": { "type": "array", "description": "CIDR routes to enable", "required": true }
+      }
+    },
+    {
+      "name": "tailscale_create_auth_key",
+      "description": "Create a new Tailscale auth key for device enrollment.",
+      "category": "write",
+      "aeeIntent": "tailscale.keys.create",
+      "aoclClassification": { "layer": 3, "risk": "MEDIUM", "autonomy": "SUPERVISED" },
+      "parameters": {
+        "reusable": { "type": "boolean", "description": "Can be used multiple times" },
+        "ephemeral": { "type": "boolean", "description": "Devices using this key are ephemeral" },
+        "preauthorized": { "type": "boolean", "description": "Devices are pre-authorized" },
+        "tags": { "type": "array", "description": "Tags for devices using this key" },
+        "expiry_seconds": { "type": "number", "description": "Key expiry in seconds" }
+      }
+    },
+    {
+      "name": "tailscale_revoke_key",
+      "description": "Revoke a Tailscale auth key.",
+      "category": "write",
+      "aeeIntent": "tailscale.keys.revoke",
+      "aoclClassification": { "layer": 5, "risk": "HIGH", "autonomy": "APPROVAL_REQUIRED" },
+      "requiresApproval": true,
+      "parameters": {
+        "key_id": { "type": "string", "description": "Key ID to revoke", "required": true }
+      }
+    }
+  ]
+}

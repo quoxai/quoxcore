@@ -1,0 +1,257 @@
+{
+  "spec_version": 1,
+  "id": "airtable",
+  "name": "Airtable",
+  "category": "data_ai",
+  "credentialType": "airtable",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://airtable.com/developers/web/api/introduction",
+  "base_url": "https://api.airtable.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v0/meta/whoami"
+  },
+  "tools_source": "https://airtable.com/developers/web/api/introduction",
+  "tools": [
+    {
+      "name": "whoami",
+      "description": "Get the Airtable user id and granted scopes for the configured token",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v0/meta/whoami"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "email": "email",
+          "scopes": "scopes"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_bases",
+      "description": "List the Airtable bases the token can access, with permission level",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "offset": {
+            "type": "string",
+            "description": "Optional pagination offset returned by a previous call"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v0/meta/bases",
+        "query": {
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "bases[]": {
+            "id": "id",
+            "name": "name",
+            "permissionLevel": "permissionLevel"
+          },
+          "offset": "offset"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_base_schema",
+      "description": "Get the table schema of one Airtable base (table ids, names and field definitions)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "base_id": {
+            "type": "string",
+            "description": "Airtable base ID (e.g. app12345678901234)"
+          }
+        },
+        "required": [
+          "base_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v0/meta/bases/{{input.base_id}}/tables"
+      },
+      "response": {
+        "pick": {
+          "tables[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "primaryFieldId": "primaryFieldId",
+            "fields": "fields"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_records",
+      "description": "List records from one Airtable table, optionally filtered by view or formula",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "base_id": {
+            "type": "string",
+            "description": "Airtable base ID (e.g. app12345678901234)"
+          },
+          "table_id": {
+            "type": "string",
+            "description": "Airtable table ID or table name"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Max records to return (default 20, max 50)"
+          },
+          "view": {
+            "type": "string",
+            "description": "Optional view ID or name to read records through"
+          },
+          "filter_by_formula": {
+            "type": "string",
+            "description": "Optional Airtable formula to filter records (e.g. {Status}='Open')"
+          }
+        },
+        "required": [
+          "base_id",
+          "table_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v0/{{input.base_id}}/{{input.table_id}}",
+        "query": {
+          "maxRecords": "{{clamp input.max_results 20 50}}",
+          "view": "{{input.view}}",
+          "filterByFormula": "{{input.filter_by_formula}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "records[]": {
+            "id": "id",
+            "createdTime": "createdTime",
+            "fields": "fields"
+          },
+          "offset": "offset"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_record",
+      "description": "Get one Airtable record by ID, with all of its cell values",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "base_id": {
+            "type": "string",
+            "description": "Airtable base ID (e.g. app12345678901234)"
+          },
+          "table_id": {
+            "type": "string",
+            "description": "Airtable table ID or table name"
+          },
+          "record_id": {
+            "type": "string",
+            "description": "Airtable record ID (e.g. rec12345678901234)"
+          }
+        },
+        "required": [
+          "base_id",
+          "table_id",
+          "record_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v0/{{input.base_id}}/{{input.table_id}}/{{input.record_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "createdTime": "createdTime",
+          "fields": "fields"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_comments",
+      "description": "List the comments left on one Airtable record",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "base_id": {
+            "type": "string",
+            "description": "Airtable base ID (e.g. app12345678901234)"
+          },
+          "table_id": {
+            "type": "string",
+            "description": "Airtable table ID or table name"
+          },
+          "record_id": {
+            "type": "string",
+            "description": "Airtable record ID (e.g. rec12345678901234)"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Max comments to return (default 20, max 50)"
+          }
+        },
+        "required": [
+          "base_id",
+          "table_id",
+          "record_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v0/{{input.base_id}}/{{input.table_id}}/{{input.record_id}}/comments",
+        "query": {
+          "pageSize": "{{clamp input.max_results 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "comments[]": {
+            "id": "id",
+            "text": "text",
+            "createdTime": "createdTime",
+            "lastUpdatedTime": "lastUpdatedTime",
+            "author": "author.name"
+          },
+          "offset": "offset"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,729 @@
+{
+  "version": "1.0.0",
+  "categories": {
+    "monitoring": {
+      "name": "Monitoring",
+      "description": "Server health, uptime, and alerting workflows",
+      "icon": "M"
+    },
+    "automation": {
+      "name": "Automation",
+      "description": "Scheduled tasks, cleanup, and deployment workflows",
+      "icon": "A"
+    },
+    "integration": {
+      "name": "Integration",
+      "description": "API sync, webhook relay, and data pipeline workflows",
+      "icon": "I"
+    },
+    "notification": {
+      "name": "Notification",
+      "description": "Alert dispatch, digest, and escalation workflows",
+      "icon": "N"
+    },
+    "hitl": {
+      "name": "Human-in-the-Loop",
+      "description": "Approval gates, review queues, and override workflows",
+      "icon": "H"
+    }
+  },
+  "recipes": [
+    {
+      "id": "server-health-monitor",
+      "name": "Server Health Monitor",
+      "description": "Monitor CPU, memory, and disk usage on hosts with multi-channel alerting",
+      "category": "monitoring",
+      "triggers": ["schedule"],
+      "estimatedNodes": 5,
+      "questions": [
+        {
+          "key": "hosts",
+          "question": "Which hosts should be monitored?",
+          "type": "multi_select",
+          "options": ["all_docker", "all_proxmox", "all_monitoring", "specific"],
+          "default": "all_docker"
+        },
+        {
+          "key": "metrics",
+          "question": "What metrics should be checked?",
+          "type": "multi_select",
+          "options": ["cpu", "memory", "disk", "load"],
+          "default": ["cpu", "memory", "disk"]
+        },
+        {
+          "key": "cpu_threshold",
+          "question": "CPU alert threshold (%)?",
+          "type": "number",
+          "default": 90
+        },
+        {
+          "key": "memory_threshold",
+          "question": "Memory alert threshold (%)?",
+          "type": "number",
+          "default": 85
+        },
+        {
+          "key": "disk_threshold",
+          "question": "Disk alert threshold (%)?",
+          "type": "number",
+          "default": 90
+        },
+        {
+          "key": "interval",
+          "question": "Check interval?",
+          "type": "select",
+          "options": ["1 minute", "5 minutes", "15 minutes", "1 hour"],
+          "default": "5 minutes"
+        },
+        {
+          "key": "notification_channels",
+          "question": "Where should alerts go?",
+          "type": "multi_select",
+          "options": ["telegram", "email", "inbox", "slack"],
+          "default": ["telegram", "inbox"]
+        }
+      ],
+      "template": {
+        "triggerType": "schedule",
+        "nodes": ["schedule_trigger", "http_request", "if_condition", "notification"]
+      }
+    },
+    {
+      "id": "service-uptime-check",
+      "name": "Service Uptime Check",
+      "description": "Check if a service/URL is responding and alert on failure",
+      "category": "monitoring",
+      "triggers": ["schedule", "webhook"],
+      "estimatedNodes": 4,
+      "questions": [
+        {
+          "key": "url",
+          "question": "What URL should be checked?",
+          "type": "text",
+          "placeholder": "https://example.com/health"
+        },
+        {
+          "key": "expected_status",
+          "question": "Expected HTTP status code?",
+          "type": "number",
+          "default": 200
+        },
+        {
+          "key": "timeout",
+          "question": "Request timeout (seconds)?",
+          "type": "number",
+          "default": 10
+        },
+        {
+          "key": "interval",
+          "question": "Check interval?",
+          "type": "select",
+          "options": ["1 minute", "5 minutes", "15 minutes"],
+          "default": "5 minutes"
+        },
+        {
+          "key": "notification_channels",
+          "question": "Where should alerts go?",
+          "type": "multi_select",
+          "options": ["telegram", "email", "inbox"],
+          "default": ["telegram"]
+        }
+      ]
+    },
+    {
+      "id": "disk-space-alert",
+      "name": "Disk Space Alert",
+      "description": "Monitor disk usage and alert before running out of space",
+      "category": "monitoring",
+      "triggers": ["schedule"],
+      "estimatedNodes": 4,
+      "questions": [
+        {
+          "key": "hosts",
+          "question": "Which hosts to monitor?",
+          "type": "multi_select",
+          "options": ["all_docker", "all_proxmox", "specific"],
+          "default": "all_docker"
+        },
+        {
+          "key": "threshold",
+          "question": "Alert when disk usage exceeds (%)?",
+          "type": "number",
+          "default": 85
+        },
+        {
+          "key": "critical_threshold",
+          "question": "Critical threshold (%)?",
+          "type": "number",
+          "default": 95
+        },
+        {
+          "key": "notification_channels",
+          "question": "Where should alerts go?",
+          "type": "multi_select",
+          "options": ["telegram", "email", "inbox"],
+          "default": ["telegram", "email"]
+        }
+      ]
+    },
+    {
+      "id": "log-pattern-watcher",
+      "name": "Log Pattern Watcher",
+      "description": "Watch logs for specific patterns and alert when found",
+      "category": "monitoring",
+      "triggers": ["schedule", "webhook"],
+      "estimatedNodes": 5,
+      "questions": [
+        {
+          "key": "log_source",
+          "question": "Where are the logs?",
+          "type": "select",
+          "options": ["file", "api", "webhook"],
+          "default": "file"
+        },
+        {
+          "key": "patterns",
+          "question": "What patterns to watch for?",
+          "type": "text_array",
+          "placeholder": "ERROR, CRITICAL, Exception",
+          "default": ["ERROR", "CRITICAL"]
+        },
+        {
+          "key": "notification_channels",
+          "question": "Where should alerts go?",
+          "type": "multi_select",
+          "options": ["telegram", "email", "inbox"],
+          "default": ["inbox"]
+        }
+      ]
+    },
+    {
+      "id": "backup-verification",
+      "name": "Backup Verification",
+      "description": "Verify backups completed successfully and report status",
+      "category": "automation",
+      "triggers": ["schedule"],
+      "estimatedNodes": 5,
+      "questions": [
+        {
+          "key": "backup_path",
+          "question": "Where are backups stored?",
+          "type": "text",
+          "placeholder": "/backups"
+        },
+        {
+          "key": "max_age_hours",
+          "question": "Alert if backup older than (hours)?",
+          "type": "number",
+          "default": 24
+        },
+        {
+          "key": "check_time",
+          "question": "When to run verification?",
+          "type": "select",
+          "options": ["6:00 AM", "9:00 AM", "12:00 PM", "custom"],
+          "default": "9:00 AM"
+        },
+        {
+          "key": "notification_channels",
+          "question": "Where should reports go?",
+          "type": "multi_select",
+          "options": ["telegram", "email", "inbox"],
+          "default": ["email"]
+        }
+      ]
+    },
+    {
+      "id": "scheduled-cleanup",
+      "name": "Scheduled Cleanup",
+      "description": "Clean up old files, logs, or temporary data on a schedule",
+      "category": "automation",
+      "triggers": ["schedule"],
+      "estimatedNodes": 4,
+      "questions": [
+        {
+          "key": "cleanup_type",
+          "question": "What should be cleaned?",
+          "type": "multi_select",
+          "options": ["old_logs", "temp_files", "docker_images", "old_backups"],
+          "default": ["old_logs", "temp_files"]
+        },
+        {
+          "key": "retention_days",
+          "question": "Keep files newer than (days)?",
+          "type": "number",
+          "default": 7
+        },
+        {
+          "key": "schedule",
+          "question": "When to run cleanup?",
+          "type": "select",
+          "options": ["daily", "weekly", "monthly"],
+          "default": "weekly"
+        },
+        {
+          "key": "dry_run_first",
+          "question": "Run in dry-run mode first?",
+          "type": "boolean",
+          "default": true
+        }
+      ]
+    },
+    {
+      "id": "deployment-pipeline",
+      "name": "Deployment Pipeline",
+      "description": "Automated deployment triggered by webhook",
+      "category": "automation",
+      "triggers": ["webhook"],
+      "estimatedNodes": 7,
+      "questions": [
+        {
+          "key": "source",
+          "question": "Where does code come from?",
+          "type": "select",
+          "options": ["github", "gitlab", "bitbucket", "custom"],
+          "default": "gitlab"
+        },
+        {
+          "key": "deploy_target",
+          "question": "Where to deploy?",
+          "type": "select",
+          "options": ["docker", "kubernetes", "ssh", "custom"],
+          "default": "docker"
+        },
+        {
+          "key": "approval_required",
+          "question": "Require approval before deploy?",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "notification_channels",
+          "question": "Where should status updates go?",
+          "type": "multi_select",
+          "options": ["telegram", "slack", "email"],
+          "default": ["slack"]
+        }
+      ]
+    },
+    {
+      "id": "service-restart",
+      "name": "Service Restart Workflow",
+      "description": "Restart a service with health checks before and after",
+      "category": "automation",
+      "triggers": ["webhook", "manual"],
+      "estimatedNodes": 6,
+      "questions": [
+        {
+          "key": "service_name",
+          "question": "Which service to restart?",
+          "type": "text",
+          "placeholder": "nginx"
+        },
+        {
+          "key": "host",
+          "question": "On which host?",
+          "type": "host_selector"
+        },
+        {
+          "key": "health_check_url",
+          "question": "Health check URL (optional)?",
+          "type": "text",
+          "placeholder": "http://localhost/health"
+        },
+        {
+          "key": "approval_required",
+          "question": "Require approval before restart?",
+          "type": "boolean",
+          "default": true
+        }
+      ]
+    },
+    {
+      "id": "api-data-sync",
+      "name": "API Data Sync",
+      "description": "Sync data between two APIs on a schedule",
+      "category": "integration",
+      "triggers": ["schedule", "webhook"],
+      "estimatedNodes": 5,
+      "questions": [
+        {
+          "key": "source_url",
+          "question": "Source API URL?",
+          "type": "text",
+          "placeholder": "https://api.source.com/data"
+        },
+        {
+          "key": "destination_url",
+          "question": "Destination API URL?",
+          "type": "text",
+          "placeholder": "https://api.dest.com/import"
+        },
+        {
+          "key": "sync_interval",
+          "question": "How often to sync?",
+          "type": "select",
+          "options": ["hourly", "daily", "weekly"],
+          "default": "hourly"
+        },
+        {
+          "key": "transform_data",
+          "question": "Need to transform data?",
+          "type": "boolean",
+          "default": false
+        }
+      ]
+    },
+    {
+      "id": "webhook-relay",
+      "name": "Webhook Relay/Transform",
+      "description": "Receive webhook, transform data, forward to destination",
+      "category": "integration",
+      "triggers": ["webhook"],
+      "estimatedNodes": 4,
+      "questions": [
+        {
+          "key": "transform_type",
+          "question": "What transformation needed?",
+          "type": "select",
+          "options": ["none", "filter", "map", "custom"],
+          "default": "none"
+        },
+        {
+          "key": "destination_url",
+          "question": "Forward to URL?",
+          "type": "text",
+          "placeholder": "https://destination.com/webhook"
+        },
+        {
+          "key": "add_headers",
+          "question": "Add custom headers?",
+          "type": "boolean",
+          "default": false
+        }
+      ]
+    },
+    {
+      "id": "database-export",
+      "name": "Database Export Pipeline",
+      "description": "Export data from database to file or API",
+      "category": "integration",
+      "triggers": ["schedule"],
+      "estimatedNodes": 5,
+      "questions": [
+        {
+          "key": "database_type",
+          "question": "What database?",
+          "type": "select",
+          "options": ["postgresql", "mysql", "sqlite", "mongodb"],
+          "default": "postgresql"
+        },
+        {
+          "key": "export_format",
+          "question": "Export format?",
+          "type": "select",
+          "options": ["json", "csv", "xlsx"],
+          "default": "json"
+        },
+        {
+          "key": "destination",
+          "question": "Send export where?",
+          "type": "select",
+          "options": ["email", "storage", "api"],
+          "default": "email"
+        }
+      ]
+    },
+    {
+      "id": "github-issue-sync",
+      "name": "GitHub Issue Sync",
+      "description": "Sync GitHub issues to Quox inbox",
+      "category": "integration",
+      "triggers": ["webhook", "schedule"],
+      "estimatedNodes": 5,
+      "questions": [
+        {
+          "key": "repository",
+          "question": "Which repository?",
+          "type": "text",
+          "placeholder": "owner/repo"
+        },
+        {
+          "key": "labels",
+          "question": "Filter by labels?",
+          "type": "text_array",
+          "placeholder": "bug, urgent"
+        },
+        {
+          "key": "create_inbox_item",
+          "question": "Create inbox item for new issues?",
+          "type": "boolean",
+          "default": true
+        }
+      ]
+    },
+    {
+      "id": "multi-channel-alert",
+      "name": "Multi-Channel Alert Dispatch",
+      "description": "Receive alert and dispatch to multiple channels",
+      "category": "notification",
+      "triggers": ["webhook"],
+      "estimatedNodes": 6,
+      "questions": [
+        {
+          "key": "channels",
+          "question": "Which channels to use?",
+          "type": "multi_select",
+          "options": ["telegram", "email", "slack", "inbox"],
+          "default": ["telegram", "email"]
+        },
+        {
+          "key": "priority_routing",
+          "question": "Route by priority?",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "urgent_channels",
+          "question": "Urgent alerts go to?",
+          "type": "multi_select",
+          "options": ["telegram", "email", "slack"],
+          "default": ["telegram"]
+        }
+      ]
+    },
+    {
+      "id": "daily-digest",
+      "name": "Daily/Weekly Digest",
+      "description": "Compile and send a summary digest on schedule",
+      "category": "notification",
+      "triggers": ["schedule"],
+      "estimatedNodes": 5,
+      "questions": [
+        {
+          "key": "frequency",
+          "question": "How often?",
+          "type": "select",
+          "options": ["daily", "weekly", "monthly"],
+          "default": "daily"
+        },
+        {
+          "key": "send_time",
+          "question": "When to send?",
+          "type": "select",
+          "options": ["8:00 AM", "9:00 AM", "5:00 PM"],
+          "default": "9:00 AM"
+        },
+        {
+          "key": "include",
+          "question": "What to include?",
+          "type": "multi_select",
+          "options": ["alerts", "completed_tasks", "pending_approvals", "metrics"],
+          "default": ["alerts", "completed_tasks"]
+        },
+        {
+          "key": "destination",
+          "question": "Send digest to?",
+          "type": "select",
+          "options": ["email", "telegram", "slack"],
+          "default": "email"
+        }
+      ]
+    },
+    {
+      "id": "escalation-chain",
+      "name": "Escalation Chain",
+      "description": "Escalate alerts through a chain of contacts",
+      "category": "notification",
+      "triggers": ["webhook"],
+      "estimatedNodes": 7,
+      "questions": [
+        {
+          "key": "first_level",
+          "question": "First level contact?",
+          "type": "text",
+          "placeholder": "on-call engineer"
+        },
+        {
+          "key": "escalation_time",
+          "question": "Escalate after (minutes)?",
+          "type": "number",
+          "default": 15
+        },
+        {
+          "key": "second_level",
+          "question": "Second level contact?",
+          "type": "text",
+          "placeholder": "team lead"
+        },
+        {
+          "key": "final_escalation",
+          "question": "Final escalation to?",
+          "type": "text",
+          "placeholder": "manager"
+        }
+      ]
+    },
+    {
+      "id": "status-page-update",
+      "name": "Status Page Update",
+      "description": "Update status page based on monitoring results",
+      "category": "notification",
+      "triggers": ["webhook"],
+      "estimatedNodes": 4,
+      "questions": [
+        {
+          "key": "status_page_provider",
+          "question": "Status page provider?",
+          "type": "select",
+          "options": ["statuspage", "cachet", "custom"],
+          "default": "custom"
+        },
+        {
+          "key": "auto_resolve",
+          "question": "Auto-resolve when service recovers?",
+          "type": "boolean",
+          "default": true
+        }
+      ]
+    },
+    {
+      "id": "approval-gate",
+      "name": "Approval Gate",
+      "description": "Wait for human approval before proceeding",
+      "category": "hitl",
+      "triggers": ["webhook"],
+      "estimatedNodes": 5,
+      "questions": [
+        {
+          "key": "approvers",
+          "question": "Who can approve?",
+          "type": "select",
+          "options": ["anyone", "specific_users", "team", "role"],
+          "default": "team"
+        },
+        {
+          "key": "timeout_hours",
+          "question": "Approval timeout (hours)?",
+          "type": "number",
+          "default": 24
+        },
+        {
+          "key": "timeout_action",
+          "question": "On timeout?",
+          "type": "select",
+          "options": ["reject", "auto_approve", "escalate"],
+          "default": "reject"
+        },
+        {
+          "key": "notification_channels",
+          "question": "Notify approvers via?",
+          "type": "multi_select",
+          "options": ["inbox", "telegram", "email"],
+          "default": ["inbox", "telegram"]
+        }
+      ]
+    },
+    {
+      "id": "review-queue",
+      "name": "Review Queue",
+      "description": "Queue items for human review and collect feedback",
+      "category": "hitl",
+      "triggers": ["webhook"],
+      "estimatedNodes": 5,
+      "questions": [
+        {
+          "key": "queue_type",
+          "question": "What's being reviewed?",
+          "type": "select",
+          "options": ["content", "code", "requests", "reports"],
+          "default": "requests"
+        },
+        {
+          "key": "review_options",
+          "question": "Review actions available?",
+          "type": "multi_select",
+          "options": ["approve", "reject", "request_changes", "escalate"],
+          "default": ["approve", "reject", "request_changes"]
+        },
+        {
+          "key": "auto_assign",
+          "question": "Auto-assign reviewers?",
+          "type": "boolean",
+          "default": true
+        }
+      ]
+    },
+    {
+      "id": "override-request",
+      "name": "Override Request",
+      "description": "Request override for safety controls",
+      "category": "hitl",
+      "triggers": ["webhook"],
+      "estimatedNodes": 6,
+      "questions": [
+        {
+          "key": "override_type",
+          "question": "What can be overridden?",
+          "type": "select",
+          "options": ["safety_limit", "access_control", "rate_limit", "custom"],
+          "default": "safety_limit"
+        },
+        {
+          "key": "required_approvers",
+          "question": "Number of approvers required?",
+          "type": "number",
+          "default": 2
+        },
+        {
+          "key": "override_duration",
+          "question": "Override valid for (hours)?",
+          "type": "number",
+          "default": 4
+        },
+        {
+          "key": "audit_log",
+          "question": "Create audit log entry?",
+          "type": "boolean",
+          "default": true
+        }
+      ]
+    },
+    {
+      "id": "incident-response",
+      "name": "Incident Response Workflow",
+      "description": "Coordinate incident response with human checkpoints",
+      "category": "hitl",
+      "triggers": ["webhook"],
+      "estimatedNodes": 8,
+      "questions": [
+        {
+          "key": "severity_levels",
+          "question": "Severity levels?",
+          "type": "multi_select",
+          "options": ["low", "medium", "high", "critical"],
+          "default": ["low", "medium", "high", "critical"]
+        },
+        {
+          "key": "auto_actions",
+          "question": "Auto-remediation for low severity?",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "notification_channels",
+          "question": "Alert incident team via?",
+          "type": "multi_select",
+          "options": ["telegram", "slack", "pager"],
+          "default": ["telegram", "slack"]
+        },
+        {
+          "key": "postmortem",
+          "question": "Create postmortem template?",
+          "type": "boolean",
+          "default": true
+        }
+      ]
+    }
+  ]
+}

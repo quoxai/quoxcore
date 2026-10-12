@@ -1,0 +1,217 @@
+/* =========================================================================
+   LogoUploadModal — Image crop, position & background colour editor
+   ========================================================================= */
+
+.logo-editor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+/* ---------- Dropzone (before image selected) ---------- */
+
+.logo-editor__dropzone {
+    width: 100%;
+    max-width: 320px;
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    border: 2px dashed var(--border-default, rgba(255, 255, 255, 0.12));
+    border-radius: 16px;
+    background: var(--surface-card, rgba(255, 255, 255, 0.03));
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    color: var(--text-muted, rgba(255, 255, 255, 0.6));
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 24px;
+}
+
+.logo-editor__dropzone:hover,
+.logo-editor__dropzone--dragover {
+    border-color: var(--m-quox-primary, #38bdf8);
+    background: rgba(56, 189, 248, 0.04);
+}
+
+.logo-editor__dropzone-icon {
+    font-size: 2.5rem;
+    opacity: 0.4;
+}
+
+.logo-editor__dropzone-text {
+    font-weight: 500;
+}
+
+.logo-editor__dropzone-hint {
+    font-size: 0.75rem;
+    opacity: 0.5;
+}
+
+/* ---------- Canvas area ---------- */
+
+.logo-editor__preview {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo-editor__canvas {
+    border-radius: 12px;
+    cursor: grab;
+    box-shadow: 0 0 0 1px var(--border-default, rgba(255, 255, 255, 0.08)),
+                0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.logo-editor__canvas:active {
+    cursor: grabbing;
+}
+
+.logo-editor__canvas-hint {
+    position: absolute;
+    bottom: -24px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--text-muted, rgba(255, 255, 255, 0.52));
+}
+
+/* ---------- Controls ---------- */
+
+.logo-editor__controls {
+    width: 100%;
+    max-width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.logo-editor__control-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logo-editor__label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted, rgba(255, 255, 255, 0.6));
+    white-space: nowrap;
+    min-width: 80px;
+}
+
+/* Zoom slider */
+.logo-editor__slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--border-default, rgba(255, 255, 255, 0.12));
+    border-radius: 2px;
+    outline: none;
+}
+
+.logo-editor__slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--m-quox-primary, #38bdf8);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.logo-editor__slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--m-quox-primary, #38bdf8);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.logo-editor__zoom-value {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #a1a1aa);
+    min-width: 32px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Colour picker ---------- */
+
+.logo-editor__colours {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.logo-editor__colour-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s;
+    padding: 0;
+    outline: none;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.logo-editor__colour-swatch:hover {
+    transform: scale(1.15);
+}
+
+.logo-editor__colour-swatch--active {
+    border-color: var(--m-quox-primary, #38bdf8);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15),
+                0 0 0 2px rgba(56, 189, 248, 0.3);
+}
+
+.logo-editor__colour-custom {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px dashed var(--border-default, rgba(255, 255, 255, 0.15));
+    cursor: pointer;
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.logo-editor__colour-custom input[type="color"] {
+    position: absolute;
+    inset: -4px;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    border: none;
+    cursor: pointer;
+    background: none;
+}
+
+/* ---------- File change link ---------- */
+
+.logo-editor__change-file {
+    background: none;
+    border: none;
+    color: var(--m-quox-primary, #38bdf8);
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.logo-editor__change-file:hover {
+    opacity: 0.8;
+}

@@ -1,0 +1,30 @@
+/* ShareToast — clipboard confirmation at bottom-center.
+   Uses .qx-toast + .qx-toast--success from qx-components.css for glass styling.
+   This file only handles positioning and the fade-out transition. */
+
+.share-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  z-index: 9999;
+  pointer-events: none;
+  animation: share-toast-in 0.2s ease-out;
+}
+
+.share-toast--fading {
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+
+@keyframes share-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

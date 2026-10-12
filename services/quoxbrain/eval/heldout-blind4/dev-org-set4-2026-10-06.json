@@ -1,0 +1,29 @@
+{
+  "description": "BLIND held-out set 4, authored 2026-10-06 ~18:40 UTC BEFORE the embedding-model upgrade and the reranker were measured, never used for tuning. Targets are short curated memory notes (400-1500 chars) so the overlap filter does not reject natural questions. Questions avoid each note's title words.",
+  "paraphrases": [
+    { "noteId": "7be99893197257174fe038f99bf358d8be8f1495", "question": "how should I stop a stray local test process without hitting dozens of unrelated ones" },
+    { "noteId": "965c323f1f5ca20baea3182fc88fc9c5abb29cac", "question": "which checkout a build or a commit applies to depends on what" },
+    { "noteId": "8b65b314beede6f913b85fe1092f69ab0baef97e", "question": "where do drafted articles for the company site have to be sent once written" },
+    { "noteId": "10e8c759d45656fbde0c49ec2585ddf71b72583c", "question": "how long should replies to the owner be" },
+    { "noteId": "28617518746cf5c4f1003e33f35778cf599d3045", "question": "heavy processor jobs should run on which machines instead of this box" },
+    { "noteId": "82f462b4865dc62a76cbf2e973c66482c616e10b", "question": "what author name and email go on every commit" },
+    { "noteId": "bec91207096131f57dce6b589c796716145af6cb", "question": "should changes land on the development instance before production" },
+    { "noteId": "dd60fb0b934ba3086a5545ae4399495696334281", "question": "why did checking the hash chain freeze the central API service" },
+    { "noteId": "1d316165adb711c098e9930adad74becd8c20efb", "question": "what should each terminal be called at the start of work" },
+    { "noteId": "d6e348100bbbede800f3117c2abf1638f38aa5b6", "question": "should people see formatting symbols when they edit text in the app" },
+    { "noteId": "c3d618e4dbd1f6048817614eae02d9c7262ec848", "question": "when reporting back, open with the result or with the steps taken" },
+    { "noteId": "5550886f74c56c6229329455c5e4837aa9bd3271", "question": "rules for handling secure shell credentials on these machines" },
+    { "noteId": "49c61aaf8e91652937917e8b66c919df38d39c56", "question": "the code search index can be out of date, when should I distrust it" },
+    { "noteId": "1b840d2b51d6e16699f3a213a3f56eddde814be5", "question": "after editing code what must I always run before saying it is finished" },
+    { "noteId": "34e8b7ab9b5f03c8984a6cee0535040062c33d43", "question": "may commit messages credit an assistant as co writer" },
+    { "noteId": "f39e61b9638f8d25c6ddfb33dd288b63016a0b64", "question": "what should a session that is only planning be allowed to change" }
+  ],
+  "nearMisses": [
+    { "query": "what is the owner's preferred coffee order for team meetings", "topic": "owner" },
+    { "query": "which payroll provider pays the contractors", "topic": "finance" },
+    { "query": "how many stars does the public repository have on the code hosting site", "topic": "github" },
+    { "query": "what was decided about the office lease renewal in manchester", "topic": "office" },
+    { "query": "what discount was agreed for the charity customer on the hosting plan", "topic": "pricing" },
+    { "query": "which conference talk did we give about governance in 2025", "topic": "marketing" }
+  ]
+}

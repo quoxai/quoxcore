@@ -1,0 +1,383 @@
+{
+  "spec_version": 1,
+  "id": "cloudflarezerotrust",
+  "name": "Cloudflare Zero Trust",
+  "category": "cloud_hosting",
+  "credentialType": "cloudflare_zero_trust",
+  "requiredFields": [
+    "api_token",
+    "account_id"
+  ],
+  "description": "Read-only Cloudflare Zero Trust access: Access applications, policies, groups and identity providers, Gateway rules, lists and locations, Cloudflare tunnels and service tokens",
+  "docs": "https://developers.cloudflare.com/api/",
+  "base_url": {
+    "template": "https://api.cloudflare.com/client/v4/accounts/{{account_id}}",
+    "_probe": {
+      "account_id": "00000000000000000000000000000000"
+    }
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/access/apps"
+  },
+  "tools_source": "https://developers.cloudflare.com/api/",
+  "tools": [
+    {
+      "name": "list_access_apps",
+      "description": "List Cloudflare Access applications for the account (name, domain, type, session duration)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/access/apps"
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name",
+            "domain": "domain",
+            "type": "type",
+            "session_duration": "session_duration",
+            "app_launcher_visible": "app_launcher_visible",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_access_app",
+      "description": "Get one Cloudflare Access application by its application ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app_id": {
+            "type": "string",
+            "description": "Access application ID (32-character hex UUID)"
+          }
+        },
+        "required": [
+          "app_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/access/apps/{{input.app_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "result.id",
+          "name": "result.name",
+          "domain": "result.domain",
+          "type": "result.type",
+          "session_duration": "result.session_duration",
+          "allowed_idps": "result.allowed_idps",
+          "created_at": "result.created_at",
+          "updated_at": "result.updated_at"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.app_id": "00000000000000000000000000000000"
+      }
+    },
+    {
+      "name": "list_access_policies",
+      "description": "List the account's reusable Cloudflare Access policies (decision, precedence)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/access/policies"
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name",
+            "decision": "decision",
+            "precedence": "precedence",
+            "session_duration": "session_duration",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_access_groups",
+      "description": "List Cloudflare Access groups (reusable include/exclude/require rule sets)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/access/groups"
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_access_identity_providers",
+      "description": "List the identity providers configured for Cloudflare Access on this account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/access/identity_providers"
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name",
+            "type": "type"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_access_service_tokens",
+      "description": "List Cloudflare Access service tokens (client IDs and expiry only, never the client secret)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/access/service_tokens"
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name",
+            "client_id": "client_id",
+            "duration": "duration",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "expires_at": "expires_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_gateway_rules",
+      "description": "List Cloudflare Gateway policies (DNS, HTTP and network rules) with action and enabled state",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/gateway/rules"
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "action": "action",
+            "enabled": "enabled",
+            "precedence": "precedence",
+            "filters": "filters",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_gateway_lists",
+      "description": "List Cloudflare Gateway lists (domain, IP, serial number and other lists used by Gateway policies)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/gateway/lists"
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "type": "type",
+            "count": "count",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_gateway_locations",
+      "description": "List Cloudflare Gateway locations (DNS resolver endpoints configured for the account)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/gateway/locations"
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name",
+            "client_default": "client_default",
+            "ecs_support": "ecs_support",
+            "doh_subdomain": "doh_subdomain",
+            "ip": "ip",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_tunnels",
+      "description": "List Cloudflare tunnels (cloudflared) for the account, optionally excluding deleted ones",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "is_deleted": {
+            "type": "boolean",
+            "description": "Filter on deletion state: false for live tunnels only"
+          },
+          "name": {
+            "type": "string",
+            "description": "Exact tunnel name to filter by"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Tunnels per page (default 20, capped at 50 here)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/cfd_tunnel",
+        "query": {
+          "is_deleted": "{{input.is_deleted}}",
+          "name": "{{input.name}}",
+          "per_page": "{{clamp input.per_page 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "tun_type": "tun_type",
+            "created_at": "created_at",
+            "deleted_at": "deleted_at",
+            "conns_active_at": "conns_active_at",
+            "conns_inactive_at": "conns_inactive_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_tunnel",
+      "description": "Get one Cloudflare tunnel by its tunnel ID, with status and connection timestamps",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tunnel_id": {
+            "type": "string",
+            "description": "Cloudflare tunnel ID (32-character hex UUID)"
+          }
+        },
+        "required": [
+          "tunnel_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/cfd_tunnel/{{input.tunnel_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "result.id",
+          "name": "result.name",
+          "status": "result.status",
+          "tun_type": "result.tun_type",
+          "created_at": "result.created_at",
+          "deleted_at": "result.deleted_at",
+          "conns_active_at": "result.conns_active_at",
+          "conns_inactive_at": "result.conns_inactive_at"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.tunnel_id": "00000000000000000000000000000000"
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "medium",
+    "needs_review": [
+      "RENAMED 2026-09-12 from id 'cloudflare_zero_trust' to 'cloudflarezerotrust'. A connector named 'cloudflare' is already registered, and a connector id may not prefix another id: every 'cloudflare_zero_trust_*' tool would prefix-route to 'cloudflare' (registry.js assertNoToolNameCollisions). The underscore-free id keeps the namespace safe. credentialType stays 'cloudflare_zero_trust' so specToEntry still maps to the vault entry of that key in services/auth/config/integrationTypeRegistry.js, whose fields (api_token, account_id) and Bearer testHeaders are what the scaffolded auth block reflects; auth was NOT changed.",
+      "account_id is a vault credential field, not a per-call input, so it rides in the base_url object template 'https://api.cloudflare.com/client/v4/accounts/{{account_id}}' and every tool path is account-relative. The test block is /access/apps, which is exactly the live-tested testEndpoint the vault registry uses for this key.",
+      "base_url._probe substitutes account_id = '00000000000000000000000000000000', a nil 32-hex identifier: no account, nothing public, and never a credential. The hint exists because the generic dummy credential cannot route: curl 2026-09-12 with account_id 'QUOXSHAPEPROOFDUMMYACCOUNTID' answered HTTP 404 {\"result\":null,\"success\":false,\"errors\":[{\"code\":7003,\"message\":\"Could not route to /client/v4/accounts/QUOXSHAPEPROOFDUMMYACCOUNTID/access/apps, perhaps your object identifier is invalid?\"}]} at every path, an identifier rejection the harness would have to read as an unproven route. The runtime ignores _probe entirely.",
+      "Shape-proof 2026-09-12 is overall SHAPE_PROVEN: 12 of 12 probes proven (test plus all 11 tools), 0 AUTH_WALL, 0 AMBIGUOUS, 0 FAIL. Verbatim: every real path answers HTTP 400 {\"success\":false,\"errors\":[{\"code\":9106,\"message\":\"Authentication failed (status: 400)\"}],\"messages\":[],\"result\":null} while the control path /client/v4/accounts/00000000000000000000000000000000/quox-shapeproof-control-e4831a82 answers HTTP 400 {\"success\":false,\"errors\":[{\"code\":7003,\"message\":\"Could not route to /accounts/00000000000000000000000000000000/quox-shapeproof-control-e4831a82, perhaps your object identifier is invalid?\"}]}. Same status, different Cloudflare error code, so the differential proves host, TLS, base_url, the Bearer header and each route (flag differential_path_proof, control_error_code 7003). Note the contrast with the registered 'cloudflare' spec's proof, which is AMBIGUOUS: probing under an account scope makes the auth failure 9106 distinguishable from the routing failure 7003, where a bare /client/v4 probe is not.",
+      "Every response pick is documentary, taken from tools_source (https://developers.cloudflare.com/api/). No Zero Trust account was held for this draft, so no probe ever saw a 2xx and the field names, the {result, success, errors} envelope and the array shapes are unverified against live data. All 11 tools are GET and write:false; nothing in this spec can mutate Access, Gateway or tunnel configuration.",
+      "list_access_service_tokens returns client_id and expiry only. Cloudflare returns a service token's client_secret solely at creation time, so no read path can leak it, and none is picked.",
+      "Paging: the Access and Gateway list endpoints document no page/per_page parameters, so none are invented here. list_tunnels does document paging and its per_page is clamped to 50 (documented ceiling is 1000), a deliberate conservative cap for an agent-facing read, not an API limit.",
+      "Category set to 'cloud_hosting' to match the shipped taxonomy and the registered 'cloudflare' sibling. The scaffold's 'uncategorized' and the vault registry's 'zerotrust' are not buckets any shipped spec uses; the 12-value taxonomy has no security bucket.",
+      "Deliberately NOT shipped: /accounts/{account_id}/devices. Cloudflare has deprecated it in favour of the /devices/physical-devices surface, and shipping a deprecated read would age badly. Access users, seats and Gateway categories were also left out to keep the toolbox to the Zero Trust posture reads an agent actually asks for."
+    ]
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "spec_version": 1,
+  "id": "stability",
+  "name": "Stability AI",
+  "category": "data_ai",
+  "credentialType": "stability",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Read-only Stability AI account surface: account identity and organisation memberships, the API key's credit balance, and the engines the key is allowed to use. NO GENERATION TOOL IS EXPOSED, deliberately: every Stability image, video and upscale endpoint is a POST that spends credits, so this connector carries no generation call at all and cannot spend money.",
+  "docs": "https://platform.stability.ai/docs/api-reference",
+  "base_url": "https://api.stability.ai",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/user/account"
+  },
+  "tools_source": "https://platform.stability.ai/docs/api-reference",
+  "tools": [
+    {
+      "name": "account",
+      "description": "Get the Stability AI account the API key belongs to: user id, email and every organisation the user is a member of",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/user/account"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "email": "email",
+          "profile_picture": "profile_picture",
+          "organizations[]": {
+            "id": "id",
+            "name": "name",
+            "role": "role",
+            "is_default": "is_default"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "balance",
+      "description": "Get the credit balance of the Stability AI account or organisation the API key is scoped to",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "description": "Optional Stability organisation ID to read the balance of (e.g. org-123456). Defaults to the user's default organisation."
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/user/balance",
+        "headers": {
+          "Organization": "{{input.organization_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "credits": "credits"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_engines",
+      "description": "List the Stability AI engines (models) available to the account, with the content type each one produces",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "description": "Optional Stability organisation ID to list engines for (e.g. org-123456). Defaults to the user's default organisation."
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/engines/list",
+        "headers": {
+          "Organization": "{{input.organization_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "type": "type"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "READ-ONLY BY DESIGN, AND FOR COST REASONS: no tool is marked write:true and no generation endpoint is present. Stability's text-to-image, image-to-image, upscale, video and 3D endpoints are all POSTs that consume credits from the same key, so exposing one would let an agent spend the customer's money. Only the three metered-at-zero read endpoints are wired: /v1/user/account, /v1/user/balance and /v1/engines/list.",
+      "list_engines uses a ROOT-ARRAY pick ('[]'). Documented shape: ListEnginesResponseBody is declared type 'array' of Engine {id, name, description, type} in the OpenAPI document embedded in https://platform.stability.ai/docs/api-reference, NOT an object with an 'engines' key.",
+      "The optional 'Organization' request header on balance and list_engines is documented (components.parameters.organization, in: header, name: Organization) and is dropped by the declarative runtime when the caller omits organization_id. The shape-proof harness does not send per-tool request headers, so the header path itself is NOT covered by the proof run; the default no-header path is.",
+      "auth kept as scaffolded (bearer api_key) and confirmed against the live host: /v1/user/account, /v1/user/balance and /v1/engines/list each answer a dummy bearer with a structured JSON 401 {id, name, message}, while a bogus path on the same host answers 404 with an empty body."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

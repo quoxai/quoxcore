@@ -1,0 +1,640 @@
+/**
+ * WireMap Styles - Redesigned
+ *
+ * Clean, readable workflow visualization with:
+ * - Larger labeled nodes
+ * - Clear category colors
+ * - Smooth hover transitions
+ * - Right-side detail panel
+ */
+
+/* =============================================================================
+   CONTAINER
+   ============================================================================= */
+
+.wiremap {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.wiremap--empty,
+.wiremap--error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wiremap__placeholder {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.wiremap__placeholder-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 12px;
+}
+
+.wiremap__placeholder p {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.wiremap__placeholder small {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.85rem;
+}
+
+/* =============================================================================
+   MAIN CANVAS AREA
+   ============================================================================= */
+
+.wiremap__main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.wiremap__canvas {
+    flex: 1;
+    position: relative;
+}
+
+.wiremap__canvas .react-flow {
+    background: transparent !important;
+}
+
+/* W5-B made these a glass panel with shimmer; user (2026-05-03) said the
+   panel was full-width and the icons stacked vertically — strip it back
+   to bare floating buttons in a horizontal row. React Flow's default
+   container layout was overridden by the panel rules; we let it be a
+   bare flex row instead. */
+.wiremap__canvas .react-flow__controls {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-radius: 0 !important;
+    overflow: visible;
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    width: auto;
+    padding: 0;
+}
+
+.wiremap__canvas .react-flow__controls::before {
+    /* Retire the W5-B shimmer pseudo — no panel means no rim. */
+    display: none;
+}
+
+.wiremap__canvas .react-flow__controls-button {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.85);
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+}
+
+.wiremap__canvas .react-flow__controls-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.wiremap__canvas .react-flow__controls-button svg {
+    fill: currentColor;
+}
+
+/* =============================================================================
+   STATS BAR
+   ============================================================================= */
+
+.wiremap__stats {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--m-bg-base);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+    border-top: 1px solid var(--m-border-default);
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.wiremap__stats-divider {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.wiremap__stats-warning {
+    color: #f59e0b;
+}
+
+/* =============================================================================
+   DETAIL PANEL
+   ============================================================================= */
+
+.wiremap-detail {
+    position: relative;
+    width: 320px;
+    background: var(--m-bg-base);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+    border-left: 1px solid var(--m-border-default);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.18),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    isolation: isolate;
+    animation: detailSlideIn 0.2s ease;
+}
+
+.wiremap-detail::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--qx-edges);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.wiremap-detail > * { position: relative; z-index: 2; }
+
+@keyframes detailSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.wiremap-detail__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid var(--m-border-default);
+    background: transparent;
+}
+
+.wiremap-detail__title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.wiremap-detail__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.wiremap-detail__title h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+.wiremap-detail__category {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.72);
+    margin-top: 2px;
+    display: block;
+}
+
+.wiremap-detail__close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.wiremap-detail__close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.wiremap-detail__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.wiremap-detail__section {
+    margin-bottom: 20px;
+}
+
+.wiremap-detail__section:last-child {
+    margin-bottom: 0;
+}
+
+.wiremap-detail__section label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.wiremap-detail__value {
+    margin: 0;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.85);
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+}
+
+.wiremap-detail__summary {
+    margin: 0;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.75);
+    line-height: 1.5;
+}
+
+.wiremap-detail__connections {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.wiremap-detail__tag {
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--m-bg-base);
+    border: 1px solid var(--m-border-default);
+    border-radius: 10px;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.wiremap-detail__params {
+    margin: 0;
+    padding: 12px;
+    background: var(--m-bg-base);
+    border: 1px solid var(--m-border-default);
+    border-radius: 10px;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.72);
+    overflow-x: auto;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* =============================================================================
+   EDITABLE NODE PROPERTIES
+   ============================================================================= */
+
+.wiremap-detail__name-input {
+    width: 100%;
+    background: var(--m-bg-base);
+    border: 1px solid var(--m-border-default);
+    border-radius: 10px;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 4px 8px;
+    line-height: 1.3;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.wiremap-detail__name-input:focus {
+    border-color: rgba(56, 189, 248, 0.5);
+}
+
+.wiremap-detail__props {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.wiremap-detail__prop {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.wiremap-detail__prop-label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.wiremap-detail__input {
+    width: 100%;
+    background: var(--m-bg-base);
+    border: 1px solid var(--m-border-default);
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.8rem;
+    padding: 6px 8px;
+    outline: none;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+}
+
+.wiremap-detail__input:focus {
+    border-color: rgba(56, 189, 248, 0.5);
+    color: #fff;
+}
+
+.wiremap-detail__input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+.wiremap-detail__input[type="number"]::-webkit-inner-spin-button,
+.wiremap-detail__input[type="number"]::-webkit-outer-spin-button {
+    opacity: 0.5;
+}
+
+.wiremap-detail__checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.wiremap-detail__checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #38bdf8;
+    cursor: pointer;
+}
+
+/* =============================================================================
+   EXECUTION OVERLAY — node status decoration (STUDY-REV-2 P5.B-polish)
+   ============================================================================= */
+
+/* ── Keyframes ────────────────────────────────────────────────────────────── */
+
+/* Energised outer-glow ring: cyan → purple, continuous loop */
+@keyframes wb-running-glow {
+  0%   { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7),  0 0 16px 2px rgba(56, 189, 248, 0.25); }
+  40%  { box-shadow: 0 0 0 6px rgba(139, 92, 246, 0.5), 0 0 24px 4px rgba(139, 92, 246, 0.3); }
+  80%  { box-shadow: 0 0 0 10px rgba(56, 189, 248, 0), 0 0 28px 6px rgba(56, 189, 248, 0.15); }
+  100% { box-shadow: 0 0 0 0  rgba(56, 189, 248, 0),   0 0 16px 2px rgba(56, 189, 248, 0); }
+}
+
+/* Subtle scale pulse — node breathes while running */
+@keyframes wb-running-scale {
+  0%, 100% { transform: scale(1.0); }
+  50%       { transform: scale(1.025); }
+}
+
+/* Badge spin for running indicator */
+@keyframes wb-badge-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Completed flash: green ring expands and fades out */
+@keyframes wb-completed-flash {
+  0%   { box-shadow: 0 0 0 0  rgba(74, 222, 128, 0.9); }
+  50%  { box-shadow: 0 0 0 10px rgba(74, 222, 128, 0.4); }
+  100% { box-shadow: 0 0 0 14px rgba(74, 222, 128, 0); }
+}
+
+/* Failed flash: red ring + horizontal shake */
+@keyframes wb-failed-flash {
+  0%   { box-shadow: 0 0 0 0  rgba(248, 113, 113, 0.9); transform: translateX(0); }
+  15%  { transform: translateX(-3px); }
+  30%  { transform: translateX(3px); box-shadow: 0 0 0 8px rgba(248, 113, 113, 0.5); }
+  45%  { transform: translateX(-2px); }
+  60%  { transform: translateX(2px); }
+  75%  { transform: translateX(-1px); }
+  100% { box-shadow: 0 0 0 12px rgba(248, 113, 113, 0); transform: translateX(0); }
+}
+
+/* Edge flowing dash animation */
+@keyframes wb-edge-flow {
+  to { stroke-dashoffset: -20; }
+}
+
+/* Completed edge settle: brief green, then fade to neutral */
+@keyframes wb-edge-done-settle {
+  0%   { opacity: 1; }
+  70%  { opacity: 0.9; }
+  100% { opacity: 0.55; }
+}
+
+/* ── Base status badge ──────────────────────────────────────────────────── */
+
+/* The qx-node itself needs position:relative for badge positioning */
+.qx-node {
+  position: relative;
+}
+
+/* Base state badge — absolutely positioned in top-right corner of the node */
+.qx-node__status-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  border: 2px solid rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ── Running ─────────────────────────────────────────────────────────────── */
+
+.qx-node--running {
+  animation: wb-running-glow 1.5s ease-in-out infinite, wb-running-scale 1.5s ease-in-out infinite;
+  border: 2px solid rgba(56, 189, 248, 0.7) !important;
+  outline: none;
+}
+
+.qx-node--running .qx-node__status-badge {
+  background: linear-gradient(135deg, #38bdf8, #a78bfa);
+  color: #fff;
+  /* spinning inner dot effect via border trick */
+  border: 2px solid rgba(255,255,255,0.5);
+}
+
+/* ── Completed ───────────────────────────────────────────────────────────── */
+
+.qx-node--completed .qx-node__status-badge {
+  background: #10b981;
+  color: #fff;
+}
+
+.qx-node--completed {
+  animation: wb-completed-flash 0.6s ease-out forwards;
+  filter: brightness(1.1);
+  border: 1.5px solid rgba(74, 222, 128, 0.55) !important;
+}
+
+/* ── Failed ──────────────────────────────────────────────────────────────── */
+
+.qx-node--failed .qx-node__status-badge {
+  background: #ef4444;
+  color: #fff;
+}
+
+.qx-node--failed {
+  animation: wb-failed-flash 0.65s ease-out forwards;
+  border: 1.5px solid rgba(248, 113, 113, 0.6) !important;
+  outline: none;
+}
+
+/* ── Queued ──────────────────────────────────────────────────────────────── */
+
+.qx-node--queued .qx-node__status-badge {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.qx-node--queued {
+  opacity: 0.55;
+}
+
+/* ── Skipped ─────────────────────────────────────────────────────────────── */
+
+.qx-node--skipped .qx-node__status-badge {
+  background: #6b7280;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.qx-node--skipped {
+  opacity: 0.45;
+}
+
+/* ── Edge status classes (STUDY-REV-2 P5.B-polish) ───────────────────────── */
+
+/* Flowing edge: cyan dashes travelling from source to target */
+.react-flow__edge.wm-edge--flowing .react-flow__edge-path {
+  stroke-dasharray: 8 6;
+  animation: wb-edge-flow 0.9s linear infinite;
+}
+
+/* Done edge: brief green, fades to neutral over ~3s */
+.react-flow__edge.wm-edge--done .react-flow__edge-path {
+  animation: wb-edge-done-settle 3s ease-out forwards;
+}
+
+/* Failed edge: red tint, static */
+.react-flow__edge.wm-edge--failed .react-flow__edge-path {
+  stroke-dasharray: none;
+  animation: none;
+}
+
+/* =============================================================================
+   REACT FLOW EDGE OVERRIDES
+   ============================================================================= */
+
+.react-flow__edge-path {
+    stroke-linecap: round;
+}
+
+.react-flow__edge.animated .react-flow__edge-path {
+    stroke-dasharray: 5;
+    animation: flowDash 0.5s linear infinite;
+}
+
+@keyframes flowDash {
+    to {
+        stroke-dashoffset: -10;
+    }
+}
+
+/* =============================================================================
+   SCROLLBAR STYLING
+   ============================================================================= */
+
+.wiremap-detail__body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.wiremap-detail__body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.wiremap-detail__body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+.wiremap-detail__body::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.wiremap-detail__params::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+
+.wiremap-detail__params::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.wiremap-detail__params::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+}
+
+/* =============================================================================
+   RESPONSIVE
+   ============================================================================= */
+
+@media (max-width: 768px) {
+    .wiremap {
+        flex-direction: column;
+    }
+
+    .wiremap-detail {
+        width: 100%;
+        max-height: 50%;
+        border-left: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+}

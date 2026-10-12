@@ -1,0 +1,106 @@
+{
+  "spec_id": "jenkins",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T19:55:11.139Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/json",
+      "status": 200,
+      "latency_ms": 438,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "be51b73631e2a5daf9b90db47d15697fab3051613e6933c72ce62883b331a450",
+      "body_excerpt": "{\"_class\":\"hudson.model.Hudson\",\"assignedLabels\":[{\"name\":\"built-in\"}],\"mode\":\"NORMAL\",\"nodeDescription\":\"the Jenkins controller's built-in node\",\"nodeName\":\"\",\"numExecutors\":2,\"description\":null,\"job",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_root",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/json",
+      "status": 200,
+      "latency_ms": 128,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "be51b73631e2a5daf9b90db47d15697fab3051613e6933c72ce62883b331a450",
+      "body_excerpt": "{\"_class\":\"hudson.model.Hudson\",\"assignedLabels\":[{\"name\":\"built-in\"}],\"mode\":\"NORMAL\",\"nodeDescription\":\"the Jenkins controller's built-in node\",\"nodeName\":\"\",\"numExecutors\":2,\"description\":null,\"job",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_jobs",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/json?tree=jobs%5Bname%2Curl%2Ccolor%5D",
+      "status": 200,
+      "latency_ms": 131,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "db17e9788164388021f916727e8728b4653c446270cb569d72574306ae09397d",
+      "body_excerpt": "{\"_class\":\"hudson.model.Hudson\",\"jobs\":[{\"_class\":\"hudson.model.FreeStyleProject\",\"name\":\"[LIVE_REDACTED]-live\",\"url\":\"[LIVE_REDACTED]/job/[LIVE_REDACTED]-live/\",\"color\":\"notbuilt\"}]}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_job",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/job/[LIVE_REDACTED]-live/api/json",
+      "status": 200,
+      "latency_ms": 259,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "df05fce34b30e3580de3529afc10d603c5252f71e808f416544bdbab2bc97528",
+      "body_excerpt": "{\"_class\":\"hudson.model.FreeStyleProject\",\"actions\":[{}],\"description\":null,\"displayName\":\"[LIVE_REDACTED]-live\",\"displayNameOrNull\":null,\"fullDisplayName\":\"[LIVE_REDACTED]-live\",\"fullName\":\"[LIVE_REDACTED]-live\",\"name",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_builds",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/job/[LIVE_REDACTED]-live/api/json?tree=builds%5Bnumber%2Curl%2CdisplayName%2Cresult%2Cbuilding%2Ctimestamp%2Cduration%5D%7B0%2C10%7D",
+      "status": 200,
+      "latency_ms": 127,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "3895fb0766e64a57db005a681a107a1d061d9fb7f2c5ed5d018a297c5cb03462",
+      "body_excerpt": "{\"_class\":\"hudson.model.FreeStyleProject\",\"builds\":[]}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "whoami",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/me/api/json",
+      "status": 200,
+      "latency_ms": 135,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "3d36151b4ba1d96bc261aa5a532848592518c26b48128503b461ca7edd87c210",
+      "body_excerpt": "{\"_class\":\"hudson.model.User\",\"absoluteUrl\":\"[LIVE_REDACTED]/user/[LIVE_REDACTED]\",\"description\":null,\"fullName\":\"[LIVE_REDACTED]\",\"id\":\"[LIVE_REDACTED]\",\"property\":[{\"_class\":\"jenkins.security.ApiTokenPrope",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_queue",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/queue/api/json",
+      "status": 200,
+      "latency_ms": 127,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "a49381bc5b5c4a1872189d95a2e016c153b36b226fb375400a0adaf6169a6e7e",
+      "body_excerpt": "{\"_class\":\"hudson.model.Queue\",\"discoverableItems\":[],\"items\":[]}",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:jenkins/jenkins:lts-jdk17"
+}

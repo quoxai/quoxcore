@@ -1,0 +1,91 @@
+/**
+ * HostKnowledgeCard Styles
+ *
+ * Dismissible knowledge card shown when connecting to a known host.
+ * Purple-tinted left border, slide-down animation.
+ */
+
+.host-card {
+  margin: 0 6px;
+  padding: 6px 10px;
+  background: rgba(139, 92, 246, 0.05);
+  border-left: 2px solid rgba(139, 92, 246, 0.4);
+  border-radius: 0 4px 4px 0;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  animation: host-card-slide-down 0.2s ease-out;
+}
+
+@keyframes host-card-slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.host-card__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.host-card__icon {
+  color: rgba(139, 92, 246, 0.6);
+  flex-shrink: 0;
+}
+
+.host-card__title {
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.host-card__sessions {
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.host-card__dismiss {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  padding: 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.host-card__dismiss:hover {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.host-card__row {
+  display: flex;
+  gap: 6px;
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.4);
+  line-height: 1.4;
+}
+
+.host-card__label {
+  color: rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+}
+
+.host-card__value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.host-card__row--error .host-card__value {
+  color: rgba(248, 113, 113, 0.6);
+}
+
+.host-card__time {
+  color: rgba(255, 255, 255, 0.2);
+}

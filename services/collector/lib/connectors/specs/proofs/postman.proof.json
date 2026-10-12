@@ -1,0 +1,90 @@
+{
+  "spec_id": "postman",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:12:28.597Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.getpostman.com/quox-shapeproof-control-045ddeb7",
+      "status": 404,
+      "latency_ms": 6002,
+      "classification": "CONTROL",
+      "body_sha256": "c606f0f5eb152bd4bff574690eb1dd3a41350661598dc59df263991b9f333f36",
+      "body_excerpt": "{\"title\":\"Not Found\",\"type\":\"https://api.postman.com/problems/not-found\",\"instance\":\"/quox-shapeproof-control-045ddeb7\",\"status\":404,\"detail\":\"The requested resource could not be found.\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.getpostman.com/me",
+      "status": 401,
+      "latency_ms": 280,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b87ad8db3b69073cdef8c37e2ac2aa18cc89f0add6b7654a1fa0fba1cc57cdf3",
+      "body_excerpt": "{\"error\":{\"name\":\"AuthenticationError\",\"message\":\"Invalid API Key. Every request requires a valid API Key to be sent.\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "me",
+      "method": "GET",
+      "url": "https://api.getpostman.com/me",
+      "status": 401,
+      "latency_ms": 777,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "ee319feb9c18291a0beb0a519f00ea7d1f4e1f24428154f0ad41b3748412b42b",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid API Key. Every request requires a valid API Key to be sent.\",\"name\":\"AuthenticationError\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "method": "GET",
+      "url": "https://api.getpostman.com/workspaces?type=quoxprobe",
+      "status": 401,
+      "latency_ms": 309,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "ee319feb9c18291a0beb0a519f00ea7d1f4e1f24428154f0ad41b3748412b42b",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid API Key. Every request requires a valid API Key to be sent.\",\"name\":\"AuthenticationError\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_collections",
+      "method": "GET",
+      "url": "https://api.getpostman.com/collections?workspace=quoxprobe&name=quoxprobe&limit=20",
+      "status": 401,
+      "latency_ms": 327,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b87ad8db3b69073cdef8c37e2ac2aa18cc89f0add6b7654a1fa0fba1cc57cdf3",
+      "body_excerpt": "{\"error\":{\"name\":\"AuthenticationError\",\"message\":\"Invalid API Key. Every request requires a valid API Key to be sent.\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_collection",
+      "method": "GET",
+      "url": "https://api.getpostman.com/collections/quoxprobe",
+      "status": 401,
+      "latency_ms": 405,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b87ad8db3b69073cdef8c37e2ac2aa18cc89f0add6b7654a1fa0fba1cc57cdf3",
+      "body_excerpt": "{\"error\":{\"name\":\"AuthenticationError\",\"message\":\"Invalid API Key. Every request requires a valid API Key to be sent.\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,239 @@
+{
+  "spec_version": 1,
+  "id": "paypal",
+  "name": "PayPal",
+  "category": "commerce_finance",
+  "credentialType": "paypal",
+  "requiredFields": [
+    "client_id",
+    "client_secret"
+  ],
+  "docs": "https://developer.paypal.com/docs/api/overview/",
+  "base_url": "https://api-m.paypal.com",
+  "auth": {
+    "type": "oauth2_client_credentials",
+    "token_url": "https://api-m.paypal.com/v1/oauth2/token",
+    "client_auth": "basic",
+    "clientIdField": "client_id",
+    "clientSecretField": "client_secret"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/invoicing/invoices",
+    "query": {
+      "page_size": "1"
+    }
+  },
+  "tools_source": "https://developer.paypal.com/api/rest/",
+  "tools": [
+    {
+      "name": "list_transactions",
+      "description": "List PayPal account transactions in a date window (Transaction Search API, max 31 days per call)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "description": "Window start, ISO 8601 with offset (e.g. 2026-09-01T00:00:00-0000)"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Window end, ISO 8601 with offset (e.g. 2026-09-30T23:59:59-0000). Must be within 31 days of start_date"
+          },
+          "transaction_status": {
+            "type": "string",
+            "enum": [
+              "D",
+              "P",
+              "S",
+              "V"
+            ],
+            "description": "Optional status filter: D denied, P pending, S success, V reversed"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Max transactions per page (default 20, max 500)"
+          }
+        },
+        "required": [
+          "start_date",
+          "end_date"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/reporting/transactions",
+        "query": {
+          "start_date": "{{input.start_date}}",
+          "end_date": "{{input.end_date}}",
+          "transaction_status": "{{input.transaction_status}}",
+          "page_size": "{{clamp input.page_size 20 500}}",
+          "fields": "transaction_info"
+        }
+      },
+      "_probe": {
+        "input.start_date": "2026-09-01T00:00:00-0000",
+        "input.end_date": "2026-09-02T00:00:00-0000"
+      },
+      "response": {
+        "pick": {
+          "transaction_details[]": {
+            "transaction_id": "transaction_info.transaction_id",
+            "status": "transaction_info.transaction_status",
+            "initiation_date": "transaction_info.transaction_initiation_date",
+            "amount": "transaction_info.transaction_amount.value",
+            "currency": "transaction_info.transaction_amount.currency_code",
+            "note": "transaction_info.transaction_note"
+          },
+          "total_items": "total_items",
+          "total_pages": "total_pages"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_invoices",
+      "description": "List PayPal invoices, newest page first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max invoices to return (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "1-based page number to return (default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/invoicing/invoices",
+        "query": {
+          "page_size": "{{clamp input.page_size 20 100}}",
+          "page": "{{clamp input.page 1 100}}",
+          "total_required": "true"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "status": "status",
+            "invoice_number": "detail.invoice_number",
+            "invoice_date": "detail.invoice_date",
+            "currency": "detail.currency_code",
+            "due_amount": "due_amount.value",
+            "primary_recipients[]": {
+              "email": "billing_info.email_address"
+            }
+          },
+          "total_items": "total_items",
+          "total_pages": "total_pages"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_invoice",
+      "description": "Get one PayPal invoice by its invoice ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "invoice_id": {
+            "type": "string",
+            "description": "PayPal invoice ID (e.g. INV2-XXXX-XXXX-XXXX-XXXX)"
+          }
+        },
+        "required": [
+          "invoice_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/invoicing/invoices/{{input.invoice_id}}"
+      },
+      "_probe": {
+        "input.invoice_id": "INV2-QUOX-PROB-EONL-YXXX"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "status": "status",
+          "invoice_number": "detail.invoice_number",
+          "invoice_date": "detail.invoice_date",
+          "currency": "detail.currency_code",
+          "note": "detail.note",
+          "due_amount": "due_amount.value",
+          "primary_recipients[]": {
+            "email": "billing_info.email_address"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_disputes",
+      "description": "List PayPal customer disputes raised against the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "dispute_state": {
+            "type": "string",
+            "enum": [
+              "REQUIRED_ACTION",
+              "REQUIRED_OTHER_PARTY_ACTION",
+              "UNDER_PAYPAL_REVIEW",
+              "RESOLVED",
+              "OPEN_INQUIRIES",
+              "APPEALABLE"
+            ],
+            "description": "Optional dispute state filter"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Max disputes to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/customer/disputes",
+        "query": {
+          "dispute_state": "{{input.dispute_state}}",
+          "page_size": "{{clamp input.page_size 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "dispute_id": "dispute_id",
+            "reason": "reason",
+            "status": "status",
+            "dispute_state": "dispute_state",
+            "created_time": "create_time",
+            "amount": "dispute_amount.value",
+            "currency": "dispute_amount.currency_code"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Auth reworked from the scaffolded basic auth to oauth2_client_credentials. Basic client_id:client_secret is correct ONLY at the token endpoint (POST /v1/oauth2/token, which is what the registry's testEndpoint/testBody for paypal exercise); every /v1 and /v2 REST call needs 'Authorization: Bearer <access_token>' from that exchange. The vault entry (services/auth/config/integrationTypeRegistry.js:2453) collects client_id and client_secret, which is exactly the pair oauth2_client_credentials needs, so no new vault field is required.",
+      "SANDBOX HOST NOT COVERED. base_url and token_url are pinned to live PayPal (api-m.paypal.com). PayPal sandbox credentials only work against api-m.sandbox.paypal.com and return 401 invalid_client on the live host, so a sandbox client id/secret pair saved under this credential type will fail every call. Supporting both needs either a second credential type or an environment field in the vault entry plus a templated base_url/token_url; neither is in scope for a draft edit.",
+      "list_transactions is subject to PayPal's Transaction Search API rules: the window must be 31 days or less, data older than 3 years is unavailable, and the feature must be enabled on the app. A 400 INVALID_REQUEST for an over-long window is a caller error, not a wiring fault.",
+      "Token-acquisition flow is NOT proven by the shape-proof run. The harness fires a dummy bearer at the API surface, which proves host, TLS, paths and auth handling; only a real client id/secret pair can prove the exchange."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "spec_id": "gemini",
+  "spec_version": 1,
+  "checked_at": "2026-09-16T18:13:01.944Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://generativelanguage.googleapis.com/v1beta/quox-shapeproof-control-5d724362",
+      "status": 404,
+      "latency_ms": 418,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://generativelanguage.googleapis.com/v1beta/models",
+      "status": 400,
+      "latency_ms": 150,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d86810fbfbcfcadfff4cb6562767251c9f811a5be1ab78794cf0db0ddc4daf10",
+      "body_excerpt": "{\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"API key not valid. Please pass a valid API key.\",\n    \"status\": \"INVALID_ARGUMENT\",\n    \"details\": [\n      {\n        \"@type\": \"type.googleapis.com/googl",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 404
+      }
+    },
+    {
+      "name": "list_models",
+      "method": "GET",
+      "url": "https://generativelanguage.googleapis.com/v1beta/models",
+      "status": 400,
+      "latency_ms": 182,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d86810fbfbcfcadfff4cb6562767251c9f811a5be1ab78794cf0db0ddc4daf10",
+      "body_excerpt": "{\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"API key not valid. Please pass a valid API key.\",\n    \"status\": \"INVALID_ARGUMENT\",\n    \"details\": [\n      {\n        \"@type\": \"type.googleapis.com/googl",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 404
+      }
+    },
+    {
+      "name": "generate_content",
+      "method": "POST",
+      "url": null,
+      "status": null,
+      "latency_ms": null,
+      "classification": "SKIPPED_WRITE",
+      "body_sha256": null,
+      "body_excerpt": null,
+      "flags": {
+        "reason": "writes_not_included"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

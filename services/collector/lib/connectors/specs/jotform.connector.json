@@ -1,0 +1,191 @@
+{
+  "spec_version": 1,
+  "id": "jotform",
+  "name": "JotForm",
+  "category": "marketing_email",
+  "credentialType": "jotform",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://api.jotform.com/docs/",
+  "base_url": "https://api.jotform.com",
+  "auth": {
+    "type": "query",
+    "param": "apiKey",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/user"
+  },
+  "tools_source": "https://api.jotform.com/docs/",
+  "tools": [
+    {
+      "name": "user",
+      "description": "Get the JotForm account details for the API key: username, name, email, plan, status and time zone",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/user"
+      },
+      "response": {
+        "pick": {
+          "username": "content.username",
+          "name": "content.name",
+          "email": "content.email",
+          "company": "content.company",
+          "website": "content.website",
+          "time_zone": "content.time_zone",
+          "account_type": "content.account_type",
+          "status": "content.status",
+          "is_verified": "content.is_verified",
+          "created_at": "content.created_at",
+          "updated_at": "content.updated_at",
+          "api_calls_left": "limit-left"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_forms",
+      "description": "List the forms on the JotForm account, with title, status and submission counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max forms to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional start of the result set, for pagination (default 0)"
+          },
+          "orderby": {
+            "type": "string",
+            "enum": [
+              "id",
+              "username",
+              "title",
+              "status",
+              "created_at",
+              "updated_at",
+              "new",
+              "count",
+              "slug"
+            ],
+            "description": "Optional form field to order the results by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/user/forms",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}",
+          "orderby": "{{input.orderby}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "content[]": {
+            "id": "id",
+            "title": "title",
+            "status": "status",
+            "type": "type",
+            "url": "url",
+            "new": "new",
+            "count": "count",
+            "last_submission": "last_submission",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "offset": "resultSet.offset",
+          "limit": "resultSet.limit",
+          "count": "resultSet.count",
+          "api_calls_left": "limit-left"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_submissions",
+      "description": "List submissions for one JotForm form (metadata only, the submitted answers are not returned)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "JotForm form ID (e.g. 31504059977966)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max submissions to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional start of the result set, for pagination (default 0)"
+          },
+          "orderby": {
+            "type": "string",
+            "enum": [
+              "id",
+              "form_id",
+              "IP",
+              "created_at",
+              "status",
+              "new",
+              "flag",
+              "updated_at"
+            ],
+            "description": "Optional submission field to order the results by"
+          }
+        },
+        "required": [
+          "form_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/form/{{input.form_id}}/submissions",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}",
+          "orderby": "{{input.orderby}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "content[]": {
+            "id": "id",
+            "form_id": "form_id",
+            "status": "status",
+            "new": "new",
+            "flag": "flag",
+            "workflowStatus": "workflowStatus",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "offset": "resultSet.offset",
+          "limit": "resultSet.limit",
+          "count": "resultSet.count",
+          "api_calls_left": "limit-left"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

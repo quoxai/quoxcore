@@ -1,0 +1,81 @@
+{
+  "spec_id": "viber",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:30:10.072Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://chatapi.viber.com/quox-shapeproof-control-8c910170",
+      "status": 400,
+      "latency_ms": 853,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "POST",
+      "url": "https://chatapi.viber.com/pa/get_account_info",
+      "status": 200,
+      "latency_ms": 303,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b39f438372a4bdeaa0b7c7749d1694372adc65b8d7510584dcba50ee36a838de",
+      "body_excerpt": "{\"status\":2,\"status_message\":\"invalidAuthToken\"}",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "get_account_info",
+      "method": "POST",
+      "url": "https://chatapi.viber.com/pa/get_account_info",
+      "status": 200,
+      "latency_ms": 538,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b39f438372a4bdeaa0b7c7749d1694372adc65b8d7510584dcba50ee36a838de",
+      "body_excerpt": "{\"status\":2,\"status_message\":\"invalidAuthToken\"}",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "get_user_details",
+      "method": "POST",
+      "url": "https://chatapi.viber.com/pa/get_user_details",
+      "status": 200,
+      "latency_ms": 391,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b39f438372a4bdeaa0b7c7749d1694372adc65b8d7510584dcba50ee36a838de",
+      "body_excerpt": "{\"status\":2,\"status_message\":\"invalidAuthToken\"}",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "get_online_status",
+      "method": "POST",
+      "url": "https://chatapi.viber.com/pa/get_online",
+      "status": 200,
+      "latency_ms": 474,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b39f438372a4bdeaa0b7c7749d1694372adc65b8d7510584dcba50ee36a838de",
+      "body_excerpt": "{\"status\":2,\"status_message\":\"invalidAuthToken\"}",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

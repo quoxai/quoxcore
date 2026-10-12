@@ -1,0 +1,461 @@
+/**
+ * Quox Glass Design System — CSS Custom Properties
+ *
+ * Import this file to use glass variables anywhere in the dashboard.
+ * All values tuned from the interactive slider session.
+ *
+ * Usage:
+ *   .my-panel { @apply glass; }
+ *   or
+ *   .my-panel {
+ *     backdrop-filter: var(--glass-blur);
+ *     background: var(--glass-bg);
+ *     border-top: 1px solid var(--glass-edge-light);
+ *     ...
+ *   }
+ */
+
+/* ═══════════════════════════════════════════════════════════════════
+   MORPHISM LAW (owner directive, 2026-09-26) — dashboard-wide, binding
+   ───────────────────────────────────────────────────────────────────
+   Buttons and small controls NEVER use bare transparency. Any clickable
+   control over the glass page (or any visual background) uses MORPHISM:
+   backdrop-filter blur + a fill + an edge. A raw `background: transparent`
+   (or a low-alpha rgba fill with no backdrop-filter) on a control is banned
+   across the dashboard and every plugin. Opacity alone smears over the
+   moving page background; blur is what fixes it in motion.
+
+   Reach for the primitives, never hand-roll the pair:
+     buttons  -> .glass-btn     inputs -> .glass-input
+     nav pills -> .glass-nav    panels -> .glass / .glass-card / .glass-inner
+   The design-system.css `.btn-ghost` / `.btn-outline` variants
+   (`background: transparent`) are the exact style being eradicated on glass
+   surfaces; use .glass-btn instead.
+
+   Exempt (say so rather than treating anyway): a control over a FLAT opaque
+   band (blur there changes nothing) and anything already inside a blurred
+   surface (one blur per stack). Verify in a real browser AND in motion, not
+   stills.
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ═══ GLASS CORE (Cyan refactor — 2026-04-13) ═══ */
+  --glass-blur: blur(32px) saturate(1.6);
+  --glass-blur-strong: blur(40px) saturate(2.5); /* highlight/hero surfaces */
+  --glass-bg: rgba(255,255,255,0.08);
+  --glass-edge-light: rgba(255,255,255,0.18);
+  --glass-edge-left: rgba(255,255,255,0.18);
+  --glass-edge-dim: rgba(255,255,255,0.18);
+  --glass-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+  --glass-shimmer-line: linear-gradient(90deg, rgba(0,229,255,0) 0%, rgba(0,229,255,0.85) 30%, rgba(139,92,246,0.85) 70%, rgba(139,92,246,0) 100%);
+  --glass-shimmer: var(--glass-shimmer-line); /* legacy alias */
+  --glass-radius-outer: 20px;
+  --glass-radius-inner: 20px;
+  --glass-radius-card: 20px;
+  --glass-radius-btn: 10px;
+  --glass-radius-badge: 6px;
+  --glass-gap: 16px;
+  --glass-transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ═══ HOVER ═══ */
+  --glass-hover-lift: -2px;
+  --glass-hover-scale: 1.008;
+  --glass-hover-shadow: 0 8px 30px rgba(0,0,0,0.4), 0 0 50px rgba(56,189,248,0.07), inset 0 1px 3px rgba(255,255,255,0.1);
+  --glass-hover-edge: rgba(255,255,255,0.5);
+  --glass-press-lift: 1px;
+  --glass-press-scale: 0.995;
+  --glass-press-shadow: 0 1px 6px rgba(0,0,0,0.3), inset 0 2px 4px rgba(0,0,0,0.15);
+
+  /* ═══ ACTIVE STATE — Purple→Cyan (Q icon gradient) ═══ */
+  --glass-active-bg: linear-gradient(145deg, rgba(168,85,247,0.1) 0%, rgba(56,189,248,0.04) 100%);
+  --glass-active-edge-top: rgba(168,85,247,0.5);
+  --glass-active-edge-left: rgba(56,189,248,0.3);
+  --glass-active-shadow: 0 0 50px rgba(168,85,247,0.2), 0 5px 19px rgba(0,0,0,0.35), inset 0 1px 2px rgba(168,85,247,0.15), inset 1px 0 1px rgba(56,189,248,0.08);
+
+  /* ═══ BACKGROUND ═══ */
+  --glass-page-bg: #080b14;
+  --glass-orb-cyan: rgba(56,189,248,0.24);
+  --glass-orb-purple: rgba(168,85,247,0.17);
+  --glass-orb-indigo: rgba(99,102,241,0.13);
+  --glass-orb-green: rgba(48,255,144,0.10);
+  --glass-particle-opacity: 0.19;
+
+  /* ═══ TEXT — NO GREY ═══ */
+  --glass-text-primary: #ffffff;
+  --glass-text-secondary: #ffffff;
+  --glass-text-label: #ffffff;
+  --glass-text-min-opacity: 0.6;  /* NEVER below this */
+
+  /* ═══ BRAND COLOURS ═══ */
+  --q-cyan: #38bdf8;
+  --q-purple: #a855f7;
+  --q-indigo: #6366f1;
+  --q-green: #30ff90;
+  --q-red: #ef4444;
+  --q-amber: #f59e0b;
+  --q-teal: #06b6d4;
+  --q-pink: #ec4899;
+
+  /* ═══ STATUS ═══ */
+  --status-online: #30ff90;
+  --status-warning: #f59e0b;
+  --status-error: #ef4444;
+  --status-active: #38bdf8;
+  --status-idle: rgba(255,255,255,0.6);
+
+  /* ═══ PROTOCOLS ═══ */
+  --protocol-aee: #38bdf8;
+  --protocol-aocl: #a855f7;
+  --protocol-volt: #30ff90;
+  --protocol-ward: #06b6d4;
+
+  /* ═══ FONTS ═══ */
+  --font-ui: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* ═══ LAYOUT ═══ */
+  --sidebar-rail-width: 76px;
+  --sidebar-flyout-width: 240px;
+  --sidebar-icon-size: 44px;
+  --chat-sidebar-width: 280px;
+  --header-padding: 7px 14px;
+  --footer-padding: 7px 14px;
+}
+
+/* ═══ GLASS CLASSES ═══ */
+
+.glass {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--glass-bg);
+  border-top: 1px solid var(--glass-edge-light);
+  border-left: 1px solid var(--glass-edge-left);
+  border-right: 1px solid var(--glass-edge-dim);
+  border-bottom: 1px solid var(--glass-edge-dim);
+  border-radius: var(--glass-radius-outer);
+  box-shadow: var(--glass-shadow);
+  position: relative;
+  overflow: hidden;
+  transition: var(--glass-transition);
+}
+
+.glass-inner {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--glass-bg);
+  border-top: 1px solid var(--glass-edge-light);
+  border-left: 1px solid var(--glass-edge-left);
+  border-right: 1px solid var(--glass-edge-dim);
+  border-bottom: 1px solid var(--glass-edge-dim);
+  border-radius: var(--glass-radius-inner);
+  box-shadow: var(--glass-shadow);
+  position: relative;
+  overflow: hidden;
+  transition: var(--glass-transition);
+}
+
+.glass-card {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--glass-bg);
+  border-top: 1px solid var(--glass-edge-light);
+  border-left: 1px solid var(--glass-edge-left);
+  border-right: 1px solid var(--glass-edge-dim);
+  border-bottom: 1px solid var(--glass-edge-dim);
+  border-radius: var(--glass-radius-card);
+  box-shadow: var(--glass-shadow);
+  position: relative;
+  overflow: hidden;
+  transition: var(--glass-transition);
+  padding: 20px;
+}
+
+.glass-btn {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--glass-bg);
+  border-top: 1px solid var(--glass-edge-light);
+  border-left: 1px solid var(--glass-edge-left);
+  border-right: 1px solid var(--glass-edge-dim);
+  border-bottom: 1px solid var(--glass-edge-dim);
+  border-radius: var(--glass-radius-btn);
+  box-shadow: var(--glass-shadow);
+  position: relative;
+  overflow: hidden;
+  transition: var(--glass-transition);
+  padding: 5px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--glass-text-primary);
+}
+
+/* Shimmer — top-edge cyan→purple hairline (Cyan refactor) */
+.glass::before,
+.glass-inner::before,
+.glass-card::before,
+.glass-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--qx-edges);
+}
+
+/* Hover */
+.glass-card:hover,
+.glass-btn:hover {
+  transform: translateY(var(--glass-hover-lift)) scale(var(--glass-hover-scale));
+  box-shadow: var(--glass-hover-shadow);
+  border-top-color: var(--glass-hover-edge);
+}
+
+/* Active press */
+.glass-card:active,
+.glass-btn:active {
+  transform: translateY(var(--glass-press-lift)) scale(var(--glass-press-scale));
+  box-shadow: var(--glass-press-shadow);
+}
+
+/* Active/selected state */
+.glass-active {
+  background: var(--glass-active-bg) !important;
+  border-top-color: var(--glass-active-edge-top) !important;
+  border-left-color: var(--glass-active-edge-left) !important;
+  box-shadow: var(--glass-active-shadow) !important;
+}
+
+/* Nav item */
+.glass-nav {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--glass-bg);
+  border-top: 1px solid var(--glass-edge-light);
+  border-left: 1px solid var(--glass-edge-left);
+  border-right: 1px solid var(--glass-edge-dim);
+  border-bottom: 1px solid var(--glass-edge-dim);
+  border-radius: var(--glass-radius-btn);
+  box-shadow: var(--glass-shadow);
+  position: relative;
+  overflow: hidden;
+  transition: var(--glass-transition);
+  padding: 12px 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--glass-text-primary);
+}
+
+.glass-nav::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--qx-edges);
+}
+
+.glass-nav:hover {
+  transform: translateY(var(--glass-hover-lift)) scale(var(--glass-hover-scale));
+  box-shadow: var(--glass-hover-shadow);
+  border-top-color: var(--glass-hover-edge);
+}
+
+.glass-nav:active {
+  transform: translateY(var(--glass-press-lift)) scale(var(--glass-press-scale));
+  box-shadow: var(--glass-press-shadow);
+}
+
+.glass-nav.active {
+  background: var(--glass-active-bg);
+  border-top-color: var(--glass-active-edge-top);
+  border-left-color: var(--glass-active-edge-left);
+  box-shadow: var(--glass-active-shadow);
+  font-weight: 700;
+}
+
+/* Input */
+.glass-input {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--glass-bg);
+  border-top: 1px solid var(--glass-edge-light);
+  border-left: 1px solid var(--glass-edge-left);
+  border-right: 1px solid var(--glass-edge-dim);
+  border-bottom: 1px solid var(--glass-edge-dim);
+  border-radius: var(--glass-radius-btn);
+  box-shadow: var(--glass-shadow);
+  padding: 9px 14px;
+  color: var(--glass-text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  outline: none;
+  transition: var(--glass-transition);
+}
+
+.glass-input::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--qx-edges);
+}
+
+.glass-input:focus {
+  border-top-color: var(--glass-active-edge-top);
+  border-left-color: var(--glass-active-edge-left);
+  box-shadow: 0 0 0 3px rgba(168,85,247,0.06), var(--glass-shadow);
+}
+
+/* ═══ QX UTILITY CLASSES (Cyan refactor — view consistency) ═══ */
+
+/* Root view wrapper — apply to top-level <div> of any view.
+   Flex: 1 so it fills remaining parent height (PageLayout → page-layout-content
+   → .qx-view). Children use .qx-card with flex: 1 + min-height: 0 + overflow to
+   create a single glass frame that fits the viewport and scrolls internally. */
+.qx-view {
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* Standard interior padding wrapper for scrollable content */
+.qx-pad {
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 0; /* critical for flex children to scroll */
+}
+
+/* Translucent glass card — drop-in replacement for legacy dark panels */
+.qx-card {
+  background: var(--m-bg-base);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+  border: 1px solid var(--m-border-default);
+  border-radius: var(--qx-radius);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.qx-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--qx-edges);
+}
+
+/* Stack/grid helpers */
+.qx-stack { display: flex; flex-direction: column; gap: 16px; }
+.qx-row { display: flex; flex-direction: row; gap: 16px; }
+.qx-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.qx-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.qx-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+
+/* Content-sized grid: fills the row, then wraps, instead of forcing a fixed
+   column count. .qx-grid-3 with one or two cards leaves a two-thirds-empty
+   row that reads as a broken layout (bundle polish audit 2026-08-17, Slots
+   deck). Use this wherever the item count is data-driven and can legitimately
+   be 1. --qx-grid-min overrides the card floor per surface.
+   auto-FIT, not auto-fill: auto-fill keeps the empty tracks, so two cards in
+   a three-track row still leave a visible void on the right (seen in the
+   Slots capture). auto-fit collapses them and the real cards share the width. */
+.qx-grid-auto {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--qx-grid-min, 280px), 1fr));
+  gap: 16px;
+}
+
+/* Cards size to their own content instead of stretching to the tallest in the
+   row. A grid's default `align-items: stretch` is right for tiles that should
+   look uniform, and wrong for cards whose height carries meaning: on the Slots
+   deck one card had an extra block (the claim command) and every sibling grew
+   an empty region to match it, which reads as a rendering fault rather than a
+   layout choice. BUNDLE POLISH D, "kill dead-space grids". */
+.qx-grid-auto--start { align-items: start; }
+
+/* Layout modifiers */
+.qx-row--tight  { gap: 8px; }
+.qx-row--apart  { justify-content: space-between; align-items: center; }
+.qx-row--end    { justify-content: flex-end; align-items: center; }
+.qx-row--center { justify-content: center; align-items: center; }
+.qx-row--wrap   { flex-wrap: wrap; }
+.qx-row--nowrap { flex-wrap: nowrap; overflow-x: auto; }
+.qx-row--fill > * { flex: 1; }
+.qx-stack--tight { gap: 8px; }
+.qx-stack--compact { gap: 12px; }
+
+.glass-input::placeholder {
+  color: rgba(255,255,255,0.8);
+}
+
+/* Background page setup (Cyan refactor) */
+.glass-page {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 50% 40% at 15% 20%, rgba(0,229,255,0.28), transparent 70%),
+    radial-gradient(ellipse 45% 40% at 85% 15%, rgba(139,92,246,0.32), transparent 70%),
+    radial-gradient(ellipse 50% 45% at 75% 80%, rgba(59,130,246,0.24), transparent 70%),
+    radial-gradient(ellipse 45% 40% at 20% 88%, rgba(124,58,237,0.20), transparent 70%),
+    radial-gradient(ellipse 30% 25% at 50% 50%, rgba(0,180,220,0.10), transparent 70%),
+    linear-gradient(180deg, #000 0%, #030714 45%, #050b22 100%);
+  overflow: hidden;
+  font-family: var(--font-ui);
+  color: var(--glass-text-primary);
+}
+
+/* Vignette overlay (darken edges, lift centre legibility) */
+.glass-page::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.38));
+}
+
+/* Status dots */
+.glass-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: glass-dot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes glass-dot-pulse {
+  0%, 100% { opacity: 0.5; box-shadow: 0 0 4px currentColor; }
+  50% { opacity: 1; box-shadow: 0 0 10px currentColor; }
+}
+
+/* Progress bars */
+.glass-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+
+.glass-bar > div {
+  height: 100%;
+  border-radius: 3px;
+}
+
+/* Scrollbar */
+.glass-page ::-webkit-scrollbar { width: 4px; }
+.glass-page ::-webkit-scrollbar-track { background: transparent; }
+.glass-page ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }

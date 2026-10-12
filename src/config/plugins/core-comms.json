@@ -1,0 +1,121 @@
+{
+  "name": "core-comms",
+  "version": "1.0.0",
+  "displayName": "CoreComms",
+  "tagline": "Never Miss a Critical Alert",
+  "description": "Get notified instantly when HITL items need your attention. Set up Telegram, Slack, or Email notifications for service alerts, approval requests, and critical incidents.",
+  "shortDescription": "External notification channels for Telegram, Slack, and Email.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 5,
+  "priceDisplay": "$5",
+  "priceModel": "one-time",
+  "tier": "starter",
+  "featured": false,
+  "badge": null,
+  "icon": "bell-ring",
+  "heroGradient": "linear-gradient(135deg, #0088cc 0%, #4a154b 50%, #ea4335 100%)",
+  "accentColor": "#0088cc",
+  "infoUrl": "https://quox.ai/plugins/core-comms",
+  "docsUrl": "https://quox.ai/docs/plugins/core-comms",
+  "marketingPoints": [
+    "Instant Telegram notifications via your own bot",
+    "Slack webhook integration for team channels",
+    "Email alerts via SMTP - works with any provider",
+    "Test connections before going live",
+    "Configure which priorities trigger each channel"
+  ],
+  "features": {
+    "telegram": {
+      "name": "Telegram Bot Integration",
+      "description": "Create your own Telegram bot via @BotFather and receive HITL notifications instantly. Supports private chats and groups.",
+      "icon": "send",
+      "highlight": true
+    },
+    "slack": {
+      "name": "Slack Webhook Notifications",
+      "description": "Send alerts to any Slack channel via incoming webhooks. Rich formatting with service details and action links.",
+      "icon": "message-square",
+      "highlight": true
+    },
+    "email": {
+      "name": "Email Notifications",
+      "description": "SMTP-based email alerts. Works with Gmail, Outlook, SendGrid, or any email provider.",
+      "icon": "mail",
+      "highlight": true
+    },
+    "priorityFilters": {
+      "name": "Priority Filters",
+      "description": "Configure which alert priorities (critical, high, medium, low) trigger notifications on each channel.",
+      "icon": "filter"
+    },
+    "testConnections": {
+      "name": "Test Connections",
+      "description": "Verify each channel is configured correctly before relying on it. One-click test sends a sample notification.",
+      "icon": "check-circle"
+    },
+    "errorRecovery": {
+      "name": "Graceful Error Recovery",
+      "description": "Automatic retry with exponential backoff. Channels auto-disable after repeated failures to prevent spam.",
+      "icon": "shield"
+    }
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "telegram": false,
+      "slack": false,
+      "email": false,
+      "notifications": "In-app only"
+    },
+    "tier_a": {
+      "name": "CoreComms",
+      "telegram": true,
+      "slack": true,
+      "email": true,
+      "notifications": "Telegram, Slack, Email + In-app"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "route": "/comms",
+  "integration": {
+    "service": "src/services/coreCommsService.js",
+    "settings": "src/components/settings/CoreCommsSettings.jsx",
+    "view": "src/pages/views/CommsView.jsx"
+  },
+  "permissions": [
+    "inbox:read",
+    "settings:write",
+    "network:external"
+  ],
+  "futureFeatures": [
+    "Bidirectional Telegram shipped as the separate Quox Telegram Pro plugin, not part of CoreComms",
+    "Slack interactive buttons for quick actions",
+    "SMS via Twilio",
+    "Push notifications",
+    "On-call rotation scheduling"
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2025-01-31",
+      "changes": [
+        "Initial release",
+        "Telegram bot integration",
+        "Slack webhook notifications",
+        "Email via SMTP",
+        "Per-channel priority filters",
+        "Test connection buttons",
+        "Automatic retry with backoff",
+        "Auto-disable on repeated failures"
+      ]
+    }
+  },
+  "category": "Communication"
+}

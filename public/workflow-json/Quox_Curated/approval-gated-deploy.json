@@ -1,0 +1,101 @@
+{
+  "id": "wf-quox-approval-gated-deploy",
+  "name": "Approval-Gated Deploy Pipeline",
+  "description": "Receives a deploy intent via webhook, pauses for human approval, then runs the deploy script and notifies the team of the outcome.",
+  "source": "quox-curated",
+  "category": "devops",
+  "tags": ["deploy", "approval", "webhook", "human-in-the-loop", "pipeline", "notification", "devops"],
+  "nodes": [
+    {
+      "id": "trig",
+      "type": "trigger:webhook",
+      "name": "Deploy Intent",
+      "category": "trigger",
+      "config": {
+        "method": "POST",
+        "path": "/deploy/request",
+        "authentication": "bearer"
+      },
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "approval",
+      "type": "human:task",
+      "name": "Approve Deploy",
+      "category": "human",
+      "config": {
+        "title": "Deploy Approval Required",
+        "message": "A deploy has been requested for **${input.service}** to **${input.environment}**.\n\nCommit: `${input.commitSha}`\n\nApprove or reject below.",
+        "assignTo": ["*"],
+        "priority": "high",
+        "actions": [
+          { "action": "approve", "label": "Approve", "style": "primary" },
+          { "action": "reject", "label": "Reject", "style": "danger" }
+        ]
+      },
+      "position": { "x": 400, "y": 300 }
+    },
+    {
+      "id": "condition",
+      "type": "flow:condition",
+      "name": "Was Approved?",
+      "category": "logic",
+      "config": {
+        "expression": "input.action === 'approve'",
+        "trueLabel": "Approved",
+        "falseLabel": "Rejected"
+      },
+      "position": { "x": 700, "y": 300 }
+    },
+    {
+      "id": "deploy",
+      "type": "call",
+      "name": "Run Deploy Script",
+      "category": "action",
+      "config": {
+        "url": "{{DEPLOY_HOOK_URL}}",
+        "method": "POST",
+        "timeout": 120000
+      },
+      "position": { "x": 1000, "y": 200 }
+    },
+    {
+      "id": "notify-success",
+      "type": "notification:deliver",
+      "name": "Deploy Succeeded",
+      "category": "notification",
+      "config": {
+        "title": "Deploy Succeeded",
+        "message": "Service **${input.service}** was successfully deployed to **${input.environment}**.",
+        "assignTo": ["*"],
+        "priority": "normal"
+      },
+      "position": { "x": 1300, "y": 200 }
+    },
+    {
+      "id": "notify-rejected",
+      "type": "notification:deliver",
+      "name": "Deploy Rejected",
+      "category": "notification",
+      "config": {
+        "title": "Deploy Rejected",
+        "message": "The deploy for **${input.service}** was rejected.",
+        "assignTo": ["*"],
+        "priority": "normal"
+      },
+      "position": { "x": 1000, "y": 400 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trig", "target": "approval" },
+    { "id": "e2", "source": "approval", "target": "condition" },
+    { "id": "e3", "source": "condition", "target": "deploy", "label": "Approved" },
+    { "id": "e4", "source": "condition", "target": "notify-rejected", "label": "Rejected" },
+    { "id": "e5", "source": "deploy", "target": "notify-success" }
+  ],
+  "meta": {
+    "version": "1.0.0",
+    "createdBy": "quox-curated",
+    "estimatedRuntime": "varies"
+  }
+}

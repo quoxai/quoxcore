@@ -1,0 +1,468 @@
+/**
+ * QlusterSettings.css — glass-parity styling for the Qluster enrollment
+ * surface. Reuses the settings glass tokens defined in settings.css;
+ * only adds Qluster-specific layout (token reveal, scope/org pickers,
+ * controllers table).
+ */
+
+.qluster-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* ── Fields ─────────────────────────────────────────────────────── */
+.qluster-field {
+    margin-bottom: 18px;
+}
+.qluster-field:last-child {
+    margin-bottom: 8px;
+}
+.qluster-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    margin-bottom: 8px;
+}
+.qluster-label__aside {
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.45);
+}
+.qluster-input {
+    width: 100%;
+    max-width: 420px;
+    padding: 9px 12px;
+    font-size: 14px;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+.qluster-input:focus {
+    border-color: rgba(56, 189, 248, 0.6);
+    background: rgba(255, 255, 255, 0.07);
+}
+.qluster-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── Capability presets ─────────────────────────────────────────── */
+.qluster-presets {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.qluster-preset {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.qluster-preset:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+.qluster-preset:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.qluster-preset.is-active {
+    background: rgba(56, 189, 248, 0.08);
+    border-color: rgba(56, 189, 248, 0.4);
+}
+.qluster-preset svg {
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+.qluster-preset__body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.qluster-preset__label {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}
+.qluster-preset__hint {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+}
+.qluster-advanced-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    padding: 4px 0;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 12px;
+    cursor: pointer;
+}
+.qluster-advanced-toggle:hover {
+    color: #fff;
+}
+
+/* ── Scope checklist ────────────────────────────────────────────── */
+.qluster-scopes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.qluster-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.qluster-check:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+.qluster-check.is-locked {
+    cursor: default;
+    opacity: 0.9;
+}
+.qluster-check input[type="checkbox"] {
+    margin-top: 2px;
+    accent-color: #38bdf8;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+.qluster-check__body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.qluster-check__label {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}
+.qluster-check__label code,
+.qluster-scopetag {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: rgba(56, 189, 248, 0.9);
+    background: rgba(56, 189, 248, 0.1);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+}
+.qluster-check__hint {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Org picker ─────────────────────────────────────────────────── */
+.qluster-orgs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.qluster-orgchip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.qluster-orgchip:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+.qluster-orgchip input {
+    accent-color: #38bdf8;
+    width: 15px;
+    height: 15px;
+}
+.qluster-empty-inline {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.45);
+    margin: 0;
+}
+
+/* ── Actions ────────────────────────────────────────────────────── */
+.qluster-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+/* ── Notices ────────────────────────────────────────────────────── */
+.qluster-notice {
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 14px;
+    line-height: 1.4;
+}
+.qluster-notice--error {
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    color: rgba(252, 165, 165, 0.95);
+}
+.qluster-notice--warn {
+    background: rgba(250, 204, 21, 0.08);
+    border: 1px solid rgba(250, 204, 21, 0.25);
+    color: rgba(253, 224, 71, 0.95);
+}
+
+/* ── Token reveal ───────────────────────────────────────────────── */
+.qluster-token-reveal {
+    margin-top: 16px;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(56, 189, 248, 0.02));
+    border: 1px solid rgba(56, 189, 248, 0.28);
+    border-radius: 10px;
+}
+.qluster-token-reveal.is-expired {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.12);
+    opacity: 0.7;
+}
+.qluster-token-reveal__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+.qluster-token-reveal__badge {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(56, 189, 248, 0.95);
+    background: rgba(56, 189, 248, 0.14);
+    padding: 3px 9px;
+    border-radius: 5px;
+}
+.qluster-token-reveal__ttl {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.65);
+}
+.qluster-token-reveal__ttl.is-low {
+    color: rgba(251, 191, 36, 0.95);
+}
+.qluster-token-reveal__value {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+.qluster-token-reveal__value code {
+    flex: 1;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    color: #7dd3fc;
+    word-break: break-all;
+    line-height: 1.4;
+}
+.qluster-token-reveal__hint {
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1.5;
+    margin: 0 0 10px;
+}
+.qluster-token-reveal__hint strong {
+    color: #fff;
+}
+.qluster-token-reveal__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+}
+.qluster-linkbtn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 12px;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+}
+.qluster-linkbtn:hover {
+    color: #fff;
+}
+
+/* ── Controllers table ──────────────────────────────────────────── */
+.qluster-table-wrap {
+    overflow-x: auto;
+}
+.qluster-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.qluster-table thead th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #fff;
+    padding: 8px 12px;
+    background: linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), var(--m-bg-base);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.qluster-table tbody td {
+    padding: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.8);
+    vertical-align: middle;
+}
+.qluster-table tbody tr.is-revoked {
+    opacity: 0.5;
+}
+.qluster-ctrl-name {
+    font-weight: 600;
+    color: #fff;
+}
+.qluster-ctrl-name em {
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.4);
+}
+.qluster-tag {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.qluster-tag--revoked {
+    color: rgba(248, 113, 113, 0.9);
+    background: rgba(248, 113, 113, 0.12);
+}
+.qluster-muted {
+    color: rgba(255, 255, 255, 0.35);
+}
+.qluster-table__actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* ── Empty states ───────────────────────────────────────────────── */
+.qluster-empty {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0;
+    padding: 12px 0;
+}
+.qluster-empty-state {
+    padding: 24px 12px;
+    text-align: center;
+}
+.qluster-empty-state p {
+    margin: 0 0 4px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+}
+.qluster-empty-state__sub {
+    font-size: 12.5px !important;
+    color: rgba(255, 255, 255, 0.45) !important;
+}
+
+/* ── Require-approval toggle ("require my approval for delegated tasks") ── */
+.qluster-toggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+.qluster-toggle.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+.qluster-toggle input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.qluster-toggle__track {
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    position: relative;
+    transition: background 0.2s ease;
+}
+.qluster-toggle input:checked + .qluster-toggle__track {
+    background: #38bdf8;
+}
+.qluster-toggle input:focus-visible + .qluster-toggle__track {
+    outline: 2px solid #38bdf8;
+    outline-offset: 2px;
+}
+.qluster-toggle__thumb {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    top: 2px;
+    left: 2px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.qluster-toggle input:checked + .qluster-toggle__track .qluster-toggle__thumb {
+    transform: translateX(20px);
+}
+.qluster-toggle__body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.qluster-toggle__label {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}
+.qluster-toggle__busy {
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.45);
+}
+.qluster-toggle__hint {
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, 0.5);
+    max-width: 520px;
+}

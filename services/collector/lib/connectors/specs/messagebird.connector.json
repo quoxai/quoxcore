@@ -1,0 +1,131 @@
+{
+  "spec_version": 1,
+  "id": "messagebird",
+  "name": "MessageBird",
+  "category": "communication",
+  "credentialType": "messagebird",
+  "requiredFields": [
+    "access_key"
+  ],
+  "description": "MessageBird (now Bird) omnichannel messaging: read-only balance, message-history and contact views over the rest.messagebird.com REST API",
+  "docs": "https://developers.messagebird.com/api/",
+  "base_url": "https://rest.messagebird.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "AccessKey {{access_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/balance"
+  },
+  "tools_source": "https://developers.messagebird.com/api/",
+  "tools": [
+    {
+      "name": "balance",
+      "description": "Get the MessageBird account balance (payment model, credit type and remaining amount)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/balance"
+      },
+      "response": {
+        "pick": {
+          "payment": "payment",
+          "type": "type",
+          "amount": "amount"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_messages",
+      "description": "List recent MessageBird SMS messages (direction, originator, body and per-message recipient counts)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max messages to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/messages",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "count": "count",
+          "totalCount": "totalCount",
+          "limit": "limit",
+          "offset": "offset",
+          "items[]": {
+            "id": "id",
+            "direction": "direction",
+            "type": "type",
+            "originator": "originator",
+            "body": "body",
+            "createdDatetime": "createdDatetime",
+            "recipients_total": "recipients.totalCount",
+            "recipients_delivered": "recipients.totalDeliveredCount"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_contacts",
+      "description": "List MessageBird contacts (phone number, name and timestamps)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max contacts to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/contacts",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "count": "count",
+          "totalCount": "totalCount",
+          "limit": "limit",
+          "offset": "offset",
+          "items[]": {
+            "id": "id",
+            "msisdn": "msisdn",
+            "firstName": "firstName",
+            "lastName": "lastName",
+            "createdDatetime": "createdDatetime",
+            "updatedDatetime": "updatedDatetime"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

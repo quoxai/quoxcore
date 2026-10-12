@@ -1,0 +1,100 @@
+{
+  "name": "qloop",
+  "version": "0.1.0",
+  "displayName": "QLoop",
+  "tagline": "Hand a goal to a real agentic loop, and be able to prove what it did.",
+  "description": "QLoop gives an Objective to a model's own native loop (claude -p or codex exec) on a governed fleet dev server, turn by turn, and witnesses every turn on a tamper-evident hash chain. The loop can only touch the tools you named, live gates pause it on budget or interval, and a human halt fires a signed kill that actually ends the process. When it finishes you can replay what it believed at any moment, with the causal chain of envelopes behind each step.",
+  "shortDescription": "The governed agentic loop that proves itself",
+  "author": "QUOX",
+  "license": "paid",
+  "_pricingNote": "PROVISIONAL. DEVSUITE plan keeps bundle SKU + final pricing owner-gated; this figure exists so the manifest is well-formed and the plugin can be enabled, not as an approved price.",
+  "price": 0,
+  "priceDisplay": "Included in QuoxCORE",
+  "priceModel": "core",
+  "tier": "core",
+  "featured": true,
+  "icon": "octahedron",
+  "accentColor": "#38bdf8",
+  "infoUrl": "https://quox.ai/solutions/qloop",
+  "docsUrl": "https://quox.ai/docs/plugins/qloop",
+  "dashboardSurface": "shared",
+  "dashboardSurfaceNote": "No dedicated route by design: QLoop is an execution mode of /objectives, a core surface. Gating that whole route on this plugin would break core objectives for orgs that do not hold it.",
+  "dataPlane": "tasks-service",
+  "dataPlaneNote": "Objectives are served by the TASKS service at /api/objectives (authenticated + rate limited), not through the collector /api/v1 proxy the other members use. This is an architectural difference, not a missing route: QLoop is an execution mode of the core objectives engine rather than a standalone plugin backend.",
+  "corePositioningNote": "Moved OUT of the Dev Suite bundle and INTO core, 2026-08-19 (owner decision). QLoop is not a development tool: anything can drive a loop — working an inbox, watching a queue, chasing a reconciliation. It is the DAG objectives engine grown up, which is core machinery. Hermes and OpenClaw give their loop away, so a price ticket on ours invites exactly the wrong comparison. NOTE: launching a loop still defaults to the FLEET spawner (services/tasks/lib/loopDispatch.js defaultLoopSpawner = createFleetLoopSpawner), so a core-local spawner is the outstanding work before this claim is fully true. The seam is already injectable.",
+  "category": "Developer Tools",
+
+  "marketingPoints": [
+    "A real agentic loop, not a pre-decomposed task list: the model gets the goal and the tools and runs its own loop",
+    "Every turn witnessed on a tamper-evident chain, so tampering with a stored turn breaks verification",
+    "Deny-by-default tool scope: reaching outside it is interrupted and written down",
+    "A human halt with teeth, proven on real hardware: the process ends, the turns freeze, the reason is witnessed",
+    "Replay a finished loop and see what it believed at any point in time",
+    "Runs on both Claude and Codex through one seam"
+  ],
+
+  "features": {
+    "witnessedTurns": {
+      "name": "Every turn witnessed",
+      "description": "Each turn is hashed into a WARD chain as it happens, carrying its sequence and a content hash. A 19-turn run landed all 19 on an intact chain, each entry recomputed and linked to its predecessor.",
+      "icon": "shield",
+      "highlight": true
+    },
+    "scopedTools": {
+      "name": "Deny-by-default scope",
+      "description": "The loop can only use the tools you named. Where a backend cannot honour a pattern the scope fails loud instead of silently widening.",
+      "icon": "lock",
+      "highlight": true
+    },
+    "liveGates": {
+      "name": "Gates while it runs",
+      "description": "Budget thresholds, interval check-ins and denials fire during the run, not only before it. A deny fires the same signed kill as a halt.",
+      "icon": "check",
+      "highlight": true
+    },
+    "evidenceReplay": {
+      "name": "Replay the evidence",
+      "description": "Scrub through a finished loop's envelope chain and reconstruct what it believed at any moment, with the causal chain behind each step.",
+      "icon": "eye",
+      "highlight": true
+    }
+  },
+
+  "safety": {
+    "destructiveActions": ["qloop.spawn", "qloop.halt"],
+    "requiresApproval": ["qloop.spawn", "loop_halt"],
+    "aeeRequired": true,
+    "killSwitchEnabled": true
+  },
+
+  "limits": {
+    "free": { "loopsPerOrg": 0 },
+    "paid": { "concurrentLoops": 2, "maxTurnsPerLoop": 200 }
+  },
+
+  "requirements": {
+    "quox": ">=4.0.0",
+    "plugins": ["dev-servers"]
+  },
+
+  "integration": {
+    "service": "quoxai/collector",
+    "collectorAlias": "objectives",
+    "healthEndpoint": "/health",
+    "view": "src/pages/views/ObjectivesView.jsx"
+  },
+
+  "capabilities": {
+    "aeeIntents": [
+      "quox.dev.loop.spawned",
+      "quox.dev.loop.turn",
+      "quox.dev.loop.interrupted",
+      "aocl.run.complete",
+      "aocl.run.interrupt"
+    ],
+    "agentTools": ["loop_sessions", "loop_turns", "loop_halt"],
+    "agents": ["loop-q"]
+  },
+
+  "includedIn": ["dev-suite-bundle"]
+}

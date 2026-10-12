@@ -1,0 +1,31 @@
+{
+  "spec_version": 1,
+  "id": "alation",
+  "name": "Alation",
+  "category": "uncategorized",
+  "credentialType": "alation",
+  "requiredFields": [
+    "base_url",
+    "api_token"
+  ],
+  "docs": "https://developer.alation.com/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "Token",
+    "template": "{{api_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/integration/v1/user/"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

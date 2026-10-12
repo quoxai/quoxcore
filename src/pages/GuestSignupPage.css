@@ -1,0 +1,115 @@
+/**
+ * GuestSignupPage — ET-FINISH Phase 1.
+ *
+ * Embedded inside the guest-invite-page card. Inherits the card chrome
+ * from GuestInvitePage.css; this stylesheet only adds form-specific
+ * rules.
+ */
+
+.guest-signup-page {
+    text-align: left;
+}
+.guest-signup-page h2 {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    text-align: center;
+}
+.guest-signup-page__preview {
+    margin: 0 0 18px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.75);
+    text-align: center;
+}
+.guest-signup-page__form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+}
+.guest-signup-page__form label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.55);
+    margin-top: 10px;
+}
+.guest-signup-page__form input {
+    width: 100%;
+    padding: 9px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 13px;
+    font-family: inherit;
+}
+.guest-signup-page__form input:focus {
+    outline: none;
+    border-color: rgba(14, 165, 233, 0.55);
+    background: rgba(255, 255, 255, 0.07);
+}
+.guest-signup-page__form input:disabled {
+    opacity: 0.6;
+}
+.guest-signup-page__hint {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.45);
+    margin: 2px 0 6px;
+}
+.guest-signup-page__error {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 6px;
+}
+.guest-signup-page__error a {
+    color: #fda4af;
+    text-decoration: underline;
+}
+.guest-signup-page__cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 18px;
+    padding: 11px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(14, 165, 233, 0.22);
+    border: 1px solid rgba(14, 165, 233, 0.6);
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.guest-signup-page__cta:hover:not(:disabled) {
+    background: rgba(14, 165, 233, 0.3);
+    border-color: rgba(14, 165, 233, 0.85);
+}
+.guest-signup-page__cta:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.guest-signup-page__alt {
+    margin: 18px 0 0;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+    text-align: center;
+}
+.guest-signup-page__alt a {
+    color: rgba(125, 211, 252, 0.95);
+    text-decoration: none;
+}
+.guest-signup-page__alt a:hover {
+    text-decoration: underline;
+}

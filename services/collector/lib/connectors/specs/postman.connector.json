@@ -1,0 +1,176 @@
+{
+  "spec_version": 1,
+  "id": "postman",
+  "name": "Postman",
+  "category": "developer",
+  "credentialType": "postman",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://www.postman.com/postman/postman-public-workspace/documentation/12946884/postman-api",
+  "base_url": "https://api.getpostman.com",
+  "auth": {
+    "type": "header",
+    "header": "X-API-Key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/me"
+  },
+  "tools_source": "https://learning.postman.com/docs/developer/postman-api/intro-api/",
+  "tools": [
+    {
+      "name": "me",
+      "description": "Get the Postman account the API key belongs to, with its API usage allowances",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/me"
+      },
+      "response": {
+        "pick": {
+          "id": "user.id",
+          "username": "user.username",
+          "email": "user.email",
+          "full_name": "user.fullName",
+          "team_id": "user.teamId",
+          "team_name": "user.teamName",
+          "operations[]": {
+            "name": "name",
+            "limit": "limit",
+            "usage": "usage",
+            "overage": "overage"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "description": "List Postman workspaces visible to the API key, optionally filtered by workspace type",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "personal",
+              "team",
+              "private",
+              "public",
+              "partner"
+            ],
+            "description": "Optional workspace type to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/workspaces",
+        "query": {
+          "type": "{{input.type}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "workspaces[]": {
+            "id": "id",
+            "name": "name",
+            "type": "type",
+            "visibility": "visibility"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_collections",
+      "description": "List Postman collections, optionally scoped to one workspace or filtered by name",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "description": "Optional Postman workspace ID to list collections from"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional search term matched against collection names"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max collections to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/collections",
+        "query": {
+          "workspace": "{{input.workspace}}",
+          "name": "{{input.name}}",
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "collections[]": {
+            "id": "id",
+            "uid": "uid",
+            "name": "name",
+            "owner": "owner",
+            "is_public": "isPublic",
+            "created_at": "createdAt",
+            "updated_at": "updatedAt"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_collection",
+      "description": "Get the metadata of one Postman collection by ID (info block only, the request item tree is not returned)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "collection_id": {
+            "type": "string",
+            "description": "Postman collection UID (e.g. 12345678-abcd1234-ab12-cd34-ef56-1234567890ab)"
+          }
+        },
+        "required": [
+          "collection_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/collections/{{input.collection_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "collection.info._postman_id",
+          "uid": "collection.info.uid",
+          "name": "collection.info.name",
+          "description": "collection.info.description",
+          "schema": "collection.info.schema",
+          "updated_at": "collection.info.updatedAt"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

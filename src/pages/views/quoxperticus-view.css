@@ -1,0 +1,201 @@
+/* QuoxperticusResidentView: layout only. Visual atoms come from the qx-* system.
+   Round 3: toolbar + main + collapsible right rail, mirroring DockerView.jsx's
+   dv-layout/dv-sidebar shape (the house pattern for "talk to the agent"). */
+
+/* Height comes from the route-scoped bounded chain in app-shell.css
+   (.app-shell__content:has(.qp-view)), not height:100% (GRIPE-699). No
+   padding: the shell's 16px is the only outer pad. */
+.qp-view {
+  gap: 16px;
+}
+
+.qp-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.qp-toolbar__title {
+  flex: 1;
+  min-width: 0;
+}
+
+.qp-toolbar__chat-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.qp-title {
+  font-size: clamp(16px, 2.2vw, 19px);
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qp-layout {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.qp-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+/* Round 4 fix: .qx-card sets overflow:hidden (for its 4-edge shimmer), and
+   per the flexbox spec an item's automatic minimum size resolves to 0 on any
+   axis where its own overflow isn't visible. Inside this bounded-height flex
+   column, that let every card get flex-shrunk toward 0 instead of the column
+   scrolling past them, clipping the presence header and evidence panel down
+   to a sliver. Every direct child renders at its natural content height;
+   .qp-main's own overflow-y:auto is what scrolls, not the cards shrinking. */
+.qp-main > * {
+  flex-shrink: 0;
+}
+
+.qp-presence__meta {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.qp-settings {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 12px;
+}
+
+.qp-turns__summary {
+  align-items: center;
+}
+
+.qp-turns__spend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--qx-mono, ui-monospace, monospace);
+}
+
+.qp-maturity {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.78);
+  flex-shrink: 0;
+}
+
+/* ── Chat rail ─────────────────────────────────────────────────────────── */
+
+.qp-rail {
+  width: 340px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+.qp-rail--collapsed {
+  width: 48px;
+  padding: 0;
+}
+
+.qp-rail__header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.qp-rail__title {
+  font-weight: 700;
+  color: #fff;
+  font-size: 14px;
+}
+
+.qp-rail__collapse-btn {
+  margin-left: auto;
+}
+
+/* Overrides .qx-log-stream's own max-height: 420px (two classes beats one,
+   so this wins regardless of stylesheet load order): the rail log should
+   fill the rail's available height, not cap out partway down it. */
+.qp-rail .qp-rail__log {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  /* Flat inside the rail's own glass card: .qx-log-stream's dark fill and
+     border would paint a second panel inside the first (no glass-on-glass). */
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.qp-rail__composer {
+  flex-shrink: 0;
+  margin-top: 10px;
+}
+
+.qp-rail__error {
+  flex-shrink: 0;
+  margin-bottom: 8px;
+}
+
+.qp-rail__collapsed-strip {
+  all: unset;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.qp-rail__collapsed-label {
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--qx-mono, ui-monospace, monospace);
+}
+
+@media (max-width: 860px) {
+  .qp-layout {
+    flex-direction: column;
+  }
+  .qp-rail,
+  .qp-rail--collapsed {
+    width: 100%;
+    min-height: 220px;
+  }
+  .qp-main {
+    max-width: none;
+  }
+}

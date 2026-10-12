@@ -1,0 +1,29 @@
+{
+  "kind": "host", "prefixes": ["host:"], "area": "systems", "derive": "host",
+  "ok_statuses": ["ok"],
+  "variants": [
+    { "id": "full", "when": { "status": "full" },
+      "urgency": [{ "is": "today" }],
+      "short": "server low on disk",
+      "L0": "Server {host} is running out of disk",
+      "L1": { "who": "Server {host}", "what": "{what}", "why": "More work than CPUs right now, so things slow down." },
+      "how": "Nothing to do unless it stays like this; ask me what is using it.",
+      "affects": [{ "ref": "host:{host}", "label": "everything running on {host}", "how": "may fail to write", "inferred": true }],
+      "measures": ["investigate"] },
+    { "id": "ok", "when": { "is_ok": "true" },
+      "urgency": [{ "is": "fyi" }],
+      "short": "server healthy",
+      "L0": "Server {host} is healthy",
+      "L1": { "who": "Server {host}", "what": "{what}", "why": "Within normal limits." },
+      "how": "Nothing to do.",
+      "measures": [] },
+    { "id": "busy",
+      "urgency": [{ "is": "fyi" }],
+      "short": "server busy",
+      "L0": "Server {host} is busy",
+      "L1": { "who": "Server {host}", "what": "{what}", "why": "More work than CPUs right now, so things slow down." },
+      "how": "Nothing to do unless it stays like this; ask me what is using it.",
+      "affects": [{ "ref": "host:{host}", "label": "everything running on {host}", "how": "runs slower", "inferred": true }],
+      "measures": ["investigate"] }
+  ]
+}

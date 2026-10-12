@@ -1,0 +1,1383 @@
+/**
+ * PluginSettings — glass design system port
+ *
+ * Was 100% orphaned class names with zero CSS (rendering as unstyled HTML).
+ * Now full Quox glass parity: panels, cards, hero, tabs, search, badges, buttons.
+ */
+
+/* Core-platform disable confirmation modal */
+.ps-core-confirm__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.ps-core-confirm {
+  width: 100%;
+  max-width: 460px;
+  padding: 20px;
+}
+
+.plugin-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #fff;
+}
+
+/* ─── Hero panel ─── */
+.ps-hero {
+  position: relative;
+  isolation: isolate;
+  padding: 20px 24px;
+  background: var(--m-bg-base, rgba(255,255,255,0.08));
+  border: 1px solid var(--m-border-default, rgba(255,255,255,0.18));
+  border-radius: var(--qx-radius, 20px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -1px 0 rgba(0,0,0,0.45);
+  overflow: hidden;
+}
+.ps-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+  pointer-events: none;
+}
+.ps-hero__glow { display: none; }
+.ps-hero__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.ps-hero__left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  min-width: 280px;
+}
+.ps-hero__icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: linear-gradient(145deg, rgba(168,85,247,0.2), rgba(56,189,248,0.1));
+  border: 1px solid rgba(168,85,247,0.45);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.ps-hero__icon { width: 22px; height: 22px; }
+.ps-hero__info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ps-hero__title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ps-hero__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+.ps-hero__status {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+}
+.ps-hero__status--active {
+  background: rgba(48, 255, 144, 0.14);
+  border-color: rgba(48, 255, 144, 0.45);
+  color: #30ff90;
+}
+.ps-hero__status--inactive {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.6);
+}
+.ps-hero__tier {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #c084fc;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+}
+.ps-hero__desc {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.5;
+}
+.ps-hero__version {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.ps-hero__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.ps-hero__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ─── License pill ─── */
+.ps-license-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(48, 255, 144, 0.14);
+  border: 1px solid rgba(48, 255, 144, 0.4);
+  color: #30ff90;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.ps-license-pill:hover {
+  background: rgba(48, 255, 144, 0.22);
+  border-color: rgba(48, 255, 144, 0.6);
+  transform: translateY(-1px);
+}
+.ps-license-pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+.ps-license-pill__text { color: inherit; }
+.ps-license-pill__edit { width: 12px; height: 12px; opacity: 0.7; }
+
+/* ─── Buttons ─── */
+.ps-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  white-space: nowrap;
+}
+.ps-btn:hover:not(:disabled) {
+  background: var(--m-bg-elevated, rgba(255, 255, 255, 0.12));
+  border-color: rgba(255, 255, 255, 0.32);
+  transform: translateY(-1px);
+}
+.ps-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ps-btn__icon { width: 14px; height: 14px; }
+.ps-btn--trial {
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.22), rgba(56, 189, 248, 0.12));
+  border-color: rgba(168, 85, 247, 0.5);
+  color: #fff;
+}
+.ps-btn--trial:hover:not(:disabled) {
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.32), rgba(56, 189, 248, 0.18));
+  border-color: rgba(168, 85, 247, 0.7);
+}
+.ps-btn--primary {
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.2), rgba(56, 189, 248, 0.1));
+  border-color: rgba(168, 85, 247, 0.45);
+  color: #fff;
+}
+.ps-btn--primary:hover:not(:disabled) {
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.3), rgba(56, 189, 248, 0.16));
+  border-color: rgba(168, 85, 247, 0.6);
+}
+.ps-btn--secondary { /* default */ }
+.ps-btn--small {
+  padding: 6px 10px;
+  font-size: 10px;
+}
+.ps-btn--danger {
+  color: rgba(239, 68, 68, 0.8);
+  border-color: rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.1);
+}
+.ps-btn--danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.ps-btn--danger-confirm {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: rgba(255, 255, 255, 0.9);
+}
+.ps-btn--danger-confirm:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+/* ─── Banner ─── */
+.ps-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(255, 176, 48, 0.08);
+  border: 1px solid rgba(255, 176, 48, 0.3);
+}
+.ps-banner--warn {
+  background: rgba(255, 176, 48, 0.08);
+  border-color: rgba(255, 176, 48, 0.3);
+}
+.ps-banner__icon {
+  width: 20px;
+  height: 20px;
+  color: #ffb030;
+  flex-shrink: 0;
+}
+.ps-banner__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ps-banner__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+}
+.ps-banner__sub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ─── Toast ─── uses .qx-toast from qx-components.css for glass styling ─── */
+/* Positioning wrapper only — glass recipe comes from .qx-toast */
+.ps-toast-positioned {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  max-width: 360px;
+}
+
+/* ─── Tabs ─── */
+.ps-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  align-self: flex-start;
+}
+.ps-tab {
+  padding: 7px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ps-tab:hover:not(.ps-tab--active) {
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+}
+.ps-tab--active {
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.2), rgba(56, 189, 248, 0.1));
+  color: #fff;
+  border-color: rgba(168, 85, 247, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+.ps-tab__count {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+}
+.ps-tab--active .ps-tab__count {
+  background: rgba(168, 85, 247, 0.3);
+  color: #fff;
+}
+
+/* ─── Categories ─── */
+.ps-categories {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ps-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.ps-cat:hover:not(.ps-cat--active) {
+  background: var(--m-bg-elevated, rgba(255, 255, 255, 0.12));
+  color: #fff;
+}
+.ps-cat--active {
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.2), rgba(56, 189, 248, 0.1));
+  border-color: rgba(168, 85, 247, 0.45);
+  color: #fff;
+}
+.ps-cat__icon { width: 14px; height: 14px; }
+.ps-cat__count {
+  font-size: 9px;
+  opacity: 0.8;
+}
+
+/* ─── Search ─── */
+.ps-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 320px;
+  max-width: 560px;
+}
+.ps-search__icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+}
+.ps-search__input {
+  width: 100%;
+  padding: 13px 44px 13px 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+.ps-search__input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+.ps-search__input:focus {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: var(--m-bg-base, rgba(255, 255, 255, 0.08));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0 0 3px rgba(56, 189, 248, 0.12);
+}
+.ps-search__clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ps-search__clear:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.ps-search__kbd {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.55);
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  pointer-events: none;
+}
+
+/* ─── Filters / controls row ─── */
+.ps-filters,
+.ps-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ─── Stats ─── */
+.ps-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ps-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.ps-stat__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+.ps-stat__dot--active {
+  background: #30ff90;
+  box-shadow: 0 0 8px #30ff90;
+}
+.ps-stat__val {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.ps-stat__label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ─── Plugin grid ─── */
+.ps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+/* ─── Empty state ─── */
+.ps-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 24px;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+}
+.ps-empty__icon {
+  width: 48px;
+  height: 48px;
+  opacity: 0.4;
+}
+
+/* ─── Loading state ─── */
+.ps-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 80px 20px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.ps-loading__spinner {
+  width: 48px;
+  height: 48px;
+  position: relative;
+}
+.ps-loading__ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: psSpin 1s linear infinite;
+}
+@keyframes psSpin {
+  to { transform: rotate(360deg); }
+}
+.ps-loading__text {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* ════════════════════════════════════════════
+   Section heading (flat, no panel chrome)
+   ════════════════════════════════════════════ */
+.ps-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px;
+  margin-top: 4px;
+}
+.ps-section-head__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ps-section-head__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.01em;
+}
+.ps-section-head__count {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(20, 184, 166, 0.16);
+  color: #14b8a6;
+  border: 1px solid rgba(20, 184, 166, 0.35);
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+}
+
+/* Trust warning banner — surface comes from the canonical .qx-banner--warn
+   glass recipe (see qx-components.css). These rules only govern the inner
+   text so we do not duplicate/override the glass surface. */
+.ps-community__warn strong { color: #fbbf24; display: inline; }
+.ps-community__warn-detail {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+}
+.ps-community__empty {
+  padding: 24px;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  font-size: 13px;
+}
+.ps-community__admin-note {
+  margin: 4px 0 0;
+  padding: 0 4px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+}
+
+/* ════════════════════════════════════════════
+   PluginCard — full glass treatment
+   ════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════
+   PluginCard — Redesign
+   ════════════════════════════════════════════
+   Hero layout: big icon tile + identity stack.
+   Full-width primary CTA. Hover-reveal secondary icons.
+   Brand-color rim. Full Quox glass recipe.
+*/
+/* ────────────────────────────────────────────────────────────────
+   PluginCard — board-vision chip package (LICENSE-LAUNCH LL-8 v1).
+   Same steel-package / dashed-socket / stub-trace / bloom recipe as
+   .qx-chipcard (qx-components.css, /qx-lab/store), reproduced under the
+   .pc family rather than sharing selectors with .qx-chipcard directly:
+   the state contract (pc--active / pc--claimable / pc--locked /
+   pc--inactive) and the data-plugin-name root are load-bearing for the
+   LL-8 Playwright acceptance (tests/ll8-free-activation.spec.js) and for
+   PluginCard's existing hero/CTA layout, so the class names stay put and
+   only the paint changes.
+   ──────────────────────────────────────────────────────────────── */
+.pc {
+  position: relative;
+  isolation: isolate;
+  padding: 18px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-radius: 12px;
+  cursor: default;
+  transition: transform 0.2s ease, background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+  overflow: visible;
+  min-height: 240px;
+  /* dashed socket by default (paid-locked / claimable); .pc--active flips
+     this to the seated steel package below */
+  background: rgba(150, 190, 255, 0.03);
+  border: 1.5px dashed rgba(150, 190, 255, 0.26);
+  box-shadow: 0 3px 0 rgba(6, 9, 16, 0.5), 0 9px 20px rgba(0, 0, 0, 0.4);
+}
+/* Pin rails on the long edges, same geometry as qx-chipcard */
+.pc::before, .pc::after {
+  content: '';
+  position: absolute;
+  top: 14%;
+  bottom: 14%;
+  width: 5px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(180deg, rgba(220, 230, 255, 0.3) 0 4px, transparent 4px 11px);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.pc::before { left: -5px; }
+.pc::after  { right: -5px; }
+.pc:hover {
+  border-color: var(--pc-accent, #38bdf8);
+  background: rgba(150, 190, 255, 0.06);
+  transform: translateY(-2px);
+}
+
+/* Top stub trace dropping onto the board's bus rail (LL-8 board vision) */
+.pc__stub {
+  position: absolute;
+  top: -19px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2.5px;
+  height: 19px;
+  background: rgba(150, 190, 255, 0.15);
+  transition: background 0.4s ease, box-shadow 0.4s ease;
+  pointer-events: none;
+}
+.pc__stub::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: inherit;
+}
+.pc--active .pc__stub {
+  background: var(--pc-accent, #38bdf8);
+  box-shadow: 0 0 7px var(--pc-accent, #38bdf8);
+}
+
+/* Accent bloom behind the "on" package — a real blurred glow layer, not
+   just a box-shadow (box-shadow alone reads flat on a chip this size). */
+.pc__bloom {
+  position: absolute;
+  inset: -12% -8%;
+  z-index: -1;
+  border-radius: 18px;
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--pc-accent, #38bdf8) 42%, transparent), transparent 70%);
+  filter: blur(18px);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.pc--active .pc__bloom { opacity: 0.45; }
+.pc--active:hover .pc__bloom { opacity: 0.7; }
+
+/* Brand-color top rim (2px strip) — kept as a secondary accent on top of
+   the pin rails, dims for locked/claimable so the seated "on" chip reads
+   as the brightest thing on the board. */
+.pc__rim {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--pc-accent, #fff) 20%, var(--pc-accent, #fff) 80%, transparent);
+  opacity: 0.5;
+  z-index: 2;
+  transition: opacity 0.15s;
+}
+.pc--active .pc__rim { opacity: 1; }
+.pc--locked .pc__rim { opacity: 0.2; }
+.pc--claimable .pc__rim { opacity: 0.4; }
+
+/* Card states */
+.pc--active {
+  /* Seated steel package: light-from-above sheen over a dark base, hot
+     accent border, twin glow (tight core + soft cast). */
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.10), transparent 45%),
+    linear-gradient(160deg, #242b40, #151827);
+  border: 1px solid color-mix(in srgb, var(--pc-accent, #38bdf8) 78%, rgba(255, 255, 255, 0.25));
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--pc-accent, #38bdf8) 50%, transparent),
+    0 10px 30px color-mix(in srgb, var(--pc-accent, #38bdf8) 18%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    inset 0 -2px 5px rgba(0, 0, 0, 0.5);
+}
+.pc--active:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 30px color-mix(in srgb, var(--pc-accent, #38bdf8) 58%, transparent),
+    0 14px 36px color-mix(in srgb, var(--pc-accent, #38bdf8) 24%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -2px 5px rgba(0, 0, 0, 0.5);
+}
+.pc--inactive {
+  /* Seated but powered off: keep the steel package (it's installed) with
+     a neutral border and no accent glow. */
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.06), transparent 45%), linear-gradient(160deg, #1f2333, #14161f);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  opacity: 0.92;
+}
+.pc--locked {
+  opacity: 0.82;
+  filter: saturate(0.8);
+}
+.pc--locked:hover {
+  opacity: 1;
+  filter: saturate(1);
+  border-color: rgba(168, 85, 247, 0.4);
+}
+/* LICENSE-LAUNCH LL-8: "claimable" (governed free, unclaimed) keeps the
+   dashed socket but its own accent + a brighter shelf-dim than a paid
+   lock, so it reads "free and inviting" rather than "paywalled". */
+.pc--claimable {
+  border-color: rgba(52, 211, 153, 0.32);
+  opacity: 0.9;
+  filter: saturate(0.9);
+}
+.pc--claimable:hover {
+  opacity: 1;
+  filter: saturate(1);
+  border-color: rgba(52, 211, 153, 0.55);
+}
+/* The glyph keeps its real accent colour (PluginIcon is told not to mute
+   it) but faded, so a claimable card reads "locked but inviting" rather
+   than the flat grey of a paid-locked card. Full brightness on hover. */
+.pc--claimable .pc__icon-tile svg {
+  opacity: 0.72;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--pc-accent, #34d399) 55%, transparent));
+  transition: opacity 0.2s ease;
+}
+.pc--claimable:hover .pc__icon-tile svg {
+  opacity: 1;
+}
+
+/* NEW/BETA badge (top-right corner) */
+.pc__badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.25), rgba(56, 189, 248, 0.15));
+  color: #fff;
+  border: 1px solid rgba(168, 85, 247, 0.5);
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.25);
+}
+
+/* Hover-revealed quick action icons (top-right of card body area) */
+.pc__quick-actions {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 4;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
+}
+.pc:hover .pc__quick-actions {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+/* If a badge is present, push the quick actions below it */
+.pc:has(.pc__badge) .pc__quick-actions {
+  top: 40px;
+}
+.pc__quick-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+.pc__quick-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+  transform: scale(1.08);
+}
+.pc__quick-btn svg { width: 14px; height: 14px; }
+.pc__quick-btn--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.pc__quick-btn--disabled:hover {
+  background: rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: none;
+}
+
+/* Hero: icon tile + identity */
+.pc__hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-right: 68px; /* reserve space for quick actions + badge */
+}
+
+.pc__icon-tile {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background:
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--pc-accent) 30%, transparent),
+      color-mix(in srgb, var(--pc-accent) 8%, transparent)),
+    rgba(0, 0, 0, 0.35);
+  border: 1px solid color-mix(in srgb, var(--pc-accent) 45%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 4px 12px color-mix(in srgb, var(--pc-accent) 18%, transparent);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.pc:hover .pc__icon-tile {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 6px 18px color-mix(in srgb, var(--pc-accent) 28%, transparent);
+}
+.pc--locked .pc__icon-tile {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Tiny status pulse dot on the icon tile's top-right corner */
+.pc__pulse {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid rgba(10, 12, 20, 0.95);
+}
+.pc__pulse--active {
+  background: #30ff90;
+  box-shadow: 0 0 10px rgba(48, 255, 144, 0.8);
+  animation: pcPulse 2s ease-in-out infinite;
+}
+.pc__pulse--inactive {
+  background: rgba(255, 255, 255, 0.25);
+}
+.pc__pulse--unlicensed,
+.pc__pulse--locked {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+}
+/* LICENSE-LAUNCH LL-8: claimable had no pulse-dot rule at all (invisible
+   corner dot). Give it the same green family as the Claim Free CTA so a
+   free-but-unclaimed plugin reads distinctly from a paid lock. */
+.pc__pulse--claimable {
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+  animation: pcPulse 2.4s ease-in-out infinite;
+}
+@keyframes pcPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(48, 255, 144, 0.7), 0 0 10px rgba(48, 255, 144, 0.8); }
+  50%      { box-shadow: 0 0 0 6px rgba(48, 255, 144, 0),   0 0 10px rgba(48, 255, 144, 0.8); }
+}
+
+.pc__identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 2px;
+}
+.pc__name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+.pc__sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pc__status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  border: 1px solid;
+}
+.pc__status-pill--active {
+  background: rgba(48, 255, 144, 0.12);
+  border-color: rgba(48, 255, 144, 0.45);
+  color: #30ff90;
+}
+.pc__status-pill--inactive {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.65);
+}
+.pc__status-pill--unlicensed,
+.pc__status-pill--locked {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #fbbf24;
+}
+.pc__status-pill--claimable {
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.45);
+  color: #34d399;
+}
+.pc__status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 5px currentColor;
+}
+.pc__version {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  letter-spacing: 0.02em;
+}
+
+/* Description (3-line clamp) */
+.pc__desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.72);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Footer meta strip (tier + price) */
+.pc__footer-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+.pc__tier {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tier-color, #38bdf8) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tier-color, #38bdf8) 40%, transparent);
+  color: var(--tier-color, #38bdf8);
+}
+.pc__price {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+}
+.pc__price--free {
+  color: #30ff90;
+}
+
+/* Primary CTA — full-width action button */
+.pc__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid;
+  margin-top: auto;
+}
+.pc__cta svg { width: 14px; height: 14px; }
+
+/* Stack the CTA(s) at the bottom of the card */
+.pc__cta-group {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pc__cta-group .pc__cta { margin-top: 0; }
+
+/* Open dashboard: cyan glass secondary, sits above the enable/disable CTA */
+.pc__cta--open {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #7dd3fc;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+.pc__cta--open:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: rgba(56, 189, 248, 0.6);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+/* Claim free (claimable → licensed, no key): green→cyan gradient, distinct
+   from the paid Activate purple so a free unlock never reads as a paywall. */
+.pc__cta--claim {
+  background: linear-gradient(145deg, rgba(52, 211, 153, 0.26), rgba(56, 189, 248, 0.16));
+  border-color: rgba(52, 211, 153, 0.55);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 4px 16px rgba(52, 211, 153, 0.16);
+}
+.pc__cta--claim:hover {
+  background: linear-gradient(145deg, rgba(52, 211, 153, 0.4), rgba(56, 189, 248, 0.22));
+  border-color: rgba(52, 211, 153, 0.75);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 6px 24px rgba(52, 211, 153, 0.26);
+}
+
+/* Activate (locked → licensed): purple→cyan gradient */
+.pc__cta--activate {
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.28), rgba(56, 189, 248, 0.18));
+  border-color: rgba(168, 85, 247, 0.55);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 4px 16px rgba(168, 85, 247, 0.18);
+}
+.pc__cta--activate:hover {
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.4), rgba(56, 189, 248, 0.24));
+  border-color: rgba(168, 85, 247, 0.75);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 6px 24px rgba(168, 85, 247, 0.28);
+}
+
+/* Enable (licensed but off): solid cyan */
+.pc__cta--enable {
+  background: linear-gradient(145deg, rgba(56, 189, 248, 0.22), rgba(56, 189, 248, 0.1));
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 4px 12px rgba(56, 189, 248, 0.15);
+}
+.pc__cta--enable:hover {
+  background: linear-gradient(145deg, rgba(56, 189, 248, 0.32), rgba(56, 189, 248, 0.16));
+  border-color: rgba(56, 189, 248, 0.7);
+  transform: translateY(-1px);
+}
+
+/* Disable (active): dark red rim */
+.pc__cta--disable {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: rgba(255, 255, 255, 0.85);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+.pc__cta--disable:hover {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.55);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+/* Celebration glow overlay */
+.pc__celebration-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.28), transparent 70%);
+  animation: pcCelebrate 1.2s ease-out;
+  pointer-events: none;
+  z-index: 1;
+}
+@keyframes pcCelebrate {
+  0%   { opacity: 0; transform: scale(0.92); }
+  50%  { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+.pc--celebrating {
+  animation: pcCelebrateCard 0.9s ease-out;
+}
+@keyframes pcCelebrateCard {
+  0%   { box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 0 0 0 rgba(168, 85, 247, 0.5); }
+  50%  { box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 0 0 8px rgba(168, 85, 247, 0); }
+  100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc, .pc__icon-tile, .pc__cta, .pc__quick-btn, .pc__rim { transition: none; }
+  .pc--celebrating, .pc__celebration-glow { animation: none; display: none; }
+  .pc__pulse--active { animation: none; }
+  .pc:hover { transform: none; }
+}
+
+/* ════════════════════════════════════════════
+   ThirdPartyPluginCard — community variant of .pc
+   Same glass recipe as .pc, distinguished only by tag
+   ════════════════════════════════════════════ */
+.tpc {
+  /* .pc already supplies glass; tpc only tweaks */
+}
+.tpc__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  position: relative;
+}
+.tpc__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tpc__name {
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.tpc__community-tag {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: rgba(20, 184, 166, 0.18);
+  color: #14b8a6;
+  border: 1px solid rgba(20, 184, 166, 0.4);
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+}
+.tpc__meta {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.75rem;
+}
+.tpc__toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  border: none;
+  cursor: pointer;
+  background: rgba(255,255,255,0.15);
+  transition: background 0.2s;
+}
+.tpc__toggle[data-active="true"] { background: #14b8a6; }
+.tpc__toggle::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  top: 3px;
+  left: 3px;
+  transition: left 0.2s;
+}
+.tpc__toggle[data-active="true"]::after { left: 21px; }
+.tpc__toggle:disabled { opacity: 0.4; cursor: not-allowed; }
+.tpc__desc {
+  margin: 0 0 12px;
+  color: rgba(255,255,255,0.6);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  /* Match the catalogue card (.pc__desc): clamp to 3 lines so a community
+     plugin with a long description does not balloon the card out of step
+     with the rest of the grid. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tpc__error {
+  margin: 0 0 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.2);
+  color: #fca5a5;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.tpc__badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.tpc__badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+}
+.tpc__badge--warn { background: rgba(234,179,8,0.14);  color: #f5c451; }
+.tpc__badge--err  { background: rgba(239,68,68,0.14);   color: #fca5a5; }
+.tpc__badge--ok   { background: rgba(52,211,153,0.14);  color: #6ee7b7; }
+.tpc__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.tpc__uninstall-panel {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+}
+.tpc__uninstall-panel p {
+  margin: 0 0 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.85rem;
+}
+.tpc__uninstall-panel p + p {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  margin-bottom: 10px;
+}
+.tpc__uninstall-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.8rem;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+.tpc__uninstall-actions {
+  display: flex;
+  gap: 8px;
+}

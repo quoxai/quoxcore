@@ -1,0 +1,105 @@
+{
+  "spec_id": "calendly",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:18.944Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.calendly.com/quox-shapeproof-control-59e223bd",
+      "status": 401,
+      "latency_ms": 5826,
+      "classification": "CONTROL",
+      "body_sha256": "1e81ed1950ce8b31bed27ee2ce6cb41b7ed3c034f7c91c6f01e675f3f84c6a13",
+      "body_excerpt": "{\"title\":\"Unauthenticated\",\"message\":\"The access token is invalid\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.calendly.com/users/me",
+      "status": 401,
+      "latency_ms": 272,
+      "classification": "AUTH_WALL",
+      "body_sha256": "1e81ed1950ce8b31bed27ee2ce6cb41b7ed3c034f7c91c6f01e675f3f84c6a13",
+      "body_excerpt": "{\"title\":\"Unauthenticated\",\"message\":\"The access token is invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_me",
+      "method": "GET",
+      "url": "https://api.calendly.com/users/me",
+      "status": 401,
+      "latency_ms": 275,
+      "classification": "AUTH_WALL",
+      "body_sha256": "1e81ed1950ce8b31bed27ee2ce6cb41b7ed3c034f7c91c6f01e675f3f84c6a13",
+      "body_excerpt": "{\"title\":\"Unauthenticated\",\"message\":\"The access token is invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_event_types",
+      "method": "GET",
+      "url": "https://api.calendly.com/event_types?user=quoxprobe&count=20",
+      "status": 401,
+      "latency_ms": 1164,
+      "classification": "AUTH_WALL",
+      "body_sha256": "1e81ed1950ce8b31bed27ee2ce6cb41b7ed3c034f7c91c6f01e675f3f84c6a13",
+      "body_excerpt": "{\"title\":\"Unauthenticated\",\"message\":\"The access token is invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_scheduled_events",
+      "method": "GET",
+      "url": "https://api.calendly.com/scheduled_events?user=quoxprobe&count=20&status=quoxprobe",
+      "status": 401,
+      "latency_ms": 116,
+      "classification": "AUTH_WALL",
+      "body_sha256": "1e81ed1950ce8b31bed27ee2ce6cb41b7ed3c034f7c91c6f01e675f3f84c6a13",
+      "body_excerpt": "{\"title\":\"Unauthenticated\",\"message\":\"The access token is invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_invitees",
+      "method": "GET",
+      "url": "https://api.calendly.com/scheduled_events/quoxprobe/invitees?count=20",
+      "status": 401,
+      "latency_ms": 114,
+      "classification": "AUTH_WALL",
+      "body_sha256": "1e81ed1950ce8b31bed27ee2ce6cb41b7ed3c034f7c91c6f01e675f3f84c6a13",
+      "body_excerpt": "{\"title\":\"Unauthenticated\",\"message\":\"The access token is invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

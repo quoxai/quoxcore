@@ -1,0 +1,121 @@
+{
+  "spec_id": "box",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:09.873Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.box.com/quox-shapeproof-control-26f8567f",
+      "status": 401,
+      "latency_ms": 568,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.box.com/2.0/users/me",
+      "status": 401,
+      "latency_ms": 253,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    },
+    {
+      "name": "get_current_user",
+      "method": "GET",
+      "url": "https://api.box.com/2.0/users/me",
+      "status": 401,
+      "latency_ms": 319,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    },
+    {
+      "name": "list_folder_items",
+      "method": "GET",
+      "url": "https://api.box.com/2.0/folders/0/items?limit=20&offset=1&fields=id%2Ctype%2Cname%2Csize%2Cmodified_at",
+      "status": 401,
+      "latency_ms": 363,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    },
+    {
+      "name": "get_folder_info",
+      "method": "GET",
+      "url": "https://api.box.com/2.0/folders/0?fields=id%2Ctype%2Cname%2Csize%2Ccreated_at%2Cmodified_at%2Citem_status%2Cowned_by",
+      "status": 401,
+      "latency_ms": 374,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    },
+    {
+      "name": "get_file_info",
+      "method": "GET",
+      "url": "https://api.box.com/2.0/files/quoxprobe?fields=id%2Ctype%2Cname%2Csize%2Ccreated_at%2Cmodified_at%2Csha1%2Citem_status%2Cextension",
+      "status": 401,
+      "latency_ms": 346,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    },
+    {
+      "name": "search",
+      "method": "GET",
+      "url": "https://api.box.com/2.0/search?query=quoxprobe&type=quoxprobe&limit=20&fields=id%2Ctype%2Cname%2Csize%2Cmodified_at",
+      "status": 401,
+      "latency_ms": 386,
+      "classification": "AUTH_WALL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "body_sha"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

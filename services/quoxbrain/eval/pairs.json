@@ -1,0 +1,95 @@
+{
+  "description": "Retrieval eval ground truth for BRAIN2-SEMANTIC. Each pair maps a natural-language query (deliberately paraphrase-heavy, low keyword overlap where possible) to the exact title of the note that answers it in the QUOX DEVELOPMENT org corpus. Expected notes are resolved to noteIds at run time by exact title match, so this file survives reindexes. Queries run AS the owning user (user_id) because much of the corpus (e.g. Agent Memory) is user-scope: an anonymous caller correctly cannot see it, which is RBAC, not retrieval quality.",
+  "org_id": "01KKNKH398KKEWB36JXRYR70QH",
+  "user_id": "01KKNKG580E967VC6YKAFWRT27",
+  "pairs": [
+    {
+      "query": "what did we decide about telegram polling versus webhooks",
+      "expectedTitle": "QUOX-TELEGRAM-PRO-2"
+    },
+    {
+      "query": "are we allowed to credit the AI assistant in commit messages",
+      "expectedTitle": "feedback_no_ai_coauthor"
+    },
+    {
+      "query": "how often should I commit and push during a work stream",
+      "expectedTitle": "feedback_git_discipline"
+    },
+    {
+      "query": "what is the rule about icons on dashboard buttons",
+      "expectedTitle": "feedback_button_nemesis"
+    },
+    {
+      "query": "why can't a feature keep its data only in RAM or the browser",
+      "expectedTitle": "feedback_in_memory_store_no_persistence"
+    },
+    {
+      "query": "how do we position quox relative to agent operating systems",
+      "expectedTitle": "positioning_evidence_layer_not_agent_os"
+    },
+    {
+      "query": "which proxmox nodes must never be casually rebooted",
+      "expectedTitle": "pve_cluster_no_reboot_constraint"
+    },
+    {
+      "query": "how do we protect server side fetches of user supplied urls from reaching internal hosts",
+      "expectedTitle": "reference_egress_guard_ssrf"
+    },
+    {
+      "query": "when should work be handed off to cheaper models instead of opus",
+      "expectedTitle": "feedback_model_cost_discipline"
+    },
+    {
+      "query": "why do new agents have to be registered in two different places",
+      "expectedTitle": "feedback_dual_assistant_registry"
+    },
+    {
+      "query": "why do MCP tool calls fail if you skip the initialization handshake",
+      "expectedTitle": "feedback_mcp_init_handshake_required"
+    },
+    {
+      "query": "who are our main competitors and how crowded is the market",
+      "expectedTitle": "competitor-landscape-2026-05-05"
+    },
+    {
+      "query": "what launch window are we working against and why",
+      "expectedTitle": "quox-launch-direction-2026-05-05"
+    },
+    {
+      "query": "how do client organisations get scoped in the backend so tenants can't see each other",
+      "expectedTitle": "feedback_multi_tenant_client_orgid"
+    },
+    {
+      "query": "what did we learn about the spam campaign targeting the hot tub client",
+      "expectedTitle": "project_hottubs_spammer_dossier_2026_05_17"
+    },
+    {
+      "query": "what is the correct way to restart the fleet controller service",
+      "expectedTitle": "reference_qluster_controller_systemd"
+    },
+    {
+      "query": "the incident where timezone data was missing inside the sandbox",
+      "expectedTitle": "incident_2026_05_20_sandbox_tzdata_utc"
+    },
+    {
+      "query": "why did some routes return 401 depending on middleware ordering",
+      "expectedTitle": "feedback_auth_mount_order"
+    },
+    {
+      "query": "when do the european AI regulations start applying to us",
+      "expectedTitle": "reference_eu_ai_act_timeline_2026"
+    },
+    {
+      "query": "what is the owner's long term vision for the company",
+      "expectedTitle": "The vision (recorded 2026-05-08)"
+    },
+    {
+      "query": "what are the plans to overhaul the website landing page design language",
+      "expectedTitle": "REVOLUTIONISE the homepage — Fable-led brand/design-language overhaul"
+    },
+    {
+      "query": "how does the developer prefer to work given their neurotype",
+      "expectedTitle": "user_audhd_async_first"
+    }
+  ]
+}

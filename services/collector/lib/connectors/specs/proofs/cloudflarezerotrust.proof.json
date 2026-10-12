@@ -1,0 +1,217 @@
+{
+  "spec_id": "cloudflarezerotrust",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:52:57.268Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts/00000000000000000000000000000000/quox-shapeproof-control-e4831a82",
+      "status": 400,
+      "latency_ms": 6595,
+      "classification": "CONTROL",
+      "body_sha256": "422cbeea6668fe9b82b7faa03e462153764dd7f9763829ec3273fca69849046f",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":7003,\"message\":\"Could not route to \\/accounts\\/00000000000000000000000000000000\\/quox-shapeproof-control-e4831a82, perhaps your object identifier is invalid?\"},{\"cod",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts/00000000000000000000000000000000/access/apps",
+      "status": 400,
+      "latency_ms": 327,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62c061e24119b06ed2cb0c3021c4e613e9b3dfc06626a25606b6136a3497818f",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":9106,\"message\":\"Authentication failed (status: 400)\"}],\"messages\":[],\"result\":null}\n",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 400,
+        "control_error_code": "7003"
+      }
+    },
+    {
+      "name": "list_access_apps",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts/00000000000000000000000000000000/access/apps",
+      "status": 400,
+      "latency_ms": 146,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62c061e24119b06ed2cb0c3021c4e613e9b3dfc06626a25606b6136a3497818f",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":9106,\"message\":\"Authentication failed (status: 400)\"}],\"messages\":[],\"result\":null}\n",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 400,
+        "control_error_code": "7003"
+      }
+    },
+    {
+      "name": "get_access_app",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts/00000000000000000000000000000000/access/apps/00000000000000000000000000000000",
+      "status": 400,
+      "latency_ms": 347,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62c061e24119b06ed2cb0c3021c4e613e9b3dfc06626a25606b6136a3497818f",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":9106,\"message\":\"Authentication failed (status: 400)\"}],\"messages\":[],\"result\":null}\n",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 400,
+        "control_error_code": "7003"
+      }
+    },
+    {
+      "name": "list_access_policies",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts/00000000000000000000000000000000/access/policies",
+      "status": 400,
+      "latency_ms": 308,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62c061e24119b06ed2cb0c3021c4e613e9b3dfc06626a25606b6136a3497818f",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":9106,\"message\":\"Authentication failed (status: 400)\"}],\"messages\":[],\"result\":null}\n",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 400,
+        "control_error_code": "7003"
+      }
+    },
+    {
+      "name": "list_access_groups",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts/00000000000000000000000000000000/access/groups",
+      "status": 400,
+      "latency_ms": 650,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62c061e24119b06ed2cb0c3021c4e613e9b3dfc06626a25606b6136a3497818f",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":9106,\"message\":\"Authentication failed (status: 400)\"}],\"messages\":[],\"result\":null}\n",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 400,
+        "control_error_code": "7003"
+      }
+    },
+    {
+      "name": "list_access_identity_providers",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts/00000000000000000000000000000000/access/identity_providers",
+      "status": 400,
+      "latency_ms": 304,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62c061e24119b06ed2cb0c3021c4e613e9b3dfc06626a25606b6136a3497818f",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":9106,\"message\":\"Authentication failed (status: 400)\"}],\"messages\":[],\"result\":null}\n",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 400,
+        "control_error_code": "7003"
+      }
+    },
+    {
+      "name": "list_access_service_tokens",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts/00000000000000000000000000000000/access/service_tokens",
+      "status": 400,
+      "latency_ms": 310,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62c061e24119b06ed2cb0c3021c4e613e9b3dfc06626a25606b6136a3497818f",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":9106,\"message\":\"Authentication failed (status: 400)\"}],\"messages\":[],\"result\":null}\n",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 400,
+        "control_error_code": "7003"
+      }
+    },
+    {
+      "name": "list_gateway_rules",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts/00000000000000000000000000000000/gateway/rules",
+      "status": 400,
+      "latency_ms": 244,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62c061e24119b06ed2cb0c3021c4e613e9b3dfc06626a25606b6136a3497818f",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":9106,\"message\":\"Authentication failed (status: 400)\"}],\"messages\":[],\"result\":null}\n",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 400,
+        "control_error_code": "7003"
+      }
+    },
+    {
+      "name": "list_gateway_lists",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts/00000000000000000000000000000000/gateway/lists",
+      "status": 400,
+      "latency_ms": 138,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62c061e24119b06ed2cb0c3021c4e613e9b3dfc06626a25606b6136a3497818f",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":9106,\"message\":\"Authentication failed (status: 400)\"}],\"messages\":[],\"result\":null}\n",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 400,
+        "control_error_code": "7003"
+      }
+    },
+    {
+      "name": "list_gateway_locations",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts/00000000000000000000000000000000/gateway/locations",
+      "status": 400,
+      "latency_ms": 284,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62c061e24119b06ed2cb0c3021c4e613e9b3dfc06626a25606b6136a3497818f",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":9106,\"message\":\"Authentication failed (status: 400)\"}],\"messages\":[],\"result\":null}\n",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 400,
+        "control_error_code": "7003"
+      }
+    },
+    {
+      "name": "list_tunnels",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts/00000000000000000000000000000000/cfd_tunnel?is_deleted=false&name=quoxprobe&per_page=20",
+      "status": 400,
+      "latency_ms": 193,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62c061e24119b06ed2cb0c3021c4e613e9b3dfc06626a25606b6136a3497818f",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":9106,\"message\":\"Authentication failed (status: 400)\"}],\"messages\":[],\"result\":null}\n",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 400,
+        "control_error_code": "7003"
+      }
+    },
+    {
+      "name": "get_tunnel",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts/00000000000000000000000000000000/cfd_tunnel/00000000000000000000000000000000",
+      "status": 400,
+      "latency_ms": 268,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "62c061e24119b06ed2cb0c3021c4e613e9b3dfc06626a25606b6136a3497818f",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":9106,\"message\":\"Authentication failed (status: 400)\"}],\"messages\":[],\"result\":null}\n",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 400,
+        "control_error_code": "7003"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

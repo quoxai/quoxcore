@@ -1,0 +1,32 @@
+{
+  "id": "x",
+  "name": "x",
+  "displayName": "X",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "communication",
+  "accentColor": "#000000",
+  "accentColorFallback": "#E7E9EA",
+  "description": "Draft posts and threads to X (Twitter) through governed owner approval: HITL-gated publishing enforced in the collector, a hard org posting budget, image media, and a live account-health check over vault OAuth 1.0a credentials.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/x",
+      "label": "X",
+      "icon": "x",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/x": "XView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

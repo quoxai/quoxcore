@@ -1,0 +1,103 @@
+/* FilesView — glass pass (2026-04-15)
+ *
+ * Wraps the FileManager in the standard glass card shell. All overrides
+ * are scoped to `.files-view` so any other FileManager consumer (preview
+ * modals, etc.) stays untouched.
+ */
+
+.app-shell__content:has(.files-view) { overflow: hidden; }
+.app-shell__content:has(.files-view) .breadcrumbs { display: none; }
+
+/* ─────────────────────────── Outer glass card shell */
+.files-view.view-page {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  background: var(--m-bg-base, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.18));
+  border-radius: var(--qx-radius, 20px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.files-view.view-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--qx-edges);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+}
+
+.files-view__content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ─────────────────────────── Root manager — kill the near-black bg */
+.files-view .file-manager {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.95);
+  border-radius: inherit;
+}
+
+/* ─────────────────────────── Sidebar — glass panel */
+.files-view .fm-sidebar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0%, rgba(255, 255, 255, 0.01) 100%);
+  border-right: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.14));
+}
+
+.files-view .fm-sidebar-toggle {
+  border-bottom: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.14));
+  color: rgba(255, 255, 255, 0.65);
+}
+.files-view .fm-sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+/* ─────────────────────────── Header — glass strip matching Infra/Comms */
+.files-view .fm-header {
+  min-height: 52px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.14));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+  backdrop-filter: var(--qx-blur, blur(16px));
+  -webkit-backdrop-filter: var(--qx-blur, blur(16px));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+/* ─────────────────────────── Breadcrumb + org badge contrast lifts */
+.files-view .breadcrumb-item {
+  color: rgba(255, 255, 255, 0.65);
+}
+.files-view .breadcrumb-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.files-view .breadcrumb-item.current {
+  color: #fff;
+}
+.files-view .breadcrumb-separator {
+  color: rgba(255, 255, 255, 0.35);
+}
+.files-view .fm-org-badge {
+  color: rgba(255, 255, 255, 0.72);
+}
+.files-view .fm-org-name {
+  color: rgba(255, 255, 255, 0.8);
+}

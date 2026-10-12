@@ -1,0 +1,15 @@
+{
+  "id": "chief-medium",
+  "type": "team-pack",
+  "version": "1.0.0",
+  "displayName": "Chief Team — Medium Business",
+  "description": "A comprehensive AI executive suite with fourteen chiefs. Adds CISO, CLO, CPO (Product), CRO, CCO, CIO, CDO, and CAO to the core six — complete C-suite coverage for growing businesses.",
+  "author": "Quox",
+  "tier": "tier_b",
+  "price": 10,
+  "priceModel": "one-time",
+  "teams": ["chief-medium"],
+  "tags": ["business", "executive", "strategy", "medium-business", "c-suite", "growth"],
+  "icon": "building",
+  "accentColor": "#7c3aed"
+}

@@ -1,0 +1,240 @@
+/**
+ * QuoxCore Visualizer Styles
+ *
+ * Full-screen cognitive system visualization
+ * Designed for rack displays and ambient viewing
+ */
+
+.quox-core {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #05050f;
+  overflow: hidden;
+}
+
+.quox-core__canvas {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* ============================================
+   LEGEND
+   ============================================ */
+.quox-core__legend {
+  position: fixed;
+  top: 50%;
+  left: 24px;
+  transform: translateY(-50%);
+  width: 260px;
+  background: rgba(10, 10, 20, 0.9);
+  border: 1px solid rgba(0, 212, 170, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 100;
+}
+
+.quox-core__legend.visible {
+  opacity: 1;
+}
+
+.quox-core__legend-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 212, 170, 0.15);
+}
+
+.quox-core__legend-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quox-core__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.quox-core__legend-item:hover,
+.quox-core__legend-item.active {
+  background: rgba(0, 212, 170, 0.1);
+  border-color: var(--item-color, #00d4aa);
+}
+
+.quox-core__legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--item-color, #00d4aa);
+  flex-shrink: 0;
+  box-shadow: 0 0 8px var(--item-color, #00d4aa);
+  transition: all 0.2s ease;
+}
+
+.quox-core__legend-item:hover .quox-core__legend-dot,
+.quox-core__legend-item.active .quox-core__legend-dot {
+  transform: scale(1.3);
+  box-shadow: 0 0 15px var(--item-color, #00d4aa);
+}
+
+.quox-core__legend-name {
+  flex: 1;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quox-core__legend-item:hover .quox-core__legend-name,
+.quox-core__legend-item.active .quox-core__legend-name {
+  color: #ffffff;
+}
+
+.quox-core__legend-value {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  color: var(--item-color, #00d4aa);
+  min-width: 45px;
+  text-align: right;
+}
+
+/* ============================================
+   CONTROLS
+   ============================================ */
+.quox-core__controls {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 100;
+}
+
+.quox-core__controls.visible {
+  opacity: 1;
+}
+
+.quox-core__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: rgba(10, 10, 20, 0.9);
+  border: 1px solid rgba(0, 212, 170, 0.3);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.quox-core__btn:hover {
+  background: rgba(0, 212, 170, 0.2);
+  border-color: #00d4aa;
+  color: #00d4aa;
+}
+
+.quox-core__btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ============================================
+   HINTS
+   ============================================ */
+.quox-core__hints {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 100;
+}
+
+.quox-core__hints.visible {
+  opacity: 1;
+}
+
+.quox-core__hints kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  margin-right: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+  .quox-core__legend {
+    top: auto;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100vw - 32px);
+    max-width: 400px;
+  }
+
+  .quox-core__controls {
+    top: auto;
+    bottom: 16px;
+    right: 50%;
+    transform: translateX(50%);
+  }
+
+  .quox-core__hints {
+    display: none;
+  }
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+@keyframes quox-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}

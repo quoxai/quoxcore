@@ -1,0 +1,92 @@
+{
+  "spec_id": "roboflow",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:58:27.410Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.roboflow.com/quox-shapeproof-control-a929cdac?api_key=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 404,
+      "latency_ms": 937,
+      "classification": "CONTROL",
+      "body_sha256": "d202498623b57891ff7c8b7baff33dd30901daf0a5ef12e09f8e02ffd1751cb0",
+      "body_excerpt": "{\"error\":{\"message\":\"Unsupported get request. Workspace with ID \\\"quox-shapeproof-control-a929cdac\\\" does not exist or cannot be loaded due to missing permissions.\",\"status\":404,\"type\":\"GraphMethodExc",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.roboflow.com/?api_key=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 401,
+      "latency_ms": 358,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "25dd01ab4b8e8955d4f824c43ee099399a305323ba5947481159af24f6adb685",
+      "body_excerpt": "{\"error\":{\"message\":\"This API key does not exist (or has been revoked).\",\"status\":401,\"type\":\"OAuthException\",\"hint\":\"You may retrieve your API key via the Roboflow Dashboard. Go to Account > Roboflow",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_workspace",
+      "method": "GET",
+      "url": "https://api.roboflow.com/?api_key=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 401,
+      "latency_ms": 271,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "25dd01ab4b8e8955d4f824c43ee099399a305323ba5947481159af24f6adb685",
+      "body_excerpt": "{\"error\":{\"message\":\"This API key does not exist (or has been revoked).\",\"status\":401,\"type\":\"OAuthException\",\"hint\":\"You may retrieve your API key via the Roboflow Dashboard. Go to Account > Roboflow",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "GET",
+      "url": "https://api.roboflow.com/quoxprobe?api_key=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 404,
+      "latency_ms": 352,
+      "classification": "FAIL",
+      "body_sha256": "91a5cfd830ac1a990ce7832cd5e86f1ddc67f6201694b513f65324e0428348c5",
+      "body_excerpt": "{\"error\":{\"message\":\"Unsupported get request. Workspace with ID \\\"quoxprobe\\\" does not exist or cannot be loaded due to missing permissions.\",\"status\":404,\"type\":\"GraphMethodException\",\"hint\":\"You can",
+      "flags": {
+        "path_wrong": true
+      }
+    },
+    {
+      "name": "get_project",
+      "method": "GET",
+      "url": "https://api.roboflow.com/quoxprobe/quoxprobe?api_key=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 401,
+      "latency_ms": 344,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "25dd01ab4b8e8955d4f824c43ee099399a305323ba5947481159af24f6adb685",
+      "body_excerpt": "{\"error\":{\"message\":\"This API key does not exist (or has been revoked).\",\"status\":401,\"type\":\"OAuthException\",\"hint\":\"You may retrieve your API key via the Roboflow Dashboard. Go to Account > Roboflow",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_version",
+      "method": "GET",
+      "url": "https://api.roboflow.com/quoxprobe/quoxprobe/quoxprobe?api_key=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 404,
+      "latency_ms": 309,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "93d25d7ac203220ff8b36bb8b4c63b8c6ab7601c75876eb1c34ddf452f81aa27",
+      "body_excerpt": "{\"error\":\"Endpoint not found.\"}",
+      "flags": {
+        "identifier_404_differential": true,
+        "error_code": "Endpoint not found.",
+        "control_error_code": "GraphMethodException"
+      }
+    }
+  ],
+  "overall": "FAIL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

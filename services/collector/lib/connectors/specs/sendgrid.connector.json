@@ -1,0 +1,158 @@
+{
+  "spec_version": 1,
+  "id": "sendgrid",
+  "name": "SendGrid",
+  "category": "marketing_email",
+  "credentialType": "sendgrid",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.sendgrid.com/api-reference/",
+  "base_url": "https://api.sendgrid.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v3/user/profile"
+  },
+  "tools_source": "https://www.twilio.com/docs/sendgrid/api-reference",
+  "tools": [
+    {
+      "name": "get_profile",
+      "description": "Get the SendGrid account profile (company, website and contact details for the authenticated account)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/user/profile"
+      },
+      "response": {
+        "pick": {
+          "first_name": "first_name",
+          "last_name": "last_name",
+          "company": "company",
+          "website": "website",
+          "city": "city",
+          "country": "country",
+          "phone": "phone"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_templates",
+      "description": "List SendGrid dynamic transactional templates",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max templates to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/templates",
+        "query": {
+          "generations": "dynamic",
+          "page_size": "{{clamp input.limit 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "name": "name",
+            "generation": "generation",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "email_stats",
+      "description": "Get global SendGrid email statistics (delivered, opens, clicks, bounces) from a start date onwards",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "description": "First date of the statistics range, YYYY-MM-DD (required)"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Optional last date of the range, YYYY-MM-DD (defaults to today)"
+          },
+          "aggregated_by": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "description": "Optional bucket size for the returned series (default day)"
+          }
+        },
+        "required": [
+          "start_date"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/stats",
+        "query": {
+          "start_date": "{{input.start_date}}",
+          "end_date": "{{input.end_date}}",
+          "aggregated_by": "{{input.aggregated_by}}"
+        }
+      },
+      "response": {
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_suppressions",
+      "description": "List SendGrid bounce suppressions (addresses the API refused to deliver to)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max bounce records to return (default 20, max 50)"
+          },
+          "start_time": {
+            "type": "number",
+            "description": "Optional Unix timestamp: only bounces recorded at or after this time"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/suppression/bounces",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "start_time": "{{input.start_time}}"
+        }
+      },
+      "response": {
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

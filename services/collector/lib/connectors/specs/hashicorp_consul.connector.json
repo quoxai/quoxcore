@@ -1,0 +1,249 @@
+{
+  "spec_version": 1,
+  "id": "hashicorp_consul",
+  "name": "HashiCorp Consul",
+  "category": "cloud_hosting",
+  "credentialType": "hashicorp_consul",
+  "requiredFields": [
+    "base_url",
+    "token"
+  ],
+  "docs": "https://developer.hashicorp.com/consul/api-docs",
+  "tools_source": "https://developer.hashicorp.com/consul/api-docs/catalog",
+  "description": "Self-hosted HashiCorp Consul reads: the agent's own configuration, the services registered in the catalogue, the nodes in the catalogue, the health instances of one service, and one KV entry by key. Read-only; every register, deregister, KV write, session, ACL and maintenance-mode endpoint on the same API is deliberately absent.",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "X-Consul-Token",
+    "template": "{{token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/agent/self"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "agent_self",
+      "description": "Get the configuration and cluster identity of the Consul agent this credential points at: datacenter, node name, version and whether it is a server",
+      "request": {
+        "method": "GET",
+        "path": "/v1/agent/self"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "datacenter": "Config.Datacenter",
+          "primary_datacenter": "Config.PrimaryDatacenter",
+          "node_name": "Config.NodeName",
+          "node_id": "Config.NodeID",
+          "server": "Config.Server",
+          "version": "Config.Version",
+          "revision": "Config.Revision",
+          "member_name": "Member.Name",
+          "member_addr": "Member.Addr",
+          "member_status": "Member.Status"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_services",
+      "description": "List the service names registered in the Consul catalogue, each with its tags",
+      "request": {
+        "method": "GET",
+        "path": "/v1/catalog/services",
+        "query": {
+          "dc": "{{input.dc}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "dc": {
+            "type": "string",
+            "description": "Optional datacenter to query instead of the agent's own"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_nodes",
+      "description": "List the nodes registered in the Consul catalogue, with their addresses and datacenter",
+      "request": {
+        "method": "GET",
+        "path": "/v1/catalog/nodes",
+        "query": {
+          "dc": "{{input.dc}}",
+          "filter": "{{input.filter}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "dc": {
+            "type": "string",
+            "description": "Optional datacenter to query instead of the agent's own"
+          },
+          "filter": {
+            "type": "string",
+            "description": "Optional Consul filter expression, e.g. Meta.rack == r1"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "ID",
+            "node": "Node",
+            "address": "Address",
+            "datacenter": "Datacenter",
+            "meta": "Meta",
+            "create_index": "CreateIndex",
+            "modify_index": "ModifyIndex"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "health_service",
+      "description": "List the instances of one service with their node, port, tags and health checks, optionally only the passing ones",
+      "request": {
+        "method": "GET",
+        "path": "/v1/health/service/{{input.service}}",
+        "query": {
+          "dc": "{{input.dc}}",
+          "tag": "{{input.tag}}",
+          "passing": "{{input.passing}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "description": "Registered service name, as returned by list_services"
+          },
+          "dc": {
+            "type": "string",
+            "description": "Optional datacenter to query instead of the agent's own"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Optional tag the service instance must carry"
+          },
+          "passing": {
+            "type": "boolean",
+            "description": "Set true to return only instances whose checks are all passing"
+          }
+        },
+        "required": [
+          "service"
+        ]
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "node": "Node.Node",
+            "node_address": "Node.Address",
+            "datacenter": "Node.Datacenter",
+            "service_id": "Service.ID",
+            "service": "Service.Service",
+            "service_address": "Service.Address",
+            "port": "Service.Port",
+            "tags": "Service.Tags",
+            "checks": "Checks"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.service": "consul"
+      }
+    },
+    {
+      "name": "kv_get",
+      "description": "Read one entry from the Consul KV store by key. The value comes back base64-encoded, as Consul returns it",
+      "request": {
+        "method": "GET",
+        "path": "/v1/kv/{{input.key}}",
+        "query": {
+          "dc": "{{input.dc}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "KV key path, without a leading slash (e.g. app/config)"
+          },
+          "dc": {
+            "type": "string",
+            "description": "Optional datacenter to query instead of the agent's own"
+          }
+        },
+        "required": [
+          "key"
+        ]
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "key": "Key",
+            "value": "Value",
+            "flags": "Flags",
+            "session": "Session",
+            "lock_index": "LockIndex",
+            "create_index": "CreateIndex",
+            "modify_index": "ModifyIndex"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.key": "quoxproof-live"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, AND THE DOCS SAY THE SAME THING: Consul's HTTP API takes an ACL token in the X-Consul-Token request header (https://developer.hashicorp.com/consul/api-docs, 'Authentication'), so {type: header, header: X-Consul-Token, template: '{{token}}'} is unchanged. The vault entry (integrationTypeRegistry.hashicorp_consul) sends the identical header in testHeaders and its testEndpoint is base_url + /v1/agent/self, which is this spec's test block verbatim. Consul also accepts the same token as a Bearer credential; the documented X-Consul-Token form is used because it is what the vault already proves against.",
+      "THE SCAFFOLD FLAGGED 'auth_field_optional_in_registry:token' AND IT IS ACCURATE: the registry marks token required:false because an agent with ACLs disabled answers every read here unauthenticated. This spec still lists token in requiredFields, because auth.template must reference a declared credential field and because any ACL-enabled instance (the only sane production posture) needs one. On an ACL-disabled instance the header is sent and ignored.",
+      "BASE URL IS CUSTOMER-SUPPLIED, SO NOTHING HERE IS PROVABLE BLIND: Consul is self-hosted, base_url comes from the credential ({fromCredential: 'base_url'}), and there is no vendor-run host to shape-prove against. This spec is NOT SHAPE_PROVEN by a blind 401 sweep; it is marked for the live harness, which stands up an ephemeral Consul container and drives every tool against it.",
+      "CATEGORY: the scaffold wrote 'uncategorized', which is not one of the twelve values in use across this spec directory (cloud_hosting, commerce_finance, communication, crm_sales, data_ai, developer, files_knowledge, hr_hiring, marketing_email, media, monitoring, project_management). Changed to 'cloud_hosting', where the other platform control planes already sit (terraform, cloudflare, digitalocean, okta). The vault entry says 'security', which is not a spec-directory value and would in any case undersell a service-discovery catalogue.",
+      "PROBES RESOLVE ON A FRESH INSTANCE, BY CONSTRUCTION: agent_self, list_services and list_nodes need no resource at all and carry an empty _probe. health_service probes service='consul', the service every Consul SERVER agent registers for itself, so it answers on an otherwise empty cluster; on a client-only agent that name is absent, which is a topology fact, not a spec defect. kv_get probes key='quoxproof-live', the exact key the live provisioner writes into the KV store.",
+      "TWO SHAPES ARE ASSERTED AND ONE IS DELIBERATELY NOT: /v1/catalog/nodes, /v1/health/service/{service} and /v1/kv/{key} all answer with a TOP-LEVEL ARRAY, hence the '[]' root pick on three tools; the field names are Consul's own (Node ID/Node/Address/Datacenter/Meta, the health triple Node/Service/Checks, and the KV entry Key/Value/Flags/Session/LockIndex/CreateIndex/ModifyIndex). /v1/catalog/services is the exception: it answers with a map keyed by SERVICE NAME whose values are tag arrays, so there is no static dotted source to pick and the tool is truncate-only, the same route 21 other tools in this directory take for dynamic payloads.",
+      "kv_get RETURNS WHATEVER THE CUSTOMER STORED, BASE64-ENCODED AS CONSUL RETURNS IT: Consul's KV store is commonly used for configuration rather than secrets, but nothing stops a customer putting a secret there, so treat the value as sensitive. It is a GET against the customer's own Consul with the customer's own ACL token, and no tool enumerates keys: reading requires the caller to already know the key (the recurse and keys query parameters that would list a subtree are not wired).",
+      "NO CLAMPS: none of these five endpoints takes a limit, page or per_page parameter. Consul's catalogue and health reads are unpaginated and bound instead by filter, tag, passing and dc, which are exposed as optional inputs. rateLimit {windowMs: 60000, max: 30} is the directory default and is the only throttle here.",
+      "READ-ONLY BY CONSTRUCTION, AND THE OMISSIONS ARE THE POINT: all five tools are GETs. The same API exposes PUT on /v1/agent/service/register, /v1/agent/check/register, /v1/kv/{key}, /v1/session/create and the maintenance-mode endpoints, PUT/DELETE across /v1/acl/*, and DELETE on /v1/kv/{key} and /v1/agent/service/deregister. None is wired here. Nothing in this connector may be described as managing a Consul cluster or a service mesh.",
+      "NAMESPACE IS CLEAN FOR THIS ID: no static agent tool in lib/agentTools.js begins with 'hashicorp_consul_', and no other connector id prefixes or is prefixed by it (the sibling hashicorp_nomad is a distinct prefix, not an overlap). The routed names are hashicorp_consul_agent_self, hashicorp_consul_list_services, hashicorp_consul_list_nodes, hashicorp_consul_health_service and hashicorp_consul_kv_get, all within the 64-character routed-name limit."
+    ]
+  }
+}

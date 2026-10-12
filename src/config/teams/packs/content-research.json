@@ -1,0 +1,13 @@
+{
+  "id": "content-research",
+  "type": "team-pack",
+  "version": "1.0.0",
+  "displayName": "Content & Research Pack",
+  "description": "Knowledge operations and content workflows. Document analysis, research synthesis, and technical writing at scale.",
+  "author": "Quox",
+  "tier": "free",
+  "teams": ["content-research", "software-dev"],
+  "tags": ["content", "research", "documentation"],
+  "icon": "book-open",
+  "accentColor": "#f59e0b"
+}

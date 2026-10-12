@@ -1,0 +1,172 @@
+{
+  "spec_version": 1,
+  "id": "todoist",
+  "name": "Todoist",
+  "category": "project_management",
+  "credentialType": "todoist",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://developer.todoist.com/api/v1/",
+  "tools_source": "https://developer.todoist.com/api/v1/",
+  "base_url": "https://api.todoist.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/projects"
+  },
+  "tools": [
+    {
+      "name": "list_projects",
+      "description": "List Todoist projects visible to the authenticated user",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/projects"
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "id": "id",
+            "name": "name",
+            "parent_id": "parent_id",
+            "is_favorite": "is_favorite",
+            "is_shared": "is_shared",
+            "url": "url"
+          },
+          "next_cursor": "next_cursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_tasks",
+      "description": "List active Todoist tasks, optionally narrowed to one project",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "Optional Todoist project id to list tasks from"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/tasks",
+        "query": {
+          "project_id": "{{input.project_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "id": "id",
+            "project_id": "project_id",
+            "section_id": "section_id",
+            "content": "content",
+            "priority": "priority",
+            "due": "due",
+            "labels": "labels",
+            "url": "url"
+          },
+          "next_cursor": "next_cursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_task",
+      "description": "Get a single active Todoist task by its task id",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Todoist task id"
+          }
+        },
+        "required": [
+          "task_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/tasks/{{input.task_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "project_id": "project_id",
+          "section_id": "section_id",
+          "content": "content",
+          "description": "description",
+          "is_completed": "is_completed",
+          "priority": "priority",
+          "labels": "labels",
+          "due": "due",
+          "url": "url",
+          "created_at": "created_at"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_sections",
+      "description": "List Todoist sections, optionally narrowed to one project",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "Optional Todoist project id to list sections from"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/sections",
+        "query": {
+          "project_id": "{{input.project_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "id": "id",
+            "project_id": "project_id",
+            "name": "name",
+            "section_order": "section_order"
+          },
+          "next_cursor": "next_cursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "medium",
+    "needs_review": [
+      "paths target the unified API v1 because REST v2 is RETIRED: a shape-proof run on 2026-09-11 got 410 Gone with body 'This endpoint is deprecated' on every https://api.todoist.com/rest/v2/* path, while the same four reads on /api/v1/* answered 401 error_code 477 (a live auth wall). Do not revert these tools to /rest/v2",
+      "the {results, next_cursor} envelope the list picks rely on is taken from the v1 documentation, NOT verified against a live response: the shape-proof stops at 401, so no body was ever data. First run with a real token must confirm results[] and the picked field names (a wrong pick source yields empty output silently)",
+      "GET /api/v1/tasks and /api/v1/sections take a cursor and limit for pagination, which this spec does not expose; only the first page is returned and no clamp is applied",
+      "filtering tasks by a Todoist filter query lives on a separate v1 endpoint (/api/v1/tasks/filter), so it is not offered by list_tasks here"
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

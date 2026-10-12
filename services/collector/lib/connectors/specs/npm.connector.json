@@ -1,0 +1,192 @@
+{
+  "spec_version": 1,
+  "id": "npm",
+  "name": "npm",
+  "category": "developer",
+  "credentialType": "npm",
+  "requiredFields": [
+    "token"
+  ],
+  "base_url": "https://registry.npmjs.org",
+  "docs": "https://docs.npmjs.com/cli/v10/using-npm/registry",
+  "tools_source": "https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md",
+  "description": "npm registry reads: token identity, package metadata, dist-tags and search. Read-only; publishing is deliberately NOT a tool here (it rides OIDC trusted publishing on git tags, see the package-publish discipline).",
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/-/whoami"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "whoami",
+      "description": "Identify the npm account the stored token belongs to",
+      "request": {
+        "method": "GET",
+        "path": "/-/whoami"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "username": "username"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_package",
+      "description": "Get a package's metadata from the npm registry (abbreviated packument: dist-tags, versions, modified time)",
+      "request": {
+        "method": "GET",
+        "path": "/{{input.package}}",
+        "headers": {
+          "Accept": "application/vnd.npm.install-v1+json"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "package": {
+            "type": "string",
+            "description": "package name, e.g. react or @scope/name"
+          }
+        },
+        "required": [
+          "package"
+        ]
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "dist_tags": "dist-tags",
+          "modified": "modified"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.package": "react"
+      }
+    },
+    {
+      "name": "get_package_version",
+      "description": "Get one published version's manifest (dependencies, dist tarball info)",
+      "request": {
+        "method": "GET",
+        "path": "/{{input.package}}/{{input.version}}"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "package": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "description": "exact version or a dist-tag like latest"
+          }
+        },
+        "required": [
+          "package",
+          "version"
+        ]
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "version": "version",
+          "description": "description",
+          "dependencies": "dependencies",
+          "tarball": "dist.tarball",
+          "integrity": "dist.integrity"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.package": "react",
+        "input.version": "latest"
+      }
+    },
+    {
+      "name": "get_dist_tags",
+      "description": "List a package's dist-tags (latest, next, beta...)",
+      "request": {
+        "method": "GET",
+        "path": "/-/package/{{input.package}}/dist-tags"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "package": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "package"
+        ]
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.package": "react"
+      }
+    },
+    {
+      "name": "search",
+      "description": "Search the npm registry",
+      "request": {
+        "method": "GET",
+        "path": "/-/v1/search",
+        "query": {
+          "text": "{{input.query}}",
+          "size": "{{input.size}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "size": {
+            "type": "number",
+            "default": 10,
+            "maximum": 25
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "response": {
+        "pick": {
+          "total": "total",
+          "objects[]": {
+            "name": "package.name",
+            "version": "package.version",
+            "description": "package.description"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.query": "governed agents"
+      }
+    }
+  ]
+}

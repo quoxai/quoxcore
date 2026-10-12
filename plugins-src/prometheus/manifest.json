@@ -1,0 +1,36 @@
+{
+  "id": "prometheus",
+  "name": "prometheus",
+  "displayName": "Prometheus Intelligence",
+  "version": "2.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "standard",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "monitoring",
+  "accentColor": "#e6522c",
+  "description": "Fleet health heatmap with anomaly detection and capacity forecasting, an interactive PromQL explorer, an alert timeline and the METRICS chat sidebar. The compact Prometheus panel on NOC stays free and core.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/monitoring/prometheus",
+      "label": "Prometheus",
+      "icon": "prometheus",
+      "minRole": "builder"
+    }
+  ],
+  "routes": {
+    "/monitoring/prometheus": "PrometheusView"
+  },
+  "routeGuards": {
+    "/monitoring/prometheus": {
+      "minRole": "builder"
+    }
+  },
+  "minQuoxVersion": "1.0.0"
+}

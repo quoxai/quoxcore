@@ -1,0 +1,30 @@
+{
+  "spec_version": 1,
+  "id": "ibm",
+  "name": "IBM Cloud",
+  "category": "infrastructure",
+  "credentialType": "ibm",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://cloud.ibm.com/apidocs",
+  "base_url": "https://iam.cloud.ibm.com",
+  "auth": null,
+  "static_headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/identity/token",
+    "body": "grant_type=urn%3Aibm%3Aparams%3Aoauth%3Agrant-type%3Aapikey&apikey={{api_key}}"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "no_auth_detected"
+    ]
+  }
+}

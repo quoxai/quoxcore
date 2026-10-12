@@ -1,0 +1,226 @@
+{
+  "spec_version": 1,
+  "id": "dialpad",
+  "name": "Dialpad",
+  "category": "communication",
+  "credentialType": "dialpad",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developers.dialpad.com/",
+  "base_url": "https://dialpad.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/users/me"
+  },
+  "tools_source": "https://developers.dialpad.com/reference",
+  "tools": [
+    {
+      "name": "list_users",
+      "description": "List the users of a Dialpad company (name, job title, emails, extension, state, licence, office membership)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max users per page (capped here at 100, Dialpad's documented ceiling; Dialpad soft-deprecates this parameter in favour of cursor paging)"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Optional pagination cursor returned as 'cursor' by a previous page"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "all",
+              "cancelled",
+              "deleted",
+              "pending",
+              "suspended"
+            ],
+            "description": "Optional user state to filter by (Dialpad defaults to active)"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional exact email address to filter by"
+          },
+          "company_admin": {
+            "type": "boolean",
+            "description": "Optional: true returns only company admins, false returns only non-admins"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/users",
+        "query": {
+          "limit": "{{clamp input.limit 25 100}}",
+          "cursor": "{{input.cursor}}",
+          "state": "{{input.state}}",
+          "email": "{{input.email}}",
+          "company_admin": "{{input.company_admin}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "display_name": "display_name",
+            "first_name": "first_name",
+            "last_name": "last_name",
+            "job_title": "job_title",
+            "emails": "emails",
+            "extension": "extension",
+            "state": "state",
+            "license": "license",
+            "is_admin": "is_admin",
+            "is_super_admin": "is_super_admin",
+            "office_id": "office_id",
+            "company_id": "company_id",
+            "date_added": "date_added"
+          },
+          "cursor": "cursor"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_user",
+      "description": "Get one Dialpad user by id (identity, extension, state, duty status, licence, office). Pass 'me' with a user-level API key to get the key's own user",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Dialpad user id (e.g. 4912345678901234), or 'me' when the API key is a user-level key"
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/users/{{input.user_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "display_name": "display_name",
+          "first_name": "first_name",
+          "last_name": "last_name",
+          "job_title": "job_title",
+          "emails": "emails",
+          "extension": "extension",
+          "state": "state",
+          "license": "license",
+          "is_admin": "is_admin",
+          "is_super_admin": "is_super_admin",
+          "is_on_duty": "is_on_duty",
+          "do_not_disturb": "do_not_disturb",
+          "on_duty_status": "on_duty_status",
+          "office_id": "office_id",
+          "company_id": "company_id",
+          "country": "country",
+          "timezone": "timezone",
+          "language": "language",
+          "date_added": "date_added",
+          "date_active": "date_active"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_calls",
+      "description": "List concluded Dialpad calls, most recent first, optionally bounded by start time (direction, state, duration, numbers, target)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "started_after": {
+            "type": "number",
+            "description": "Only calls that started after this time (UTC milliseconds since epoch)"
+          },
+          "started_before": {
+            "type": "number",
+            "description": "Only calls that started before this time (UTC milliseconds since epoch)"
+          },
+          "include_anonymized": {
+            "type": "boolean",
+            "description": "Optional: include call records Dialpad has anonymized (default false)"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Optional pagination cursor returned as 'cursor' by a previous page"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/call",
+        "query": {
+          "started_after": "{{input.started_after}}",
+          "started_before": "{{input.started_before}}",
+          "include_anonymized": "{{input.include_anonymized}}",
+          "cursor": "{{input.cursor}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "call_id": "call_id",
+            "direction": "direction",
+            "state": "state",
+            "date_started": "date_started",
+            "date_connected": "date_connected",
+            "date_ended": "date_ended",
+            "duration": "duration",
+            "total_duration": "total_duration",
+            "external_number": "external_number",
+            "internal_number": "internal_number",
+            "group_id": "group_id",
+            "is_transferred": "is_transferred",
+            "was_recorded": "was_recorded",
+            "entry_point_call_id": "entry_point_call_id",
+            "target_id": "target.id",
+            "target_type": "target.type",
+            "target_name": "target.name",
+            "contact_name": "contact.name"
+          },
+          "cursor": "cursor"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "auth left exactly as scaffolded (bearer on api_key) on documentary evidence: the Dialpad Admin API v2 description states 'All requests are authenticated via an API key in the query parameter or as a bearer token in the Authorization header', and the vault type sends the same header (testHeaders: Authorization: Bearer <api_key>). The query-parameter alternative is deliberately NOT used: an API key in a URL lands in provider access logs.",
+      "base_url is https://dialpad.com with every path carrying its own /api/v2 prefix, which is how Dialpad publishes its own base URL on the reference pages ('Base URL https://dialpad.com', path '/api/v2/call'). The sandbox host dialpadbeta.com is not modelled: a sandbox credential will 401 against this spec.",
+      "test path /api/v2/users/me kept as scaffolded and CONFIRMED documented: the OpenAPI path /api/v2/users/{id} describes the id parameter as \"The user's id. ('me' can be used if you are using a user level API key)\". A COMPANY-level API key therefore cannot use this test call, and Dialpad answers a valid company key at /api/v2/users/me with an error, not a 2xx. That limitation is inherited from the vault type's own testEndpoint and was not changed here.",
+      "operation surface, path names and every picked field name are taken from the official Dialpad OpenAPI 3.1 document (filename platform-api.json, info.title 'API', version v2) that the reference pages at developers.dialpad.com embed, NOT from a live 2xx: the shape-proof stops at 401, so no response body was ever data. A wrong pick source yields empty output silently, so the first run with a real key must confirm them.",
+      "list_users exposes limit clamped 25/100 even though Dialpad SOFT-DEPRECATES it. Verbatim from the users.list description: 'NOTE: The `limit` parameter has been soft-deprecated. Please omit the `limit` parameter, or reduce it to `100` or less.' and 'Limit values of greater than `100` will only produce a page size of `100`, and a `400 Bad Request` response will be produced 20% of the time'. The clamp cap of 100 is therefore Dialpad's own documented ceiling and this tool can never trip that 400; the default of 25 is a local spend guard chosen here, not a Dialpad default (Dialpad publishes no default page size). Because clamp always renders, every call sends limit=<=100 rather than omitting it as Dialpad prefers.",
+      "list_users deliberately omits the documented first_name, last_name, number and forwarding_number filters: Dialpad documents that first_name and last_name 'Cannot be combined with email or number', and Connector Spec v1 cannot express that exclusion, so the safer parameters are the ones exposed.",
+      "list_calls deliberately omits the documented target_id and target_type filters: Dialpad documents that target_type 'Must be provided whenever target_id is provided', which is the same inexpressible coupling. It also omits limit, which the call.list operation does not accept at all (only 4 endpoints in the whole v2 surface document a limit parameter, and /api/v2/call is not one of them), so page size on calls is bounded only by response.truncate 2000, not by a request parameter.",
+      "list_calls covers CONCLUDED calls only: Dialpad states 'This API will only include calls that have already concluded.' Scope also depends on the key: 'When no target is specified, company-level API keys and company admins list all calls', so a user-level key sees a narrower list than an admin key against the same tool.",
+      "READ-ONLY by design: no tool is marked write:true. The v2 surface has POST /api/v2/call (initiate a call), /api/v2/sms, /api/v2/message/bulk, call transfer/hangup and user provisioning endpoints; none is modelled, so this connector cannot place a call, send a message or change a user.",
+      "call recordings, voicemail and AI data deliberately not picked: the Call schema carries voicemail_link, voicemail_share_link, call_recording_share_links, admin_call_recording_share_links, screen_recording_urls, csat_recording_urls, csat_transcriptions and transcription_text. None is in any pick, so no recording URL or call transcript reaches an LLM context through this connector. Adding them later is a privacy decision, not a completeness fix.",
+      "phone numbers ARE picked (external_number, internal_number on calls; emails and extension on users) because a call log without numbers cannot answer who called. That is an explicit PII choice, narrower than the API but not zero.",
+      "target.id, target.type, target.name and contact.name are the only sub-object picks whose shape is NOT documented: the Call schema types target and contact as plain objects with no sub-schema in the OpenAPI, so those four picks rest on Dialpad's published call payload examples and will silently come back empty if the field names differ. Every other pick maps to a named property of protos.user.UserProto or protos.call.CallProto.",
+      "rateLimit 30/min is a local courtesy and spend guard chosen here and is far below Dialpad's own published limit for these operations ('Rate limit: 1200 per minute' on users.list, users.get and call.list).",
+      "shape-proof 2026-09-12 is overall SHAPE_PROVEN, runner line verbatim: 'dialpad  SHAPE_PROVEN  proven=4 authwall=0 ambiguous=0 failed=0 inconclusive=0 skipped=0'. All four real paths (/api/v2/users/me as the test, /api/v2/users, /api/v2/users/{id} and /api/v2/call) answer 401 with Dialpad's structured JSON envelope ({\"error\":{\"code\":401,\"errors\":[{\"domain\":\"global\",\"message\":\"A valid API key must be provided.\",\"reason\":...}]}}), so host, TLS, base_url and the bearer header are proven.",
+      "HONEST CAVEAT ON THE DIALPAD CONTROL PROBE: because base_url is the bare host, the harness fired its control at https://dialpad.com/quox-shapeproof-control-3a2ec44d and got 301 with an EMPTY body from the marketing site. The recorded differential is therefore 401-with-JSON versus 301-empty, which is a HOST-level differential, not an API-level one: this run did not prove that a wrong /api/v2 path would answer differently. A separate MANUAL probe while authoring (NOT part of the proof artifact, so not evidence of record) found that dialpad.com answers an unrouted /api/v2/quox-bogus-12345 with 404 and the plain-text body 'Requested URL /api/v2/quox-bogus-12345 not found', while /api/v2/users/me, /api/v2/users/999 and /api/v2/call all answer 401. That 404-versus-401 split is what actually argues these routes exist, including the 'me' alias; the paths otherwise rest on the OpenAPI provenance above. What neither run covers: whether a real key's scope (user-level versus company-level) reaches each route, and no response body was ever data."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

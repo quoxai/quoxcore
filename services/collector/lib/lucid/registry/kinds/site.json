@@ -1,0 +1,21 @@
+{
+  "kind": "site", "prefixes": ["site:"], "area": "systems", "derive": "site",
+  "ok_statuses": ["up", "ok", "healthy"],
+  "needs_rules": [{ "when": { "is_ok": "false" }, "is": "owner" }],
+  "variants": [
+    { "id": "down", "when": { "is_ok": "false" },
+      "urgency": [{ "is": "now" }],
+      "short": "{site} is down",
+      "L0": "{site} is down",
+      "L1": { "who": "Site check (probe from this server)", "what": "{site} is not answering properly{http_note}.", "why": "{reason|\"The last check got no good answer.\"}" },
+      "how": "Ask me to check it again.",
+      "measures": ["check_site", "investigate"] },
+    { "id": "up",
+      "urgency": [{ "is": "fyi" }],
+      "short": "{site} is up",
+      "L0": "{site} is up",
+      "L1": { "who": "Site check (probe from this server)", "what": "{site} is answering{http_note}.", "why": "Nothing is wrong." },
+      "how": "Nothing to do.",
+      "measures": [] }
+  ]
+}

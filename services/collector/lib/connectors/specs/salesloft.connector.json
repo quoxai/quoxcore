@@ -1,0 +1,356 @@
+{
+  "spec_version": 1,
+  "id": "salesloft",
+  "name": "Salesloft",
+  "category": "crm_sales",
+  "credentialType": "salesloft",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developers.salesloft.com/api.html",
+  "base_url": "https://api.salesloft.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/me.json"
+  },
+  "tools_source": "https://developers.salesloft.com/docs/api",
+  "tools": [
+    {
+      "name": "get_current_user",
+      "description": "Get the Salesloft user the API key acts as, with team and role",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/me.json"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "guid": "data.guid",
+          "name": "data.name",
+          "email_address": "data.email_address",
+          "job_role": "data.job_role",
+          "active": "data.active",
+          "time_zone": "data.time_zone",
+          "team_name": "data.team.name",
+          "group_name": "data.group.name",
+          "role_id": "data.role.id",
+          "created_at": "data.created_at"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_people",
+      "description": "List Salesloft people (contacts), optionally filtered to one email address",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max people to return per page (default 25, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to fetch (1-based, default 1)"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional exact email address to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/people.json",
+        "query": {
+          "per_page": "{{clamp input.limit 25 100}}",
+          "page": "{{input.page}}",
+          "email_addresses[]": "{{input.email}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "first_name": "first_name",
+            "last_name": "last_name",
+            "email_address": "email_address",
+            "title": "title",
+            "person_company_name": "person_company_name",
+            "person_company_industry": "person_company_industry",
+            "city": "city",
+            "state": "state",
+            "country": "country",
+            "do_not_contact": "do_not_contact",
+            "account_id": "account.id",
+            "account_name": "account.name",
+            "owner_id": "owner.id",
+            "person_stage_name": "person_stage.name",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "current_page": "metadata.paging.current_page",
+          "next_page": "metadata.paging.next_page",
+          "per_page": "metadata.paging.per_page"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_person",
+      "description": "Get one Salesloft person by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "person_id": {
+            "type": "string",
+            "description": "Salesloft person ID"
+          }
+        },
+        "required": [
+          "person_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/people/{{input.person_id}}.json"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "first_name": "data.first_name",
+          "last_name": "data.last_name",
+          "email_address": "data.email_address",
+          "title": "data.title",
+          "phone": "data.phone",
+          "person_company_name": "data.person_company_name",
+          "city": "data.city",
+          "state": "data.state",
+          "country": "data.country",
+          "do_not_contact": "data.do_not_contact",
+          "account_id": "data.account.id",
+          "account_name": "data.account.name",
+          "owner_id": "data.owner.id",
+          "person_stage_name": "data.person_stage.name",
+          "last_contacted_at": "data.last_contacted_at",
+          "created_at": "data.created_at",
+          "updated_at": "data.updated_at"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_accounts",
+      "description": "List Salesloft accounts (companies), optionally filtered by domain",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max accounts to return per page (default 25, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to fetch (1-based, default 1)"
+          },
+          "domain": {
+            "type": "string",
+            "description": "Optional company domain to filter by (e.g. example.com)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/accounts.json",
+        "query": {
+          "per_page": "{{clamp input.limit 25 100}}",
+          "page": "{{input.page}}",
+          "domain": "{{input.domain}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "domain": "domain",
+            "website": "website",
+            "industry": "industry",
+            "company_stage_name": "company_stage.name",
+            "city": "city",
+            "state": "state",
+            "country": "country",
+            "phone": "phone",
+            "owner_id": "owner.id",
+            "crm_id": "crm_id",
+            "archived_at": "archived_at",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "current_page": "metadata.paging.current_page",
+          "next_page": "metadata.paging.next_page",
+          "per_page": "metadata.paging.per_page"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_cadences",
+      "description": "List Salesloft cadences with their people counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max cadences to return per page (default 25, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to fetch (1-based, default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/cadences.json",
+        "query": {
+          "per_page": "{{clamp input.limit 25 100}}",
+          "page": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "team_cadence": "team_cadence",
+            "shared": "shared",
+            "draft": "draft",
+            "archived_at": "archived_at",
+            "owner_id": "owner.id",
+            "cadence_people": "counts.cadence_people",
+            "people_acted_on_count": "counts.people_acted_on_count",
+            "target_daily_people": "counts.target_daily_people",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "current_page": "metadata.paging.current_page",
+          "next_page": "metadata.paging.next_page",
+          "per_page": "metadata.paging.per_page"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_users",
+      "description": "List Salesloft users on the team",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max users to return per page (default 25, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to fetch (1-based, default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/users.json",
+        "query": {
+          "per_page": "{{clamp input.limit 25 100}}",
+          "page": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "guid": "guid",
+            "name": "name",
+            "email_address": "email_address",
+            "job_role": "job_role",
+            "active": "active",
+            "team_name": "team.name",
+            "group_name": "group.name",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "current_page": "metadata.paging.current_page",
+          "next_page": "metadata.paging.next_page",
+          "per_page": "metadata.paging.per_page"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_emails",
+      "description": "List Salesloft emails with delivery, view and click counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max emails to return per page (default 25, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to fetch (1-based, default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/emails.json",
+        "query": {
+          "per_page": "{{clamp input.limit 25 100}}",
+          "page": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "recipient_email_address": "recipient_email_address",
+            "status": "status",
+            "bounced": "bounced",
+            "send_after": "send_after",
+            "sent_at": "sent_at",
+            "views": "counts.views",
+            "clicks": "counts.clicks",
+            "replies": "counts.replies",
+            "cadence_id": "cadence.id",
+            "step_id": "step.id",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "current_page": "metadata.paging.current_page",
+          "next_page": "metadata.paging.next_page",
+          "per_page": "metadata.paging.per_page"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

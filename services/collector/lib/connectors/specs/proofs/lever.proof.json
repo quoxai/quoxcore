@@ -1,0 +1,90 @@
+{
+  "spec_id": "lever",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:50.789Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.lever.co/quox-shapeproof-control-21f2dcaa",
+      "status": 404,
+      "latency_ms": 1512,
+      "classification": "CONTROL",
+      "body_sha256": "fa6b83f9b55b5d7559a0ded23d2dfd3fccfbdc5a0046c75537d9989cf3e1261e",
+      "body_excerpt": "<!DOCTYPE html><meta charset=\"utf-8\"><title>Not found – 404 error</title><style>@font-face {font-family: 'Meta';src: url(\"https://cdn.lever.co/fonts/Meta/metaboldlf-webfont-2017.woff\") format('woff');",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.lever.co/v1/users",
+      "status": 403,
+      "latency_ms": 205,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "10d707d1ae5754287cd30b94624e9b286c5abdbc3f3df81014fa4530833f40ea",
+      "body_excerpt": "{\"code\":\"NotAuthorized\",\"message\":\"Authentication incorrect. The key you provided appears to be invalid. You may want to double-check you typed it correctly.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_opportunities",
+      "method": "GET",
+      "url": "https://api.lever.co/v1/opportunities?limit=20&stage_id=quoxprobe&posting_id=quoxprobe&email=quoxprobe&tag=quoxprobe&archived=false",
+      "status": 403,
+      "latency_ms": 226,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "10d707d1ae5754287cd30b94624e9b286c5abdbc3f3df81014fa4530833f40ea",
+      "body_excerpt": "{\"code\":\"NotAuthorized\",\"message\":\"Authentication incorrect. The key you provided appears to be invalid. You may want to double-check you typed it correctly.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_postings",
+      "method": "GET",
+      "url": "https://api.lever.co/v1/postings?limit=20&state=quoxprobe&team=quoxprobe&department=quoxprobe&location=quoxprobe&commitment=quoxprobe",
+      "status": 403,
+      "latency_ms": 187,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "10d707d1ae5754287cd30b94624e9b286c5abdbc3f3df81014fa4530833f40ea",
+      "body_excerpt": "{\"code\":\"NotAuthorized\",\"message\":\"Authentication incorrect. The key you provided appears to be invalid. You may want to double-check you typed it correctly.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_users",
+      "method": "GET",
+      "url": "https://api.lever.co/v1/users?limit=20&email=quoxprobe&accessRole=quoxprobe&includeDeactivated=false",
+      "status": 403,
+      "latency_ms": 206,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "10d707d1ae5754287cd30b94624e9b286c5abdbc3f3df81014fa4530833f40ea",
+      "body_excerpt": "{\"code\":\"NotAuthorized\",\"message\":\"Authentication incorrect. The key you provided appears to be invalid. You may want to double-check you typed it correctly.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_stages",
+      "method": "GET",
+      "url": "https://api.lever.co/v1/stages",
+      "status": 403,
+      "latency_ms": 359,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "10d707d1ae5754287cd30b94624e9b286c5abdbc3f3df81014fa4530833f40ea",
+      "body_excerpt": "{\"code\":\"NotAuthorized\",\"message\":\"Authentication incorrect. The key you provided appears to be invalid. You may want to double-check you typed it correctly.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

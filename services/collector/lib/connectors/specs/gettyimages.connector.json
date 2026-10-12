@@ -1,0 +1,163 @@
+{
+  "spec_version": 1,
+  "id": "gettyimages",
+  "name": "Getty Images",
+  "category": "media",
+  "credentialType": "gettyimages",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Read-only Getty Images API v3 access: search the creative and editorial image catalogue by phrase, and read one image's metadata by ID. Metadata only, no downloads and no purchases.",
+  "docs": "https://developers.gettyimages.com/",
+  "base_url": "https://api.gettyimages.com",
+  "auth": {
+    "type": "header",
+    "header": "Api-Key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v3/search/images",
+    "query": {
+      "phrase": "test",
+      "page_size": "1"
+    }
+  },
+  "tools_source": "https://api.gettyimages.com/swagger/index.html",
+  "tools": [
+    {
+      "name": "search_images",
+      "description": "Search the Getty Images catalogue by phrase and return image metadata (ID, title, caption, artist, collection, licence model, preview sizes)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "phrase": {
+            "type": "string",
+            "description": "Search phrase, e.g. 'mountain sunrise'"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Results per page (default 30, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional page number to fetch (default 1)"
+          },
+          "asset_family": {
+            "type": "string",
+            "enum": [
+              "creative",
+              "editorial"
+            ],
+            "description": "Optional asset family filter: creative (commercial licensing) or editorial (news, sport, entertainment)"
+          },
+          "sort_order": {
+            "type": "string",
+            "enum": [
+              "best_match",
+              "most_popular",
+              "newest",
+              "oldest",
+              "random"
+            ],
+            "description": "Optional result ordering (default best_match)"
+          }
+        },
+        "required": [
+          "phrase"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/search/images",
+        "query": {
+          "phrase": "{{input.phrase}}",
+          "page_size": "{{clamp input.page_size 30 100}}",
+          "page": "{{input.page}}",
+          "asset_family": "{{input.asset_family}}",
+          "sort_order": "{{input.sort_order}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "result_count": "result_count",
+          "images[]": {
+            "id": "id",
+            "title": "title",
+            "caption": "caption",
+            "artist": "artist",
+            "asset_family": "asset_family",
+            "collection_name": "collection_name",
+            "license_model": "license_model",
+            "date_created": "date_created",
+            "display_sizes": "display_sizes"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.phrase": "mountain",
+        "input.asset_family": "creative",
+        "input.sort_order": "best_match"
+      }
+    },
+    {
+      "name": "get_image",
+      "description": "Get metadata for one Getty Images asset by image ID (title, caption, artist, collection, licence model, dimensions, preview sizes)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "image_id": {
+            "type": "string",
+            "description": "Getty Images asset ID, as returned by search_images (e.g. 1234567890)"
+          }
+        },
+        "required": [
+          "image_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/images/{{input.image_id}}"
+      },
+      "response": {
+        "pick": {
+          "images[]": {
+            "id": "id",
+            "title": "title",
+            "caption": "caption",
+            "artist": "artist",
+            "asset_family": "asset_family",
+            "collection_name": "collection_name",
+            "license_model": "license_model",
+            "date_created": "date_created",
+            "max_dimensions": "max_dimensions",
+            "display_sizes": "display_sizes"
+          },
+          "images_not_found": "images_not_found"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.image_id": "1234567890"
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "medium",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED (header Api-Key), AND NOTHING IN THIS RUN CONTRADICTS IT: Getty's API v3 requires the Api-Key header on every call, which is exactly what services/auth/config/integrationTypeRegistry.js key 'gettyimages' sends in its testHeaders, and that registry form is what this spec reproduces. What the shape-proof below proves: DNS, TLS, base_url, the Api-Key header name and both paths. What it does NOT prove: no Getty credential was held, so a 2xx has never been observed on this connector and neither response pick has been checked against real payload keys.",
+      "SOME GETTY SURFACES ALSO WANT AN OAUTH2 BEARER, AND THAT IS OUT OF REACH WITH TODAY'S VAULT FIELDS: Getty documents a client_credentials token exchange (POST /oauth2/token) whose bearer is needed alongside the Api-Key for download, purchase and some restricted metadata. The vault credential declares api_key ONLY, with no client id or secret to exchange, so this connector ships the Api-Key surface and is described as metadata search and read, not as full Getty access. Spec v1.1 could express the combination later (auth oauth2_client_credentials plus static_headers {\"Api-Key\": \"{{api_key}}\"}), but only after the vault entry gains the two extra fields; wiring it now would be a false claim, not a head start.",
+      "PATHS ARE PROVEN BY THE CONTROL DIFFERENTIAL, NOT BY A GUESS: the control probe at a bogus path on api.gettyimages.com answers 403 {\"message\":\"Missing Authentication Token\"} (the API Gateway default), while /v3/search/images and /v3/images/1234567890 both answer 403 {\"message\":\"Forbidden\"}. Different error identity at the same status means the routes matched and the rejection came from Getty's own authorizer, so both tool paths are SHAPE_PROVEN.",
+      "CLAMPS AND SHAPES REST ON DOCUMENTARY PROVENANCE: page_size is clamped to a default of 30 and a maximum of 100 per Getty's documented paging limits, and the asset_family and sort_order enums are the documented value sets. The response picks follow the documented v3 envelopes (search returns result_count plus images[]; the single-image read returns images[] plus images_not_found), so an unexpected key would silently pick nothing rather than error. Both are worth re-checking on the first 2xx with a real key.",
+      "PROBE VALUES ARE HARMLESS AND READ-ONLY: _probe supplies phrase 'mountain', asset_family 'creative', sort_order 'best_match' and image_id '1234567890' so the blind harness can route a search and an identifier path. The image ID is a placeholder digit string, not a known asset, and with a dummy key the call never reaches asset lookup anyway. Credentials are never hinted, and _probe sits at TOOL level because the harness reads tool._probe and ignores one nested inside request.",
+      "READ-ONLY BY CONSTRUCTION: both tools are GET metadata reads. Getty's download, purchase and asset-management routes are deliberately absent, and no tool here can spend a Getty download credit."
+    ]
+  }
+}

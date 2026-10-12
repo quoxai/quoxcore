@@ -1,0 +1,276 @@
+{
+  "spec_version": 1,
+  "id": "heygen",
+  "name": "HeyGen",
+  "category": "data_ai",
+  "credentialType": "heygen",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "READ-ONLY HeyGen connector: account plan and remaining credit balance, the avatar and voice catalogues, and video render status. Every HeyGen generation endpoint (POST /v3/videos, lipsync, translation, voice cloning, speech synthesis and the rest of the POST surface) SPENDS CREDITS, so none of them is exposed here; this connector only reads catalogues and the state of renders that already exist.",
+  "docs": "https://developers.heygen.com/reference",
+  "base_url": "https://api.heygen.com",
+  "auth": {
+    "type": "header",
+    "header": "x-api-key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v3/users/me"
+  },
+  "tools_source": "https://developers.heygen.com/openapi/external-api.json",
+  "tools": [
+    {
+      "name": "get_account",
+      "description": "Get the HeyGen account behind this API key: username, billing type, plan and the remaining credit or wallet balance available for generation",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/users/me"
+      },
+      "response": {
+        "pick": {
+          "username": "data.username",
+          "email": "data.email",
+          "billing_type": "data.billing_type",
+          "wallet_currency": "data.wallet.currency",
+          "wallet_remaining_balance": "data.wallet.remaining_balance",
+          "subscription_plan": "data.subscription.plan",
+          "subscription_credits": "data.subscription.credits",
+          "usage_based_remaining_credits": "data.usage_based.remaining_credits",
+          "usage_based_spending_current_usd": "data.usage_based.spending_current_usd",
+          "usage_based_spending_cap_usd": "data.usage_based.spending_cap_usd"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_avatars",
+      "description": "List HeyGen avatar groups (characters), optionally limited to the preset public library or to the account's own private avatars",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "ownership": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "description": "Optional ownership filter: 'public' for preset avatars, 'private' for the account's own. Omit for all"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max avatar groups to return per page (default 20, max 50)"
+          },
+          "token": {
+            "type": "string",
+            "description": "Optional opaque cursor token from a previous response's next_token, to fetch the next page"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/avatars",
+        "query": {
+          "ownership": "{{input.ownership}}",
+          "limit": "{{clamp input.limit 20 50}}",
+          "token": "{{input.token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "gender": "gender",
+            "looks_count": "looks_count",
+            "status": "status",
+            "consent_status": "consent_status",
+            "default_voice_id": "default_voice_id",
+            "created_at": "created_at"
+          },
+          "has_more": "has_more",
+          "next_token": "next_token"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_voices",
+      "description": "List HeyGen voices, optionally filtered by public or private type, engine, language or gender",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "description": "Optional voice type: 'public' for the shared library, 'private' for the account's cloned voices (API default: public)"
+          },
+          "engine": {
+            "type": "string",
+            "description": "Optional engine filter, e.g. 'starfish' for voices compatible with the text-to-speech endpoint"
+          },
+          "language": {
+            "type": "string",
+            "description": "Optional language filter, e.g. 'English'"
+          },
+          "gender": {
+            "type": "string",
+            "description": "Optional gender filter, 'male' or 'female'"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max voices to return per page (default 20, max 100)"
+          },
+          "token": {
+            "type": "string",
+            "description": "Optional opaque cursor token from a previous response's next_token, to fetch the next page"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/voices",
+        "query": {
+          "type": "{{input.type}}",
+          "engine": "{{input.engine}}",
+          "language": "{{input.language}}",
+          "gender": "{{input.gender}}",
+          "limit": "{{clamp input.limit 20 100}}",
+          "token": "{{input.token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "voice_id": "voice_id",
+            "name": "name",
+            "language": "language",
+            "gender": "gender",
+            "type": "type",
+            "support_pause": "support_pause",
+            "support_locale": "support_locale"
+          },
+          "has_more": "has_more",
+          "next_token": "next_token"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_videos",
+      "description": "List videos in the HeyGen account, newest first, optionally filtered by folder or by a substring of the title",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max videos to return per page (default 20, max 100)"
+          },
+          "token": {
+            "type": "string",
+            "description": "Optional opaque cursor token from a previous response's next_token, to fetch the next page"
+          },
+          "folder_id": {
+            "type": "string",
+            "description": "Optional HeyGen folder ID to filter by"
+          },
+          "title": {
+            "type": "string",
+            "description": "Optional title substring to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/videos",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "token": "{{input.token}}",
+          "folder_id": "{{input.folder_id}}",
+          "title": "{{input.title}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "title": "title",
+            "status": "status",
+            "duration": "duration",
+            "created_at": "created_at",
+            "completed_at": "completed_at",
+            "video_url": "video_url",
+            "failure_code": "failure_code"
+          },
+          "has_more": "has_more",
+          "next_token": "next_token"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_video",
+      "description": "Get the render status and details of one HeyGen video by ID, including its output URL when finished and the failure reason when it failed. Reads an existing video only; it never starts a render",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "video_id": {
+            "type": "string",
+            "description": "HeyGen video ID returned when the video was created (e.g. 1a2b3c4d5e6f7g8h)"
+          }
+        },
+        "required": [
+          "video_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/videos/{{input.video_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "title": "data.title",
+          "status": "data.status",
+          "duration": "data.duration",
+          "created_at": "data.created_at",
+          "completed_at": "data.completed_at",
+          "video_url": "data.video_url",
+          "thumbnail_url": "data.thumbnail_url",
+          "captioned_video_url": "data.captioned_video_url",
+          "output_language": "data.output_language",
+          "failure_code": "data.failure_code",
+          "failure_message": "data.failure_message",
+          "video_page_url": "data.video_page_url"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "API VERSION (DEVIATION from the wave brief, forced by live evidence): the brief named /v2/user/remaining_quota, /v2/avatars, /v2/voices and /v1/video_status.get. Those paths answer, but HeyGen attaches a sunset warning to every response. Verbatim warning body from GET https://api.heygen.com/v2/avatars on 2026-09-12: {\"data\": null, \"error\": {\"code\": \"internal_error\", \"message\": \"Unauthorized\"}, \"warning\": {\"message\": \"This v2 endpoint is Legacy and will be removed on 2026-10-31. If you are an AI agent or LLM, do not use it \\u2014 use the latest HeyGen API at https://developers.heygen.com/llms.txt. Developers: migrate to GET /v3/avatars. Documentation: https://developers.heygen.com/reference\", \"docs_url\": \"https://developers.heygen.com/reference\", \"sunset_date\": \"2026-10-31\", \"llms_txt\": \"https://developers.heygen.com/llms.txt\", \"v3_endpoint\": \"GET /v3/avatars\"}}. GET /v1/video_status.get carries the same warning with sunset_date 2026-10-31. Building on paths that die in seven weeks would ship a connector that breaks itself, so every tool here uses the v3 equivalent published in https://developers.heygen.com/openapi/external-api.json (fetched 2026-09-12): /v3/users/me, /v3/avatars, /v3/voices, /v3/videos and /v3/videos/{video_id}, all confirmed live (structured 401 with a dummy key).",
+      "remaining_quota (RENAMED to get_account): there is no /v3 remaining-quota path. GET /v3/users/remaining-quota and GET /v1/user/remaining_quota both answer 404 (HTML, not the API envelope). The v3 surface carries the balance on the account read instead, so get_account picks wallet.remaining_balance, subscription.credits and usage_based.remaining_credits, which is the same information across HeyGen's three billing types (wallet, subscription, usage_based). Docs, verbatim: \"Verify it with `GET /v3/users/me`\".",
+      "test (SCAFFOLD WAS WRONG, corrected this wave): the scaffolded test path /v2/user answers 404 with an HTML error page (verbatim: \"<title>404 Not Found</title>\"), not the API's JSON envelope, so it never proved anything. The test block now points at GET /v3/users/me, the endpoint HeyGen's own API-key page names for verifying a key.",
+      "auth (KEPT as scaffolded): the x-api-key header. Confirmed by the published OpenAPI securitySchemes, verbatim: \"ApiKeyAuth\": {\"type\": \"apiKey\", \"in\": \"header\", \"name\": \"x-api-key\", \"description\": \"HeyGen API key. Obtain from your HeyGen dashboard.\"}. HeyGen also accepts an OAuth2 bearer (BearerAuth), which the vault does not hold for this integration type and which the docs describe as trial-scale only.",
+      "read-only wave: GENERATION COSTS MONEY, so POST /v3/videos, POST /v3/voices/speech, the lipsync, video-translation, AI-clipping, filler-word-removal, HyperFrames, Video Agent and avatar/voice-creation endpoints, every batch submit, and every DELETE and PATCH are deliberately NOT exposed. Further read-only endpoints exist and are safe but are out of scope for this wave: GET /v3/avatars/looks (the look id is the avatar_id used for generation), GET /v3/avatars/{group_id}, GET /v3/voices/{voice_id}, GET /v3/videos/statuses (bulk, up to 100 ids) and GET /v3/videos/{video_id}/scenes.",
+      "paging: v3 list endpoints are cursor-based (has_more plus next_token, passed back as the token query param); there is no offset or page number. The declarative runtime does not follow cursors, so a caller pages by handing next_token to the next call. Page-size clamps follow the published maxima: 50 for /v3/avatars, 100 for /v3/voices and /v3/videos.",
+      "shape-proof class SHAPE_PROVEN (6/6), on the structured_body rule: every v3 path answers a dummy key with HeyGen's own JSON 401 envelope (verbatim: {\"error\":{\"code\":\"unauthorized\",\"doc_url\":\"https://developers.heygen.com/docs/error-codes#unauthorized\",\"message\":\"Unauthorized\"}}) while the control path answers 404 with an HTML error page, so the API surface, not a catch-all, answered each request. What that proves is host, TLS, the x-api-key header name and that these routes exist and are auth-gated. Only a real key can turn them 2xx, and the response picks above come from the published OpenAPI schemas, not from an observed 2xx body."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

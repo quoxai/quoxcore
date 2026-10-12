@@ -1,0 +1,14 @@
+-- 034-objectives-coordinator-summary.sql — MACH-FOLLOWUP WI-C
+--
+-- Teams coordinator synthesis step (MACHINERY item 4(c)). When a TEAM
+-- objective finalises, a bounded orchestrator LLM call synthesises all
+-- members' task results (incl. failures) into a consolidated outcome
+-- report, persisted here. See docs/STREAM_MACH_FOLLOWUP_PLAN.md §4.3.
+--
+-- NULL = no coordinator step has run yet (non-team objective, <2 terminal
+-- tasks, policy opt-out, or coordinator failure/timeout — never blocks
+-- finalisation). Also doubles as the double-entry guard: dagUtils.js
+-- atomically claims this column (UPDATE ... WHERE coordinator_summary IS
+-- NULL) before the LLM call so poller overlap cannot invoke the
+-- coordinator twice for the same objective.
+ALTER TABLE objectives ADD COLUMN coordinator_summary TEXT;

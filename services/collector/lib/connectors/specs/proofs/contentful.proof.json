@@ -1,0 +1,90 @@
+{
+  "spec_id": "contentful",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:16.960Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://cdn.contentful.com/quox-shapeproof-control-de726019",
+      "status": 404,
+      "latency_ms": 920,
+      "classification": "CONTROL",
+      "body_sha256": "c5d2643305623530a7592886b4dd239d11afea588a756cfa1845c7fb8e471d73",
+      "body_excerpt": "{\n  \"sys\": {\n    \"type\": \"Error\",\n    \"id\": \"NotFound\"\n  },\n  \"message\": \"The resource could not be found.\",\n  \"requestId\": \"49e5a8ba-05ce-4e19-9c15-ba45fc2e1858\"\n}\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://cdn.contentful.com/spaces/cfexampleapi",
+      "status": 401,
+      "latency_ms": 180,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e57d245076c87eafe1d6c32505e5c6d99094452091b0c7a77073a603dbd1496f",
+      "body_excerpt": "{\"sys\":{\"type\":\"Error\",\"id\":\"AccessTokenInvalid\"},\"message\":\"The access token you sent could not be found or is invalid.\",\"requestId\":\"aa1ae4e1-a98a-4b44-8ae0-20f8dc1d32a8\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_space",
+      "method": "GET",
+      "url": "https://cdn.contentful.com/spaces/cfexampleapi",
+      "status": 401,
+      "latency_ms": 191,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e57d245076c87eafe1d6c32505e5c6d99094452091b0c7a77073a603dbd1496f",
+      "body_excerpt": "{\"sys\":{\"type\":\"Error\",\"id\":\"AccessTokenInvalid\"},\"message\":\"The access token you sent could not be found or is invalid.\",\"requestId\":\"aa1ae4e1-a98a-4b44-8ae0-20f8dc1d32a8\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_entries",
+      "method": "GET",
+      "url": "https://cdn.contentful.com/spaces/cfexampleapi/entries?limit=20&content_type=quoxprobe&query=quoxprobe&order=quoxprobe",
+      "status": 401,
+      "latency_ms": 166,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9780169b63830dbbd142b269e3d6335690fca5b554a144ea122edb941d8e93fd",
+      "body_excerpt": "{\"sys\":{\"type\":\"Error\",\"id\":\"AccessTokenInvalid\"},\"message\":\"The access token you sent could not be found or is invalid.\",\"requestId\":\"347b6de1-a584-497a-b343-7f52538266c3\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_content_types",
+      "method": "GET",
+      "url": "https://cdn.contentful.com/spaces/cfexampleapi/content_types?limit=20",
+      "status": 401,
+      "latency_ms": 171,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a9e6dd7d1cbccb6ce4708e42c79839b585504a5659cf875a339a07f90c783b9b",
+      "body_excerpt": "{\"sys\":{\"type\":\"Error\",\"id\":\"AccessTokenInvalid\"},\"message\":\"The access token you sent could not be found or is invalid.\",\"requestId\":\"de26b63c-f3ee-4431-8cb2-0c55ba2c921b\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_assets",
+      "method": "GET",
+      "url": "https://cdn.contentful.com/spaces/cfexampleapi/assets?limit=20&order=quoxprobe",
+      "status": 401,
+      "latency_ms": 212,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3df67708a259ee42f36c94a2ee0ccb3ef5205cbf1104602f3a8c51f996e542db",
+      "body_excerpt": "{\"sys\":{\"type\":\"Error\",\"id\":\"AccessTokenInvalid\"},\"message\":\"The access token you sent could not be found or is invalid.\",\"requestId\":\"6a022385-5b54-415d-bfbf-4f8cf3f1e097\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

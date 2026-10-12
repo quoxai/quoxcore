@@ -1,0 +1,13 @@
+{
+  "id": "quoxcore-demo",
+  "type": "team-pack",
+  "version": "1.0.0",
+  "displayName": "QuoxCORE Demo Pack",
+  "description": "The default QuoxCORE team plus SecOps security specialists. A starter pack to explore agentic team workflows.",
+  "author": "Quox",
+  "tier": "free",
+  "teams": ["quoxcore", "secops"],
+  "tags": ["starter", "security", "general"],
+  "icon": "package",
+  "accentColor": "#3090ff"
+}

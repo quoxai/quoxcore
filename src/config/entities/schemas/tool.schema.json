@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://quox.local/schemas/tool.schema.json",
+  "title": "Quox Tool Manifest",
+  "description": "Schema for Quox tool entity manifests (AutoGen-style)",
+  "type": "object",
+  "required": ["v", "type", "id", "name", "description", "capabilities", "parameters"],
+  "properties": {
+    "v": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$"
+    },
+    "type": {
+      "type": "string",
+      "const": "tool"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 50
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Capability tags for discovery (e.g., 'remote_execution', 'network_ops')"
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "array", "object"]
+          },
+          "required": { "type": "boolean" },
+          "default": {},
+          "description": { "type": "string" },
+          "enum": { "type": "array" }
+        }
+      }
+    },
+    "owner": {
+      "type": "string",
+      "description": "Assistant ID that owns this tool"
+    },
+    "accessLevel": {
+      "type": "string",
+      "enum": ["orchestrator", "managers+", "specialists+", "all"],
+      "default": "managers+",
+      "description": "Minimum access level to use this tool"
+    },
+    "safety": {
+      "type": "object",
+      "properties": {
+        "defconLevel": {
+          "type": "string",
+          "enum": ["GREEN", "BLUE", "AMBER", "ORANGE", "RED"]
+        },
+        "requiresApproval": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Parameter patterns that require approval"
+        },
+        "audit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to log all uses to AEE"
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["ssh", "http", "internal", "n8n", "quoxagent"],
+          "description": "How the tool is executed"
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "Execution endpoint (URL, host, etc.)"
+        },
+        "timeout": {
+          "type": "integer",
+          "default": 30000,
+          "description": "Timeout in milliseconds"
+        }
+      }
+    }
+  }
+}

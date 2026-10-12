@@ -1,0 +1,203 @@
+{
+  "spec_version": 1,
+  "id": "bigquery",
+  "name": "Google BigQuery",
+  "category": "data_ai",
+  "credentialType": "bigquery",
+  "requiredFields": [
+    "service_account_json"
+  ],
+  "description": "Read BigQuery warehouse metadata via a service account: datasets, tables and table schemas",
+  "docs": "https://cloud.google.com/bigquery/docs",
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "base_url": "https://bigquery.googleapis.com",
+  "auth": {
+    "type": "google_service_account",
+    "scope": "https://www.googleapis.com/auth/bigquery.readonly",
+    "field": "service_account_json"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/bigquery/v2/projects/quoxprobe/datasets",
+    "query": {
+      "maxResults": "1"
+    }
+  },
+  "tools_source": "https://cloud.google.com/bigquery/docs/reference/rest",
+  "tools": [
+    {
+      "name": "list_datasets",
+      "description": "List the BigQuery datasets in a GCP project (dataset id, friendly name, location, labels)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "GCP project id that owns the datasets (e.g. my-analytics-project)"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Datasets to return per page (default 50, max 200)"
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Opaque nextPageToken from a previous page"
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/bigquery/v2/projects/{{input.project_id}}/datasets",
+        "query": {
+          "maxResults": "{{clamp input.max_results 50 200}}",
+          "pageToken": "{{input.page_token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "nextPageToken": "nextPageToken",
+          "datasets[]": {
+            "id": "id",
+            "datasetId": "datasetReference.datasetId",
+            "projectId": "datasetReference.projectId",
+            "friendlyName": "friendlyName",
+            "location": "location",
+            "labels": "labels"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_tables",
+      "description": "List the tables and views in one BigQuery dataset (table id, type, creation and expiration times)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "GCP project id that owns the dataset"
+          },
+          "dataset_id": {
+            "type": "string",
+            "description": "Dataset id within the project (e.g. analytics_prod)"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Tables to return per page (default 50, max 200)"
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Opaque nextPageToken from a previous page"
+          }
+        },
+        "required": [
+          "project_id",
+          "dataset_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/bigquery/v2/projects/{{input.project_id}}/datasets/{{input.dataset_id}}/tables",
+        "query": {
+          "maxResults": "{{clamp input.max_results 50 200}}",
+          "pageToken": "{{input.page_token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "kind": "kind",
+          "totalItems": "totalItems",
+          "nextPageToken": "nextPageToken",
+          "tables[]": {
+            "id": "id",
+            "tableId": "tableReference.tableId",
+            "datasetId": "tableReference.datasetId",
+            "projectId": "tableReference.projectId",
+            "type": "type",
+            "friendlyName": "friendlyName",
+            "creationTime": "creationTime",
+            "expirationTime": "expirationTime"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_table",
+      "description": "Get one BigQuery table's metadata and column schema: row count, byte size, partitioning and field types",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "GCP project id that owns the dataset"
+          },
+          "dataset_id": {
+            "type": "string",
+            "description": "Dataset id within the project"
+          },
+          "table_id": {
+            "type": "string",
+            "description": "Table or view id within the dataset"
+          }
+        },
+        "required": [
+          "project_id",
+          "dataset_id",
+          "table_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/bigquery/v2/projects/{{input.project_id}}/datasets/{{input.dataset_id}}/tables/{{input.table_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "tableId": "tableReference.tableId",
+          "datasetId": "tableReference.datasetId",
+          "projectId": "tableReference.projectId",
+          "type": "type",
+          "friendlyName": "friendlyName",
+          "description": "description",
+          "location": "location",
+          "numRows": "numRows",
+          "numBytes": "numBytes",
+          "creationTime": "creationTime",
+          "lastModifiedTime": "lastModifiedTime",
+          "expirationTime": "expirationTime",
+          "timePartitioningType": "timePartitioning.type",
+          "timePartitioningField": "timePartitioning.field",
+          "clusteringFields": "clustering.fields",
+          "schema.fields[]": {
+            "name": "name",
+            "type": "type",
+            "mode": "mode",
+            "description": "description"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored from https://cloud.google.com/bigquery/docs/reference/rest (CONNFAC)",
+    "confidence": "medium",
+    "needs_review": [
+      "READ-ONLY by design: metadata only, no tool is marked write:true. jobs.query and jobs.insert are deliberately ABSENT this wave: they are POSTs that execute SQL and BILL the customer's project per byte scanned, so query execution needs its own cost-guard and approval design before it ships.",
+      "The declared scope is bigquery.readonly. That scope does permit jobs.query, so adding a query tool later would not need a scope change, only the cost guard above. Anything mutating (dataset/table create, delete) would need the wider bigquery scope.",
+      "The google_service_account JWT-bearer grant is NOT blind-provable: the shape-proof harness probes the API surface with a dummy bearer, so paths and auth handling are tested but the token exchange with a real service-account key is not. Flagged token_flow_untested in the proof.",
+      "The vault type bigquery has testEndpoint: null (it validates the JSON key shape only), so credential activation cannot be verified in the auth service either; the spec test block (GET /bigquery/v2/projects/quoxprobe/datasets) is the only surface check.",
+      "project_id is a required INPUT on every tool rather than being read from the service-account key's own project_id. That is deliberate (one key often reads several projects), but it means an agent must be told which project to look at.",
+      "numRows and numBytes come back as JSON strings (int64 over the wire), not numbers, so downstream arithmetic has to cast."
+    ]
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "name": "quoxbox-macmini",
+  "version": "1.0.0",
+  "displayName": "QuoxBox — Mac mini",
+  "tagline": "The only AI that can use your Mac — and pass an audit.",
+  "description": "QuoxBox is a governed gateway between Quox and an always-on Mac mini. Every screen read, click, and keystroke runs through a policy engine (R1-R15) that enforces human-in-the-loop approval on high-risk actions, verifies the effect of every step, and writes a tamper-evident evidence chain. Watch the agent work live, launch governed workflows (\"tasks\"), and approve or deny risky steps from the dashboard — no API access required for the automated app or portal.",
+  "shortDescription": "Governed, verifiable control of an always-on Mac — HITL approval, effect-verification, tamper-evident evidence.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 1499,
+  "priceDisplay": "$1,499/yr",
+  "priceModel": "annual",
+  "perpetualPrice": 2799,
+  "perpetualDisplay": "$2,799",
+  "tier": "enterprise",
+  "featured": true,
+  "badge": "ENTERPRISE",
+  "infoUrl": "https://quox.ai/plugins/quoxbox-macmini",
+  "docsUrl": "https://quox.ai/docs/plugins/quoxbox-macmini",
+  "icon": "server",
+  "heroGradient": "linear-gradient(135deg, #38bdf8 0%, #6366f1 50%, #a855f7 100%)",
+  "accentColor": "#38bdf8",
+  "marketingPoints": [
+    "Governed R1-R15 policy engine — every action is checked before it runs, not after",
+    "Human-in-the-loop approval on any high-risk step, right from the dashboard",
+    "Effect-verification confirms each action actually happened before moving on",
+    "Tamper-evident evidence chain for every session — built for EU AI Act oversight",
+    "Automate no-API portals and desktop apps without giving the agent unattended keys to the kingdom"
+  ],
+  "features": {
+    "liveWatch": {
+      "name": "Live Watch",
+      "description": "Real-time view of the Mac mini's mode, screen-lock state, capture availability, kill-switch, and circuit breaker — refreshed continuously.",
+      "icon": "monitor",
+      "highlight": true
+    },
+    "governedTasks": {
+      "name": "Governed Tasks",
+      "description": "Launch pre-registered workflows against the Mac mini with typed parameters. Track each step's status (done, failed, awaiting approval, denied) live.",
+      "icon": "play-circle",
+      "highlight": true
+    },
+    "hitlApprovals": {
+      "name": "HITL Approvals",
+      "description": "High-impact steps pause and wait for a human decision. Approve or deny inline, with the tool, impact, reasoning, and rollback plan shown for every request.",
+      "icon": "check-circle",
+      "highlight": true
+    },
+    "evidenceFeed": {
+      "name": "Evidence Feed",
+      "description": "A live, tamper-evident feed of every action the agent takes — allow/deny decisions, verified effects, and mode changes — chained for audit.",
+      "icon": "activity",
+      "highlight": true
+    },
+    "modeControl": {
+      "name": "Mode Control",
+      "description": "Switch the gateway between readonly, propose (hold every action for approval), and actuate (run automatically within policy) from the dashboard.",
+      "icon": "sliders"
+    }
+  },
+  "configSchema": {
+    "defaultMode": {
+      "type": "select",
+      "label": "Default Gateway Mode",
+      "description": "Mode the gateway starts in for new sessions",
+      "options": [
+        { "value": "readonly", "label": "Read-only — observe only, no actions" },
+        { "value": "propose", "label": "Propose — every action held for approval" },
+        { "value": "actuate", "label": "Actuate — runs automatically within policy" }
+      ],
+      "default": "propose"
+    },
+    "requireApprovalAboveImpact": {
+      "type": "select",
+      "label": "Require Approval Above Impact Level",
+      "description": "Minimum impact level that always requires human approval, regardless of mode",
+      "options": [
+        { "value": "low", "label": "Low and above" },
+        { "value": "medium", "label": "Medium and above" },
+        { "value": "high", "label": "High only" }
+      ],
+      "default": "medium"
+    }
+  },
+  "limits": {
+    "free": {
+      "liveWatchEnabled": false,
+      "governedTasksEnabled": false,
+      "hitlApprovalsEnabled": false,
+      "evidenceFeedEnabled": false,
+      "maxConcurrentTasks": 0
+    },
+    "enterprise": {
+      "liveWatchEnabled": true,
+      "governedTasksEnabled": true,
+      "hitlApprovalsEnabled": true,
+      "evidenceFeedEnabled": true,
+      "maxConcurrentTasks": 5,
+      "maxRetentionDays": 365
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "integration": {
+    "collectorProxy": "services/collector/routes/quoxbox-proxy.js",
+    "dataHook": "src/hooks/useQuoxBoxData.js"
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-07-14",
+      "changes": [
+        "Initial release",
+        "Live gateway status watch",
+        "Governed task launcher with typed workflow params",
+        "Inline HITL approve/deny",
+        "Live evidence event feed",
+        "Mode control (readonly/propose/actuate)"
+      ]
+    }
+  },
+  "category": "governance"
+}

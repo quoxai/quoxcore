@@ -1,0 +1,91 @@
+{
+  "name": "qlarity",
+  "version": "0.1.0",
+  "displayName": "Qlarity",
+  "tagline": "Look at the page yourself, with a receipt.",
+  "description": "Governed browser inspection for Quox dev servers. Opens a real page in an isolated headless session and answers runtime questions directly: computed styles, pseudo-element rules, DOM reads, storage. Every session runs in its own browser context, reaches only origins the operator declared, and leaves an evidence trail. Built so an agent stops guessing at runtime state and stops asking a human to paste the console.",
+  "shortDescription": "Governed headless-browser inspection for dev servers",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 29,
+  "priceDisplay": "$29",
+  "priceModel": "one-time",
+  "tier": "tier_b",
+  "featured": false,
+  "icon": "octahedron",
+  "accentColor": "#38bdf8",
+  "infoUrl": "https://quox.ai/solutions/qlarity",
+  "docsUrl": "https://quox.ai/docs/plugins/qlarity",
+  "category": "Developer Tools",
+
+  "marketingPoints": [
+    "Answers a runtime question in seconds instead of asking someone to check the page",
+    "One browser context per session: no shared cookies, no cross-tenant leakage",
+    "Default-deny egress, enforced on every request the page makes, not just the URL you typed",
+    "Named inspectors instead of arbitrary JS, including the pseudo-element reads that catch the bugs people blame on wrappers",
+    "Arbitrary evaluation is always a human approval, never a heuristic",
+    "Every inspection witnessed through the governed boundary"
+  ],
+
+  "features": {
+    "namedInspectors": {
+      "name": "Named inspectors",
+      "description": "Parameterised reads that take a selector and a property, never a code string: computed style, ::before/::after rules, text, attributes, element count, bounding box, storage.",
+      "icon": "eye",
+      "highlight": true
+    },
+    "sessionIsolation": {
+      "name": "Per-session isolation",
+      "description": "Every session gets its own browser context, owned by one org, reaped on idle and on a hard lifetime ceiling.",
+      "icon": "shield",
+      "highlight": true
+    },
+    "egressControl": {
+      "name": "Default-deny egress",
+      "description": "An operator declares which origins may be inspected. Redirects, iframes and page fetches are all checked, and an allowlisted name resolving to an internal address is still refused.",
+      "icon": "lock",
+      "highlight": true
+    },
+    "gatedEval": {
+      "name": "Approval-gated evaluation",
+      "description": "Arbitrary JavaScript is always a human approval with the verbatim code shown. There is no probably-safe tier, because deciding whether a script mutates is undecidable.",
+      "icon": "check"
+    }
+  },
+
+  "safety": {
+    "destructiveActions": [],
+    "requiresApproval": ["qlarity.eval"],
+    "aeeRequired": true,
+    "killSwitchEnabled": false
+  },
+
+  "limits": {
+    "free": { "sessionsPerOrg": 0 },
+    "paid": { "sessionsPerOrg": 3, "sessionIdleMinutes": 5, "sessionMaxLifetimeMinutes": 30 }
+  },
+
+  "requirements": { "quox": ">=4.0.0" },
+
+  "integration": {
+    "service": "quoxai/qlarity",
+    "port": 3109,
+    "healthEndpoint": "/health",
+    "client": "src/components/qlarity/lib/api.js",
+    "view": "src/components/qlarity/QlarityView.jsx"
+  },
+
+  "capabilities": {
+    "aeeIntents": [
+      "qlarity.session.opened",
+      "qlarity.session.closed",
+      "qlarity.page.opened",
+      "qlarity.inspected",
+      "qlarity.eval.requested",
+      "qlarity.mutation"
+    ]
+  },
+
+  "includedIn": ["dev-suite-bundle"],
+  "includedInNote": "Corrected 2026-08-19. This was an empty array while the bundle store row has listed QLarity as a member all along, and the bundle's own $452 solo-total arithmetic only balances WITH qlarity's $50. The copy was right and the manifest was wrong."
+}

@@ -1,0 +1,529 @@
+/* ============================================
+   Page Layout Component Styles
+   Consistent structure for all pages
+   ============================================ */
+
+/* ============================================
+   1. PAGE LAYOUT CONTAINER
+   ============================================ */
+
+.page-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.page-layout-header {
+  flex-shrink: 0;
+  background: transparent;
+  border-bottom: none;
+}
+
+.page-layout-header.sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+/* Main content area — NO padding, NO gap, overflow scroll, flex:1.
+   Views control their own breathing room via .qx-view / .qx-stack /
+   .qx-card padding. Adding padding or gap here doubles up with the
+   shell + the view and pops content off the bottom. */
+.page-layout-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: transparent;
+}
+
+.page-layout-footer {
+  flex-shrink: 0;
+  padding: 16px 0 0;
+  background: transparent;
+  border-top: none;
+}
+
+/* ============================================
+   2. PAGE HEADER
+   ============================================ */
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  gap: 16px;
+}
+
+.page-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.page-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  color: var(--accent, #38bdf8);
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.page-header-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.page-header-text {
+  min-width: 0;
+}
+
+.page-header-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.page-header-subtitle {
+  margin: 4px 0 0 0;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.3;
+}
+
+.page-header-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: rgba(48, 255, 144, 0.15);
+  color: #30ff90;
+}
+
+.page-header-badge.warning {
+  background: rgba(255, 176, 48, 0.15);
+  color: #ffb030;
+}
+
+.page-header-badge.error {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}
+
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ============================================
+   3. PAGE SECTION (Collapsible)
+   ============================================ */
+
+.page-section {
+  border-radius: 12px;
+  overflow: visible;
+  transition: all 0.2s ease;
+}
+
+/* Card variant — use className="page-section-card" or collapsible for boxed appearance */
+.page-section.page-section-card,
+.page-section.collapsible {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.page-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 0 16px 0;
+  user-select: none;
+}
+
+.page-section.page-section-card .page-section-header,
+.page-section.collapsible .page-section-header {
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.01);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.page-section-header.clickable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.page-section-header.clickable:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.page-section-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-section-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.page-section-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.page-section-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.02em;
+}
+
+.page-section-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  background: rgba(48, 255, 144, 0.15);
+  color: #30ff90;
+}
+
+.page-section-badge.warning {
+  background: rgba(255, 176, 48, 0.15);
+  color: #ffb030;
+}
+
+.page-section-badge.error {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}
+
+.page-section-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+  transition: all 0.2s ease;
+}
+
+.page-section-header.clickable:hover .page-section-toggle {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.page-section-toggle svg {
+  transition: transform 0.2s ease;
+  transform: rotate(90deg);
+}
+
+.page-section.collapsed .page-section-toggle svg {
+  transform: rotate(0deg);
+}
+
+.page-section-content {
+  padding: 0;
+  transition: max-height 0.3s ease, opacity 0.2s ease, padding 0.2s ease;
+}
+
+.page-section.page-section-card .page-section-content,
+.page-section.collapsible .page-section-content {
+  padding: 20px;
+}
+
+.page-section-content.no-padding {
+  padding: 0;
+}
+
+.page-section.collapsed .page-section-content {
+  max-height: 0 !important;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.page-section.collapsed .page-section-header {
+  border-bottom-color: transparent;
+}
+
+/* ============================================
+   4. PAGE GRID
+   ============================================ */
+
+.page-grid {
+  display: grid;
+  width: 100%;
+}
+
+.page-grid-1 {
+  grid-template-columns: 1fr;
+}
+
+.page-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.page-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.page-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.page-grid-gap-sm {
+  gap: 12px;
+}
+
+.page-grid-gap-md {
+  gap: 20px;
+}
+
+.page-grid-gap-lg {
+  gap: 28px;
+}
+
+@media (max-width: 1200px) {
+  .page-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .page-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .page-grid-2,
+  .page-grid-3,
+  .page-grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================
+   5. PAGE CARD
+   ============================================ */
+
+.page-card {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.page-card:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.page-card-highlight {
+  border-color: rgba(48, 144, 255, 0.3);
+  background: rgba(48, 144, 255, 0.05);
+}
+
+.page-card-warning {
+  border-color: rgba(255, 176, 48, 0.3);
+  background: rgba(255, 176, 48, 0.05);
+}
+
+.page-card-error {
+  border-color: rgba(56, 189, 248, 0.3);
+  background: rgba(56, 189, 248, 0.05);
+}
+
+.page-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.01);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.page-card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-card-icon {
+  display: flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.page-card-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.page-card-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.page-card-badge {
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.page-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.page-card-content {
+  padding: 16px;
+}
+
+.page-card-content.no-padding {
+  padding: 0;
+}
+
+/* ============================================
+   6. PAGE DIVIDER
+   ============================================ */
+
+.page-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 8px 0;
+}
+
+.page-divider::before,
+.page-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.page-divider-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ============================================
+   7. UTILITY CLASSES
+   ============================================ */
+
+/* Spacing utilities */
+.page-mt-sm { margin-top: 12px; }
+.page-mt-md { margin-top: 20px; }
+.page-mt-lg { margin-top: 28px; }
+
+.page-mb-sm { margin-bottom: 12px; }
+.page-mb-md { margin-bottom: 20px; }
+.page-mb-lg { margin-bottom: 28px; }
+
+/* Scrollable container within section */
+.page-scroll-area {
+  max-height: 300px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.page-scroll-area::-webkit-scrollbar {
+  width: 6px;
+}
+
+.page-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.page-scroll-area::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+/* Text utilities */
+.page-text-muted {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8rem;
+}
+
+.page-text-small {
+  font-size: 0.75rem;
+}
+
+/* Progressive disclosure - show more/less */
+.page-show-more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  margin-top: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.page-show-more-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.8);
+}

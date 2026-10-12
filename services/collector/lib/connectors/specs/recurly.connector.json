@@ -1,0 +1,277 @@
+{
+  "spec_version": 1,
+  "id": "recurly",
+  "name": "Recurly",
+  "category": "commerce_finance",
+  "credentialType": "recurly",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developers.recurly.com/",
+  "base_url": "https://v3.recurly.com",
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": ""
+  },
+  "static_headers": {
+    "Accept": "application/vnd.recurly.v2021-02-25"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/sites"
+  },
+  "tools_source": "https://recurly.com/developers/api/spec/v2021-02-25.yaml",
+  "tools": [
+    {
+      "name": "list_sites",
+      "description": "List the Recurly sites the API key can see (subdomain, live or sandbox mode)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max sites to return (default 20, max 200)"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "description": "Optional site state to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/sites",
+        "query": {
+          "limit": "{{clamp input.limit 20 200}}",
+          "state": "{{input.state}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "subdomain": "subdomain",
+            "mode": "mode",
+            "public_api_key": "public_api_key",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "deleted_at": "deleted_at"
+          },
+          "has_more": "has_more",
+          "next": "next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_accounts",
+      "description": "List Recurly accounts (customers), optionally filtered by exact email address",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max accounts to return (default 20, max 200)"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional exact email address to filter by (multiple accounts can share one)"
+          },
+          "subscriber": {
+            "type": "boolean",
+            "description": "Optional: true for accounts with an active, canceled or future subscription, false for those without"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/accounts",
+        "query": {
+          "limit": "{{clamp input.limit 20 200}}",
+          "email": "{{input.email}}",
+          "subscriber": "{{input.subscriber}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "code": "code",
+            "email": "email",
+            "first_name": "first_name",
+            "last_name": "last_name",
+            "company": "company",
+            "state": "state",
+            "has_active_subscription": "has_active_subscription",
+            "has_past_due_invoice": "has_past_due_invoice",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "has_more": "has_more",
+          "next": "next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_subscriptions",
+      "description": "List Recurly subscriptions, optionally filtered by state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max subscriptions to return (default 20, max 200)"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "canceled",
+              "expired",
+              "future",
+              "in_trial",
+              "live"
+            ],
+            "description": "Optional subscription state to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/subscriptions",
+        "query": {
+          "limit": "{{clamp input.limit 20 200}}",
+          "state": "{{input.state}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "uuid": "uuid",
+            "state": "state",
+            "account_code": "account.code",
+            "account_email": "account.email",
+            "plan_code": "plan.code",
+            "plan_name": "plan.name",
+            "currency": "currency",
+            "unit_amount": "unit_amount",
+            "quantity": "quantity",
+            "total": "total",
+            "collection_method": "collection_method",
+            "auto_renew": "auto_renew",
+            "current_period_started_at": "current_period_started_at",
+            "current_period_ends_at": "current_period_ends_at",
+            "trial_ends_at": "trial_ends_at",
+            "activated_at": "activated_at",
+            "canceled_at": "canceled_at",
+            "expires_at": "expires_at"
+          },
+          "has_more": "has_more",
+          "next": "next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_invoices",
+      "description": "List Recurly invoices, optionally filtered by state and invoice type",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max invoices to return (default 20, max 200)"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "processing",
+              "past_due",
+              "paid",
+              "failed",
+              "open",
+              "closed",
+              "voided"
+            ],
+            "description": "Optional invoice state to filter by (Recurly defaults to all)"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "charge",
+              "credit",
+              "legacy",
+              "non-legacy"
+            ],
+            "description": "Optional invoice type to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/invoices",
+        "query": {
+          "limit": "{{clamp input.limit 20 200}}",
+          "state": "{{input.state}}",
+          "type": "{{input.type}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "number": "number",
+            "type": "type",
+            "state": "state",
+            "origin": "origin",
+            "account_code": "account.code",
+            "account_email": "account.email",
+            "currency": "currency",
+            "subtotal": "subtotal",
+            "tax": "tax",
+            "total": "total",
+            "paid": "paid",
+            "balance": "balance",
+            "collection_method": "collection_method",
+            "created_at": "created_at",
+            "due_at": "due_at",
+            "closed_at": "closed_at"
+          },
+          "has_more": "has_more",
+          "next": "next"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "auth left as scaffolded (basic, api_key as the username, empty password) because Recurly's own OpenAPI proves it right: securityScheme api_key is { type: http, scheme: basic } with the description 'Enter the API key as the username and set the password to an empty string'. passField '' is the documented empty password, not a placeholder.",
+      "the Accept version header is REQUIRED, not decorative: Recurly's v3 API selects its API version from the Accept header, documented as 'Accept: application/vnd.recurly.v2021-02-25'. static_headers pins v2021-02-25, which is the version of the spec every path and every picked field below was read from. Changing that string without re-reading the spec would silently change response shapes.",
+      "base_url is the US host v3.recurly.com. Recurly's OpenAPI lists a second server, https://v3.eu.recurly.com, for EU-hosted sites; a customer on the EU region will fail against this spec, and spec v1 cannot pick a host per credential without a base_url template field the vault does not carry.",
+      "tools_source is Recurly's OFFICIAL published OpenAPI document (linked from the redoc reference at recurly.com/developers/api/v2021-02-25/index.html), so every path, every query parameter, every enum and every picked field name is taken verbatim from it rather than from prose.",
+      "READ-ONLY by design: no tool is marked write:true. The v3 API has create/update/delete endpoints for accounts, subscriptions, invoices, purchases and refunds; none is modelled.",
+      "limit is clamped 20/200 exactly as documented ('Limit number of records 1-200', default 20). Lists answer the envelope { object, has_more, next, data[] }, so has_more and next are picked: next is the cursor URL a caller would follow, and the declarative runtime cannot follow it, so a caller sees at most one page per call.",
+      "every picked field name is taken verbatim from the v2021-02-25 schemas (Site, Account = AccountReadOnly + AccountResponse, Subscription with AccountMini/PlanMini children, Invoice), NOT from a live 2xx: the shape-proof stops at 401, so no body was ever data. A wrong pick source yields empty output silently, so the first run with a real key must confirm them.",
+      "deliberately NOT picked: Account.billing_info and Invoice.line_items / transactions / credit_payments. Billing info carries payment-instrument detail and the nested collections are unbounded, so both would inflate an LLM context for little gain. Invoice.address and shipping_address are omitted for the same privacy reason as the Gusto PII exclusion.",
+      "list_accounts exposes email and subscriber but not past_due, begin_time or end_time: the time filters are only meaningful together with an explicit sort field, which this spec does not expose, so offering them alone would mislead.",
+      "rateLimit 30/min is a local courtesy and spend guard chosen here; Recurly publishes its own per-key ceilings (documented separately per environment) and this is not a quote of them.",
+      "shape-proof 2026-09-12 is overall SHAPE_PROVEN, runner line verbatim: 'recurly  SHAPE_PROVEN  proven=5 authwall=0 ambiguous=0 failed=0 inconclusive=0 skipped=0'. All five real calls (/sites twice, as test and as tool, plus /accounts, /subscriptions and /invoices) answer 401 with a WWW-Authenticate header and the structured JSON body {\"error\":{\"type\":\"unauthorized\",\"message\":\"Invalid API key\"}}, while the bogus control path answers 404 with Recurly's HTML 'Page Not Found - Recurly' page rather than an API envelope, so host, TLS, base_url, basic auth, the Accept version header and every route are proven distinct from the control. What the proof does NOT cover: no response body was ever data, so the picks above rest on the published OpenAPI, and the EU-region host is unprobed."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

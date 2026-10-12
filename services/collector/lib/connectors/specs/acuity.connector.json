@@ -1,0 +1,155 @@
+{
+  "spec_version": 1,
+  "id": "acuity",
+  "name": "Acuity Scheduling",
+  "category": "crm_sales",
+  "credentialType": "acuity",
+  "requiredFields": [
+    "user_id",
+    "api_key"
+  ],
+  "docs": "https://developers.acuityscheduling.com/",
+  "base_url": "https://acuityscheduling.com",
+  "auth": {
+    "type": "basic",
+    "userField": "user_id",
+    "passField": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/me"
+  },
+  "tools_source": "https://developers.acuityscheduling.com/reference",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the Acuity Scheduling account this credential belongs to (owner name, email, timezone, plan)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "firstName": "firstName",
+          "lastName": "lastName",
+          "email": "email",
+          "timezone": "timezone",
+          "plan": "plan"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_appointments",
+      "description": "List Acuity appointments, optionally filtered by date range, calendar, appointment type, client email or cancelled state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max": {
+            "type": "number",
+            "description": "Max appointments to return (default 20, max 50)"
+          },
+          "minDate": {
+            "type": "string",
+            "description": "Optional earliest appointment date, YYYY-MM-DD"
+          },
+          "maxDate": {
+            "type": "string",
+            "description": "Optional latest appointment date, YYYY-MM-DD"
+          },
+          "calendarID": {
+            "type": "number",
+            "description": "Optional calendar ID to filter by"
+          },
+          "appointmentTypeID": {
+            "type": "number",
+            "description": "Optional appointment type ID to filter by"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional exact client email address to filter by"
+          },
+          "canceled": {
+            "type": "boolean",
+            "description": "Set true to return cancelled appointments instead of active ones"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/appointments",
+        "query": {
+          "max": "{{clamp input.max 20 50}}",
+          "minDate": "{{input.minDate}}",
+          "maxDate": "{{input.maxDate}}",
+          "calendarID": "{{input.calendarID}}",
+          "appointmentTypeID": "{{input.appointmentTypeID}}",
+          "email": "{{input.email}}",
+          "canceled": "{{input.canceled}}"
+        }
+      },
+      "response": {
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_appointment_types",
+      "description": "List the appointment types (services and classes) bookable on this Acuity account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "includeDeleted": {
+            "type": "boolean",
+            "description": "Set true to include deleted appointment types"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/appointment-types",
+        "query": {
+          "includeDeleted": "{{input.includeDeleted}}"
+        }
+      },
+      "response": {
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_calendars",
+      "description": "List the Acuity calendars (staff, rooms or resources) on this account",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/calendars"
+      },
+      "response": {
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "list_appointments, list_appointment_types and list_calendars each return a TOP-LEVEL JSON array, which Connector Spec v1 pick cannot address (pick sources are dotted keys on an object), so the raw array is returned with truncate only instead of picking the useful fields (appointment id/datetime/type/calendar/client, type id/name/duration/price, calendar id/name/email)",
+      "only GET /api/v1/appointments has a documented result-size parameter (max, clamped 20/50 here). /api/v1/appointment-types and /api/v1/calendars take no limit or paging parameter in the reference, so no clamp is applied and the whole list comes back",
+      "response field names are taken from the Acuity API reference, NOT from a live 2xx: the shape-proof stops at 401, so no body was ever data. The get_me picks (id, firstName, lastName, email, timezone, plan) must be confirmed on the first run with a real credential, because a wrong pick source yields empty output silently",
+      "rateLimit 30/min is a local spend and courtesy guard chosen here. The Acuity API reference documents rate limiting behaviour (HTTP 429) without publishing a numeric per-minute ceiling, so no documented band was available to copy",
+      "shape-proof 2026-09-11 is overall SHAPE_PROVEN: all five probes answer 401 {\"status_code\":401,\"message\":\"Unauthorized\",\"error\":\"unauthorized\"} at the real paths, while the bogus control path returns an HTML 404 marketing page, so host, TLS, base_url, basic auth and every route are proven distinct from the control"
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

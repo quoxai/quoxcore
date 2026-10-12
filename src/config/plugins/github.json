@@ -1,0 +1,174 @@
+{
+  "name": "github",
+  "version": "2.1.0",
+  "displayName": "GitQ",
+  "tagline": "Governed Git operations with three built-in agents. GitHub today, GitLab and Gitea planned.",
+  "description": "GitQ is the governed Git layer for QuoxCORE. It ships three built-in agents: GitQ (the concierge for onboarding, org and repo awareness, credential setup and RepoBrain indexing), Vulcan (issue triage, pull requests and release notes) and Gripe (one-line issue filing from the terminal). Around them: a cross-repo issue board and PR view, org-scoped credential vault, a feedback-to-issue pipeline with dedup and redaction, governed release management, policy gates, and VOLT audit trails. GitHub is live now; GitLab and Gitea are planned on the same governed provider seam.",
+  "shortDescription": "Governed Git: cross-repo issues, PRs, three agents (GitQ, Vulcan, Gripe), vault credentials, and audited releases. GitHub live; GitLab and Gitea planned.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 29,
+  "priceDisplay": "$29",
+  "priceModel": "one-time",
+  "tier": "tier_b",
+  "featured": true,
+  "icon": "github",
+  "accentColor": "#8b5cf6",
+  "infoUrl": "https://quox.ai/plugins/github",
+  "docsUrl": "https://quox.ai/docs/plugins/github",
+  "configSchema": {
+    "githubToken": {
+      "label": "Personal Access Token",
+      "description": "GitHub PAT with repo and read:org scopes. Stored in the Integrations Vault when available. See docs for setup.",
+      "type": "password",
+      "placeholder": "Enter your GitHub PAT",
+      "default": ""
+    },
+    "orgName": {
+      "label": "Organisation Name",
+      "description": "GitHub organisation to operate against.",
+      "type": "string",
+      "placeholder": "quoxai",
+      "default": ""
+    },
+    "syncInterval": {
+      "label": "Sync Interval (minutes)",
+      "description": "How often to sync issues and PRs from GitHub.",
+      "type": "string",
+      "placeholder": "15",
+      "default": "15"
+    }
+  },
+  "marketingPoints": [
+    "Three built-in agents: GitQ onboards you, Vulcan triages issues and drafts PRs, Gripe files one-liners from the terminal",
+    "Cross-repo issue board and PR view: every repo in your org, one panel, zero tab-switching",
+    "Org-scoped vault credentials: encrypted token storage, multi-org support, no browser tokens",
+    "Feedback pipeline: website forms become issues with 24h dedup and email redaction",
+    "Governed release management with a changelog page, a recent-changes feed, and VOLT audit trails",
+    "Server-side proxy: every provider API call routed through QuoxCORE, nothing leaves the browser",
+    "GitHub live today; GitLab and Gitea planned on the same governed provider seam"
+  ],
+  "features": {
+    "issueBoard": {
+      "name": "Cross-Repo Issue Board",
+      "description": "Unified view of issues across all repositories. Filter by repo, label, status, and assignee. Inline actions and markdown rendering.",
+      "icon": "list",
+      "highlight": true
+    },
+    "prView": {
+      "name": "PR View",
+      "description": "Open pull requests across all repos with review status, CI results, and merge readiness.",
+      "icon": "git-pull-request",
+      "highlight": true
+    },
+    "gitqConcierge": {
+      "name": "GitQ concierge",
+      "description": "The onboarding agent: connects your provider token to the org vault, maps orgs and repos, and hands repositories to RepoBrain for indexing. Chat-native, no setup screen to learn.",
+      "icon": "compass",
+      "highlight": true
+    },
+    "forgeAgent": {
+      "name": "Vulcan agent",
+      "description": "Triages issues, drafts pull requests and writes release notes in natural language. Every action is AEE-witnessed and pull-request creation is held for human approval.",
+      "icon": "brain",
+      "highlight": true
+    },
+    "gripeAgent": {
+      "name": "Gripe agent",
+      "description": "One line in, a filed and labelled issue out. Files straight from the terminal you are already in, and refuses to say filed without an issue URL.",
+      "icon": "message-circle",
+      "highlight": true
+    },
+    "feedbackPipeline": {
+      "name": "Feedback Pipeline",
+      "description": "Website feedback forms create GitHub issues automatically. 24h dedup, email redaction for public repos, source labels.",
+      "icon": "message-circle"
+    },
+    "releaseManager": {
+      "name": "Release Management",
+      "description": "Governed releases with auto-generated changelogs, deploy checklists, and VOLT audit trails.",
+      "icon": "package"
+    },
+    "policyGates": {
+      "name": "Policy Gates",
+      "description": "Enforce branch protection, required reviews, and CI checks across all repositories.",
+      "icon": "shield"
+    },
+    "orgMapping": {
+      "name": "Org Mapping",
+      "description": "Map GitHub organisations to Quox organisations. Multi-org support with scope filtering.",
+      "icon": "users"
+    },
+    "changelog": {
+      "name": "Changelog Page",
+      "description": "Changelog page and recent changes feed. Full notification pipeline planned.",
+      "icon": "file-text"
+    },
+    "voltAudit": {
+      "name": "VOLT Logging",
+      "description": "Every destructive action logged with cryptographic receipts via VOLT protocol.",
+      "icon": "eye"
+    },
+    "vaultCredentials": {
+      "name": "Vault Credentials",
+      "description": "GitHub PATs stored server-side. Configure the Integrations Vault for encrypted storage. Proxy keeps tokens off the browser.",
+      "icon": "lock"
+    },
+    "tokenExpiry": {
+      "name": "Token Expiry Detection",
+      "description": "Monitors PAT expiry dates and warns before credentials stop working.",
+      "icon": "alert-triangle"
+    },
+    "deployChecklist": {
+      "name": "Deploy Checklist",
+      "description": "Pre-release checklist with CI pass gates, review requirements, and approval workflow.",
+      "icon": "check-square"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "GitHub account with repo and read:org scopes"
+  },
+  "integration": {
+    "client": "githubClient.js",
+    "panel": "components/github/GitHubPanel.jsx"
+  },
+  "capabilities": {
+    "aeeIntents": [
+      "github.issues.list",
+      "github.issues.create",
+      "github.issues.close",
+      "github.pr.list",
+      "github.pr.review",
+      "github.actions.status",
+      "github.release.create",
+      "github.release.notes",
+      "github.org.repos",
+      "github.feedback.create",
+      "github.changelog.generate"
+    ],
+    "toolAccess": "standard",
+    "agents": ["gitq", "forge", "gripe"]
+  },
+  "safety": {
+    "destructiveActions": [
+      "issues.create",
+      "issues.close",
+      "release.create"
+    ],
+    "requiresApproval": [
+      "release.create"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": true
+  },
+  "changelog": {
+    "2.1.0": "GitQ: renamed from GitHub Operations to a provider-agnostic Git product. Three built-in agents (GitQ concierge, Vulcan, Gripe). GitHub live; GitLab and Gitea planned.",
+    "2.0.0": "v2: Vulcan agent, vault credentials, org mapping, PR view, deploy checklist, token expiry detection",
+    "1.0.0": "Initial release: cross-repo issues, feedback pipeline, sidebar agent"
+  },
+  "limits": {},
+  "includedIn": ["dev-suite-bundle"],
+  "includedInNote": "Added to the Dev Suite bundle 2026-08-19 (owner decision). Gripe and Triage both file through GitHub, so the bundle carries ONE org-scoped credential rather than each plugin holding its own PAT. The credential resolves by the org a dev server is assigned to.",
+  "category": "Productivity"
+}

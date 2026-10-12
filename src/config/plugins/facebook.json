@@ -1,0 +1,185 @@
+{
+  "name": "facebook",
+  "version": "1.0.0",
+  "displayName": "Facebook",
+  "tagline": "Publish and Monitor Facebook Pages from QuoxCORE",
+  "description": "Governed organic Facebook Page publishing and monitoring: page reads, post feed, organic Page Insights, and Lead Ads retrieval. Vault-stored long-lived Page access token with tracked ~60-day expiry, human approval on every publish, content feed, compose-and-publish panel, and insights summary.",
+  "shortDescription": "Facebook Page publishing, insights, and lead retrieval.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 2,
+  "priceDisplay": "$2",
+  "priceModel": "one-time",
+  "tier": "tier_a",
+  "featured": false,
+  "badge": "NEW",
+  "icon": "facebook",
+  "heroGradient": "linear-gradient(135deg, #1877F2 0%, #0B3D91 100%)",
+  "accentColor": "#1877F2",
+  "infoUrl": "https://quox.ai/plugins/facebook",
+  "docsUrl": "https://quox.ai/docs/plugins/facebook",
+  "route": "/facebook",
+  "marketingPoints": [
+    "Publish Page posts with a governed, human-approved flow",
+    "List and monitor managed Pages with follower stats",
+    "Read organic Page Insights: impressions, engagement, fans",
+    "Retrieve Lead Ads forms and submitted leads",
+    "Content feed with per-post engagement counts",
+    "Compose panel with preview and character count"
+  ],
+  "features": {
+    "publishing": {
+      "name": "Page Publishing",
+      "description": "Publish text posts, optional link, and optional image to a Facebook Page feed directly from QuoxCORE. Every publish files a human approval card first.",
+      "icon": "send",
+      "highlight": true
+    },
+    "pages": {
+      "name": "Page Management",
+      "description": "List all Pages the token can manage, with categories and follower counts.",
+      "icon": "layers"
+    },
+    "pageInsights": {
+      "name": "Page Insights",
+      "description": "Read organic Page performance: impressions, post engagements, and fan counts across day, week, or 28-day windows.",
+      "icon": "bar-chart",
+      "highlight": true
+    },
+    "leadAds": {
+      "name": "Lead Ads Retrieval",
+      "description": "List Lead Ads forms on a Page and retrieve submitted leads with field data.",
+      "icon": "user-plus",
+      "highlight": true
+    },
+    "contentFeed": {
+      "name": "Content Feed",
+      "description": "Chronological view of recent Page posts with like, comment, and share counts.",
+      "icon": "list"
+    }
+  },
+  "specialist": {
+    "name": "FACEBOOK",
+    "description": "Facebook Pages publishing and monitoring specialist",
+    "avatar": "/assets/agents/facebook.svg",
+    "capabilities": [
+      "Publish Page posts (human approval required)",
+      "List and monitor managed Pages",
+      "Read organic Page Insights",
+      "Retrieve Lead Ads forms and leads"
+    ]
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "Meta app with a long-lived Facebook Page access token (stored in vault)"
+  },
+  "integration": {
+    "connector": "facebook_pages",
+    "view": "src/pages/views/FacebookView.jsx",
+    "agent": "facebook"
+  },
+  "permissions": [
+    "vault:read",
+    "network:external"
+  ],
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "configSchema": {
+    "defaultPageId": {
+      "type": "string",
+      "label": "Default Page ID",
+      "description": "Default Facebook Page ID for the dashboard (optional; every publish still names its own page_id)",
+      "required": false,
+      "placeholder": "e.g. 1234567890"
+    },
+    "defaultInsightPeriod": {
+      "type": "string",
+      "label": "Default Insight Period",
+      "default": "day",
+      "enum": [
+        "day",
+        "week",
+        "days_28"
+      ]
+    }
+  },
+  "safety": {
+    "destructiveActions": [
+      "facebook_pages_publish_page_post"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": true
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "publishing": false,
+      "pages": false,
+      "pageInsights": false,
+      "leadAds": false,
+      "contentFeed": "Dashboard preview only"
+    },
+    "tier_a": {
+      "name": "Facebook ($2)",
+      "publishing": true,
+      "pages": true,
+      "pageInsights": true,
+      "leadAds": true,
+      "contentFeed": true
+    }
+  },
+  "limits": {
+    "free": {
+      "accounts": 0,
+      "features": []
+    },
+    "starter": {
+      "accounts": 1,
+      "pages": 1,
+      "features": [
+        "publishing",
+        "pages",
+        "pageInsights",
+        "leadAds",
+        "contentFeed"
+      ]
+    },
+    "professional": {
+      "accounts": 3,
+      "pages": 5,
+      "features": [
+        "publishing",
+        "pages",
+        "pageInsights",
+        "leadAds",
+        "contentFeed",
+        "autoApprove",
+        "analyticsExport"
+      ]
+    }
+  },
+  "futureFeatures": [
+    "Post scheduling via Herald supervisor",
+    "Comment replies and comment writes",
+    "Group management",
+    "Meta Ads insights and management (separate META-ADS plugin)",
+    "OAuth broker sign-in (credentials are a pasted long-lived token by design for now)"
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-09-18",
+      "changes": [
+        "Initial release",
+        "Governed Page post publishing (human approval required)",
+        "Managed Page listing with follower stats",
+        "Organic Page Insights (impressions, engagement, fans)",
+        "Lead Ads form and lead retrieval",
+        "Content feed with per-post engagement counts",
+        "Vault-stored long-lived Page access token (~60-day expiry, tracked)"
+      ]
+    }
+  },
+  "category": "social"
+}

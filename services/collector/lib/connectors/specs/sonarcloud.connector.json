@@ -1,0 +1,227 @@
+{
+  "spec_version": 1,
+  "id": "sonarcloud",
+  "name": "SonarCloud",
+  "category": "developer",
+  "credentialType": "sonarcloud",
+  "requiredFields": [
+    "token"
+  ],
+  "description": "Read-only SonarCloud code-quality access: projects in one organization, a project's quality measures (bugs, vulnerabilities, code smells, coverage) and its open issues. No issue transitions, assignment or project provisioning.",
+  "docs": "https://docs.sonarsource.com/sonarcloud/",
+  "base_url": "https://sonarcloud.io/api",
+  "auth": {
+    "type": "basic",
+    "userField": "token",
+    "passField": ""
+  },
+  "test": {
+    "method": "GET",
+    "path": "/authentication/validate"
+  },
+  "tools_source": "https://sonarcloud.io/api/webservices/list",
+  "tools": [
+    {
+      "name": "list_projects",
+      "description": "List the SonarCloud projects in one organization that this token can see (key, name, visibility, last analysis date, analysed revision)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization": {
+            "type": "string",
+            "description": "SonarCloud organization key (e.g. my-org)"
+          },
+          "q": {
+            "type": "string",
+            "description": "Optional search string; matches project names and project keys that contain it"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Projects per page (default 100, max 500)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional 1-based page number to fetch (default 1)"
+          }
+        },
+        "required": [
+          "organization"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/projects/search",
+        "query": {
+          "organization": "{{input.organization}}",
+          "q": "{{input.q}}",
+          "ps": "{{clamp input.page_size 100 500}}",
+          "p": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "page_index": "paging.pageIndex",
+          "page_size": "paging.pageSize",
+          "total": "paging.total",
+          "components[]": {
+            "key": "key",
+            "name": "name",
+            "organization": "organization",
+            "qualifier": "qualifier",
+            "visibility": "visibility",
+            "lastAnalysisDate": "lastAnalysisDate",
+            "revision": "revision"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.organization": "apache",
+        "input.q": "juneau"
+      }
+    },
+    {
+      "name": "project_measures",
+      "description": "Get the current quality measures for one SonarCloud component: bugs, vulnerabilities, code smells and coverage. A metric with no analysis is absent from the list rather than zero",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "string",
+            "description": "Component key: a project key from list_projects, or a file key within it (e.g. my-org_my-project)"
+          }
+        },
+        "required": [
+          "component"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/measures/component",
+        "query": {
+          "component": "{{input.component}}",
+          "metricKeys": "bugs,vulnerabilities,code_smells,coverage"
+        }
+      },
+      "response": {
+        "pick": {
+          "key": "component.key",
+          "name": "component.name",
+          "qualifier": "component.qualifier",
+          "language": "component.language",
+          "path": "component.path",
+          "component.measures[]": {
+            "metric": "metric",
+            "value": "value",
+            "bestValue": "bestValue"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.component": "apache_juneau"
+      }
+    },
+    {
+      "name": "list_issues",
+      "description": "Search SonarCloud issues in one organization, optionally narrowed to given components, impact severities or issue statuses (rule, severity, status, file, line, message, effort)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization": {
+            "type": "string",
+            "description": "SonarCloud organization key (e.g. my-org)"
+          },
+          "component_keys": {
+            "type": "string",
+            "description": "Optional comma-separated component keys to scope the search to (a project key, or a file key within it)"
+          },
+          "impact_severities": {
+            "type": "string",
+            "description": "Optional comma-separated impact severities: INFO, LOW, MEDIUM, HIGH, BLOCKER"
+          },
+          "issue_statuses": {
+            "type": "string",
+            "description": "Optional comma-separated issue statuses: OPEN, CONFIRMED, FALSE_POSITIVE, ACCEPTED, FIXED"
+          },
+          "resolved": {
+            "type": "boolean",
+            "description": "Optional: true returns only resolved issues, false only unresolved"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Issues per page (default 50, max 500)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional 1-based page number to fetch (default 1)"
+          }
+        },
+        "required": [
+          "organization"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/issues/search",
+        "query": {
+          "organization": "{{input.organization}}",
+          "componentKeys": "{{input.component_keys}}",
+          "impactSeverities": "{{input.impact_severities}}",
+          "issueStatuses": "{{input.issue_statuses}}",
+          "resolved": "{{input.resolved}}",
+          "ps": "{{clamp input.page_size 50 500}}",
+          "p": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "page_index": "paging.pageIndex",
+          "page_size": "paging.pageSize",
+          "total": "paging.total",
+          "issues[]": {
+            "key": "key",
+            "rule": "rule",
+            "severity": "severity",
+            "issueStatus": "issueStatus",
+            "status": "status",
+            "message": "message",
+            "component": "component",
+            "project": "project",
+            "line": "line",
+            "effort": "effort",
+            "creationDate": "creationDate",
+            "updateDate": "updateDate"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.organization": "apache",
+        "input.component_keys": "apache_juneau",
+        "input.impact_severities": "HIGH",
+        "input.issue_statuses": "OPEN"
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED AND CONFIRMED LIVE: basic with userField token and an empty passField matches integrationTypeRegistry.js key sonarcloud, whose testHeaders is ``'Authorization': `Basic ${Buffer.from(`${creds.token}:`).toString('base64')}```. Verified against the live host 2026-09-12: /api/authentication/validate answers 200 {\"valid\":false} to a dummy token (an unauthenticated session is a valid answer there, not an error), while every data path answers 401 with content-length: 0 and NO WWW-Authenticate header.",
+      "BASE_URL MOVED FROM https://sonarcloud.io TO https://sonarcloud.io/api, and the tool paths lost their /api prefix to match: the requests fired are byte-identical either way, the change is purely so the shape-proof control probe lands on the API surface instead of the marketing site. Evidence 2026-09-12: with the site-root base, the harness control path answers 200 text/html (the SonarCloud SPA catch-all), which is unusable as a differential and would push every empty-bodied 401 to AMBIGUOUS. Under /api the same control answers 401 with a zero-length body, exactly as the real paths do, so the run classifies as AUTH_WALL: SonarCloud rejects an invalid token BEFORE it routes. Anonymously (no Authorization header at all) that control path answers 404 {\"errors\":[{\"msg\":\"Unknown url : /api/quox-shapeproof-control-<hash>\"}]}, which shows routing exists but is unreachable behind the wall. The PATHS therefore rest on the published web-api registry below, not on this run.",
+      "PATHS, PARAMS AND CLAMPS COME FROM THE LIVE SELF-DESCRIBING REGISTRY https://sonarcloud.io/api/webservices/list (fetched 2026-09-12, anonymous, 200). Verbatim: api/projects search is 'Search for projects. Results are filtered to projects the caller has access to.' with organization required=true, 'The key of the organization', and ps 'Page size. Must be greater than 0 and less or equal than 500' defaultValue 100 maximumValue 500. api/measures component is 'Return component with specified measures. The componentId or the component parameter must be provided.<br>Requires the following permission: 'Browse' on the project of specified component.' with metricKeys required=true, 'Comma-separated list of metric keys'. api/issues search is 'Search for issues.<br>Requires the 'Browse' permission on the specified project(s).' with ps defaultValue 50 maximumValue 500. The ps cap was also checked live on a public organization: ps=500 returns 200, ps=501 returns 400 {\"errors\":[{\"msg\":\"'ps' value (501) must be less than 500\"}]}. Hence clamp 100 500 and clamp 50 500.",
+      "THE METRIC SET IS A FIXED LITERAL, NOT AN ARGUMENT: metricKeys is required=true and spec v1.1 has no default-value helper (clamp is the only helper, and it is numeric), so an unsupplied optional input would render empty, be dropped from the query and 400 the call. project_measures therefore hard-codes bugs,vulnerabilities,code_smells,coverage. Widening the metric set means editing this spec or adding a defaulting helper to spec v1.1; it is not something a caller can pass. The four keys were checked live and anonymously against a public project on 2026-09-12 and all four came back: {\"component\":{...\"measures\":[{\"metric\":\"coverage\",\"value\":\"89.2\",\"bestValue\":false},{\"metric\":\"bugs\",\"value\":\"40\",\"bestValue\":false},{\"metric\":\"code_smells\",\"value\":\"866\",\"bestValue\":false},{\"metric\":\"vulnerabilities\",\"value\":\"0\",\"bestValue\":true}]}}. A metric the project has never analysed is ABSENT from that array rather than zero, which is why the tool description says so: a missing coverage entry must never be read as 0% coverage.",
+      "NON-DEPRECATED FILTERS CHOSEN DELIBERATELY: the same registry marks the old issue filters deprecated, severities deprecatedSince '25 Aug, 2023', types '25 Aug, 2023', statuses '03 Jul, 2024', resolutions '03 Jul, 2024'. list_issues therefore exposes impactSeverities (possibleValues INFO, LOW, MEDIUM, HIGH, BLOCKER) and issueStatuses (possibleValues OPEN, CONFIRMED, FALSE_POSITIVE, ACCEPTED, FIXED). Both are comma-separated LISTS in the API, so they are declared as plain strings with the accepted values spelled out in the input description rather than as single-value enums, which would have blocked the multi-value form the API documents.",
+      "ORGANIZATION IS REQUIRED ON list_issues THOUGH THE API DOES NOT REQUIRE IT: in the registry the issues/search organization param is required=false, but an unscoped search is a global one. Checked live and anonymously 2026-09-12: /api/issues/search?ps=2 with no scope answers 400, and the same call with organization=apache answers 200 with issues. Requiring the key here means the tool can neither 400 for lack of scope nor return cross-organization noise. The API-level truth (optional) is recorded here so nobody later reads this spec as documentation of the endpoint.",
+      "RESPONSE PICKS COME FROM THE DOCUMENTED RESPONSE EXAMPLES at https://sonarcloud.io/api/webservices/response_example (controller=api/projects action=search, controller=api/measures action=component, controller=api/issues action=search), fetched 2026-09-12. Two honest gaps: the live issues payload also carries top-level total/p/ps beside paging, and the picks read paging.* because that is the shape the documented example declares; and an issue today carries BOTH the old model's 'severity' (INFO/MINOR/MAJOR/CRITICAL/BLOCKER) and the new model's 'issueStatus', so both are picked rather than guessing which model an organization is on.",
+      "PROBE VALUES ARE PUBLIC DATA: _probe supplies organization 'apache' and component/componentKeys 'apache_juneau', a public SonarCloud organization and project (both verified anonymously 2026-09-12, 200 with real data), plus impactSeverities 'HIGH', issueStatuses 'OPEN' and q 'juneau' because the harness's generic dummy 'quoxprobe' is not a valid value for the first two. All are world-readable and read-only, credentials are never hinted, and _probe sits at TOOL level where the harness reads it (a _probe nested inside request is silently ignored).",
+      "READ-ONLY BY CHOICE: SonarCloud also exposes write surfaces (issue transitions and assignment via api/issues/do_transition and api/issues/assign, project provisioning via api/projects/create). None are exposed here. Changing an issue's state is a governance-relevant act on someone's quality gate, so it stays out of this connector rather than shipping half-guarded."
+    ]
+  }
+}

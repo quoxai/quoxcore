@@ -1,0 +1,33 @@
+{
+  "spec_version": 1,
+  "id": "browserless",
+  "name": "Browserless",
+  "category": "uncategorized",
+  "credentialType": "browserless",
+  "requiredFields": [
+    "api_token",
+    "base_url"
+  ],
+  "docs": "https://www.browserless.io/docs/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "query",
+    "param": "token",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/pressure"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:41:54.106Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:base_url"
+    ]
+  }
+}

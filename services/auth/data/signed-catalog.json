@@ -1,0 +1,1704 @@
+{
+  "catalog": {
+    "version": 1,
+    "generated_at": "2026-10-07T13:41:20.934Z",
+    "classification": {
+      "status": "ratified",
+      "ratified_on": "2026-08-30",
+      "taxonomy": "R6",
+      "decision_record": "quox-dashboard/docs/LL5_CLASSIFICATION_TABLE_2026-08-28.md"
+    },
+    "sources": [
+      {
+        "path": "api/data/product-catalog.json",
+        "sha256": "583fc5d571b259fb90f631dad44137a278f081734df1a331e078262e7d1612f4"
+      },
+      {
+        "path": "api/config/pluginCatalog.js",
+        "sha256": "189a37af0216d744df70c478377b659aea51a1c722e7e6e3ea6e68937488f32f"
+      }
+    ],
+    "products": [
+      {
+        "id": "action-tracker",
+        "slug": "action-tracker",
+        "name": "Action Tracker",
+        "tier": "pro",
+        "tier_source": "product-catalog",
+        "price": 5,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "action-tracker"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#action-tracker",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "advanced-memory",
+        "slug": "advanced-memory",
+        "name": "Advanced Memory",
+        "tier": "premium",
+        "tier_source": "product-catalog",
+        "price": 99,
+        "price_model": "one-time",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": true,
+        "grants": [
+          "advanced-memory"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#advanced-memory",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "advanced-voice",
+        "slug": "advanced-voice",
+        "name": "Advanced Voice",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": false,
+        "grants": [
+          "advanced-voice"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#advanced-voice",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "aocl-compliance-suite",
+        "slug": "aocl-compliance-suite",
+        "name": "AOCL Compliance Suite",
+        "tier": "enterprise",
+        "tier_source": "product-catalog",
+        "price": 599,
+        "price_model": "subscription",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": true,
+        "grants": [
+          "aocl-compliance-suite"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#aocl-compliance-suite",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "aocl-developer-kit",
+        "slug": "aocl-developer-kit",
+        "name": "AOCL Developer Kit",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "promote-core",
+        "enforcement_point": "core-free",
+        "sellable": false,
+        "grants": [
+          "aocl-developer-kit"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#aocl-developer-kit",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "backup-restore",
+        "slug": "backup-restore",
+        "name": "Backup and Restore",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": false,
+        "grants": [
+          "backup-restore"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#backup-restore",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "bastion-fleet",
+        "slug": "bastion-fleet",
+        "name": "QuoxBastion",
+        "tier": "standard",
+        "tier_source": "product-catalog",
+        "price": 15,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "bastion-fleet"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#bastion-fleet",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "browser-q",
+        "slug": "browser-q",
+        "name": "Browser-Q",
+        "tier": "basic",
+        "tier_source": "product-catalog",
+        "price": 10,
+        "price_model": "subscription",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "browser-q"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#browser-q",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "calendar-q",
+        "slug": "calendarq",
+        "name": "Calendar-Q",
+        "tier": "pro",
+        "tier_source": "product-catalog",
+        "price": 19,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "calendar-q"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#calendarq",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "chief-team-enterprise",
+        "slug": "chief-team-enterprise",
+        "name": "Chief Team — Enterprise",
+        "tier": "enterprise",
+        "tier_source": "product-catalog",
+        "price": 15,
+        "price_model": "one-time",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": true,
+        "grants": [
+          "chief-team-enterprise"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#chief-team-enterprise",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "chief-team-medium",
+        "slug": "chief-team-medium",
+        "name": "Chief Team — Medium Business",
+        "tier": "pro",
+        "tier_source": "product-catalog",
+        "price": 10,
+        "price_model": "one-time",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": true,
+        "grants": [
+          "chief-team-medium"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#chief-team-medium",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "chief-team-small",
+        "slug": "chief-team-small",
+        "name": "Chief Team — Small Business",
+        "tier": "pro",
+        "tier_source": "product-catalog",
+        "price": 5,
+        "price_model": "one-time",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": true,
+        "grants": [
+          "chief-team-small"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#chief-team-small",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "codebase-mirror",
+        "slug": "codebase-mirror",
+        "name": "Codebase Mirror",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": false,
+        "grants": [
+          "codebase-mirror"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#codebase-mirror",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "cogcore3d",
+        "slug": null,
+        "name": "Cognitive Core 3D",
+        "tier": "tier_b",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "cogcore3d"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "cognitive-topology",
+        "slug": "cognitive-topology",
+        "name": "Cognitive Topology",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "promote-core",
+        "enforcement_point": "core-free",
+        "sellable": false,
+        "grants": [
+          "cognitive-topology"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#cognitive-topology",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "core-comms",
+        "slug": "core-comms",
+        "name": "CoreComms",
+        "tier": "basic",
+        "tier_source": "product-catalog",
+        "price": 5,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "core-comms"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#core-comms",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "decision-evidence",
+        "slug": "decision-evidence",
+        "name": "Decision Evidence",
+        "tier": "enterprise",
+        "tier_source": "product-catalog",
+        "price": 599,
+        "price_model": "subscription",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": true,
+        "grants": [
+          "decision-evidence"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#decision-evidence",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "dev-servers",
+        "slug": null,
+        "name": "Quox Dev Servers",
+        "tier": "standard",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "dev-servers"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "dev-suite-bundle",
+        "slug": null,
+        "name": "Quox Dev Suite Bundle",
+        "tier": "pro",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "dev-suite-bundle"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "developer-tools",
+        "slug": null,
+        "name": "Developer Tools",
+        "tier": "tier_a",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "promote-core",
+        "enforcement_point": "core-free",
+        "sellable": false,
+        "grants": [
+          "developer-tools"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "discord-pro",
+        "slug": "discord-pro",
+        "name": "Quox Discord Pro",
+        "tier": "standard",
+        "tier_source": "product-catalog",
+        "price": 49,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "discord-pro"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#discord-pro",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "docker-fleet",
+        "slug": null,
+        "name": "Docker Fleet",
+        "tier": "tier_b",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "docker-fleet"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "doneengine",
+        "slug": null,
+        "name": "DoneEngine",
+        "tier": "basic",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "doneengine"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "enterprise-bundle",
+        "slug": "enterprise-bundle",
+        "name": "Quox Enterprise Bundle",
+        "tier": "enterprise",
+        "tier_source": "product-catalog",
+        "price": 959,
+        "price_model": "subscription",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "enterprise-bundle"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#enterprise-bundle",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "files",
+        "slug": "files",
+        "name": "Files",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": false,
+        "grants": [
+          "files"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#files",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "fixloop",
+        "slug": null,
+        "name": "FixLoop",
+        "tier": "basic",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "fixloop"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "github",
+        "slug": "github",
+        "name": "GitQ",
+        "tier": "pro",
+        "tier_source": "product-catalog",
+        "price": 29,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "github"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#github",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "grafana",
+        "slug": "grafana",
+        "name": "Grafana Dashboards",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "free",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": false,
+        "grants": [
+          "grafana"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#grafana",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "gripe",
+        "slug": null,
+        "name": "Gripe",
+        "tier": "free",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": false,
+        "grants": [
+          "gripe"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "inboxq",
+        "slug": "inboxq",
+        "name": "InboxQ",
+        "tier": "pro",
+        "tier_source": "product-catalog",
+        "price": 29,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "inboxq"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#inboxq",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "linkedin",
+        "slug": "linkedin",
+        "name": "LinkedIn",
+        "tier": "basic",
+        "tier_source": "product-catalog",
+        "price": 2,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "linkedin"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#linkedin",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "local-inference",
+        "slug": "local-inference",
+        "name": "Local Inference",
+        "tier": "pro",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": false,
+        "grants": [
+          "local-inference"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#local-inference",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "mikrotik-routeros",
+        "slug": "mikrotik-routeros",
+        "name": "RouterOS Manager",
+        "tier": "pro",
+        "tier_source": "product-catalog",
+        "price": 35,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "mikrotik-routeros"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#mikrotik-routeros",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "noc",
+        "slug": "noc",
+        "name": "NOC Operations",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "promote-core",
+        "enforcement_point": "core-free",
+        "sellable": false,
+        "grants": [
+          "noc"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#noc",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "noc-suite-bundle",
+        "slug": "noc-suite-bundle",
+        "name": "NOC Suite Bundle",
+        "tier": "premium",
+        "tier_source": "product-catalog",
+        "price": 49,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "noc-suite-bundle"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#noc-suite-bundle",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "notesq",
+        "slug": "notesq",
+        "name": "NotesQ",
+        "tier": "pro",
+        "tier_source": "product-catalog",
+        "price": 19,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "notesq"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#notesq",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "opsdeck",
+        "slug": "opsdeck",
+        "name": "OpsDeck",
+        "tier": "pro",
+        "tier_source": "product-catalog",
+        "price": 8,
+        "price_model": "one-time",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": true,
+        "grants": [
+          "opsdeck"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#opsdeck",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "prometheus",
+        "slug": "prometheus",
+        "name": "Prometheus Intelligence",
+        "tier": "standard",
+        "tier_source": "product-catalog",
+        "price": 19,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "prometheus"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#prometheus",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "prompts-library",
+        "slug": "prompts-library",
+        "name": "Prompts Library",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": false,
+        "grants": [
+          "prompts-library"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#prompts-library",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "proofloop",
+        "slug": null,
+        "name": "ProofLoop",
+        "tier": "standard",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "proofloop"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "proxmox",
+        "slug": "proxmox",
+        "name": "Proxmox VE",
+        "tier": "standard",
+        "tier_source": "product-catalog",
+        "price": 29,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "proxmox"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#proxmox",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "qlarity",
+        "slug": "qlarity",
+        "name": "Qlarity",
+        "tier": "standard",
+        "tier_source": "product-catalog",
+        "price": 29,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "qlarity"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#qlarity",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "qloop",
+        "slug": null,
+        "name": "QLoop",
+        "tier": "premium",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "promote-core",
+        "enforcement_point": "core-free",
+        "sellable": true,
+        "grants": [
+          "qloop"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "quox-brain2",
+        "slug": "quox-brain2",
+        "name": "Brain2",
+        "tier": "premium",
+        "tier_source": "product-catalog",
+        "price": 29,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "quox-brain2"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#quox-brain2",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "quox-nucleus",
+        "slug": "quox-nucleus",
+        "name": "RepoBrain",
+        "tier": "premium",
+        "tier_source": "product-catalog",
+        "price": 39,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "quox-nucleus"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#quox-nucleus",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "quox-security",
+        "slug": "quox-security",
+        "name": "QUOX-SECURITY",
+        "tier": "standard",
+        "tier_source": "product-catalog",
+        "price": 99,
+        "price_model": "one-time",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": true,
+        "grants": [
+          "quox-security"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#quox-security",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "quoxagent-fleet",
+        "slug": "quoxagent-fleet",
+        "name": "QuoxAgent Fleet",
+        "tier": "standard",
+        "tier_source": "product-catalog",
+        "price": 39,
+        "price_model": "one-time",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": true,
+        "grants": [
+          "quoxagent-fleet"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#quoxagent-fleet",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "quoxbox-macmini",
+        "slug": null,
+        "name": "QuoxBox — Mac mini",
+        "tier": "tier_c",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "quoxbox-macmini"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "quoxbuild",
+        "slug": null,
+        "name": "QuoxBuild",
+        "tier": "standard",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "quoxbuild"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "quoxchat",
+        "slug": "quoxchat",
+        "name": "QuoxChat",
+        "tier": "premium",
+        "tier_source": "product-catalog",
+        "price": 199,
+        "price_model": "subscription",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "quoxchat"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#quoxchat",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": "additionalOrgStripePriceId",
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": true
+        }
+      },
+      {
+        "id": "quoxchat-pro",
+        "slug": "quoxchat-pro",
+        "name": "QuoxChat Pro",
+        "tier": "enterprise",
+        "tier_source": "product-catalog",
+        "price": 499,
+        "price_model": "subscription",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": true,
+        "grants": [
+          "quoxchat",
+          "quoxchat-pro"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#quoxchat-pro",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": "additionalOrgStripePriceId",
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": true
+        }
+      },
+      {
+        "id": "quoxcore",
+        "slug": "core",
+        "name": "QuoxCORE",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "free",
+        "enforcement_point": "core-free",
+        "sellable": false,
+        "grants": [
+          "quoxcore"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#core",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "quoxgpu",
+        "slug": "quoxgpu",
+        "name": "QuoxGPU",
+        "tier": "pro",
+        "tier_source": "product-catalog",
+        "price": 89,
+        "price_model": "reservation",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "quoxgpu"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#quoxgpu",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "quoxlens",
+        "slug": null,
+        "name": "QuoxLens",
+        "tier": "tier_b",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "quoxlens"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "quoxmind-complete",
+        "slug": "quoxmind-complete",
+        "name": "QuoxMind Complete",
+        "tier": "premium",
+        "tier_source": "product-catalog",
+        "price": 49,
+        "price_model": "one-time",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": true,
+        "grants": [
+          "quoxmind-complete"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#quoxmind-complete",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "quoxmind-pro",
+        "slug": "quoxmind-pro",
+        "name": "QuoxMind Pro",
+        "tier": "premium",
+        "tier_source": "product-catalog",
+        "price": 29,
+        "price_model": "one-time",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": true,
+        "grants": [
+          "quoxmind-pro"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#quoxmind-pro",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "quoxplan",
+        "slug": "quoxplan",
+        "name": "QuoxPlan",
+        "tier": "premium",
+        "tier_source": "product-catalog",
+        "price": 50,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "quoxplan"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#quoxplan",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "quoxseo",
+        "slug": null,
+        "name": "QuoxSEO",
+        "tier": "tier_b",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "quoxseo"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "quoxsignal",
+        "slug": null,
+        "name": "QuoxSignal",
+        "tier": "tier_b",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "quoxsignal"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "quoxslots",
+        "slug": null,
+        "name": "QuoxSlots",
+        "tier": "standard",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "quoxslots"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "quoxtrade",
+        "slug": null,
+        "name": "QuoxTrade",
+        "tier": "tier_c",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "quoxtrade"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "soc",
+        "slug": "soc",
+        "name": "SOC Security Suite",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": false,
+        "grants": [
+          "soc"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#soc",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "system-maintenance",
+        "slug": "system-maintenance",
+        "name": "System Maintenance",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": false,
+        "grants": [
+          "system-maintenance"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#system-maintenance",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "tailscale",
+        "slug": null,
+        "name": "TailMesh",
+        "tier": "tier_b",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "tailscale"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "telegram-pro",
+        "slug": null,
+        "name": "Quox Telegram Pro",
+        "tier": "tier_b",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "telegram-pro"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "triage",
+        "slug": null,
+        "name": "Triage",
+        "tier": "standard",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "triage"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      },
+      {
+        "id": "uptime-kuma",
+        "slug": "uptime-kuma",
+        "name": "Uptime Kuma",
+        "tier": "basic",
+        "tier_source": "product-catalog",
+        "price": 9,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "uptime-kuma"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#uptime-kuma",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "visualizations",
+        "slug": "visualizations",
+        "name": "Visualizations",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "core-gated",
+        "enforcement_point": "server-gate",
+        "sellable": false,
+        "grants": [
+          "visualizations"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#visualizations",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "wazuh",
+        "slug": "wazuh",
+        "name": "Wazuh SIEM",
+        "tier": "pro",
+        "tier_source": "product-catalog",
+        "price": 25,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "wazuh"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#wazuh",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "web-terminal",
+        "slug": "web-terminal",
+        "name": "Web Terminal",
+        "tier": "premium",
+        "tier_source": "product-catalog",
+        "price": 20,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "web-terminal"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#web-terminal",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "workflow-library",
+        "slug": "workflow-library",
+        "name": "Workflow Library",
+        "tier": "free",
+        "tier_source": "product-catalog",
+        "price": 0,
+        "price_model": "one-time",
+        "category": "promote-core",
+        "enforcement_point": "core-free",
+        "sellable": false,
+        "grants": [
+          "workflow-library"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#workflow-library",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "x",
+        "slug": "x",
+        "name": "X.COM Publisher",
+        "tier": "basic",
+        "tier_source": "product-catalog",
+        "price": 10,
+        "price_model": "one-time",
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "x"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": {
+          "source": "api/data/product-catalog.json#x",
+          "price_id_field": "stripe_price_id",
+          "price_id_configured": false,
+          "additional_org_price_id_field": null,
+          "additional_org_price_id_configured": false,
+          "per_org_pricing": false
+        }
+      },
+      {
+        "id": "youtube",
+        "slug": null,
+        "name": "YouTube",
+        "tier": "tier_a",
+        "tier_source": "plugin-catalog",
+        "price": null,
+        "price_model": null,
+        "category": "strip",
+        "enforcement_point": "bundle-delivery",
+        "sellable": true,
+        "grants": [
+          "youtube"
+        ],
+        "artefacts": [],
+        "backend_image": null,
+        "stripe": null
+      }
+    ]
+  },
+  "sig": "ED25519:fDt4ntbWXCChLurwucB6KWXyA1aKg3HvGOtGTOQzhvzfecwhouzfi/xJ9w4TpbZqX2NsJn7Wg7cnvyHLgZazBQ=="
+}

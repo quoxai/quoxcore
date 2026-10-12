@@ -1,0 +1,49 @@
+{
+  "name": "quox-collector",
+  "version": "1.0.0",
+  "description": "Central heartbeat collector for QuoxAgent instances",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "npm run test:node && npm run test:vitest",
+    "test:vitest": "vitest run",
+    "test:fast": "SKIP_DOCKER=1 vitest run",
+    "test:node": "node --test --import ./test/testEnvScrubSetup.mjs test/quoxchat-*.test.js test/agentToolCatalog.test.js",
+    "test:response-contract": "vitest run lib/responseInvariants lib/responseContract lib/chainGuards test/voltContractEvent.test.js test/stackModeResponseContract.test.js test/stackModeChainGuards.test.js test/aghChainLeaderboardApi.test.js test/aghChainFederatedStatsApi.test.js test/toolExecutions.test.js",
+    "test:toolsmith:e2e-real": "TEST_LLM_STUB=true vitest run test/toolsmithE2eReal.test.js"
+  },
+  "dependencies": {
+    "asn1js": "^3.0.10",
+    "better-sqlite3": "^11.0.0",
+    "cheerio": "^1.2.0",
+    "chokidar": "^3.6.0",
+    "cors": "^2.8.5",
+    "dockerode": "^5.0.0",
+    "express": "^4.18.2",
+    "express-async-errors": "^3.1.1",
+    "express-rate-limit": "^7.5.0",
+    "form-data": "^4.0.5",
+    "helmet": "^8.0.0",
+    "imapflow": "^1.4.6",
+    "jsonwebtoken": "^9.0.2",
+    "jszip": "^3.10.1",
+    "libphonenumber-js": "^1.13.15",
+    "mailparser": "^3.9.14",
+    "multer": "^2.0.2",
+    "nodemailer": "^9.0.3",
+    "pdf-parse": "^2.4.5",
+    "pdfkit": "^0.18.0",
+    "pg": "^8.22.0",
+    "pkijs": "^3.4.0",
+    "ssh2": "^1.17.0",
+    "turndown": "^7.2.4",
+    "ws": "^8.16.0"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}

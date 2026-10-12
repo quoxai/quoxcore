@@ -1,0 +1,301 @@
+{
+  "spec_version": 1,
+  "id": "zoom",
+  "name": "Zoom",
+  "category": "communication",
+  "credentialType": "zoom",
+  "requiredFields": [
+    "account_id",
+    "client_id",
+    "client_secret"
+  ],
+  "description": "Read-only Zoom account access through a Server-to-Server OAuth app: users on the account, a user's scheduled meetings, one meeting's detail and a user's cloud recordings. No meeting is created, updated, ended or deleted by this connector.",
+  "docs": "https://developers.zoom.us/docs/api/",
+  "base_url": "https://api.zoom.us",
+  "auth": {
+    "type": "oauth2_client_credentials",
+    "token_url": "https://zoom.us/oauth/token",
+    "grant_type": "account_credentials",
+    "extra_form": {
+      "account_id": "{{account_id}}"
+    },
+    "client_auth": "basic",
+    "clientIdField": "client_id",
+    "clientSecretField": "client_secret"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/users",
+    "query": {
+      "page_size": "1"
+    }
+  },
+  "tools_source": "https://developers.zoom.us/docs/api/meetings/",
+  "tools": [
+    {
+      "name": "list_users",
+      "description": "List users on the Zoom account (name, email, type, status, role and last login)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive",
+              "pending"
+            ],
+            "description": "Optional user status to filter by (default active)"
+          },
+          "role_id": {
+            "type": "string",
+            "description": "Optional role id to filter by"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Users per page (default 30, max 300)"
+          },
+          "next_page_token": {
+            "type": "string",
+            "description": "Optional paging token returned by a previous call"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/users",
+        "query": {
+          "status": "{{input.status}}",
+          "role_id": "{{input.role_id}}",
+          "page_size": "{{clamp input.page_size 30 300}}",
+          "next_page_token": "{{input.next_page_token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "page_size": "page_size",
+          "total_records": "total_records",
+          "next_page_token": "next_page_token",
+          "users[]": {
+            "id": "id",
+            "first_name": "first_name",
+            "last_name": "last_name",
+            "email": "email",
+            "type": "type",
+            "status": "status",
+            "role_name": "role_name",
+            "dept": "dept",
+            "timezone": "timezone",
+            "last_login_time": "last_login_time"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_meetings",
+      "description": "List a user's scheduled Zoom meetings (topic, type, start time, duration and join URL)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Zoom user id or email address; 'me' is the app's own account owner"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "scheduled",
+              "live",
+              "upcoming",
+              "upcoming_meetings",
+              "previous_meetings"
+            ],
+            "description": "Optional meeting selection (default scheduled)"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Meetings per page (default 30, max 300)"
+          },
+          "next_page_token": {
+            "type": "string",
+            "description": "Optional paging token returned by a previous call"
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/users/{{input.user_id}}/meetings",
+        "query": {
+          "type": "{{input.type}}",
+          "page_size": "{{clamp input.page_size 30 300}}",
+          "next_page_token": "{{input.next_page_token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "page_size": "page_size",
+          "total_records": "total_records",
+          "next_page_token": "next_page_token",
+          "meetings[]": {
+            "id": "id",
+            "uuid": "uuid",
+            "host_id": "host_id",
+            "topic": "topic",
+            "type": "type",
+            "start_time": "start_time",
+            "duration": "duration",
+            "timezone": "timezone",
+            "created_at": "created_at",
+            "join_url": "join_url",
+            "agenda": "agenda"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.user_id": "me"
+      }
+    },
+    {
+      "name": "get_meeting",
+      "description": "Get one Zoom meeting by id (topic, status, host, schedule, agenda and join URL)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "meeting_id": {
+            "type": "string",
+            "description": "Zoom meeting id (numeric) or meeting UUID"
+          },
+          "occurrence_id": {
+            "type": "string",
+            "description": "Optional occurrence id for one instance of a recurring meeting"
+          },
+          "show_previous_occurrences": {
+            "type": "boolean",
+            "description": "Optional: include previous occurrences of a recurring meeting"
+          }
+        },
+        "required": [
+          "meeting_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/meetings/{{input.meeting_id}}",
+        "query": {
+          "occurrence_id": "{{input.occurrence_id}}",
+          "show_previous_occurrences": "{{input.show_previous_occurrences}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "uuid": "uuid",
+          "host_id": "host_id",
+          "host_email": "host_email",
+          "topic": "topic",
+          "type": "type",
+          "status": "status",
+          "start_time": "start_time",
+          "duration": "duration",
+          "timezone": "timezone",
+          "agenda": "agenda",
+          "created_at": "created_at",
+          "join_url": "join_url"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.meeting_id": "1000000000"
+      }
+    },
+    {
+      "name": "list_recordings",
+      "description": "List a user's Zoom cloud recordings in a date range (meeting topic, start time, size and share URL)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Zoom user id or email address; 'me' is the app's own account owner"
+          },
+          "from": {
+            "type": "string",
+            "description": "Optional start date, yyyy-mm-dd (Zoom defaults to the last month)"
+          },
+          "to": {
+            "type": "string",
+            "description": "Optional end date, yyyy-mm-dd"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Recordings per page (default 30, max 300)"
+          },
+          "next_page_token": {
+            "type": "string",
+            "description": "Optional paging token returned by a previous call"
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/users/{{input.user_id}}/recordings",
+        "query": {
+          "from": "{{input.from}}",
+          "to": "{{input.to}}",
+          "page_size": "{{clamp input.page_size 30 300}}",
+          "next_page_token": "{{input.next_page_token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "from": "from",
+          "to": "to",
+          "page_size": "page_size",
+          "total_records": "total_records",
+          "next_page_token": "next_page_token",
+          "meetings[]": {
+            "id": "id",
+            "uuid": "uuid",
+            "topic": "topic",
+            "host_id": "host_id",
+            "start_time": "start_time",
+            "duration": "duration",
+            "total_size": "total_size",
+            "recording_count": "recording_count",
+            "share_url": "share_url"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.user_id": "me"
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH IS SERVER-TO-SERVER OAUTH, NOT BASIC: the scaffold had auth {type: basic} with base_url https://zoom.us and a POST /oauth/token test, which only ever proved the token exchange and left no API surface. This spec uses auth.type oauth2_client_credentials with token_url https://zoom.us/oauth/token, grant_type account_credentials (Zoom's own name for the RFC 6749 4.4 exchange), extra_form {account_id} and client_auth basic, which is exactly what integrationTypeRegistry.js key zoom already sends in its testBody and testHeaders. base_url moved to the API host https://api.zoom.us, where every tool below lives.",
+      "SCOPES ARE AN ACCOUNT-SIDE PREREQUISITE: these four reads need user:read:admin (or user:read:list_users:admin), meeting:read:admin and cloud_recording:read:admin on the Server-to-Server OAuth app. A token minted without them authenticates and then 400s with code 4711 on the endpoint, so a missing scope looks like a working credential. Nothing in this spec can detect that; it is an account configuration step.",
+      "SHAPE-PROOF RESULT (real run, 2026-09-12, 1 iteration): verbatim overall line 'zoom  SHAPE_PROVEN  proven=5 authwall=0 ambiguous=0 failed=0 inconclusive=0 skipped=0'. All five probes (the test call plus four tools) answered 401 with the structured JSON body {\"code\":124,\"message\":\"Invalid access token.\"}, while the bogus control path answered an HTML 404 marketing page: host, TLS, base_url https://api.zoom.us, the Authorization header handling and every path are proven by that differential.",
+      "TOKEN EXCHANGE IS NOT PROVEN BY THE SHAPE-PROOF: the harness fires a dummy bearer at api.zoom.us rather than running the account_credentials exchange, so the run above covers the API surface only. Whether client_auth basic plus grant_type account_credentials plus extra_form account_id actually mints a token at https://zoom.us/oauth/token is UNPROVEN here and needs one real Server-to-Server OAuth credential to confirm.",
+      "PAGE SIZE IS CLAMPED TO ZOOM'S DOCUMENTED CEILING: list_users, list_meetings and list_recordings all clamp page_size to default 30, max 300, the documented bounds. A caller asking for more gets 300 rather than a 400.",
+      "PROBE VALUES ARE SAFE AND READ-ONLY: _probe supplies user_id 'me' (Zoom's documented alias for the app's own account owner, so the path routes without naming a real person) and a well-formed but unallocated meeting id. No credential is ever hinted.",
+      "READ ONLY BY CONSTRUCTION: no tool is marked write:true and every request is a GET, so no meeting, registrant or recording can be mutated through this connector. Zoom's write surface (create, update, end, delete) is deliberately out of scope."
+    ]
+  }
+}

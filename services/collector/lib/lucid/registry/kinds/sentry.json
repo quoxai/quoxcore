@@ -1,0 +1,22 @@
+{
+  "kind": "sentry", "prefixes": ["sentry:"], "area": "systems", "derive": "sentry",
+  "plain": {
+    "zombies": { "title": "Dead processes are piling up", "short": "dead processes piling up", "why": "Programs exited but nothing cleaned them up. Harmless in small numbers; a leak if the count keeps rising." },
+    "sustained-load": { "title": "The server has been running hot", "short": "server running hot", "why": "Load stayed above the number of CPUs for several minutes, so everything on it slows down." },
+    "sustained-burner": { "title": "A program has been hogging the CPU", "short": "a program hogging the CPU", "why": "One process has used most of a CPU for most of its life, often a stuck loop or a leaked browser." },
+    "container-pegged": { "title": "A container is maxing out its CPU", "short": "a container maxing out its CPU", "why": "A Docker container has been at full CPU for a while." },
+    "unit-failed": { "title": "A service failed", "short": "a service failed", "why": "A background service stopped and nothing will restart it on its own." },
+    "restart-storm": { "title": "A service keeps restarting", "short": "a service keeps restarting", "why": "It crashes and is restarted over and over, which burns CPU and hides the real error." }
+  },
+  "plain_fallback": { "why": "Reported by the box watchdog." },
+  "ok_statuses": ["resolved", "ok", "cleared"],
+  "variants": [
+    { "id": "alert",
+      "urgency": [{ "is": "fyi" }],
+      "short": "{plain_short}",
+      "L0": "{plain_title}",
+      "L1": { "who": "DAEDALUS (box watchdog)", "what": "{what}", "why": "{plain_why}" },
+      "how": "Usually clears by itself. Ask DAEDALUS to look (box_health) if it keeps coming back.",
+      "measures": ["investigate"] }
+  ]
+}

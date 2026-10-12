@@ -1,0 +1,35 @@
+{
+  "spec_version": 1,
+  "id": "plausible",
+  "name": "Plausible",
+  "category": "uncategorized",
+  "credentialType": "plausible",
+  "requiredFields": [
+    "api_key",
+    "base_url"
+  ],
+  "docs": "https://plausible.io/docs/stats-api",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/stats/realtime/visitors",
+    "query": {
+      "site_id": "example.com"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:41:54.106Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:base_url"
+    ]
+  }
+}

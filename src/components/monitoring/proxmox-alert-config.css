@@ -1,0 +1,293 @@
+/* ProxmoxAlertConfig — Alert rules panel in sidebar */
+
+.pxac {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pxac-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pxac-toggle:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pxac-toggle__icon {
+  color: #ffb030;
+  font-size: 11px;
+}
+
+.pxac-toggle__label {
+  flex: 1;
+}
+
+.pxac-toggle__count {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: rgba(255, 176, 48, 0.12);
+  color: #ffb030;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.pxac-toggle__arrow {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.pxac-body {
+  padding: 0 8px 8px;
+}
+
+/* ── Rule item ── */
+.pxac-rule {
+  padding: 6px 8px;
+  border-radius: 5px;
+  margin-bottom: 4px;
+}
+
+.pxac-rule:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pxac-rule--disabled {
+  opacity: 0.45;
+}
+
+.pxac-rule__main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Toggle switch */
+.pxac-rule__toggle {
+  width: 28px;
+  height: 14px;
+  border-radius: 7px;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s;
+  padding: 0;
+}
+
+.pxac-rule__toggle--on {
+  background: rgba(48, 255, 144, 0.3);
+}
+
+.pxac-rule__toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  transition: left 0.15s;
+}
+
+.pxac-rule__toggle--on .pxac-rule__toggle-knob {
+  left: 16px;
+  background: #30ff90;
+}
+
+.pxac-rule__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pxac-rule__name {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pxac-rule__desc {
+  display: block;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.pxac-rule__priority {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.pxac-rule__priority--critical {
+  background: rgba(255, 107, 48, 0.15);
+  color: #ff6b30;
+}
+
+.pxac-rule__priority--high {
+  background: rgba(255, 176, 48, 0.12);
+  color: #ffb030;
+}
+
+.pxac-rule__priority--normal {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.pxac-rule__priority--low {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.pxac-rule__delete {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.pxac-rule__delete:hover {
+  color: #ff6b30;
+  background: rgba(255, 107, 48, 0.1);
+}
+
+/* ── Add form ── */
+.pxac-form {
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  margin-top: 4px;
+}
+
+.pxac-form__input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  margin-bottom: 6px;
+  outline: none;
+}
+
+.pxac-form__input:focus {
+  border-color: rgba(255, 107, 48, 0.3);
+}
+
+.pxac-form__input--small {
+  width: 48px;
+  text-align: center;
+  margin-bottom: 0;
+}
+
+.pxac-form__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.pxac-form__label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+
+.pxac-form__select {
+  padding: 3px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  outline: none;
+}
+
+.pxac-form__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.pxac-form__btn {
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.pxac-form__btn:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.pxac-form__btn--save {
+  background: rgba(255, 107, 48, 0.12);
+  border-color: rgba(255, 107, 48, 0.2);
+  color: #ff6b30;
+}
+
+.pxac-form__btn--save:hover {
+  background: rgba(255, 107, 48, 0.2);
+}
+
+/* ── Bottom actions ── */
+.pxac-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.pxac-add {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.pxac-add:hover {
+  border-color: rgba(255, 107, 48, 0.2);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.pxac-reset {
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.pxac-reset:hover {
+  color: rgba(255, 255, 255, 0.5);
+}

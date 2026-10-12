@@ -1,0 +1,90 @@
+{
+  "spec_id": "mapbox",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:51.972Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.mapbox.com/quox-shapeproof-control-b6551d55?access_token=QUOXSHAPEPROOFDUMMYACCESSTOKEN",
+      "status": 404,
+      "latency_ms": 67,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.mapbox.com/geocoding/v5/mapbox.places/London.json?limit=1&access_token=QUOXSHAPEPROOFDUMMYACCESSTOKEN",
+      "status": 401,
+      "latency_ms": 42,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "78b4f79420eae17315793ad5b6240c486c6fc8722824c6fe0cea7f72e719acda",
+      "body_excerpt": "{\"message\":\"Not Authorized - Invalid Token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "geocode_forward",
+      "method": "GET",
+      "url": "https://api.mapbox.com/geocoding/v5/mapbox.places/quoxprobe.json?limit=5&country=quoxprobe&types=quoxprobe&access_token=QUOXSHAPEPROOFDUMMYACCESSTOKEN",
+      "status": 401,
+      "latency_ms": 222,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "78b4f79420eae17315793ad5b6240c486c6fc8722824c6fe0cea7f72e719acda",
+      "body_excerpt": "{\"message\":\"Not Authorized - Invalid Token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "geocode_reverse",
+      "method": "GET",
+      "url": "https://api.mapbox.com/geocoding/v5/mapbox.places/-0.1276,51.5072.json?types=quoxprobe&access_token=QUOXSHAPEPROOFDUMMYACCESSTOKEN",
+      "status": 401,
+      "latency_ms": 218,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "78b4f79420eae17315793ad5b6240c486c6fc8722824c6fe0cea7f72e719acda",
+      "body_excerpt": "{\"message\":\"Not Authorized - Invalid Token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_styles",
+      "method": "GET",
+      "url": "https://api.mapbox.com/styles/v1/mapbox?access_token=QUOXSHAPEPROOFDUMMYACCESSTOKEN",
+      "status": 401,
+      "latency_ms": 214,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "78b4f79420eae17315793ad5b6240c486c6fc8722824c6fe0cea7f72e719acda",
+      "body_excerpt": "{\"message\":\"Not Authorized - Invalid Token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_driving_directions",
+      "method": "GET",
+      "url": "https://api.mapbox.com/directions/v5/mapbox/driving/-0.1276%2C51.5072%3B-0.1419%2C51.5014?overview=false&steps=false&access_token=QUOXSHAPEPROOFDUMMYACCESSTOKEN",
+      "status": 401,
+      "latency_ms": 241,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1a959490f019d34efa5d85149ecc4fe11f38a38918ace9446609b0c2e58cd51c",
+      "body_excerpt": "{\"message\": \"Not Authorized - Invalid Token\",  \"error_detail\": \"No valid token prefix found in access_token parameter\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

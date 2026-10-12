@@ -1,0 +1,90 @@
+{
+  "spec_id": "dropbox",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:26.804Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.dropboxapi.com/quox-shapeproof-control-75170593",
+      "status": 404,
+      "latency_ms": 241,
+      "classification": "CONTROL",
+      "body_sha256": "7c3062f4433da04b86fb2a95156b3598d5e9e030494f9956755dcff563579a4a",
+      "body_excerpt": "<!DOCTYPE html>\n<html>\n<head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n<title>Dropbox - 404</title>\n<li",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "POST",
+      "url": "https://api.dropboxapi.com/2/users/get_current_account",
+      "status": 401,
+      "latency_ms": 180,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c092790e7d666a656ea021aebdef9bdb13595b677706250cd94f6026f77a9e85",
+      "body_excerpt": "{\"error\":{\".tag\":\"invalid_access_token\"},\"error_summary\":\"invalid_access_token/\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_current_account",
+      "method": "POST",
+      "url": "https://api.dropboxapi.com/2/users/get_current_account",
+      "status": 401,
+      "latency_ms": 203,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c092790e7d666a656ea021aebdef9bdb13595b677706250cd94f6026f77a9e85",
+      "body_excerpt": "{\"error\":{\".tag\":\"invalid_access_token\"},\"error_summary\":\"invalid_access_token/\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_folder",
+      "method": "POST",
+      "url": "https://api.dropboxapi.com/2/files/list_folder",
+      "status": 401,
+      "latency_ms": 261,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c092790e7d666a656ea021aebdef9bdb13595b677706250cd94f6026f77a9e85",
+      "body_excerpt": "{\"error\":{\".tag\":\"invalid_access_token\"},\"error_summary\":\"invalid_access_token/\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "search_files",
+      "method": "POST",
+      "url": "https://api.dropboxapi.com/2/files/search_v2",
+      "status": 401,
+      "latency_ms": 268,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c092790e7d666a656ea021aebdef9bdb13595b677706250cd94f6026f77a9e85",
+      "body_excerpt": "{\"error\":{\".tag\":\"invalid_access_token\"},\"error_summary\":\"invalid_access_token/\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_space_usage",
+      "method": "POST",
+      "url": "https://api.dropboxapi.com/2/users/get_space_usage",
+      "status": 401,
+      "latency_ms": 269,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c092790e7d666a656ea021aebdef9bdb13595b677706250cd94f6026f77a9e85",
+      "body_excerpt": "{\"error\":{\".tag\":\"invalid_access_token\"},\"error_summary\":\"invalid_access_token/\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,352 @@
+{
+  "spec_version": 1,
+  "id": "threads",
+  "name": "Threads (Meta)",
+  "category": "media",
+  "credentialType": "threads",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://developers.facebook.com/docs/threads",
+  "base_url": "https://graph.threads.net",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1.0/me"
+  },
+  "tools_source": "https://developers.facebook.com/docs/threads/reference",
+  "tools": [
+    {
+      "name": "get_profile",
+      "description": "Get the Threads profile the access token belongs to (id, username, name, biography, profile picture)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1.0/me",
+        "query": {
+          "fields": "id,username,name,threads_profile_picture_url,threads_biography"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "username": "username",
+          "name": "name",
+          "threads_profile_picture_url": "threads_profile_picture_url",
+          "threads_biography": "threads_biography"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_threads",
+      "description": "List the authenticated user's Threads posts, newest first, optionally within a date window",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max posts to return (default 20, max 100)"
+          },
+          "since": {
+            "type": "string",
+            "description": "Optional start of the window, ISO date (YYYY-MM-DD) or Unix timestamp"
+          },
+          "until": {
+            "type": "string",
+            "description": "Optional end of the window, ISO date (YYYY-MM-DD) or Unix timestamp"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1.0/me/threads",
+        "query": {
+          "fields": "id,media_product_type,media_type,permalink,username,text,timestamp,shortcode,is_quote_post,has_replies",
+          "limit": "{{clamp input.limit 20 100}}",
+          "since": "{{input.since}}",
+          "until": "{{input.until}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "media_type": "media_type",
+            "text": "text",
+            "permalink": "permalink",
+            "username": "username",
+            "timestamp": "timestamp",
+            "shortcode": "shortcode",
+            "is_quote_post": "is_quote_post",
+            "has_replies": "has_replies"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_thread",
+      "description": "Get one Threads post by media ID (text, media type, permalink, author, timestamp)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "media_id": {
+            "type": "string",
+            "description": "Threads media ID of the post"
+          }
+        },
+        "required": [
+          "media_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1.0/{{input.media_id}}",
+        "query": {
+          "fields": "id,media_product_type,media_type,media_url,thumbnail_url,permalink,username,text,timestamp,shortcode,is_quote_post,has_replies,is_reply,owner"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "media_product_type": "media_product_type",
+          "media_type": "media_type",
+          "media_url": "media_url",
+          "permalink": "permalink",
+          "username": "username",
+          "text": "text",
+          "timestamp": "timestamp",
+          "shortcode": "shortcode",
+          "is_quote_post": "is_quote_post",
+          "has_replies": "has_replies",
+          "is_reply": "is_reply",
+          "owner_id": "owner.id"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_thread_replies",
+      "description": "List the direct (top-level) replies to one Threads post",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "media_id": {
+            "type": "string",
+            "description": "Threads media ID of the post whose replies to read"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max replies to return (default 20, max 100)"
+          },
+          "reverse": {
+            "type": "string",
+            "enum": [
+              "true",
+              "false"
+            ],
+            "description": "Order: true for newest first (default), false for oldest first"
+          }
+        },
+        "required": [
+          "media_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1.0/{{input.media_id}}/replies",
+        "query": {
+          "fields": "id,text,username,permalink,timestamp,media_type,shortcode,has_replies,is_reply,hide_status",
+          "limit": "{{clamp input.limit 20 100}}",
+          "reverse": "{{input.reverse}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "text": "text",
+            "username": "username",
+            "permalink": "permalink",
+            "timestamp": "timestamp",
+            "media_type": "media_type",
+            "has_replies": "has_replies",
+            "hide_status": "hide_status"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_thread_conversation",
+      "description": "List the full reply conversation under one Threads post, flattened across nesting levels",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "media_id": {
+            "type": "string",
+            "description": "Threads media ID of the root post"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max replies to return (default 20, max 100)"
+          },
+          "reverse": {
+            "type": "string",
+            "enum": [
+              "true",
+              "false"
+            ],
+            "description": "Order: true for newest first (default), false for oldest first"
+          }
+        },
+        "required": [
+          "media_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1.0/{{input.media_id}}/conversation",
+        "query": {
+          "fields": "id,text,username,permalink,timestamp,media_type,has_replies,is_reply,hide_status,replied_to,root_post",
+          "limit": "{{clamp input.limit 20 100}}",
+          "reverse": "{{input.reverse}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "text": "text",
+            "username": "username",
+            "permalink": "permalink",
+            "timestamp": "timestamp",
+            "has_replies": "has_replies",
+            "hide_status": "hide_status",
+            "replied_to_id": "replied_to.id",
+            "root_post_id": "root_post.id"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_thread_insights",
+      "description": "Get engagement insights for one Threads post (views, likes, replies, reposts, quotes)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "media_id": {
+            "type": "string",
+            "description": "Threads media ID of the post"
+          }
+        },
+        "required": [
+          "media_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1.0/{{input.media_id}}/insights",
+        "query": {
+          "metric": "views,likes,replies,reposts,quotes"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "name": "name",
+            "period": "period",
+            "title": "title",
+            "value": "values.0.value",
+            "total_value": "total_value.value"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_account_insights",
+      "description": "Get account-level Threads insights for the authenticated user (views, likes, replies, reposts, quotes, follower count)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "since": {
+            "type": "string",
+            "description": "Optional start of the window as a Unix timestamp (insights start 2024-04-13)"
+          },
+          "until": {
+            "type": "string",
+            "description": "Optional end of the window as a Unix timestamp"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1.0/me/threads_insights",
+        "query": {
+          "metric": "views,likes,replies,reposts,quotes,followers_count",
+          "since": "{{input.since}}",
+          "until": "{{input.until}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "name": "name",
+            "period": "period",
+            "title": "title",
+            "value": "values.0.value",
+            "total_value": "total_value.value"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_publishing_limit",
+      "description": "Get the authenticated user's Threads publishing quota usage for posts and replies",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1.0/me/threads_publishing_limit",
+        "query": {
+          "fields": "quota_usage,config,reply_quota_usage,reply_config"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "quota_usage": "quota_usage",
+            "quota_total": "config.quota_total",
+            "quota_duration": "config.quota_duration",
+            "reply_quota_usage": "reply_quota_usage",
+            "reply_quota_total": "reply_config.quota_total",
+            "reply_quota_duration": "reply_config.quota_duration"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,270 @@
+{
+  "spec_version": 1,
+  "id": "rabbitmq",
+  "name": "RabbitMQ",
+  "category": "monitoring",
+  "credentialType": "rabbitmq",
+  "requiredFields": [
+    "base_url",
+    "username",
+    "password"
+  ],
+  "docs": "https://www.rabbitmq.com/docs/management#http-api",
+  "tools_source": "https://raw.githubusercontent.com/rabbitmq/rabbitmq-server/main/deps/rabbitmq_management/priv/www/api/index.html",
+  "description": "RabbitMQ broker reads over the management HTTP API: cluster overview, node health, the vhost list, and per-queue, per-exchange and per-connection state. Read-only; no queue, exchange, binding, vhost, user or policy write, and no publish/get/purge, is wired here.",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "username",
+    "passField": "password"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/overview"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "overview",
+      "description": "Get the broker overview: RabbitMQ and Erlang versions, cluster name, total object and message counts, and the global message rates",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/overview"
+      },
+      "response": {
+        "pick": {
+          "rabbitmq_version": "rabbitmq_version",
+          "erlang_version": "erlang_version",
+          "product_name": "product_name",
+          "product_version": "product_version",
+          "cluster_name": "cluster_name",
+          "node": "node",
+          "object_totals": "object_totals",
+          "queue_totals": "queue_totals",
+          "message_stats": "message_stats"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_nodes",
+      "description": "List the cluster nodes with their running state, memory and disk alarms, and file-descriptor and socket usage",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/nodes"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name",
+            "type": "type",
+            "running": "running",
+            "os_pid": "os_pid",
+            "mem_used": "mem_used",
+            "mem_limit": "mem_limit",
+            "mem_alarm": "mem_alarm",
+            "disk_free": "disk_free",
+            "disk_free_alarm": "disk_free_alarm",
+            "fd_used": "fd_used",
+            "fd_total": "fd_total",
+            "sockets_used": "sockets_used",
+            "uptime": "uptime"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_vhosts",
+      "description": "List the virtual hosts with their message counts and message rates",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/vhosts"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name",
+            "description": "description",
+            "tags": "tags",
+            "messages": "messages",
+            "messages_ready": "messages_ready",
+            "messages_unacknowledged": "messages_unacknowledged"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_queues",
+      "description": "List queues with their vhost, node, durability, consumer count and ready/unacknowledged message depth",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "1-based page number (management API paginates queues)"
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Queues per page (default 100, max 500)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional case-sensitive substring to filter queue names by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/queues",
+        "query": {
+          "page": "{{input.page}}",
+          "page_size": "{{input.page_size}}",
+          "name": "{{input.name}}",
+          "disable_stats": "false"
+        }
+      },
+      "response": {
+        "pick": {
+          "page": "page",
+          "page_count": "page_count",
+          "item_count": "item_count",
+          "total_count": "total_count",
+          "items[]": {
+            "name": "name",
+            "vhost": "vhost",
+            "node": "node",
+            "state": "state",
+            "durable": "durable",
+            "auto_delete": "auto_delete",
+            "consumers": "consumers",
+            "messages": "messages",
+            "messages_ready": "messages_ready",
+            "messages_unacknowledged": "messages_unacknowledged"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.page": 1,
+        "input.page_size": 100
+      }
+    },
+    {
+      "name": "list_exchanges",
+      "description": "List exchanges with their vhost, type (direct/fanout/topic/headers), durability and internal flag",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/exchanges"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name",
+            "vhost": "vhost",
+            "type": "type",
+            "durable": "durable",
+            "auto_delete": "auto_delete",
+            "internal": "internal"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_connections",
+      "description": "List client connections with their peer host, protocol, authenticated user, vhost, channel count and connection state",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/connections"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name",
+            "user": "user",
+            "vhost": "vhost",
+            "protocol": "protocol",
+            "peer_host": "peer_host",
+            "peer_port": "peer_port",
+            "state": "state",
+            "channels": "channels",
+            "connected_at": "connected_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "healthchecks_alarms",
+      "description": "Check whether any resource alarm (memory or disk) is in effect across the cluster; returns ok or a failure reason",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/health/checks/alarms"
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "reason": "reason"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-12 for the live-proof pipeline",
+    "confidence": "live",
+    "needs_review": [
+      "READ-ONLY by design: all seven tools are GET and carry write:false. The management API's mutating surface (PUT /api/queues, /api/exchanges, /api/vhosts, /api/users, /api/policies; DELETE of the same; POST /api/exchanges/.../publish and /api/queues/.../get, which publishes and destructively consumes) is deliberately not modelled.",
+      "list_queues sends disable_stats=false so message depths are populated; on a very large broker the management API can be slow to assemble per-object stats, which is why page_size is exposed and defaulted to 100. The pick keeps the paginated envelope (page/page_count/total_count) plus items[].",
+      "list_nodes / list_vhosts / list_exchanges / list_connections return a BARE JSON ARRAY, so the pick uses the '[]' whole-response array form. On a fresh broker list_connections is a 200 with an empty array (no clients yet), which is the honest expected live result, not an error.",
+      "message_stats and rate fields appear on overview only once the management stats database has collected a sample; immediately after boot they may be absent, so the pick tolerates their absence rather than requiring them.",
+      "LIVE-PROOF CONTRACT: every tool carries a tool-level _probe. The four bare-array listers and overview/healthchecks take no input, so their _probe is deliberately EMPTY ({}). list_queues probes page 1 / page_size 100. No credential is ever hinted. Proven against docker rabbitmq:3-management with a purpose-set user, then destroyed.",
+      "healthchecks_alarms returns HTTP 200 with {status:ok} when no alarm is set and HTTP 503 with {status:failed,reason} when one is. The live harness requires 2xx, so this tool proves the healthy path; the 503-with-body case is a documented runtime behaviour the harness cannot assert here.",
+      "rateLimit 30/min is a local courtesy and spend guard, not a RabbitMQ number: the management API enforces no request rate limit of its own."
+    ]
+  }
+}

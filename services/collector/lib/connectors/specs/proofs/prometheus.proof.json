@@ -1,0 +1,106 @@
+{
+  "spec_id": "prometheus",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T18:20:43.334Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/status/config",
+      "status": 200,
+      "latency_ms": 155,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "e6ccc34253e7949ac8ffbc98c491854a05be8044ff91a4eb8ebb61528d931caf",
+      "body_excerpt": "{\"status\":\"success\",\"data\":{\"yaml\":\"global:\\n  scrape_interval: 15s\\n  scrape_timeout: 10s\\n  scrape_protocols:\\n  - OpenMetricsText1.0.0\\n  - OpenMetricsText0.0.1\\n  - PrometheusText0.0.4\\n  evaluati",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "instant_query",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/query?query=up",
+      "status": 200,
+      "latency_ms": 9,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "664b0f4a552599ac59d91a24f7e6ea8c7a4499ad237fb76aa25c33d8c25f6ec2",
+      "body_excerpt": "{\"status\":\"success\",\"data\":{\"resultType\":\"vector\",\"result\":[]}}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "query_range",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/query_range?query=up&start=2020-01-01T00%3A00%3A00Z&end=2020-01-01T00%3A05%3A00Z&step=60s",
+      "status": 200,
+      "latency_ms": 10,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "5270461ec81028d05a5dc2cd726f822921a8aacd21927e829d8895b3d662f0cc",
+      "body_excerpt": "{\"status\":\"success\",\"data\":{\"resultType\":\"matrix\",\"result\":[]}}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_targets",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/targets?state=active",
+      "status": 200,
+      "latency_ms": 9,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "c82bfa135772b61321a5a64d4b7829c4de5e5952e432d7a427a388ea5d2499e0",
+      "body_excerpt": "{\"status\":\"success\",\"data\":{\"activeTargets\":[],\"droppedTargets\":[],\"droppedTargetCounts\":null}}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "label_values",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/label/__name__/values",
+      "status": 200,
+      "latency_ms": 21,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "20bc1392a17b383b46fffc33c8e796755452883bfcfc2d33c90342ea70227639",
+      "body_excerpt": "{\"status\":\"success\",\"data\":[]}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_alerts",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/alerts",
+      "status": 200,
+      "latency_ms": 13,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "ce777868edaa04d525edc5f96d3e310828eb72691d53e18cd926dc12805579cc",
+      "body_excerpt": "{\"status\":\"success\",\"data\":{\"alerts\":[]}}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "runtime_info",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/status/runtimeinfo",
+      "status": 200,
+      "latency_ms": 18,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "5148f57f6c6d57c980e29a51ddea48b175665c79d5884906f749972029ffd932",
+      "body_excerpt": "{\"status\":\"success\",\"data\":{\"startTime\":\"2026-09-12T18:20:40.421984865Z\",\"CWD\":\"/prometheus\",\"reloadConfigSuccess\":true,\"lastConfigTime\":\"2026-09-12T18:20:40Z\",\"corruptionCount\":0,\"goroutineCount\":27,",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:prom/prometheus:v2.55.1"
+}

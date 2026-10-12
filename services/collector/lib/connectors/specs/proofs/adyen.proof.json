@@ -1,0 +1,105 @@
+{
+  "spec_id": "adyen",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:44:42.088Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://management-live.adyen.com/quox-shapeproof-control-ee46e2d1",
+      "status": 401,
+      "latency_ms": 1187,
+      "classification": "CONTROL",
+      "body_sha256": "5863732443ba014c5c58b5059e378e1d19f8da84811c21b9fedc27a2a7fd2b7e",
+      "body_excerpt": "{\"type\":\"https:\\/\\/docs.adyen.com\\/errors\\/unauthorized\",\"title\":\"Unauthorized\",\"status\":401,\"errorCode\":\"00_401\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://management-live.adyen.com/v3/me",
+      "status": 401,
+      "latency_ms": 29,
+      "classification": "AUTH_WALL",
+      "body_sha256": "5863732443ba014c5c58b5059e378e1d19f8da84811c21b9fedc27a2a7fd2b7e",
+      "body_excerpt": "{\"type\":\"https:\\/\\/docs.adyen.com\\/errors\\/unauthorized\",\"title\":\"Unauthorized\",\"status\":401,\"errorCode\":\"00_401\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_merchants",
+      "method": "GET",
+      "url": "https://management-live.adyen.com/v3/merchants?pageSize=20&pageNumber=1",
+      "status": 401,
+      "latency_ms": 39,
+      "classification": "AUTH_WALL",
+      "body_sha256": "5863732443ba014c5c58b5059e378e1d19f8da84811c21b9fedc27a2a7fd2b7e",
+      "body_excerpt": "{\"type\":\"https:\\/\\/docs.adyen.com\\/errors\\/unauthorized\",\"title\":\"Unauthorized\",\"status\":401,\"errorCode\":\"00_401\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_merchant",
+      "method": "GET",
+      "url": "https://management-live.adyen.com/v3/merchants/quoxprobe",
+      "status": 401,
+      "latency_ms": 212,
+      "classification": "AUTH_WALL",
+      "body_sha256": "5863732443ba014c5c58b5059e378e1d19f8da84811c21b9fedc27a2a7fd2b7e",
+      "body_excerpt": "{\"type\":\"https:\\/\\/docs.adyen.com\\/errors\\/unauthorized\",\"title\":\"Unauthorized\",\"status\":401,\"errorCode\":\"00_401\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_stores",
+      "method": "GET",
+      "url": "https://management-live.adyen.com/v3/merchants/quoxprobe/stores?reference=quoxprobe&pageSize=20&pageNumber=1",
+      "status": 401,
+      "latency_ms": 193,
+      "classification": "AUTH_WALL",
+      "body_sha256": "5863732443ba014c5c58b5059e378e1d19f8da84811c21b9fedc27a2a7fd2b7e",
+      "body_excerpt": "{\"type\":\"https:\\/\\/docs.adyen.com\\/errors\\/unauthorized\",\"title\":\"Unauthorized\",\"status\":401,\"errorCode\":\"00_401\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_payment_methods",
+      "method": "GET",
+      "url": "https://management-live.adyen.com/v3/merchants/quoxprobe/paymentMethodSettings?storeId=quoxprobe&pageSize=20&pageNumber=1",
+      "status": 401,
+      "latency_ms": 218,
+      "classification": "AUTH_WALL",
+      "body_sha256": "5863732443ba014c5c58b5059e378e1d19f8da84811c21b9fedc27a2a7fd2b7e",
+      "body_excerpt": "{\"type\":\"https:\\/\\/docs.adyen.com\\/errors\\/unauthorized\",\"title\":\"Unauthorized\",\"status\":401,\"errorCode\":\"00_401\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

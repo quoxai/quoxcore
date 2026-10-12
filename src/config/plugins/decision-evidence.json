@@ -1,0 +1,176 @@
+{
+  "name": "decision-evidence",
+  "version": "1.0.0",
+  "displayName": "Decision Evidence",
+  "tagline": "Know Why Every AI Decision Was Made",
+  "description": "Structured decision evidence for every AI agent response. Captures inputs, reasoning, tools used, and confidence levels in a compact, auditable format. Complements the AOCL Compliance Suite by generating the evidence that compliance exports rely on.",
+  "shortDescription": "Structured decision evidence capture for AI agent responses.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 699,
+  "priceDisplay": "$699/yr",
+  "priceModel": "annual",
+  "perpetualPrice": 1299,
+  "perpetualDisplay": "$1,299",
+  "tier": "enterprise",
+  "featured": true,
+  "badge": "ENTERPRISE",
+  "infoUrl": "https://quox.ai/plugins/decision-evidence",
+  "docsUrl": "https://quox.ai/docs/plugins/decision-evidence",
+  "icon": "scale",
+  "heroGradient": "linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%)",
+  "accentColor": "#d97706",
+  "marketingPoints": [
+    "Structured evidence for every AI decision, not just logs",
+    "Four evidence levels: minimal, standard, full, or off",
+    "Automatic VOLT recording for tamper-evident audit trails",
+    "Search and filter decisions by confidence, tools used, or time range",
+    "Complements Compliance Suite for auditor-ready exports"
+  ],
+  "features": {
+    "evidenceCapture": {
+      "name": "Evidence Capture",
+      "description": "Every AI response includes structured decision evidence: what inputs were considered, which tools were used, what was decided, and why.",
+      "icon": "clipboard-check",
+      "highlight": true
+    },
+    "evidenceTimeline": {
+      "name": "Evidence Timeline",
+      "description": "Chronological view of all decision evidence across conversations. Filter by agent, confidence level, or time range.",
+      "icon": "clock",
+      "highlight": true
+    },
+    "evidenceSearch": {
+      "name": "Evidence Search",
+      "description": "Full-text search across decision evidence. Find every decision that referenced a specific tool, input, or keyword.",
+      "icon": "search",
+      "highlight": true
+    },
+    "evidenceExport": {
+      "name": "Evidence Export",
+      "description": "Export decision evidence as JSON or CSV for external analysis, compliance reporting, or integration with third-party audit tools.",
+      "icon": "download",
+      "highlight": true
+    },
+    "tokenAnalytics": {
+      "name": "Token Analytics",
+      "description": "Track the token overhead of decision evidence per level. Optimise the evidence-to-cost ratio for your workload.",
+      "icon": "bar-chart-2"
+    }
+  },
+  "configSchema": {
+    "evidenceLevel": {
+      "type": "select",
+      "label": "Default Evidence Level",
+      "description": "Level of decision evidence included in AI responses",
+      "options": [
+        {
+          "value": "none",
+          "label": "None — No evidence (saves tokens)"
+        },
+        {
+          "value": "minimal",
+          "label": "Minimal — Decision + reason only"
+        },
+        {
+          "value": "standard",
+          "label": "Standard — Full evidence except context refs"
+        },
+        {
+          "value": "full",
+          "label": "Full — Everything including context references"
+        }
+      ],
+      "default": "standard"
+    },
+    "enforceForAllAgents": {
+      "type": "toggle",
+      "label": "Enforce for All Agents",
+      "description": "When enabled, all agents must include decision evidence at the configured level. When disabled, evidence is optional per conversation.",
+      "default": true
+    },
+    "autoVoltRecord": {
+      "type": "toggle",
+      "label": "Auto-Record to VOLT",
+      "description": "Automatically record decision evidence in VOLT tamper-evident chains. Requires VOLT to be configured.",
+      "default": true
+    }
+  },
+  "comparison": {
+    "free": {
+      "name": "Core (Free)",
+      "evidenceCapture": "Minimal level only",
+      "evidenceTimeline": false,
+      "evidenceSearch": false,
+      "evidenceExport": false,
+      "tokenAnalytics": false
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "evidenceCapture": "All levels (minimal, standard, full)",
+      "evidenceTimeline": true,
+      "evidenceSearch": true,
+      "evidenceExport": true,
+      "tokenAnalytics": true
+    }
+  },
+  "limits": {
+    "free": {
+      "maxEvidenceLevel": "minimal",
+      "timelineEnabled": false,
+      "searchEnabled": false,
+      "exportEnabled": false,
+      "tokenAnalyticsEnabled": false,
+      "voltRecordEnabled": false
+    },
+    "enterprise": {
+      "maxEvidenceLevel": "full",
+      "timelineEnabled": true,
+      "searchEnabled": true,
+      "exportEnabled": true,
+      "tokenAnalyticsEnabled": true,
+      "voltRecordEnabled": true,
+      "maxRetentionDays": 365
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "quoxagent": ">=1.0.0"
+  },
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "integration": {
+    "decisionEvidenceService": "src/services/decisionEvidenceService.js",
+    "pluginClient": "src/services/pluginClient.js"
+  },
+  "testimonials": [
+    {
+      "quote": "We went from 'the AI said so' to 'here is exactly why, with evidence.' Our compliance team finally trusts the agents.",
+      "author": "VP Engineering, Financial Services"
+    },
+    {
+      "quote": "Decision Evidence plus the Compliance Suite is the combination that got us through our SOC2 Type II audit.",
+      "author": "Head of Platform, Healthcare SaaS"
+    }
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-03-10",
+      "changes": [
+        "Initial release",
+        "Four evidence levels (none, minimal, standard, full)",
+        "Evidence capture in AI responses via system prompt injection",
+        "Evidence timeline with filtering",
+        "Full-text evidence search",
+        "JSON and CSV export",
+        "Token overhead analytics",
+        "Automatic VOLT chain recording",
+        "Org-scoped configuration with admin enforcement toggle"
+      ]
+    }
+  },
+  "category": "AI & Intelligence"
+}

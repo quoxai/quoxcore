@@ -1,0 +1,31 @@
+{
+  "spec_version": 1,
+  "id": "bamboohr",
+  "name": "BambooHR",
+  "category": "hr",
+  "credentialType": "bamboohr",
+  "requiredFields": [
+    "subdomain",
+    "api_key"
+  ],
+  "docs": "https://documentation.bamboohr.com/reference",
+  "base_url": "https://api.bamboohr.com",
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": ""
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/gateway.php/{{subdomain}}/v1/employees/directory"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "basic_literal_password"
+    ]
+  }
+}

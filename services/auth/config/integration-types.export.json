@@ -1,0 +1,4754 @@
+{
+    "generatedBy": "quox-dashboard scripts/sync-integration-types.mjs — do not hand-edit, regenerate from services/auth/config/integrationTypeRegistry.js",
+    "types": {
+        "npm": {
+            "id": "npm",
+            "name": "npm",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "token"
+            ]
+        },
+        "pypi": {
+            "id": "pypi",
+            "name": "PyPI",
+            "category": "devops",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "ward_webhook": {
+            "id": "ward_webhook",
+            "name": "WARD Evidence Webhook",
+            "category": "devops",
+            "hasLiveTest": false,
+            "testDepth": "none",
+            "fields": [
+                "url",
+                "auth_header"
+            ]
+        },
+        "gitea": {
+            "id": "gitea",
+            "name": "Gitea",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "token",
+                "base_url"
+            ]
+        },
+        "smtp": {
+            "id": "smtp",
+            "name": "Email Account (IMAP + SMTP)",
+            "category": "notification",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "smtp_host",
+                "smtp_port",
+                "smtp_secure",
+                "username",
+                "password",
+                "from",
+                "imap_host",
+                "imap_port"
+            ]
+        },
+        "gmail": {
+            "id": "gmail",
+            "name": "Gmail",
+            "category": "email",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "username",
+                "password",
+                "imap_host",
+                "imap_port",
+                "smtp_host",
+                "smtp_port",
+                "smtp_secure",
+                "from"
+            ]
+        },
+        "icloud": {
+            "id": "icloud",
+            "name": "iCloud Mail",
+            "category": "email",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "username",
+                "password",
+                "imap_host",
+                "imap_port",
+                "smtp_host",
+                "smtp_port",
+                "smtp_secure",
+                "from"
+            ]
+        },
+        "icloud_contacts": {
+            "id": "icloud_contacts",
+            "name": "iCloud Contacts",
+            "category": "productivity",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "username",
+                "password",
+                "server_url"
+            ]
+        },
+        "carddav": {
+            "id": "carddav",
+            "name": "CardDAV Address Book",
+            "category": "productivity",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "server_url",
+                "username",
+                "password"
+            ]
+        },
+        "outlook": {
+            "id": "outlook",
+            "name": "Outlook / Microsoft 365",
+            "category": "email",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "username",
+                "password",
+                "imap_host",
+                "imap_port",
+                "smtp_host",
+                "smtp_port",
+                "smtp_secure",
+                "from"
+            ]
+        },
+        "webhook": {
+            "id": "webhook",
+            "name": "Generic Webhook",
+            "category": "notification",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "url",
+                "secret"
+            ]
+        },
+        "mattermost": {
+            "id": "mattermost",
+            "name": "Mattermost",
+            "category": "notification",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "webhook_url"
+            ]
+        },
+        "google-chat": {
+            "id": "google-chat",
+            "name": "Google Chat",
+            "category": "notification",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "webhook_url"
+            ]
+        },
+        "gotify": {
+            "id": "gotify",
+            "name": "Gotify",
+            "category": "notification",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "server_url",
+                "app_token"
+            ]
+        },
+        "rocketchat": {
+            "id": "rocketchat",
+            "name": "Rocket.Chat",
+            "category": "notification",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "webhook_url"
+            ]
+        },
+        "dataforseo": {
+            "id": "dataforseo",
+            "name": "DataForSEO",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "login",
+                "password"
+            ]
+        },
+        "openai": {
+            "id": "openai",
+            "name": "OpenAI",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "anthropic": {
+            "id": "anthropic",
+            "name": "Anthropic",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "gemini": {
+            "id": "gemini",
+            "name": "Google Gemini",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "elevenlabs": {
+            "id": "elevenlabs",
+            "name": "ElevenLabs",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "cohere": {
+            "id": "cohere",
+            "name": "Cohere",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "mistral": {
+            "id": "mistral",
+            "name": "Mistral AI",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "groq": {
+            "id": "groq",
+            "name": "Groq",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "xai": {
+            "id": "xai",
+            "name": "xAI (Grok)",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "deepseek": {
+            "id": "deepseek",
+            "name": "DeepSeek",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "together": {
+            "id": "together",
+            "name": "Together AI",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "replicate": {
+            "id": "replicate",
+            "name": "Replicate",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "huggingface": {
+            "id": "huggingface",
+            "name": "Hugging Face",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "perplexity": {
+            "id": "perplexity",
+            "name": "Perplexity",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "fireworks": {
+            "id": "fireworks",
+            "name": "Fireworks AI",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "openrouter": {
+            "id": "openrouter",
+            "name": "OpenRouter",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "deepgram": {
+            "id": "deepgram",
+            "name": "Deepgram",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "exa": {
+            "id": "exa",
+            "name": "Exa",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "tavily": {
+            "id": "tavily",
+            "name": "Tavily",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "fal": {
+            "id": "fal",
+            "name": "fal.ai",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "stability": {
+            "id": "stability",
+            "name": "Stability AI",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "leonardo": {
+            "id": "leonardo",
+            "name": "Leonardo AI",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "ideogram": {
+            "id": "ideogram",
+            "name": "Ideogram",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "midjourney": {
+            "id": "midjourney",
+            "name": "Midjourney",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key",
+                "base_url"
+            ]
+        },
+        "dalleapi": {
+            "id": "dalleapi",
+            "name": "DALL-E API",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "runway": {
+            "id": "runway",
+            "name": "Runway ML",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "pika": {
+            "id": "pika",
+            "name": "Pika Labs",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "luma": {
+            "id": "luma",
+            "name": "Luma AI",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "kling": {
+            "id": "kling",
+            "name": "Kling AI",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key",
+                "base_url"
+            ]
+        },
+        "heygen": {
+            "id": "heygen",
+            "name": "HeyGen",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "suno": {
+            "id": "suno",
+            "name": "Suno AI",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "zapier": {
+            "id": "zapier",
+            "name": "Zapier",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "make": {
+            "id": "make",
+            "name": "Make (Integromat)",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token",
+                "team_id"
+            ]
+        },
+        "ifttt": {
+            "id": "ifttt",
+            "name": "IFTTT",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "service_key"
+            ]
+        },
+        "pipedream": {
+            "id": "pipedream",
+            "name": "Pipedream",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "activepieces": {
+            "id": "activepieces",
+            "name": "Activepieces",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "base_url"
+            ]
+        },
+        "tray": {
+            "id": "tray",
+            "name": "Tray.io",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "workato": {
+            "id": "workato",
+            "name": "Workato",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "power_automate": {
+            "id": "power_automate",
+            "name": "Power Automate",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "tenant_id"
+            ]
+        },
+        "airtable": {
+            "id": "airtable",
+            "name": "Airtable",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "notion": {
+            "id": "notion",
+            "name": "Notion",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "integration_token"
+            ]
+        },
+        "gdrive": {
+            "id": "gdrive",
+            "name": "Google Drive",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "integration_token"
+            ]
+        },
+        "google_service_account": {
+            "id": "google_service_account",
+            "name": "Google Service Account",
+            "category": "integrations",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json",
+                "property_url"
+            ]
+        },
+        "obsidian": {
+            "id": "obsidian",
+            "name": "Obsidian",
+            "category": "productivity",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "base_url"
+            ]
+        },
+        "roam_research": {
+            "id": "roam_research",
+            "name": "Roam Research",
+            "category": "productivity",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_token",
+                "graph_name"
+            ]
+        },
+        "logseq": {
+            "id": "logseq",
+            "name": "Logseq",
+            "category": "productivity",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token",
+                "base_url"
+            ]
+        },
+        "telegram": {
+            "id": "telegram",
+            "name": "Telegram Bot",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "bot_token"
+            ]
+        },
+        "slack": {
+            "id": "slack",
+            "name": "Slack",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "bot_token",
+                "signing_secret"
+            ]
+        },
+        "whatsapp": {
+            "id": "whatsapp",
+            "name": "WhatsApp Business API",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "phone_number_id",
+                "access_token"
+            ]
+        },
+        "messenger": {
+            "id": "messenger",
+            "name": "Facebook Messenger",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "page_access_token"
+            ]
+        },
+        "viber": {
+            "id": "viber",
+            "name": "Viber Bot",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "auth_token"
+            ]
+        },
+        "line": {
+            "id": "line",
+            "name": "LINE Messaging",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "channel_access_token"
+            ]
+        },
+        "wechat": {
+            "id": "wechat",
+            "name": "WeChat Official",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "app_id",
+                "app_secret"
+            ]
+        },
+        "intercom": {
+            "id": "intercom",
+            "name": "Intercom",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "drift": {
+            "id": "drift",
+            "name": "Drift (Salesloft)",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "crisp": {
+            "id": "crisp",
+            "name": "Crisp",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "identifier",
+                "key"
+            ]
+        },
+        "tawk": {
+            "id": "tawk",
+            "name": "Tawk.to",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "zendeskchat": {
+            "id": "zendeskchat",
+            "name": "Zendesk Chat",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "custom": {
+            "id": "custom",
+            "name": "Custom Integration",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "none",
+            "fields": [
+                "api_key",
+                "base_url",
+                "auth_header",
+                "auth_prefix"
+            ]
+        },
+        "github": {
+            "id": "github",
+            "name": "GitHub",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "token"
+            ]
+        },
+        "gitlab": {
+            "id": "gitlab",
+            "name": "GitLab",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "private_token",
+                "base_url"
+            ]
+        },
+        "bitbucket": {
+            "id": "bitbucket",
+            "name": "Bitbucket",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "username",
+                "app_password"
+            ]
+        },
+        "circleci": {
+            "id": "circleci",
+            "name": "CircleCI",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "token"
+            ]
+        },
+        "jenkins": {
+            "id": "jenkins",
+            "name": "Jenkins",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "username",
+                "api_token",
+                "base_url"
+            ]
+        },
+        "docker": {
+            "id": "docker",
+            "name": "Docker Hub",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "username",
+                "token"
+            ]
+        },
+        "vercel": {
+            "id": "vercel",
+            "name": "Vercel",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "token"
+            ]
+        },
+        "netlify": {
+            "id": "netlify",
+            "name": "Netlify",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "token"
+            ]
+        },
+        "railway": {
+            "id": "railway",
+            "name": "Railway",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "token"
+            ]
+        },
+        "render": {
+            "id": "render",
+            "name": "Render",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "aws": {
+            "id": "aws",
+            "name": "AWS",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key",
+                "region"
+            ]
+        },
+        "gcp": {
+            "id": "gcp",
+            "name": "Google Cloud",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json"
+            ]
+        },
+        "azure": {
+            "id": "azure",
+            "name": "Azure",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "tenant_id",
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "digitalocean": {
+            "id": "digitalocean",
+            "name": "DigitalOcean",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "token"
+            ]
+        },
+        "cloudflare": {
+            "id": "cloudflare",
+            "name": "Cloudflare",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "linode": {
+            "id": "linode",
+            "name": "Linode (Akamai)",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "vultr": {
+            "id": "vultr",
+            "name": "Vultr",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "hetzner": {
+            "id": "hetzner",
+            "name": "Hetzner Cloud",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "ovh": {
+            "id": "ovh",
+            "name": "OVH Cloud",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "application_key",
+                "application_secret",
+                "consumer_key",
+                "endpoint"
+            ]
+        },
+        "oracle": {
+            "id": "oracle",
+            "name": "Oracle Cloud (OCI)",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "tenancy_ocid",
+                "user_ocid",
+                "fingerprint",
+                "private_key",
+                "region"
+            ]
+        },
+        "ibm": {
+            "id": "ibm",
+            "name": "IBM Cloud",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "region"
+            ]
+        },
+        "alibaba": {
+            "id": "alibaba",
+            "name": "Alibaba Cloud",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "access_key_secret",
+                "region"
+            ]
+        },
+        "twitter": {
+            "id": "twitter",
+            "name": "Twitter/X",
+            "category": "social",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "api_secret",
+                "access_token",
+                "access_secret"
+            ]
+        },
+        "linkedin": {
+            "id": "linkedin",
+            "name": "LinkedIn",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "meta": {
+            "id": "meta",
+            "name": "Meta (Facebook/Instagram)",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token",
+                "page_id"
+            ]
+        },
+        "tiktok": {
+            "id": "tiktok",
+            "name": "TikTok",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token",
+                "refresh_token",
+                "client_key",
+                "client_secret"
+            ]
+        },
+        "youtube": {
+            "id": "youtube",
+            "name": "YouTube",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "access_token"
+            ]
+        },
+        "pinterest": {
+            "id": "pinterest",
+            "name": "Pinterest",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "snapchat": {
+            "id": "snapchat",
+            "name": "Snapchat Marketing",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "refresh_token"
+            ]
+        },
+        "reddit": {
+            "id": "reddit",
+            "name": "Reddit",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "refresh_token"
+            ]
+        },
+        "tumblr": {
+            "id": "tumblr",
+            "name": "Tumblr",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "consumer_key",
+                "consumer_secret",
+                "token",
+                "token_secret"
+            ]
+        },
+        "threads": {
+            "id": "threads",
+            "name": "Threads (Meta)",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "bluesky": {
+            "id": "bluesky",
+            "name": "Bluesky",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "handle",
+                "app_password"
+            ]
+        },
+        "mastodon": {
+            "id": "mastodon",
+            "name": "Mastodon",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token",
+                "instance_url"
+            ]
+        },
+        "docusign": {
+            "id": "docusign",
+            "name": "DocuSign",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token",
+                "account_id",
+                "base_url"
+            ]
+        },
+        "adobesign": {
+            "id": "adobesign",
+            "name": "Adobe Sign",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token",
+                "base_url"
+            ]
+        },
+        "adobepdf": {
+            "id": "adobepdf",
+            "name": "Adobe PDF Services",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "dropboxsign": {
+            "id": "dropboxsign",
+            "name": "Dropbox Sign",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "pandadoc": {
+            "id": "pandadoc",
+            "name": "PandaDoc",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "figma": {
+            "id": "figma",
+            "name": "Figma",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "personal_access_token"
+            ]
+        },
+        "canva": {
+            "id": "canva",
+            "name": "Canva",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "client_id",
+                "client_secret",
+                "refresh_token"
+            ]
+        },
+        "adobecc": {
+            "id": "adobecc",
+            "name": "Adobe Creative Cloud",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "access_token",
+                "refresh_token"
+            ]
+        },
+        "shutterstock": {
+            "id": "shutterstock",
+            "name": "Shutterstock",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "api_secret"
+            ]
+        },
+        "gettyimages": {
+            "id": "gettyimages",
+            "name": "Getty Images",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "unsplash": {
+            "id": "unsplash",
+            "name": "Unsplash",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_key"
+            ]
+        },
+        "pexels": {
+            "id": "pexels",
+            "name": "Pexels",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "mailchimp": {
+            "id": "mailchimp",
+            "name": "Mailchimp",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "mailgun": {
+            "id": "mailgun",
+            "name": "Mailgun",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "domain"
+            ]
+        },
+        "postmark": {
+            "id": "postmark",
+            "name": "Postmark",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "server_token"
+            ]
+        },
+        "ses": {
+            "id": "ses",
+            "name": "Amazon SES",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key",
+                "region"
+            ]
+        },
+        "vonage": {
+            "id": "vonage",
+            "name": "Vonage (Nexmo)",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "api_secret"
+            ]
+        },
+        "plivo": {
+            "id": "plivo",
+            "name": "Plivo",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "auth_id",
+                "auth_token"
+            ]
+        },
+        "messagebird": {
+            "id": "messagebird",
+            "name": "MessageBird",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_key"
+            ]
+        },
+        "bandwidth": {
+            "id": "bandwidth",
+            "name": "Bandwidth",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token",
+                "api_secret",
+                "account_id"
+            ]
+        },
+        "discord": {
+            "id": "discord",
+            "name": "Discord Bot",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "bot_token"
+            ]
+        },
+        "msteams": {
+            "id": "msteams",
+            "name": "Microsoft Teams",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "tenant_id"
+            ]
+        },
+        "webex": {
+            "id": "webex",
+            "name": "Cisco Webex",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "zoom": {
+            "id": "zoom",
+            "name": "Zoom",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "account_id",
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "onesignal": {
+            "id": "onesignal",
+            "name": "OneSignal",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "app_id",
+                "rest_api_key"
+            ]
+        },
+        "firebase": {
+            "id": "firebase",
+            "name": "Firebase Cloud Messaging",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json"
+            ]
+        },
+        "pusher": {
+            "id": "pusher",
+            "name": "Pusher",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "app_id",
+                "key",
+                "secret",
+                "cluster"
+            ]
+        },
+        "salesforce": {
+            "id": "salesforce",
+            "name": "Salesforce",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "refresh_token",
+                "instance_url"
+            ]
+        },
+        "hubspot": {
+            "id": "hubspot",
+            "name": "HubSpot",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "private_app_token"
+            ]
+        },
+        "pipedrive": {
+            "id": "pipedrive",
+            "name": "Pipedrive",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "zoho_crm": {
+            "id": "zoho_crm",
+            "name": "Zoho CRM",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "refresh_token"
+            ]
+        },
+        "freshsales": {
+            "id": "freshsales",
+            "name": "Freshsales",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "domain"
+            ]
+        },
+        "copper": {
+            "id": "copper",
+            "name": "Copper",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "email"
+            ]
+        },
+        "close": {
+            "id": "close",
+            "name": "Close",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "monday": {
+            "id": "monday",
+            "name": "Monday.com",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "zendesk": {
+            "id": "zendesk",
+            "name": "Zendesk",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "subdomain",
+                "email",
+                "api_token"
+            ]
+        },
+        "freshdesk": {
+            "id": "freshdesk",
+            "name": "Freshdesk",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "domain"
+            ]
+        },
+        "helpscout": {
+            "id": "helpscout",
+            "name": "Help Scout",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "front": {
+            "id": "front",
+            "name": "Front",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "paypal": {
+            "id": "paypal",
+            "name": "PayPal",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "square": {
+            "id": "square",
+            "name": "Square",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "braintree": {
+            "id": "braintree",
+            "name": "Braintree",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "merchant_id",
+                "public_key",
+                "private_key"
+            ]
+        },
+        "adyen": {
+            "id": "adyen",
+            "name": "Adyen",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "merchant_account"
+            ]
+        },
+        "klarna": {
+            "id": "klarna",
+            "name": "Klarna",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "shopify": {
+            "id": "shopify",
+            "name": "Shopify",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token",
+                "shop_domain"
+            ]
+        },
+        "woocommerce": {
+            "id": "woocommerce",
+            "name": "WooCommerce",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "consumer_key",
+                "consumer_secret",
+                "store_url"
+            ]
+        },
+        "bigcommerce": {
+            "id": "bigcommerce",
+            "name": "BigCommerce",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "store_hash",
+                "access_token"
+            ]
+        },
+        "magento": {
+            "id": "magento",
+            "name": "Adobe Commerce (Magento)",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token",
+                "base_url"
+            ]
+        },
+        "wix": {
+            "id": "wix",
+            "name": "Wix",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "site_id"
+            ]
+        },
+        "etsy": {
+            "id": "etsy",
+            "name": "Etsy",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "oauth_token"
+            ]
+        },
+        "amazon_sp": {
+            "id": "amazon_sp",
+            "name": "Amazon Selling Partner",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "refresh_token",
+                "client_id",
+                "client_secret",
+                "aws_access_key",
+                "aws_secret_key",
+                "aws_role_arn"
+            ]
+        },
+        "snowflake": {
+            "id": "snowflake",
+            "name": "Snowflake",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "account_identifier",
+                "username",
+                "password",
+                "private_key"
+            ]
+        },
+        "databricks": {
+            "id": "databricks",
+            "name": "Databricks",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "host",
+                "token"
+            ]
+        },
+        "bigquery": {
+            "id": "bigquery",
+            "name": "Google BigQuery",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json"
+            ]
+        },
+        "mongodb": {
+            "id": "mongodb",
+            "name": "MongoDB Atlas",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "connection_string"
+            ]
+        },
+        "postgresql": {
+            "id": "postgresql",
+            "name": "PostgreSQL",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "host",
+                "port",
+                "database",
+                "username",
+                "password"
+            ]
+        },
+        "redis": {
+            "id": "redis",
+            "name": "Redis",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "host",
+                "port",
+                "password",
+                "tls"
+            ]
+        },
+        "elasticsearch": {
+            "id": "elasticsearch",
+            "name": "Elasticsearch",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "cloud_id",
+                "host",
+                "api_key",
+                "username",
+                "password"
+            ]
+        },
+        "tableau": {
+            "id": "tableau",
+            "name": "Tableau",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "server_url",
+                "site_id",
+                "token_name",
+                "token_value"
+            ]
+        },
+        "looker": {
+            "id": "looker",
+            "name": "Looker (Google)",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "okta": {
+            "id": "okta",
+            "name": "Okta",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "domain",
+                "api_token"
+            ]
+        },
+        "auth0": {
+            "id": "auth0",
+            "name": "Auth0",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "domain",
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "onelogin": {
+            "id": "onelogin",
+            "name": "OneLogin",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "region"
+            ]
+        },
+        "crowdstrike": {
+            "id": "crowdstrike",
+            "name": "CrowdStrike",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "snyk": {
+            "id": "snyk",
+            "name": "Snyk",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "vault": {
+            "id": "vault",
+            "name": "HashiCorp Vault",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "address",
+                "token",
+                "role_id",
+                "secret_id"
+            ]
+        },
+        "1password": {
+            "id": "1password",
+            "name": "1Password Connect",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "connect_host",
+                "connect_token"
+            ]
+        },
+        "newrelic": {
+            "id": "newrelic",
+            "name": "New Relic",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "splunk": {
+            "id": "splunk",
+            "name": "Splunk",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "token"
+            ]
+        },
+        "sentry": {
+            "id": "sentry",
+            "name": "Sentry",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "auth_token"
+            ]
+        },
+        "pagerduty": {
+            "id": "pagerduty",
+            "name": "PagerDuty",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "opsgenie": {
+            "id": "opsgenie",
+            "name": "OpsGenie",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "prometheus": {
+            "id": "prometheus",
+            "name": "Prometheus",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "username",
+                "password"
+            ]
+        },
+        "launchdarkly": {
+            "id": "launchdarkly",
+            "name": "LaunchDarkly",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "terraform": {
+            "id": "terraform",
+            "name": "Terraform Cloud",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "workday": {
+            "id": "workday",
+            "name": "Workday",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "tenant",
+                "client_id",
+                "client_secret",
+                "refresh_token"
+            ]
+        },
+        "bamboohr": {
+            "id": "bamboohr",
+            "name": "BambooHR",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "subdomain",
+                "api_key"
+            ]
+        },
+        "greenhouse": {
+            "id": "greenhouse",
+            "name": "Greenhouse",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "lever": {
+            "id": "lever",
+            "name": "Lever",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "adp": {
+            "id": "adp",
+            "name": "ADP",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "cert",
+                "key"
+            ]
+        },
+        "gusto": {
+            "id": "gusto",
+            "name": "Gusto",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "asana": {
+            "id": "asana",
+            "name": "Asana",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "trello": {
+            "id": "trello",
+            "name": "Trello",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "token"
+            ]
+        },
+        "clickup": {
+            "id": "clickup",
+            "name": "ClickUp",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "confluence": {
+            "id": "confluence",
+            "name": "Confluence",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "domain",
+                "email",
+                "api_token"
+            ]
+        },
+        "dropbox": {
+            "id": "dropbox",
+            "name": "Dropbox",
+            "category": "productivity",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "box": {
+            "id": "box",
+            "name": "Box",
+            "category": "productivity",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "googledrive": {
+            "id": "googledrive",
+            "name": "Google Drive",
+            "category": "productivity",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "service_account_json",
+                "oauth_token"
+            ]
+        },
+        "calendly": {
+            "id": "calendly",
+            "name": "Calendly",
+            "category": "productivity",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "typeform": {
+            "id": "typeform",
+            "name": "Typeform",
+            "category": "productivity",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "jotform": {
+            "id": "jotform",
+            "name": "JotForm",
+            "category": "productivity",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "surveymonkey": {
+            "id": "surveymonkey",
+            "name": "SurveyMonkey",
+            "category": "productivity",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "mixpanel": {
+            "id": "mixpanel",
+            "name": "Mixpanel",
+            "category": "analytics",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "project_token",
+                "api_secret"
+            ]
+        },
+        "amplitude": {
+            "id": "amplitude",
+            "name": "Amplitude",
+            "category": "analytics",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key",
+                "secret_key"
+            ]
+        },
+        "segment": {
+            "id": "segment",
+            "name": "Segment",
+            "category": "analytics",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "write_key"
+            ]
+        },
+        "posthog": {
+            "id": "posthog",
+            "name": "PostHog",
+            "category": "analytics",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "host"
+            ]
+        },
+        "bitly": {
+            "id": "bitly",
+            "name": "Bitly",
+            "category": "utilities",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "deepl": {
+            "id": "deepl",
+            "name": "DeepL",
+            "category": "utilities",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "algolia": {
+            "id": "algolia",
+            "name": "Algolia",
+            "category": "utilities",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "app_id",
+                "api_key"
+            ]
+        },
+        "supabase": {
+            "id": "supabase",
+            "name": "Supabase",
+            "category": "utilities",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "project_url",
+                "anon_key",
+                "service_role_key"
+            ]
+        },
+        "pinecone": {
+            "id": "pinecone",
+            "name": "Pinecone",
+            "category": "utilities",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "openweathermap": {
+            "id": "openweathermap",
+            "name": "OpenWeatherMap",
+            "category": "utilities",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "servicenow": {
+            "id": "servicenow",
+            "name": "ServiceNow",
+            "category": "ticketing",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "instance_url",
+                "username",
+                "password",
+                "oauth_token"
+            ]
+        },
+        "freshservice": {
+            "id": "freshservice",
+            "name": "Freshservice",
+            "category": "ticketing",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "domain",
+                "api_key"
+            ]
+        },
+        "zoho_desk": {
+            "id": "zoho_desk",
+            "name": "Zoho Desk",
+            "category": "ticketing",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "org_id",
+                "access_token"
+            ]
+        },
+        "kayako": {
+            "id": "kayako",
+            "name": "Kayako",
+            "category": "ticketing",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "api_key",
+                "secret_key"
+            ]
+        },
+        "happyfox": {
+            "id": "happyfox",
+            "name": "HappyFox",
+            "category": "ticketing",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "domain",
+                "api_key",
+                "auth_code"
+            ]
+        },
+        "spiceworks": {
+            "id": "spiceworks",
+            "name": "Spiceworks Cloud",
+            "category": "ticketing",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "osticket": {
+            "id": "osticket",
+            "name": "osTicket",
+            "category": "ticketing",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "api_key"
+            ]
+        },
+        "zammad": {
+            "id": "zammad",
+            "name": "Zammad",
+            "category": "ticketing",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "access_token"
+            ]
+        },
+        "request_tracker": {
+            "id": "request_tracker",
+            "name": "Request Tracker (RT)",
+            "category": "ticketing",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "username",
+                "password"
+            ]
+        },
+        "aws_kms": {
+            "id": "aws_kms",
+            "name": "AWS KMS",
+            "category": "cloudsecurity",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key",
+                "region"
+            ]
+        },
+        "aws_secrets_manager": {
+            "id": "aws_secrets_manager",
+            "name": "AWS Secrets Manager",
+            "category": "cloudsecurity",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key",
+                "region"
+            ]
+        },
+        "azure_keyvault": {
+            "id": "azure_keyvault",
+            "name": "Azure Key Vault",
+            "category": "cloudsecurity",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "vault_url",
+                "tenant_id",
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "gcp_kms": {
+            "id": "gcp_kms",
+            "name": "GCP Cloud KMS",
+            "category": "cloudsecurity",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json",
+                "project_id"
+            ]
+        },
+        "microsoft_sentinel": {
+            "id": "microsoft_sentinel",
+            "name": "Microsoft Sentinel",
+            "category": "cloudsecurity",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "workspace_id",
+                "tenant_id",
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "wiz": {
+            "id": "wiz",
+            "name": "Wiz",
+            "category": "cloudsecurity",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "auth_url"
+            ]
+        },
+        "orca": {
+            "id": "orca",
+            "name": "Orca Security",
+            "category": "cloudsecurity",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token",
+                "base_url"
+            ]
+        },
+        "sentinelone": {
+            "id": "sentinelone",
+            "name": "SentinelOne",
+            "category": "cloudsecurity",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token",
+                "base_url"
+            ]
+        },
+        "cortex_xsoar": {
+            "id": "cortex_xsoar",
+            "name": "Cortex XSOAR",
+            "category": "cloudsecurity",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "base_url"
+            ]
+        },
+        "prisma_cloud": {
+            "id": "prisma_cloud",
+            "name": "Prisma Cloud",
+            "category": "cloudsecurity",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key",
+                "secret_key",
+                "api_url"
+            ]
+        },
+        "google_chronicle": {
+            "id": "google_chronicle",
+            "name": "Google Chronicle",
+            "category": "cloudsecurity",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json",
+                "region"
+            ]
+        },
+        "cloudflare_zero_trust": {
+            "id": "cloudflare_zero_trust",
+            "name": "Cloudflare Zero Trust",
+            "category": "zerotrust",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token",
+                "account_id"
+            ]
+        },
+        "zscaler": {
+            "id": "zscaler",
+            "name": "Zscaler",
+            "category": "zerotrust",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key",
+                "cloud",
+                "username",
+                "password"
+            ]
+        },
+        "tailscale": {
+            "id": "tailscale",
+            "name": "Tailscale",
+            "category": "zerotrust",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "tailnet"
+            ]
+        },
+        "teleport": {
+            "id": "teleport",
+            "name": "Teleport",
+            "category": "zerotrust",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "proxy_addr",
+                "api_token"
+            ]
+        },
+        "kubernetes_api": {
+            "id": "kubernetes_api",
+            "name": "Kubernetes API",
+            "category": "kubernetes",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_server",
+                "token",
+                "ca_cert"
+            ]
+        },
+        "argocd": {
+            "id": "argocd",
+            "name": "ArgoCD",
+            "category": "kubernetes",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "server_url",
+                "auth_token"
+            ]
+        },
+        "backstage": {
+            "id": "backstage",
+            "name": "Backstage",
+            "category": "kubernetes",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "api_token"
+            ]
+        },
+        "jfrog_artifactory": {
+            "id": "jfrog_artifactory",
+            "name": "JFrog Artifactory",
+            "category": "kubernetes",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "api_key"
+            ]
+        },
+        "sonatype_nexus": {
+            "id": "sonatype_nexus",
+            "name": "Sonatype Nexus",
+            "category": "kubernetes",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "username",
+                "password"
+            ]
+        },
+        "airbyte": {
+            "id": "airbyte",
+            "name": "Airbyte",
+            "category": "datamovement",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "api_key"
+            ]
+        },
+        "fivetran": {
+            "id": "fivetran",
+            "name": "Fivetran",
+            "category": "datamovement",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "api_secret"
+            ]
+        },
+        "dbt_cloud": {
+            "id": "dbt_cloud",
+            "name": "dbt Cloud",
+            "category": "datamovement",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token",
+                "account_id"
+            ]
+        },
+        "confluent": {
+            "id": "confluent",
+            "name": "Confluent Cloud",
+            "category": "datamovement",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "api_secret"
+            ]
+        },
+        "collibra": {
+            "id": "collibra",
+            "name": "Collibra",
+            "category": "datacatalog",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "username",
+                "password"
+            ]
+        },
+        "alation": {
+            "id": "alation",
+            "name": "Alation",
+            "category": "datacatalog",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "api_token"
+            ]
+        },
+        "datahub": {
+            "id": "datahub",
+            "name": "DataHub",
+            "category": "datacatalog",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "gms_url",
+                "token"
+            ]
+        },
+        "aws_textract": {
+            "id": "aws_textract",
+            "name": "AWS Textract",
+            "category": "documentai",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key",
+                "region"
+            ]
+        },
+        "azure_form_recognizer": {
+            "id": "azure_form_recognizer",
+            "name": "Azure Document Intelligence",
+            "category": "documentai",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "endpoint",
+                "api_key"
+            ]
+        },
+        "google_document_ai": {
+            "id": "google_document_ai",
+            "name": "Google Document AI",
+            "category": "documentai",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json",
+                "project_id",
+                "location"
+            ]
+        },
+        "browserless": {
+            "id": "browserless",
+            "name": "Browserless",
+            "category": "browser",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token",
+                "base_url"
+            ]
+        },
+        "apify": {
+            "id": "apify",
+            "name": "Apify",
+            "category": "browser",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "browser_login": {
+            "id": "browser_login",
+            "name": "Website Login",
+            "category": "browser",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "domain",
+                "username",
+                "password",
+                "login_url",
+                "notes"
+            ]
+        },
+        "netsuite": {
+            "id": "netsuite",
+            "name": "NetSuite",
+            "category": "finance",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "account_id",
+                "consumer_key",
+                "consumer_secret",
+                "token_id",
+                "token_secret"
+            ]
+        },
+        "dynamics_365": {
+            "id": "dynamics_365",
+            "name": "Microsoft Dynamics 365",
+            "category": "finance",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "tenant_id",
+                "client_id",
+                "client_secret",
+                "environment_url"
+            ]
+        },
+        "quickbooks": {
+            "id": "quickbooks",
+            "name": "QuickBooks Online",
+            "category": "finance",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "refresh_token",
+                "realm_id"
+            ]
+        },
+        "xero": {
+            "id": "xero",
+            "name": "Xero",
+            "category": "finance",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "refresh_token",
+                "tenant_id"
+            ]
+        },
+        "ramp": {
+            "id": "ramp",
+            "name": "Ramp",
+            "category": "finance",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "brex": {
+            "id": "brex",
+            "name": "Brex",
+            "category": "finance",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "microsoft_purview": {
+            "id": "microsoft_purview",
+            "name": "Microsoft Purview",
+            "category": "compliance",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "tenant_id",
+                "client_id",
+                "client_secret",
+                "purview_account"
+            ]
+        },
+        "google_vault": {
+            "id": "google_vault",
+            "name": "Google Vault",
+            "category": "compliance",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json",
+                "delegated_user"
+            ]
+        },
+        "weaviate": {
+            "id": "weaviate",
+            "name": "Weaviate",
+            "category": "vectordb",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "host",
+                "api_key"
+            ]
+        },
+        "qdrant": {
+            "id": "qdrant",
+            "name": "Qdrant",
+            "category": "vectordb",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "host",
+                "api_key"
+            ]
+        },
+        "milvus": {
+            "id": "milvus",
+            "name": "Milvus / Zilliz",
+            "category": "vectordb",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "host",
+                "port",
+                "token"
+            ]
+        },
+        "stripe": {
+            "id": "stripe",
+            "name": "Stripe",
+            "category": "ecommerce",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "plaid": {
+            "id": "plaid",
+            "name": "Plaid",
+            "category": "ecommerce",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "secret",
+                "environment"
+            ]
+        },
+        "twilio": {
+            "id": "twilio",
+            "name": "Twilio",
+            "category": "communication",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "account_sid",
+                "auth_token"
+            ]
+        },
+        "sendgrid": {
+            "id": "sendgrid",
+            "name": "SendGrid",
+            "category": "communication",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "resend": {
+            "id": "resend",
+            "name": "Resend",
+            "category": "communication",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "jira": {
+            "id": "jira",
+            "name": "Jira",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "email",
+                "api_token",
+                "domain"
+            ]
+        },
+        "linear": {
+            "id": "linear",
+            "name": "Linear",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "datadog": {
+            "id": "datadog",
+            "name": "Datadog",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "app_key",
+                "site"
+            ]
+        },
+        "grafana": {
+            "id": "grafana",
+            "name": "Grafana",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "base_url"
+            ]
+        },
+        "rabbitmq": {
+            "id": "rabbitmq",
+            "name": "RabbitMQ",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "username",
+                "password"
+            ]
+        },
+        "netdata": {
+            "id": "netdata",
+            "name": "Netdata",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url"
+            ]
+        },
+        "opensearch": {
+            "id": "opensearch",
+            "name": "OpenSearch",
+            "category": "data_ai",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "username",
+                "password"
+            ]
+        },
+        "alertmanager": {
+            "id": "alertmanager",
+            "name": "Prometheus Alertmanager",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url"
+            ]
+        },
+        "loki": {
+            "id": "loki",
+            "name": "Grafana Loki",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url"
+            ]
+        },
+        "nats": {
+            "id": "nats",
+            "name": "NATS",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url"
+            ]
+        },
+        "traefik": {
+            "id": "traefik",
+            "name": "Traefik",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url"
+            ]
+        },
+        "victoriametrics": {
+            "id": "victoriametrics",
+            "name": "VictoriaMetrics",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url"
+            ]
+        },
+        "google_sheets": {
+            "id": "google_sheets",
+            "name": "Google Sheets",
+            "category": "documents",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json"
+            ]
+        },
+        "google_calendar": {
+            "id": "google_calendar",
+            "name": "Google Calendar",
+            "category": "documents",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json"
+            ]
+        },
+        "proxmox": {
+            "id": "proxmox",
+            "name": "Proxmox VE",
+            "category": "infra",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "token_id",
+                "token_secret"
+            ]
+        },
+        "fly_io": {
+            "id": "fly_io",
+            "name": "Fly.io",
+            "category": "cloud",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "upstash": {
+            "id": "upstash",
+            "name": "Upstash",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "email",
+                "api_key"
+            ]
+        },
+        "chroma": {
+            "id": "chroma",
+            "name": "Chroma",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "api_key"
+            ]
+        },
+        "mysql": {
+            "id": "mysql",
+            "name": "MySQL",
+            "category": "data",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "host",
+                "port",
+                "username",
+                "password",
+                "database"
+            ]
+        },
+        "mariadb": {
+            "id": "mariadb",
+            "name": "MariaDB",
+            "category": "data",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "host",
+                "port",
+                "username",
+                "password",
+                "database"
+            ]
+        },
+        "cockroachdb": {
+            "id": "cockroachdb",
+            "name": "CockroachDB",
+            "category": "data",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "connection_string"
+            ]
+        },
+        "planetscale": {
+            "id": "planetscale",
+            "name": "PlanetScale",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "service_token_id",
+                "service_token",
+                "organization"
+            ]
+        },
+        "neon": {
+            "id": "neon",
+            "name": "Neon",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "turso": {
+            "id": "turso",
+            "name": "Turso",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "fauna": {
+            "id": "fauna",
+            "name": "Fauna",
+            "category": "data",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "secret"
+            ]
+        },
+        "couchdb": {
+            "id": "couchdb",
+            "name": "CouchDB",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "username",
+                "password"
+            ]
+        },
+        "neo4j": {
+            "id": "neo4j",
+            "name": "Neo4j",
+            "category": "data",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "uri",
+                "username",
+                "password"
+            ]
+        },
+        "influxdb": {
+            "id": "influxdb",
+            "name": "InfluxDB",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "url",
+                "token",
+                "org"
+            ]
+        },
+        "clickhouse": {
+            "id": "clickhouse",
+            "name": "ClickHouse",
+            "category": "data",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "host",
+                "port",
+                "username",
+                "password"
+            ]
+        },
+        "timescaledb": {
+            "id": "timescaledb",
+            "name": "TimescaleDB",
+            "category": "data",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "connection_string"
+            ]
+        },
+        "singlestore": {
+            "id": "singlestore",
+            "name": "SingleStore",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "aws_s3": {
+            "id": "aws_s3",
+            "name": "AWS S3",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key",
+                "region"
+            ]
+        },
+        "aws_lambda": {
+            "id": "aws_lambda",
+            "name": "AWS Lambda",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key",
+                "region"
+            ]
+        },
+        "aws_sqs": {
+            "id": "aws_sqs",
+            "name": "AWS SQS",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key",
+                "region"
+            ]
+        },
+        "aws_sns": {
+            "id": "aws_sns",
+            "name": "AWS SNS",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key",
+                "region"
+            ]
+        },
+        "aws_dynamodb": {
+            "id": "aws_dynamodb",
+            "name": "AWS DynamoDB",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key",
+                "region"
+            ]
+        },
+        "aws_cloudwatch": {
+            "id": "aws_cloudwatch",
+            "name": "AWS CloudWatch",
+            "category": "devops",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key",
+                "region"
+            ]
+        },
+        "aws_ecs": {
+            "id": "aws_ecs",
+            "name": "AWS ECS",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key",
+                "region"
+            ]
+        },
+        "aws_route53": {
+            "id": "aws_route53",
+            "name": "AWS Route 53",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key"
+            ]
+        },
+        "azure_devops": {
+            "id": "azure_devops",
+            "name": "Azure DevOps",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "organization",
+                "pat"
+            ]
+        },
+        "azure_blob": {
+            "id": "azure_blob",
+            "name": "Azure Blob Storage",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "account_name",
+                "account_key"
+            ]
+        },
+        "azure_functions": {
+            "id": "azure_functions",
+            "name": "Azure Functions",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "subscription_id",
+                "tenant_id",
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "azure_cosmos_db": {
+            "id": "azure_cosmos_db",
+            "name": "Azure Cosmos DB",
+            "category": "data",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "endpoint",
+                "primary_key"
+            ]
+        },
+        "gcp_cloud_run": {
+            "id": "gcp_cloud_run",
+            "name": "Google Cloud Run",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json"
+            ]
+        },
+        "gcp_pubsub": {
+            "id": "gcp_pubsub",
+            "name": "Google Pub/Sub",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json"
+            ]
+        },
+        "gcp_cloud_functions": {
+            "id": "gcp_cloud_functions",
+            "name": "Google Cloud Functions",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json"
+            ]
+        },
+        "gcp_storage": {
+            "id": "gcp_storage",
+            "name": "Google Cloud Storage",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json"
+            ]
+        },
+        "vertex_ai": {
+            "id": "vertex_ai",
+            "name": "Google Vertex AI",
+            "category": "ai",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json",
+                "project_id",
+                "location"
+            ]
+        },
+        "sonarqube": {
+            "id": "sonarqube",
+            "name": "SonarQube",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "token"
+            ]
+        },
+        "sonarcloud": {
+            "id": "sonarcloud",
+            "name": "SonarCloud",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "token"
+            ]
+        },
+        "codecov": {
+            "id": "codecov",
+            "name": "Codecov",
+            "category": "developer",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "token"
+            ]
+        },
+        "buildkite": {
+            "id": "buildkite",
+            "name": "Buildkite",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "teamcity": {
+            "id": "teamcity",
+            "name": "TeamCity",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "token"
+            ]
+        },
+        "pulumi": {
+            "id": "pulumi",
+            "name": "Pulumi",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "docker_hub": {
+            "id": "docker_hub",
+            "name": "Docker Hub",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "username",
+                "access_token"
+            ]
+        },
+        "harbor": {
+            "id": "harbor",
+            "name": "Harbor",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "username",
+                "password"
+            ]
+        },
+        "postman": {
+            "id": "postman",
+            "name": "Postman",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "kong": {
+            "id": "kong",
+            "name": "Kong",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "admin_url",
+                "api_key"
+            ]
+        },
+        "ringcentral": {
+            "id": "ringcentral",
+            "name": "RingCentral",
+            "category": "communication",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "jwt_token"
+            ]
+        },
+        "dialpad": {
+            "id": "dialpad",
+            "name": "Dialpad",
+            "category": "communication",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "telnyx": {
+            "id": "telnyx",
+            "name": "Telnyx",
+            "category": "communication",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "mailjet": {
+            "id": "mailjet",
+            "name": "Mailjet",
+            "category": "communication",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "secret_key"
+            ]
+        },
+        "pushover": {
+            "id": "pushover",
+            "name": "Pushover",
+            "category": "notification",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token",
+                "user_key"
+            ]
+        },
+        "outreach": {
+            "id": "outreach",
+            "name": "Outreach",
+            "category": "crm",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "apollo": {
+            "id": "apollo",
+            "name": "Apollo.io",
+            "category": "crm",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "clearbit": {
+            "id": "clearbit",
+            "name": "Clearbit",
+            "category": "crm",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "gong": {
+            "id": "gong",
+            "name": "Gong",
+            "category": "crm",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_key",
+                "access_key_secret"
+            ]
+        },
+        "salesloft": {
+            "id": "salesloft",
+            "name": "Salesloft",
+            "category": "crm",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "zendesk_sell": {
+            "id": "zendesk_sell",
+            "name": "Zendesk Sell",
+            "category": "crm",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "rippling": {
+            "id": "rippling",
+            "name": "Rippling",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "deel": {
+            "id": "deel",
+            "name": "Deel",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "personio": {
+            "id": "personio",
+            "name": "Personio",
+            "category": "custom",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "hibob": {
+            "id": "hibob",
+            "name": "HiBob",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token",
+                "service_user_id"
+            ]
+        },
+        "activecampaign": {
+            "id": "activecampaign",
+            "name": "ActiveCampaign",
+            "category": "crm",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "api_key"
+            ]
+        },
+        "klaviyo": {
+            "id": "klaviyo",
+            "name": "Klaviyo",
+            "category": "crm",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "braze": {
+            "id": "braze",
+            "name": "Braze",
+            "category": "crm",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "rest_endpoint"
+            ]
+        },
+        "convertkit": {
+            "id": "convertkit",
+            "name": "Kit (ConvertKit)",
+            "category": "crm",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_secret"
+            ]
+        },
+        "beehiiv": {
+            "id": "beehiiv",
+            "name": "beehiiv",
+            "category": "crm",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "customer_io": {
+            "id": "customer_io",
+            "name": "Customer.io",
+            "category": "crm",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "site_id"
+            ]
+        },
+        "google_ads": {
+            "id": "google_ads",
+            "name": "Google Ads",
+            "category": "social",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "developer_token",
+                "client_id",
+                "client_secret",
+                "refresh_token"
+            ]
+        },
+        "facebook_ads": {
+            "id": "facebook_ads",
+            "name": "Meta Ads",
+            "category": "social",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token",
+                "ad_account_id"
+            ]
+        },
+        "google_analytics": {
+            "id": "google_analytics",
+            "name": "Google Analytics",
+            "category": "data",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json",
+                "property_id"
+            ]
+        },
+        "hotjar": {
+            "id": "hotjar",
+            "name": "Hotjar",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "site_id"
+            ]
+        },
+        "heap": {
+            "id": "heap",
+            "name": "Heap",
+            "category": "data",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "app_id",
+                "api_key"
+            ]
+        },
+        "logrocket": {
+            "id": "logrocket",
+            "name": "LogRocket",
+            "category": "data",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key",
+                "org_slug"
+            ]
+        },
+        "plausible": {
+            "id": "plausible",
+            "name": "Plausible",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "base_url"
+            ]
+        },
+        "squarespace": {
+            "id": "squarespace",
+            "name": "Squarespace",
+            "category": "ecommerce",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "lemon_squeezy": {
+            "id": "lemon_squeezy",
+            "name": "Lemon Squeezy",
+            "category": "ecommerce",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "paddle": {
+            "id": "paddle",
+            "name": "Paddle",
+            "category": "ecommerce",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "environment"
+            ]
+        },
+        "chargebee": {
+            "id": "chargebee",
+            "name": "Chargebee",
+            "category": "ecommerce",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "site",
+                "api_key"
+            ]
+        },
+        "recurly": {
+            "id": "recurly",
+            "name": "Recurly",
+            "category": "ecommerce",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "gumroad": {
+            "id": "gumroad",
+            "name": "Gumroad",
+            "category": "ecommerce",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "hashicorp_consul": {
+            "id": "hashicorp_consul",
+            "name": "HashiCorp Consul",
+            "category": "security",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "token"
+            ]
+        },
+        "hashicorp_nomad": {
+            "id": "hashicorp_nomad",
+            "name": "HashiCorp Nomad",
+            "category": "infra",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "token"
+            ]
+        },
+        "bitwarden": {
+            "id": "bitwarden",
+            "name": "Bitwarden",
+            "category": "security",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "base_url"
+            ]
+        },
+        "cloudinary": {
+            "id": "cloudinary",
+            "name": "Cloudinary",
+            "category": "creative",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "cloud_name",
+                "api_key",
+                "api_secret"
+            ]
+        },
+        "backblaze_b2": {
+            "id": "backblaze_b2",
+            "name": "Backblaze B2",
+            "category": "cloud",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "application_key_id",
+                "application_key"
+            ]
+        },
+        "minio": {
+            "id": "minio",
+            "name": "MinIO",
+            "category": "infra",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "endpoint",
+                "access_key",
+                "secret_key"
+            ]
+        },
+        "fastly": {
+            "id": "fastly",
+            "name": "Fastly",
+            "category": "cloud",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "bunny_cdn": {
+            "id": "bunny_cdn",
+            "name": "Bunny.net",
+            "category": "cloud",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "todoist": {
+            "id": "todoist",
+            "name": "Todoist",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "basecamp": {
+            "id": "basecamp",
+            "name": "Basecamp",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token",
+                "account_id"
+            ]
+        },
+        "wrike": {
+            "id": "wrike",
+            "name": "Wrike",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "smartsheet": {
+            "id": "smartsheet",
+            "name": "Smartsheet",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "coda": {
+            "id": "coda",
+            "name": "Coda",
+            "category": "documents",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "google_docs": {
+            "id": "google_docs",
+            "name": "Google Docs",
+            "category": "documents",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json"
+            ]
+        },
+        "bedrock": {
+            "id": "bedrock",
+            "name": "AWS Bedrock",
+            "category": "ai",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "access_key_id",
+                "secret_access_key",
+                "region"
+            ]
+        },
+        "ollama": {
+            "id": "ollama",
+            "name": "Ollama",
+            "category": "ai",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url"
+            ]
+        },
+        "langsmith": {
+            "id": "langsmith",
+            "name": "LangSmith",
+            "category": "ai",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "weights_biases": {
+            "id": "weights_biases",
+            "name": "Weights & Biases",
+            "category": "ai",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "assemblyai": {
+            "id": "assemblyai",
+            "name": "AssemblyAI",
+            "category": "ai",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "roboflow": {
+            "id": "roboflow",
+            "name": "Roboflow",
+            "category": "ai",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "cal_com": {
+            "id": "cal_com",
+            "name": "Cal.com",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "acuity": {
+            "id": "acuity",
+            "name": "Acuity Scheduling",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "user_id",
+                "api_key"
+            ]
+        },
+        "home_assistant": {
+            "id": "home_assistant",
+            "name": "Home Assistant",
+            "category": "infra",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "access_token"
+            ]
+        },
+        "mqtt": {
+            "id": "mqtt",
+            "name": "MQTT",
+            "category": "infra",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "broker_url",
+                "username",
+                "password"
+            ]
+        },
+        "linkedin_ads": {
+            "id": "linkedin_ads",
+            "name": "LinkedIn Ads",
+            "category": "social",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token",
+                "ad_account_id"
+            ]
+        },
+        "tiktok_ads": {
+            "id": "tiktok_ads",
+            "name": "TikTok Ads",
+            "category": "social",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token",
+                "advertiser_id"
+            ]
+        },
+        "marketo": {
+            "id": "marketo",
+            "name": "Marketo",
+            "category": "crm",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "munchkin_id",
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "iterable": {
+            "id": "iterable",
+            "name": "Iterable",
+            "category": "crm",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "jira_sm": {
+            "id": "jira_sm",
+            "name": "Jira Service Management",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "email",
+                "api_token",
+                "domain"
+            ]
+        },
+        "statuspage": {
+            "id": "statuspage",
+            "name": "Statuspage",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "page_id"
+            ]
+        },
+        "split": {
+            "id": "split",
+            "name": "Split",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "flagsmith": {
+            "id": "flagsmith",
+            "name": "Flagsmith",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key",
+                "base_url"
+            ]
+        },
+        "unleash": {
+            "id": "unleash",
+            "name": "Unleash",
+            "category": "developer",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "api_token"
+            ]
+        },
+        "bugsnag": {
+            "id": "bugsnag",
+            "name": "Bugsnag",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "auth_token"
+            ]
+        },
+        "rollbar": {
+            "id": "rollbar",
+            "name": "Rollbar",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "logdna": {
+            "id": "logdna",
+            "name": "Mezmo (LogDNA)",
+            "category": "devops",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_key"
+            ]
+        },
+        "papertrail": {
+            "id": "papertrail",
+            "name": "Papertrail",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "wise": {
+            "id": "wise",
+            "name": "Wise",
+            "category": "ecommerce",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "mercury": {
+            "id": "mercury",
+            "name": "Mercury",
+            "category": "ecommerce",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "ntfy": {
+            "id": "ntfy",
+            "name": "ntfy",
+            "category": "notification",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "token"
+            ]
+        },
+        "slack_webhook": {
+            "id": "slack_webhook",
+            "name": "Slack Webhook",
+            "category": "notification",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "webhook_url"
+            ]
+        },
+        "discord_webhook": {
+            "id": "discord_webhook",
+            "name": "Discord Webhook",
+            "category": "notification",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "webhook_url"
+            ]
+        },
+        "google_forms": {
+            "id": "google_forms",
+            "name": "Google Forms",
+            "category": "documents",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json"
+            ]
+        },
+        "tally": {
+            "id": "tally",
+            "name": "Tally",
+            "category": "documents",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "heroku": {
+            "id": "heroku",
+            "name": "Heroku",
+            "category": "cloud",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "scaleway": {
+            "id": "scaleway",
+            "name": "Scaleway",
+            "category": "cloud",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_key",
+                "secret_key"
+            ]
+        },
+        "upcloud": {
+            "id": "upcloud",
+            "name": "UpCloud",
+            "category": "cloud",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "username",
+                "password"
+            ]
+        },
+        "twitch": {
+            "id": "twitch",
+            "name": "Twitch",
+            "category": "social",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "client_id",
+                "client_secret",
+                "access_token"
+            ]
+        },
+        "spotify": {
+            "id": "spotify",
+            "name": "Spotify",
+            "category": "social",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "open_meteo": {
+            "id": "open_meteo",
+            "name": "Open-Meteo",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": []
+        },
+        "ip_api": {
+            "id": "ip_api",
+            "name": "ip-api",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": []
+        },
+        "wolfram_alpha": {
+            "id": "wolfram_alpha",
+            "name": "Wolfram Alpha",
+            "category": "ai",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "app_id"
+            ]
+        },
+        "imgbb": {
+            "id": "imgbb",
+            "name": "ImgBB",
+            "category": "creative",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "uptimerobot": {
+            "id": "uptimerobot",
+            "name": "UptimeRobot",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_key"
+            ]
+        },
+        "betterstack": {
+            "id": "betterstack",
+            "name": "Better Stack",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_token"
+            ]
+        },
+        "google_meet": {
+            "id": "google_meet",
+            "name": "Google Meet",
+            "category": "communication",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "service_account_json"
+            ]
+        },
+        "microsoft_365": {
+            "id": "microsoft_365",
+            "name": "Microsoft 365",
+            "category": "documents",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "tenant_id",
+                "client_id",
+                "client_secret"
+            ]
+        },
+        "mapbox": {
+            "id": "mapbox",
+            "name": "Mapbox",
+            "category": "custom",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "access_token"
+            ]
+        },
+        "airtable_personal": {
+            "id": "airtable_personal",
+            "name": "Airtable (Personal Token)",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "personal_token"
+            ]
+        },
+        "vercel_blob": {
+            "id": "vercel_blob",
+            "name": "Vercel Blob",
+            "category": "cloud",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "token"
+            ]
+        },
+        "sanity": {
+            "id": "sanity",
+            "name": "Sanity",
+            "category": "documents",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "project_id",
+                "token"
+            ]
+        },
+        "contentful": {
+            "id": "contentful",
+            "name": "Contentful",
+            "category": "documents",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "space_id",
+                "access_token"
+            ]
+        },
+        "strapi": {
+            "id": "strapi",
+            "name": "Strapi",
+            "category": "documents",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "api_token"
+            ]
+        },
+        "directus": {
+            "id": "directus",
+            "name": "Directus",
+            "category": "documents",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "token"
+            ]
+        },
+        "ghost": {
+            "id": "ghost",
+            "name": "Ghost",
+            "category": "documents",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "base_url",
+                "admin_api_key"
+            ]
+        },
+        "algolia_search": {
+            "id": "algolia_search",
+            "name": "Algolia Search",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "app_id",
+                "admin_key"
+            ]
+        },
+        "typesense": {
+            "id": "typesense",
+            "name": "Typesense",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "host",
+                "api_key",
+                "port"
+            ]
+        },
+        "meilisearch": {
+            "id": "meilisearch",
+            "name": "Meilisearch",
+            "category": "data",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "host",
+                "api_key"
+            ]
+        },
+        "zep": {
+            "id": "zep",
+            "name": "Zep",
+            "category": "ai",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "api_url",
+                "api_key"
+            ]
+        },
+        "windmill": {
+            "id": "windmill",
+            "name": "Windmill",
+            "category": "automation",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "token"
+            ]
+        },
+        "wazuh": {
+            "id": "wazuh",
+            "name": "Wazuh",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "username",
+                "password"
+            ]
+        },
+        "mikrotik_routeros": {
+            "id": "mikrotik_routeros",
+            "name": "MikroTik RouterOS",
+            "category": "infra",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "username",
+                "password"
+            ]
+        },
+        "uptime_kuma": {
+            "id": "uptime_kuma",
+            "name": "Uptime Kuma",
+            "category": "devops",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "api_key"
+            ]
+        },
+        "repobrain": {
+            "id": "repobrain",
+            "name": "RepoBrain Backend",
+            "category": "developer",
+            "hasLiveTest": false,
+            "testDepth": "format-only",
+            "fields": [
+                "shared_secret"
+            ]
+        }
+    }
+}

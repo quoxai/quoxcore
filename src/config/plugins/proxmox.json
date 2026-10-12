@@ -1,0 +1,147 @@
+{
+  "name": "proxmox",
+  "version": "1.0.0",
+  "displayName": "Proxmox VE",
+  "tagline": "Virtualization Made Visible",
+  "description": "Full Proxmox VE integration for VM and container management. Monitor cluster health, manage VMs and LXC containers, track resource usage, and execute lifecycle actions.",
+  "shortDescription": "VM and container management for Proxmox clusters.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 29,
+  "priceDisplay": "$29",
+  "priceModel": "one-time",
+  "tier": "standard",
+  "featured": false,
+  "icon": "server",
+  "accentColor": "#e65100",
+  "infoUrl": "https://quox.ai/plugins/proxmox",
+  "docsUrl": "https://quox.ai/docs/plugins/proxmox",
+  "marketingPoints": [
+    "Full cluster overview with quorum status",
+    "VM and container lifecycle management",
+    "Real-time resource monitoring",
+    "Snapshot management",
+    "Node health tracking"
+  ],
+  "features": {
+    "clusterOverview": {
+      "name": "Cluster Overview",
+      "description": "See all nodes, quorum status, and cluster health at a glance.",
+      "icon": "grid",
+      "highlight": true
+    },
+    "vmManagement": {
+      "name": "VM Management",
+      "description": "List, start, stop, and reboot virtual machines across all nodes.",
+      "icon": "monitor",
+      "highlight": true
+    },
+    "containerManagement": {
+      "name": "Container Management",
+      "description": "Manage LXC containers - view status, resource usage, and lifecycle.",
+      "icon": "box"
+    },
+    "resourceMonitoring": {
+      "name": "Resource Monitoring",
+      "description": "Track CPU, memory, and disk usage per VM and container.",
+      "icon": "activity"
+    },
+    "snapshotManagement": {
+      "name": "Snapshot Management",
+      "description": "View and manage VM snapshots across the cluster.",
+      "icon": "camera"
+    },
+    "nodeStatus": {
+      "name": "Node Status",
+      "description": "Monitor individual node health, uptime, and resources.",
+      "icon": "server"
+    },
+    "storageOverview": {
+      "name": "Storage Overview",
+      "description": "See storage pools, usage, and availability.",
+      "icon": "hard-drive"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "Proxmox VE cluster with API access"
+  },
+  "route": "/monitoring/proxmox",
+  "integration": {
+    "client": "src/services/proxmoxClient.js",
+    "panel": "src/components/core/monitoring/ProxmoxPanel.jsx",
+    "view": "src/pages/views/ProxmoxView.jsx",
+    "tools": "src/config/entities/tools/proxmox.json"
+  },
+  "nocIntegration": {
+    "tab": {
+      "label": "Proxmox",
+      "icon": "server",
+      "order": 10
+    },
+    "quickActions": [
+      {
+        "id": "pve-cluster",
+        "label": "Cluster Health",
+        "icon": "health",
+        "description": "Check Proxmox cluster quorum and node health",
+        "severity": "info",
+        "prompt": "Check Proxmox cluster health, quorum status, and node availability"
+      },
+      {
+        "id": "pve-vms",
+        "label": "VM Status",
+        "icon": "services",
+        "description": "List all VMs with running/stopped status",
+        "severity": "info",
+        "prompt": "List all Proxmox VMs with their current status and resource usage"
+      },
+      {
+        "id": "pve-storage",
+        "label": "Storage Usage",
+        "icon": "disk",
+        "description": "Check Proxmox storage pools and capacity",
+        "severity": "warning",
+        "prompt": "Show Proxmox storage pool usage and flag any pools over 80% capacity"
+      }
+    ],
+    "schedulable": true,
+    "templateVariables": [
+      {
+        "name": "node",
+        "description": "Proxmox node name (e.g. hyp-01)"
+      },
+      {
+        "name": "storage_threshold",
+        "description": "Storage usage alert threshold (%)"
+      }
+    ]
+  },
+  "safety": {
+    "destructiveActions": [
+      "vm.stop",
+      "vm.reboot",
+      "vm.delete"
+    ],
+    "requiresApproval": [
+      "vm.delete",
+      "snapshot.delete"
+    ],
+    "killSwitchEnabled": true
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2025-01-25",
+      "changes": [
+        "Initial release",
+        "Cluster and node monitoring",
+        "VM lifecycle management",
+        "Container management",
+        "Storage overview",
+        "Snapshot support",
+        "Safety system integration"
+      ]
+    }
+  },
+  "category": "Infrastructure"
+}

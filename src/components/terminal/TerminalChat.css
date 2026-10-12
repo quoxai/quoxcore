@@ -1,0 +1,471 @@
+/* TerminalChat - AI Chat Overlay for Terminal Workspace */
+
+.terminal-chat {
+    width: 380px;
+    min-width: 380px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.04);
+    border-left: 1px solid rgba(34, 197, 94, 0.12);
+    overflow: hidden;
+    animation: terminal-chat-slide-in 0.15s ease-out;
+}
+
+@keyframes terminal-chat-slide-in {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* ═══ Header ═══ */
+
+.terminal-chat__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    min-height: 36px;
+    background: linear-gradient(180deg, #0f1920 0%, rgba(255, 255, 255, 0.04) 100%);
+    border-bottom: 1px solid rgba(34, 197, 94, 0.08);
+    flex-shrink: 0;
+}
+
+.terminal-chat__header-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(34, 197, 94, 0.8);
+}
+
+.terminal-chat__header-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.terminal-chat__header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.terminal-chat__header-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.terminal-chat__header-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* ═══ Model Selector Bar ═══ */
+
+.terminal-chat__model-bar {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    flex-shrink: 0;
+}
+
+.terminal-chat__model-select {
+    width: 100%;
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 11px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.15s;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(255,255,255,0.3)' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 24px;
+}
+
+.terminal-chat__model-select:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.terminal-chat__model-select:focus {
+    border-color: rgba(83, 189, 250, 0.4);
+}
+
+.terminal-chat__model-select option {
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.85);
+}
+
+/* ═══ Mode Selector ═══ */
+
+.terminal-chat__mode-row {
+    display: flex;
+    gap: 3px;
+    margin-bottom: 6px;
+}
+
+.terminal-chat__mode-btn {
+    flex: 1;
+    padding: 3px 4px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 10px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.terminal-chat__mode-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.terminal-chat__mode-btn--active {
+    background: rgba(34, 197, 94, 0.06);
+    font-weight: 600;
+}
+
+/* ═══ Messages Area ═══ */
+
+.terminal-chat__messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+.terminal-chat__messages::-webkit-scrollbar {
+    width: 4px;
+}
+
+.terminal-chat__messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.terminal-chat__messages::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+}
+
+/* Empty state */
+.terminal-chat__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 10px;
+    text-align: center;
+    padding: 24px 16px;
+}
+
+.terminal-chat__empty p {
+    margin: 0;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.25);
+    line-height: 1.5;
+}
+
+/* Message rows */
+.terminal-chat__message {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.terminal-chat__message--user {
+    align-items: flex-end;
+}
+
+.terminal-chat__message--assistant {
+    align-items: flex-start;
+}
+
+/* Bubbles */
+.terminal-chat__bubble {
+    max-width: 95%;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.85);
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+.terminal-chat__message--user .terminal-chat__bubble {
+    background: rgba(83, 189, 250, 0.12);
+    border: 1px solid rgba(83, 189, 250, 0.15);
+    border-bottom-right-radius: 2px;
+}
+
+.terminal-chat__message--assistant .terminal-chat__bubble {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom-left-radius: 2px;
+}
+
+.terminal-chat__bubble--error {
+    color: rgba(234, 108, 115, 0.8);
+    border-color: rgba(234, 108, 115, 0.15);
+    background: rgba(234, 108, 115, 0.06);
+    font-style: italic;
+}
+
+/* Markdown inside bubbles */
+.terminal-chat__bubble p {
+    margin: 0.3em 0;
+}
+
+.terminal-chat__bubble p:first-child {
+    margin-top: 0;
+}
+
+.terminal-chat__bubble p:last-child {
+    margin-bottom: 0;
+}
+
+.terminal-chat__bubble ul,
+.terminal-chat__bubble ol {
+    margin: 0.3em 0;
+    padding-left: 1.4em;
+}
+
+.terminal-chat__bubble li {
+    margin: 0.15em 0;
+}
+
+.terminal-chat__bubble a {
+    color: rgba(83, 189, 250, 0.8);
+    text-decoration: none;
+}
+
+.terminal-chat__bubble a:hover {
+    text-decoration: underline;
+}
+
+/* Code blocks inside bubbles (ReactMarkdown) */
+.terminal-chat__bubble pre {
+    margin: 8px 0;
+    padding: 10px 12px;
+    background: #0a0e14;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.8);
+    white-space: pre;
+}
+
+.terminal-chat__bubble pre:first-child {
+    margin-top: 0;
+}
+
+.terminal-chat__bubble pre:last-child {
+    margin-bottom: 0;
+}
+
+.terminal-chat__bubble code {
+    padding: 1px 5px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    color: rgba(249, 175, 79, 0.9);
+}
+
+.terminal-chat__bubble pre code {
+    padding: 0;
+    background: none;
+    border-radius: 0;
+    color: inherit;
+    font-size: inherit;
+}
+
+/* Message metadata */
+.terminal-chat__meta {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.25);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    padding: 0 4px;
+    letter-spacing: 0.02em;
+}
+
+/* Processing indicator */
+.terminal-chat__processing {
+    font-size: 11px;
+    color: rgba(83, 189, 250, 0.5);
+    font-style: italic;
+    padding: 4px 12px;
+    animation: terminal-chat-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes terminal-chat-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+/* ═══ Input Area — ChatInput theme overrides ═══ */
+
+.terminal-chat__input-area {
+    padding: 6px 8px 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+}
+
+/* Override ChatInput styles for terminal dark theme */
+.terminal-chat__input-area .chat-input {
+    background: transparent;
+    padding: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.terminal-chat__input-area .chat-input__form {
+    width: 100%;
+}
+
+.terminal-chat__input-area .chat-input__row {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 8px 10px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.terminal-chat__input-area .chat-input__row:focus-within {
+    border-color: rgba(83, 189, 250, 0.4);
+}
+
+.terminal-chat__input-area .chat-input__textarea {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 13px;
+    min-height: 48px;
+}
+
+.terminal-chat__input-area .chat-input__textarea::placeholder {
+    color: rgba(255, 255, 255, 0.2);
+}
+
+.terminal-chat__input-area .chat-input__send-btn {
+    background: rgba(83, 189, 250, 0.15);
+    border: 1px solid rgba(83, 189, 250, 0.2);
+    color: rgba(83, 189, 250, 0.9);
+    width: 32px;
+    height: 32px;
+}
+
+.terminal-chat__input-area .chat-input__send-icon {
+    font-size: 14px;
+}
+
+.terminal-chat__input-area .chat-input__send-btn:hover:not(:disabled) {
+    background: rgba(83, 189, 250, 0.25);
+    border-color: rgba(83, 189, 250, 0.35);
+}
+
+.terminal-chat__input-area .chat-input__send-btn:disabled {
+    opacity: 0.2;
+}
+
+.terminal-chat__input-area .chat-input__hints {
+    display: none;
+}
+
+/* ═══ Auth Warning ═══ */
+
+.terminal-chat__auth-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(234, 179, 8, 0.06);
+    border: 1px solid rgba(234, 179, 8, 0.15);
+    border-radius: 6px;
+    font-size: 11px;
+    color: rgba(234, 179, 8, 0.7);
+    line-height: 1.4;
+}
+
+.terminal-chat__auth-warning svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: rgba(234, 179, 8, 0.6);
+}
+
+/* ═══ Status Dot (thinking indicator in header) ═══ */
+
+.terminal-chat__status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.terminal-chat__status-dot--thinking {
+    background: rgba(83, 189, 250, 0.7);
+    animation: terminal-chat-pulse 1.5s ease-in-out infinite;
+}
+
+/* ═══ Pending Bubble ═══ */
+
+.terminal-chat__bubble--pending {
+    opacity: 0.5;
+}
+
+/* ═══ Table inside bubbles ═══ */
+
+.terminal-chat__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin: 0.3em 0;
+}
+
+.terminal-chat__table th,
+.terminal-chat__table td {
+    padding: 4px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: left;
+}
+
+.terminal-chat__table th {
+    background: rgba(255, 255, 255, 0.04);
+    font-weight: 600;
+}
+
+.terminal-chat__error {
+    font-size: 11px;
+    color: rgba(234, 108, 115, 0.7);
+    padding: 2px 4px;
+}

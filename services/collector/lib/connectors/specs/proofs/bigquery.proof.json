@@ -1,0 +1,86 @@
+{
+  "spec_id": "bigquery",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:05.281Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://bigquery.googleapis.com/quox-shapeproof-control-764a51ba",
+      "status": 404,
+      "latency_ms": 182,
+      "classification": "CONTROL",
+      "body_sha256": "7f50cd8f27afad86f1cf3e48d3aeb8f5806c69c8eb7b43fadd447ef4f6abf140",
+      "body_excerpt": "<!DOCTYPE html>\n<html lang=en>\n  <meta charset=utf-8>\n  <meta name=viewport content=\"initial-scale=1, minimum-scale=1, width=device-width\">\n  <title>Error 404 (Not Found)!!1</title>\n  <style>\n    *{ma",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://bigquery.googleapis.com/bigquery/v2/projects/quoxprobe/datasets?maxResults=1",
+      "status": 401,
+      "latency_ms": 69,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0a271c7438b8ed03cfa2be673c3b0df4b7a6f2e7d3f2fd3b69d1e08216d17f3f",
+      "body_excerpt": "{\n  \"error\": {\n    \"code\": 401,\n    \"message\": \"Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://develo",
+      "flags": {
+        "www_authenticate": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "list_datasets",
+      "method": "GET",
+      "url": "https://bigquery.googleapis.com/bigquery/v2/projects/quoxprobe/datasets?maxResults=50&pageToken=quoxprobe",
+      "status": 401,
+      "latency_ms": 83,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "491337b98b7ce2d002c96bce298c7df3215fcd52c684b46f098a55fa0c9f1c42",
+      "body_excerpt": "{\n  \"error\": {\n    \"code\": 401,\n    \"message\": \"Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://develo",
+      "flags": {
+        "www_authenticate": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "list_tables",
+      "method": "GET",
+      "url": "https://bigquery.googleapis.com/bigquery/v2/projects/quoxprobe/datasets/quoxprobe/tables?maxResults=50&pageToken=quoxprobe",
+      "status": 404,
+      "latency_ms": 313,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9d9acc1f698fb4bade6706da9585966c5ffc8efcd756397257cfa4a549ee5670",
+      "body_excerpt": "{\"error\":{\"code\":404,\"message\":\"Project quoxprobe is not found. Make sure it references valid GCP project that hasn't been deleted.; Project id: quoxprobe\",\"errors\":[{\"message\":\"Project quoxprobe is n",
+      "flags": {
+        "identifier_404_differential": true,
+        "differential_basis": "body_sha",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_table",
+      "method": "GET",
+      "url": "https://bigquery.googleapis.com/bigquery/v2/projects/quoxprobe/datasets/quoxprobe/tables/quoxprobe",
+      "status": 404,
+      "latency_ms": 306,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9d9acc1f698fb4bade6706da9585966c5ffc8efcd756397257cfa4a549ee5670",
+      "body_excerpt": "{\"error\":{\"code\":404,\"message\":\"Project quoxprobe is not found. Make sure it references valid GCP project that hasn't been deleted.; Project id: quoxprobe\",\"errors\":[{\"message\":\"Project quoxprobe is n",
+      "flags": {
+        "identifier_404_differential": true,
+        "differential_basis": "body_sha",
+        "token_flow_untested": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run. This spec authenticates through a token exchange, which is NOT blind-provable: the harness probes the API surface with a dummy bearer token, so the endpoints, paths and auth handling are tested but the token-acquisition flow itself is not.",
+  "notes": [
+    "google_service_account auth: probed with a dummy bearer token; the token-acquisition flow is NOT proven by this run."
+  ]
+}

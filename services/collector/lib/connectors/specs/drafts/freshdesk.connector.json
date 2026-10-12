@@ -1,0 +1,38 @@
+{
+  "spec_version": 1,
+  "id": "freshdesk",
+  "name": "Freshdesk",
+  "category": "uncategorized",
+  "credentialType": "freshdesk",
+  "requiredFields": [
+    "api_key",
+    "domain"
+  ],
+  "docs": "https://developers.freshdesk.com/api/",
+  "base_url": {
+    "fromCredential": "domain",
+    "template": "https://{{domain}}.freshdesk.com"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": ""
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/tickets",
+    "query": {
+      "per_page": "1"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url_template",
+      "basic_literal_password"
+    ]
+  }
+}

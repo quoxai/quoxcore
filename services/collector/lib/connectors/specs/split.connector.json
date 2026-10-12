@@ -1,0 +1,335 @@
+{
+  "spec_version": 1,
+  "id": "split",
+  "name": "Split",
+  "category": "developer",
+  "credentialType": "split",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.split.io/reference/introduction-to-admin-api",
+  "base_url": "https://api.split.io",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/internal/api/v2/workspaces"
+  },
+  "tools_source": "https://docs.split.io/reference/introduction-to-admin-api",
+  "tools": [
+    {
+      "name": "list_workspaces",
+      "description": "List Split workspaces the Admin API key can see; every other read needs a workspace ID from here",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max workspaces to return (default 20, max 50)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional 0-based offset for paging"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/internal/api/v2/workspaces",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "objects[]": {
+            "id": "id",
+            "name": "name",
+            "type": "type",
+            "requiresTitleAndComments": "requiresTitleAndComments"
+          },
+          "offset": "offset",
+          "limit": "limit",
+          "totalCount": "totalCount"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_environments",
+      "description": "List the environments in one Split workspace (which are production, and their IDs for flag-definition reads)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "description": "Split workspace ID from list_workspaces"
+          }
+        },
+        "required": [
+          "workspace_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/internal/api/v2/environments/ws/{{input.workspace_id}}"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "production": "production",
+            "orgId": "orgId"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_feature_flags",
+      "description": "List the feature flags in one Split workspace with their traffic type, tags and creation time",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "description": "Split workspace ID from list_workspaces"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max feature flags to return (default 20, max 50)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional 0-based offset for paging"
+          }
+        },
+        "required": [
+          "workspace_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/internal/api/v2/splits/ws/{{input.workspace_id}}",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "objects[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "trafficType": "trafficType.name",
+            "creationTime": "creationTime",
+            "tags": "tags"
+          },
+          "offset": "offset",
+          "limit": "limit",
+          "totalCount": "totalCount"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_feature_flag",
+      "description": "Get one Split feature flag by name (workspace-level metadata, not its per-environment rollout)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "description": "Split workspace ID from list_workspaces"
+          },
+          "feature_flag_name": {
+            "type": "string",
+            "description": "Feature flag name exactly as returned by list_feature_flags"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "feature_flag_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/internal/api/v2/splits/ws/{{input.workspace_id}}/{{input.feature_flag_name}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "description": "description",
+          "trafficType": "trafficType.name",
+          "creationTime": "creationTime",
+          "tags": "tags"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_feature_flag_definition",
+      "description": "Get the rollout of one Split feature flag in one environment: kill switch, treatments, default rule and traffic allocation",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "description": "Split workspace ID from list_workspaces"
+          },
+          "feature_flag_name": {
+            "type": "string",
+            "description": "Feature flag name exactly as returned by list_feature_flags"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Environment name or ID from list_environments"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "feature_flag_name",
+          "environment"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/internal/api/v2/splits/ws/{{input.workspace_id}}/{{input.feature_flag_name}}/environments/{{input.environment}}"
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "environment": "environment.name",
+          "killed": "killed",
+          "defaultTreatment": "defaultTreatment",
+          "trafficAllocation": "trafficAllocation",
+          "creationTime": "creationTime",
+          "lastUpdateTime": "lastUpdateTime",
+          "treatments[]": {
+            "name": "name",
+            "description": "description"
+          },
+          "defaultRule[]": {
+            "treatment": "treatment",
+            "size": "size"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_segments",
+      "description": "List the segments in one Split workspace and environment with their traffic type",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "description": "Split workspace ID from list_workspaces"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Environment name or ID from list_environments"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max segments to return (default 20, max 50)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional 0-based offset for paging"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "environment"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/internal/api/v2/segments/ws/{{input.workspace_id}}/{{input.environment}}",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "objects[]": {
+            "name": "name",
+            "description": "description",
+            "trafficType": "trafficType.name",
+            "creationTime": "creationTime"
+          },
+          "offset": "offset",
+          "limit": "limit",
+          "totalCount": "totalCount"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_traffic_types",
+      "description": "List the traffic types defined in one Split workspace (user, account and any custom types)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "description": "Split workspace ID from list_workspaces"
+          }
+        },
+        "required": [
+          "workspace_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/internal/api/v2/trafficTypes/ws/{{input.workspace_id}}"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "displayAttributeId": "displayAttributeId"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "THE SCAFFOLDED TEST PATH WAS WRONG AND IS CHANGED HERE. The scaffold (and the vault entry integrationTypeRegistry.js `split.testEndpoint`) both call https://api.split.io/internal/api/v2/splits?limit=1, and that path does not exist: probed 2026-09-12 it answers `404 {\"code\":404,\"message\":\"HTTP 404 Not Found\",\"details\":null,\"transactionId\":\"\"}` with a dummy bearer, while the workspace-scoped `/internal/api/v2/splits/ws/quoxprobe` answers `401 {\"code\":401,\"message\":\"API key unauthorized: xxxxXXXXXXXXXXXXXXXXXXXXXXXXXXTOKEN\",\"details\":null,\"transactionId\":\"3wjyegshhws\"}`. Admin API v2 scopes every flag read to a workspace, so `test` now calls `/internal/api/v2/workspaces` (probed `401 {\"code\":401,\"message\":\"API key unauthorized: ...\",\"transactionId\":\"3wjyditi5xm\"}`), which is both provable and the read a real key must succeed at before any other tool is usable. The vault entry still carries the 404 path; fixing it is out of scope for this spec file and should be raised on the auth-side registry.",
+      "Auth kept as scaffolded (bearer on `api_key`) because the probe evidence supports it: every existing route answers 401 with Split's own structured envelope naming the presented key, which is a credential rejection and not a routing failure.",
+      "Split routes BEFORE it authenticates, which is what makes this spec blind-provable at path level: real paths answer 401 JSON, absent paths answer 404, and the harness control path (`https://api.split.io/quox-shapeproof-control-<hash>`) answers a Jetty HTML `404 Not Found` page. Three candidate reads were dropped for answering 404 under the same dummy key: `/internal/api/v2/tags/ws/{ws}`, `/internal/api/v2/largeSegments/ws/{ws}/{env}` and `/internal/api/v2/flagSets/ws/{ws}`.",
+      "Response picks are documentation-derived, not data-verified: no Split account was held, so no tool has ever seen a 2xx body. The list wrappers follow the Admin API reference (`objects` + `offset`/`limit`/`totalCount` for workspaces, splits and segments; a bare top-level array for environments and trafficTypes, picked with the v1.1 root-array form). If a wrapper name is wrong the tool returns an empty array rather than an error, so confirm each list tool against a real key before promoting this draft.",
+      "`limit` clamps at 50 because that is the documented Admin API maximum for list endpoints; spec v1 has one request per tool, so there is no auto-pagination and `offset` is exposed for the caller to page manually.",
+      "Documented filters (tag filtering on the flag list, status filtering on segments) are deliberately absent: their query-parameter names could not be confirmed without a key, and an unrecognised parameter on Split is silently ignored rather than rejected, which would make a filtered read look like a filtered read while returning everything.",
+      "User, group and change-request reads (`/internal/api/v2/users`, `/internal/api/v2/groups`, `/internal/api/v2/changeRequests`, all probed 401 so all present) are deliberately NOT included: their response wrapper differs from the `objects` family and could not be pinned down blind, and a wrong wrapper on a governance read would report 'no pending change requests' when there are some. Add them once a real key can confirm the shape.",
+      "Every tool is a GET marked `write: false`. The Admin API's write surface (create, update, kill, environment promotion) is reachable on these same paths with other verbs and is out of scope for this spec.",
+      "Split echoes a masked rendering of the presented key back in its 401 message, so proof bodies for this connector always contain a mangled form of the dummy credential. That is the vendor's error text, not a leak of a real secret, but it means a proof run made with a REAL key would put a partial key into the proof artifact. Only ever shape-proof this spec with the harness dummy."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,687 @@
+/* ═══════════════════════════════════════════
+   ASSISTANT EDITOR — Unified Premium Dark
+   Matches AgentDetailView glassmorphic style.
+   All --hal-* vars replaced with direct values.
+   ═══════════════════════════════════════════ */
+
+.assistant-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.editor-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.editor-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  border: 1.5px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.editor-title h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.editor-subtitle {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  display: block;
+  margin-top: 2px;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.reset-btn, .preview-btn {
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  letter-spacing: 0.02em;
+}
+
+.reset-btn:hover {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.preview-btn:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.close-btn {
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.close-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Tabs — Glassmorphic pill bar matching AgentDetailView ── */
+.editor-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  margin: 16px 16px 0 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.editor-tabs::-webkit-scrollbar { height: 0; }
+
+.editor-tabs .tab-btn {
+  padding: 7px 14px;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  border-bottom: none;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  height: auto;
+}
+
+.editor-tabs .tab-btn:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.editor-tabs .tab-btn.active {
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  border-color: transparent;
+}
+
+/* ── Content ── */
+.editor-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  min-height: 0;
+}
+
+.editor-content::-webkit-scrollbar { width: 4px; }
+.editor-content::-webkit-scrollbar-track { background: transparent; }
+.editor-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 2px; }
+
+.editor-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Form Controls ── */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.form-group input[type="text"],
+.form-group input[type="color"],
+.form-group textarea,
+.form-group select {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.form-group input[type="color"] {
+  width: 60px;
+  height: 36px;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.3);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15), 0 0 0 2px rgba(56, 189, 248, 0.08);
+}
+
+.form-group input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.context-preview {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.context-preview h4 {
+  margin: 0 0 12px 0;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.context-preview pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 11px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+/* ── Footer ── */
+.editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.cancel-btn, .save-btn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+  letter-spacing: 0.02em;
+}
+
+.cancel-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.cancel-btn:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.save-btn {
+  background: #30ff90;
+  border: none;
+  color: #000;
+  font-weight: 700;
+}
+
+.save-btn:hover:not(:disabled) {
+  background: #50ffaa;
+  box-shadow: 0 0 12px rgba(48, 255, 144, 0.3);
+}
+
+.save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.save-btn--success {
+  background: #30ff90;
+}
+
+/* Form Error States */
+.form-group--error input,
+.form-group--error textarea {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.form-group--error input:focus,
+.form-group--error textarea:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.form-error {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #ef4444;
+}
+
+.editor-footer__error {
+  margin-right: auto;
+  font-size: 12px;
+  color: #ef4444;
+}
+
+.editor-footer__success {
+  margin-right: auto;
+  font-size: 12px;
+  color: #30ff90;
+  animation: ae-fadeIn 0.3s ease;
+}
+
+@keyframes ae-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── LLM Tab ── */
+.llm-section-header {
+  margin-bottom: 8px;
+}
+
+.section-description {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.form-hint {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.65);
+  margin-top: 4px;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.form-group input[type="number"] {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  width: 100%;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.form-group input[type="number"]:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.3);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15), 0 0 0 2px rgba(56, 189, 248, 0.08);
+}
+
+.llm-info-box {
+  margin-top: 20px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+}
+
+.llm-info-box h4 {
+  margin: 0 0 12px 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.llm-info-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.llm-info-label {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.llm-info-value {
+  color: #38bdf8;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.llm-info-note {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.llm-info-note strong {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.form-group select option:disabled {
+  color: rgba(255, 255, 255, 0.65);
+  font-style: italic;
+}
+
+/* ── Voice Tab ── */
+.voice-section-header {
+  margin-bottom: 8px;
+}
+
+.current-voice-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+}
+
+.voice-badge {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.voice-meta {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.voice-select {
+  width: 100%;
+}
+
+.voice-select optgroup {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.voice-select option {
+  padding: 8px;
+  font-weight: 400;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.voice-info-box {
+  margin-top: 20px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+}
+
+.voice-info-box h4 {
+  margin: 0 0 8px 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.voice-info-box p {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.5;
+}
+
+.voice-info-box p:last-child {
+  margin-bottom: 0;
+}
+
+.voice-info-box strong {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.voice-tip {
+  padding: 8px 12px;
+  background: rgba(168, 85, 247, 0.06);
+  border: 1px solid rgba(168, 85, 247, 0.12);
+  border-radius: 6px;
+  margin-top: 12px !important;
+}
+
+/* ── Voice Preview Button ── */
+.voice-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.voice-preview-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.voice-preview-btn:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+}
+
+.voice-preview-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.voice-preview-btn--playing {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+}
+
+.voice-preview-text {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
+  font-style: italic;
+}
+
+/* ── Tools & Delegation (extracted from original inline styles) ── */
+
+.tools-section {
+  margin-bottom: 0;
+}
+
+.section-label {
+  margin: 0 0 8px 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.section-desc {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+
+.tool-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tool-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(56, 189, 248, 0.06);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  border-radius: 6px;
+  font-size: 11px;
+  color: #fff;
+  transition: all 0.15s;
+}
+
+.tool-chip:hover {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+.tool-chip__icon {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.tool-chip__name {
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.tool-chip--workflow {
+  background: rgba(168, 85, 247, 0.06);
+  border-color: rgba(168, 85, 247, 0.15);
+}
+
+.tool-chip--workflow:hover {
+  background: rgba(168, 85, 247, 0.12);
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
+.tool-chip--cap {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.delegation-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.delegation-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  transition: all 0.15s;
+}
+
+.delegation-target:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.delegation-target__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.delegation-target__domain {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.65);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.empty-state-small {
+  padding: 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+}

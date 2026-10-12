@@ -1,0 +1,130 @@
+{
+  "spec_id": "canva",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:22:50.984Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.canva.com/quox-shapeproof-control-3db1f560",
+      "status": 401,
+      "latency_ms": 1321,
+      "classification": "CONTROL",
+      "body_sha256": "580a45da4b0022fb805e418d7dcc5e44d63358d4036b91889d63c2d09afd0bf1",
+      "body_excerpt": "{\"code\":\"invalid_access_token\",\"message\":\"Access token is invalid\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.canva.com/rest/v1/users/me",
+      "status": 401,
+      "latency_ms": 275,
+      "classification": "AUTH_WALL",
+      "body_sha256": "580a45da4b0022fb805e418d7dcc5e44d63358d4036b91889d63c2d09afd0bf1",
+      "body_excerpt": "{\"code\":\"invalid_access_token\",\"message\":\"Access token is invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_current_user",
+      "method": "GET",
+      "url": "https://api.canva.com/rest/v1/users/me",
+      "status": 401,
+      "latency_ms": 127,
+      "classification": "AUTH_WALL",
+      "body_sha256": "580a45da4b0022fb805e418d7dcc5e44d63358d4036b91889d63c2d09afd0bf1",
+      "body_excerpt": "{\"code\":\"invalid_access_token\",\"message\":\"Access token is invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_user_profile",
+      "method": "GET",
+      "url": "https://api.canva.com/rest/v1/users/me/profile",
+      "status": 401,
+      "latency_ms": 130,
+      "classification": "AUTH_WALL",
+      "body_sha256": "580a45da4b0022fb805e418d7dcc5e44d63358d4036b91889d63c2d09afd0bf1",
+      "body_excerpt": "{\"code\":\"invalid_access_token\",\"message\":\"Access token is invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "list_designs",
+      "method": "GET",
+      "url": "https://api.canva.com/rest/v1/designs?query=quoxprobe&ownership=quoxprobe&sort_by=quoxprobe&limit=25&continuation=quoxprobe",
+      "status": 401,
+      "latency_ms": 130,
+      "classification": "AUTH_WALL",
+      "body_sha256": "580a45da4b0022fb805e418d7dcc5e44d63358d4036b91889d63c2d09afd0bf1",
+      "body_excerpt": "{\"code\":\"invalid_access_token\",\"message\":\"Access token is invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_folder",
+      "method": "GET",
+      "url": "https://api.canva.com/rest/v1/folders/root",
+      "status": 401,
+      "latency_ms": 129,
+      "classification": "AUTH_WALL",
+      "body_sha256": "580a45da4b0022fb805e418d7dcc5e44d63358d4036b91889d63c2d09afd0bf1",
+      "body_excerpt": "{\"code\":\"invalid_access_token\",\"message\":\"Access token is invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "list_folder_items",
+      "method": "GET",
+      "url": "https://api.canva.com/rest/v1/folders/root/items?item_types=quoxprobe&sort_by=quoxprobe&limit=50&continuation=quoxprobe",
+      "status": 401,
+      "latency_ms": 123,
+      "classification": "AUTH_WALL",
+      "body_sha256": "580a45da4b0022fb805e418d7dcc5e44d63358d4036b91889d63c2d09afd0bf1",
+      "body_excerpt": "{\"code\":\"invalid_access_token\",\"message\":\"Access token is invalid\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code",
+        "token_flow_untested": true
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run. This spec authenticates through a token exchange, which is NOT blind-provable: the harness probes the API surface with a dummy bearer token, so the endpoints, paths and auth handling are tested but the token-acquisition flow itself is not.",
+  "notes": [
+    "oauth2_refresh auth: probed with a dummy bearer token; the token-acquisition flow is NOT proven by this run."
+  ]
+}

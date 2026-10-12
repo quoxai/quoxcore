@@ -1,0 +1,119 @@
+{
+  "spec_id": "rabbitmq",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T22:23:23.294Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/overview",
+      "status": 200,
+      "latency_ms": 274,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "7a5088dcda82707a17e112cfa8019e69fa43402929255d74a66eaec3caaedf65",
+      "body_excerpt": "{\"management_version\":\"3.13.7\",\"rates_mode\":\"basic\",\"sample_retention_policies\":{\"global\":[600,3600,28800,86400],\"basic\":[600,3600],\"detailed\":[600]},\"exchange_types\":[{\"name\":\"direct\",\"description\":\"",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "overview",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/overview",
+      "status": 200,
+      "latency_ms": 23,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "7a5088dcda82707a17e112cfa8019e69fa43402929255d74a66eaec3caaedf65",
+      "body_excerpt": "{\"management_version\":\"3.13.7\",\"rates_mode\":\"basic\",\"sample_retention_policies\":{\"global\":[600,3600,28800,86400],\"basic\":[600,3600],\"detailed\":[600]},\"exchange_types\":[{\"name\":\"direct\",\"description\":\"",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_nodes",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/nodes",
+      "status": 200,
+      "latency_ms": 23,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "3f404763504f055f5524773b31d9965183e0666610b479c4983b49618b03cbe6",
+      "body_excerpt": "[{\"partitions\":[],\"os_pid\":\"1\",\"fd_total\":1024,\"sockets_total\":832,\"mem_limit\":10079671091,\"mem_alarm\":false,\"disk_free_limit\":50000000,\"disk_free_alarm\":false,\"proc_total\":1048576,\"rates_mode\":\"basic",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_vhosts",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/vhosts",
+      "status": 200,
+      "latency_ms": 13,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "b0c55f72bf0a80c065cb8c0091254a816adb25235c80376d9c04ff8b37965592",
+      "body_excerpt": "[{\"cluster_state\":{\"rabbit@32b5d695c9d4\":\"running\"},\"default_queue_type\":\"undefined\",\"description\":\"Default virtual host\",\"metadata\":{\"description\":\"Default virtual host\",\"tags\":[]},\"name\":\"/\",\"tags\":",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_queues",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/queues?page=1&page_size=100&disable_stats=false",
+      "status": 200,
+      "latency_ms": 10,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "1268fd514047acf62bea343a58e919a41e63f42a4c4cef7a7e3473aa94d86c98",
+      "body_excerpt": "{\"filtered_count\":0,\"item_count\":0,\"items\":[],\"page\":1,\"page_count\":0,\"page_size\":100,\"total_count\":0}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_exchanges",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/exchanges",
+      "status": 200,
+      "latency_ms": 13,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "ebe1eb64b58f66b7f6c0c8752947781258cbb3b0a6796b077b3faa2f5083b1b2",
+      "body_excerpt": "[{\"arguments\":{},\"auto_delete\":false,\"durable\":true,\"internal\":false,\"name\":\"\",\"type\":\"direct\",\"user_who_performed_action\":\"rmq-internal\",\"vhost\":\"/\"},{\"arguments\":{},\"auto_delete\":false,\"durable\":tru",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_connections",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/connections",
+      "status": 200,
+      "latency_ms": 10,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "body_excerpt": "[]",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "healthchecks_alarms",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/health/checks/alarms",
+      "status": 200,
+      "latency_ms": 11,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "a29ee2b15c494311c52521766e44af56a3ad2248e7a8ab465e5206463c13d288",
+      "body_excerpt": "{\"status\":\"ok\"}",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "rabbitmq:3-management"
+}

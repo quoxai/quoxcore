@@ -1,0 +1,36 @@
+{
+  "spec_version": 1,
+  "id": "docker",
+  "name": "Docker Hub",
+  "category": "cloud_hosting",
+  "credentialType": "docker",
+  "requiredFields": [
+    "username",
+    "token"
+  ],
+  "description": "DEFERRED DUPLICATE, DO NOT PROMOTE: this vault key describes Docker Hub, which already ships as the docker_hub connector. Kept as an annotated draft so the duplication is recorded rather than shipped twice.",
+  "docs": "https://docs.docker.com/docker-hub/api/latest/",
+  "base_url": "https://hub.docker.com",
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/users/{{username}}"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "OUTCOME: DEFERRED AS A DUPLICATE OF docker_hub, NO TOOLS SHIPPED. The task allowed two honest outcomes for this draft depending on what the vault entry describes. It describes Docker Hub, not a Docker Engine daemon: services/auth/config/integrationTypeRegistry.js key 'docker' reads name 'Docker Hub', description 'Docker Hub registry and images', fields username plus token, and testEndpoint (creds) => `https://hub.docker.com/v2/users/${creds.username}`. There is no host or base_url field anywhere in that entry, so nothing here points at a customer's own Docker Engine socket or TCP endpoint, and NEEDS_INSTANCE with a fromCredential base_url would be a spec invented for a credential shape the vault does not have.",
+      "THE SURFACE IS ALREADY SHIPPED UNDER ANOTHER ID: lib/connectors/specs/docker_hub.connector.json is registered against integrationTypeRegistry.js key 'docker_hub' (same hub.docker.com host, same v2 API) with three public read tools, list_repositories, get_repository and list_tags, and a passing proof at lib/connectors/specs/proofs/docker_hub.proof.json. Shipping a second connector on the same API would give agents two prefixes (docker_ and docker_hub_) for one provider, double the tool-retrieval surface, and force every future Docker Hub fix to land twice.",
+      "THE SCAFFOLDED AUTH WOULD NOT WORK EVEN IF A TWIN WERE WANTED: auth {type: bearer, field: token} sends the vault token straight as a bearer, and Docker Hub does not accept that. Checked live 2026-09-12, GET https://hub.docker.com/v2/users/quoxprobe with a dummy bearer returns 401 {\"message\":\"unauthorized\",\"errinfo\":{}}. Docker's own OpenAPI states every credential type, personal access tokens included, must first be exchanged at the create-access-token route for a JWT bearer, a token exchange Connector Spec v1 cannot perform mid-request. That is the same finding already recorded in docker_hub's needs_review, which is why docker_hub ships auth {type: none} with public reads only. The scaffolded auth block is left untouched here rather than silently corrected, because this draft is not being promoted.",
+      "NO PROOF ARTIFACT WAS WRITTEN FOR THIS ID, DELIBERATELY: a shape-proof at lib/connectors/specs/proofs/docker.proof.json would be an evidence file for a connector that is not shipping, and the registry gate reads proofs by spec id, so the artifact would sit there inviting exactly the promotion this note argues against. The live 401 above is the evidence that was actually needed, and the Docker Hub API surface itself is already proved by proofs/docker_hub.proof.json. tools stays empty and rateLimit stays absent, so validateSpec reports zero errors plus the two warnings that correctly describe a non-shipping draft ('tools: empty' and 'rateLimit: not declared').",
+      "RECOMMENDED DISPOSITION, OWNER CALL, NOT TAKEN HERE: the duplication lives in the vault registry, not in this directory. The clean fix is to retire or alias integrationTypeRegistry.js key 'docker' onto 'docker_hub' so customers hold one Docker Hub credential, which is a registry change with a migration for anyone already holding a 'docker' credential, and therefore out of this task's scope. Until that happens this draft stays in drafts/ as the record. Authenticated Docker Hub reads, private repositories included, remain blocked on the same token-exchange gap docker_hub documents.",
+      "A DOCKER ENGINE CONNECTOR IS A SEPARATE, UNCLAIMED IDEA: if self-hosted Docker Engine access is ever wanted (GET /containers/json, GET /images/json, GET /version against a customer's own daemon URL), it needs its own vault entry with a base_url field, its own id, and a decision about exposing a daemon socket to the platform at all. It is not this draft, and nothing here should be read as that capability existing."
+    ]
+  }
+}

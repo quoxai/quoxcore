@@ -1,0 +1,110 @@
+{
+  "spec_version": 1,
+  "id": "upstash",
+  "name": "Upstash",
+  "category": "data_ai",
+  "credentialType": "upstash",
+  "requiredFields": [
+    "email",
+    "api_key"
+  ],
+  "description": "Read-only Upstash management API access to serverless Redis databases: the databases on the account and one database in detail. Kafka is NOT covered: the Upstash developer API documentation no longer lists any Kafka endpoint (checked 2026-09-12), so no Kafka tool is shipped rather than one guessed from memory. Database credentials (password and REST tokens) are deliberately excluded from every response.",
+  "docs": "https://upstash.com/docs/devops/developer-api",
+  "base_url": "https://api.upstash.com",
+  "auth": {
+    "type": "basic",
+    "userField": "email",
+    "passField": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/redis/databases"
+  },
+  "tools_source": "https://upstash.com/docs/devops/developer-api",
+  "tools": [
+    {
+      "name": "list_redis_databases",
+      "description": "List the Upstash Redis databases on this account, with region, state, endpoint, port and plan (no credentials)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/redis/databases"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "database_id": "database_id",
+            "database_name": "database_name",
+            "region": "region",
+            "primary_region": "primary_region",
+            "read_regions": "read_regions",
+            "type": "type",
+            "state": "state",
+            "endpoint": "endpoint",
+            "port": "port",
+            "tls": "tls",
+            "creation_time": "creation_time"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_redis_database",
+      "description": "Get one Upstash Redis database by ID, with region, state, endpoint, plan and eviction or backup settings; credentials are suppressed with the documented credentials=hide parameter",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "database_id": {
+            "type": "string",
+            "description": "Upstash database ID (a UUID, e.g. 96ad0856-03b1-4ee7-9666-e81abd0349e1)"
+          }
+        },
+        "required": [
+          "database_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/redis/database/{{input.database_id}}",
+        "query": {
+          "credentials": "hide"
+        }
+      },
+      "response": {
+        "pick": {
+          "database_id": "database_id",
+          "database_name": "database_name",
+          "region": "region",
+          "primary_region": "primary_region",
+          "read_regions": "read_regions",
+          "type": "type",
+          "state": "state",
+          "endpoint": "endpoint",
+          "port": "port",
+          "tls": "tls",
+          "eviction": "eviction",
+          "auto_upgrade": "auto_upgrade",
+          "daily_backup_enabled": "daily_backup_enabled",
+          "creation_time": "creation_time"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

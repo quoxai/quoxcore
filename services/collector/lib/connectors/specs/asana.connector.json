@@ -1,0 +1,204 @@
+{
+  "spec_version": 1,
+  "id": "asana",
+  "name": "Asana",
+  "category": "project_management",
+  "credentialType": "asana",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://developers.asana.com/docs",
+  "base_url": "https://app.asana.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/1.0/users/me"
+  },
+  "tools_source": "https://developers.asana.com/reference/rest-api-reference",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the Asana user the access token belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/1.0/users/me"
+      },
+      "response": {
+        "pick": {
+          "gid": "data.gid",
+          "name": "data.name",
+          "email": "data.email",
+          "resource_type": "data.resource_type"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "description": "List the Asana workspaces and organisations visible to the token",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max workspaces to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/1.0/workspaces",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "gid": "gid",
+            "name": "name",
+            "resource_type": "resource_type"
+          },
+          "next_page_offset": "next_page.offset"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_projects",
+      "description": "List Asana projects in one workspace",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_gid": {
+            "type": "string",
+            "description": "Asana workspace or organisation GID (from list_workspaces)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max projects to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "workspace_gid"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/1.0/projects",
+        "query": {
+          "workspace": "{{input.workspace_gid}}",
+          "limit": "{{clamp input.limit 20 100}}",
+          "opt_fields": "name,archived,created_at,modified_at"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "gid": "gid",
+            "name": "name",
+            "archived": "archived",
+            "created_at": "created_at",
+            "modified_at": "modified_at"
+          },
+          "next_page_offset": "next_page.offset"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_tasks",
+      "description": "List Asana tasks in one project",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_gid": {
+            "type": "string",
+            "description": "Asana project GID (from list_projects)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max tasks to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "project_gid"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/1.0/tasks",
+        "query": {
+          "project": "{{input.project_gid}}",
+          "limit": "{{clamp input.limit 20 100}}",
+          "opt_fields": "name,completed,due_on,assignee.name,created_at"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "gid": "gid",
+            "name": "name",
+            "completed": "completed",
+            "due_on": "due_on",
+            "assignee": "assignee.name",
+            "created_at": "created_at"
+          },
+          "next_page_offset": "next_page.offset"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_task",
+      "description": "Get one Asana task by GID, including notes and assignee",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_gid": {
+            "type": "string",
+            "description": "Asana task GID (from list_tasks)"
+          }
+        },
+        "required": [
+          "task_gid"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/1.0/tasks/{{input.task_gid}}"
+      },
+      "response": {
+        "pick": {
+          "gid": "data.gid",
+          "name": "data.name",
+          "notes": "data.notes",
+          "completed": "data.completed",
+          "due_on": "data.due_on",
+          "assignee": "data.assignee.name",
+          "created_at": "data.created_at",
+          "modified_at": "data.modified_at",
+          "permalink_url": "data.permalink_url"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

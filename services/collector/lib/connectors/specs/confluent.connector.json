@@ -1,0 +1,143 @@
+{
+  "spec_version": 1,
+  "id": "confluent",
+  "name": "Confluent Cloud",
+  "category": "data_ai",
+  "credentialType": "confluent",
+  "requiredFields": [
+    "api_key",
+    "api_secret"
+  ],
+  "docs": "https://docs.confluent.io/cloud/current/api.html",
+  "base_url": "https://api.confluent.cloud",
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": "api_secret"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/org/v2/organizations"
+  },
+  "tools_source": "https://docs.confluent.io/cloud/current/api.html",
+  "tools": [
+    {
+      "name": "list_environments",
+      "description": "List Confluent Cloud environments in the organization (id, display name, resource name)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max environments to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/org/v2/environments",
+        "query": {
+          "page_size": "{{clamp input.page_size 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "display_name": "display_name",
+            "resource_name": "metadata.resource_name",
+            "created_at": "metadata.created_at"
+          },
+          "total_size": "metadata.total_size"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_clusters",
+      "description": "List Kafka clusters in one Confluent Cloud environment (cloud, region, availability, bootstrap endpoint, provisioning phase)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "string",
+            "description": "Confluent Cloud environment ID (e.g. env-abc123), from list_environments"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Max clusters to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "environment"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/cmk/v2/clusters",
+        "query": {
+          "environment": "{{input.environment}}",
+          "page_size": "{{clamp input.page_size 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "display_name": "spec.display_name",
+            "cloud": "spec.cloud",
+            "region": "spec.region",
+            "availability": "spec.availability",
+            "kafka_bootstrap_endpoint": "spec.kafka_bootstrap_endpoint",
+            "environment": "spec.environment.id",
+            "phase": "status.phase"
+          },
+          "total_size": "metadata.total_size"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_service_accounts",
+      "description": "List Confluent Cloud service accounts in the organization (id, display name, description)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Max service accounts to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/iam/v2/service-accounts",
+        "query": {
+          "page_size": "{{clamp input.page_size 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "display_name": "display_name",
+            "description": "description",
+            "created_at": "metadata.created_at"
+          },
+          "total_size": "metadata.total_size"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

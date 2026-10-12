@@ -1,0 +1,107 @@
+{
+  "spec_id": "npm",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T17:07:51.109Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://registry.npmjs.org/quox-shapeproof-control-d7967718",
+      "status": 404,
+      "latency_ms": 313,
+      "classification": "CONTROL",
+      "body_sha256": "c8d3eae160a892e32837db3dcae515e843e5383fef52b8141940c8bcf8b6d59f",
+      "body_excerpt": "{\"error\":\"Not found\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://registry.npmjs.org/-/whoami",
+      "status": 401,
+      "latency_ms": 185,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "body_excerpt": "{}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "whoami",
+      "method": "GET",
+      "url": "https://registry.npmjs.org/-/whoami",
+      "status": 401,
+      "latency_ms": 181,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "body_excerpt": "{}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_package",
+      "method": "GET",
+      "url": "https://registry.npmjs.org/react",
+      "status": 200,
+      "latency_ms": 529,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "000ba82334f62c541feab1a5337d07fdacc3560340c05450ac557985cb66c711",
+      "body_excerpt": "{\"_id\":\"react\",\"_rev\":\"5399-a904ac048c36c4f9f2b8d00c2ac0440b\",\"name\":\"react\",\"dist-tags\":{\"beta\":\"19.0.0-beta-26f2496093-20240514\",\"rc\":\"19.0.0-rc.1\",\"next\":\"19.3.0-canary-d5736f09-20260507\",\"backport",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "get_package_version",
+      "method": "GET",
+      "url": "https://registry.npmjs.org/react/latest",
+      "status": 200,
+      "latency_ms": 291,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c9b7f5adeab67cd3146ffc69712aee7ddc37c23e656e41feaaa5624dff4e02aa",
+      "body_excerpt": "{\"bugs\":{\"url\":\"https://github.com/react/react/issues\"},\"dist\":{\"shasum\":\"e20aa3a14687075ce863351b5878b0608c3fbfb2\",\"tarball\":\"https://registry.npmjs.org/react/-/react-19.3.0.tgz\",\"fileCount\":27,\"inte",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "get_dist_tags",
+      "method": "GET",
+      "url": "https://registry.npmjs.org/-/package/react/dist-tags",
+      "status": 200,
+      "latency_ms": 340,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "82f0819c185a28d870331e655b96f994941306751a6b28108f12031ffd6b6b29",
+      "body_excerpt": "{\"beta\":\"19.0.0-beta-26f2496093-20240514\",\"rc\":\"19.0.0-rc.1\",\"next\":\"19.3.0-canary-d5736f09-20260507\",\"backport\":\"19.0.8\",\"latest\":\"19.3.0\",\"canary\":\"19.3.0-canary-019019be-20260911\",\"experimental\":\"0",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "search",
+      "method": "GET",
+      "url": "https://registry.npmjs.org/-/v1/search?text=governed+agents&size=1",
+      "status": 200,
+      "latency_ms": 745,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1293d893dbb252613529a24bc2a54b775fbf0913f7bef9593313708e12784490",
+      "body_excerpt": "{\"objects\":[{\"downloads\":{\"monthly\":305,\"weekly\":13},\"dependents\":0,\"updated\":\"2026-09-10T14:01:09.567Z\",\"searchScore\":125.82481,\"package\":{\"name\":\"attestify\",\"keywords\":[\"attestify\",\"ai-agents\",\"gove",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

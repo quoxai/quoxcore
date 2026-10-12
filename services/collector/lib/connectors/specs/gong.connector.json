@@ -1,0 +1,177 @@
+{
+  "spec_version": 1,
+  "id": "gong",
+  "name": "Gong",
+  "category": "crm_sales",
+  "credentialType": "gong",
+  "requiredFields": [
+    "access_key",
+    "access_key_secret"
+  ],
+  "docs": "https://gong.app.gong.io/settings/api/documentation",
+  "base_url": "https://api.gong.io",
+  "auth": {
+    "type": "basic",
+    "userField": "access_key",
+    "passField": "access_key_secret"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/users"
+  },
+  "tools_source": "https://gong.app.gong.io/settings/api/documentation",
+  "tools": [
+    {
+      "name": "list_calls",
+      "description": "List Gong calls in a date window, with title, timing, direction and the primary user on each call",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "from_date_time": {
+            "type": "string",
+            "description": "Start of the window, ISO-8601 with offset (e.g. 2026-09-01T00:00:00Z). Gong filters on the call start time."
+          },
+          "to_date_time": {
+            "type": "string",
+            "description": "End of the window, ISO-8601 with offset (e.g. 2026-09-08T00:00:00Z)"
+          },
+          "workspace_id": {
+            "type": "string",
+            "description": "Optional Gong workspace ID to restrict the results to"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Optional pagination cursor from a previous call's cursor value"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/calls",
+        "query": {
+          "fromDateTime": "{{input.from_date_time}}",
+          "toDateTime": "{{input.to_date_time}}",
+          "workspaceId": "{{input.workspace_id}}",
+          "cursor": "{{input.cursor}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "calls[]": {
+            "id": "id",
+            "title": "title",
+            "started": "started",
+            "duration": "duration",
+            "direction": "direction",
+            "scope": "scope",
+            "media": "media",
+            "system": "system",
+            "language": "language",
+            "primary_user_id": "primaryUserId",
+            "workspace_id": "workspaceId",
+            "is_private": "isPrivate",
+            "url": "url"
+          },
+          "total_records": "records.totalRecords",
+          "current_page_size": "records.currentPageSize",
+          "cursor": "records.cursor"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_users",
+      "description": "List Gong users (seats) with name, email, title, manager and active state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "description": "Optional pagination cursor from a previous call's cursor value"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/users",
+        "query": {
+          "cursor": "{{input.cursor}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "users[]": {
+            "id": "id",
+            "email_address": "emailAddress",
+            "first_name": "firstName",
+            "last_name": "lastName",
+            "title": "title",
+            "active": "active",
+            "created": "created",
+            "manager_id": "managerId"
+          },
+          "total_records": "records.totalRecords",
+          "current_page_size": "records.currentPageSize",
+          "cursor": "records.cursor"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_call",
+      "description": "Get one Gong call by ID (metadata only: title, timing, direction, primary user)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "description": "Gong call ID (from list_calls)"
+          }
+        },
+        "required": [
+          "call_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/calls/{{input.call_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "call.id",
+          "title": "call.title",
+          "started": "call.started",
+          "duration": "call.duration",
+          "direction": "call.direction",
+          "scope": "call.scope",
+          "media": "call.media",
+          "system": "call.system",
+          "language": "call.language",
+          "primary_user_id": "call.primaryUserId",
+          "workspace_id": "call.workspaceId",
+          "is_private": "call.isPrivate",
+          "meeting_url": "call.meetingUrl",
+          "url": "call.url"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "medium",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, and it matches the vault entry byte for byte: Basic base64(access_key:access_key_secret). services/auth/config/integrationTypeRegistry.js key 'gong' (line 5784) collects access_key and access_key_secret and its testHeaders builds `Basic ${Buffer.from(`${creds.access_key}:${creds.access_key_secret}`).toString('base64')}` against testEndpoint https://api.gong.io/v2/users, which is exactly what auth {type: basic, userField access_key, passField access_key_secret} plus test GET /v2/users sends. No new vault field was needed and none was invented.",
+      "SHAPE-PROOF RESULT (real run, 2026-09-12, 1 iteration): verbatim overall line 'gong  SHAPE_PROVEN  proven=4 authwall=0 ambiguous=0 failed=0 inconclusive=0 skipped=0'. READ THAT CLASS DOWN TO AUTH_WALL: the harness overstated it here and the paths are NOT proven by this run. The control probe at the bogus path https://api.gong.io/quox-shapeproof-control-cb37790a answered 401 with the SAME message as every real path, verbatim {\"requestId\" : \"3shzh6otjw21wyidufm\", \"errors\" : [ \"Validate credentials failed. Please check your credentials and try again.\" ]}, so Gong's auth wall sits in front of its routing. The classifier could not see that: its structuredErrorCode() returns null for a Gong body because Gong's `errors` is an array of plain strings rather than objects carrying code or message, so controlIdentical() fell back to comparing body hashes, and those differ only because Gong stamps a unique per-response requestId. Verified directly: structuredErrorCode() returns null for both the real body and the control body. WHAT IS ACTUALLY PROVEN: DNS, TLS, the host api.gong.io, base_url, and that the Basic credential is parsed and rejected (401 plus a WWW-Authenticate header on every call). WHAT IS NOT: the four paths, which rest on documentary provenance only, and any 2xx, because no Gong credential was held.",
+      "RESPONSE PICKS ARE DOCUMENTARY, NOT OBSERVED. list_calls and list_users are shaped for Gong's paged envelope ({records: {totalRecords, currentPageSize, cursor}} plus a calls[] or users[] array) and get_call for the single-object envelope {requestId, call: {...}}. None of those bodies has been seen on this connector, so any pick may be over- or under-selective; the cursor field is what a caller feeds back to page.",
+      "CALL DATE WINDOW: from_date_time and to_date_time render to Gong's fromDateTime and toDateTime and must be ISO-8601 with an offset (2026-09-01T00:00:00Z). Behaviour when they are omitted is Gong's own default and is NOT verified here, and Gong rejects a malformed or over-long window with a 400 that is a caller error, not a wiring fault.",
+      "READ-ONLY BY CONSTRUCTION: all three tools are GETs and none is marked write:true. The richer conversation data (call parties, transcripts, interaction stats) lives behind POST /v2/calls/extensive and POST /v2/calls/transcript, which take a JSON filter body; they are read-only in intent but POST-shaped, and they are deliberately not modelled in this draft. Gong's CRM and data-import write endpoints are likewise unmodelled.",
+      "PROVIDER RATE LIMITS ARE TIGHTER THAN THE SPEC BLOCK IMPLIES. rateLimit is the wave-standard {windowMs 60000, max 30}; Gong documents its own per-key ceiling of 3 calls per second plus a daily API call cap, so a burst issued back to back can earn a 429 from Gong even while the spec's own window has budget left. A 429 here is the provider talking, not a defect in this spec."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

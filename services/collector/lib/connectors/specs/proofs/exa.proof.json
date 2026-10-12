@@ -1,0 +1,77 @@
+{
+  "spec_id": "exa",
+  "spec_version": 1,
+  "checked_at": "2026-09-16T16:17:14.255Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.exa.ai/quox-shapeproof-control-4968d0cf",
+      "status": 404,
+      "latency_ms": 1014,
+      "classification": "CONTROL",
+      "body_sha256": "f97ca023b8a264c5115d8c8ede317e0e8a480a43ecc6bd6f75048ca14dc003b0",
+      "body_excerpt": "{\"requestId\":\"e9632cf1aa97bb66f3ffd96066f7867f\",\"error\":\"Not found\",\"tag\":\"NOT_FOUND\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "POST",
+      "url": "https://api.exa.ai/search",
+      "status": 401,
+      "latency_ms": 449,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e8ffcdcc2033b24b4d9f7f5d321f049b09d2f15d0f1bcb3b65f1ca4d235a77ab",
+      "body_excerpt": "{\"requestId\":\"cb1274e125b66b93c58dc6568af0a8d5\",\"error\":\"Invalid API key\",\"tag\":\"INVALID_API_KEY\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "search",
+      "method": "POST",
+      "url": "https://api.exa.ai/search",
+      "status": 401,
+      "latency_ms": 383,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e32d9028f893a7c7f92d53f531bfc49842700dc26a233b1b0ec39cc557ad742c",
+      "body_excerpt": "{\"requestId\":\"25fdb61d0f02161733622ad6deae51c5\",\"error\":\"Invalid API key\",\"tag\":\"INVALID_API_KEY\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_contents",
+      "method": "POST",
+      "url": "https://api.exa.ai/contents",
+      "status": 401,
+      "latency_ms": 366,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "2948be0d5e647d0698479157f37a104eecba3f48fb7a88c2c9fbebe9cb8b23cc",
+      "body_excerpt": "{\"requestId\":\"be3ef0bd597e443eeea412132b17d339\",\"error\":\"Invalid API key\",\"tag\":\"INVALID_API_KEY\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "find_similar",
+      "method": "POST",
+      "url": "https://api.exa.ai/findSimilar",
+      "status": 401,
+      "latency_ms": 425,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "81de322b64844cf3f0cbac9a1d923466c5bb0bc257675e3a209b63c303077475",
+      "body_excerpt": "{\"requestId\":\"7fa3f07bf5806e552405a32314d1178a\",\"error\":\"Invalid API key\",\"tag\":\"INVALID_API_KEY\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

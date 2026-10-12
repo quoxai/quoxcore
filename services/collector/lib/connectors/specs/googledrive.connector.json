@@ -1,0 +1,172 @@
+{
+  "spec_version": 1,
+  "id": "googledrive",
+  "name": "Google Drive",
+  "category": "files_knowledge",
+  "credentialType": "googledrive",
+  "requiredFields": [
+    "service_account_json"
+  ],
+  "description": "Read-only Google Drive access: account and quota, file listing and search, file metadata, and per-file sharing permissions.",
+  "docs": "https://developers.google.com/drive/api",
+  "base_url": "https://www.googleapis.com",
+  "auth": {
+    "type": "google_service_account",
+    "scope": "https://www.googleapis.com/auth/drive.readonly",
+    "field": "service_account_json"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "test": {
+    "method": "GET",
+    "path": "/drive/v3/about",
+    "query": {
+      "fields": "user"
+    }
+  },
+  "tools_source": "https://developers.google.com/drive/api/reference/rest/v3",
+  "tools": [
+    {
+      "name": "about",
+      "description": "Get the authenticated Google Drive account (user identity) and its storage quota",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/drive/v3/about",
+        "query": {
+          "fields": "user,storageQuota"
+        }
+      },
+      "response": {
+        "pick": {
+          "user": "user.displayName",
+          "email": "user.emailAddress",
+          "quota_limit": "storageQuota.limit",
+          "quota_usage": "storageQuota.usage",
+          "quota_usage_in_drive": "storageQuota.usageInDrive"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_files",
+      "description": "List Google Drive files, optionally narrowed by a Drive search query",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "pageSize": {
+            "type": "number",
+            "description": "Max files to return (default 20, max 50)"
+          },
+          "q": {
+            "type": "string",
+            "description": "Optional Drive search query, e.g. name contains 'report' or mimeType='application/pdf'"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/drive/v3/files",
+        "query": {
+          "pageSize": "{{clamp input.pageSize 20 50}}",
+          "q": "{{input.q}}",
+          "fields": "files(id,name,mimeType,modifiedTime,size)"
+        }
+      },
+      "response": {
+        "pick": {
+          "files[]": {
+            "id": "id",
+            "name": "name",
+            "mimeType": "mimeType",
+            "modifiedTime": "modifiedTime",
+            "size": "size"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_file",
+      "description": "Get metadata for one Google Drive file by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "description": "Google Drive file ID"
+          }
+        },
+        "required": [
+          "file_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/drive/v3/files/{{input.file_id}}",
+        "query": {
+          "fields": "id,name,mimeType,modifiedTime,size,owners"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "mimeType": "mimeType",
+          "modifiedTime": "modifiedTime",
+          "size": "size",
+          "owners[]": {
+            "displayName": "displayName",
+            "emailAddress": "emailAddress"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_permissions",
+      "description": "List the sharing permissions on one Google Drive file",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "description": "Google Drive file ID"
+          }
+        },
+        "required": [
+          "file_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/drive/v3/files/{{input.file_id}}/permissions"
+      },
+      "response": {
+        "pick": {
+          "permissions[]": {
+            "id": "id",
+            "type": "type",
+            "role": "role"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_reworked_by_hand: the scaffolder inferred bearer-on-oauth_token from the vault type, but a stored static oauth_token expires after one hour and cannot be refreshed, so it is useless for a server-side connector. Auth is now google_service_account (RFC 7523 JWT-bearer), which mints a fresh token per call.",
+      "vault_field_ignored:oauth_token — the googledrive vault type stores both service_account_json (optional) and oauth_token (optional). This connector reads service_account_json ONLY; a credential that carries just oauth_token will fail at call time with a missing-credential error.",
+      "requires_service_account_json: the vault marks it optional, so the connector must be given one. Domain-wide delegation or explicit file sharing to the service account's address is needed for it to see any files."
+    ]
+  }
+}

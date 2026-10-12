@@ -1,0 +1,182 @@
+{
+  "name": "tailscale",
+  "version": "1.0.0",
+  "displayName": "TailMesh",
+  "tagline": "See Your Mesh. Talk to Your Network.",
+  "description": "Monitor and manage your Tailscale mesh from QuoxCORE. See every peer, check connectivity, manage routes and keys, get alerts when devices go offline \u2014 and ask MESHNET anything in plain English.",
+  "shortDescription": "Tailscale mesh monitoring, management, and alerting",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 55,
+  "priceDisplay": "$55",
+  "priceModel": "one-time",
+  "tier": "tier_b",
+  "featured": true,
+  "icon": "mesh",
+  "accentColor": "#4f46e5",
+  "category": "Infrastructure",
+  "infoUrl": "https://quox.ai/plugins/tailscale",
+  "docsUrl": "https://quox.ai/docs/plugins/tailscale",
+  "configSchema": {
+    "pollingInterval": {
+      "label": "Polling Interval (seconds)",
+      "description": "How often to check device status. Lower values detect offline devices faster but use more API calls.",
+      "type": "number",
+      "placeholder": "60",
+      "default": 60
+    },
+    "offlineThreshold": {
+      "label": "Offline Threshold (minutes)",
+      "description": "A device is considered offline if not seen for this many minutes.",
+      "type": "number",
+      "placeholder": "5",
+      "default": 5
+    },
+    "keyExpiryWarningDays": {
+      "label": "Key Expiry Warning (days)",
+      "description": "Alert when auth keys expire within this many days.",
+      "type": "number",
+      "placeholder": "7",
+      "default": 7
+    }
+  },
+  "marketingPoints": [
+    "Real-time mesh status with topology view",
+    "Alerts when devices go offline or keys expire",
+    "Natural language management via MESHNET agent",
+    "Route management with HITL approval",
+    "Full AEE/AOCL/VOLT audit trail"
+  ],
+  "features": {
+    "meshOverview": {
+      "name": "Mesh Overview",
+      "description": "Live device grid with online/offline status, IPs, OS, routes, key expiry \u2014 auto-refreshing every 30 seconds.",
+      "icon": "grid",
+      "highlight": true
+    },
+    "routeManagement": {
+      "name": "Route Management",
+      "description": "View and control subnet routes and exit nodes. Approve, enable, or disable routes with HITL confirmation.",
+      "icon": "route"
+    },
+    "keyLifecycle": {
+      "name": "Key Lifecycle",
+      "description": "Auth key inventory with expiry timeline. Create pre-auth keys for device enrollment, revoke compromised keys.",
+      "icon": "key"
+    },
+    "realTimeAlerts": {
+      "name": "Real-Time Alerts",
+      "description": "Device offline, key expiring, new device needs approval \u2014 alerts delivered to your inbox, Telegram, Slack, or email.",
+      "icon": "bell",
+      "highlight": true
+    },
+    "dnsAccess": {
+      "name": "DNS and Access",
+      "description": "MagicDNS status, nameservers, split DNS rules, ACL policy summary in human-readable format.",
+      "icon": "dns"
+    },
+    "activityFeed": {
+      "name": "Activity Feed",
+      "description": "Configuration audit log from Tailscale plus AOCL envelope timeline for all QuoxCORE Tailscale operations.",
+      "icon": "activity"
+    },
+    "meshnetAgent": {
+      "name": "MESHNET Agent",
+      "description": "Ask networking questions in plain English. Quick actions for common operations. Contextual suggestions based on mesh state.",
+      "icon": "agent",
+      "highlight": true
+    }
+  },
+  "specialist": {
+    "name": "MESHNET",
+    "description": "Tailscale mesh networking specialist \u2014 device management, route control, key lifecycle, connectivity monitoring",
+    "avatar": "meshnet",
+    "capabilities": [
+      "tailscale-device-management",
+      "tailscale-route-management",
+      "tailscale-key-lifecycle",
+      "tailscale-acl-policy",
+      "tailscale-dns-config",
+      "tailscale-audit",
+      "mesh-health-monitoring"
+    ]
+  },
+  "integration": {
+    "connector": "tailscale",
+    "tools": "src/config/entities/tools/tailscale.json",
+    "view": "src/pages/views/TailscaleView.jsx"
+  },
+  "alerts": {
+    "device_offline": {
+      "severity": "warning",
+      "description": "A Tailscale device has gone offline (not seen for 5+ minutes)"
+    },
+    "key_expiring": {
+      "severity": "info",
+      "description": "An auth key expires within 7 days"
+    },
+    "key_expired": {
+      "severity": "warning",
+      "description": "An auth key has expired"
+    },
+    "device_needs_approval": {
+      "severity": "info",
+      "description": "A new device is waiting for authorization",
+      "autoAction": "inbox"
+    },
+    "subnet_misconfigured": {
+      "severity": "critical",
+      "description": "A subnet router is advertising routes but IP forwarding is not enabled"
+    }
+  },
+  "safety": {
+    "destructiveActions": [
+      "tailscale_authorize_device(false)",
+      "tailscale_revoke_key",
+      "tailscale_manage_routes"
+    ],
+    "requiresApproval": [
+      "tailscale_authorize_device(false)",
+      "tailscale_revoke_key",
+      "tailscale_manage_routes"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": false
+  },
+  "nocIntegration": {
+    "tab": {
+      "label": "TailMesh",
+      "icon": "globe",
+      "order": 50
+    },
+    "quickActions": [
+      {
+        "id": "tailscale-devices",
+        "label": "Devices",
+        "icon": "services",
+        "description": "List Tailscale network devices",
+        "severity": "info",
+        "prompt": "List all devices on the Tailscale network with their status and IP addresses"
+      },
+      {
+        "id": "tailscale-acls",
+        "label": "ACL Status",
+        "icon": "shield",
+        "description": "Check Tailscale ACL policy status",
+        "severity": "info",
+        "prompt": "Show current Tailscale ACL policy and any recent changes"
+      }
+    ],
+    "schedulable": true,
+    "templateVariables": [
+      {
+        "name": "device_filter",
+        "description": "Filter devices by hostname or tag"
+      },
+      {
+        "name": "check_type",
+        "description": "Check type: devices, routes, acl, dns"
+      }
+    ]
+  }
+}

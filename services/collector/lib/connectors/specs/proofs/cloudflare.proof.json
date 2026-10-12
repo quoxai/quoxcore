@@ -1,0 +1,119 @@
+{
+  "spec_id": "cloudflare",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:17.126Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/quox-shapeproof-control-738e22f0",
+      "status": 404,
+      "latency_ms": 791,
+      "classification": "CONTROL",
+      "body_sha256": "96693af5f2632ba7bd17f1991c33b1c57327e058fd460dd800831cfbb41122af",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":10404,\"message\":\"No route for that URI\"}],\"messages\":[],\"result\":null}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/user/tokens/verify",
+      "status": 400,
+      "latency_ms": 348,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "52cd3e3a4e60ac5221805fdee795683260b45c7e2fb440cdc6069ae617f448ed",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":6003,\"message\":\"Invalid request headers\",\"error_chain\":[{\"code\":6111,\"message\":\"Invalid format for Authorization header\"}]}],\"messages\":[],\"result\":null}",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 404,
+        "control_error_code": "10404"
+      }
+    },
+    {
+      "name": "verify_token",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/user/tokens/verify",
+      "status": 400,
+      "latency_ms": 353,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "52cd3e3a4e60ac5221805fdee795683260b45c7e2fb440cdc6069ae617f448ed",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":6003,\"message\":\"Invalid request headers\",\"error_chain\":[{\"code\":6111,\"message\":\"Invalid format for Authorization header\"}]}],\"messages\":[],\"result\":null}",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 404,
+        "control_error_code": "10404"
+      }
+    },
+    {
+      "name": "list_zones",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/zones?name=quoxprobe&per_page=20",
+      "status": 400,
+      "latency_ms": 356,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "52cd3e3a4e60ac5221805fdee795683260b45c7e2fb440cdc6069ae617f448ed",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":6003,\"message\":\"Invalid request headers\",\"error_chain\":[{\"code\":6111,\"message\":\"Invalid format for Authorization header\"}]}],\"messages\":[],\"result\":null}",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 404,
+        "control_error_code": "10404"
+      }
+    },
+    {
+      "name": "get_zone",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/zones/quoxprobe",
+      "status": 404,
+      "latency_ms": 176,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "8f04939f8a15e9c7b62b8c6c73d3f0f2bb165c765bb86abd5e0394cfd76a33ca",
+      "body_excerpt": "{\"result\":null,\"success\":false,\"errors\":[{\"code\":7003,\"message\":\"Could not route to /client/v4/zones/quoxprobe, perhaps your object identifier is invalid?\"}],\"messages\":[]}",
+      "flags": {
+        "identifier_404_differential": true,
+        "error_code": "7003",
+        "control_error_code": "10404"
+      }
+    },
+    {
+      "name": "list_dns_records",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/zones/quoxprobe/dns_records?type=quoxprobe&per_page=20",
+      "status": 404,
+      "latency_ms": 188,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "55ff39b5a304aa0e375be94ae04a196f01535b25e78bf4c5a3559c2fdfff12db",
+      "body_excerpt": "{\"result\":null,\"success\":false,\"errors\":[{\"code\":7003,\"message\":\"Could not route to /client/v4/zones/quoxprobe/dns_records, perhaps your object identifier is invalid?\"}],\"messages\":[]}",
+      "flags": {
+        "identifier_404_differential": true,
+        "error_code": "7003",
+        "control_error_code": "10404"
+      }
+    },
+    {
+      "name": "list_accounts",
+      "method": "GET",
+      "url": "https://api.cloudflare.com/client/v4/accounts?per_page=20",
+      "status": 400,
+      "latency_ms": 410,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "52cd3e3a4e60ac5221805fdee795683260b45c7e2fb440cdc6069ae617f448ed",
+      "body_excerpt": "{\"success\":false,\"errors\":[{\"code\":6003,\"message\":\"Invalid request headers\",\"error_chain\":[{\"code\":6111,\"message\":\"Invalid format for Authorization header\"}]}],\"messages\":[],\"result\":null}",
+      "flags": {
+        "structured_4xx": 400,
+        "differential_path_proof": true,
+        "control_status": 404,
+        "control_error_code": "10404"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

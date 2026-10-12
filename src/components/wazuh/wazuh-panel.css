@@ -1,0 +1,65 @@
+/* Wazuh SIEM Panel Styles */
+
+/* .wz-panel IS the view's glass frame (swapped in, not wrapped).
+   Fills the view's flex height, scrolls internally. Matches .bastion-panel spec. */
+.wz-panel {
+  flex: 1;
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--m-bg-base, rgba(255,255,255,0.08));
+  backdrop-filter: var(--qx-blur, blur(32px) saturate(1.6));
+  -webkit-backdrop-filter: var(--qx-blur, blur(32px) saturate(1.6));
+  border: 1px solid var(--m-border-default, rgba(255,255,255,0.18));
+  border-radius: var(--qx-radius, 20px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -1px 0 rgba(0,0,0,0.45);
+  position: relative;
+}
+.wz-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  pointer-events: none;
+  z-index: 1;
+}
+.wz-panel > * { position: relative; z-index: 2; }
+
+/* Header row — overrides qx-section-title to act as a full-width header bar */
+.wz-header-row {
+  margin-bottom: 0;
+}
+/* Suppress the trailing rule line — not needed in a panel header */
+.wz-header-row::after { display: none; }
+
+.wz-header-spacer { flex: 1; }
+
+.wz-last-refresh {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Content */
+.wz-content {
+  padding: 16px 0;
+}
+
+/* Daemon grid — auto-fill responsive, no qx-* equivalent */
+.wz-daemon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+/* Deploy grid — auto-fill card layout, no qx-* equivalent */
+.wz-deploy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}

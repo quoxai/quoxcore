@@ -1,0 +1,102 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "security",
+
+  "name": "Security Tools",
+  "description": "Security audit and monitoring tools for threat analysis",
+  "category": "security",
+  "subcategory": "audit",
+  "provider": "quox",
+  "version": "1.0.0",
+
+  "risk_level": "low",
+  "sandbox_profile": "standard",
+  "requires_license": null,
+
+  "tools": [
+    {
+      "id": "security.audit",
+      "name": "Audit Events",
+      "description": "Query security audit events with pattern analysis for threat detection",
+      "aeeIntent": "quox.noc.security.audit.query",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "hours": {
+          "type": "number",
+          "required": false,
+          "default": 24,
+          "description": "Time window in hours to search (max 168 = 7 days)"
+        },
+        "eventTypes": {
+          "type": "array",
+          "required": false,
+          "description": "Filter by specific event types (e.g., ['auth.login_failed', 'auth.logout'])"
+        },
+        "limit": {
+          "type": "number",
+          "required": false,
+          "default": 100,
+          "description": "Maximum events to return (max 500)"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "hours": { "type": "number" },
+              "since": { "type": "string" },
+              "limit": { "type": "number" }
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "totalEvents": { "type": "number" },
+              "byAction": { "type": "object" },
+              "failedLoginAttempts": { "type": "number" },
+              "suspiciousIps": { "type": "array" }
+            }
+          },
+          "events": { "type": "array" }
+        }
+      },
+      "instructions": {
+        "summary": "Query and analyze security audit events for threats and anomalies",
+        "when_to_use": [
+          "User asks about security events or audit logs",
+          "User wants to check for failed logins",
+          "User asks about suspicious activity",
+          "User wants a security report"
+        ],
+        "when_not_to_use": [
+          "User wants application logs (use logging tools)",
+          "User wants real-time alerts (use alertmanager)"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {"base": "internal", "api": "bastion_ssh"},
+
+  "agent_hints": {
+    "primary_agent": "sentinel",
+    "delegation_keywords": ["security", "audit", "failed login", "suspicious", "threat", "breach"]
+  },
+
+  "help": {
+    "examples": [
+      "Show security events from the last 24 hours",
+      "Check for failed login attempts",
+      "Any suspicious activity today?",
+      "Security audit report for the past week"
+    ],
+    "man_url": null
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "id": "secops",
+  "type": "team",
+  "version": "1.0.0",
+  "displayName": "SecOps",
+  "description": "Security operations team — vulnerability scanning, threat detection, compliance checks, and incident response across your infrastructure.",
+  "author": "QUOX",
+  "tier": "free",
+  "price": 0,
+  "priceModel": "included",
+  "icon": "shield",
+  "accentColor": "#ef4444",
+
+  "orchestrator": {
+    "agentId": "sentinel",
+    "role": "orchestrator",
+    "domains": ["security coordination", "threat assessment", "incident triage"]
+  },
+
+  "members": [
+    {
+      "agentId": "cipher",
+      "role": "specialist",
+      "domains": ["network security", "firewall audit", "TLS/SSL", "DNS security"]
+    },
+    {
+      "agentId": "netwatch",
+      "role": "specialist",
+      "domains": ["network monitoring", "traffic analysis", "intrusion detection"]
+    },
+    {
+      "agentId": "atlas",
+      "role": "specialist",
+      "domains": ["infrastructure audit", "host hardening", "Proxmox security"]
+    },
+    {
+      "agentId": "quoxcode",
+      "role": "analyst",
+      "domains": ["code review", "static analysis", "dependency audit", "CVE scanning"]
+    }
+  ],
+
+  "policies": {
+    "maxBudgetTokens": 200000,
+    "maxBudgetToolCalls": 80,
+    "maxDurationMs": 14400000,
+    "maxTaskDurationMs": 600000,
+    "heartbeatIntervalMs": 15000,
+    "maxParallelTasks": 2,
+    "requireApprovalBeforeStart": true,
+    "checkpointAfterEachTask": true,
+    "voltRequired": true,
+    "allowedChannels": ["slack", "telegram", "email"]
+  },
+
+  "sharedContext": {
+    "persistent": true,
+    "schema": {}
+  }
+}

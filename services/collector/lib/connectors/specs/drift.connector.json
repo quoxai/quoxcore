@@ -1,0 +1,167 @@
+{
+  "spec_version": 1,
+  "id": "drift",
+  "name": "Drift (Salesloft)",
+  "category": "marketing_email",
+  "credentialType": "drift",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://devdocs.drift.com/",
+  "base_url": "https://driftapi.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/users/list"
+  },
+  "tools_source": "https://devdocs.drift.com/docs/platform-apis",
+  "tools": [
+    {
+      "name": "list_accounts",
+      "description": "List Drift accounts (the ABM company records), newest batch first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "size": {
+            "type": "number",
+            "description": "Accounts per batch (default 10, max 65)"
+          },
+          "index": {
+            "type": "number",
+            "description": "Starting index for scrolling through accounts (default 0)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/accounts",
+        "query": {
+          "size": "{{clamp input.size 10 65}}",
+          "index": "{{input.index}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data.accounts[]": {
+            "account_id": "accountId",
+            "name": "name",
+            "domain": "domain",
+            "owner_id": "ownerId",
+            "targeted": "targeted",
+            "deleted": "deleted",
+            "created_at": "createDateTime",
+            "updated_at": "updateDateTime"
+          },
+          "total": "data.total",
+          "next": "data.next"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_conversations",
+      "description": "List Drift conversations, optionally narrowed to one status (1 open, 2 closed, 3 pending)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max conversations to return (default 25, max 100)"
+          },
+          "statusId": {
+            "type": "number",
+            "description": "Optional status code to filter by: 1 OPEN, 2 CLOSED, 3 PENDING"
+          },
+          "page_token": {
+            "type": "string",
+            "description": "Optional pagination token from the previous response's links.next (omit for the first page)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/conversations/list",
+        "query": {
+          "limit": "{{clamp input.limit 25 100}}",
+          "statusId": "{{input.statusId}}",
+          "page_token": "{{input.page_token}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "status": "status",
+            "contact_id": "contactId",
+            "inbox_id": "inboxId",
+            "created_at": "createdAt",
+            "updated_at": "updatedAt"
+          },
+          "next": "links.next"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_user",
+      "description": "Get one Drift user (an internal agent in the org) by numeric user id",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Drift user id, always numeric (e.g. 228225)"
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/users/{{input.user_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "org_id": "data.orgId",
+          "name": "data.name",
+          "alias": "data.alias",
+          "email": "data.email",
+          "role": "data.role",
+          "availability": "data.availability",
+          "time_zone": "data.timeZone",
+          "verified": "data.verified",
+          "bot": "data.bot",
+          "created_at": "data.createdAt"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Tools added 2026-09-12 from the official Drift developer docs (https://devdocs.drift.com/docs/platform-apis): GET /accounts (Listing Accounts), GET /conversations/list (List Conversations) and GET /users/{userId} (Retrieving User). All three are GET reads and carry write:false; contact, conversation and message creation exist in the API and are deliberately out of scope this wave.",
+      "THERE IS NO DOCUMENTED /contacts/list ENDPOINT. Drift documents contacts only as GET /contacts/{contactId} (by id) and GET /contacts?email=... (by email, returns a list because email is not a unique identifier). Per the wave brief the contact-list slot therefore falls back to the documented account read, GET /accounts, which is the closest documented list of company records. A contact-by-email read is a fair candidate for a later wave; it is not a list.",
+      "THE SCAFFOLDED TEST PATH WAS WRONG AND WAS REPLACED: GET /users/current appears nowhere in the devdocs index (Retrieving User documents GET /users/{userId} and GET /users?userId=, Listing Users documents GET /users/list). The test block is now GET /users/list, which the docs describe as the full list of users in the org with no pagination. Worth recording: a live probe of /users/current also answers 401, so the blind probe alone would NOT have caught the bad path; the documentation did.",
+      "AUTH UNCHANGED from the scaffold: the List Conversations page's own curl sample is -H 'Authorization: Bearer <auth_token>', so the scaffolded bearer auth on access_token is what Drift documents.",
+      "HOST SPLIT, recorded honestly: the users, contacts and accounts pages document driftapi.com, while the newer List Conversations page documents api.drift.com/conversations/list. Both hosts were probed with a dummy bearer and answered IDENTICALLY (401 {\"error\":{\"message\":\"The access token is invalid or has expired\",\"type\":\"authentication_error\"}} on documented paths, 404 {\"error\":{\"type\":\"not_found\"}} on the bogus control path), so they front the same edge and base_url stays driftapi.com, which the majority of the docs use. If Salesloft ever retires driftapi.com, this is the single field to change.",
+      "SALESLOFT CONSOLIDATION: the vault entry already names this 'Drift (Salesloft)' (acquired 2024). As of 2026-09-12 the Drift developer docs are still served at devdocs.drift.com and both API hosts still answer, but several pages carry 'updated 5 years ago' timestamps and Drift's own product has been folded into Salesloft. Treat this connector as maintenance-risk rather than as a growing surface.",
+      "SCOPES: Drift gates these reads per scope (the docs state account_read for the accounts endpoints, and users/conversations have their own). A token missing a scope will surface as a 401/403 from the provider at runtime, not as a spec error.",
+      "Shape-proof 2026-09-12 (proofs/drift.proof.json): SHAPE_PROVEN on all 4 probes, each classified on a WWW-Authenticate challenge header (flag www_authenticate) alongside the structured 401 body above; the deterministic control path answered a structurally different 404 not_found. Together that proves host, TLS, the Authorization header name and the routes. No 2xx was ever seen: the field-level response shapes (User, Account and conversation models) come from the documentation, not from this run."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

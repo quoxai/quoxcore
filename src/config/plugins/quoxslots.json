@@ -1,0 +1,97 @@
+{
+  "name": "quoxslots",
+  "version": "0.1.0",
+  "displayName": "QuoxSlots",
+  "tagline": "A durable address for every session.",
+  "description": "A fixed pool of named slots that ephemeral agent sessions check out and release. You talk to the slot, not to whichever session happens to be holding it, so a handover never costs you the thread. Each slot has its own chat thread, renders into a bridged chat app, and every action is witnessed. When a session dies its slot goes stale and frees itself, so a crash never wedges an address.",
+  "shortDescription": "Durable named addresses for ephemeral agent sessions",
+  "author": "QUOX",
+  "license": "paid",
+  "_pricingNote": "PROVISIONAL. DEVSUITE plan keeps bundle SKU + final pricing owner-gated; this figure exists so the manifest is well-formed and the plugin can be enabled, not as an approved price.",
+  "price": 39,
+  "priceDisplay": "$39",
+  "priceModel": "one-time",
+  "tier": "standard",
+  "featured": false,
+  "icon": "octahedron",
+  "accentColor": "#38bdf8",
+  "infoUrl": "https://quox.ai/solutions/quoxslots",
+  "docsUrl": "https://quox.ai/docs/plugins/quoxslots",
+  "dashboardSurface": "embedded",
+  "dashboardSurfaceNote": "No standalone route by design: Slots is a tab on /dev-suite (/dev-suite?tab=slots).",
+  "evidenceExempt": ["/api/v1/slots/:name/heartbeat"],
+  "evidenceExemptNote": "A heartbeat is a high-frequency liveness ping, not a governed action. Witnessing every one would write an envelope per held slot per interval and flood the evidence store: exactly the unbounded volt.db growth that reached 89GB and had to be bounded on 2026-08-19. The state CHANGES a heartbeat causes (held to stale, stale to free) are witnessed by the sweep, which is the auditable event. Deliberate, not an oversight.",
+  "category": "Developer Tools",
+
+  "marketingPoints": [
+    "Address the work, not the process: a slot outlives every session that holds it",
+    "Steer a working session from your phone through a bridged chat thread",
+    "A crashed session never wedges a slot: heartbeats lapse, the slot goes stale, then frees itself",
+    "Assign a slot to a session name and it claims the slot when it starts",
+    "Every checkout, release and message witnessed and classified",
+    "Same verbs in the terminal and the dashboard, one for one"
+  ],
+
+  "features": {
+    "durableAddress": {
+      "name": "Durable named addresses",
+      "description": "An org-scoped pool of slots that exist whether or not anything holds them, the way a desk exists between shifts.",
+      "icon": "shield",
+      "highlight": true
+    },
+    "checkoutLifecycle": {
+      "name": "Checkout, heartbeat, reap",
+      "description": "Sessions borrow a slot and heartbeat while they work. A lapsed heartbeat marks the slot stale and it frees itself rather than staying locked forever.",
+      "icon": "check",
+      "highlight": true
+    },
+    "bridgedThreads": {
+      "name": "Reachable from your phone",
+      "description": "Each slot's thread renders into a bridged chat app, and a reply addressed to the slot is delivered to whichever session holds it. Bridge rooms are verified before they are stored, so a wrong room is refused rather than rendering to nobody.",
+      "icon": "eye",
+      "highlight": true
+    },
+    "witnessedActions": {
+      "name": "Witnessed by default",
+      "description": "Create, assign, checkout, release, retire and say each emit a classified envelope, with retiring a slot rated higher risk than reading one.",
+      "icon": "lock"
+    }
+  },
+
+  "safety": {
+    "destructiveActions": ["quox.slot.retire", "quox.slot.release"],
+    "requiresApproval": ["slot_assign"],
+    "aeeRequired": true,
+    "killSwitchEnabled": false
+  },
+
+  "limits": {
+    "free": { "slotsPerOrg": 0 },
+    "paid": { "slotsPerOrg": 8, "messageHistoryPerSlot": 500 }
+  },
+
+  "requirements": { "quox": ">=4.0.0" },
+
+  "integration": {
+    "service": "quoxai/collector",
+    "collectorAlias": "slots",
+    "healthEndpoint": "/health",
+    "view": "src/components/devsuite/SlotsDeckPanel.jsx"
+  },
+
+  "capabilities": {
+    "aeeIntents": [
+      "quox.slot.create",
+      "quox.slot.retire",
+      "quox.slot.checkout",
+      "quox.slot.release",
+      "quox.slot.assign",
+      "quox.slot.say",
+      "quox.slot.steer",
+      "quox.slot.bridge_set"
+    ],
+    "agentTools": ["slot_list", "slot_say", "slot_read", "slot_assign"]
+  },
+
+  "includedIn": ["dev-suite-bundle"]
+}

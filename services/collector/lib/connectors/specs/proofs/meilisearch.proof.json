@@ -1,0 +1,106 @@
+{
+  "spec_id": "meilisearch",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T17:54:05.622Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/health",
+      "status": 200,
+      "latency_ms": 324,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "90d3de53cd38005fce42617bde2bf93630ef0c12129b44ca9cc38f105de029f3",
+      "body_excerpt": "{\"status\":\"available\"}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_version",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/version",
+      "status": 200,
+      "latency_ms": 16,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "9fb02545ad87aa8f159363e3bc011fa3792e9e555f0d7f0deaf2c01d294f1f1f",
+      "body_excerpt": "{\"commitSha\":\"cfaac6f7ca55e91ec3cf40f8682f528cd8743562\",\"commitDate\":\"2024-11-14T15:55:14.000000000Z\",\"pkgVersion\":\"1.11.3\"}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_stats",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/stats",
+      "status": 200,
+      "latency_ms": 16,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "78218bd370f043082d3adc6d1575d0fe53d0fba7560c67e67f71dad4c225b2bd",
+      "body_excerpt": "{\"databaseSize\":159744,\"lastUpdate\":\"2026-09-12T17:51:33.41614444Z\",\"indexes\":{\"quoxproof-live\":{\"numberOfDocuments\":0,\"isIndexing\":false,\"fieldDistribution\":{}}}}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_indexes",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/indexes?limit=20",
+      "status": 200,
+      "latency_ms": 13,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "cd808d4949ba93825c3b46a252d1c974cde112f223fbebec3ef00fdfccba3928",
+      "body_excerpt": "{\"results\":[{\"uid\":\"quoxproof-live\",\"createdAt\":\"2026-09-12T17:51:33.413034823Z\",\"updatedAt\":\"2026-09-12T17:51:33.41614444Z\",\"primaryKey\":\"id\"}],\"offset\":0,\"limit\":20,\"total\":1}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_index",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/indexes/quoxproof-live",
+      "status": 200,
+      "latency_ms": 21,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "6f959cfdf5bbba82382f1799437395e10d045bcad0121681672561dbbb41cb67",
+      "body_excerpt": "{\"uid\":\"quoxproof-live\",\"createdAt\":\"2026-09-12T17:51:33.413034823Z\",\"updatedAt\":\"2026-09-12T17:51:33.41614444Z\",\"primaryKey\":\"id\"}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "search_index",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/indexes/quoxproof-live/search?limit=20",
+      "status": 200,
+      "latency_ms": 15,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "b900037a12caf5c92028d4cbe82e29e0ffaad0a12376b6f14b954b2a6e7636c7",
+      "body_excerpt": "{\"hits\":[],\"query\":\"\",\"processingTimeMs\":0,\"limit\":20,\"offset\":0,\"estimatedTotalHits\":0}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_tasks",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/tasks?limit=20",
+      "status": 200,
+      "latency_ms": 8,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "579ec7d8c8a65cfb3f9042acd4b252e52c866fe5699d8f4aa21e2d4f60def833",
+      "body_excerpt": "{\"results\":[{\"uid\":0,\"indexUid\":\"quoxproof-live\",\"status\":\"succeeded\",\"type\":\"indexCreation\",\"canceledBy\":null,\"details\":{\"primaryKey\":\"id\"},\"error\":null,\"duration\":\"PT0.005195177S\",\"enqueuedAt\":\"2026",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:getmeili/meilisearch:v1.11"
+}

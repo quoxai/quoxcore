@@ -1,0 +1,90 @@
+{
+  "spec_id": "dbt_cloud",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:46:52.331Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://cloud.getdbt.com/quox-shapeproof-control-a9994557",
+      "status": 400,
+      "latency_ms": 1018,
+      "classification": "CONTROL",
+      "body_sha256": "f4128ef8e0011d973617f4eb1d0a157ed22844c232ca11c099e4b958d7465854",
+      "body_excerpt": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Error><Code>InvalidArgument</Code><Message>Unsupported Authorization Type</Message><ArgumentName>Authorization</ArgumentName><ArgumentValue>Token QUOXSHAPEPROOF",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://cloud.getdbt.com/api/v2/accounts/QUOXSHAPEPROOFDUMMYACCOUNTID/",
+      "status": 401,
+      "latency_ms": 254,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4e1f3b8617c5ee7c6a1708d19bffeab32c34f073d47d1568a7fc46d3e484db87",
+      "body_excerpt": "{\"status\": {\"code\": 401, \"is_success\": false, \"user_message\": \"Invalid token.\", \"developer_message\": null}, \"data\": null}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_accounts",
+      "method": "GET",
+      "url": "https://cloud.getdbt.com/api/v2/accounts/",
+      "status": 401,
+      "latency_ms": 155,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4e1f3b8617c5ee7c6a1708d19bffeab32c34f073d47d1568a7fc46d3e484db87",
+      "body_excerpt": "{\"status\": {\"code\": 401, \"is_success\": false, \"user_message\": \"Invalid token.\", \"developer_message\": null}, \"data\": null}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "GET",
+      "url": "https://cloud.getdbt.com/api/v2/accounts/quoxprobe/projects/",
+      "status": 401,
+      "latency_ms": 162,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4e1f3b8617c5ee7c6a1708d19bffeab32c34f073d47d1568a7fc46d3e484db87",
+      "body_excerpt": "{\"status\": {\"code\": 401, \"is_success\": false, \"user_message\": \"Invalid token.\", \"developer_message\": null}, \"data\": null}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_jobs",
+      "method": "GET",
+      "url": "https://cloud.getdbt.com/api/v2/accounts/quoxprobe/jobs/?project_id=1&limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 168,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4e1f3b8617c5ee7c6a1708d19bffeab32c34f073d47d1568a7fc46d3e484db87",
+      "body_excerpt": "{\"status\": {\"code\": 401, \"is_success\": false, \"user_message\": \"Invalid token.\", \"developer_message\": null}, \"data\": null}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_runs",
+      "method": "GET",
+      "url": "https://cloud.getdbt.com/api/v2/accounts/quoxprobe/runs/?job_definition_id=1&order_by=-created_at&limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 307,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4e1f3b8617c5ee7c6a1708d19bffeab32c34f073d47d1568a7fc46d3e484db87",
+      "body_excerpt": "{\"status\": {\"code\": 401, \"is_success\": false, \"user_message\": \"Invalid token.\", \"developer_message\": null}, \"data\": null}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

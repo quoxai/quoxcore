@@ -1,0 +1,235 @@
+{
+  "spec_version": 1,
+  "id": "contentful",
+  "name": "Contentful",
+  "category": "files_knowledge",
+  "credentialType": "contentful",
+  "requiredFields": [
+    "space_id",
+    "access_token"
+  ],
+  "docs": "https://www.contentful.com/developers/docs/",
+  "base_url": "https://cdn.contentful.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/spaces/{{input.space_id}}",
+    "_probe": {
+      "input.space_id": "cfexampleapi"
+    }
+  },
+  "tools_source": "https://www.contentful.com/developers/docs/references/content-delivery-api/",
+  "tools": [
+    {
+      "name": "get_space",
+      "description": "Get one Contentful space by ID (name and configured locales) via the Content Delivery API",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Contentful space ID the Delivery API token belongs to (e.g. cfexampleapi)"
+          }
+        },
+        "required": [
+          "space_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/spaces/{{input.space_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "sys.id",
+          "name": "name",
+          "type": "sys.type",
+          "locales[]": {
+            "code": "code",
+            "name": "name",
+            "default": "default"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.space_id": "cfexampleapi"
+      }
+    },
+    {
+      "name": "list_entries",
+      "description": "List published entries in a Contentful space (master environment), optionally filtered by content type or full-text search",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Contentful space ID the Delivery API token belongs to (e.g. cfexampleapi)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max entries to return (default 20, max 100)"
+          },
+          "content_type": {
+            "type": "string",
+            "description": "Optional content type ID to filter by (e.g. blogPost)"
+          },
+          "query": {
+            "type": "string",
+            "description": "Optional full-text search term across the entry's fields"
+          },
+          "order": {
+            "type": "string",
+            "description": "Optional sort field, '-' for descending (e.g. -sys.updatedAt)"
+          }
+        },
+        "required": [
+          "space_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/spaces/{{input.space_id}}/entries",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "content_type": "{{input.content_type}}",
+          "query": "{{input.query}}",
+          "order": "{{input.order}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "sys.id",
+            "content_type": "sys.contentType.sys.id",
+            "created_at": "sys.createdAt",
+            "updated_at": "sys.updatedAt",
+            "fields": "fields"
+          },
+          "total": "total",
+          "limit": "limit",
+          "skip": "skip"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.space_id": "cfexampleapi"
+      }
+    },
+    {
+      "name": "list_content_types",
+      "description": "List content types (the content model) in a Contentful space, including each type's field definitions",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Contentful space ID the Delivery API token belongs to (e.g. cfexampleapi)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max content types to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "space_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/spaces/{{input.space_id}}/content_types",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "sys.id",
+            "name": "name",
+            "description": "description",
+            "display_field": "displayField",
+            "fields[]": {
+              "id": "id",
+              "name": "name",
+              "type": "type",
+              "required": "required"
+            }
+          },
+          "total": "total",
+          "limit": "limit",
+          "skip": "skip"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.space_id": "cfexampleapi"
+      }
+    },
+    {
+      "name": "list_assets",
+      "description": "List published assets (files) in a Contentful space, with each asset's CDN file URL and size",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "Contentful space ID the Delivery API token belongs to (e.g. cfexampleapi)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max assets to return (default 20, max 100)"
+          },
+          "order": {
+            "type": "string",
+            "description": "Optional sort field, '-' for descending (e.g. -sys.updatedAt)"
+          }
+        },
+        "required": [
+          "space_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/spaces/{{input.space_id}}/assets",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "order": "{{input.order}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "sys.id",
+            "title": "fields.title",
+            "description": "fields.description",
+            "url": "fields.file.url",
+            "content_type": "fields.file.contentType",
+            "size": "fields.file.details.size",
+            "updated_at": "sys.updatedAt"
+          },
+          "total": "total",
+          "limit": "limit",
+          "skip": "skip"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.space_id": "cfexampleapi"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

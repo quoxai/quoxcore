@@ -1,0 +1,181 @@
+{
+  "spec_version": 1,
+  "id": "brex",
+  "name": "Brex",
+  "category": "commerce_finance",
+  "credentialType": "brex",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://developer.brex.com/",
+  "base_url": "https://platform.brexapis.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/users/me"
+  },
+  "tools_source": "https://developer.brex.com/openapi/",
+  "tools": [
+    {
+      "name": "list_accounts",
+      "description": "List the Brex cash accounts on the team, with balances (the account IDs every cash transaction call is scoped by)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/accounts/cash"
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "current_balance_amount": "current_balance.amount",
+            "current_balance_currency": "current_balance.currency",
+            "available_balance_amount": "available_balance.amount",
+            "available_balance_currency": "available_balance.currency",
+            "primary": "primary"
+          },
+          "next_cursor": "next_cursor"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_transactions",
+      "description": "List transactions on one Brex cash account (get the account_id from list_accounts)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Brex cash account ID to read transactions for (from list_accounts)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max transactions to return (default 20, max 100)"
+          },
+          "posted_at_start": {
+            "type": "string",
+            "description": "Optional ISO 8601 date-time; only transactions posted at or after this point are returned"
+          }
+        },
+        "required": [
+          "account_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/transactions/cash/{{input.account_id}}",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "posted_at_start": "{{input.posted_at_start}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "description": "description",
+            "type": "type",
+            "amount": "amount.amount",
+            "currency": "amount.currency",
+            "initiated_at_date": "initiated_at_date",
+            "posted_at_date": "posted_at_date",
+            "transfer_id": "transfer_id"
+          },
+          "next_cursor": "next_cursor"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_users",
+      "description": "List the users on the Brex team (names, emails, status and department/location IDs)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max users to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/users",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "first_name": "first_name",
+            "last_name": "last_name",
+            "email": "email",
+            "status": "status",
+            "department_id": "department_id",
+            "location_id": "location_id",
+            "manager_id": "manager_id"
+          },
+          "next_cursor": "next_cursor"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_cards",
+      "description": "List the Brex cards on the team with their owner, status and spend limit. Card numbers and last-four digits are deliberately not returned",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max cards to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/cards",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "card_name": "card_name",
+            "card_type": "card_type",
+            "status": "status",
+            "owner_user_id": "owner.user_id",
+            "limit_amount": "spend_controls.spend_limit.amount",
+            "limit_currency": "spend_controls.spend_limit.currency",
+            "limit_duration": "spend_controls.spend_duration"
+          },
+          "next_cursor": "next_cursor"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

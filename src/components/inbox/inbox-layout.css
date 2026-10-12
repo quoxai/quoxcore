@@ -1,0 +1,290 @@
+/* Inbox Layout — Folder sidebar + main content (glass panel pattern) */
+
+.inbox-layout {
+    display: flex;
+    gap: 16px;
+    min-height: 0;
+    flex: 1;
+}
+
+/* Folder Sidebar — glass panel (qx-card recipe) */
+.inbox-folder-sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    padding: 14px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    overflow-y: auto;
+    position: relative;
+    isolation: isolate;
+    background: var(--m-bg-base, rgba(255,255,255,0.08));
+    border: 1px solid var(--m-border-default, rgba(255,255,255,0.18));
+    border-radius: var(--qx-radius, 20px);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.18),
+        inset 0 -1px 0 rgba(0,0,0,0.45);
+}
+.inbox-folder-sidebar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: var(--qx-edges);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+}
+
+.inbox-folder-sidebar__group {
+    margin-bottom: 8px;
+}
+
+.inbox-folder-sidebar__group:last-child {
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
+}
+
+.inbox-folder-sidebar__group-label {
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ui-text-muted, rgba(255,255,255,0.6));
+    padding: 12px 12px 8px;
+}
+
+.inbox-folder-sidebar__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    color: var(--ui-text-secondary, rgba(255,255,255,0.7));
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+}
+
+.inbox-folder-sidebar__item:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--ui-text-primary, white);
+}
+
+.inbox-folder-sidebar__item:focus-visible {
+    outline: 2px solid #a855f7;
+    outline-offset: -2px;
+}
+
+.inbox-folder-sidebar__item--active {
+    background: linear-gradient(145deg, rgba(168,85,247,0.1) 0%, rgba(56,189,248,0.04) 100%);
+    color: #fff;
+    border-color: rgba(168,85,247,0.3);
+    box-shadow: 0 0 12px rgba(168,85,247,0.15);
+}
+
+.inbox-folder-sidebar__item--active:hover {
+    background: linear-gradient(145deg, rgba(168,85,247,0.15) 0%, rgba(56,189,248,0.06) 100%);
+}
+
+.inbox-folder-sidebar__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.inbox-folder-sidebar__item--active .inbox-folder-sidebar__icon {
+    opacity: 1;
+}
+
+.inbox-folder-sidebar__label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.inbox-folder-sidebar__badge {
+    font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    min-width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--ui-text-muted, rgba(255,255,255,0.6));
+    padding: 0 5px;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.inbox-folder-sidebar__item--active .inbox-folder-sidebar__badge {
+    background: rgba(168,85,247,0.2);
+    color: #c084fc;
+}
+
+/* Main content — glass panel (qx-card recipe) */
+.inbox-layout__content {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    background: var(--m-bg-base, rgba(255,255,255,0.08));
+    border: 1px solid var(--m-border-default, rgba(255,255,255,0.18));
+    border-radius: var(--qx-radius, 20px);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.18),
+        inset 0 -1px 0 rgba(0,0,0,0.45);
+}
+.inbox-layout__content::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: var(--qx-edges);
+    backdrop-filter: var(--qx-blur);
+    -webkit-backdrop-filter: var(--qx-blur);
+}
+
+/* Org filter strip — horizontal pill row for cross-org filtering */
+.inbox-org-filter-strip {
+    display: flex;
+    gap: 6px;
+    padding: 10px 16px 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.inbox-org-filter-strip__pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--ui-text-secondary, rgba(255,255,255,0.7));
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.inbox-org-filter-strip__pill:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--ui-text-primary, white);
+}
+
+.inbox-org-filter-strip__pill--active {
+    background: linear-gradient(145deg, rgba(168,85,247,0.1) 0%, rgba(56,189,248,0.04) 100%);
+    border-color: rgba(168,85,247,0.3);
+    color: #fff;
+}
+
+.inbox-org-filter-strip__pill--active:hover {
+    background: linear-gradient(145deg, rgba(168,85,247,0.15) 0%, rgba(56,189,248,0.06) 100%);
+}
+
+.inbox-org-filter-strip__logo {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    object-fit: cover;
+}
+
+/* Org badge on inbox items */
+.inbox-item-org-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--ui-text-muted, rgba(255,255,255,0.6));
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.inbox-item-org-badge__logo {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    object-fit: cover;
+}
+
+/* Responsive: hide sidebar below 900px */
+.inbox-folder-sidebar__toggle {
+    display: none;
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    z-index: 50;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #a855f7;
+    color: white;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    align-items: center;
+    justify-content: center;
+}
+
+@media (max-width: 900px) {
+    .inbox-folder-sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 100;
+        transform: translateX(-100%);
+        transition: transform 0.2s ease;
+        box-shadow: 4px 0 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .inbox-folder-sidebar--open {
+        transform: translateX(0);
+    }
+
+    .inbox-folder-sidebar__toggle {
+        display: flex;
+    }
+
+    .inbox-layout__content {
+        width: 100%;
+    }
+
+    .inbox-folder-sidebar__backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 99;
+    }
+}

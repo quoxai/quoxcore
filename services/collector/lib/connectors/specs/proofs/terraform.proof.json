@@ -1,0 +1,90 @@
+{
+  "spec_id": "terraform",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:21:55.845Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://app.terraform.io/quox-shapeproof-control-94dc3ea5",
+      "status": 404,
+      "latency_ms": 1622,
+      "classification": "CONTROL",
+      "body_sha256": "b0e23d98b39b111759061351bd172a32b1339edd2642eb7af5a4839179455b17",
+      "body_excerpt": "{\"errors\":[{\"status\":\"404\",\"title\":\"not found\"}]}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://app.terraform.io/api/v2/account/details",
+      "status": 401,
+      "latency_ms": 292,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "5f17394a52bd8f4ac0a9ca4a5132bba3358b9984f28b0b3244c8d7db26e3288f",
+      "body_excerpt": "{\"errors\":[{\"status\":\"401\",\"title\":\"unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_account_details",
+      "method": "GET",
+      "url": "https://app.terraform.io/api/v2/account/details",
+      "status": 401,
+      "latency_ms": 227,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "5f17394a52bd8f4ac0a9ca4a5132bba3358b9984f28b0b3244c8d7db26e3288f",
+      "body_excerpt": "{\"errors\":[{\"status\":\"401\",\"title\":\"unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_organizations",
+      "method": "GET",
+      "url": "https://app.terraform.io/api/v2/organizations?q=quoxprobe&page%5Bnumber%5D=1&page%5Bsize%5D=20",
+      "status": 401,
+      "latency_ms": 387,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "5f17394a52bd8f4ac0a9ca4a5132bba3358b9984f28b0b3244c8d7db26e3288f",
+      "body_excerpt": "{\"errors\":[{\"status\":\"401\",\"title\":\"unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "method": "GET",
+      "url": "https://app.terraform.io/api/v2/organizations/quoxprobe/workspaces?search%5Bname%5D=quoxprobe&search%5Btags%5D=quoxprobe&page%5Bnumber%5D=1&page%5Bsize%5D=20",
+      "status": 401,
+      "latency_ms": 309,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "5f17394a52bd8f4ac0a9ca4a5132bba3358b9984f28b0b3244c8d7db26e3288f",
+      "body_excerpt": "{\"errors\":[{\"status\":\"401\",\"title\":\"unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_runs",
+      "method": "GET",
+      "url": "https://app.terraform.io/api/v2/workspaces/quoxprobe/runs?filter%5Bstatus%5D=quoxprobe&filter%5Boperation%5D=quoxprobe&page%5Bnumber%5D=1&page%5Bsize%5D=20",
+      "status": 401,
+      "latency_ms": 379,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "5f17394a52bd8f4ac0a9ca4a5132bba3358b9984f28b0b3244c8d7db26e3288f",
+      "body_excerpt": "{\"errors\":[{\"status\":\"401\",\"title\":\"unauthorized\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

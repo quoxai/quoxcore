@@ -1,0 +1,199 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "network",
+
+  "name": "Network Tools",
+  "description": "Network diagnostics and connectivity tools via bastion",
+  "category": "network",
+  "subcategory": "diagnostics",
+  "provider": "quox",
+  "version": "1.0.0",
+
+  "risk_level": "low",
+  "sandbox_profile": "standard",
+  "requires_license": null,
+
+  "tools": [
+    {
+      "id": "network.ping",
+      "name": "Ping",
+      "description": "ICMP ping to test host reachability and latency",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "target": {
+          "type": "string",
+          "required": true,
+          "description": "Host or IP address to ping"
+        },
+        "count": {
+          "type": "number",
+          "required": false,
+          "default": 4,
+          "description": "Number of ping packets (max 10)"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "target": { "type": "string" },
+          "reachable": { "type": "boolean" },
+          "transmitted": { "type": "number" },
+          "received": { "type": "number" },
+          "lossPercent": { "type": "number" },
+          "rtt": {
+            "type": "object",
+            "properties": {
+              "min": { "type": "number" },
+              "avg": { "type": "number" },
+              "max": { "type": "number" }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Test if a host is reachable via ICMP ping",
+        "when_to_use": [
+          "User asks to ping a host",
+          "User wants to check if something is reachable",
+          "User asks about network connectivity"
+        ]
+      }
+    },
+    {
+      "id": "network.traceroute",
+      "name": "Traceroute",
+      "description": "Trace the network path to a destination",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "target": {
+          "type": "string",
+          "required": true,
+          "description": "Destination host or IP"
+        },
+        "maxHops": {
+          "type": "number",
+          "required": false,
+          "default": 20,
+          "description": "Maximum hops (max 30)"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "target": { "type": "string" },
+          "hops": { "type": "array" },
+          "hopCount": { "type": "number" },
+          "reachable": { "type": "boolean" }
+        }
+      },
+      "instructions": {
+        "summary": "Trace the network path to see routing",
+        "when_to_use": [
+          "User asks for traceroute",
+          "User wants to see the network path",
+          "Diagnosing routing issues"
+        ]
+      }
+    },
+    {
+      "id": "network.dns",
+      "name": "DNS Lookup",
+      "description": "Query DNS records for a domain",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "target": {
+          "type": "string",
+          "required": true,
+          "description": "Domain name to lookup"
+        },
+        "dnsType": {
+          "type": "string",
+          "required": false,
+          "default": "A",
+          "enum": ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "PTR"],
+          "description": "DNS record type"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "domain": { "type": "string" },
+          "type": { "type": "string" },
+          "records": { "type": "array" },
+          "resolved": { "type": "boolean" }
+        }
+      },
+      "instructions": {
+        "summary": "Lookup DNS records for a domain",
+        "when_to_use": [
+          "User asks for DNS lookup",
+          "User wants to resolve a domain",
+          "User asks about MX, NS, or other DNS records"
+        ]
+      }
+    },
+    {
+      "id": "network.ports",
+      "name": "Port Check",
+      "description": "Check if specific ports are open on a target",
+      "accessLevel": "specialists+",
+      "defconLevel": "YELLOW",
+      "requiresApproval": false,
+      "parameters": {
+        "target": {
+          "type": "string",
+          "required": true,
+          "description": "Host or IP to check"
+        },
+        "ports": {
+          "type": "array",
+          "required": false,
+          "default": [22, 80, 443],
+          "description": "Ports to check (max 10)"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "target": { "type": "string" },
+          "results": { "type": "array" },
+          "open": { "type": "number" },
+          "closed": { "type": "number" }
+        }
+      },
+      "instructions": {
+        "summary": "Check if specific ports are open",
+        "when_to_use": [
+          "User wants to check if a port is open",
+          "User asks about service availability",
+          "Diagnosing firewall issues"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {"base": "internal", "api": "bastion_ssh"},
+
+  "agent_hints": {
+    "primary_agent": "cipher",
+    "delegation_keywords": ["ping", "traceroute", "dns", "port", "network", "connectivity", "reachable"]
+  },
+
+  "help": {
+    "examples": [
+      "Ping 8.8.8.8",
+      "Traceroute to google.com",
+      "DNS lookup for example.com",
+      "Check if port 443 is open on webserver01"
+    ],
+    "man_url": null
+  }
+}

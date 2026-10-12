@@ -1,0 +1,31 @@
+{
+  "id": "telegram-pro",
+  "name": "telegram-pro",
+  "displayName": "Quox Telegram Pro",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "communication",
+  "accentColor": "#0088cc",
+  "description": "A dedicated bidirectional gateway bot for your org, with forum-topic terminal channels and human-in-the-loop approvals answered right inside Telegram.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/telegram-pro",
+      "label": "Telegram Pro",
+      "icon": "send",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/telegram-pro": "TelegramProView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

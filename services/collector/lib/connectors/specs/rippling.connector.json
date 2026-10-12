@@ -1,0 +1,556 @@
+{
+  "spec_version": 1,
+  "id": "rippling",
+  "name": "Rippling",
+  "category": "hr_hiring",
+  "credentialType": "rippling",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developer.rippling.com/",
+  "base_url": "https://api.rippling.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/platform/api/me"
+  },
+  "tools_source": "https://developer.rippling.com/documentation/base-api/reference/api-reference",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the Rippling user the API key or access token belongs to (id, work email, company id) — the cheapest way to confirm which account and company a credential reaches",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platform/api/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "workEmail": "workEmail",
+          "company": "company"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_current_company",
+      "description": "Get the company this Rippling credential can access (name, primary email, phone, head office address)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platform/api/companies/current"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "primaryEmail": "primaryEmail",
+          "phone": "phone",
+          "city": "address.city",
+          "state": "address.state",
+          "country": "address.country",
+          "zip": "address.zip"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_employees",
+      "description": "List active employees provisioned in Rippling (name, work email, title, department, level, manager, employment type)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max employees to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of records to skip for pagination (default 0)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platform/api/employees",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "workEmail": "workEmail",
+            "title": "title",
+            "department": "department",
+            "level": "level",
+            "manager": "manager",
+            "employmentType": "employmentType",
+            "roleState": "roleState",
+            "employeeNumber": "employeeNumber",
+            "workLocation": "worklocationNickname",
+            "isManager": "isManager",
+            "teams": "teams"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_employees_including_terminated",
+      "description": "List Rippling employees including terminated ones (adds endDate), optionally scoped to one EIN",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max employees to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of records to skip for pagination (default 0)"
+          },
+          "ein": {
+            "type": "number",
+            "description": "Optional Employer Identification Number (EIN) to scope the list to one legal entity"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platform/api/employees/include_terminated",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}",
+          "EIN": "{{input.ein}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "workEmail": "workEmail",
+            "title": "title",
+            "department": "department",
+            "manager": "manager",
+            "employmentType": "employmentType",
+            "roleState": "roleState",
+            "endDate": "endDate",
+            "employeeNumber": "employeeNumber",
+            "workLocation": "worklocationNickname"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_employee",
+      "description": "Get one Rippling employee by ID (identity, role, department, level, manager, work location, custom fields)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "description": "Unique identifier for the employee within Rippling"
+          }
+        },
+        "required": [
+          "employee_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platform/api/employees/{{input.employee_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "userId": "userId",
+          "name": "name",
+          "firstName": "firstName",
+          "lastName": "lastName",
+          "workEmail": "workEmail",
+          "title": "title",
+          "department": "department",
+          "level": "level",
+          "manager": "manager",
+          "employmentType": "employmentType",
+          "roleState": "roleState",
+          "endDate": "endDate",
+          "employeeNumber": "employeeNumber",
+          "workLocation": "worklocationNickname",
+          "isManager": "isManager",
+          "teams": "teams",
+          "customFields": "customFields"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_departments",
+      "description": "List Rippling departments for the company (id, name, parent department)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max departments to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of records to skip for pagination (default 0)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platform/api/departments",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "parent": "parent"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_teams",
+      "description": "List Rippling teams for the company (id, name, parent team)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max teams to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of records to skip for pagination (default 0)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platform/api/teams",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "parent": "parent"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_levels",
+      "description": "List Rippling levels, the set positions in the organization such as Manager or Executive (id, name, parent level)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max levels to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of records to skip for pagination (default 0)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platform/api/levels",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "parent": "parent"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_work_locations",
+      "description": "List Rippling work locations for the company (id, nickname, city, state, country)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max work locations to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of records to skip for pagination (default 0)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platform/api/work_locations",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "nickname": "nickname",
+            "city": "address.city",
+            "state": "address.state",
+            "country": "address.country",
+            "zip": "address.zip"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_leave_requests",
+      "description": "List Rippling leave requests, optionally filtered by employee role, status, leave policy, exact leave dates or an overlapping date range",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "Optional employee role ID (the employee the leave belongs to)"
+          },
+          "status": {
+            "type": "string",
+            "description": "Optional leave request status to filter by (e.g. PENDING, APPROVED, DECLINED, CANCELED)"
+          },
+          "leave_policy": {
+            "type": "string",
+            "description": "Optional leave policy ID to filter by"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Optional exact start date of leave (YYYY-MM-DD)"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Optional exact end date of leave (YYYY-MM-DD)"
+          },
+          "from": {
+            "type": "string",
+            "description": "Optional range start (YYYY-MM-DD): returns requests overlapping from..to"
+          },
+          "to": {
+            "type": "string",
+            "description": "Optional range end (YYYY-MM-DD): returns requests overlapping from..to"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max leave requests to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of records to skip for pagination (default 0)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platform/api/leave_requests",
+        "query": {
+          "role": "{{input.role}}",
+          "status": "{{input.status}}",
+          "leavePolicy": "{{input.leave_policy}}",
+          "startDate": "{{input.start_date}}",
+          "endDate": "{{input.end_date}}",
+          "from": "{{input.from}}",
+          "to": "{{input.to}}",
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "role": "role",
+            "roleName": "roleName",
+            "status": "status",
+            "startDate": "startDate",
+            "endDate": "endDate",
+            "numHours": "numHours",
+            "leavePolicy": "leavePolicy",
+            "policyDisplayName": "policyDisplayName",
+            "reasonForLeave": "reasonForLeave",
+            "requestedBy": "requestedBy",
+            "requestedByName": "requestedByName",
+            "processedAt": "processedAt",
+            "processedByName": "processedByName",
+            "isPaid": "isPaid",
+            "createdAt": "createdAt"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_company_leave_types",
+      "description": "List the company's Rippling leave types (id, leave type, name, description, whether unpaid), optionally filtered by which system manages them",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "managed_by": {
+            "type": "string",
+            "description": "Optional filter on the managedBy field (which system manages the leave type)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platform/api/company_leave_types",
+        "query": {
+          "managedBy": "{{input.managed_by}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "leaveType": "leaveType",
+            "name": "name",
+            "description": "description",
+            "isUnpaid": "isUnpaid"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_leave_balances",
+      "description": "List Rippling leave balances per employee role and company leave type (balances are in minutes)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max records to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of records to skip for pagination (default 0)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platform/api/leave_balances",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "role": "role",
+            "balances": "balances"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_company_activity",
+      "description": "List Rippling company activity events (who did what and when) for an audit trail, paged by cursor; the window must be within the last 90 days",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "description": "List activity after this date, inclusive (YYYY-MM-DD). Must be less than 90 days ago"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "List activity before this date, inclusive (YYYY-MM-DD)"
+          },
+          "next": {
+            "type": "string",
+            "description": "Optional pagination cursor from a previous response's next value"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max events to return (default 50, max 1000)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/platform/api/company_activity",
+        "query": {
+          "startDate": "{{input.start_date}}",
+          "endDate": "{{input.end_date}}",
+          "next": "{{input.next}}",
+          "limit": "{{clamp input.limit 50 1000}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data.events[]": {
+            "id": "id",
+            "name": "name",
+            "event_type": "event_type",
+            "timestamp": "timestamp",
+            "company": "company",
+            "initiator": "initiator",
+            "subjects": "subjects"
+          },
+          "next": "data.next"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

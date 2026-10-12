@@ -1,0 +1,100 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "docker",
+
+  "name": "Docker Tools",
+  "description": "Docker container management tools via SSH bastion",
+  "category": "infrastructure",
+  "subcategory": "containers",
+  "provider": "docker",
+  "version": "1.0.0",
+
+  "risk_level": "medium",
+  "sandbox_profile": "standard",
+  "requires_license": null,
+
+  "tools": [
+    {
+      "id": "docker.status",
+      "name": "Container Status",
+      "description": "List Docker containers on a specified host with status information",
+      "aeeIntent": "quox.noc.docker.status",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "docker01",
+          "description": "Docker host to query (e.g., 'docker01', 'docker02')"
+        },
+        "all": {
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Include stopped containers"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "host": { "type": "string" },
+          "containers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "image": { "type": "string" },
+                "status": { "type": "string" },
+                "ports": { "type": "string" }
+              }
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "number" },
+              "running": { "type": "number" },
+              "stopped": { "type": "number" }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "List all Docker containers on a host with their status",
+        "when_to_use": [
+          "User asks 'what containers are running on docker01?'",
+          "User wants to see Docker container inventory",
+          "User asks about container status",
+          "Before performing container operations"
+        ],
+        "when_not_to_use": [
+          "User wants Proxmox LXC containers (use proxmox.containers)",
+          "User wants Kubernetes pods"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {"base": "internal", "api": "bastion_ssh"},
+
+  "agent_hints": {
+    "primary_agent": "nova",
+    "delegation_keywords": ["docker", "container", "running containers", "docker ps"]
+  },
+
+  "help": {
+    "examples": [
+      "List containers on docker01",
+      "Show all containers including stopped",
+      "What's running on docker02?"
+    ],
+    "man_url": null
+  }
+}

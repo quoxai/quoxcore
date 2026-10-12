@@ -1,0 +1,180 @@
+{
+  "spec_version": 1,
+  "id": "netdata",
+  "name": "Netdata",
+  "category": "monitoring",
+  "credentialType": "netdata",
+  "requiredFields": [
+    "base_url"
+  ],
+  "docs": "https://learn.netdata.cloud/docs/developer-and-contributor-corner/rest-api",
+  "tools_source": "https://learn.netdata.cloud/api",
+  "description": "Netdata agent reads over its v1 REST API: node info and version, the chart catalogue, currently-raised alarms, and the recent data points of one named chart. Read-only; Netdata's agent API exposes no write surface, and this connector wires none. The agent API is unauthenticated by default (base_url is the only credential); put it behind a reverse proxy for exposure beyond a trusted LAN.",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "none"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/info"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 60
+  },
+  "tools": [
+    {
+      "name": "node_info",
+      "description": "Get the Netdata node's identity and capacity: version, OS, CPU/RAM, uptime, how many charts and metrics it collects, and which hosts it mirrors",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/info"
+      },
+      "response": {
+        "pick": {
+          "version": "version",
+          "uid": "uid",
+          "os_name": "os_name",
+          "os_version": "os_version",
+          "kernel_name": "kernel_name",
+          "architecture": "architecture",
+          "cores_total": "cores_total",
+          "total_ram": "ram_total",
+          "hosts_available": "hosts-available",
+          "mirrored_hosts": "mirrored_hosts",
+          "charts_count": "charts_count",
+          "metrics_count": "metrics_count",
+          "alarms_normal": "alarms.normal",
+          "alarms_warning": "alarms.warning",
+          "alarms_critical": "alarms.critical"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_charts",
+      "description": "List the charts this Netdata agent collects, each with its id, title, units, chart type and update frequency",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/charts"
+      },
+      "response": {
+        "pick": {
+          "hostname": "hostname",
+          "charts_count": "charts_count",
+          "charts": "charts"
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_alarms",
+      "description": "List the alarms currently raised on this node (warning or critical), with their chart, value, status and recipient",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "all": {
+            "type": "boolean",
+            "description": "When true, list every configured alarm and its state, not only the currently-raised ones"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/alarms",
+        "query": {
+          "all": "{{input.all}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "hostname": "hostname",
+          "status": "status",
+          "alarms": "alarms"
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {
+        "input.all": "true"
+      }
+    },
+    {
+      "name": "chart_data",
+      "description": "Get the recent data points of one chart by id (e.g. system.cpu, system.ram, disk.io), as timestamped rows across the chart's dimensions",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "chart": {
+            "type": "string",
+            "description": "Chart id, e.g. system.cpu, system.ram, system.load (from list_charts)"
+          },
+          "after": {
+            "type": "integer",
+            "description": "Relative start in seconds, negative for a window back from now (e.g. -300 for the last 5 minutes); default -60"
+          },
+          "points": {
+            "type": "integer",
+            "description": "How many time buckets to return (default 20)"
+          }
+        },
+        "required": [
+          "chart"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/data",
+        "query": {
+          "chart": "{{input.chart}}",
+          "after": "{{input.after}}",
+          "points": "{{input.points}}",
+          "format": "json"
+        }
+      },
+      "response": {
+        "pick": {
+          "labels": "labels",
+          "data": "data",
+          "min": "min",
+          "max": "max"
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {
+        "input.chart": "system.cpu",
+        "input.after": -60,
+        "input.points": 5
+      }
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-12 for the live-proof pipeline",
+    "confidence": "live",
+    "needs_review": [
+      "AUTH IS none BY DESIGN: the Netdata agent's local API on :19999 ships with no authentication, so base_url is the only credential and auth.type is 'none'. This is Netdata's documented default (https://learn.netdata.cloud/docs/netdata-agent/securing-netdata-agents); an internet-exposed agent must sit behind a reverse proxy, which is a deployment concern, not a spec one. base_url fromCredential keeps a real credential referenced so the spec is not credential-less.",
+      "READ-ONLY: all four tools are GET, write:false. The Netdata agent v1 API is read-only by nature (metrics, charts, alarms); there is no mutating endpoint to model.",
+      "list_charts and node_info return large objects (a busy node has hundreds of charts); the picks keep the summary fields plus the charts/alarms maps, capped by response.truncate. charts is kept as the whole map rather than flattened because Connector Spec v1 has no computed fields to reshape a keyed object into an array.",
+      "list_alarms with all=true returns every configured alarm and its state; on a fresh container the raised set is empty but the configured set is not, so all=true gives a non-trivial 200. Without all, a healthy node returns a 200 with an empty alarms object, which is still a valid proof.",
+      "chart_data probes system.cpu, which every Netdata agent collects from boot, over a fixed -60s/5-point window. The honest expected live result is a 200 with a small labels+data matrix. after is relative seconds (Netdata's own convention), so no absolute timestamp is baked.",
+      "LIVE-PROOF CONTRACT: node_info / list_charts take no input (_probe {}); list_alarms pins all=true; chart_data pins system.cpu. No credential is hinted (there is none). Proven against docker netdata/netdata (v2.11.0 nightly), then destroyed.",
+      "API VERSION: this uses the stable v1 API, which Netdata keeps for backward compatibility alongside newer v2/v3 endpoints. v1/info, v1/charts, v1/alarms and v1/data are the long-standing, widely-deployed surface; the newer /api/v2 and /api/v3 shapes are deliberately not used so the connector serves older agents too.",
+      "rateLimit 60/min: Netdata is a per-second collector and cheap to poll, so the local courtesy cap is higher than the 30/min default; Netdata enforces no request rate limit of its own."
+    ]
+  }
+}

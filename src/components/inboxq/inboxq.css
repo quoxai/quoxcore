@@ -1,0 +1,458 @@
+/**
+ * InboxQ-scoped styles.
+ *
+ * Everything else in the view composes qx-* utilities straight from the
+ * shared design system (see src/styles/QX_INDEX.md) — this file only holds
+ * the handful of InboxQ-specific primitives that don't have a shared class
+ * yet: the flat mail row (replacing a floating .qx-card per message) and the
+ * safe-inbox blocked-image placeholder. Do not duplicate qx-* rules here.
+ *
+ * The master-detail list/reader split now lives in the shared
+ * .qx-master-detail utility (src/styles/qx-components.css) — InboxQ is its
+ * first consumer, see InboxQView.jsx.
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * ROUTE LAYOUT — bounded shell → workspace → main chain (layout audit
+ * section B, 2026-09-26). Assigns layout responsibility only; it does not
+ * duplicate qx-* surface styling. Overview/Report/Proposals/Settings render
+ * inside ONE `.qx-scroll-pane` document scroller (`.iq-main`'s child); the
+ * zone/message list+reader split keeps using the shared `.qx-master-detail`
+ * utility instead. See app-shell.css's `.app-shell:has(.iq-view)` rules for
+ * the route-scoped viewport bound this chain depends on.
+ * ═══════════════════════════════════════════════════════════════════════ */
+/* Compound selector (not just `.iq-view`): `.qx-view` also sets `overflow:
+ * visible` at equal specificity, and this rule MUST win regardless of CSS
+ * source order — a route with `overflow: visible` here breaks the whole
+ * bounded scroll chain below it (layout audit section B). */
+.qx-view.iq-view {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  container: iq-workspace / inline-size;
+}
+.iq-workspace {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.iq-toolbar {
+  flex: 0 0 auto;
+  min-width: 0;
+  height: auto;
+  flex-wrap: wrap;
+}
+.iq-toolbar > .qx-row {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.iq-body {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  align-items: stretch;
+  overflow: hidden;
+  position: relative;
+}
+.iq-nav {
+  flex: 0 0 200px;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.iq-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  container: iq-main / inline-size;
+}
+.iq-zone-header { flex: 0 0 auto; min-width: 0; }
+.iq-overview { max-width: 976px; margin-inline: auto; }
+.iq-overview > * { flex: 0 0 auto; }
+.iq-mobile-nav-trigger { display: none; }
+
+/* Document pane — the ONE opaque undercoat behind Overview/Report/Proposals/
+ * Settings (InboxQ transparent-content-area fix, 2026-09-28). `.qx-surface
+ * --backed` alone paints `--qx-surface-base-opaque` with no padding/radius
+ * (see qx-components.css); those bare sections (stat tiles, section titles)
+ * previously sat directly on the transparent scroll pane, letting a user's
+ * wallpaper show through. This adds the breathing room a solid panel needs
+ * without introducing a second `.qx-card` border around content that already
+ * carries its own (InboxQReport, zone cards, proposal cards) — border/radius
+ * only, no background/blur (that's `.qx-surface--backed`'s job). */
+.iq-doc-pane {
+  padding: 20px;
+  border-radius: var(--qx-radius);
+}
+
+/* Only the summary consumers get a one-column row (Overview/Report cards,
+ * never the four-column .iq-mail-row list-row contract). */
+.iq-mail-row--summary { grid-template-columns: minmax(0, 1fr); }
+
+@container iq-workspace (max-width: 759px) {
+  .iq-body > .iq-nav { display: none; }
+  .iq-mobile-nav-trigger { display: inline-flex; }
+}
+@container iq-main (max-width: 799px) {
+  .iq-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container iq-main (max-width: 639px) {
+  .iq-zone-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@container iq-main (max-width: 379px) {
+  .iq-stats-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* CHAT DOCK — the INBOXQ agent sidebar (chat sidebar UX, design doc
+ * INBOXQ_AGENT_DESIGN.md section C). .qx-surface--backed on the wrapper
+ * paints an opaque undercoat (AgentChatSidebar itself is mounted with
+ * panel={false} so it never doubles up as glass-on-glass); the sidebar's own
+ * VisualizerSection/messages/input each manage their own bounded scroll, so
+ * this wrapper only owns overflow/sizing, not a second scroller. At
+ * .iq-workspace container widths where the nav rail already collapses off,
+ * an OPEN dock overlays as a drawer from the right instead of squeezing
+ * .iq-main down to nothing. */
+.iq-chat-dock {
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--m-border-default, rgba(255,255,255,0.14));
+  border-radius: var(--qx-radius, 14px);
+}
+@container iq-workspace (max-width: 899px) {
+  .iq-chat-dock[data-collapsed="false"] {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 6;
+    box-shadow: -12px 0 32px rgba(0,0,0,0.5);
+  }
+}
+
+/* Nav grouping (audit A#2/E): Zones vs Folders read as two named groups,
+ * never as one undifferentiated "folders" list. */
+.iq-nav-group-label {
+  padding: 6px 10px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
+}
+.iq-nav-group-hint {
+  padding: 0 10px 4px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+}
+/* Overview is the home of InboxQ; it read as just another tab and was easily
+ * missed (owner audit 2026-10). A faint backing + left accent give it presence
+ * so it reads as the dashboard entry, not a peer of the folder rows. */
+.iq-nav-home {
+  margin-bottom: 2px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255,255,255,0.05);
+  border-left: 2px solid #38bdf8;
+}
+.iq-nav-home.qx-tab--active {
+  background: rgba(56,189,248,0.14);
+}
+.iq-nav-folder-row {
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.75);
+  min-width: 0;
+}
+.iq-nav-folder-row__path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+/* Folder destination header — real IMAP folder browsing (owner's #1
+ * pre-onboarding blocker). Deliberately un-zone-tinted: no zone colour, no
+ * qx-card wrapper, just enough spacing to sit above the shared
+ * .qx-master-detail list/reader split. */
+.iq-folder-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 2px 2px 10px;
+}
+
+/* "Needs you" tiles (P3 physical filing) — Screened + Unsure-to-check
+ * counts, given a left accent so a genuine backlog reads as something to
+ * act on rather than a passive stat. Two columns, same collapse behaviour
+ * as .iq-zone-grid below. */
+.iq-needs-you-tile {
+  border-left: 3px solid rgba(245, 158, 11, 0.5);
+}
+@container iq-main (max-width: 639px) {
+  .iq-needs-you-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Zone explainer cards (Overview "Your zones") + folder chips (Overview
+ * "Folders selected for sync") — deliberately NOT zone-tinted, so folders
+ * never read as another zone. */
+.iq-zone-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.iq-folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Flat row inside one backed list surface — replaces a floating .qx-card
+ * (with lift/shimmer) per message row. Fixed-column grid so a full-width
+ * list reads as aligned columns, not a card pile (InboxQ UX Pass 3). */
+.iq-mail-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px 28px minmax(160px, 220px) 1fr max-content;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.iq-mail-row:hover { background: rgba(255,255,255,0.06); }
+.iq-mail-row[aria-current="true"] {
+  background: rgba(56,189,248,0.14);
+  box-shadow: inset 2px 0 0 0 #38bdf8;
+}
+.iq-mail-row:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: -2px;
+}
+
+/* Avatar cell — unread dot sits at the top-left corner of the avatar
+ * (absolute), not inline before the name, so the sender column stays edge
+ * aligned across rows. */
+.iq-mail-row__avatar { position: relative; flex-shrink: 0; }
+.iq-mail-row__avatar .qx-dot {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+}
+
+/* Sender cell: name (line 1) + address (line 2), both ellipsized. */
+.iq-mail-row__sender { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.iq-mail-row__name {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.iq-mail-row__addr {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: break-all;
+}
+
+/* Subject cell: one ellipsized line (subject + snippet), flags line below. */
+.iq-mail-row__subject { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.iq-mail-row__subject-line {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.iq-mail-row__snippet { color: var(--m-text-secondary); font-weight: 400; }
+.iq-mail-row__flags { display: flex; gap: 4px; flex-wrap: wrap; }
+
+/* Meta cell: paperclip (attachments) + date/time, right aligned. Hidden
+ * (visibility only, keeps layout) while the action cluster is revealed. */
+.iq-mail-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: end;
+  flex-shrink: 0;
+  color: var(--m-text-tertiary);
+}
+.iq-mail-row__meta svg { flex-shrink: 0; }
+
+/* Action cluster: backed overlay pill, right-aligned, revealed on hover or
+ * focus-within (keyboard) so it satisfies both pointer and keyboard users.
+ * A leftward gradient fades the row text it overlaps. */
+.iq-mail-row__acts {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  align-items: center;
+  gap: 4px;
+  background: var(--qx-surface-raised-opaque);
+  border: 1px solid var(--m-border-default);
+  border-radius: 8px;
+  padding: 2px;
+  z-index: 2;
+}
+.iq-mail-row__acts::before {
+  content: '';
+  position: absolute;
+  right: 100%;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  background: linear-gradient(to left, var(--qx-surface-raised-opaque), transparent);
+  pointer-events: none;
+}
+.iq-mail-row:hover .iq-mail-row__acts,
+.iq-mail-row:focus-within .iq-mail-row__acts {
+  display: flex;
+}
+.iq-mail-row:hover .iq-mail-row__meta,
+.iq-mail-row:focus-within .iq-mail-row__meta {
+  visibility: hidden;
+}
+.iq-mail-row__acts .qx-btn--sm {
+  height: 24px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.iq-mail-row__acts-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--m-border-default);
+  margin: 0 2px;
+}
+
+/* Touch / no-hover: the overlay pattern fails without hover, so the cluster
+ * becomes a static third row-line, always visible, left-aligned under the
+ * subject line. Rows are taller here — that is correct. */
+@media (hover: none) and (pointer: coarse) {
+  .iq-mail-row { grid-template-rows: auto auto; }
+  .iq-mail-row__acts {
+    display: flex;
+    position: static;
+    transform: none;
+    grid-column: 3 / -1;
+    grid-row: 2;
+    background: transparent;
+    border: none;
+    padding: 4px 0 0;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  .iq-mail-row__acts::before { display: none; }
+  .iq-mail-row:hover .iq-mail-row__meta,
+  .iq-mail-row:focus-within .iq-mail-row__meta {
+    visibility: visible;
+  }
+}
+
+/* Safe-inbox: DOMPurify swaps a blocked <img> for a plain <span> with this
+ * class (pseudo-elements don't render on replaced elements like <img>, so
+ * the placeholder text has to live on a real node, not a ::before). */
+.iq-blocked-image {
+  display: inline-flex;
+  align-items: center;
+  color: rgba(255,255,255,0.55);
+  border-style: dashed;
+}
+
+/* The email body sits on .qx-slate; its font scales with the header's text-size
+ * control via --qx-slate-fs (NotesQ look). Falls back to 15px off the slate. */
+.iq-reader-body {
+  line-height: 1.6;
+  font-size: var(--qx-slate-fs, 15px);
+  max-width: 72ch;
+  word-break: break-word;
+}
+/* Reader cards: the header bar, the slate body and the actions each own their
+ * card; the outer .iq-reader is the scroll container (set inline). */
+.iq-reader { min-height: 0; }
+.iq-reader-tools { flex-wrap: wrap; gap: 8px; }
+.iq-reader-body img { max-width: 100%; height: auto; border-radius: 6px; }
+.iq-reader-body a { color: #8fd6ff; }
+.iq-reader-body table { max-width: 100%; }
+
+/* SecurityPanel clip fix (P1, 2026-09-28): the reader's root is a flex
+ * COLUMN that also scrolls (overflow-y:auto). When its stacked children's
+ * total natural height exceeds the reader's bounded height, the browser's
+ * flex-shrink algorithm distributes the deficit across children down to
+ * each child's "automatic minimum size" — which is min-content for a
+ * normal (overflow:visible) child, but resolves to 0 for any child with
+ * overflow other than visible (CSS Flexbox §4.5). `.qx-banner`/
+ * `.qx-disclosure` both set `overflow:hidden` (for their rounded-corner rim),
+ * so without this rule the security panel was the one item the algorithm was
+ * willing to crush toward zero height, clipping its own SPF/DKIM/DMARC/
+ * warning text instead of the reader just scrolling past it. flex-shrink:0
+ * opts it out of that distribution — it always renders at its natural
+ * height, and the reader's own overflow-y:auto still scrolls the rest.
+ * Confirmed via a static repro of the exact reader DOM against the real
+ * compiled CSS (Playwright, off-list localhost — not a qlarity-governed
+ * live-page check): clientHeight 24px vs needed 122px before this rule,
+ * clientHeight matching scrollHeight after. */
+.iq-reader-security {
+  flex-shrink: 0;
+}
+
+/* MULTI-SELECT + BULK MOVE (P1 manual sort) ================================ */
+
+/* Checkbox cell — new leading grid column, same width class as the avatar
+ * cell it sits beside. Click never opens the row (row onClick + this cell's
+ * own stopPropagation both guard it). */
+.iq-mail-row__select {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.iq-mail-row__select .qx-checkbox { gap: 0; }
+
+/* Bulk action bar: only rendered once >=1 row is selected, sits above the
+ * list inside the same backed surface family as the rest of the toolbar. */
+.iq-bulk-bar {
+  flex: 0 0 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.iq-bulk-bar__folder-select {
+  min-width: 180px;
+}
+
+/* Attachment chips (reader, visibility only — no download/preview yet):
+ * non-interactive, so the hover state is neutralised back to resting. */
+.iq-attachment-chip { cursor: default; }
+.iq-attachment-chip:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.88);
+}
+.iq-attachment-chip__name {
+  display: inline-block;
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+/* AQ-9E: Undo affordance under a sidebar-agent turn that moved mail. The button
+   itself consumes the global .qx-btn; this only spaces it below the bubble. */
+.inboxq-chat-undo {
+  margin-top: 6px;
+  display: flex;
+}

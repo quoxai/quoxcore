@@ -1,0 +1,93 @@
+{
+  "spec_id": "mikrotik_routeros",
+  "spec_version": 1,
+  "checked_at": "2026-09-17T02:29:19.481Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/rest/system/identity",
+      "status": 200,
+      "latency_ms": 273,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "0faba029bb1814940c8f5c590d77d51f6d427b3bc2d25163013af703d5f58861",
+      "body_excerpt": "{\"name\":\"MikroTik\"}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_identity",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/rest/system/identity",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "0faba029bb1814940c8f5c590d77d51f6d427b3bc2d25163013af703d5f58861",
+      "body_excerpt": "{\"name\":\"MikroTik\"}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_resource",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/rest/system/resource",
+      "status": 200,
+      "latency_ms": 14,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "b6f70a0e46689f2937ba782a9ee034c08e13757cdf5d7ac743412ce902349f32",
+      "body_excerpt": "{\"architecture-name\":\"x86_64\",\"board-name\":\"CHR QEMU Standard PC (i440FX + PIIX, 1996)\",\"build-time\":\"2024-10-10 14:03:32\",\"cpu\":\"Common\",\"cpu-count\":\"1\",\"cpu-frequency\":\"2260\",\"cpu-load\":\"0\",\"factory",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_interfaces",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/rest/interface",
+      "status": 200,
+      "latency_ms": 14,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "d5b5cf2989301720ef81a6de658688c951fcb7c1bc0ca73443cdd963320a2078",
+      "body_excerpt": "[{\".id\":\"*2\",\"actual-mtu\":\"1500\",\"default-name\":\"ether1\",\"disabled\":\"false\",\"fp-rx-byte\":\"143172\",\"fp-rx-packet\":\"2251\",\"fp-tx-byte\":\"0\",\"fp-tx-packet\":\"0\",\"last-link-up-time\":\"2026-09-17 02:22:27\",\"l",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_ip_addresses",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/rest/ip/address",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "f4d653c8c3ceb14f931f27d1ceeee40926a9edfa9f5093a4f17c22f5b0e0f860",
+      "body_excerpt": "[{\".id\":\"*1\",\"actual-interface\":\"ether1\",\"address\":\"[LIVE_REDACTED]/24\",\"disabled\":\"false\",\"dynamic\":\"true\",\"interface\":\"ether1\",\"invalid\":\"false\",\"network\":\"[LAN_REDACTED]\",\"slave\":\"false\"}]",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_routes",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/rest/ip/route",
+      "status": 200,
+      "latency_ms": 16,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "8f415c907a9c245aa7a9825a8b074e82ae3c2b2f90ddb364ae2dd2fca281afa0",
+      "body_excerpt": "[{\".id\":\"*80000001\",\"active\":\"true\",\"dhcp\":\"true\",\"distance\":\"1\",\"dst-address\":\"0.0.0.0/0\",\"dynamic\":\"true\",\"ecmp\":\"false\",\"gateway\":\"[LAN_REDACTED]\",\"hw-offloaded\":\"false\",\"immediate-gw\":\"[LAN_REDACTED]%",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "routeros-chr-7.16.1"
+}

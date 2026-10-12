@@ -1,0 +1,122 @@
+{
+  "name": "uptime-kuma",
+  "version": "1.0.0",
+  "displayName": "Uptime Kuma",
+  "tagline": "Know When Things Break",
+  "description": "Real-time service uptime monitoring integration. See which services are up, down, or degraded at a glance with ping times and uptime percentages.",
+  "shortDescription": "Service uptime monitoring and status tracking.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 9,
+  "priceDisplay": "$9",
+  "priceModel": "one-time",
+  "tier": "starter",
+  "featured": false,
+  "icon": "activity",
+  "accentColor": "#10b981",
+  "infoUrl": "https://quox.ai/plugins/uptime-kuma",
+  "docsUrl": "https://quox.ai/docs/plugins/uptime-kuma",
+  "marketingPoints": [
+    "Real-time service status at a glance",
+    "Ping times and latency monitoring",
+    "24-hour and 30-day uptime percentages",
+    "Group services by category",
+    "Auto-refresh every 30 seconds"
+  ],
+  "features": {
+    "statusDashboard": {
+      "name": "Status Dashboard",
+      "description": "See all your services and their current status in a clean, organized panel.",
+      "icon": "monitor",
+      "highlight": true
+    },
+    "uptimeTracking": {
+      "name": "Uptime Tracking",
+      "description": "Track 24-hour and 30-day uptime percentages for every monitored service.",
+      "icon": "trending-up"
+    },
+    "pingMonitoring": {
+      "name": "Ping Monitoring",
+      "description": "See real-time ping times and latency for all services.",
+      "icon": "zap"
+    },
+    "serviceGroups": {
+      "name": "Service Groups",
+      "description": "Organize services into logical groups for easier management.",
+      "icon": "folder"
+    },
+    "autoRefresh": {
+      "name": "Auto Refresh",
+      "description": "Dashboard updates automatically every 30 seconds.",
+      "icon": "refresh-cw"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "Uptime Kuma instance"
+  },
+  "route": "/monitoring/uptime-kuma",
+  "integration": {
+    "client": "src/services/uptimeKumaClient.js",
+    "panel": "src/components/core/monitoring/UptimePanel.jsx",
+    "view": "src/pages/views/UptimeKumaView.jsx"
+  },
+  "nocIntegration": {
+    "tab": {
+      "label": "Uptime",
+      "icon": "activity",
+      "order": 25
+    },
+    "quickActions": [
+      {
+        "id": "kuma-status",
+        "label": "Service Status",
+        "icon": "health",
+        "description": "Check which services are up, down, or degraded",
+        "severity": "info",
+        "prompt": "Show current service status from Uptime Kuma \u2014 which services are up, down, or degraded"
+      },
+      {
+        "id": "kuma-down",
+        "label": "Down Services",
+        "icon": "logs",
+        "description": "List all services currently reporting as down",
+        "severity": "warning",
+        "prompt": "List all services currently down according to Uptime Kuma"
+      }
+    ],
+    "schedulable": true,
+    "templateVariables": [
+      {
+        "name": "slug",
+        "description": "Status page slug to monitor"
+      },
+      {
+        "name": "severity_threshold",
+        "description": "Minimum severity to alert on"
+      }
+    ]
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2025-01-25",
+      "changes": [
+        "Initial release",
+        "Status page integration",
+        "Heartbeat monitoring",
+        "Uptime percentage tracking",
+        "Service grouping"
+      ]
+    }
+  },
+  "category": "Monitoring",
+  "safety": {
+    "destructiveActions": [
+      "monitor.delete",
+      "monitor.pause"
+    ],
+    "requiresApproval": [
+      "monitor.delete"
+    ]
+  }
+}

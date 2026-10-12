@@ -1,0 +1,121 @@
+{
+  "spec_id": "statuspage",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:23.348Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.statuspage.io/quox-shapeproof-control-67cf3642",
+      "status": 401,
+      "latency_ms": 1057,
+      "classification": "CONTROL",
+      "body_sha256": "260be959d6b7120c82c043c49e0582da5a1ad7dd4d0ba1661f46fe03ba3d30ea",
+      "body_excerpt": "{\"error\":\"Could not authenticate\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.statuspage.io/v1/pages/QUOXSHAPEPROOFDUMMYPAGEID",
+      "status": 401,
+      "latency_ms": 377,
+      "classification": "AUTH_WALL",
+      "body_sha256": "260be959d6b7120c82c043c49e0582da5a1ad7dd4d0ba1661f46fe03ba3d30ea",
+      "body_excerpt": "{\"error\":\"Could not authenticate\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_pages",
+      "method": "GET",
+      "url": "https://api.statuspage.io/v1/pages?per_page=20",
+      "status": 401,
+      "latency_ms": 771,
+      "classification": "AUTH_WALL",
+      "body_sha256": "260be959d6b7120c82c043c49e0582da5a1ad7dd4d0ba1661f46fe03ba3d30ea",
+      "body_excerpt": "{\"error\":\"Could not authenticate\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_page",
+      "method": "GET",
+      "url": "https://api.statuspage.io/v1/pages/kctbh9vrtdwd",
+      "status": 401,
+      "latency_ms": 388,
+      "classification": "AUTH_WALL",
+      "body_sha256": "260be959d6b7120c82c043c49e0582da5a1ad7dd4d0ba1661f46fe03ba3d30ea",
+      "body_excerpt": "{\"error\":\"Could not authenticate\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_incidents",
+      "method": "GET",
+      "url": "https://api.statuspage.io/v1/pages/kctbh9vrtdwd/incidents?per_page=20",
+      "status": 401,
+      "latency_ms": 665,
+      "classification": "AUTH_WALL",
+      "body_sha256": "260be959d6b7120c82c043c49e0582da5a1ad7dd4d0ba1661f46fe03ba3d30ea",
+      "body_excerpt": "{\"error\":\"Could not authenticate\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_unresolved_incidents",
+      "method": "GET",
+      "url": "https://api.statuspage.io/v1/pages/kctbh9vrtdwd/incidents/unresolved?per_page=20",
+      "status": 401,
+      "latency_ms": 465,
+      "classification": "AUTH_WALL",
+      "body_sha256": "260be959d6b7120c82c043c49e0582da5a1ad7dd4d0ba1661f46fe03ba3d30ea",
+      "body_excerpt": "{\"error\":\"Could not authenticate\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_components",
+      "method": "GET",
+      "url": "https://api.statuspage.io/v1/pages/kctbh9vrtdwd/components?per_page=20",
+      "status": 401,
+      "latency_ms": 492,
+      "classification": "AUTH_WALL",
+      "body_sha256": "260be959d6b7120c82c043c49e0582da5a1ad7dd4d0ba1661f46fe03ba3d30ea",
+      "body_excerpt": "{\"error\":\"Could not authenticate\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

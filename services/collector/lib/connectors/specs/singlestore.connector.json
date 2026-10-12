@@ -1,0 +1,356 @@
+{
+  "spec_version": 1,
+  "id": "singlestore",
+  "name": "SingleStore",
+  "category": "data_ai",
+  "credentialType": "singlestore",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.singlestore.com/cloud/reference/management-api/",
+  "base_url": "https://api.singlestore.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/organizations/current"
+  },
+  "tools_source": "https://docs.singlestore.com/cloud/reference/management-api/",
+  "tools": [
+    {
+      "name": "get_organization",
+      "description": "Get the SingleStore organization the Management API key belongs to (id, name, firewall ranges)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/organizations/current"
+      },
+      "response": {
+        "pick": {
+          "orgID": "orgID",
+          "name": "name",
+          "firewallRanges": "firewallRanges"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_workspace_groups",
+      "description": "List SingleStore workspace groups in the organization (id, name, region, creation and termination times, firewall ranges)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/workspaceGroups"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "workspaceGroupID": "workspaceGroupID",
+            "name": "name",
+            "regionID": "regionID",
+            "createdAt": "createdAt",
+            "terminatedAt": "terminatedAt",
+            "allowAllTraffic": "allowAllTraffic",
+            "firewallRanges": "firewallRanges"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_workspace_group",
+      "description": "Get one SingleStore workspace group by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_group_id": {
+            "type": "string",
+            "description": "SingleStore workspace group ID (a UUID from list_workspace_groups)"
+          }
+        },
+        "required": [
+          "workspace_group_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/workspaceGroups/{{input.workspace_group_id}}"
+      },
+      "response": {
+        "pick": {
+          "workspaceGroupID": "workspaceGroupID",
+          "name": "name",
+          "regionID": "regionID",
+          "createdAt": "createdAt",
+          "terminatedAt": "terminatedAt",
+          "allowAllTraffic": "allowAllTraffic",
+          "firewallRanges": "firewallRanges"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "description": "List the workspaces inside one SingleStore workspace group (id, name, state, size, endpoint)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_group_id": {
+            "type": "string",
+            "description": "SingleStore workspace group ID to list workspaces for"
+          }
+        },
+        "required": [
+          "workspace_group_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/workspaces",
+        "query": {
+          "workspaceGroupID": "{{input.workspace_group_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "workspaceID": "workspaceID",
+            "workspaceGroupID": "workspaceGroupID",
+            "name": "name",
+            "state": "state",
+            "size": "size",
+            "endpoint": "endpoint",
+            "createdAt": "createdAt",
+            "lastResumedAt": "lastResumedAt",
+            "terminatedAt": "terminatedAt",
+            "deploymentType": "deploymentType"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_workspace",
+      "description": "Get one SingleStore workspace by ID, including its state, size and connection endpoint",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "description": "SingleStore workspace ID (a UUID from list_workspaces)"
+          }
+        },
+        "required": [
+          "workspace_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/workspaces/{{input.workspace_id}}"
+      },
+      "response": {
+        "pick": {
+          "workspaceID": "workspaceID",
+          "workspaceGroupID": "workspaceGroupID",
+          "name": "name",
+          "state": "state",
+          "size": "size",
+          "endpoint": "endpoint",
+          "createdAt": "createdAt",
+          "lastResumedAt": "lastResumedAt",
+          "terminatedAt": "terminatedAt",
+          "scalingProgress": "scalingProgress",
+          "deploymentType": "deploymentType"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_starter_workspaces",
+      "description": "List SingleStore starter (shared tier) workspaces in the organization",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/sharedtier/virtualWorkspaces"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "virtualWorkspaceID": "virtualWorkspaceID",
+            "name": "name",
+            "databaseName": "databaseName",
+            "endpoint": "endpoint"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_starter_workspace",
+      "description": "Get one SingleStore starter (shared tier) workspace by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "virtual_workspace_id": {
+            "type": "string",
+            "description": "SingleStore starter workspace ID (a UUID from list_starter_workspaces)"
+          }
+        },
+        "required": [
+          "virtual_workspace_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/sharedtier/virtualWorkspaces/{{input.virtual_workspace_id}}"
+      },
+      "response": {
+        "pick": {
+          "virtualWorkspaceID": "virtualWorkspaceID",
+          "name": "name",
+          "databaseName": "databaseName",
+          "endpoint": "endpoint"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_regions",
+      "description": "List the cloud regions SingleStore workspace groups can be deployed in",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/regions"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "regionID": "regionID",
+            "region": "region",
+            "provider": "provider"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_starter_regions",
+      "description": "List the cloud regions available for SingleStore starter (shared tier) workspaces",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/regions/sharedtier"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "regionID": "regionID",
+            "region": "region",
+            "provider": "provider",
+            "regionName": "regionName"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_billing_usage",
+      "description": "Get SingleStore billing usage for a time range, optionally for one metric and aggregated by hour, day or month",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "start_time": {
+            "type": "string",
+            "description": "Start of the usage interval, ISO 8601 (e.g. 2026-09-01T00:00:00Z)"
+          },
+          "end_time": {
+            "type": "string",
+            "description": "End of the usage interval, ISO 8601 (e.g. 2026-09-12T00:00:00Z)"
+          },
+          "metric": {
+            "type": "string",
+            "enum": [
+              "ComputeCredit",
+              "StorageAvgByte"
+            ],
+            "description": "Optional metric to report (default: all metrics)"
+          },
+          "aggregate_by": {
+            "type": "string",
+            "enum": [
+              "hour",
+              "day",
+              "month"
+            ],
+            "description": "Optional aggregation bucket for the usage rows"
+          }
+        },
+        "required": [
+          "start_time",
+          "end_time"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/billing/usage",
+        "query": {
+          "startTime": "{{input.start_time}}",
+          "endTime": "{{input.end_time}}",
+          "metric": "{{input.metric}}",
+          "aggregateBy": "{{input.aggregate_by}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "billingUsage[]": {
+            "metric": "metric",
+            "description": "description",
+            "Usage[]": {
+              "startTime": "startTime",
+              "endTime": "endTime",
+              "resourceId": "resourceId",
+              "resourceName": "resourceName",
+              "value": "value"
+            }
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH UNCHANGED from the scaffold: the SingleStore Management API takes the API key as a plain bearer token, and the blind probe confirms it (401 'invalid API Key, wrong format: encoding/hex: invalid byte: U+0051 Q' — the key is read as hex, so the header name and scheme are right and only the value is wrong).",
+      "READ-ONLY by design: all ten tools are GETs, no tool is marked write:true. Workspace create/resume/suspend/terminate and starter-workspace creation are deliberately absent: they spend money and destroy data, so they need a cost-guard and approval design before they ship.",
+      "/v1/secrets is deliberately NOT wired even though it answers (401): the Secrets object carries the secret VALUE itself, and a read tool that hands an agent decrypted org secrets is the wrong default.",
+      "Every path in this spec was route-checked blind against api.singlestore.com: the Go mux answers an unrouted path with 404 'page not found' BEFORE the auth middleware, so a 401 proves the route exists. /v1/regions/v2, /v1/stage, /v1/starter/workspaces, /v1/organizations/current/users, /v1/organizations/current/invitations and /v1/workspaceGroups/{id}/backups all returned 404 and were dropped; /v1/privateConnections and /v1/jobs answered 405 'method not allowed (indicate one of POST)', so they have no GET and were dropped too.",
+      "Response picks are documentation-derived, not data-verified: a dummy key never yields a success body. Field names come from SingleStore's own Python SDK deserialisers (singlestoredb/management/workspace.py, region.py, organization.py, billing_usage.py), which is why list_workspace_groups carries allowAllTraffic but no state, and the billing rows are billingUsage[].Usage[] with the capitalised Usage key the API actually sends.",
+      "test moved from /v1/workspaceGroups (scaffolded) to /v1/organizations/current: both answer, but the organization read needs no resources to exist, so it is the honest credential check for a brand-new org.",
+      "docs/tools_source point at the Management API reference rather than the registry's docs root, which is the product documentation home and carries no endpoint detail."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

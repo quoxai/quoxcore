@@ -1,0 +1,93 @@
+{
+  "id": "wf-quox-multi-step-tool-demo",
+  "name": "Multi-Step Tool Use Demo",
+  "description": "Demonstrates chaining HTTP calls with data transforms and AI processing: fetch data, normalise it, call an LLM for analysis, transform the output, and deliver the result.",
+  "source": "quox-curated",
+  "category": "integration",
+  "tags": ["demo", "webhook", "http", "transform", "ai", "notification", "tool-chain", "integration"],
+  "nodes": [
+    {
+      "id": "trig",
+      "type": "trigger:webhook",
+      "name": "Receive Request",
+      "category": "trigger",
+      "config": {
+        "method": "POST",
+        "path": "/demo/tool-chain",
+        "authentication": "none"
+      },
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "fetch",
+      "type": "call",
+      "name": "Fetch Data",
+      "category": "action",
+      "config": {
+        "url": "${input.dataUrl || 'https://api.example.com/data'}",
+        "method": "GET",
+        "timeout": 10000
+      },
+      "position": { "x": 400, "y": 300 }
+    },
+    {
+      "id": "normalise",
+      "type": "data:transform",
+      "name": "Normalise Data",
+      "category": "data",
+      "config": {
+        "expression": "({ items: Array.isArray(nodes['fetch'].output) ? nodes['fetch'].output : [nodes['fetch'].output], count: Array.isArray(nodes['fetch'].output) ? nodes['fetch'].output.length : 1, fetchedAt: new Date().toISOString() })",
+        "outputField": "normalised"
+      },
+      "position": { "x": 700, "y": 300 }
+    },
+    {
+      "id": "analyse",
+      "type": "assistant:invoke",
+      "name": "AI Analysis",
+      "category": "action",
+      "config": {
+        "assistant_id": "quox",
+        "prompt": "Analyse the following data and provide a concise structured analysis with key insights, anomalies, and recommendations. Data: ${JSON.stringify(nodes['normalise'].output.normalised)}",
+        "name": "AI Analysis"
+      },
+      "position": { "x": 1000, "y": 300 }
+    },
+    {
+      "id": "format",
+      "type": "data:transform",
+      "name": "Format Result",
+      "category": "data",
+      "config": {
+        "expression": "({ analysis: nodes['analyse'].output.result, dataCount: nodes['normalise'].output.normalised.count, completedAt: new Date().toISOString() })",
+        "outputField": "report"
+      },
+      "position": { "x": 1300, "y": 300 }
+    },
+    {
+      "id": "deliver",
+      "type": "notification:deliver",
+      "name": "Deliver Result",
+      "category": "notification",
+      "config": {
+        "title": "Tool Chain Complete",
+        "message": "## Analysis Complete\n\nProcessed ${nodes['format'].output.report.dataCount} items.\n\n${nodes['format'].output.report.analysis}",
+        "assignTo": ["*"],
+        "priority": "normal"
+      },
+      "position": { "x": 1600, "y": 300 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trig", "target": "fetch" },
+    { "id": "e2", "source": "fetch", "target": "normalise" },
+    { "id": "e3", "source": "normalise", "target": "analyse" },
+    { "id": "e4", "source": "analyse", "target": "format" },
+    { "id": "e5", "source": "format", "target": "deliver" }
+  ],
+  "meta": {
+    "version": "1.0.0",
+    "createdBy": "quox-curated",
+    "estimatedRuntime": "30-60s"
+  }
+}

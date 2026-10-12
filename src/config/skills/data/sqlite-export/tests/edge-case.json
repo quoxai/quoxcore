@@ -1,0 +1,16 @@
+{
+  "name": "edge-case",
+  "input": {
+    "db_path": "/data/quox-memory/memory.db",
+    "source": "SELECT id, content, tags FROM memories WHERE type = 'fact' ORDER BY created_at DESC LIMIT 200",
+    "output_format": "parquet",
+    "output_path": "/tmp/facts_export.parquet",
+    "batch_size": 10000,
+    "include_header": true
+  },
+  "expects": {
+    "contains": ["output_path", "rows_exported", "schema_summary"],
+    "not_contains": ["error"]
+  },
+  "notes": "Arbitrary SELECT as source; parquet format; rows_exported should match the LIMIT in the source query or fewer"
+}

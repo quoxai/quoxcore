@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+.github/
+.gitignore
+*.test.ts
+*.test.js
+vitest.config.ts
+examples/
+docs/
+scripts/
+*.md
+.env*
+.prettierrc*
+.eslintrc*

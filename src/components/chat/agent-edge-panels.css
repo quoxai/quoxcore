@@ -1,0 +1,469 @@
+/**
+ * AgentEdgePanels — Glass Design System
+ *
+ * Left-edge mounted panel buttons + slide-out panels.
+ * Fully glass-compliant: blur(40px), shimmer, top-left light source,
+ * no grey text (min 0.6 opacity), purple-cyan active states.
+ */
+
+/* ─── Edge Button Strip ─────────────────────────────────── */
+.aep-strip {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 20;
+    padding: 6px 5px;
+    /* Lower saturate so the blur doesn't amplify the page's blue/purple
+       radial gradient. Higher white base so the strip reads neutral. */
+    backdrop-filter: blur(32px) saturate(1.2);
+    -webkit-backdrop-filter: blur(32px) saturate(1.2);
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-left: none;
+    border-radius: 0 12px 12px 0;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.18),
+        inset 0 -1px 0 rgba(0,0,0,0.45),
+        0 4px 16px rgba(0,0,0,0.3);
+}
+
+.aep-btn {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 8px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: rgba(255,255,255,0.7);
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    min-width: 44px;
+    position: relative;
+}
+
+.aep-btn:hover {
+    color: rgba(255,255,255,0.95);
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.1);
+}
+
+.aep-btn--active {
+    background: linear-gradient(145deg, rgba(168,85,247,0.12) 0%, rgba(56,189,248,0.06) 100%);
+    border-color: rgba(168,85,247,0.3);
+    box-shadow: 0 0 12px rgba(168,85,247,0.15), inset 0 1px 1px rgba(168,85,247,0.1);
+}
+
+.aep-btn--active .aep-btn__label {
+    background: linear-gradient(90deg, #a855f7, #38bdf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.aep-btn__label {
+    font-size: 0.55rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    line-height: 1;
+}
+
+/* ─── Backdrop ──────────────────────────────────────────── */
+.aep-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 25;
+    background: rgba(0,0,0,0.35);
+    backdrop-filter: blur(4px);
+    animation: aep-fade-in 0.2s ease-out;
+}
+
+@keyframes aep-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* ─── Slide-out Panel ───────────────────────────────────── */
+.aep-panel {
+    position: absolute;
+    left: 56px;
+    top: 48px;
+    bottom: 80px;
+    width: 340px;
+    max-width: calc(100% - 72px);
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    backdrop-filter: var(--glass-blur-strong);
+    -webkit-backdrop-filter: var(--glass-blur-strong);
+    background: linear-gradient(145deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.008) 100%);
+    border-top: 1px solid rgba(255,255,255,0.25);
+    border-left: 1px solid rgba(255,255,255,0.15);
+    border-right: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-radius: 12px;
+    box-shadow:
+        0 8px 32px rgba(0,0,0,0.45),
+        0 2px 8px rgba(0,0,0,0.25),
+        inset 0 1px 2px rgba(255,255,255,0.06);
+    animation: aep-slide-in 0.2s ease-out;
+    overflow: hidden;
+}
+
+/* Shimmer overlay */
+.aep-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, rgba(255,255,255,0.04) 0%, transparent 35%, transparent 65%, rgba(255,255,255,0.01) 100%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+@keyframes aep-slide-in {
+    from { opacity: 0; transform: translateX(-12px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* Panel header */
+.aep-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    position: relative;
+    z-index: 1;
+}
+
+.aep-panel__title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    background: linear-gradient(90deg, rgba(255,255,255,0.95), rgba(255,255,255,0.75));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.aep-panel__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: rgba(255,255,255,0.7);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    padding: 0;
+}
+
+.aep-panel__close:hover {
+    color: rgba(255,255,255,0.95);
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.18);
+}
+
+/* Panel body */
+.aep-panel__body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px;
+    position: relative;
+    z-index: 1;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(168,85,247,0.2) transparent;
+}
+
+.aep-panel__body::-webkit-scrollbar { width: 4px; }
+.aep-panel__body::-webkit-scrollbar-track { background: transparent; }
+.aep-panel__body::-webkit-scrollbar-thumb {
+    background: rgba(168,85,247,0.2);
+    border-radius: 2px;
+}
+.aep-panel__body::-webkit-scrollbar-thumb:hover {
+    background: rgba(168,85,247,0.35);
+}
+
+/* ─── Search ────────────────────────────────────────────── */
+.aep-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.aep-search:focus-within {
+    border-color: rgba(56,189,248,0.3);
+    box-shadow: 0 0 0 2px rgba(56,189,248,0.06);
+}
+
+.aep-search input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: rgba(255,255,255,0.9);
+    font-size: 0.75rem;
+    font-family: inherit;
+}
+
+.aep-search input::placeholder {
+    color: rgba(255,255,255,0.8);
+}
+
+.aep-search__clear {
+    display: flex;
+    align-items: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px;
+    opacity: 0.6;
+    transition: opacity 0.15s ease;
+}
+
+.aep-search__clear:hover { opacity: 1; }
+
+/* ─── Scrollable list ───────────────────────────────────── */
+.aep-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.aep-empty {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.8);
+    text-align: center;
+    padding: 20px 8px;
+    margin: 0;
+    font-style: italic;
+}
+
+/* ─── Action groups ─────────────────────────────────────── */
+.aep-group + .aep-group {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.aep-group__label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.8);
+    padding: 0 2px;
+    margin-bottom: 4px;
+}
+
+/* Actions indented under their agent label, with a tinted left rail so the
+   agent → actions grouping is visible instead of a flat, centre-reading list. */
+.aep-group__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-left: 3px;
+    padding-left: 9px;
+    border-left: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ─── Quick action button ───────────────────────────────── */
+.aep-action {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left;
+    gap: 7px;
+    width: 100%;
+    padding: 7px 10px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    color: rgba(255,255,255,0.8);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+    line-height: 1.35;
+}
+
+.aep-action__text {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+}
+
+.aep-action:hover {
+    background: rgba(56,189,248,0.05);
+    border-color: rgba(56,189,248,0.2);
+    color: rgba(255,255,255,0.95);
+    transform: translateX(2px);
+}
+
+.aep-action:active {
+    transform: translateX(2px) scale(0.99);
+}
+
+/* ─── Shared dot ────────────────────────────────────────── */
+.aep-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px currentColor;
+}
+
+/* ─── Team header (roster name + count) ─────────────────── */
+.aep-team-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.aep-team-head__name {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: rgba(255,255,255,0.92);
+}
+.aep-team-head__count {
+    margin-left: auto;
+    font-size: 0.62rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.5);
+}
+
+/* ─── Chips container ───────────────────────────────────── */
+.aep-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* Agent chip */
+.aep-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 10px;
+    backdrop-filter: blur(12px);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.85);
+    cursor: default;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.aep-chip:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.18);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.aep-chip__name { font-weight: 600; }
+
+.aep-chip__domain {
+    color: rgba(255,255,255,0.8);
+    font-size: 0.68rem;
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+}
+
+/* Tool badge */
+.aep-tool {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    backdrop-filter: blur(12px);
+    background: rgba(56,189,248,0.06);
+    border: 1px solid rgba(56,189,248,0.15);
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+    color: rgba(56,189,248,0.9);
+    letter-spacing: 0.02em;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.aep-tool:hover {
+    background: rgba(56,189,248,0.1);
+    border-color: rgba(56,189,248,0.25);
+    transform: translateY(-1px);
+}
+
+/* Workflow badge */
+.aep-wf {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    backdrop-filter: blur(12px);
+    background: rgba(168,85,247,0.08);
+    border: 1px solid rgba(168,85,247,0.2);
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+    color: rgba(168,85,247,0.9);
+    letter-spacing: 0.02em;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.aep-wf:hover {
+    background: rgba(168,85,247,0.12);
+    border-color: rgba(168,85,247,0.3);
+    transform: translateY(-1px);
+}
+
+/* ─── Responsive ────────────────────────────────────────── */
+@media (max-width: 1000px) {
+    .aep-strip {
+        top: auto;
+        bottom: 90px;
+        transform: none;
+    }
+    .aep-panel {
+        left: 8px;
+        right: 8px;
+        width: auto;
+        max-width: none;
+        bottom: 90px;
+        top: auto;
+        max-height: 50vh;
+    }
+}
+
+@media (max-width: 640px) {
+    .aep-btn__label { display: none; }
+    .aep-btn { padding: 8px; }
+    .aep-strip { padding: 3px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .aep-panel { animation: none; }
+    .aep-backdrop { animation: none; }
+}

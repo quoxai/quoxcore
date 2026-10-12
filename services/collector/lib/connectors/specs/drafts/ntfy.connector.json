@@ -1,0 +1,65 @@
+{
+  "spec_version": 1,
+  "id": "ntfy",
+  "name": "ntfy",
+  "category": "communication",
+  "credentialType": "ntfy",
+  "requiredFields": [
+    "base_url",
+    "token"
+  ],
+  "description": "Health check for an ntfy server (ntfy.sh or self-hosted). /v1/health is the ONLY JSON read endpoint ntfy documents: its topic read APIs are NDJSON, SSE and raw line streams, which Connector Spec v1.1 cannot consume (see _scaffold.needs_review).",
+  "docs": "https://docs.ntfy.sh/",
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/health"
+  },
+  "tools_source": "https://docs.ntfy.sh/config/#health-checks",
+  "tools": [
+    {
+      "name": "health",
+      "description": "Check whether an ntfy server is healthy. Returns healthy:true when the server is serving normally; a non-200 response or healthy:false means the service should be considered unhealthy",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/health"
+      },
+      "response": {
+        "pick": {
+          "healthy": "healthy"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "hand-authored from https://docs.ntfy.sh/ (config/#health-checks, subscribe/api/, publish/#authentication), cross-checked against the docs search index at https://docs.ntfy.sh/search/search_index.json (CONNFAC)",
+    "confidence": "medium",
+    "needs_review": [
+      "ONE TOOL, and that is the honest ceiling for spec v1.1. ntfy documents exactly one JSON read endpoint. Verbatim, https://docs.ntfy.sh/config/#health-checks: 'A preliminary health check API endpoint is exposed at /v1/health. The endpoint returns a json response in the format shown below. If a non-200 HTTP status code is returned or if the returned healthy field is false the ntfy service should be considered as unhealthy.' Searching the full docs index for /v1/ paths returns /v1/health (config/#health-checks, install/#docker, releases/#ntfy-server-v1310) and nothing else readable.",
+      "NO topic-read tool, and a topic poll must NOT be added without a runtime change. Verbatim, https://docs.ntfy.sh/subscribe/api/: 'There are three different API endpoints, which only differ in the response format: JSON stream: <topic>/json returns a JSON stream, with one JSON message object per line. SSE stream: <topic>/sse returns messages as Server-Sent Events (SSE), which can be used with EventSource. Raw stream: <topic>/raw returns messages as raw text, with one line per message.' declarativeRuntime.js parses every tool response with resp.json(), i.e. exactly one JSON document, so NDJSON carrying two or more messages is unparseable. An empty topic is worse: a live GET /{topic}/json?poll=1&since=all against a topic with no cached messages answers HTTP 200 with 'content-type: application/x-ndjson' and 'content-length: 0', and resp.json() rejects an empty body too. A `GET /{{input.topic}}/json?poll=1&since=all` tool would therefore fail on a FRESH instance (the exact case the live harness provisions, seeded topic 'quoxproof-live' or not) and fail again on any topic holding more than one message. Reading topics needs an NDJSON/stream response mode in the spec runtime, or a custom_tools_module.",
+      "Publishing (POST or PUT /{topic}) is ntfy's only other documented surface and is a write, deliberately out of this read-only wave.",
+      "UNDOCUMENTED but live: GET /v1/account, GET /v1/stats and GET /v1/tiers each answer 200 with a single JSON document on a running server (verified against ntfy.sh 2026-09-12: /v1/account returns username/role/limits/stats, anonymously as username '*'; /v1/stats returns {messages, messages_rate}; /v1/tiers returns an array of tier limits). None of them appears anywhere in the ntfy documentation (the docs search index cites /v1/account only as the Stripe webhook path under config/#payments), so they were NOT authored: they are web-app internals with no compatibility promise. They are the obvious growth path for this connector if the owner accepts an undocumented dependency.",
+      "VAULT-VS-SPEC GAP, not fixed here: integrationTypeRegistry.ntfy marks BOTH fields required:false (base_url defaults to https://ntfy.sh, token is a bare optional), while this spec lists both in requiredFields and uses auth.type bearer. A credential saved with no token makes every request throw at requireCredential ('missing credential field token (bearer auth)') instead of reading anonymously, even though /v1/health needs no auth at all. The scaffolder already flagged this as auth_field_optional_in_registry for both fields.",
+      "Scaffolded bearer auth kept, and the docs confirm it. Verbatim, https://docs.ntfy.sh/publish/#authentication: 'Use access tokens via Bearer/Basic auth, e.g. Authorization: Bearer tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2'. Note that ntfy's access control is off unless the server operator enables it, so on a default server the token is decorative.",
+      "No tool-level _probe block: the single tool takes zero inputs, so there is no placeholder for the shape-proof harness to substitute (the repo convention is that _probe appears only on input-bearing tools).",
+      "LIVE-PROVEN only against the public ntfy.sh instance (GET https://ntfy.sh/v1/health returned 200 {\"healthy\":true} on 2026-09-12). A self-hosted instance is untested here; the LIVE harness proves it against an ephemeral binwiederhier/ntfy container."
+    ]
+  }
+}

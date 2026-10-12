@@ -1,0 +1,246 @@
+{
+  "spec_version": 1,
+  "id": "hetzner",
+  "name": "Hetzner Cloud",
+  "category": "cloud_hosting",
+  "credentialType": "hetzner",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://docs.hetzner.cloud/",
+  "base_url": "https://api.hetzner.cloud",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/datacenters"
+  },
+  "tools_source": "https://docs.hetzner.cloud/",
+  "tools": [
+    {
+      "name": "list_servers",
+      "description": "List Hetzner Cloud servers, optionally filtered by status or exact name",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max servers to return (default 25, max 50)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "initializing",
+              "starting",
+              "running",
+              "stopping",
+              "off",
+              "deleting",
+              "rebuilding",
+              "migrating",
+              "unknown"
+            ],
+            "description": "Optional server status to filter by"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional exact server name to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/servers",
+        "query": {
+          "per_page": "{{clamp input.per_page 25 50}}",
+          "status": "{{input.status}}",
+          "name": "{{input.name}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "servers[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "created": "created",
+            "public_ipv4": "public_net.ipv4.ip",
+            "public_ipv6": "public_net.ipv6.ip",
+            "server_type": "server_type.name",
+            "cores": "server_type.cores",
+            "memory": "server_type.memory",
+            "disk": "server_type.disk",
+            "datacenter": "datacenter.name",
+            "city": "datacenter.location.city",
+            "image": "image.name",
+            "locked": "locked"
+          },
+          "total": "meta.pagination.total_entries"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_server",
+      "description": "Get one Hetzner Cloud server by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "server_id": {
+            "type": "number",
+            "description": "Numeric Hetzner Cloud server ID (e.g. 42)"
+          }
+        },
+        "required": [
+          "server_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/servers/{{input.server_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "server.id",
+          "name": "server.name",
+          "status": "server.status",
+          "created": "server.created",
+          "public_ipv4": "server.public_net.ipv4.ip",
+          "public_ipv6": "server.public_net.ipv6.ip",
+          "server_type": "server.server_type.name",
+          "cores": "server.server_type.cores",
+          "memory": "server.server_type.memory",
+          "disk": "server.server_type.disk",
+          "primary_disk_size": "server.primary_disk_size",
+          "datacenter": "server.datacenter.name",
+          "city": "server.datacenter.location.city",
+          "image": "server.image.name",
+          "os_flavor": "server.image.os_flavor",
+          "rescue_enabled": "server.rescue_enabled",
+          "locked": "server.locked",
+          "backup_window": "server.backup_window",
+          "included_traffic": "server.included_traffic",
+          "outgoing_traffic": "server.outgoing_traffic",
+          "ingoing_traffic": "server.ingoing_traffic",
+          "labels": "server.labels"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_datacenters",
+      "description": "List Hetzner Cloud datacenters and the server types each one supports",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Optional exact datacenter name to filter by (e.g. fsn1-dc8)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/datacenters",
+        "query": {
+          "name": "{{input.name}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "datacenters[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "location": "location.name",
+            "city": "location.city",
+            "country": "location.country",
+            "network_zone": "location.network_zone",
+            "supported_server_types": "server_types.supported",
+            "available_server_types": "server_types.available"
+          },
+          "recommendation": "recommendation",
+          "total": "meta.pagination.total_entries"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_images",
+      "description": "List Hetzner Cloud images (system images, snapshots, backups), optionally filtered by type or architecture",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max images to return (default 25, max 50)"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "system",
+              "snapshot",
+              "backup",
+              "app"
+            ],
+            "description": "Optional image type to filter by"
+          },
+          "architecture": {
+            "type": "string",
+            "enum": [
+              "x86",
+              "arm"
+            ],
+            "description": "Optional CPU architecture to filter by"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional exact image name to filter by (e.g. ubuntu-24.04)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/images",
+        "query": {
+          "per_page": "{{clamp input.per_page 25 50}}",
+          "type": "{{input.type}}",
+          "architecture": "{{input.architecture}}",
+          "name": "{{input.name}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "images[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "type": "type",
+            "status": "status",
+            "os_flavor": "os_flavor",
+            "os_version": "os_version",
+            "architecture": "architecture",
+            "disk_size": "disk_size",
+            "image_size": "image_size",
+            "created": "created",
+            "deprecated": "deprecated"
+          },
+          "total": "meta.pagination.total_entries"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

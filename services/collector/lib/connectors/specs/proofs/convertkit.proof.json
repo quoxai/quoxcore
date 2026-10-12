@@ -1,0 +1,90 @@
+{
+  "spec_id": "convertkit",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:20.494Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.convertkit.com/quox-shapeproof-control-dea4595b?api_secret=QUOXSHAPEPROOFDUMMYAPISECRET",
+      "status": 404,
+      "latency_ms": 1981,
+      "classification": "CONTROL",
+      "body_sha256": "e28bf7d9fcc22cdfde0c7c8f31e3648a4847e7bda9cb69f309f24257eee3dd41",
+      "body_excerpt": "{\"error\":\"Not Found\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.convertkit.com/v3/account?api_secret=QUOXSHAPEPROOFDUMMYAPISECRET",
+      "status": 401,
+      "latency_ms": 138,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "26c537bd9c9a59d524dbf64d58df1e5b2d95d278c5b99e171a3448ca44d32585",
+      "body_excerpt": "{\"error\":\"Authorization Failed\",\"message\":\"API Key not valid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_account",
+      "method": "GET",
+      "url": "https://api.convertkit.com/v3/account?api_secret=QUOXSHAPEPROOFDUMMYAPISECRET",
+      "status": 401,
+      "latency_ms": 137,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "26c537bd9c9a59d524dbf64d58df1e5b2d95d278c5b99e171a3448ca44d32585",
+      "body_excerpt": "{\"error\":\"Authorization Failed\",\"message\":\"API Key not valid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_forms",
+      "method": "GET",
+      "url": "https://api.convertkit.com/v3/forms?api_secret=QUOXSHAPEPROOFDUMMYAPISECRET",
+      "status": 401,
+      "latency_ms": 137,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "26c537bd9c9a59d524dbf64d58df1e5b2d95d278c5b99e171a3448ca44d32585",
+      "body_excerpt": "{\"error\":\"Authorization Failed\",\"message\":\"API Key not valid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_subscribers",
+      "method": "GET",
+      "url": "https://api.convertkit.com/v3/subscribers?page=1&email_address=quoxprobe&subscriber_state=quoxprobe&sort_order=quoxprobe&api_secret=QUOXSHAPEPROOFDUMMYAPISECRET",
+      "status": 401,
+      "latency_ms": 139,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "26c537bd9c9a59d524dbf64d58df1e5b2d95d278c5b99e171a3448ca44d32585",
+      "body_excerpt": "{\"error\":\"Authorization Failed\",\"message\":\"API Key not valid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_tags",
+      "method": "GET",
+      "url": "https://api.convertkit.com/v3/tags?api_secret=QUOXSHAPEPROOFDUMMYAPISECRET",
+      "status": 401,
+      "latency_ms": 154,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "26c537bd9c9a59d524dbf64d58df1e5b2d95d278c5b99e171a3448ca44d32585",
+      "body_excerpt": "{\"error\":\"Authorization Failed\",\"message\":\"API Key not valid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

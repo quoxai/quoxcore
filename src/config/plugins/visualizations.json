@@ -1,0 +1,145 @@
+{
+  "name": "visualizations",
+  "version": "2.0.0",
+  "displayName": "Visualizer Studio",
+  "tagline": "One premium visual system for every agent",
+  "description": "Visualizer Studio replaces the old theme pack with one unified visual system for AI agents. It keeps the legacy classics, adds advanced cinematic renderers like Black Sun, Tropical Iris, Cathedral of Minds, Cipher Mesh, Prism, Triage Lanes, Commander Sigil, Annotation Lens, Browser Lens, and Momentum Board, and gives each visualizer its own proper control surface inside a single studio workflow.",
+  "shortDescription": "Unified premium visual system with legacy classics and advanced renderers",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 25,
+  "priceDisplay": "$25",
+  "priceModel": "one-time",
+  "tier": "starter",
+  "featured": true,
+  "badge": null,
+  "icon": "eye",
+  "infoUrl": "https://quox.ai/plugins/visualizations",
+  "docsUrl": "https://quox.ai/docs/plugins/visualizations",
+  "heroGradient": "linear-gradient(135deg, #041019 0%, #148AC6 45%, #26bf04 100%)",
+  "accentColor": "#148AC6",
+  "marketingPoints": [
+    "Unified visualizer library: legacy classics plus Black Sun, Tropical Iris, Cathedral of Minds, Cipher Mesh, Prism, Triage Lanes, Commander Sigil, Annotation Lens, Browser Lens, Momentum Board, HUD-Q, Signal Bloom, Living Ink, and more",
+    "Audio-reactive motion and state-driven behavior across every agent",
+    "One studio workflow for assignment, presets, preview states, and tuning",
+    "Native controls for advanced renderers, with legacy controls preserved in the same product",
+    "Popout window mode for dedicated visualizer display"
+  ],
+  "features": {
+    "studioLibrary": {
+      "name": "Unified Visualizer Library",
+      "description": "Legacy visualizers and advanced cinematic renderers live in one product: Eye-Q, Nexus, Iris, Black Sun, Tropical Iris, Cathedral of Minds, Cipher Mesh, Prism, Triage Lanes, Commander Sigil, Annotation Lens, Browser Lens, Momentum Board, HUD-Q, Orbital Cathedral, Signal Bloom, Mind Swarm, Living Ink, Gaia Eye, and more.",
+      "icon": "palette",
+      "highlight": true
+    },
+    "audioReactivity": {
+      "name": "Audio-Reactive Animation",
+      "description": "Visualizers respond to real-time audio data. Speech, listening, thinking, and error states drive motion, intensity, gaze, bloom, and behavior.",
+      "icon": "activity",
+      "highlight": true
+    },
+    "studioWorkflow": {
+      "name": "Studio Workflow",
+      "description": "Pick a renderer, switch preview states, test presets, and tune settings from one editor without splitting between old and new systems.",
+      "icon": "sliders",
+      "highlight": true
+    },
+    "perAgentAssignment": {
+      "name": "Per-Agent Assignment",
+      "description": "Assign a different visualizer to each agent. Keep defaults, reuse flagship presets, or give every assistant its own identity.",
+      "icon": "users",
+      "highlight": true
+    },
+    "perStateConfig": {
+      "name": "Renderer-Specific Controls",
+      "description": "Advanced renderers get native controls for motion, bloom, gaze, palette, and intensity. Legacy renderers retain their original speed, scale, sensitivity, and hue tuning.",
+      "icon": "tune"
+    },
+    "popoutMode": {
+      "name": "Popout Window",
+      "description": "Open any visualiser in a dedicated popup window for presentations, streaming overlays, or ambient display.",
+      "icon": "maximize"
+    },
+    "settingsExport": {
+      "name": "Settings Export/Import",
+      "description": "Back up and restore your visualiser configurations. Transfer settings between instances.",
+      "icon": "download"
+    }
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "themes": "Commander Sigil + Eye-Q",
+      "audioReactivity": true,
+      "perAgentThemes": false,
+      "perStateConfig": false,
+      "popout": false,
+      "export": false
+    },
+    "premium": {
+      "name": "Premium",
+      "themes": "Full Studio library",
+      "audioReactivity": true,
+      "perAgentThemes": true,
+      "perStateConfig": true,
+      "popout": true,
+      "export": true
+    }
+  },
+  "limits": {
+    "free": {
+      "themes": ["commander-sigil", "hal"],
+      "perAgentAssignment": false,
+      "perStateConfig": false,
+      "popout": false,
+      "export": false
+    },
+    "premium": {
+      "themes": ["hal", "kitt", "ripple", "atom", "dna", "brain", "sphere", "fluid", "holo", "nexus", "iris", "codex", "core", "black-sun", "tropical-iris", "cathedral-of-minds", "cipher-mesh", "prism-spectrum", "triage-lanes", "commander-sigil", "annotation-lens", "browser-lens", "momentum-board", "jarvis-command-hud", "orbital-cathedral", "signal-bloom", "mind-swarm", "living-ink", "gaia-eye"],
+      "perAgentAssignment": true,
+      "perStateConfig": true,
+      "popout": true,
+      "export": true
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "integration": {
+    "service": "src/services/visualizationStudioService.js",
+    "factory": "src/components/visualizations-v2/VisualizerHost.jsx",
+    "editor": "src/components/visualizations-v2/settings/VisualizationStudioEditor.jsx",
+    "sidebar": "src/components/chat/sidebar/VisualizerSection.jsx"
+  },
+  "changelog": {
+    "2.0.0": {
+      "date": "2026-04-02",
+      "changes": [
+        "Visualizer Studio replaces the old theme-pack editor",
+        "Unified library with legacy classics and advanced cinematic renderers",
+        "Black Sun, Tropical Iris, Cathedral of Minds, Cipher Mesh, Prism, Triage Lanes, Commander Sigil, Annotation Lens, Browser Lens, and Momentum Board added as native studio renderers",
+        "Legacy visualizers preserved inside the new studio workflow",
+        "Single activation path and product identity aligned with the studio system"
+      ]
+    },
+    "1.0.0": {
+      "date": "2026-01-21",
+      "changes": [
+        "Initial release with 12 premium themes",
+        "Per-state configuration (speed, scale, sensitivity, hue)",
+        "Server-side license validation with anti-tampering",
+        "Error boundary wrapping for graceful failures",
+        "Reusable hooks: useAudioEnergy, useResponsiveCanvas, useFrameThrottle",
+        "ResizeObserver on all canvas-based visualisers",
+        "Popout window mode",
+        "Settings export/import"
+      ]
+    }
+  },
+  "category": "AI & Intelligence"
+}

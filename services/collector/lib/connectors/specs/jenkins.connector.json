@@ -1,0 +1,263 @@
+{
+  "spec_version": 1,
+  "id": "jenkins",
+  "name": "Jenkins",
+  "category": "developer",
+  "credentialType": "jenkins",
+  "requiredFields": [
+    "username",
+    "api_token",
+    "base_url"
+  ],
+  "docs": "https://www.jenkins.io/doc/book/using/remote-access-api/",
+  "tools_source": "https://www.jenkins.io/doc/book/using/remote-access-api/",
+  "description": "Self-hosted Jenkins reads: controller metadata and its top-level job list, one job's configuration and health, that job's recent builds, the identity the API token belongs to, and the build queue. Read-only; build triggering, job creation, node management and every other POST on the same remote access API is deliberately absent.",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "username",
+    "passField": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/json"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "get_root",
+      "description": "Get Jenkins controller metadata: mode, executor count, security settings and the top-level job list",
+      "request": {
+        "method": "GET",
+        "path": "/api/json"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "mode": "mode",
+          "nodeName": "nodeName",
+          "nodeDescription": "nodeDescription",
+          "numExecutors": "numExecutors",
+          "description": "description",
+          "quietingDown": "quietingDown",
+          "quietDownReason": "quietDownReason",
+          "useSecurity": "useSecurity",
+          "useCrumbs": "useCrumbs",
+          "slaveAgentPort": "slaveAgentPort",
+          "primaryView": "primaryView.url",
+          "jobs[]": {
+            "name": "name",
+            "url": "url",
+            "color": "color"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_jobs",
+      "description": "List the top-level Jenkins jobs with their URL and last-build colour, without the rest of the controller payload",
+      "request": {
+        "method": "GET",
+        "path": "/api/json",
+        "query": {
+          "tree": "jobs[name,url,color]"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "jobs[]": {
+            "name": "name",
+            "url": "url",
+            "color": "color"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_job",
+      "description": "Get one Jenkins job's configuration, health report and last-build pointers by job name",
+      "request": {
+        "method": "GET",
+        "path": "/job/{{input.job}}/api/json"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "type": "string",
+            "description": "Top-level job name exactly as Jenkins shows it (jobs inside folders are not addressable by this connector)"
+          }
+        },
+        "required": [
+          "job"
+        ]
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "fullName": "fullName",
+          "displayName": "displayName",
+          "url": "url",
+          "description": "description",
+          "buildable": "buildable",
+          "color": "color",
+          "inQueue": "inQueue",
+          "disabled": "disabled",
+          "concurrentBuild": "concurrentBuild",
+          "nextBuildNumber": "nextBuildNumber",
+          "lastBuild": "lastBuild.number",
+          "lastCompletedBuild": "lastCompletedBuild.number",
+          "lastSuccessfulBuild": "lastSuccessfulBuild.number",
+          "lastFailedBuild": "lastFailedBuild.number",
+          "healthReport[]": {
+            "description": "description",
+            "score": "score"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.job": "quoxproof-live"
+      }
+    },
+    {
+      "name": "list_builds",
+      "description": "List recent builds of one Jenkins job with their result, timestamp and duration",
+      "request": {
+        "method": "GET",
+        "path": "/job/{{input.job}}/api/json",
+        "query": {
+          "tree": "builds[number,url,displayName,result,building,timestamp,duration]{0,{{clamp input.limit 10 50}}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "type": "string",
+            "description": "Top-level job name exactly as Jenkins shows it (jobs inside folders are not addressable by this connector)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max builds to return, newest first (default 10, capped at 50 by this connector)"
+          }
+        },
+        "required": [
+          "job"
+        ]
+      },
+      "response": {
+        "pick": {
+          "builds[]": {
+            "number": "number",
+            "url": "url",
+            "displayName": "displayName",
+            "result": "result",
+            "building": "building",
+            "timestamp": "timestamp",
+            "duration": "duration"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.job": "quoxproof-live",
+        "input.limit": 5
+      }
+    },
+    {
+      "name": "whoami",
+      "description": "Identify the Jenkins user the stored API token authenticates as",
+      "request": {
+        "method": "GET",
+        "path": "/me/api/json"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "fullName": "fullName",
+          "description": "description",
+          "absoluteUrl": "absoluteUrl"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_queue",
+      "description": "List items waiting in the Jenkins build queue, with the reason each one is still queued",
+      "request": {
+        "method": "GET",
+        "path": "/queue/api/json"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "task": "task.name",
+            "taskUrl": "task.url",
+            "why": "why",
+            "blocked": "blocked",
+            "buildable": "buildable",
+            "stuck": "stuck",
+            "pending": "pending",
+            "inQueueSince": "inQueueSince",
+            "url": "url"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, AND THE DOCS AGREE: Remote access API (https://www.jenkins.io/doc/book/using/remote-access-api/) documents authenticating with the user id plus an API token over HTTP Basic, and the vault entry (integrationTypeRegistry.jenkins) already builds exactly Basic base64(username:api_token) in testHeaders. So {type: basic, userField: username, passField: api_token} is unchanged, and the test block stays the vault's own testEndpoint, GET /api/json",
+      "The scaffold note 'relative_endpoint' is resolved: base_url comes from the credential ({fromCredential: base_url}) and every tool path is relative to it, which is the shape the vault already uses",
+      "BASE URL IS CUSTOMER-SUPPLIED, SO NOTHING HERE IS PROVABLE BLIND: Jenkins is self-hosted and there is no vendor-run controller to shape-prove against. This spec is NOT shape proven by a blind 401 sweep; it is marked for the live harness, which stands up an ephemeral Jenkins container and a job named quoxproof-live and drives every tool against it",
+      "CSRF IS WHY READ-ONLY IS THE EASY SHAPE, NOT ONLY THE SAFE ONE: Jenkins requires a crumb (or a crumb-exempt API token POST) for state-changing calls. Every tool here is a GET, so no crumb is needed. Build triggering (/job/{name}/build), job create/copy/delete, node and queue cancellation, script console and config.xml writes all live on the same API and none is wired",
+      "FOLDER JOBS ARE NOT ADDRESSABLE: input.job is a single path segment and the runtime percent-encodes path placeholders, so a job inside a folder (Jenkins addresses it as /job/parent/job/child) cannot be reached by get_job or list_builds. Only top-level jobs work; list_jobs likewise returns the top level, since nested folders would need the tree parameter to recurse",
+      "THE TREE AND RANGE PARAMETERS ARE PERCENT-ENCODED BY THE RUNTIME: buildUrl puts query values through URLSearchParams, so tree=jobs[name,url,color] and builds[...]{0,10} reach Jenkins with %5B %5D %7B %7D. Standard query decoding makes that equivalent, but it is the one piece of syntax the live harness must confirm rather than assume. The {0,N} range in list_builds is rendered by the clamp helper inside the outer braces, giving {0,10} by default and {0,50} at the cap; Jenkins has no limit or page parameter on /api/json, so the tree range IS its pagination",
+      "PROBES RESOLVE ON A FRESH INSTANCE, BY CONSTRUCTION: get_root, list_jobs, whoami and get_queue need no resource and carry an empty _probe (an idle controller answers /queue/api/json with an empty items array). get_job and list_builds probe job=quoxproof-live, the name the live provisioner creates, and list_builds answers with an empty builds array on a job that has never run",
+      "FIELD AVAILABILITY VARIES BY JOB TYPE: disabled and concurrentBuild are freestyle-project fields, healthReport is absent until a job has run, and multibranch or folder items answer with a different _class and no builds array at all. Picked keys that the payload does not carry simply drop out of the shaped response",
+      "CATEGORY: 'developer' is already one of the twelve values in this spec directory (cloud_hosting, commerce_finance, communication, crm_sales, data_ai, developer, files_knowledge, hr_hiring, marketing_email, media, monitoring, project_management) and puts Jenkins beside the other CI control planes (circleci, buildkite, gitea). The vault entry declares no category. Unchanged"
+    ]
+  }
+}

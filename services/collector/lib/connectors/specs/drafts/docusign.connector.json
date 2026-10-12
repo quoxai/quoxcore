@@ -1,0 +1,33 @@
+{
+  "spec_version": 1,
+  "id": "docusign",
+  "name": "DocuSign",
+  "category": "uncategorized",
+  "credentialType": "docusign",
+  "requiredFields": [
+    "access_token",
+    "account_id",
+    "base_url"
+  ],
+  "docs": "https://developers.docusign.com/docs/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/restapi/v2.1/accounts/{{account_id}}"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:41:54.106Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:base_url"
+    ]
+  }
+}

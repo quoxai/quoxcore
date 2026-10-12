@@ -1,0 +1,121 @@
+{
+  "spec_id": "pipedrive",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:08.374Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.pipedrive.com/quox-shapeproof-control-d7ccdd66?api_token=QUOXSHAPEPROOFDUMMYAPITOKEN",
+      "status": 401,
+      "latency_ms": 560,
+      "classification": "CONTROL",
+      "body_sha256": "6695dd2cb17e0d06a028d2568d4b5befd9524112a09015c978f721106f6e5be3",
+      "body_excerpt": "{\"success\":false,\"error\":\"unauthorized access\",\"errorCode\":401,\"error_info\":\"Please check developers.pipedrive.com\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.pipedrive.com/v1/users/me?api_token=QUOXSHAPEPROOFDUMMYAPITOKEN",
+      "status": 401,
+      "latency_ms": 128,
+      "classification": "AUTH_WALL",
+      "body_sha256": "6695dd2cb17e0d06a028d2568d4b5befd9524112a09015c978f721106f6e5be3",
+      "body_excerpt": "{\"success\":false,\"error\":\"unauthorized access\",\"errorCode\":401,\"error_info\":\"Please check developers.pipedrive.com\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_deals",
+      "method": "GET",
+      "url": "https://api.pipedrive.com/v1/deals?limit=20&status=quoxprobe&api_token=QUOXSHAPEPROOFDUMMYAPITOKEN",
+      "status": 401,
+      "latency_ms": 41,
+      "classification": "AUTH_WALL",
+      "body_sha256": "6695dd2cb17e0d06a028d2568d4b5befd9524112a09015c978f721106f6e5be3",
+      "body_excerpt": "{\"success\":false,\"error\":\"unauthorized access\",\"errorCode\":401,\"error_info\":\"Please check developers.pipedrive.com\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_deal",
+      "method": "GET",
+      "url": "https://api.pipedrive.com/v1/deals/1?api_token=QUOXSHAPEPROOFDUMMYAPITOKEN",
+      "status": 401,
+      "latency_ms": 34,
+      "classification": "AUTH_WALL",
+      "body_sha256": "6695dd2cb17e0d06a028d2568d4b5befd9524112a09015c978f721106f6e5be3",
+      "body_excerpt": "{\"success\":false,\"error\":\"unauthorized access\",\"errorCode\":401,\"error_info\":\"Please check developers.pipedrive.com\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_persons",
+      "method": "GET",
+      "url": "https://api.pipedrive.com/v1/persons?limit=20&api_token=QUOXSHAPEPROOFDUMMYAPITOKEN",
+      "status": 401,
+      "latency_ms": 41,
+      "classification": "AUTH_WALL",
+      "body_sha256": "6695dd2cb17e0d06a028d2568d4b5befd9524112a09015c978f721106f6e5be3",
+      "body_excerpt": "{\"success\":false,\"error\":\"unauthorized access\",\"errorCode\":401,\"error_info\":\"Please check developers.pipedrive.com\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_organizations",
+      "method": "GET",
+      "url": "https://api.pipedrive.com/v1/organizations?limit=20&api_token=QUOXSHAPEPROOFDUMMYAPITOKEN",
+      "status": 401,
+      "latency_ms": 36,
+      "classification": "AUTH_WALL",
+      "body_sha256": "6695dd2cb17e0d06a028d2568d4b5befd9524112a09015c978f721106f6e5be3",
+      "body_excerpt": "{\"success\":false,\"error\":\"unauthorized access\",\"errorCode\":401,\"error_info\":\"Please check developers.pipedrive.com\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "search_deals",
+      "method": "GET",
+      "url": "https://api.pipedrive.com/v1/deals/search?term=quoxprobe&limit=20&api_token=QUOXSHAPEPROOFDUMMYAPITOKEN",
+      "status": 401,
+      "latency_ms": 40,
+      "classification": "AUTH_WALL",
+      "body_sha256": "6695dd2cb17e0d06a028d2568d4b5befd9524112a09015c978f721106f6e5be3",
+      "body_excerpt": "{\"success\":false,\"error\":\"unauthorized access\",\"errorCode\":401,\"error_info\":\"Please check developers.pipedrive.com\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

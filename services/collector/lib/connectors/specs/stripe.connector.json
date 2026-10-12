@@ -1,0 +1,262 @@
+{
+  "spec_version": 1,
+  "id": "stripe",
+  "name": "Stripe",
+  "category": "commerce_finance",
+  "credentialType": "stripe",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.stripe.com/api",
+  "base_url": "https://api.stripe.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/balance"
+  },
+  "tools_source": "https://docs.stripe.com/api",
+  "tools": [
+    {
+      "name": "get_balance",
+      "description": "Get the current Stripe account balance (available and pending funds per currency)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/balance"
+      },
+      "response": {
+        "pick": {
+          "available[]": {
+            "amount": "amount",
+            "currency": "currency"
+          },
+          "pending[]": {
+            "amount": "amount",
+            "currency": "currency"
+          },
+          "livemode": "livemode"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_charges",
+      "description": "List recent Stripe charges, optionally filtered to one customer",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max charges to return (default 20, max 100)"
+          },
+          "customer": {
+            "type": "string",
+            "description": "Optional Stripe customer ID to filter by (e.g. cus_123)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/charges",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "customer": "{{input.customer}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "amount": "amount",
+            "currency": "currency",
+            "status": "status",
+            "created": "created",
+            "customer": "customer",
+            "description": "description"
+          },
+          "has_more": "has_more"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_customers",
+      "description": "List Stripe customers, optionally filtered by exact email address",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max customers to return (default 20, max 100)"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional exact email address to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/customers",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "email": "{{input.email}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "email": "email",
+            "name": "name",
+            "created": "created",
+            "description": "description"
+          },
+          "has_more": "has_more"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_customer",
+      "description": "Get one Stripe customer by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_id": {
+            "type": "string",
+            "description": "Stripe customer ID (e.g. cus_123)"
+          }
+        },
+        "required": [
+          "customer_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/customers/{{input.customer_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "email": "email",
+          "name": "name",
+          "created": "created",
+          "description": "description",
+          "currency": "currency",
+          "delinquent": "delinquent"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_invoices",
+      "description": "List Stripe invoices, optionally filtered by customer and status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max invoices to return (default 20, max 100)"
+          },
+          "customer": {
+            "type": "string",
+            "description": "Optional Stripe customer ID to filter by (e.g. cus_123)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "open",
+              "paid",
+              "uncollectible",
+              "void"
+            ],
+            "description": "Optional invoice status to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/invoices",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "customer": "{{input.customer}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "number": "number",
+            "customer": "customer",
+            "status": "status",
+            "total": "total",
+            "currency": "currency",
+            "created": "created",
+            "due_date": "due_date"
+          },
+          "has_more": "has_more"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_payment_intents",
+      "description": "List recent Stripe payment intents, optionally filtered to one customer",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max payment intents to return (default 20, max 100)"
+          },
+          "customer": {
+            "type": "string",
+            "description": "Optional Stripe customer ID to filter by (e.g. cus_123)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/payment_intents",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "customer": "{{input.customer}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "amount": "amount",
+            "currency": "currency",
+            "status": "status",
+            "created": "created",
+            "customer": "customer",
+            "description": "description"
+          },
+          "has_more": "has_more"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T20:46:44.333Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

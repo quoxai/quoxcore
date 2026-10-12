@@ -1,0 +1,165 @@
+{
+  "name": "docker-fleet",
+  "version": "1.0.0",
+  "displayName": "Docker Fleet",
+  "tagline": "AI-powered container fleet management",
+  "description": "Multi-host Docker management with AI. Auto-discover Docker hosts from your bastion, see every container across the fleet in one view, manage Compose stacks, scan images for vulnerabilities, and let CommanderQ diagnose container issues from logs and memory.",
+  "shortDescription": "Fleet-wide Docker management with AI diagnostics and auto-discovery.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 25,
+  "priceDisplay": "$25",
+  "priceModel": "one-time",
+  "tier": "standard",
+  "featured": true,
+  "icon": "docker",
+  "accentColor": "#2496ed",
+  "infoUrl": "https://quox.ai/plugins/docker-fleet",
+  "docsUrl": "https://quox.ai/docs/plugins/docker-fleet",
+  "configSchema": {},
+  "marketingPoints": [
+    "Auto-discover Docker hosts from your bastion -- zero configuration",
+    "Unified container view across all hosts with real-time stats",
+    "AI-powered log analysis and incident memory",
+    "Compose stack management with drift detection",
+    "Image vulnerability scanning with prioritised CVE reports",
+    "Network topology visualisation and volume management",
+    "Natural language container operations via CommanderQ"
+  ],
+  "features": {
+    "fleetDiscovery": {
+      "name": "Fleet Auto-Discovery",
+      "description": "Automatically find all Docker hosts in your fleet via bastion SSH. No manual configuration needed.",
+      "icon": "search",
+      "highlight": true
+    },
+    "containerManagement": {
+      "name": "Container Management",
+      "description": "Start, stop, restart, inspect, and monitor containers across every host from one dashboard.",
+      "icon": "package",
+      "highlight": true
+    },
+    "composeStacks": {
+      "name": "Compose Stack Management",
+      "description": "Manage Docker Compose stacks fleet-wide. Deploy, update, and detect drift between running state and compose files.",
+      "icon": "layers"
+    },
+    "aiDiagnostics": {
+      "name": "AI Diagnostics",
+      "description": "CommanderQ analyses container logs, correlates events across hosts, and remembers past incidents to speed up troubleshooting.",
+      "icon": "brain",
+      "highlight": true
+    },
+    "imageSecurity": {
+      "name": "Image Security Scanning",
+      "description": "Scan images for CVEs with Trivy. Prioritised vulnerability reports with fix recommendations.",
+      "icon": "shield"
+    },
+    "networkTopology": {
+      "name": "Network Topology",
+      "description": "Visualise container networks across hosts. See which containers can communicate and identify isolated services.",
+      "icon": "network"
+    },
+    "liveEvents": {
+      "name": "Live Event Stream",
+      "description": "Real-time Docker daemon events across the fleet with AI-powered annotation and cross-host correlation.",
+      "icon": "activity"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "Docker running on fleet hosts accessible via bastion SSH"
+  },
+  "integration": {
+    "client": "dockerClient.js",
+    "panel": "components/docker/DockerDashboard.jsx"
+  },
+  "capabilities": {
+    "aeeIntents": [
+      "docker.fleet.scan",
+      "docker.containers.list",
+      "docker.container.start",
+      "docker.container.stop",
+      "docker.container.restart",
+      "docker.container.remove",
+      "docker.compose.list",
+      "docker.compose.up",
+      "docker.compose.down",
+      "docker.images.list",
+      "docker.images.scan",
+      "docker.networks.list",
+      "docker.volumes.list",
+      "docker.system.df"
+    ],
+    "toolAccess": "managers+"
+  },
+  "safety": {
+    "destructiveActions": [
+      "container.stop",
+      "container.remove",
+      "compose.down",
+      "images.prune",
+      "volumes.prune"
+    ],
+    "requiresApproval": [
+      "container.remove",
+      "compose.down",
+      "images.prune",
+      "volumes.prune"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": true
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-03-08",
+      "changes": [
+        "Initial release",
+        "Fleet auto-discovery via bastion SSH",
+        "Unified container view across all Docker hosts",
+        "Container lifecycle management (start, stop, restart)",
+        "Real-time CPU and memory stats",
+        "Docker system disk usage per host",
+        "Compose stack listing",
+        "DOCKER specialist agent with fleet awareness"
+      ]
+    }
+  },
+  "category": "Infrastructure",
+  "nocIntegration": {
+    "tab": {
+      "label": "Docker",
+      "icon": "box",
+      "order": 20
+    },
+    "quickActions": [
+      {
+        "id": "docker-containers",
+        "label": "Containers",
+        "icon": "services",
+        "description": "List all containers across Docker fleet",
+        "severity": "info",
+        "prompt": "List all Docker containers across the fleet with their status"
+      },
+      {
+        "id": "docker-health",
+        "label": "Fleet Health",
+        "icon": "health",
+        "description": "Check Docker host connectivity and resource usage",
+        "severity": "warning",
+        "prompt": "Check health of all Docker hosts and flag any that are unreachable or resource-constrained"
+      }
+    ],
+    "schedulable": true,
+    "templateVariables": [
+      {
+        "name": "host",
+        "description": "Docker host to check (e.g. docker01)"
+      },
+      {
+        "name": "show_stopped",
+        "description": "Include stopped containers (true/false)"
+      }
+    ]
+  }
+}

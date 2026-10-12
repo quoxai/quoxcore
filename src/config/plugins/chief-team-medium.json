@@ -1,0 +1,49 @@
+{
+  "name": "chief-team-medium",
+  "version": "1.0.0",
+  "displayName": "Chief Team — Medium Business",
+  "tagline": "A comprehensive AI executive suite, fourteen chiefs deep.",
+  "description": "A comprehensive AI executive suite with fourteen chiefs. Adds CISO (security), CLO (legal), CPO Product, CRO Revenue, CCO Communications, CIO, CDO Data, and CAO to the core six — complete C-suite coverage for growing businesses, all reporting to the same CEO orchestrator.",
+  "shortDescription": "14-chief AI executive suite for growing businesses.",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 10,
+  "priceDisplay": "$10",
+  "priceModel": "one-time",
+  "tier": "tier_b",
+  "featured": false,
+  "icon": "building",
+  "accentColor": "#7c3aed",
+  "infoUrl": "https://quox.ai/docs/agentic-teams",
+  "docsUrl": "https://quox.ai/docs/agentic-teams",
+  "marketingPoints": [
+    "Everything in Chief Team — Small Business",
+    "Adds CISO, CLO, CPO (Product), CRO, CCO, CIO, CDO, CAO",
+    "14 chiefs reporting to a single CEO orchestrator",
+    "Complete functional coverage for growth-stage operations"
+  ],
+  "features": {
+    "ciso": { "name": "CISO — Security", "description": "Security posture, risk, and incident response advice.", "icon": "shield" },
+    "clo": { "name": "CLO — Legal", "description": "Legal, contracts, and regulatory advice.", "icon": "scale" },
+    "cpoProduct": { "name": "CPO — Product", "description": "Product strategy and roadmap advice.", "icon": "package" },
+    "cro": { "name": "CRO — Revenue", "description": "Revenue growth and sales pipeline advice.", "icon": "trending-up" },
+    "cco": { "name": "CCO — Communications", "description": "Brand, PR, and external communications advice.", "icon": "message-circle" },
+    "cio": { "name": "CIO — Information", "description": "IT systems and information strategy advice.", "icon": "server" },
+    "cdo": { "name": "CDO — Data", "description": "Data strategy, analytics, and governance advice.", "icon": "database" },
+    "cao": { "name": "CAO — Administration", "description": "Administrative operations and org design advice.", "icon": "clipboard" }
+  },
+  "limits": {
+    "free": {},
+    "paid": {
+      "chiefCount": 14,
+      "orchestrator": "ceo",
+      "topology": "flat",
+      "includesTier": "tier_a"
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0",
+    "includes": ["chief-medium", "chief-small"]
+  },
+  "category": "AI & Intelligence"
+}

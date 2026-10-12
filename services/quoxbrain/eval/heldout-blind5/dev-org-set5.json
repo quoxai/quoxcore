@@ -1,0 +1,309 @@
+{
+ "description": "BLIND held-out set 5, authored by an independent agent on 2026-10-07 without access to search results, eval output or tuning, never to be used for tuning. Targets are stratified by note kind (note 18, memory 8, quoxplan 10, commit 8, transcript 6, tasks/finding/governance 5), sampled with ORDER BY random() from the dev org. Questions are paraphrased to avoid each note's title words. Near-misses were verified absent by LIKE queries over note bodies.",
+ "paraphrases": [
+  {
+   "noteId": "b151e32f9df453fa6607201396ed4d9d52b510ff",
+   "question": "an optimisation passed every test and frame-time check yet the user felt the map zoom behaved differently from the prototype; what lesson was recorded"
+  },
+  {
+   "noteId": "a89e3e219d36126203669b354fe8f3046d69a8f1",
+   "question": "what did the owner want raised at the next planning review regarding turning the four specs into installable libraries ahead of Brussels enforcement"
+  },
+  {
+   "noteId": "7d5476e46f42c2815836f8f84af0944605bc8ca5",
+   "question": "a component that needs organisation-defined assistants silently shows nothing when mounted away from the assistants screens"
+  },
+  {
+   "noteId": "5f50db38c79ff72bf07addefcdfd337078b6a5a6",
+   "question": "small two day deliverable so each customer account has somewhere persistent to keep scripts that were written",
+   "acceptable": [
+    "3a3ce88e9c1ca73bff4dd7b9f010167bec19ac32"
+   ]
+  },
+  {
+   "noteId": "0c59fdda2ff434ab7a63bba3c88a02302a110d4e",
+   "question": "the messenger relay copied over a hundred of the owner's private conversations into the chat server"
+  },
+  {
+   "noteId": "8e92f457d05c216fdaa021ddfdf10bef58dae978",
+   "question": "banned: typing figures about our product size into public pages, otherwise the pipeline stops"
+  },
+  {
+   "noteId": "6f6cd3ada4525a61484ef9c5f1da0c1cbe161b0e",
+   "question": "what was the owner told still needed a human decision after the overnight cleanup of fleet tickets"
+  },
+  {
+   "noteId": "2cd21bcd243946fecabac571a54a6efba69b3f20",
+   "question": "per recording what artefacts come out, including the accelerated trimmed video and timing data for overlays"
+  },
+  {
+   "noteId": "ac63ff0555d807cca9b4cc75ce9dd2e87c15abb0",
+   "question": "the release script said finished but visitors still saw the old pages; what was the underlying disk problem"
+  },
+  {
+   "noteId": "670ceb41be7c7ea11022a890fe17584c990e0900",
+   "question": "what caused the community plugins settings page to vanish after the first outside plugins were installed"
+  },
+  {
+   "noteId": "38b84882ec717634fe25adcdf6a9b30738affb02",
+   "question": "a few medium-severity package warnings in the container runner for user extensions, harmless for now"
+  },
+  {
+   "noteId": "35a8df94e8a428e06fce98567e53453c29ccf215",
+   "question": "temporary preference for the OpenAI-flavoured terminal agent over the other planner while that vendor's budget ran down"
+  },
+  {
+   "noteId": "b05a61d26ca05d1ac7286dd0027d25f308f81e84",
+   "question": "what independent interface regressions did the commander agent's inbox bug report surface on 10 May"
+  },
+  {
+   "noteId": "5851cb87b3730bae2b07c29432b2a64c093ae9ed",
+   "question": "conditions a brain-style feature needs before release: persisted data, genuine wiring, and a pricing tier that alters runtime"
+  },
+  {
+   "noteId": "fc529e54b2b774758f6923513defdbfc88475dbe",
+   "question": "summary of what a big spring day of work delivered: mission screen, crash recovery, and a marketing page for the engine"
+  },
+  {
+   "noteId": "a842ddc401e637c11ed0077b58f65418194ddbe8",
+   "question": "which cost and licence flag does the contract-checking add-on carry until commercial terms are settled"
+  },
+  {
+   "noteId": "d4cf024285e5e77cee88a52bb10f1f7f67fdfa30",
+   "question": "instead of writing a new scanner, the docs browser for the build host leans on which existing component"
+  },
+  {
+   "noteId": "2077abb5820380d7cfe72bbf69eceff3fec65304",
+   "question": "an assistant with zero prior context reviewed the site as an entrepreneur; which part of the mechanism could it not judge"
+  },
+  {
+   "noteId": "109ea16bd2f8a4c96324d5b53bf003ca3e1d1d45",
+   "question": "what chain of events took down the first hypervisor in late March, beginning with a faulty memory stick"
+  },
+  {
+   "noteId": "ac2d6b95fdf8fbebb95b515b8aa07a66fcdb4bb3",
+   "question": "how frequently does the scheduled job compare the virtualization cluster against its remembered state and who gets alerted"
+  },
+  {
+   "noteId": "2771038d8715088778386ca4f3b61d8fcc069806",
+   "question": "in the early July health sweep which machine had a nearly full disk and which refused commands with a semicolon"
+  },
+  {
+   "noteId": "0f186386039ba3e77892dd3f3f754ffcab166726",
+   "question": "ticket 619 fixes: the watchdog now complains about dead units and the installer stops using the wrong executable path"
+  },
+  {
+   "noteId": "71830aefabf745bcde9ecaf9ed50933f2955d8c9",
+   "question": "what is left open from ticket 610 after the command line drift line landed, and what blocks it"
+  },
+  {
+   "noteId": "4436c96ee9cffc5d6d7a9984e2cdaa7ce851c5bc",
+   "question": "biggest finding from the agent tool review: what was added to the bundle so functions display parameters"
+  },
+  {
+   "noteId": "1870b87b959b79d5240ce2624cdcd4869eb3571f",
+   "question": "is a rebuild needed for the login popup dismissal, and what else still waits on one"
+  },
+  {
+   "noteId": "31f3d8553025c8e1dc7f4b3d3fd8f9d7c94f5759",
+   "question": "how many URLs did the first SEO pilot summary on the company website report, and what was the next step"
+  },
+  {
+   "noteId": "9194029aa8bc60d89113da0c0652849b83eb711d",
+   "question": "why was the second-round visual check still stuck on the dev machine, and what overnight job was set up"
+  },
+  {
+   "noteId": "2e16de245ea4eb59cc92b1a2d9968df14cf4d7e0",
+   "question": "how did the self-hosted upgrade of the test VPN box get code across without a deploy key, and why did the version endpoint show zeros"
+  },
+  {
+   "noteId": "35203f79c2a8a74cd778fe4c2e0d3f4c886060d7",
+   "question": "who decided to postpone the production deployment of the backup runner and why"
+  },
+  {
+   "noteId": "f75c4db4d63805664e7f1c2e0372f43910b6173d",
+   "question": "how long and how much money did transcribing a one minute clip take in the early prototype, and which bugs shaped the guards",
+   "acceptable": [
+    "64666032d60d056a366f0c81b0514375ff24134b"
+   ]
+  },
+  {
+   "noteId": "d7b7cceb420a4c096eb9f9ea1a7fd8d1f0f4f5a7",
+   "question": "what was wrong with how the certifier signature related to the evidence bundle that made it forgeable",
+   "acceptable": [
+    "39527c2b805844f3eac7ebcdf8d3772db214f5c9"
+   ]
+  },
+  {
+   "noteId": "5a97ede1d506e5d8e38e89128301d520a78e6304",
+   "question": "what trap hit the pre-production website rsync involving a symlinked folder"
+  },
+  {
+   "noteId": "6c7082d70750276d7217297513fce2bd75e4c097",
+   "question": "which three plugin security fixes did the owner decide on 30 September and which was told to start immediately"
+  },
+  {
+   "noteId": "a8a097842322d604522d74cf811f835f47e0682f",
+   "question": "signing works but reading the bundle says nothing was witnessed; why is that damaging for an evidence product"
+  },
+  {
+   "noteId": "f1135fe4d15082d138b0075ec4abbc39eccad9fb",
+   "question": "why can a customer not prove a finished archive is restorable, and what vague message does the check give",
+   "acceptable": [
+    "6b6a0ebddae6aae77e46aeb06c7fc37393a7e813"
+   ]
+  },
+  {
+   "noteId": "50b7475c0657ab0a11eeb1c22e8b6bf44932d0c4",
+   "question": "which existing signed host-command mechanism serves as the template for the archive and restore executor"
+  },
+  {
+   "noteId": "f5454ddab5c0a05f7965cb2754c1627e70e2b639",
+   "question": "during a big failure the green indicator lied; what does it display currently"
+  },
+  {
+   "noteId": "cfb7424e1ce393ee4286757aa035fefb26093fb5",
+   "question": "a persona definition listed nine abilities that did not exist plus an invented set of cognitive modules; what changed"
+  },
+  {
+   "noteId": "7dae37b518039eef5c62a887c6e432c173bd339c",
+   "question": "why were cards with several lines of text cut off at roughly forty pixels in the graphics page"
+  },
+  {
+   "noteId": "5f501315c079bb2a770633d3927c64acba991d91",
+   "question": "why did the local loop runner's coding CLI refuse to start in a temp directory, and what flag fixed it"
+  },
+  {
+   "noteId": "d2da44641fdb5f82799a815ebe348113e999efce",
+   "question": "automations started without a person ended up filing objectives under the default tenant; what was corrected"
+  },
+  {
+   "noteId": "d6ae3d9541e5c549c6a73b58e68f13490a660e27",
+   "question": "why were user-made OpenAPI and MCP items missing from the listing, and what did the client begin sending"
+  },
+  {
+   "noteId": "4a39e95fbf45cac80ea22cf56bd6a07845326807",
+   "question": "when the model dispatch fails in the delegate endpoint, what status and error code does it now return instead of a policy denial"
+  },
+  {
+   "noteId": "2f1173f0240c3b707805c7bcec80c9be721e02ca",
+   "question": "which record named the wrong actor, crediting the roadmap assistant with web page checks it never ran"
+  },
+  {
+   "noteId": "eaf94d583dbb57ca359dbd093df2788d314a3271",
+   "question": "why could the customer not highlight the login link inside the terminal pane in the keys screen, and what was added"
+  },
+  {
+   "noteId": "ffaa351aa76df7d0713a72db864fd45f9ad5323a",
+   "question": "following enlargement of the repurposed virtual machine, what memory did it see, and what does its acronym mean"
+  },
+  {
+   "noteId": "0023ff1b3934c75d2eb63b7d073f97901c9832fb",
+   "question": "when the build queue service dropped its numbered nickname, what was flagged about the skill's licence receipt"
+  },
+  {
+   "noteId": "36ab4f1df0b63d0a3a7a4d21e7a42b91e239f048",
+   "question": "owner pushed a terabyte drive into the box hosting ARK; what went wrong with the volumes",
+   "acceptable": [
+    "38dcbde18d65582d6b3485f0135558afbc2a5f07"
+   ]
+  },
+  {
+   "noteId": "ab334f6ad9b78829bc7da2450461d2e2303bfbb2",
+   "question": "in one fleet status check which machine was running at about 80 percent CPU while the fleet average was around 3.5 percent"
+  },
+  {
+   "noteId": "950776ac01b369ca67276c89c2b9715f1393ca29",
+   "question": "which unintentionally public brand page on the hosting business dev server did the owner flag as redundant, and which session was messaged to triage it"
+  },
+  {
+   "noteId": "182afa8b14aacda3811aebf10c0afb897b497658",
+   "question": "which rival's inbound links could feed an outreach list, and how many sites point at them but not at us"
+  },
+  {
+   "noteId": "ed249f69b0db8ed0aae49bbff8d3ca6be44a084d",
+   "question": "what measurable improvement followed the approved heading change on the agents page"
+  },
+  {
+   "noteId": "7615ae32aeda8fd23bc06f2db7484d6d855e7a5f",
+   "question": "how many extra words does the company homepage show once scripts run compared with raw markup"
+  },
+  {
+   "noteId": "868b2e9a26e070f0e908e6560cb6f59de594a3e9",
+   "question": "what should be done when more than half of the tasks are skipped because their predecessors failed",
+   "acceptable": [
+    "70fcdfd950ee4386a612159684b082445ac01f64"
+   ]
+  },
+  {
+   "noteId": "0fa66679136865f0e4810f32d898792fe099f59f",
+   "question": "what guidance exists on assigning every subtask to one worker agent",
+   "acceptable": [
+    "66a65cfb333bba67345c11628d70f1fc507c06fd",
+    "445e50219b2cf8dd3cf499fe7986eacce2829d42"
+   ]
+  }
+ ],
+ "nearMisses": [
+  {
+   "query": "how much revenue did Quox bring in during the third quarter of 2026",
+   "topic": "finance"
+  },
+  {
+   "query": "how many days is the free trial of the paid tier",
+   "topic": "pricing"
+  },
+  {
+   "query": "what is the monthly customer churn rate",
+   "topic": "pricing"
+  },
+  {
+   "query": "how many reviews does the iOS app have in the App Store",
+   "topic": "mobile"
+  },
+  {
+   "query": "how many GPUs are in our in-house GPU cluster",
+   "topic": "infra"
+  },
+  {
+   "query": "how do I install the fleet agent as a Windows service",
+   "topic": "agents"
+  },
+  {
+   "query": "which Sentry.io project captures the website's frontend exceptions",
+   "topic": "website"
+  },
+  {
+   "query": "does the hosted plan contractually promise 99.95 percent availability",
+   "topic": "pricing"
+  },
+  {
+   "query": "how many upvotes did our Hacker News launch post get",
+   "topic": "marketing"
+  },
+  {
+   "query": "is there a discount for students or non-profit organisations",
+   "topic": "pricing"
+  },
+  {
+   "query": "how many nodes are in the Redis cluster used for session caching",
+   "topic": "infra"
+  },
+  {
+   "query": "which Cerebras hosted model does the agent router use for fast inference",
+   "topic": "agents"
+  },
+  {
+   "query": "what commission is paid to someone who refers a paying customer",
+   "topic": "pricing"
+  },
+  {
+   "query": "which Bitwarden Secrets Manager project does the platform read customer credentials from",
+   "topic": "security"
+  },
+  {
+   "query": "what spec does the Mac Studio build server have",
+   "topic": "infra"
+  }
+ ]
+}

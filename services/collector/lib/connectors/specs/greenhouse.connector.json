@@ -1,0 +1,225 @@
+{
+  "spec_version": 1,
+  "id": "greenhouse",
+  "name": "Greenhouse",
+  "category": "hr_hiring",
+  "credentialType": "greenhouse",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.greenhouse.io/harvest.html",
+  "base_url": "https://harvest.greenhouse.io",
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": ""
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/users",
+    "query": {
+      "per_page": "1"
+    }
+  },
+  "tools_source": "https://docs.greenhouse.io/harvest.html",
+  "tools": [
+    {
+      "name": "list_jobs",
+      "description": "List Greenhouse jobs (id, name, status, requisition id, open/close dates)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Jobs to return per page (default 25, max 500)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page of results to return (default 1, max 500)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed",
+              "draft"
+            ],
+            "description": "Optional job status filter"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/jobs",
+        "query": {
+          "per_page": "{{clamp input.per_page 25 500}}",
+          "page": "{{clamp input.page 1 500}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "requisition_id": "requisition_id",
+            "confidential": "confidential",
+            "opened_at": "opened_at",
+            "closed_at": "closed_at",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_candidates",
+      "description": "List Greenhouse candidates, optionally filtered by job or email address",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Candidates to return per page (default 25, max 500)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page of results to return (default 1, max 500)"
+          },
+          "job_id": {
+            "type": "string",
+            "description": "Optional Greenhouse job id: only candidates who applied to that job"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional exact email address to filter by"
+          },
+          "updated_after": {
+            "type": "string",
+            "description": "Optional ISO-8601 timestamp: only candidates updated at or after it"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/candidates",
+        "query": {
+          "per_page": "{{clamp input.per_page 25 500}}",
+          "page": "{{clamp input.page 1 500}}",
+          "job_id": "{{input.job_id}}",
+          "email": "{{input.email}}",
+          "updated_after": "{{input.updated_after}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "first_name": "first_name",
+            "last_name": "last_name",
+            "company": "company",
+            "title": "title",
+            "is_private": "is_private",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "last_activity": "last_activity"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_departments",
+      "description": "List an organization's Greenhouse departments (id, name, parent department)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Departments to return per page (default 25, max 500)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page of results to return (default 1, max 500)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/departments",
+        "query": {
+          "per_page": "{{clamp input.per_page 25 500}}",
+          "page": "{{clamp input.page 1 500}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "parent_id": "parent_id",
+            "external_id": "external_id"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_offices",
+      "description": "List an organization's Greenhouse offices (id, name, location, parent office)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Offices to return per page (default 25, max 500)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page of results to return (default 1, max 500)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/offices",
+        "query": {
+          "per_page": "{{clamp input.per_page 25 500}}",
+          "page": "{{clamp input.page 1 500}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "location": "location.name",
+            "parent_id": "parent_id",
+            "external_id": "external_id"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH UNCHANGED from the scaffold: Harvest uses HTTP Basic with the API key as the username and an EMPTY password, which is exactly auth.type basic + userField api_key + passField \"\" (the docs' own samples send Authorization: Basic base64(<key>:)).",
+      "docs/tools_source point at https://docs.greenhouse.io/harvest.html because the scaffolded developers.greenhouse.io/harvest.html 301-redirects there; same document, canonical host.",
+      "READ-ONLY by design: all four tools are documented GET list endpoints and none is marked write:true. The Harvest write surface (POST/PATCH candidates, jobs, offices) is deliberately absent.",
+      "per_page is clamped to 500, which IS the documented maximum ('must be an integer between 1 and 500, defaults to 100'). page has no documented maximum, so its 500 ceiling is this spec's own conservative cap.",
+      "All four endpoints answer with a TOP-LEVEL JSON array, so each pick uses the spec v1.1 root-array form { \"[]\": {...} }. departments and offices also support render_as=tree, which is NOT exposed: the default list rendering is what the flat pick matches.",
+      "test keeps the scaffolded GET /v1/users (a documented Harvest endpoint) and adds per_page=1 so the credential check costs one record rather than a full page.",
+      "Harvest rate limits per the docs are 50 requests per 10 seconds (X-RateLimit-Limit), so this spec's 30 requests/minute cap sits well inside the provider's own ceiling.",
+      "Shape-proof 2026-09-12 (greenhouse.proof.json, runner shapeproof/1), verbatim: 'greenhouse  AUTH_WALL  proven=0 authwall=5 ambiguous=0 failed=0 inconclusive=0 skipped=0'. Harvest answers the bogus control path and all five real requests with the identical 401 {\"message\":\"Invalid Basic Auth credentials\"}, so the auth wall sits in front of routing: host, TLS and Basic-auth rejection are proven, and the five paths rest on the documented provenance above rather than on this run. Only a real API key can move these to SHAPE_PROVEN."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

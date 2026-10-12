@@ -1,0 +1,121 @@
+{
+  "spec_id": "tray",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:56:26.017Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.tray.io/quox-shapeproof-control-ad9a0cab",
+      "status": 404,
+      "latency_ms": 1302,
+      "classification": "CONTROL",
+      "body_sha256": "15c53b41755b7dbbf631697798b043b1eb429674afb2580b605d468c7f8593b7",
+      "body_excerpt": "{\"message\":\"\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.tray.io/core/v1/users/me",
+      "status": 401,
+      "latency_ms": 223,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b70b7f84570f4cf1d5f74860318714323615217c788614092578f82061a59c7e",
+      "body_excerpt": "{\"message\":\"Missing or invalid Authorization header, or user not found\",\"details\":null}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_current_user",
+      "method": "GET",
+      "url": "https://api.tray.io/core/v1/users/me",
+      "status": 401,
+      "latency_ms": 197,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b70b7f84570f4cf1d5f74860318714323615217c788614092578f82061a59c7e",
+      "body_excerpt": "{\"message\":\"Missing or invalid Authorization header, or user not found\",\"details\":null}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_viewer",
+      "method": "POST",
+      "url": "https://api.tray.io/graphql",
+      "status": 200,
+      "latency_ms": 337,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "68af19db0fdd927a9bcb552635e54dd59768028565f2d1003ce1f4353bf75d98",
+      "body_excerpt": "{\"data\":null,\"errors\":[{\"message\":\"Missing or invalid Authorization header, or user not found\",\"extensions\":{\"name\":\"PreconditionError\",\"code\":\"access_not_allowed\",\"data\":null,\"isUserFacing\":true,\"int",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "list_workflows",
+      "method": "POST",
+      "url": "https://api.tray.io/graphql",
+      "status": 200,
+      "latency_ms": 375,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "68af19db0fdd927a9bcb552635e54dd59768028565f2d1003ce1f4353bf75d98",
+      "body_excerpt": "{\"data\":null,\"errors\":[{\"message\":\"Missing or invalid Authorization header, or user not found\",\"extensions\":{\"name\":\"PreconditionError\",\"code\":\"access_not_allowed\",\"data\":null,\"isUserFacing\":true,\"int",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "list_solutions",
+      "method": "POST",
+      "url": "https://api.tray.io/graphql",
+      "status": 200,
+      "latency_ms": 393,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "68af19db0fdd927a9bcb552635e54dd59768028565f2d1003ce1f4353bf75d98",
+      "body_excerpt": "{\"data\":null,\"errors\":[{\"message\":\"Missing or invalid Authorization header, or user not found\",\"extensions\":{\"name\":\"PreconditionError\",\"code\":\"access_not_allowed\",\"data\":null,\"isUserFacing\":true,\"int",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "list_solution_instances",
+      "method": "POST",
+      "url": "https://api.tray.io/graphql",
+      "status": 200,
+      "latency_ms": 297,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "68af19db0fdd927a9bcb552635e54dd59768028565f2d1003ce1f4353bf75d98",
+      "body_excerpt": "{\"data\":null,\"errors\":[{\"message\":\"Missing or invalid Authorization header, or user not found\",\"extensions\":{\"name\":\"PreconditionError\",\"code\":\"access_not_allowed\",\"data\":null,\"isUserFacing\":true,\"int",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "list_authentications",
+      "method": "POST",
+      "url": "https://api.tray.io/graphql",
+      "status": 200,
+      "latency_ms": 212,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "68af19db0fdd927a9bcb552635e54dd59768028565f2d1003ce1f4353bf75d98",
+      "body_excerpt": "{\"data\":null,\"errors\":[{\"message\":\"Missing or invalid Authorization header, or user not found\",\"extensions\":{\"name\":\"PreconditionError\",\"code\":\"access_not_allowed\",\"data\":null,\"isUserFacing\":true,\"int",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

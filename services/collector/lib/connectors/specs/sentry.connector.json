@@ -1,0 +1,205 @@
+{
+  "spec_version": 1,
+  "id": "sentry",
+  "name": "Sentry",
+  "category": "developer",
+  "credentialType": "sentry",
+  "requiredFields": [
+    "auth_token"
+  ],
+  "docs": "https://docs.sentry.io/api/",
+  "base_url": "https://sentry.io",
+  "auth": {
+    "type": "bearer",
+    "field": "auth_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/0/projects/"
+  },
+  "tools_source": "https://docs.sentry.io/api/",
+  "tools": [
+    {
+      "name": "list_organizations",
+      "description": "List the Sentry organizations the auth token can see",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Optional filter, matched against organization name and slug"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/0/organizations/",
+        "query": {
+          "query": "{{input.query}}"
+        }
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_projects",
+      "description": "List the projects in one Sentry organization",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_slug": {
+            "type": "string",
+            "description": "Sentry organization slug (e.g. my-company)"
+          }
+        },
+        "required": [
+          "org_slug"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/0/organizations/{{input.org_slug}}/projects/"
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.org_slug": "sentry"
+      }
+    },
+    {
+      "name": "list_issues",
+      "description": "List issues for one Sentry project, optionally filtered by a search query and stats period",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_slug": {
+            "type": "string",
+            "description": "Sentry organization slug (e.g. my-company)"
+          },
+          "project_slug": {
+            "type": "string",
+            "description": "Sentry project slug (e.g. backend-api)"
+          },
+          "query": {
+            "type": "string",
+            "description": "Optional Sentry search query (default is:unresolved, e.g. is:unresolved level:error)"
+          },
+          "statsPeriod": {
+            "type": "string",
+            "enum": [
+              "",
+              "24h",
+              "14d"
+            ],
+            "description": "Optional stats window for issue counts: 24h, 14d, or empty for none"
+          }
+        },
+        "required": [
+          "org_slug",
+          "project_slug"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/0/projects/{{input.org_slug}}/{{input.project_slug}}/issues/",
+        "query": {
+          "query": "{{input.query}}",
+          "statsPeriod": "{{input.statsPeriod}}"
+        }
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.org_slug": "sentry"
+      }
+    },
+    {
+      "name": "get_issue",
+      "description": "Get one Sentry issue by ID, with its status, counts and first and last seen times",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "issue_id": {
+            "type": "string",
+            "description": "Sentry issue ID (e.g. 1234567890)"
+          }
+        },
+        "required": [
+          "issue_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/0/issues/{{input.issue_id}}/"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "shortId": "shortId",
+          "title": "title",
+          "culprit": "culprit",
+          "level": "level",
+          "status": "status",
+          "substatus": "substatus",
+          "count": "count",
+          "userCount": "userCount",
+          "firstSeen": "firstSeen",
+          "lastSeen": "lastSeen",
+          "permalink": "permalink",
+          "project_id": "project.id",
+          "project_slug": "project.slug",
+          "project_name": "project.name",
+          "metadata_type": "metadata.type",
+          "metadata_value": "metadata.value"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_teams",
+      "description": "List the teams in one Sentry organization",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_slug": {
+            "type": "string",
+            "description": "Sentry organization slug (e.g. my-company)"
+          }
+        },
+        "required": [
+          "org_slug"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/0/organizations/{{input.org_slug}}/teams/"
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.org_slug": "sentry"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Shape-proof _probe hints added 2026-09-11: list_projects, list_issues and list_teams carry \"_probe\": {\"input.org_slug\": \"sentry\"} so the blind harness reaches the route at all. Sentry 404s an unknown organisation slug at the gateway before routing, so the generic 'quoxprobe' dummy could never distinguish a wrong path from an unknown tenant. 'sentry' is a public organisation slug, used read-only with a dummy credential, so it cannot access anything. Credentials are never hinted and stay dummy."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

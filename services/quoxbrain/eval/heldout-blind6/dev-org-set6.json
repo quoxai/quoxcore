@@ -1,0 +1,318 @@
+{
+  "description": "BLIND held-out set 6, authored 2026-10-09 by an independent agent without access to search results, eval output, ranking code or tuning history; never to be used for tuning. Targets sampled read-only from the dev-org corpus with ORDER BY random(), filtered to bodies of 400+ characters and screened for credentials, tokens, IPs and hostnames. Stratification: note 16, memory 8, quoxplan (stream/plan/note kinds) 11, commit 6, transcript_session 5, other (finding, insight, governance_incidents, tasks_execution_wisdom) 4, total 50. Questions paraphrase rather than reuse title words and are answerable from the target note alone; acceptable lists are empty. Near-miss verification: each of the 15 topics was checked with SQL LIKE over notes.body for the org and returned 0 matches for these terms: 99.95, allkeys-lru, certificate number, twilio verify, ios app store, windows installer, hackerone, gdpr dpo, sla credit, annual discount, gitlab runner, kibana, lighthouse score, nutanix, clickhouse. Never to be used for tuning.",
+  "org_id": "01KKNKH398KKEWB36JXRYR70QH",
+  "paraphrases": [
+    {
+      "noteId": "34e8b7ab9b5f03c8984a6cee0535040062c33d43",
+      "question": "Why does the owner insist that commits carry no credit lines for the AI assistants that helped write them?",
+      "acceptable": []
+    },
+    {
+      "noteId": "9c2d06f234be9ad3f934d7a6e45818ef4744e150",
+      "question": "What did the owner say was the real need behind their habit of turning every small thing into a product, dashboard item or agent?",
+      "acceptable": []
+    },
+    {
+      "noteId": "1d7de474ec05517504aaa481724967ee903a4bba",
+      "question": "If I'm asked whether something already happened on a live system, can I reuse a result I fetched earlier in the same session?",
+      "acceptable": []
+    },
+    {
+      "noteId": "5b767876793dc23e16207ae195ad2d6fadf1231d",
+      "question": "Which compliance deliverable currently downloads as a JSON file even though the interface promises a PDF, and what is its effort estimate?",
+      "acceptable": []
+    },
+    {
+      "noteId": "d1cf5b21d9ae4ff9d9cf5a9d6b457203ec40b1e5",
+      "question": "What kinds of social activity drain the user, and what style of sales or fundraising should be suggested instead?",
+      "acceptable": []
+    },
+    {
+      "noteId": "d54ddaa1fdce0446b4d2fc544a39788acb77e606",
+      "question": "What did the owner clarify in May 2026 about how people were originally meant to get new agent capabilities, as opposed to writing their own scripts?",
+      "acceptable": []
+    },
+    {
+      "noteId": "2f9721179a58c62868964a3e3d53f488dcd681df",
+      "question": "How does a user-created agent get registered differently from a built-in one, and why must the five-file rule not be applied to it?",
+      "acceptable": []
+    },
+    {
+      "noteId": "03f0cb6f10e2a8989d0fd539eb8ea3280e9830cb",
+      "question": "In the mid-August overnight work plan, what was supposed to happen to any item that got blocked?",
+      "acceptable": []
+    },
+    {
+      "noteId": "915a1ea2742370d298efebe0677432846c5eb651",
+      "question": "After the unified editor shipped, how many parallel implementations of the tool system existed, and where did the browser one keep custom tools?",
+      "acceptable": []
+    },
+    {
+      "noteId": "fc529e54b2b774758f6923513defdbfc88475dbe",
+      "question": "How many frontend tests came with the nine-phase unified agent experience work shipped in late March 2026?",
+      "acceptable": []
+    },
+    {
+      "noteId": "2e348d2a8c55b1a9d532240c22ffd49ff7859e2b",
+      "question": "How many canvas-drawn, sound-reactive looks can a chat assistant be given for its sidebar identity?",
+      "acceptable": []
+    },
+    {
+      "noteId": "b9f608944d28bdd690c29122de2527dca1f0d1ee",
+      "question": "How did the owner recast the telephone-agent idea in September 2026, and what build approach was chosen to start?",
+      "acceptable": []
+    },
+    {
+      "noteId": "29a7c22b3b15e08ef7a9ae22fbd719417f074934",
+      "question": "Which scheduled jobs keep running on the server with no browser open, and what environment-variable naming inconsistency was documented for them?",
+      "acceptable": []
+    },
+    {
+      "noteId": "13dfd0dedcc5f0fe61279c37822513351e6ed297",
+      "question": "What overclaim about evidence for each step of the governed agent loop was caught in the August 14 honesty pass?",
+      "acceptable": []
+    },
+    {
+      "noteId": "10dbeb3e249a08503fd7e81bff7aab6a942dd474",
+      "question": "What name should customers see for the second-brain product, and what did the owner remove from it on 2026-07-20?",
+      "acceptable": []
+    },
+    {
+      "noteId": "cfb9ef1ecd7650a36ac13c9809e7af8f99e52e67",
+      "question": "What format should milestone progress updates take for a stream, and when is it acceptable to open a new one?",
+      "acceptable": []
+    },
+    {
+      "noteId": "a0cfcc7a07630d5529e8cfd9356609708a1a9194",
+      "question": "What has to happen before the fix to the Discord daemon's periodic gap scan actually takes effect?",
+      "acceptable": []
+    },
+    {
+      "noteId": "928016f73d39d28fbf3ee7ab9f9ecd9d0b209cff",
+      "question": "A bastion-repo issue about risky mode failing was closed as a duplicate; of which main-repo issue, and what was left open on that one?",
+      "acceptable": []
+    },
+    {
+      "noteId": "7ccc54ac80c547f1c4f2fb416e9480dec03ece3b",
+      "question": "What were the held-out scores before and after the first improvement pass of the retrieval benchmark loop in early October?",
+      "acceptable": []
+    },
+    {
+      "noteId": "1dc35a30883e91f76c52a6b8a7e712243f8b61a5",
+      "question": "During the overnight hourly new-issue watch, which issue numbers were off limits and what deployments were forbidden?",
+      "acceptable": []
+    },
+    {
+      "noteId": "7bf52021675f4b903a04cadd6d83149099480605",
+      "question": "After cross-organisation media previews shipped behind a membership check, what verification step was still not done?",
+      "acceptable": []
+    },
+    {
+      "noteId": "4993568c68c25389417ce82ee66d659542688f4a",
+      "question": "Which collector read endpoint exposes an agent's activity history for the issue-triage dashboard page built on 2026-09-29?",
+      "acceptable": []
+    },
+    {
+      "noteId": "0f186386039ba3e77892dd3f3f754ffcab166726",
+      "question": "How was the supervisor installer changed so the service no longer depends on the path of whatever process launched it?",
+      "acceptable": []
+    },
+    {
+      "noteId": "cf5a6324cedfd7b10a52e2154bc74e7be63310d7",
+      "question": "After the command-line version output was made to show the real commit, which two follow-up pieces remained open?",
+      "acceptable": []
+    },
+    {
+      "noteId": "e12ccbbf5419e67219287994308ec4c3a3311bc2",
+      "question": "Why is the enterprise development organisation stuck with only ten learned memory items?",
+      "acceptable": []
+    },
+    {
+      "noteId": "a7454f29773d7bfc5025fd71feb80cdeb8f8f3f8",
+      "question": "What dispatch hazard involving names like constructor or toString on the chat executor lookups was closed in the August agent overhaul?",
+      "acceptable": []
+    },
+    {
+      "noteId": "b80a789782e68599c39bd1f19ca198207b639120",
+      "question": "After the sixth batch of integrations, how many were executable in total, and which one could not be proven blind?",
+      "acceptable": []
+    },
+    {
+      "noteId": "ad5d39784b5c840647258717c056ca473e70bf7e",
+      "question": "Why was a session's request to add its SSH key to the primary dev box declined, and what interim workaround was used instead?",
+      "acceptable": []
+    },
+    {
+      "noteId": "e9e9d0c0636dc56f79eea320c7d7033e40315ae5",
+      "question": "In the cold read of the compliance suite page, how did enterprise readers react to the whole-organisation price?",
+      "acceptable": []
+    },
+    {
+      "noteId": "4872c2be61b3ea587deee42eb12e1cc13cfd7ec8",
+      "question": "What boundary was adopted between organic posting and paid advertising for the Meta plugins, and which tool moved out?",
+      "acceptable": []
+    },
+    {
+      "noteId": "39d09cf905b860ff219ea835501075443f6cc7a3",
+      "question": "What had to be in the definition of done for the sealed-execution pilot in the skill-licensing stream?",
+      "acceptable": []
+    },
+    {
+      "noteId": "b246ac7908c29e0cb47ec449697f2d0b48fd44e9",
+      "question": "What is the rolling 24-hour publishing cap for the photo-sharing network's content API, and how does a carousel count against it?",
+      "acceptable": []
+    },
+    {
+      "noteId": "1c64d64520044416f7392b8b52f68cafa6906167",
+      "question": "Which Bitcoin block anchored the self-contained receipt proof on 2026-09-12?",
+      "acceptable": []
+    },
+    {
+      "noteId": "1d75f3dab1fdccd872b050294b326bf32e2c2775",
+      "question": "What was wrong with the terminal-looking box on the bastion product page and what replacement was planned?",
+      "acceptable": []
+    },
+    {
+      "noteId": "8f398381b3636afaa3458486715e2e6a2c23b976",
+      "question": "Across the evening's fold-rework batches, how many pages were reworked and by how much did the word count drop?",
+      "acceptable": []
+    },
+    {
+      "noteId": "bc7c6fd14669dc3a150eb6fd6b1ec2e8d431be18",
+      "question": "What discovery about the terminal-multiplexer control methods changed the first step of the next session's brief?",
+      "acceptable": []
+    },
+    {
+      "noteId": "ca3f701d1138648808e3fc706d0e0915333cde82",
+      "question": "What did the populated vector-database restore drill verify, and which volume name did the restore log show?",
+      "acceptable": []
+    },
+    {
+      "noteId": "746530265730f3cfbcd05e6a21042a59abbd68ef",
+      "question": "What safety net was wrapped around the brain graph renderer during the first phase of the workspace redesign?",
+      "acceptable": []
+    },
+    {
+      "noteId": "12c268e7757aca056c171674e1e6c866d5fb0a6b",
+      "question": "Why was the sidebar entry for the trading community plugin renamed, and which version bump forced installs to update?",
+      "acceptable": []
+    },
+    {
+      "noteId": "f6608aafdbbf3ebd326a20b82a4344421921f0b7",
+      "question": "Why did the inner-tools panel show 'Tool Not Found' for installed powers in the browser while the backend route worked?",
+      "acceptable": []
+    },
+    {
+      "noteId": "bf533d9db429c8bea454740bf9bffa06e2e07f81",
+      "question": "How was the box-management view removed from the free build so the bundler never reaches it?",
+      "acceptable": []
+    },
+    {
+      "noteId": "15047b7cd4146e5260f59696b0e8620b3ecc9ebb",
+      "question": "What was wrong with the dead-feeling session slot in the revival session, and how was the repeated posting stopped?",
+      "acceptable": []
+    },
+    {
+      "noteId": "9b6c4fd95dc8e3f4842ab6fea36ac5018602bdef",
+      "question": "What overall score and per-dimension floor did the standing Brain2 audit mission aim for?",
+      "acceptable": []
+    },
+    {
+      "noteId": "d46e66aa05e966103c700bbe119e0f41ea9f9506",
+      "question": "In the email-agents session, what specialist-agent count had gone stale across site copy, and what was the true number?",
+      "acceptable": []
+    },
+    {
+      "noteId": "74446646dadb5511447ea208f8908d87c5caa94b",
+      "question": "What responsive problem did the contractor flag on the hosting status page, and how was the fix shipped live?",
+      "acceptable": []
+    },
+    {
+      "noteId": "998d45454277d305855b52ec012141b361dcdd4f",
+      "question": "Which stream number and how many build phases did the Discord concierge idea get in the roadmap?",
+      "acceptable": []
+    },
+    {
+      "noteId": "e35e0c226305bbbd6ede1ea449b8ff8ec31cf576",
+      "question": "Why did a witnessed-receipt mismatch get raised for a remote command execution, and how was it fixed?",
+      "acceptable": []
+    },
+    {
+      "noteId": "c8235e7bdbab30ec78103fa62ac3907910779b64",
+      "question": "Which query had the most impressions among the main site's rankings just short of the first page?",
+      "acceptable": []
+    },
+    {
+      "noteId": "868b2e9a26e070f0e908e6560cb6f59de594a3e9",
+      "question": "What should be done in task design when more than half the tasks are skipped because upstream ones failed?",
+      "acceptable": []
+    },
+    {
+      "noteId": "fb7577a2bbffcf709cea1be5ebf19162dc7ba174",
+      "question": "Why can't the big chatbot crawlers cite the main site's content even though they visit it heavily?",
+      "acceptable": []
+    }
+  ],
+  "nearMisses": [
+    {
+      "query": "what uptime percentage does the service level agreement guarantee",
+      "topic": "sla"
+    },
+    {
+      "query": "which Redis eviction policy is configured for the cache",
+      "topic": "infrastructure"
+    },
+    {
+      "query": "what is the certificate number on the ISO security certification",
+      "topic": "compliance"
+    },
+    {
+      "query": "is Twilio Verify used for phone number verification at signup",
+      "topic": "auth"
+    },
+    {
+      "query": "what is the listing name of the iOS app on the App Store",
+      "topic": "mobile"
+    },
+    {
+      "query": "is there a Windows installer for the desktop terminal",
+      "topic": "distribution"
+    },
+    {
+      "query": "which HackerOne program handles vulnerability reports",
+      "topic": "security"
+    },
+    {
+      "query": "who is the appointed GDPR data protection officer",
+      "topic": "privacy"
+    },
+    {
+      "query": "how many service credits are owed for an SLA breach",
+      "topic": "sla"
+    },
+    {
+      "query": "what annual-billing discount percentage is offered on plans",
+      "topic": "pricing"
+    },
+    {
+      "query": "which GitLab runner executes the CI jobs",
+      "topic": "ci"
+    },
+    {
+      "query": "which Kibana dashboard shows the collector logs",
+      "topic": "observability"
+    },
+    {
+      "query": "what Lighthouse performance score does the homepage achieve",
+      "topic": "web performance"
+    },
+    {
+      "query": "do the Proxmox hosts run on Nutanix hardware",
+      "topic": "infrastructure"
+    },
+    {
+      "query": "which ClickHouse cluster stores the analytics events",
+      "topic": "data"
+    }
+  ]
+}

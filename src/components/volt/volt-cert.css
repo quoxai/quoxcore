@@ -1,0 +1,497 @@
+/* VOLT Certification Dashboard Styles */
+
+.cert-view {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.cert-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.cert-view__title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 20px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.cert-view__title-icon {
+  width: 24px;
+  height: 24px;
+  color: #FFD700;
+}
+
+.cert-view__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Stats bar */
+.cert-stats-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.cert-stat-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+}
+
+.cert-stat-card__value {
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cert-stat-card__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 4px;
+}
+
+.cert-stat-card--bronze .cert-stat-card__value { color: #CD7F32; }
+.cert-stat-card--silver .cert-stat-card__value { color: #C0C0C0; }
+.cert-stat-card--gold .cert-stat-card__value { color: #FFD700; }
+.cert-stat-card--platinum .cert-stat-card__value { color: #E5E4E2; }
+.cert-stat-card--total .cert-stat-card__value { color: rgba(255, 255, 255, 0.85); }
+.cert-stat-card--expired .cert-stat-card__value { color: #ef4444; }
+
+/* Tier explanation cards */
+.cert-tiers-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 900px) {
+  .cert-tiers-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.cert-tier-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.cert-tier-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.cert-tier-card--bronze::before { background: #CD7F32; }
+.cert-tier-card--silver::before { background: #C0C0C0; }
+.cert-tier-card--gold::before { background: #FFD700; }
+.cert-tier-card--platinum::before { background: #E5E4E2; }
+
+.cert-tier-card__name {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.cert-tier-card--bronze .cert-tier-card__name { color: #CD7F32; }
+.cert-tier-card--silver .cert-tier-card__name { color: #C0C0C0; }
+.cert-tier-card--gold .cert-tier-card__name { color: #FFD700; }
+.cert-tier-card--platinum .cert-tier-card__name { color: #E5E4E2; }
+
+.cert-tier-card__formal {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 8px;
+}
+
+.cert-tier-card__desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.4;
+}
+
+/* Certification list */
+.cert-list {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.cert-list__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cert-list__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.cert-list__empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+}
+
+.cert-list__empty-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+  opacity: 0.3;
+}
+
+.cert-row {
+  display: grid;
+  grid-template-columns: 32px 1fr 100px 120px 100px 80px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.cert-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cert-row:last-child {
+  border-bottom: none;
+}
+
+.cert-row__shield {
+  width: 24px;
+  height: 24px;
+}
+
+.cert-row__run {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cert-row__tier {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cert-row__date {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.cert-row__expiry {
+  font-size: 11px;
+}
+
+.cert-row__expiry--valid { color: rgba(34, 197, 94, 0.8); }
+.cert-row__expiry--expired { color: #ef4444; }
+.cert-row__expiry--revoked { color: #f59e0b; }
+
+.cert-row__actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+/* Certify run modal / panel */
+.cert-certify-panel {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.cert-certify-panel__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 12px;
+}
+
+.cert-certify-panel__input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.cert-certify-panel__input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  outline: none;
+}
+
+.cert-certify-panel__input:focus {
+  border-color: rgba(255, 215, 0, 0.4);
+}
+
+.cert-certify-panel__input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+/* Detail panel */
+.cert-detail {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.cert-detail__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.cert-detail__tier-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cert-detail__checks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cert-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.cert-check--pass {
+  color: rgba(34, 197, 94, 0.9);
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.cert-check--fail {
+  color: rgba(239, 68, 68, 0.9);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.cert-check__icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.cert-check__tier-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.6;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Buttons */
+.cert-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.cert-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.cert-btn--primary {
+  background: rgba(255, 215, 0, 0.15);
+  border-color: rgba(255, 215, 0, 0.3);
+  color: #FFD700;
+}
+
+.cert-btn--primary:hover {
+  background: rgba(255, 215, 0, 0.25);
+}
+
+.cert-btn--danger {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.cert-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.cert-btn--sm {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.cert-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Badge preview */
+.cert-badge-preview {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+/* Tier section headers in check list */
+.cert-tier-section {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 10px 10px 4px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Coming Soon badge on tier cards */
+.cert-tier-card__coming-soon {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cert-tier-card__auto-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #FFD700;
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+}
+
+/* Embed widget panel */
+.cert-embed-panel {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.cert-embed-panel__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 6px;
+}
+
+.cert-embed-panel__desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 14px;
+}
+
+.cert-embed-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.cert-embed-tab {
+  padding: 5px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.cert-embed-tab:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.cert-embed-tab--active {
+  background: rgba(255, 215, 0, 0.12);
+  border-color: rgba(255, 215, 0, 0.3);
+  color: #FFD700;
+}
+
+.cert-embed-code {
+  position: relative;
+}
+
+.cert-embed-pre {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 12px 14px;
+  padding-right: 70px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  overflow-x: auto;
+  white-space: pre;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.cert-embed-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}

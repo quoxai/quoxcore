@@ -1,0 +1,269 @@
+{
+  "spec_version": 1,
+  "id": "squarespace",
+  "name": "Squarespace",
+  "category": "commerce_finance",
+  "credentialType": "squarespace",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developers.squarespace.com/commerce-apis/overview",
+  "base_url": "https://api.squarespace.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "static_headers": {
+    "User-Agent": "Quox Connector (https://quox.ai)"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/1.0/authorization/website"
+  },
+  "tools_source": "https://developers.squarespace.com/commerce-apis/overview",
+  "tools": [
+    {
+      "name": "get_site_info",
+      "description": "Get the Squarespace website this API key belongs to: title, URL, site ID, currency, locale and business location",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/1.0/authorization/website"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "site_id": "siteId",
+          "title": "title",
+          "url": "url",
+          "currency": "currency",
+          "measurement_standard": "measurementStandard",
+          "language": "language",
+          "time_zone": "timeZone",
+          "region": "location.region",
+          "country": "location.country"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_orders",
+      "description": "List Squarespace store orders, newest modification first, optionally filtered by customer, fulfillment status or modification window",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "description": "Optional pagination.nextPageCursor from a previous response. Cannot be combined with any other parameter"
+          },
+          "customerId": {
+            "type": "string",
+            "description": "Optional Squarespace customer ID to filter by"
+          },
+          "fulfillmentStatus": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "FULFILLED",
+              "CANCELED"
+            ],
+            "description": "Optional fulfillment status to filter by"
+          },
+          "modifiedAfter": {
+            "type": "string",
+            "description": "Optional ISO 8601 UTC timestamp (YYYY-MM-DDThh:mm:ss.sZ). Required whenever modifiedBefore is passed"
+          },
+          "modifiedBefore": {
+            "type": "string",
+            "description": "Optional ISO 8601 UTC timestamp (YYYY-MM-DDThh:mm:ss.sZ). Required whenever modifiedAfter is passed"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/1.0/commerce/orders",
+        "query": {
+          "cursor": "{{input.cursor}}",
+          "customerId": "{{input.customerId}}",
+          "fulfillmentStatus": "{{input.fulfillmentStatus}}",
+          "modifiedAfter": "{{input.modifiedAfter}}",
+          "modifiedBefore": "{{input.modifiedBefore}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "result[]": {
+            "id": "id",
+            "order_number": "orderNumber",
+            "created_on": "createdOn",
+            "modified_on": "modifiedOn",
+            "customer_email": "customerEmail",
+            "customer_id": "customerId",
+            "fulfillment_status": "fulfillmentStatus",
+            "payment_state": "paymentState",
+            "channel": "channel",
+            "grand_total": "grandTotal.value",
+            "currency": "grandTotal.currency",
+            "testmode": "testmode"
+          },
+          "has_next_page": "pagination.hasNextPage",
+          "next_page_cursor": "pagination.nextPageCursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_products",
+      "description": "List Squarespace store products with pricing and visibility, newest modification first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "description": "Optional pagination.nextPageCursor from a previous response"
+          },
+          "query": {
+            "type": "string",
+            "description": "Optional search term to match products against"
+          },
+          "modifiedAfter": {
+            "type": "string",
+            "description": "Optional ISO 8601 UTC timestamp (YYYY-MM-DDThh:mm:ss.sZ)"
+          },
+          "modifiedBefore": {
+            "type": "string",
+            "description": "Optional ISO 8601 UTC timestamp (YYYY-MM-DDThh:mm:ss.sZ)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/commerce/products",
+        "query": {
+          "cursor": "{{input.cursor}}",
+          "query": "{{input.query}}",
+          "modifiedAfter": "{{input.modifiedAfter}}",
+          "modifiedBefore": "{{input.modifiedBefore}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "products[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "type": "type",
+            "url": "url",
+            "url_slug": "urlSlug",
+            "store_page_id": "storePageId",
+            "is_visible": "isVisible",
+            "created_on": "createdOn",
+            "modified_on": "modifiedOn",
+            "base_price": "pricing.basePrice.value",
+            "currency": "pricing.basePrice.currency",
+            "on_sale": "pricing.onSale"
+          },
+          "has_next_page": "pagination.hasNextPage",
+          "next_page_cursor": "pagination.nextPageCursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_inventory",
+      "description": "List real-time stock levels for every Squarespace product variant",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "description": "Optional pagination.nextPageCursor from a previous response"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/1.0/commerce/inventory",
+        "query": {
+          "cursor": "{{input.cursor}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "inventory[]": {
+            "variant_id": "variantId",
+            "sku": "sku",
+            "descriptor": "descriptor",
+            "quantity": "quantity",
+            "is_unlimited": "isUnlimited"
+          },
+          "has_next_page": "pagination.hasNextPage",
+          "next_page_cursor": "pagination.nextPageCursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_store_pages",
+      "description": "List the store pages on this Squarespace website and whether each is enabled",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "description": "Optional pagination.nextPageCursor from a previous response"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/1.0/commerce/store_pages",
+        "query": {
+          "cursor": "{{input.cursor}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "storePages[]": {
+            "id": "id",
+            "title": "title",
+            "url_slug": "urlSlug",
+            "is_enabled": "isEnabled"
+          },
+          "has_next_page": "pagination.hasNextPage",
+          "next_page_cursor": "pagination.nextPageCursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "auth left as scaffolded (bearer on api_key). The Making requests guide shows the header verbatim: -H \"Authorization: Bearer YOUR_API_KEY_OR_OAUTH_TOKEN\", and every operation in the reference lists Authorization as a required header with default 'Bearer YOUR_API_KEY_OR_OAUTH_TOKEN'. A site-issued API key is long-lived, so the one-field squarespace vault type is the right shape here and no token exchange is needed.",
+      "User-Agent is mandatory, so it is a static header on every call. Making requests, verbatim: \"Requests without a `User-Agent` header are rejected.\" The same guide warns that client-default values (curl/7.54.0) \"may be subject to stricter rate limiting\", which is why this sends a named product string rather than leaving it to the HTTP client. Verified live 2026-09-12 against GET /1.0/authorization/website with a dummy bearer: with the header, 401 application/json {\"type\":\"AUTHORIZATION_ERROR\",...,\"message\":\"You are not authorized to do that.\"}; with the header stripped, 403 text/html error page. The header is load-bearing, not cosmetic.",
+      "category changed from ecommerce to commerce_finance, matching where shopify, square, bigcommerce and stripe already sit in this wave's allowed list.",
+      "list_products uses /v2/commerce/products, NOT /1.0/commerce/products. The Products API reference now documents every product operation under v2 (GET https://api.squarespace.com/v2/commerce/products, and v2 for the by-ID, images and variants routes too), while Orders, Inventory, Store pages and the Authorization endpoint are still 1.0. Versions are per-API on this platform, so mixed path prefixes under one base_url are correct, not a mistake.",
+      "get_site_info is the Authorization API's single-website endpoint, not a list. The docs title it \"Retrieves basic details about the website that owns the provided API key or OAuth token\" and state that \"a given API key or OAuth token can only belong to one website\", so there is no list_websites operation to declare; it is named get_site_info to match what it returns. GET /1.0/authorization/member is deliberately left out: it resolves an OAuth member profile and returns nothing for an API key.",
+      "No page-size input anywhere, because the API exposes none. Every list endpoint is documented as returning \"up to 50\" items with dynamic cursor pagination, so the only lever is the cursor input plus truncate 2000. The declared 30 requests per 60s is this wave's standard and is stricter than Squarespace's own published rate limits.",
+      "list_orders keeps the documented mutual constraints in the input descriptions rather than enforcing them: modifiedAfter and modifiedBefore are each required when the other is passed, and cursor cannot be combined with other parameters. The reference documents the paymentStates filter as a comma-separated list, which this spec's query templating cannot express, so it is omitted and the API default (NOT_CHARGED, AUTHORIZED, PAID, REFUNDED) applies.",
+      "list_products omits the documented type filter for the same reason: it is a string[] joined comma-separated on the wire. The product's own type field is still returned in the picked shape, so filtering can happen after the call.",
+      "READ THE PROOF WITH THIS NOTE: the shape-proof run classifies AUTH_WALL, all six probes 401 with flag path_unproven, because Squarespace answers the deliberately bogus control path with the same 401 and the same error identity as the real routes. Its auth wall sits in front of routing, so no blind run can confirm a single path here. What this run does prove: DNS, TLS, the base_url, the mandatory User-Agent, and that the Bearer header reaches an authorization check that answers in the API's own JSON envelope. The paths themselves rest on the documentary provenance recorded in these notes, and only a real API key can flip them to 2xx.",
+      "Response wrappers differ per endpoint and are picked as documented, not normalised: orders answer under result, products under products, inventory under inventory, store pages under storePages, each beside a pagination object. Transactions (/1.0/commerce/transactions, wrapper documents) and Profiles (/1.0/profiles, in maintenance mode per the docs, superseded by Contacts) are left for a later pass."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

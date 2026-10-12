@@ -1,0 +1,187 @@
+{
+  "spec_version": 1,
+  "id": "basecamp",
+  "name": "Basecamp",
+  "category": "project_management",
+  "credentialType": "basecamp",
+  "requiredFields": [
+    "access_token",
+    "account_id"
+  ],
+  "docs": "https://github.com/basecamp/bc3-api",
+  "base_url": {
+    "template": "https://3.basecampapi.com/{{account_id}}",
+    "_probe": {
+      "account_id": "999999999"
+    }
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "static_headers": {
+    "User-Agent": "Quox Connector (https://quox.ai)"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/authorization.json"
+  },
+  "tools_source": "https://github.com/basecamp/bc3-api",
+  "tools": [
+    {
+      "name": "list_projects",
+      "description": "List the Basecamp projects visible to this token, most recently created first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived",
+              "trashed"
+            ],
+            "description": "Optional status filter (default is active projects only)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/projects.json",
+        "query": {
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "description": "description",
+            "purpose": "purpose",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "url": "url",
+            "app_url": "app_url",
+            "bookmarked": "bookmarked",
+            "starred": "starred"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_project",
+      "description": "Get one Basecamp project by ID, including its dock (the enabled tools and their IDs, e.g. the todoset)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "number",
+            "description": "Basecamp project (bucket) ID, e.g. 2085958505"
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/projects/{{input.project_id}}.json"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "status": "status",
+          "description": "description",
+          "purpose": "purpose",
+          "created_at": "created_at",
+          "updated_at": "updated_at",
+          "app_url": "app_url",
+          "dock[]": {
+            "id": "id",
+            "title": "title",
+            "name": "name",
+            "enabled": "enabled",
+            "url": "url"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_todolists",
+      "description": "List the to-do lists in one Basecamp to-do set; get the todoset ID from get_project's dock entry named 'todoset'",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "todoset_id": {
+            "type": "number",
+            "description": "Basecamp to-do set ID, e.g. 1069479829 (from get_project's dock)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "archived",
+              "trashed"
+            ],
+            "description": "Optional: return archived or trashed lists instead of active ones"
+          }
+        },
+        "required": [
+          "todoset_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/todosets/{{input.todoset_id}}/todolists.json",
+        "query": {
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "title": "title",
+            "status": "status",
+            "position": "position",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "comments_count": "comments_count",
+            "project": "bucket.name",
+            "app_url": "app_url",
+            "todos_url": "todos_url"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "BLOCKED for promotion: Basecamp has no long-lived static API key, and this vault type cannot hold the token lifecycle. sections/authentication.md says verbatim \"All Basecamp 5 API requests are authenticated by passing along an OAuth 2 token.\" and \"Access tokens expire after 2 weeks. Use the refresh token to request a new access token without requiring the user to re-authorize\". The basecamp vault type collects two fields, access_token and account_id, so nothing here can refresh: a pasted token 401s after two weeks with no recovery. Same shape as the gusto draft, so this ships as a probed draft, not a registered connector.",
+      "Basecamp also accepts a personal access token (authentication.md lists the tokens its own authorization document covers: \"a Basecamp-issued OAuth token or personal access token, or a legacy Launchpad-issued token\"), which would make the pasted-token shape viable. This API reference documents no issuance flow and no lifetime for one, so it is not evidence that the vault shape works, and the block stands until someone drives it.",
+      "Unblocking needs two changes outside this file: client_id, client_secret and refresh_token fields on the basecamp vault type, then auth.type oauth2_refresh with token_url https://launchpad.37signals.com/authorization/token. The documented refresh call is grant_type=refresh_token plus the current refresh token, which is exactly the grant declarativeRuntime already hardcodes.",
+      "auth left as scaffolded (bearer on access_token) because the WIRE format is right, only the lifecycle is wrong. README verbatim: curl -H \"Authorization: Bearer $ACCESS_TOKEN\" -A 'MyApp (yourname@example.com)' https://3.basecampapi.com/999999999/projects.json",
+      "base_url changed from the scaffolded https://launchpad.37signals.com (the OAuth host, not the API) to the account-prefixed API host. README verbatim: \"All URLs start with **`https://3.basecampapi.com/999999999/`**. URLs are HTTPS only. The path is prefixed with the account ID, but no `/api/v1` API prefix. Also, note the different domain!\" base_url._probe carries 999999999, Basecamp's own placeholder account ID from that line, so the harness renders a well-formed but nonexistent account rather than a non-numeric dummy. It is a public documentation value, not a credential.",
+      "User-Agent is mandatory, so it is a static header on every call. README verbatim: \"If you don't include a `User-Agent` header, you'll get a `400 Bad Request` response.\" Verified live 2026-09-12: with the header stripped, GET /authorization.json answered 400 text/plain; with it, 401 application/json.",
+      "READ THE PROOF WITH THIS NOTE: every account-scoped tool probe classifies FAIL with flag path_wrong, and that flag is wrong about the cause. Observed live 2026-09-12 with a dummy bearer against account 999999999, the documented routes answer 404 application/json with an EMPTY body (/projects.json, /projects/1.json, /todosets/3/todolists.json, /people.json, /my/profile.json), while an undocumented path on the same account answers 404 text/html with a 1383-byte error page (/nope.json, and the harness control path). So those routes matched and were rejected at account level, not missing. The harness's identifier-404 differential needs a non-empty body on our side and Basecamp sends none, so it cannot read a content-type differential. What this run proves on its own: DNS, TLS, the mandatory User-Agent, and the auth wall via the test call.",
+      "test path is /authorization.json under the account prefix. authentication.md puts that document at the API root without an account prefix (\"Basecamp serves its own authorization document at the API root\"), and the account-prefixed form was verified live 2026-09-12 to answer 401 application/json {\"error\":\"OAuth token could not be verified. The internal checksum failed, so the token data was somehow mangled or tampered with.\"} for a dummy bearer, which is what makes it the auth-proving call here. The runtime ignores the test block entirely.",
+      "No pagination or limit inputs anywhere: Basecamp pages with an RFC5988 Link header and README says verbatim \"please don't build the pagination URLs yourself!\", so no page or limit clamp is expressible. Response size is capped by truncate 2000 instead. Basecamp's own first rate limit is \"50 requests per 10 second period per IP address\"; this spec declares the wave standard 30 per 60s, which is stricter.",
+      "list_todolists uses the canonical flat route GET /todosets/3/todolists.json (sections/todolists.md), not the older project-scoped /buckets/1/todosets/3/todolists.json, which the same page keeps as \"still supported\". Both forms were observed live to route (404 application/json) under account 999999999."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

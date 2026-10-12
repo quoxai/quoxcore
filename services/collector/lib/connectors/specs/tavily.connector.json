@@ -1,0 +1,127 @@
+{
+  "spec_version": 1,
+  "id": "tavily",
+  "name": "Tavily",
+  "category": "data_ai",
+  "credentialType": "tavily",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Agent-native web search: a single graded search call returns ranked results plus an optional synthesized answer, and extract pulls raw content from specific URLs. Both are non-mutating POSTs, so both are write:false; Tavily's 1000 free monthly credits mean live proof costs nothing.",
+  "docs": "https://docs.tavily.com",
+  "base_url": "https://api.tavily.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/search",
+    "body": {
+      "query": "quox ai governance",
+      "max_results": 3
+    }
+  },
+  "tools_source": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+  "tools": [
+    {
+      "name": "search",
+      "description": "Run a Tavily agent-search and return ranked results with title, url, content excerpt and a relevance score, plus an optional synthesized answer. A non-mutating POST, so write:false; this is also the spec's auth-proving test call",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query text"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Max results to return (default 5)"
+          },
+          "search_depth": {
+            "type": "string",
+            "enum": [
+              "basic",
+              "advanced"
+            ],
+            "description": "Search depth (default basic)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/search",
+        "body": {
+          "query": "{{input.query}}",
+          "max_results": "{{input.max_results}}",
+          "search_depth": "{{input.search_depth}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "title": "title",
+            "url": "url",
+            "content": "content",
+            "score": "score"
+          },
+          "answer": "answer",
+          "response_time": "response_time"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.query": "quox ai governance"
+      }
+    },
+    {
+      "name": "extract",
+      "description": "Extract the raw text content of specific URLs. A non-mutating POST, write:false",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "urls": {
+            "type": "array",
+            "description": "URLs to extract content from"
+          }
+        },
+        "required": [
+          "urls"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/extract",
+        "body": {
+          "urls": "{{input.urls}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "url": "url",
+            "raw_content": "raw_content"
+          }
+        },
+        "truncate": 3000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-16, viral-AI-tools tranche grounding pair (project_viral_ai_build_plan_2026_09_16)",
+    "confidence": "high",
+    "needs_review": [
+      "NO LIVE CREDENTIAL AT AUTHORING TIME: this spec is shape-proved blind only. LIVE_PROVEN needs one real Tavily tvly- key; 1000 free monthly credits cover live proof at zero cost.",
+      "Tavily has no cheap authed GET, so the vault type's testEndpoint is null and validateCredentials checks the tvly- prefix only (format-only test depth); this spec's own /search POST carries the real auth proof."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

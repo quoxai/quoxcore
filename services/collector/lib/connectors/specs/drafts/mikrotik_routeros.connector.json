@@ -1,0 +1,98 @@
+{
+  "spec_version": 1,
+  "id": "mikrotik_routeros",
+  "name": "MikroTik RouterOS",
+  "category": "network",
+  "credentialType": "mikrotik_routeros",
+  "requiredFields": ["base_url", "username", "password"],
+  "description": "Read-only access to a MikroTik RouterOS v7 device over its REST API (/rest): device identity, system resources, routerboard model, interfaces, IP addresses and routes.",
+  "docs": "https://help.mikrotik.com/docs/display/ROS/REST+API",
+  "base_url": { "fromCredential": "base_url" },
+  "auth": { "type": "basic", "userField": "username", "passField": "password" },
+  "test": { "method": "GET", "path": "/rest/system/identity" },
+  "tools_source": "https://help.mikrotik.com/docs/display/ROS/REST+API",
+  "tools": [
+    {
+      "name": "get_identity",
+      "description": "Get the RouterOS device identity (its configured name)",
+      "input_schema": { "type": "object", "properties": {} },
+      "request": { "method": "GET", "path": "/rest/system/identity" },
+      "response": { "pick": { "name": "name" } },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_resource",
+      "description": "Get system resource usage: RouterOS version, uptime, CPU load, free/total memory, board name and architecture",
+      "input_schema": { "type": "object", "properties": {} },
+      "request": { "method": "GET", "path": "/rest/system/resource" },
+      "response": { "pick": {
+        "version": "version",
+        "uptime": "uptime",
+        "cpu_load": "cpu-load",
+        "free_memory": "free-memory",
+        "total_memory": "total-memory",
+        "board_name": "board-name",
+        "architecture_name": "architecture-name"
+      } },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_routerboard",
+      "description": "Get RouterBOARD hardware info: model, serial number, firmware type and current firmware",
+      "input_schema": { "type": "object", "properties": {} },
+      "request": { "method": "GET", "path": "/rest/system/routerboard" },
+      "response": { "pick": {
+        "model": "model",
+        "serial_number": "serial-number",
+        "firmware_type": "firmware-type",
+        "current_firmware": "current-firmware"
+      } },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_interfaces",
+      "description": "List network interfaces with name, type, running state and disabled flag",
+      "input_schema": { "type": "object", "properties": {} },
+      "request": { "method": "GET", "path": "/rest/interface" },
+      "response": { "pick": { "[]": {
+        "name": "name",
+        "type": "type",
+        "running": "running",
+        "disabled": "disabled"
+      } }, "truncate": 2000 },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_ip_addresses",
+      "description": "List configured IPv4 addresses with the interface each is bound to",
+      "input_schema": { "type": "object", "properties": {} },
+      "request": { "method": "GET", "path": "/rest/ip/address" },
+      "response": { "pick": { "[]": {
+        "address": "address",
+        "network": "network",
+        "interface": "interface",
+        "disabled": "disabled"
+      } }, "truncate": 2000 },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_routes",
+      "description": "List IPv4 routes with destination, gateway, distance and active state",
+      "input_schema": { "type": "object", "properties": {} },
+      "request": { "method": "GET", "path": "/rest/ip/route" },
+      "response": { "pick": { "[]": {
+        "dst_address": "dst-address",
+        "gateway": "gateway",
+        "distance": "distance",
+        "active": "active"
+      } }, "truncate": 2000 },
+      "write": false,
+      "_probe": {}
+    }
+  ]
+}

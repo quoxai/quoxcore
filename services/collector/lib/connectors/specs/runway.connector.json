@@ -1,0 +1,99 @@
+{
+  "spec_version": 1,
+  "id": "runway",
+  "name": "Runway ML",
+  "category": "data_ai",
+  "credentialType": "runway",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "READ-ONLY Runway Dev connector: organization credit balance and tier limits, plus task status polling. Every Runway generation endpoint (text_to_video, image_to_video, text_to_image, the recipes surface and the rest of the POST surface) SPENDS CREDITS, so none of them is exposed here; this connector only reads state that generation has already created.",
+  "docs": "https://docs.dev.runwayml.com/api",
+  "base_url": "https://api.dev.runwayml.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "static_headers": {
+    "X-Runway-Version": "2024-11-06"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/organization"
+  },
+  "tools_source": "https://docs.dev.runwayml.com/openapi.json",
+  "tools": [
+    {
+      "name": "get_organization",
+      "description": "Get the Runway organization behind this API key: remaining credit balance, the monthly credit spend ceiling and per-model concurrency limits",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/organization"
+      },
+      "response": {
+        "pick": {
+          "creditBalance": "creditBalance",
+          "maxMonthlyCreditSpend": "tier.maxMonthlyCreditSpend",
+          "modelLimits": "tier.models"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_task",
+      "description": "Get the status of one Runway generation task by ID: PENDING, THROTTLED, RUNNING, SUCCEEDED, FAILED or CANCELLED, with output URLs on success and the failure code on failure. Reads an existing task only; it never starts a generation",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Runway task ID returned by a generation request (a UUID, e.g. 17f20503-6c24-4c16-946b-35dbbce2af2f)"
+          }
+        },
+        "required": [
+          "task_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/tasks/{{input.task_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "status": "status",
+          "createdAt": "createdAt",
+          "progress": "progress",
+          "output": "output",
+          "failure": "failure",
+          "failureCode": "failureCode",
+          "credits_charged": "cost.credits",
+          "credits_estimated": "estimatedCost.credits"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "base_url (SCAFFOLD WAS WRONG, corrected this wave): the scaffold carried https://api.runwayml.com from integrationTypeRegistry. That host rejects an API key outright. Verbatim 401 body from api.runwayml.com/v1/account on 2026-09-12: {\"error\":\"Incorrect hostname for API key\",\"details\":\"You passed an API key to api.runwayml.com, which is not correct. The Runway public API is available at api.dev.runwayml.com instead.\"}. The docs agree, verbatim from https://docs.dev.runwayml.com/ai-context.md: \"Base URL: `https://api.dev.runwayml.com`\".",
+      "static_headers (ADDED this wave): verbatim from https://docs.dev.runwayml.com/ai-context.md: \"Required on every request: `X-Runway-Version: 2024-11-06`\" and \"**Do not skip the `X-Runway-Version` header.** Requests without it fail.\" The date is an API version pin, not a build stamp, and must be bumped deliberately when Runway publishes a newer one.",
+      "test (SCAFFOLD WAS WRONG, corrected this wave): the scaffolded test path /v1/account is not in Runway's OpenAPI document at all (https://docs.dev.runwayml.com/openapi.json lists /v1/organization, /v1/organization/usage and /v1/tasks/{id} but no /v1/account). The test block now points at GET /v1/organization, which the docs describe verbatim as \"**Organization** (2 endpoints, `/v1/organization`) — organization details and credit usage reporting\".",
+      "auth (KEPT as scaffolded): bearer in the Authorization header. Verbatim from https://docs.dev.runwayml.com/ai-context.md: \"Authentication: `Authorization: Bearer <your API secret>`\". The live host adds a format constraint a blind probe cannot satisfy, verbatim 401 from api.dev.runwayml.com on 2026-09-12: \"The provided API key in the Authorization header is not the correct length. It should begin with `key_` followed by 128 hex characters.\" A real key is needed to turn any of these calls 2xx.",
+      "read-only wave: GENERATION COSTS MONEY, so all 12 generation endpoints, the 7 recipes endpoints, POST /v1/uploads, the Model Router and Characters surfaces and DELETE /v1/tasks/{id} (cancel or delete a task) are deliberately NOT exposed. GET /v1/organization/usage, GET /v1/organization/webapp/usage, the audit-log reads and the /v1/workflows reads are read-only and safe but are out of scope for this wave.",
+      "shape-proof class AUTH_WALL, honestly: api.dev.runwayml.com answers the control path, /v1/organization and /v1/tasks/{id} with the byte-identical API-key-length 401, so the auth wall sits in front of routing and this run proves host, TLS, the version header and the auth rejection but NOT the two paths. The paths rest on Runway's own OpenAPI document (fetched 2026-09-12), not on this probe.",
+      "response picks: tier.models is an object keyed by model variant (60+ keys in the published schema), so get_organization leans on truncate 2000 rather than enumerating them. get_task's pick is the UNION of Runway's six task variants (pending, throttled, running, succeeded, failed, cancelled), so any single response fills only the fields its own status carries: progress on RUNNING, output plus cost on SUCCEEDED, failure plus failureCode on FAILED, estimatedCost on the non-terminal ones."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

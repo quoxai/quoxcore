@@ -1,0 +1,223 @@
+{
+  "spec_version": 1,
+  "id": "crisp",
+  "name": "Crisp",
+  "category": "communication",
+  "credentialType": "crisp",
+  "requiredFields": [
+    "identifier",
+    "key"
+  ],
+  "docs": "https://docs.crisp.chat/api/v1/",
+  "base_url": "https://api.crisp.chat",
+  "auth": {
+    "type": "basic",
+    "userField": "identifier",
+    "passField": "key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/website"
+  },
+  "tools_source": "https://docs.crisp.chat/references/rest-api/v1/",
+  "tools": [
+    {
+      "name": "list_conversations",
+      "description": "List conversations for one Crisp website (first page), newest activity first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "website_id": {
+            "type": "string",
+            "description": "Crisp website identifier (UUID, from the Crisp dashboard URL)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Page size for conversations paging (between 20 and 50, default 20)"
+          },
+          "search_query": {
+            "type": "string",
+            "description": "Optional search query (plain text when search_type is text)"
+          },
+          "search_type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "segment",
+              "filter"
+            ],
+            "description": "Optional search type applied to search_query"
+          }
+        },
+        "required": [
+          "website_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/website/{{input.website_id}}/conversations/1",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}",
+          "search_query": "{{input.search_query}}",
+          "search_type": "{{input.search_type}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "session_id": "session_id",
+            "people_id": "people_id",
+            "state": "state",
+            "status": "status",
+            "availability": "availability",
+            "is_verified": "is_verified",
+            "last_message": "last_message",
+            "nickname": "meta.nickname",
+            "email": "meta.email",
+            "unread_operator": "unread.operator",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "reason": "reason"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_conversation",
+      "description": "Get one Crisp conversation by session ID, with its state, visitor metadata and last message",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "website_id": {
+            "type": "string",
+            "description": "Crisp website identifier (UUID, from the Crisp dashboard URL)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Crisp conversation session identifier (e.g. session_aaea8e1d-d6e3-4238-9252-d8c2e5579f5c)"
+          }
+        },
+        "required": [
+          "website_id",
+          "session_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/website/{{input.website_id}}/conversation/{{input.session_id}}"
+      },
+      "response": {
+        "pick": {
+          "session_id": "data.session_id",
+          "website_id": "data.website_id",
+          "people_id": "data.people_id",
+          "state": "data.state",
+          "status": "data.status",
+          "availability": "data.availability",
+          "is_verified": "data.is_verified",
+          "is_blocked": "data.is_blocked",
+          "last_message": "data.last_message",
+          "nickname": "data.meta.nickname",
+          "email": "data.meta.email",
+          "segments": "data.meta.segments",
+          "unread_operator": "data.unread.operator",
+          "created_at": "data.created_at",
+          "updated_at": "data.updated_at"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_people_stats",
+      "description": "Get the number of people stored in one Crisp website's CRM",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "website_id": {
+            "type": "string",
+            "description": "Crisp website identifier (UUID, from the Crisp dashboard URL)"
+          }
+        },
+        "required": [
+          "website_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/website/{{input.website_id}}/people/stats"
+      },
+      "response": {
+        "pick": {
+          "total": "data.total",
+          "reason": "reason"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_people_profiles",
+      "description": "List people profiles in one Crisp website's CRM (first page), optionally filtered by a quick search text",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "website_id": {
+            "type": "string",
+            "description": "Crisp website identifier (UUID, from the Crisp dashboard URL)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Page size for people paging (between 20 and 50, default 20)"
+          },
+          "search_text": {
+            "type": "string",
+            "description": "Optional quick search text matched against people profiles"
+          }
+        },
+        "required": [
+          "website_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/website/{{input.website_id}}/people/profiles/1",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}",
+          "search_text": "{{input.search_text}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "people_id": "people_id",
+            "email": "email",
+            "nickname": "person.nickname",
+            "phone": "person.phone",
+            "segments": "segments",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "reason": "reason"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Scaffolded test block left untouched, but the 2026-09-11 shape-proof shows GET /v1/website answering 405 unknown_method: the official docs list that route as HEAD /v1/website{?domain} only, so the connection test can never return 2xx as written. The four tools themselves are 401 SHAPE_PROVEN. A credential-only GET alternative exists (GET /v1/plugin/connect/account, plugin tier), but it is plugin-tier only and would fail a user-tier token, so the swap is an owner call rather than a silent edit.",
+      "Every read needs a website_id path parameter, so no _probe hint is possible without a real tenant UUID. Crisp rejects the dummy credential with a structured 401 (invalid_session) before routing on the identifier, and that 401 differs from the control 404, so the paths are proven without one."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

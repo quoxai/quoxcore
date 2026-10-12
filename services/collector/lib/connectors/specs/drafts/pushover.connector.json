@@ -1,0 +1,31 @@
+{
+  "spec_version": 1,
+  "id": "pushover",
+  "name": "Pushover",
+  "category": "communication",
+  "credentialType": "pushover",
+  "requiredFields": [
+    "api_token",
+    "user_key"
+  ],
+  "docs": "https://pushover.net/api#verification",
+  "base_url": "https://api.pushover.net",
+  "auth": null,
+  "static_headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/1/users/validate.json",
+    "body": "token={{api_token}}&user={{user_key}}"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "no_auth_detected"
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-03-02T15:13:17+00:00",
+  "mode": "weekly",
+  "sha": "8e0aff979f038766e08a9b46291da6f84380e427",
+  "last_sha": "none",
+  "changed_routes": "ALL",
+  "changed_cli": "none",
+  "affected_commands": "ALL",
+  "tests": {
+    "result": "pass",
+    "total": "141",
+    "failed": "0"
+  },
+  "smoke": {
+    "result": "13 passed, 0 failed",
+    "failures": "none"
+  },
+  "schema_drifts": "3101/api/orgs:organizations:org list 3101/api/orgs/01KGXQGVF36579YESP5GNYQZWJ:organization:org get 3101/api/orgs/01KJ333QCEX8KRQAQEWW3ENSMF/tools:items:tool list 3101/api/orgs/01KJ333QCEX8KRQAQEWW3ENSMF/workflows:items:workflow list 3101/api/orgs/01KJ333QCEX8KRQAQEWW3ENSMF/assistants:items:assistant list 3101/api/orgs/01KJ333QCEX8KRQAQEWW3ENSMF/runs:items:run list 3101/api/orgs/01KJ333QCEX8KRQAQEWW3ENSMF/backups:items:backup list",
+  "coverage_gaps": "none"
+}

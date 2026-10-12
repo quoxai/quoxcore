@@ -1,0 +1,12 @@
+{
+  "kind": "email", "prefixes": ["email:"], "area": "messages", "derive": "mail",
+  "variants": [
+    { "id": "email",
+      "urgency": [{ "when": { "priority": ["urgent", "high"] }, "is": "now" }, { "is": "today" }],
+      "short": "email from {from}",
+      "L0": "Email from {from}: {headline}",
+      "L1": { "who": "{from}", "what": "{headline}", "why": "{why|\"It was flagged as needing you.\"}" },
+      "how": "Tell me what to say back and I will draft it.",
+      "measures": ["reply"] }
+  ]
+}

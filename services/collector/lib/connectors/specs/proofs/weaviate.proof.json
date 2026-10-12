@@ -1,0 +1,106 @@
+{
+  "spec_id": "weaviate",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T19:17:05.664Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/meta",
+      "status": 200,
+      "latency_ms": 427,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "63425fc01c58a77d160761fccbe7071303a05834a02f1fbf59df35e3e200819a",
+      "body_excerpt": "{\"grpcMaxMessageSize\":10485760,\"hostname\":\"http://[::]:8080\",\"modules\":{},\"version\":\"1.27.2\"}\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "meta",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/meta",
+      "status": 200,
+      "latency_ms": 13,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "63425fc01c58a77d160761fccbe7071303a05834a02f1fbf59df35e3e200819a",
+      "body_excerpt": "{\"grpcMaxMessageSize\":10485760,\"hostname\":\"http://[::]:8080\",\"modules\":{},\"version\":\"1.27.2\"}\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_collections",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/schema",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "57b22f84837456658131e8cbc44f12e7a4294e4e501212d126e1e18968c22685",
+      "body_excerpt": "{\"classes\":[{\"class\":\"QuoxproofLive\",\"invertedIndexConfig\":{\"bm25\":{\"b\":0.75,\"k1\":1.2},\"cleanupIntervalSeconds\":60,\"stopwords\":{\"additions\":null,\"preset\":\"en\",\"removals\":null}},\"multiTenancyConfig\":{\"",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_collection",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/schema/QuoxproofLive",
+      "status": 200,
+      "latency_ms": 13,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "28e144792f9ff421b99105bc9df94906a0deb4dceccbe3cab9a34ccb2bacfc16",
+      "body_excerpt": "{\"class\":\"QuoxproofLive\",\"invertedIndexConfig\":{\"bm25\":{\"b\":0.75,\"k1\":1.2},\"cleanupIntervalSeconds\":60,\"stopwords\":{\"additions\":null,\"preset\":\"en\",\"removals\":null}},\"multiTenancyConfig\":{\"autoTenantAc",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_shards",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/schema/QuoxproofLive/shards",
+      "status": 200,
+      "latency_ms": 10,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "3e796233143f3d774e9802064463cde93c4c6ae96b15a97928fb912f083f38dc",
+      "body_excerpt": "[{\"name\":\"AINXcFOAf4p4\",\"status\":\"READY\",\"vectorQueueSize\":0}]\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "nodes",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/nodes",
+      "status": 200,
+      "latency_ms": 9,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "5d105d5a8142b3f346db09af80cae2aa08c4f8a908fbd8072852e6a6b770b3d0",
+      "body_excerpt": "{\"nodes\":[{\"batchStats\":{\"queueLength\":0,\"ratePerSecond\":0},\"gitHash\":\"64457c2\",\"name\":\"5842a689cf96\",\"shards\":null,\"status\":\"HEALTHY\",\"version\":\"1.27.2\"}]}\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "objects",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/objects?class=QuoxproofLive&limit=25",
+      "status": 200,
+      "latency_ms": 9,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "54d2f910f275f03d758099862285f2c7f61cebdc41cfb20f559392a08dd2ed47",
+      "body_excerpt": "{\"deprecations\":[],\"objects\":[]}\n",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:semitechnologies/weaviate:1.27.2"
+}

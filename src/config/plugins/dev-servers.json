@@ -1,0 +1,77 @@
+{
+  "name": "dev-servers",
+  "version": "1.0.0",
+  "displayName": "Quox Dev Servers",
+  "tagline": "Every dev server, one hub.",
+  "description": "Fleet visibility for hosts running the Quox dev-mode agent. See every registered dev server, its profile-verification status, and which dev-suite capabilities (register, build, clarify, gripe, docs) each host has enabled versus available. Read-only inventory today; per-capability panels (build queue, clarify, gripes, docs) land as member plugins ship.",
+  "shortDescription": "Registered dev-server inventory with per-host capability visibility.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 39,
+  "priceDisplay": "$39",
+  "priceModel": "one-time",
+  "tier": "standard",
+  "featured": false,
+  "icon": "server",
+  "accentColor": "#38bdf8",
+  "infoUrl": "https://quox.ai/solutions/dev-suite",
+  "docsUrl": "https://quox.ai/docs/plugins/dev-servers",
+  "marketingPoints": [
+    "Every registered dev server in one panel",
+    "Profile-verification status at a glance",
+    "Per-host capability pills: register, build, clarify, gripe, docs",
+    "Durable registry survives collector restarts",
+    "Read-only today, capability panels roll in per member plugin"
+  ],
+  "features": {
+    "fleetInventory": {
+      "name": "Dev Server Inventory",
+      "description": "See every host that has enabled the dev-mode agent profile, sourced from the durable dev_servers registry.",
+      "icon": "server",
+      "highlight": true
+    },
+    "profileVerification": {
+      "name": "Profile Verification",
+      "description": "Each host shows whether its signed dev-mode capability profile has been verified.",
+      "icon": "shield-check",
+      "highlight": true
+    },
+    "capabilityPills": {
+      "name": "Capability Visibility",
+      "description": "Enabled vs. known dev-suite capabilities (dev.register, dev.build, dev.clarify, dev.gripe, dev.docs) per host.",
+      "icon": "tag"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "quoxagent dev-mode capability profile (dev.register) enabled on the host"
+  },
+  "integration": {
+    "client": "collector GET /api/v1/dev-servers",
+    "panel": "src/components/devsuite/DevServersHubPanel.jsx"
+  },
+  "safety": {
+    "destructiveActions": [],
+    "requiresApproval": [],
+    "aeeRequired": false,
+    "killSwitchEnabled": false
+  },
+  "notes": {
+    "important": "Phase 1 of DEVSUITE-HUB: read-only inventory grid only. No build queue, live log stream, or terminal in this pass — those are DEVSUITE-BUILD's per-capability panels, layered on later. See docs/STREAM_DEVSUITE_HUB_PLAN.md."
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-08-10",
+      "changes": [
+        "Initial release",
+        "Read-only dev-server inventory panel",
+        "Profile-verified badge",
+        "Enabled/known capability pills"
+      ]
+    }
+  },
+  "category": "Infrastructure",
+  "includedIn": [
+    "dev-suite-bundle"
+  ]
+}

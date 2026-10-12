@@ -1,0 +1,32 @@
+{
+  "spec_version": 1,
+  "id": "woocommerce",
+  "name": "WooCommerce",
+  "category": "ecommerce",
+  "credentialType": "woocommerce",
+  "requiredFields": [
+    "consumer_key",
+    "consumer_secret",
+    "store_url"
+  ],
+  "docs": "https://woocommerce.github.io/woocommerce-rest-api-docs/",
+  "base_url": {
+    "fromCredential": "store_url"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "consumer_key",
+    "passField": "consumer_secret"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/wp-json/wc/v3/system_status"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

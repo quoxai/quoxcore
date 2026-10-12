@@ -1,0 +1,31 @@
+{
+  "id": "tiktok",
+  "name": "tiktok",
+  "displayName": "TikTok",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "social",
+  "accentColor": "#FE2C55",
+  "description": "Governed TikTok video publishing and draft uploads on your own dedicated TikTok credential: direct video publish from the org media library, draft uploads to the account's TikTok inbox, profile and recent-video reads, per-video stats, and publish-status lookups. Unaudited apps post SELF_ONLY only; access tokens live 24 hours with no auto-refresh yet.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/tiktok",
+      "label": "TikTok",
+      "icon": "tiktok",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/tiktok": "TikTokView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

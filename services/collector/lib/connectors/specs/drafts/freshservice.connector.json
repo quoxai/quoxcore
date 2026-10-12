@@ -1,0 +1,35 @@
+{
+  "spec_version": 1,
+  "id": "freshservice",
+  "name": "Freshservice",
+  "category": "uncategorized",
+  "credentialType": "freshservice",
+  "requiredFields": [
+    "domain",
+    "api_key"
+  ],
+  "docs": "https://api.freshservice.com/",
+  "base_url": {
+    "fromCredential": "domain",
+    "template": "https://{{domain}}.freshservice.com"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": ""
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/tickets"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url_template",
+      "basic_literal_password"
+    ]
+  }
+}

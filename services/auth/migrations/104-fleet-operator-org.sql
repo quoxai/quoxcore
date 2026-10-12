@@ -1,0 +1,21 @@
+-- quox#642: instance-operator-org fallback for fleet hosts with no org_id.
+--
+-- A fleet/dev host that heartbeats without an org_id is attributed to a
+-- non-existent 'default' org, so its skill-pack-install HITL approval has no
+-- owner to assign to and fails "No assignee found for this org". This key lets
+-- an instance operator declare "unattributed hosts on this box route their
+-- approvals to org X".
+--
+-- Writable ONLY via the human-admin config path (PATCH /admin/config/:key behind
+-- requireInstanceAdmin — no service/agent bypass, so a resident agent cannot
+-- configure its own approval routing). Read by the collector via
+-- /api/internal/instance/disposable-test (fleet_operator_org_id) and consumed by
+-- services/collector/lib/devServerSkillPackTrigger.js.
+--
+-- Seeded EMPTY so the key exists (the admin PATCH 404s unknown keys) and the
+-- default is fail-safe: empty = require-explicit-org (unattributed hosts DEFER,
+-- no auto-attribution); an operator sets it to a real org to enable
+-- default-to-operator. INSERT OR IGNORE is idempotent and never overwrites an
+-- operator-set value.
+INSERT OR IGNORE INTO instance_config (key, value, value_type, description) VALUES
+    ('fleet.operator_org_id', '', 'string', 'Org that approves skill-pack installs for fleet hosts that heartbeat without an org_id (quox#642). Empty = require-explicit-org (unattributed hosts defer); set = default-to-operator. Human-admin-writable only.');

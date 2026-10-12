@@ -1,0 +1,153 @@
+{
+  "spec_version": 1,
+  "id": "google_sheets",
+  "name": "Google Sheets",
+  "category": "files_knowledge",
+  "credentialType": "google_sheets",
+  "requiredFields": [
+    "service_account_json"
+  ],
+  "description": "Read Google Sheets spreadsheet metadata and cell values via a service account",
+  "docs": "https://developers.google.com/sheets/api",
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "base_url": "https://sheets.googleapis.com",
+  "auth": {
+    "type": "google_service_account",
+    "scope": "https://www.googleapis.com/auth/spreadsheets.readonly",
+    "field": "service_account_json"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v4/spreadsheets/quoxprobe"
+  },
+  "tools_source": "https://developers.google.com/sheets/api/reference/rest",
+  "tools": [
+    {
+      "name": "get_spreadsheet",
+      "description": "Get a Google spreadsheet's metadata: title, locale, time zone and the sheets (tabs) it contains",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "spreadsheet_id": {
+            "type": "string",
+            "description": "Spreadsheet ID, the long token in the sheet URL (docs.google.com/spreadsheets/d/<ID>/edit)"
+          }
+        },
+        "required": [
+          "spreadsheet_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v4/spreadsheets/{{input.spreadsheet_id}}"
+      },
+      "response": {
+        "pick": {
+          "spreadsheetId": "spreadsheetId",
+          "title": "properties.title",
+          "locale": "properties.locale",
+          "timeZone": "properties.timeZone",
+          "sheets[]": {
+            "sheetId": "properties.sheetId",
+            "title": "properties.title",
+            "index": "properties.index",
+            "sheetType": "properties.sheetType",
+            "rowCount": "properties.gridProperties.rowCount",
+            "columnCount": "properties.gridProperties.columnCount"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_values",
+      "description": "Read the cell values in one A1-notation range of a Google spreadsheet",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "spreadsheet_id": {
+            "type": "string",
+            "description": "Spreadsheet ID, the long token in the sheet URL (docs.google.com/spreadsheets/d/<ID>/edit)"
+          },
+          "range": {
+            "type": "string",
+            "description": "A1-notation range, optionally sheet-qualified (e.g. 'Sheet1!A1:D20' or 'A1:D20')"
+          }
+        },
+        "required": [
+          "spreadsheet_id",
+          "range"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v4/spreadsheets/{{input.spreadsheet_id}}/values/{{input.range}}"
+      },
+      "response": {
+        "pick": {
+          "range": "range",
+          "majorDimension": "majorDimension",
+          "values": "values"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.range": "A1:B2"
+      }
+    },
+    {
+      "name": "batch_get_values",
+      "description": "Read the cell values of an A1-notation range across a Google spreadsheet in one batch call",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "spreadsheet_id": {
+            "type": "string",
+            "description": "Spreadsheet ID, the long token in the sheet URL (docs.google.com/spreadsheets/d/<ID>/edit)"
+          },
+          "range": {
+            "type": "string",
+            "description": "A1-notation range to fetch (e.g. 'Sheet1!A1:D20')"
+          }
+        },
+        "required": [
+          "spreadsheet_id",
+          "range"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v4/spreadsheets/{{input.spreadsheet_id}}/values:batchGet",
+        "query": {
+          "ranges": "{{input.range}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "spreadsheetId": "spreadsheetId",
+          "valueRanges[]": {
+            "range": "range",
+            "majorDimension": "majorDimension",
+            "values": "values"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.range": "A1:B2"
+      }
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored from https://developers.google.com/sheets/api/reference/rest (CONNFAC)",
+    "confidence": "medium",
+    "needs_review": [
+      "READ-ONLY by design: the declared scope is spreadsheets.readonly, so no tool is marked write:true and any values.update/append port would need a wider scope first.",
+      "The google_service_account JWT-bearer grant is NOT blind-provable: the shape-proof harness probes the API surface with a dummy bearer, so paths and auth handling are tested but the token exchange with a real service-account key is not. Flagged token_flow_untested in the proof.",
+      "The vault type google_sheets has testEndpoint: null, so credential activation cannot be verified in the auth service either; the spec test block (GET /v4/spreadsheets/quoxprobe) is the only surface check."
+    ]
+  }
+}

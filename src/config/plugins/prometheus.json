@@ -1,0 +1,128 @@
+{
+  "name": "prometheus",
+  "version": "2.0.0",
+  "displayName": "Prometheus Intelligence",
+  "tagline": "Fleet Health & Anomaly Detection",
+  "description": "Fleet health heatmap with anomaly detection, capacity forecasting, PromQL explorer, and alert timeline. Turns raw Prometheus metrics into actionable infrastructure intelligence.",
+  "shortDescription": "Fleet heatmap, anomaly detection, capacity forecasting.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 19,
+  "priceDisplay": "$19",
+  "priceModel": "one-time",
+  "tier": "standard",
+  "featured": false,
+  "icon": "cpu",
+  "accentColor": "#e6522c",
+  "infoUrl": "https://quox.ai/plugins/prometheus",
+  "docsUrl": "https://quox.ai/docs/plugins/prometheus",
+  "marketingPoints": [
+    "Fleet health heatmap \u2014 every host at a glance",
+    "Anomaly detection without alert rules",
+    "Capacity forecasting \u2014 disk full in X days",
+    "PromQL explorer with preset queries",
+    "Alert timeline with severity history"
+  ],
+  "features": {
+    "metricsPanel": {
+      "name": "Metrics Dashboard",
+      "description": "See CPU, memory, and disk usage across all monitored hosts at a glance.",
+      "icon": "bar-chart",
+      "highlight": true
+    },
+    "alertIntegration": {
+      "name": "Alert Integration",
+      "description": "View all firing and pending alerts with severity classification.",
+      "icon": "alert-triangle",
+      "highlight": true
+    },
+    "targetHealth": {
+      "name": "Target Health",
+      "description": "Monitor scrape target status - see which hosts are up or down.",
+      "icon": "heart"
+    },
+    "promqlQueries": {
+      "name": "PromQL Queries",
+      "description": "Execute custom PromQL queries from QUOX.",
+      "icon": "terminal"
+    },
+    "rangeQueries": {
+      "name": "Range Queries",
+      "description": "Query historical metrics over time ranges.",
+      "icon": "clock"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "Prometheus server"
+  },
+  "route": "/monitoring/prometheus",
+  "integration": {
+    "client": "src/services/prometheusClient.js",
+    "panel": "src/components/core/monitoring/MetricsPanel.jsx",
+    "view": "src/pages/views/PrometheusView.jsx"
+  },
+  "nocIntegration": {
+    "tab": {
+      "label": "Metrics",
+      "icon": "cpu",
+      "order": 20
+    },
+    "quickActions": [
+      {
+        "id": "prom-overview",
+        "label": "Metrics Overview",
+        "icon": "cpu",
+        "description": "CPU, memory, and disk usage across all hosts",
+        "severity": "info",
+        "prompt": "Show current CPU, memory, and disk usage across all hosts from Prometheus"
+      },
+      {
+        "id": "prom-targets",
+        "label": "Target Health",
+        "icon": "health",
+        "description": "Check which Prometheus scrape targets are up or down",
+        "severity": "warning",
+        "prompt": "Show Prometheus target health status \u2014 which targets are up and which are down"
+      },
+      {
+        "id": "prom-alerts",
+        "label": "Firing Alerts",
+        "icon": "logs",
+        "description": "Show all currently firing Prometheus alerts",
+        "severity": "warning",
+        "prompt": "Show all currently firing Prometheus alerts with severity"
+      }
+    ],
+    "schedulable": true,
+    "templateVariables": [
+      {
+        "name": "query",
+        "description": "PromQL query expression"
+      },
+      {
+        "name": "threshold",
+        "description": "Alert threshold value"
+      }
+    ]
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2025-01-25",
+      "changes": [
+        "Initial release",
+        "System metrics overview",
+        "Alert categorization",
+        "Target health monitoring",
+        "PromQL query execution",
+        "Range query support"
+      ]
+    }
+  },
+  "category": "Monitoring",
+  "safety": {
+    "destructiveActions": [],
+    "requiresApproval": [],
+    "readOnly": true
+  }
+}

@@ -1,0 +1,255 @@
+{
+  "spec_version": 1,
+  "id": "bitbucket",
+  "name": "Bitbucket",
+  "category": "developer",
+  "credentialType": "bitbucket",
+  "requiredFields": [
+    "username",
+    "app_password"
+  ],
+  "docs": "https://developer.atlassian.com/cloud/bitbucket/rest/intro/",
+  "base_url": "https://api.bitbucket.org",
+  "auth": {
+    "type": "basic",
+    "userField": "username",
+    "passField": "app_password"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/2.0/user"
+  },
+  "tools_source": "https://developer.atlassian.com/cloud/bitbucket/rest/api-group-repositories/",
+  "tools": [
+    {
+      "name": "get_user",
+      "description": "Get the Bitbucket account the credential belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/user"
+      },
+      "response": {
+        "pick": {
+          "uuid": "uuid",
+          "username": "username",
+          "nickname": "nickname",
+          "display_name": "display_name",
+          "account_id": "account_id",
+          "created_on": "created_on"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "description": "List the Bitbucket workspaces this account is a member of",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "pagelen": {
+            "type": "number",
+            "description": "Max workspaces to return per page (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/workspaces",
+        "query": {
+          "pagelen": "{{clamp input.pagelen 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "values[]": {
+            "uuid": "uuid",
+            "slug": "slug",
+            "name": "name",
+            "is_private": "is_private",
+            "created_on": "created_on"
+          },
+          "size": "size",
+          "page": "page",
+          "pagelen": "pagelen"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_repositories",
+      "description": "List the repositories in one Bitbucket workspace",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "description": "Bitbucket workspace slug or UUID"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "member",
+              "contributor",
+              "admin",
+              "owner"
+            ],
+            "description": "Optional role filter for the repositories returned"
+          },
+          "pagelen": {
+            "type": "number",
+            "description": "Max repositories to return per page (default 20, max 50)"
+          }
+        },
+        "required": [
+          "workspace"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/repositories/{{input.workspace}}",
+        "query": {
+          "role": "{{input.role}}",
+          "pagelen": "{{clamp input.pagelen 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "values[]": {
+            "uuid": "uuid",
+            "name": "name",
+            "full_name": "full_name",
+            "is_private": "is_private",
+            "language": "language",
+            "updated_on": "updated_on"
+          },
+          "size": "size",
+          "page": "page",
+          "pagelen": "pagelen"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.workspace": "atlassian"
+      }
+    },
+    {
+      "name": "get_repository",
+      "description": "Get one Bitbucket repository by workspace and repository slug",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "description": "Bitbucket workspace slug or UUID"
+          },
+          "repo_slug": {
+            "type": "string",
+            "description": "Repository slug or UUID"
+          }
+        },
+        "required": [
+          "workspace",
+          "repo_slug"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/repositories/{{input.workspace}}/{{input.repo_slug}}"
+      },
+      "response": {
+        "pick": {
+          "uuid": "uuid",
+          "name": "name",
+          "full_name": "full_name",
+          "is_private": "is_private",
+          "language": "language",
+          "size": "size",
+          "created_on": "created_on",
+          "updated_on": "updated_on"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.workspace": "atlassian",
+        "input.repo_slug": "atlassian-frontend-mirror"
+      }
+    },
+    {
+      "name": "list_pullrequests",
+      "description": "List pull requests on one Bitbucket repository, optionally filtered by state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "description": "Bitbucket workspace slug or UUID"
+          },
+          "repo_slug": {
+            "type": "string",
+            "description": "Repository slug or UUID"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "MERGED",
+              "DECLINED",
+              "SUPERSEDED"
+            ],
+            "description": "Optional pull request state to filter by (default OPEN)"
+          },
+          "pagelen": {
+            "type": "number",
+            "description": "Max pull requests to return per page (default 20, max 50)"
+          }
+        },
+        "required": [
+          "workspace",
+          "repo_slug"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/repositories/{{input.workspace}}/{{input.repo_slug}}/pullrequests",
+        "query": {
+          "state": "{{input.state}}",
+          "pagelen": "{{clamp input.pagelen 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "values[]": {
+            "id": "id",
+            "title": "title",
+            "state": "state",
+            "created_on": "created_on",
+            "updated_on": "updated_on",
+            "comment_count": "comment_count"
+          },
+          "size": "size",
+          "page": "page",
+          "pagelen": "pagelen"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.workspace": "atlassian",
+        "input.repo_slug": "atlassian-frontend-mirror"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

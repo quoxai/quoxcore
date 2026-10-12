@@ -1,0 +1,37 @@
+{
+  "spec_version": 1,
+  "id": "chargebee",
+  "name": "Chargebee",
+  "category": "payments",
+  "credentialType": "chargebee",
+  "requiredFields": [
+    "site",
+    "api_key"
+  ],
+  "docs": "https://apidocs.chargebee.com/docs/api/",
+  "base_url": {
+    "fromCredential": "site",
+    "template": "https://{{site}}.chargebee.com"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": ""
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/subscriptions",
+    "query": {
+      "limit": "1"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url_template"
+    ]
+  }
+}

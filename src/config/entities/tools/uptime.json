@@ -1,0 +1,200 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "uptime",
+
+  "name": "Uptime & SLA Tools",
+  "description": "Service monitoring, SLA tracking, and availability reporting",
+  "category": "monitoring",
+  "subcategory": "availability",
+  "provider": "quox",
+  "version": "1.0.0",
+
+  "risk_level": "low",
+  "sandbox_profile": "standard",
+
+  "tools": [
+    {
+      "id": "uptime.check",
+      "name": "Service Check",
+      "description": "Check availability of HTTP/HTTPS endpoints",
+      "aeeIntent": "quox.noc.uptime.check",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "urls": {
+          "type": "array",
+          "required": true,
+          "description": "URLs to check"
+        },
+        "timeout": {
+          "type": "number",
+          "required": false,
+          "default": 10,
+          "description": "Timeout in seconds"
+        },
+        "expected_status": {
+          "type": "number",
+          "required": false,
+          "default": 200
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": { "type": "string" },
+                "status": { "type": "number" },
+                "latency_ms": { "type": "number" },
+                "healthy": { "type": "boolean" },
+                "error": { "type": "string" }
+              }
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "number" },
+              "healthy": { "type": "number" },
+              "unhealthy": { "type": "number" }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Check if services are responding",
+        "when_to_use": [
+          "User asks if services are up",
+          "Health check before deployment",
+          "Troubleshooting connectivity"
+        ]
+      }
+    },
+    {
+      "id": "uptime.sla_report",
+      "name": "SLA Report",
+      "description": "Generate SLA compliance report for services",
+      "aeeIntent": "quox.noc.uptime.sla.report",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "services": {
+          "type": "array",
+          "required": false,
+          "description": "Service names (omit for all monitored)"
+        },
+        "period": {
+          "type": "string",
+          "required": false,
+          "enum": ["day", "week", "month", "quarter"],
+          "default": "month"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "period": { "type": "string" },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "uptime_percent": { "type": "number" },
+                "downtime_minutes": { "type": "number" },
+                "incidents": { "type": "number" },
+                "sla_target": { "type": "number" },
+                "sla_met": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Generate uptime/SLA compliance report",
+        "when_to_use": [
+          "User asks about SLA",
+          "Monthly availability report",
+          "Service level review"
+        ]
+      }
+    },
+    {
+      "id": "uptime.incidents",
+      "name": "Incident History",
+      "description": "List recent incidents and outages",
+      "aeeIntent": "quox.noc.uptime.incidents.query",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "service": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by service"
+        },
+        "days": {
+          "type": "number",
+          "required": false,
+          "default": 30
+        },
+        "severity": {
+          "type": "string",
+          "required": false,
+          "enum": ["critical", "major", "minor", "all"],
+          "default": "all"
+        }
+      },
+      "instructions": {
+        "summary": "View recent incidents and outages",
+        "when_to_use": [
+          "User asks about recent outages",
+          "Incident review",
+          "Troubleshooting recurring issues"
+        ]
+      }
+    },
+    {
+      "id": "uptime.dependencies",
+      "name": "Dependency Check",
+      "description": "Check health of service dependencies",
+      "aeeIntent": "quox.noc.uptime.dependencies.check",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "service": {
+          "type": "string",
+          "required": true,
+          "description": "Service to check dependencies for"
+        }
+      },
+      "instructions": {
+        "summary": "Check if all dependencies of a service are healthy",
+        "when_to_use": [
+          "Troubleshooting service failures",
+          "Pre-deployment checks",
+          "Understanding service dependencies"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {"base": "internal", "api": "bastion_ssh"},
+
+  "agent_hints": {
+    "primary_agent": "beacon",
+    "delegation_keywords": ["uptime", "sla", "availability", "incident", "outage", "dependency", "service health"]
+  }
+}

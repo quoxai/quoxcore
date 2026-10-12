@@ -1,0 +1,1155 @@
+/* ============================================================
+   Inbox — Glass Design System
+   Replaces inbox-layout.css. All class names preserved for JSX.
+   ============================================================ */
+
+/* --- Glass Tokens --- */
+:root {
+  --inbox-bg: transparent;
+  --inbox-glass-bg: linear-gradient(145deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.005) 100%);
+  --inbox-glass-blur: var(--glass-blur-strong);
+  --inbox-glass-border-top: rgba(255,255,255,0.40);
+  --inbox-glass-border-left: rgba(255,255,255,0.31);
+  --inbox-glass-border-rb: transparent;
+  --inbox-glass-shadow: 0 5px 19px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.08);
+  --inbox-text-primary: #fff;
+  --inbox-text-secondary: rgba(255,255,255,0.7);
+  --inbox-text-muted: rgba(255,255,255,0.6);
+  --inbox-purple: #a855f7;
+  --inbox-cyan: #06b6d4;
+  --inbox-gradient: linear-gradient(135deg, #a855f7, #06b6d4);
+  --inbox-gradient-subtle: linear-gradient(135deg, rgba(168,85,247,0.25), rgba(6,182,212,0.25));
+  --inbox-gradient-glow: 0 0 16px rgba(168,85,247,0.3), 0 0 32px rgba(6,182,212,0.15);
+  --inbox-radius-outer: 16px;
+  --inbox-radius-card: 12px;
+  --inbox-radius-btn: 10px;
+  --inbox-radius-badge: 6px;
+  --inbox-font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --inbox-font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+}
+
+/* --- Keyframes --- */
+@keyframes inbox-breathe {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+@keyframes inbox-pulse-red {
+  0%, 100% { border-left-color: #ef4444; box-shadow: inset 3px 0 8px rgba(239,68,68,0.15); }
+  50%      { border-left-color: #f87171; box-shadow: inset 3px 0 12px rgba(239,68,68,0.3); }
+}
+
+@keyframes inbox-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes inbox-toast-in {
+  from { transform: translateY(20px) scale(0.95); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* --- Scrollbar --- */
+.inbox-layout ::-webkit-scrollbar {
+  width: 5px;
+}
+.inbox-layout ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.inbox-layout ::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+}
+.inbox-layout ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.14);
+}
+
+/* ============================================================
+   Layout
+   ============================================================ */
+.inbox-layout {
+  display: flex;
+  gap: 8px;
+  min-height: 0;
+  flex: 1;
+  background: var(--inbox-bg);
+  font-family: var(--inbox-font-ui);
+}
+
+.inbox-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+/* ============================================================
+   Folder Sidebar — floating glass panel
+   ============================================================ */
+.inbox-folder-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  /* Match the left nav rail (.glass-panel) exactly. The bespoke --inbox-glass-*
+     tokens used --glass-blur-strong = blur(40px) saturate(2.5) vs the rail's
+     --qx-blur = blur(32px) saturate(1.6), so this panel read bluer / "morphed
+     more" than the sidebar. Standard panel bg + blur-on-::before now. */
+  background: var(--m-bg-base);
+  border: 1px solid var(--m-border-default);
+  border-radius: var(--inbox-radius-outer);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.45);
+  position: relative;
+  isolation: isolate;
+}
+
+/* Blur + edge shimmer behind content, mirroring .glass-panel::before. */
+.inbox-folder-sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--qx-edges);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+}
+
+.inbox-folder-sidebar__group {
+  margin-bottom: 8px;
+}
+
+.inbox-folder-sidebar__group:last-child {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.inbox-folder-sidebar__group-label {
+  font-family: var(--inbox-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--inbox-text-muted);
+  padding: 12px 12px 8px;
+}
+
+.inbox-folder-sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--inbox-radius-btn);
+  color: var(--inbox-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--inbox-font-ui);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  position: relative;
+}
+
+.inbox-folder-sidebar__item:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.06);
+  color: var(--inbox-text-primary);
+  transform: translateY(-1px);
+}
+
+.inbox-folder-sidebar__item:active {
+  transform: translateY(1px) scale(0.995);
+}
+
+.inbox-folder-sidebar__item:focus-visible {
+  outline: 2px solid var(--inbox-purple);
+  outline-offset: -2px;
+}
+
+.inbox-folder-sidebar__item--active {
+  background: var(--inbox-gradient-subtle);
+  border-color: rgba(168,85,247,0.3);
+  color: var(--inbox-text-primary);
+  box-shadow: var(--inbox-gradient-glow);
+}
+
+.inbox-folder-sidebar__item--active:hover {
+  background: linear-gradient(135deg, rgba(168,85,247,0.3), rgba(6,182,212,0.3));
+}
+
+.inbox-folder-sidebar__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.inbox-folder-sidebar__item--active .inbox-folder-sidebar__icon {
+  opacity: 1;
+}
+
+.inbox-folder-sidebar__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inbox-folder-sidebar__badge {
+  font-family: var(--inbox-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(8px);
+  color: var(--inbox-text-muted);
+  padding: 0 6px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.inbox-folder-sidebar__item--active .inbox-folder-sidebar__badge {
+  background: rgba(168,85,247,0.2);
+  color: #c084fc;
+  border-color: rgba(168,85,247,0.25);
+}
+
+/* ============================================================
+   Stats Strip
+   ============================================================ */
+.inbox-stats-strip {
+  display: flex;
+  gap: 6px;
+  padding: 8px 0;
+  flex-wrap: wrap;
+}
+
+.inbox-stats-strip__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 14px;
+  background: var(--inbox-glass-bg);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--inbox-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--inbox-font-ui);
+}
+
+.inbox-stats-strip__item:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.1);
+  transform: translateY(-2px) scale(1.008);
+  box-shadow: var(--inbox-glass-shadow);
+}
+
+.inbox-stats-strip__item:active {
+  transform: translateY(1px) scale(0.995);
+}
+
+.inbox-stats-strip__item--active {
+  background: var(--inbox-gradient-subtle);
+  border-color: rgba(168,85,247,0.35);
+  color: var(--inbox-text-primary);
+  box-shadow: var(--inbox-gradient-glow);
+}
+
+.inbox-stats-strip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: inbox-breathe 3s ease-in-out infinite;
+}
+
+.inbox-stats-strip__value {
+  font-family: var(--inbox-font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--inbox-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.inbox-stats-strip__label {
+  color: var(--inbox-text-muted);
+  font-size: 11px;
+}
+
+/* ============================================================
+   Toolbar
+   ============================================================ */
+.inbox-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 4px;
+  margin-bottom: 6px;
+  background: var(--inbox-glass-bg);
+  backdrop-filter: var(--inbox-glass-blur);
+  -webkit-backdrop-filter: var(--inbox-glass-blur);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--inbox-radius-card);
+  box-shadow: var(--inbox-glass-shadow);
+}
+
+.inbox-search {
+  flex: 1;
+  min-width: 120px;
+  height: 28px;
+  padding: 0 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  color: var(--inbox-text-primary);
+  font-size: 12px;
+  font-family: var(--inbox-font-ui);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.inbox-search::placeholder {
+  color: rgba(255,255,255,0.35);
+}
+
+.inbox-search:focus {
+  border-color: var(--inbox-purple);
+  box-shadow: 0 0 0 2px rgba(168,85,247,0.15), 0 0 8px rgba(6,182,212,0.1);
+}
+
+.inbox-sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  color: var(--inbox-text-muted);
+  font-size: 11px;
+  font-family: var(--inbox-font-mono);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inbox-sort-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--inbox-text-primary);
+}
+
+/* ============================================================
+   Tab Bar (HI-1)
+   ============================================================ */
+.inbox-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: var(--inbox-glass-bg);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--inbox-radius-card);
+  margin-bottom: 6px;
+}
+
+.inbox-tabs__tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--inbox-text-muted);
+  font-size: 13px;
+  font-family: var(--inbox-font-mono);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.inbox-tabs__tab:hover {
+  background: rgba(255,255,255,0.04);
+  color: var(--inbox-text-primary);
+}
+
+.inbox-tabs__tab--active {
+  color: var(--inbox-text-primary);
+  background: rgba(255,255,255,0.04);
+}
+
+.inbox-tabs__tab--active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: var(--inbox-gradient);
+  border-radius: 1px;
+  box-shadow: 0 0 8px rgba(168,85,247,0.4), 0 0 16px rgba(6,182,212,0.2);
+}
+
+.inbox-tabs__badge {
+  font-family: var(--inbox-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: rgba(255,255,255,0.06);
+  color: var(--inbox-text-muted);
+  padding: 0 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inbox-tabs__tab--active .inbox-tabs__badge {
+  background: rgba(168,85,247,0.2);
+  color: #c084fc;
+}
+
+/* ============================================================
+   Item List
+   ============================================================ */
+.inbox-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 2px;
+}
+
+/* ============================================================
+   Item Card — real glass morphism (qx-card recipe)
+   ============================================================ */
+.inbox-item {
+  position: relative;
+  isolation: isolate;
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: var(--inbox-radius-card, 12px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -1px 0 rgba(0,0,0,0.45);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  overflow: hidden;
+}
+
+/* 4-edge qx rim — matches all other glass panels */
+.inbox-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  pointer-events: none;
+}
+
+.inbox-item > * {
+  position: relative;
+  z-index: 1;
+}
+
+.inbox-item:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 -1px 0 rgba(0,0,0,0.45),
+    0 6px 18px rgba(0,0,0,0.35);
+}
+
+.inbox-item:active {
+  transform: translateY(0) scale(0.995);
+}
+
+.inbox-item--unread {
+  border-left: 3px solid var(--inbox-purple, #a855f7);
+}
+
+.inbox-item--selected {
+  background: linear-gradient(145deg, rgba(168,85,247,0.14) 0%, rgba(56,189,248,0.06) 100%);
+  border-color: rgba(168,85,247,0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 -1px 0 rgba(0,0,0,0.45),
+    0 0 24px rgba(168,85,247,0.25),
+    0 6px 18px rgba(0,0,0,0.4);
+}
+
+.inbox-item--urgent {
+  border-left: 3px solid #ef4444;
+  animation: inbox-pulse-red 2s ease-in-out infinite;
+}
+
+.inbox-item__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.inbox-item__kind-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--inbox-radius-badge);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--inbox-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--inbox-text-muted);
+  flex-shrink: 0;
+}
+
+.inbox-item__priority-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: var(--inbox-radius-badge);
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--inbox-font-mono);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.inbox-item__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--inbox-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inbox-item__body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--inbox-text-secondary);
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.inbox-item__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--inbox-font-mono);
+  font-size: 10px;
+  color: var(--inbox-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.inbox-item__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.inbox-item__action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--inbox-radius-btn);
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(8px);
+  color: var(--inbox-text-muted);
+  font-size: 11px;
+  font-family: var(--inbox-font-ui);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.inbox-item__action-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--inbox-text-primary);
+  transform: translateY(-2px) scale(1.008);
+  box-shadow: var(--inbox-glass-shadow);
+}
+
+.inbox-item__action-btn:active {
+  transform: translateY(1px) scale(0.995);
+}
+
+.inbox-item__action-btn--primary {
+  background: var(--inbox-gradient-subtle);
+  border-color: rgba(168,85,247,0.3);
+  color: #c084fc;
+}
+
+.inbox-item__action-btn--primary:hover {
+  background: linear-gradient(135deg, rgba(168,85,247,0.35), rgba(6,182,212,0.35));
+  color: var(--inbox-text-primary);
+  box-shadow: var(--inbox-gradient-glow);
+}
+
+.inbox-item__action-btn--danger {
+  background: rgba(239,68,68,0.08);
+  border-color: rgba(239,68,68,0.2);
+  color: #f87171;
+}
+
+.inbox-item__action-btn--danger:hover {
+  background: rgba(239,68,68,0.15);
+  color: #fca5a5;
+}
+
+.inbox-item__star {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(255,255,255,0.25);
+  font-size: 16px;
+  padding: 2px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.inbox-item__star:hover {
+  color: #f59e0b;
+  transform: scale(1.15);
+}
+
+.inbox-item__star--active {
+  color: #f59e0b;
+  text-shadow: 0 0 8px rgba(245,158,11,0.5);
+}
+
+/* ============================================================
+   Bulk Action Bar
+   ============================================================ */
+.inbox-bulk-bar {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: var(--inbox-glass-bg);
+  backdrop-filter: var(--inbox-glass-blur);
+  -webkit-backdrop-filter: var(--inbox-glass-blur);
+  border-top: 1px solid var(--inbox-glass-border-top);
+  border-left: 1px solid var(--inbox-glass-border-left);
+  border-right: 1px solid var(--inbox-glass-border-rb);
+  border-bottom: 1px solid var(--inbox-glass-border-rb);
+  border-radius: var(--inbox-radius-outer);
+  box-shadow: var(--inbox-glass-shadow);
+  z-index: 50;
+  animation: inbox-toast-in 0.25s ease-out;
+}
+
+.inbox-bulk-bar__count {
+  font-family: var(--inbox-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--inbox-text-primary);
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Detail Modal
+   ============================================================ */
+.inbox-detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inbox-detail-modal {
+  width: 95vw;
+  max-width: 700px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--inbox-glass-bg);
+  backdrop-filter: var(--inbox-glass-blur);
+  -webkit-backdrop-filter: var(--inbox-glass-blur);
+  border-top: 1px solid var(--inbox-glass-border-top);
+  border-left: 1px solid var(--inbox-glass-border-left);
+  border-right: 1px solid var(--inbox-glass-border-rb);
+  border-bottom: 1px solid var(--inbox-glass-border-rb);
+  border-radius: var(--inbox-radius-outer);
+  box-shadow: var(--inbox-glass-shadow);
+  overflow: hidden;
+}
+
+.inbox-detail-modal__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.015);
+}
+
+.inbox-detail-modal__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+  color: var(--inbox-text-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.inbox-detail-modal__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.01);
+}
+
+/* ============================================================
+   Snooze Menu
+   ============================================================ */
+.inbox-snooze-menu {
+  position: absolute;
+  z-index: 100;
+  min-width: 180px;
+  padding: 6px;
+  background: var(--inbox-glass-bg);
+  backdrop-filter: var(--inbox-glass-blur);
+  -webkit-backdrop-filter: var(--inbox-glass-blur);
+  border-top: 1px solid var(--inbox-glass-border-top);
+  border-left: 1px solid var(--inbox-glass-border-left);
+  border-right: 1px solid var(--inbox-glass-border-rb);
+  border-bottom: 1px solid var(--inbox-glass-border-rb);
+  border-radius: var(--inbox-radius-card);
+  box-shadow: var(--inbox-glass-shadow);
+}
+
+/* ============================================================
+   Undo Toast
+   ============================================================ */
+.inbox-undo-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--inbox-glass-bg);
+  backdrop-filter: var(--inbox-glass-blur);
+  -webkit-backdrop-filter: var(--inbox-glass-blur);
+  border-top: 1px solid var(--inbox-glass-border-top);
+  border-left: 1px solid var(--inbox-glass-border-left);
+  border-right: 1px solid var(--inbox-glass-border-rb);
+  border-bottom: 1px solid var(--inbox-glass-border-rb);
+  border-radius: var(--inbox-radius-card);
+  box-shadow: var(--inbox-glass-shadow);
+  color: var(--inbox-text-primary);
+  font-size: 13px;
+  z-index: 300;
+  animation: inbox-toast-in 0.3s ease-out;
+}
+
+.inbox-undo-toast button {
+  padding: 4px 12px;
+  border-radius: var(--inbox-radius-btn);
+  border: none;
+  background: var(--inbox-gradient);
+  color: var(--inbox-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inbox-undo-toast button:hover {
+  box-shadow: var(--inbox-gradient-glow);
+}
+
+/* ============================================================
+   Shortcut Help Overlay
+   ============================================================ */
+.inbox-shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inbox-shortcuts-overlay > div {
+  width: 95vw;
+  max-width: 480px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 24px;
+  background: var(--inbox-glass-bg);
+  backdrop-filter: var(--inbox-glass-blur);
+  -webkit-backdrop-filter: var(--inbox-glass-blur);
+  border-top: 1px solid var(--inbox-glass-border-top);
+  border-left: 1px solid var(--inbox-glass-border-left);
+  border-right: 1px solid var(--inbox-glass-border-rb);
+  border-bottom: 1px solid var(--inbox-glass-border-rb);
+  border-radius: var(--inbox-radius-outer);
+  box-shadow: var(--inbox-glass-shadow);
+}
+
+.inbox-shortcuts__group {
+  margin-bottom: 16px;
+}
+
+.inbox-shortcuts__group h3 {
+  font-family: var(--inbox-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--inbox-text-muted);
+  margin-bottom: 8px;
+}
+
+.inbox-shortcuts__key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  font-family: var(--inbox-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--inbox-text-primary);
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--inbox-radius-badge);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+/* ============================================================
+   Empty State
+   ============================================================ */
+.inbox-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.inbox-empty svg,
+.inbox-empty .inbox-empty__icon {
+  width: 48px;
+  height: 48px;
+  padding: 12px;
+  background: var(--inbox-glass-bg);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--inbox-radius-card);
+  color: var(--inbox-text-muted);
+  box-shadow: var(--inbox-glass-shadow);
+}
+
+.inbox-empty h3,
+.inbox-empty__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--inbox-text-primary);
+}
+
+.inbox-empty p,
+.inbox-empty__text {
+  font-size: 13px;
+  color: var(--inbox-text-muted);
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   Response Form — Glass treatment
+   ============================================================ */
+.inbox-response-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: var(--inbox-glass-bg);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border-top: 1px solid rgba(255,255,255,0.1);
+  border-left: 1px solid rgba(255,255,255,0.08);
+  border-right: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+  border-radius: var(--inbox-radius-card);
+  box-shadow: var(--inbox-glass-shadow);
+}
+
+.inbox-response-form__field input,
+.inbox-response-form__field textarea,
+.inbox-response-form__field select {
+  width: 100%;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  color: var(--inbox-text-primary);
+  font-size: 13px;
+  font-family: var(--inbox-font-ui);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.inbox-response-form__field input:focus,
+.inbox-response-form__field textarea:focus,
+.inbox-response-form__field select:focus {
+  border-color: var(--inbox-purple);
+  box-shadow: 0 0 0 2px rgba(168,85,247,0.15), 0 0 8px rgba(6,182,212,0.1);
+}
+
+.inbox-response-form__field textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+
+.inbox-response-form__field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--inbox-text-muted);
+  margin-bottom: 4px;
+}
+
+.inbox-response-form__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--inbox-radius-btn);
+  border: none;
+  background: var(--inbox-gradient);
+  color: var(--inbox-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--inbox-font-ui);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.inbox-response-form__btn:hover {
+  box-shadow: var(--inbox-gradient-glow);
+  transform: translateY(-1px);
+}
+
+.inbox-response-form__btn:active {
+  transform: translateY(1px) scale(0.995);
+}
+
+.inbox-response-form__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ============================================================
+   Org filter strip (carried over, glassed)
+   ============================================================ */
+.inbox-org-filter-strip {
+  display: flex;
+  gap: 6px;
+  padding: 6px 0;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.inbox-org-filter-strip__pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(12px);
+  color: var(--inbox-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--inbox-font-ui);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.inbox-org-filter-strip__pill:hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--inbox-text-primary);
+  transform: translateY(-1px);
+}
+
+.inbox-org-filter-strip__pill--active {
+  background: var(--inbox-gradient-subtle);
+  border-color: rgba(168,85,247,0.3);
+  color: #c084fc;
+}
+
+.inbox-org-filter-strip__pill--active:hover {
+  background: linear-gradient(135deg, rgba(168,85,247,0.3), rgba(6,182,212,0.3));
+}
+
+.inbox-org-filter-strip__logo {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
+/* Org badge on inbox items */
+.inbox-item-org-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--inbox-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.inbox-item-org-badge__logo {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  object-fit: cover;
+}
+
+/* ============================================================
+   Sidebar Toggle (mobile)
+   ============================================================ */
+.inbox-folder-sidebar__toggle {
+  display: none;
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 50;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--inbox-gradient);
+  color: white;
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--inbox-gradient-glow), 0 4px 12px rgba(0,0,0,0.4);
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.inbox-folder-sidebar__toggle:hover {
+  transform: scale(1.08);
+}
+
+/* ============================================================
+   Responsive — 900px breakpoint
+   ============================================================ */
+@media (max-width: 900px) {
+  .inbox-folder-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    border-radius: 0 var(--inbox-radius-outer) var(--inbox-radius-outer) 0;
+  }
+
+  .inbox-folder-sidebar--open {
+    transform: translateX(0);
+  }
+
+  .inbox-folder-sidebar__toggle {
+    display: flex;
+  }
+
+  .inbox-main {
+    width: 100%;
+  }
+
+  .inbox-folder-sidebar__backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(4px);
+    z-index: 99;
+  }
+
+  .inbox-bulk-bar {
+    left: 8px;
+    right: 8px;
+    transform: none;
+    width: auto;
+  }
+
+  .inbox-detail-modal {
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+}

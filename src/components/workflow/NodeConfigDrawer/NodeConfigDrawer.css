@@ -1,0 +1,556 @@
+/* =============================================================================
+ * NodeConfigDrawer — schema-driven node editor.
+ *
+ * This file deliberately stays lean. All inputs / buttons / pills / chips /
+ * disclosures consume the `.qx-*` globals from `qx-components.css`. The
+ * styles here cover only:
+ *   • drawer chrome (grid placement, glass recipe with 4-edge shimmer)
+ *   • schema-aware field wrapper states (missing/placeholder rings)
+ *   • the agent-link chip (a drawer-specific pattern, not a global)
+ *   • the pre-deploy warning modal panel
+ *
+ * Tokens used: --qx-blur / --qx-radius / --qx-edges / --m-bg-base /
+ *              --m-bg-elevated / --m-border-default / --m-text-* — never
+ * dark hex fallbacks.
+ * =========================================================================== */
+
+/* ------------------------------ Drawer panel ----------------------------- */
+
+.ncd {
+  /* Real grid item (col 1 / row 2 of wb-layout); .wb-layout--with-drawer
+     widens that column to 440px while the drawer is open. */
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 0;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  background: var(--m-bg-base);
+  border: 1px solid var(--m-border-default);
+  border-radius: var(--qx-radius);
+  /* Inset rim only — no outer drop shadow on glass panels (see
+     glass-design-system "halo" lesson). */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  animation: ncd-slide-in 160ms ease;
+  color: var(--m-text-primary);
+  font-size: 13px;
+}
+
+/* 4-edge shimmer rim — top cyan→purple fade, other three sides white. */
+.ncd::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  z-index: 0;
+}
+
+.ncd > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes ncd-slide-in {
+  from { transform: translateX(-8px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* ------------------------------ Header ----------------------------------- */
+
+.ncd__header {
+  flex: 0 0 auto;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--m-border-default);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: transparent;
+}
+
+.ncd__header-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.ncd__icon {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #fff;
+}
+
+.ncd__heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ncd__name,
+.ncd__name-input {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--m-text-primary);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.ncd__name-input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 4px;
+  outline: none;
+  font-family: inherit;
+}
+
+.ncd__name-input:hover { border-color: var(--m-border-default); }
+.ncd__name-input:focus { border-color: rgba(56, 189, 248, 0.5); background: rgba(255, 255, 255, 0.04); }
+
+.ncd__sub {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--m-text-tertiary);
+}
+
+.ncd__category { color: var(--m-text-secondary); font-weight: 500; }
+.ncd__sep      { opacity: 0.4; }
+.ncd__type-id  { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; }
+
+.ncd__close {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  color: var(--m-text-tertiary);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0;
+}
+.ncd__close:hover { background: var(--m-bg-elevated); color: var(--m-text-primary); }
+
+.ncd__mode-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The mode pill + issues chip are .qx-pill instances — see JSX. The
+   .ncd__edit-btn is a .qx-btn --sm --ghost — see JSX. */
+
+.ncd__edit-btn {
+  margin-left: auto;
+}
+
+/* ------------------------------ Body ------------------------------------- */
+
+.ncd__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.ncd__section + .ncd__section { margin-top: 20px; }
+
+.ncd__section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--m-text-tertiary);
+  margin: 0 0 10px;
+}
+
+/* ------------------------------ Field card ------------------------------- */
+
+.ncd-field {
+  margin-bottom: 16px;
+}
+
+.ncd-field__input {
+  border-radius: 8px;
+}
+
+/* Validation states — outline only (no background flood). */
+.ncd-field--missing .ncd-field__input { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.55) inset; }
+.ncd-field--placeholder .ncd-field__input { box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.45) inset; }
+
+.ncd-field__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--m-text-tertiary);
+  align-items: center;
+}
+
+.ncd-field__helper { line-height: 1.4; }
+
+/* ------------------------- Agent-link chip ------------------------------- */
+
+.ncd__section--agent-link { margin-top: 0; }
+
+.ncd-agent-link {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.12), rgba(56, 189, 248, 0.06));
+  border: 1px solid rgba(168, 85, 247, 0.32);
+}
+
+.ncd-agent-link__body { flex: 1 1 auto; min-width: 0; }
+.ncd-agent-link__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--m-text-primary);
+}
+.ncd-agent-link__hint {
+  font-size: 11px;
+  color: var(--m-text-tertiary);
+  margin-top: 2px;
+}
+
+/* ----------------------------- Connections ------------------------------- */
+
+.ncd__connections { display: flex; flex-direction: column; gap: 8px; }
+
+.ncd__conn-row { display: flex; gap: 10px; align-items: flex-start; }
+
+.ncd__conn-label {
+  flex: 0 0 56px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--m-text-tertiary);
+  padding-top: 4px;
+}
+
+.ncd__conn-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.ncd__conn-empty {
+  font-size: 11px;
+  color: var(--m-text-tertiary);
+  font-style: italic;
+}
+
+/* ------------------------------- Footer ---------------------------------- */
+
+.ncd__footer {
+  flex: 0 0 auto;
+  padding: 12px 20px;
+  border-top: 1px solid var(--m-border-default);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: transparent;
+}
+
+.ncd__footer-spacer { flex: 1 1 auto; }
+
+/* The footer buttons are .qx-btn (+ --primary / --danger / --ghost) — see JSX.
+   Only special case is the Done button needing margin-left:auto when paired
+   with a danger button. .qx-btn already handles state and visuals. */
+
+.ncd__btn-spacer { margin-left: auto; }
+
+/* ------------------------- Schema-missing notice ------------------------- */
+
+.ncd__schema-missing {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--m-bg-elevated);
+  border: 1px solid var(--m-border-default);
+  color: var(--m-text-secondary);
+  font-size: 12px;
+}
+.ncd__schema-missing code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* =============================================================================
+ * Custom inputs (NOT covered by qx-* globals)
+ *
+ * Most inputs delegate to qx-input/qx-textarea/qx-select/qx-toggle/qx-seg/
+ * qx-tagfield. These are the few that have structure beyond a plain primitive:
+ *   - placeholder-token highlight overlay (text inputs containing {{X}})
+ *   - cron 5-field segmented row + human-readable translation
+ *   - timezone offset chip
+ *   - tools multi-select chips (uses qx-chip primitives — header + bulk only)
+ *   - workflow picker dropdown (uses qx-menu styling for the popover)
+ * =========================================================================== */
+
+/* Placeholder-token chip used inside textarea / url / expression overlays. */
+.ncd-token {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+  border-radius: 4px;
+  padding: 0 3px;
+}
+
+/* Textarea overlay (mirrors the textarea content with placeholder tokens
+   highlighted). The textarea itself is .qx-textarea. */
+.ncd-textarea-wrap { position: relative; }
+.ncd-textarea-wrap__overlay {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  pointer-events: none;
+  font-size: 13px;
+  white-space: pre-wrap;
+  color: transparent;
+  line-height: 1.5;
+}
+
+/* URL / expression input wrappers (qx-input underneath; this just adds the
+   scheme pill + placeholder overlay positioning). */
+.ncd-url, .ncd-expression { position: relative; }
+.ncd-url__scheme {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+  pointer-events: none;
+}
+.ncd-url__scheme--https { background: rgba(16, 185, 129, 0.18); color: #34d399; }
+.ncd-url__scheme--http  { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
+.ncd-url__overlay,
+.ncd-expression__overlay {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  right: 12px;
+  pointer-events: none;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  color: transparent;
+  white-space: pre;
+  overflow: hidden;
+}
+
+/* Cron 5-field row + raw translation. */
+.ncd-cron { display: flex; flex-direction: column; gap: 10px; }
+.ncd-cron__fields { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.ncd-cron__field { display: flex; flex-direction: column; gap: 4px; }
+.ncd-cron__field input { text-align: center; }
+.ncd-cron__label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--m-text-tertiary);
+  text-align: center;
+}
+.ncd-cron__raw { display: flex; flex-direction: column; gap: 4px; }
+.ncd-cron__translation {
+  font-size: 11px;
+  color: var(--m-text-tertiary);
+  font-style: italic;
+}
+
+/* Timezone offset readout. */
+.ncd-tz { position: relative; }
+.ncd-tz__offset {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--m-text-tertiary);
+  pointer-events: none;
+}
+
+/* Tools multi-select header (chip selection itself uses .qx-chip). */
+.ncd-tools { display: flex; flex-direction: column; gap: 8px; }
+.ncd-tools__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--m-text-tertiary);
+}
+.ncd-tools__bulk { display: inline-flex; gap: 6px; align-items: center; }
+.ncd-tools__sep { opacity: 0.4; }
+.ncd-tools__chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* Workflow picker — input + popover list. The list uses qx-menu structure. */
+.ncd-workflow-picker { position: relative; }
+.ncd-workflow-picker__list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--m-bg-base);
+  border: 1px solid var(--m-border-default);
+  border-radius: var(--qx-radius);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 5;
+  /* Flyouts get the one allowed outer shadow + inset rim. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+    0 24px 64px rgba(0, 0, 0, 0.55);
+  isolation: isolate;
+}
+.ncd-workflow-picker__list::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  z-index: 0;
+}
+.ncd-workflow-picker__list > * { position: relative; z-index: 1; }
+
+.ncd-workflow-picker__item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ncd-workflow-picker__item:hover {
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.10), rgba(56, 189, 248, 0.04));
+}
+.ncd-workflow-picker__id {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--m-text-primary);
+}
+.ncd-workflow-picker__name {
+  font-size: 10px;
+  color: var(--m-text-tertiary);
+}
+
+/* =============================================================================
+ * Pre-deploy validation modal
+ * =========================================================================== */
+
+.ncd-deploy-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: ncd-fade-in 120ms ease;
+}
+@keyframes ncd-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.ncd-deploy-modal__panel {
+  width: 480px;
+  max-width: calc(100% - 32px);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  isolation: isolate;
+  background: var(--m-bg-base);
+  border: 1px solid var(--m-border-default);
+  border-radius: var(--qx-radius);
+  /* Modals get the allowed flyout drop + inset rim. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+    0 24px 64px rgba(0, 0, 0, 0.55);
+  color: var(--m-text-primary);
+}
+
+.ncd-deploy-modal__panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: var(--qx-edges);
+  z-index: 0;
+}
+.ncd-deploy-modal__panel > * { position: relative; z-index: 1; }
+
+.ncd-deploy-modal__header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--m-border-default);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.ncd-deploy-modal__icon {
+  flex: 0 0 auto;
+  font-size: 22px;
+  line-height: 1;
+}
+.ncd-deploy-modal__title { font-size: 15px; font-weight: 600; margin: 0 0 4px; color: var(--m-text-primary); }
+.ncd-deploy-modal__sub   { font-size: 12px; color: var(--m-text-tertiary); margin: 0; }
+
+.ncd-deploy-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 20px;
+}
+.ncd-deploy-modal__node {
+  border-bottom: 1px solid var(--m-border-default);
+  padding: 10px 0;
+}
+.ncd-deploy-modal__node:last-child { border-bottom: none; }
+.ncd-deploy-modal__node-name { font-size: 12px; font-weight: 600; color: var(--m-text-primary); }
+.ncd-deploy-modal__node-type {
+  font-size: 10px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--m-text-tertiary);
+  margin-left: 6px;
+}
+.ncd-deploy-modal__issue {
+  font-size: 11px;
+  color: var(--m-text-secondary);
+  margin-top: 4px;
+}
+
+.ncd-deploy-modal__footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--m-border-default);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}

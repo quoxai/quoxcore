@@ -1,0 +1,31 @@
+{
+  "id": "quoxsignal",
+  "name": "quoxsignal",
+  "displayName": "QuoxSignal",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "paid",
+  "badge": "PAID",
+  "category": "AI & Intelligence",
+  "accentColor": "#38bdf8",
+  "description": "Follows TikTok, Instagram, YouTube, and RSS/podcast sources, transcribes new posts, and runs an evidence-gated lens over the transcript before ever showing you a claim. Every proposal cites a verbatim transcript quote or it never surfaces. SCOUT, the triage specialist, explains and challenges verdicts and drafts QuoxPlan stream entries from approved findings. Decisions stay human.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/quoxsignal",
+      "label": "QuoxSignal",
+      "icon": "signal",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/quoxsignal/*": "QuoxSignalView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

@@ -1,0 +1,93 @@
+{
+  "spec_version": 1,
+  "id": "perplexity",
+  "name": "Perplexity",
+  "category": "data_ai",
+  "credentialType": "perplexity",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Perplexity's Sonar search-augmented chat: grounded, cited answers rather than a raw model completion. Perplexity publishes no models-list or account endpoint, so there is no cheap authed read; every call is a billable chat completion, modelled as write:true and HITL-gated. The auth-proving call is the same /chat/completions endpoint with a dummy key, which the API rejects with a structured 401 before any completion is generated, so no spend occurs during shape-proof.",
+  "docs": "https://docs.perplexity.ai/",
+  "base_url": "https://api.perplexity.ai",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+      "model": "sonar",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "max_tokens": 1
+    }
+  },
+  "tools_source": "https://docs.perplexity.ai/api-reference/chat-completions-post",
+  "tools": [
+    {
+      "name": "chat_completion",
+      "description": "Send a grounded, cited chat completion to a Perplexity Sonar model. This spends the account's usage, so it is HITL-gated and never fired by the shape-proof harness (write:true means blind proof always SKIPs it; a real credential would also need --include-writes)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Perplexity Sonar model id (e.g. sonar, sonar-pro, sonar-reasoning)"
+          },
+          "messages": {
+            "type": "array",
+            "description": "OpenAI-format chat messages array: [{role, content}, ...]"
+          },
+          "max_tokens": {
+            "type": "number",
+            "description": "Optional cap on completion tokens"
+          }
+        },
+        "required": [
+          "model",
+          "messages"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/chat/completions",
+        "body": {
+          "model": "{{input.model}}",
+          "messages": "{{input.messages}}",
+          "max_tokens": "{{input.max_tokens}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "model": "model",
+          "choices": "choices",
+          "citations": "citations",
+          "usage": "usage"
+        },
+        "truncate": 2000
+      },
+      "write": true
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-16, frontier-LLM gap fill (project_ai_tools_coverage_gaps_2026_09_16)",
+    "confidence": "medium",
+    "needs_review": [
+      "NO LIVE CREDENTIAL AT AUTHORING TIME: this spec is shape-proved blind only. LIVE_PROVEN needs one real pplx- key against a real (tiny max_tokens) chat completion — Perplexity has no zero-spend authed read to fall back on.",
+      "NO MODELS-LIST ENDPOINT, CONFIRMED LIVE DURING AUTHORING: a bare GET /models against Perplexity returned a plain 404, not a structured error, so it is not offered as a read tool here. chat_completion (write:true) is the ONLY tool this connector has; the test block probes the same POST /chat/completions endpoint directly with a dummy key so auth can still be proven without a separate read.",
+      "the test block is a POST with a real (tiny, max_tokens:1) request body, but the dummy API key is rejected with a structured 401 before Perplexity ever generates a completion, so the shape-proof run itself never spends against a real account; this only becomes a real completion if --live is run with a genuine credential.",
+      "NOT A TEMPLATE CHILD: unlike openai/groq/mistral/deepseek, Perplexity's distinct product (grounded, cited search-augmented answers) and lack of a models-list endpoint means this spec diverges from the openrouter template shape by necessity, per the coverage-gap plan's own note."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 20
+  }
+}

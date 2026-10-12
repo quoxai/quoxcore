@@ -1,0 +1,98 @@
+{
+  "spec_id": "helpscout",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:38.452Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.helpscout.net/quox-shapeproof-control-8c7ffb3f",
+      "status": 404,
+      "latency_ms": 1592,
+      "classification": "CONTROL",
+      "body_sha256": "78bc183a3118b57691e5d6a2506353a986e42bf86cca5596eefb6d77413366d8",
+      "body_excerpt": "{\"message\":\"no route and no API found with those values\"}\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.helpscout.net/v2/users/me",
+      "status": 401,
+      "latency_ms": 254,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d54c5464dbe8f4ca3b41fe7706a5aaee6f6f6b7459f004353516fae8aa7ed45c",
+      "body_excerpt": "{\"error_description\":\"The access token is invalid or has expired\",\"error\":\"invalid_token\"}\n",
+      "flags": {
+        "www_authenticate": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_me",
+      "method": "GET",
+      "url": "https://api.helpscout.net/v2/users/me",
+      "status": 401,
+      "latency_ms": 300,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d54c5464dbe8f4ca3b41fe7706a5aaee6f6f6b7459f004353516fae8aa7ed45c",
+      "body_excerpt": "{\"error_description\":\"The access token is invalid or has expired\",\"error\":\"invalid_token\"}\n",
+      "flags": {
+        "www_authenticate": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "list_mailboxes",
+      "method": "GET",
+      "url": "https://api.helpscout.net/v2/mailboxes?page=1",
+      "status": 401,
+      "latency_ms": 355,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d54c5464dbe8f4ca3b41fe7706a5aaee6f6f6b7459f004353516fae8aa7ed45c",
+      "body_excerpt": "{\"error_description\":\"The access token is invalid or has expired\",\"error\":\"invalid_token\"}\n",
+      "flags": {
+        "www_authenticate": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "list_conversations",
+      "method": "GET",
+      "url": "https://api.helpscout.net/v2/conversations?status=quoxprobe&mailbox=quoxprobe&query=quoxprobe&page=1",
+      "status": 401,
+      "latency_ms": 270,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d54c5464dbe8f4ca3b41fe7706a5aaee6f6f6b7459f004353516fae8aa7ed45c",
+      "body_excerpt": "{\"error_description\":\"The access token is invalid or has expired\",\"error\":\"invalid_token\"}\n",
+      "flags": {
+        "www_authenticate": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_conversation",
+      "method": "GET",
+      "url": "https://api.helpscout.net/v2/conversations/quoxprobe",
+      "status": 401,
+      "latency_ms": 246,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d54c5464dbe8f4ca3b41fe7706a5aaee6f6f6b7459f004353516fae8aa7ed45c",
+      "body_excerpt": "{\"error_description\":\"The access token is invalid or has expired\",\"error\":\"invalid_token\"}\n",
+      "flags": {
+        "www_authenticate": true,
+        "token_flow_untested": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run. This spec authenticates through a token exchange, which is NOT blind-provable: the harness probes the API surface with a dummy bearer token, so the endpoints, paths and auth handling are tested but the token-acquisition flow itself is not.",
+  "notes": [
+    "oauth2_client_credentials auth: probed with a dummy bearer token; the token-acquisition flow is NOT proven by this run."
+  ]
+}

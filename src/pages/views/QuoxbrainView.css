@@ -1,0 +1,122 @@
+/**
+ * QuoxbrainView — header growth affordances (BRAIN2-PRODUCT P2a/P2d).
+ *
+ * Everything reusable already lives in src/styles/qx-components.css
+ * (.qx-pill, .qx-chip, .qx-dot incl. its breathing/idle variants) — this
+ * file only holds the ONE genuinely new thing the header needs: the
+ * count-up glow on the headline TOTAL when it increases. That's a single
+ * consumer, so it stays view-scoped rather than growing the global sheet.
+ */
+
+.qx-brain-total {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.qx-brain-total--pulse {
+  animation: qx-brain-total-glow 1.4s ease-out;
+}
+
+@keyframes qx-brain-total-glow {
+  0%   { color: #30ff90; text-shadow: 0 0 14px rgba(48, 255, 144, 0.8); }
+  100% { color: #fff; text-shadow: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qx-brain-total--pulse {
+    animation: none;
+  }
+}
+
+/* Personal-layer chip (BRAIN2-PRODUCT, owner catch 2026-08-25) — visually
+   distinct from the org chips it sits beside: dashed border + violet accent
+   (matches SCOPE_COLORS.user, the "You" scope colour used everywhere else in
+   the graph) and a not-allowed cursor since it never switches org context. */
+.qx-chip--personal {
+  border-style: dashed;
+  border-color: rgba(168, 85, 247, 0.45);
+  color: rgba(255, 255, 255, 0.75);
+  cursor: default;
+}
+.qx-chip--personal:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(168, 85, 247, 0.45);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Brain2 Cortex P1b: tabbed evidence dock (Note | Cortex) in the right panel. */
+.qx-dock { padding: 0; overflow: hidden; }
+.qx-dock__tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex: 0 0 auto;
+}
+.qx-dock__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 2px solid transparent;
+}
+.qx-dock__tab:hover { color: rgba(255, 255, 255, 0.85); background: rgba(255, 255, 255, 0.04); }
+.qx-dock__tab--active {
+  color: #fff;
+  border-bottom-color: #a855f7;
+  background: rgba(168, 85, 247, 0.12);
+}
+.qx-dock__body { padding: 16px; }
+.qx-dock__body--flush { padding: 0; }
+.qx-dock__body--flush > * { flex: 1; min-height: 0; min-width: 0; }
+
+/* Brain2 Phase 0: local renderer error-boundary fallback. Fills the canvas so a
+   renderer crash reads as a contained, recoverable panel rather than a blank
+   route. Uses shared qx-btn buttons for the recovery actions. */
+.qx-renderer-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+}
+.qx-renderer-fallback__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+.qx-renderer-fallback__body {
+  margin: 0;
+  max-width: 42ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.62);
+}
+.qx-renderer-fallback__detail {
+  margin: 0;
+  max-width: 52ch;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: rgba(248, 113, 113, 0.75);
+  word-break: break-word;
+}
+.qx-renderer-fallback__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 6px;
+}

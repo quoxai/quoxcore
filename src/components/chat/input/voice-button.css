@@ -1,0 +1,125 @@
+/**
+ * VoiceButton Styles
+ * Reusable push-to-talk button with multiple sizes
+ */
+
+.voice-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: var(--bg-tertiary, rgba(255, 255, 255, 0.05));
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+    border-radius: 50%;
+    color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+/* Sizes */
+.voice-button--small {
+    width: 32px;
+    height: 32px;
+}
+
+.voice-button--small .voice-button__icon {
+    width: 16px;
+    height: 16px;
+}
+
+.voice-button--medium {
+    width: 40px;
+    height: 40px;
+}
+
+.voice-button--medium .voice-button__icon {
+    width: 20px;
+    height: 20px;
+}
+
+.voice-button--large {
+    width: 56px;
+    height: 56px;
+}
+
+.voice-button--large .voice-button__icon {
+    width: 28px;
+    height: 28px;
+}
+
+/* States */
+.voice-button:hover:not(:disabled) {
+    background: var(--agent-secondary, rgba(96, 165, 250, 0.2));
+    border-color: var(--agent-primary, #60a5fa);
+    color: var(--agent-primary, #60a5fa);
+    transform: scale(1.05);
+}
+
+.voice-button:active:not(:disabled),
+.voice-button--recording {
+    background: rgba(56, 189, 248, 0.2);
+    border-color: #38bdf8;
+    color: #38bdf8;
+    transform: scale(0.95);
+    animation: voice-pulse 1s ease-in-out infinite;
+}
+
+.voice-button--transcribing {
+    background: rgba(251, 191, 36, 0.2);
+    border-color: #fbbf24;
+    color: #fbbf24;
+}
+
+.voice-button--disabled,
+.voice-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Icon */
+.voice-button__icon {
+    flex-shrink: 0;
+}
+
+.voice-button__icon--spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Timer */
+.voice-button__timer {
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-mono, monospace);
+}
+
+/* Animations */
+@keyframes voice-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 12px rgba(248, 113, 113, 0);
+    }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Inline variant (for use inside input areas) */
+.voice-button--inline {
+    border-radius: 8px;
+}
+
+.voice-button--inline.voice-button--small {
+    width: 28px;
+    height: 28px;
+}
+
+.voice-button--inline .voice-button__icon {
+    width: 14px;
+    height: 14px;
+}

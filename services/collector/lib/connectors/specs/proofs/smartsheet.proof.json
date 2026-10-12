@@ -1,0 +1,90 @@
+{
+  "spec_id": "smartsheet",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:28:57.176Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.smartsheet.com/quox-shapeproof-control-6cf5e631",
+      "status": 404,
+      "latency_ms": 628,
+      "classification": "CONTROL",
+      "body_sha256": "8488f4671a3bf1a57e9e08690c37d823091012316602e1d6efd6f722f4261564",
+      "body_excerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\">\n  <li",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.smartsheet.com/2.0/users/me",
+      "status": 401,
+      "latency_ms": 181,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e084c850540fe7be002d45d64e19d73a9a13c8c0bba3e6f097147da38e8df0e4",
+      "body_excerpt": "{\n  \"errorCode\" : 1002,\n  \"message\" : \"Your Access Token is invalid.\",\n  \"refId\" : \"yooi7a\"\n}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_sheets",
+      "method": "GET",
+      "url": "https://api.smartsheet.com/2.0/sheets?pageSize=50&page=1&modifiedSince=quoxprobe",
+      "status": 401,
+      "latency_ms": 185,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "58e7c4f7643e5430212976ae35db7c68f5d41c5a210ace365ff9c7cf99b5bfa2",
+      "body_excerpt": "{\n  \"errorCode\" : 1002,\n  \"message\" : \"Your Access Token is invalid.\",\n  \"refId\" : \"kupzlj\"\n}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_sheet",
+      "method": "GET",
+      "url": "https://api.smartsheet.com/2.0/sheets/1?rowsModifiedSince=quoxprobe",
+      "status": 401,
+      "latency_ms": 260,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3a63ffd728b9d8b9969349132d7d59ff7bb9913aa3c5560baed94136cae2cdbf",
+      "body_excerpt": "{\"errorCode\":1002,\"message\":\"Your Access Token is invalid.\",\"refId\":\"1499bb3e-7932-9ac1-b4a0-f2398ce5fd78\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "method": "GET",
+      "url": "https://api.smartsheet.com/2.0/workspaces",
+      "status": 401,
+      "latency_ms": 131,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc1057ff0b6de4ceaf9cb1d003107ce4b035f3dbda66b3b1798e1d0cbdaba60e",
+      "body_excerpt": "{\n  \"errorCode\" : 1002,\n  \"message\" : \"Your Access Token is invalid.\",\n  \"refId\" : \"e7vhi0\"\n}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_reports",
+      "method": "GET",
+      "url": "https://api.smartsheet.com/2.0/reports?modifiedSince=quoxprobe",
+      "status": 401,
+      "latency_ms": 152,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "42142a79c5bb06fb7720ca836fa9904525c3cd4429f59f7b78f10319fb5233f4",
+      "body_excerpt": "{\n  \"errorCode\" : 1002,\n  \"message\" : \"Your Access Token is invalid.\",\n  \"refId\" : \"c6kcqp\"\n}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

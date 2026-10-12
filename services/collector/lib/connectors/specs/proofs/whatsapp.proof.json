@@ -1,0 +1,121 @@
+{
+  "spec_id": "whatsapp",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:33.117Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://graph.facebook.com/quox-shapeproof-control-ec8202b6",
+      "status": 401,
+      "latency_ms": 115,
+      "classification": "CONTROL",
+      "body_sha256": "c2791d2ef897dd6df6294c8ac512f3cae0dc4881d277da11b6a73e6aece1097f",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"AFTvirliKXyR5irEqV3F3QT\"}}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://graph.facebook.com/v21.0/QUOXSHAPEPROOFDUMMYPHONENUMBERID",
+      "status": 401,
+      "latency_ms": 133,
+      "classification": "AUTH_WALL",
+      "body_sha256": "257f3dbdac8999e039ed9f073f53015f7db7efd598e55c4d62c76303bcf2b3c5",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"A5ONbkfOWyXb8nq0D3WcitI\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_business_profile",
+      "method": "GET",
+      "url": "https://graph.facebook.com/v21.0/quoxprobe/whatsapp_business_profile?fields=about%2Caddress%2Cdescription%2Cemail%2Cprofile_picture_url%2Cwebsites%2Cvertical",
+      "status": 401,
+      "latency_ms": 172,
+      "classification": "AUTH_WALL",
+      "body_sha256": "f1b6810e48c289a48a0d5c99ceb806bd73493aa198d571e744abcd05e287ed7b",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"AK1NBS8-1YkAc4dw0fy-46V\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_phone_numbers",
+      "method": "GET",
+      "url": "https://graph.facebook.com/v21.0/quoxprobe/phone_numbers?limit=20",
+      "status": 401,
+      "latency_ms": 44,
+      "classification": "AUTH_WALL",
+      "body_sha256": "7c4cf119946c9365b8c68aadcc68eade841dd873234be8ebc6d6d630fd81d6e8",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"AnVnhmBpCq8HzC6tYZxu52J\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_phone_number",
+      "method": "GET",
+      "url": "https://graph.facebook.com/v21.0/quoxprobe",
+      "status": 401,
+      "latency_ms": 52,
+      "classification": "AUTH_WALL",
+      "body_sha256": "8a40db4e82690064e6252b2f3fd24552b8007f3cfcfab9242b55ae0dfc384def",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"A6lZXWfVUoRNHHsOZYEMgWx\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_message_templates",
+      "method": "GET",
+      "url": "https://graph.facebook.com/v21.0/quoxprobe/message_templates?limit=20&status=quoxprobe",
+      "status": 401,
+      "latency_ms": 51,
+      "classification": "AUTH_WALL",
+      "body_sha256": "54b7399974d783361bcaf64755be68e3cd23ca18645f69419c2143ca994cc120",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"AniGp3NF_tM5RZQeTPU8zJR\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_business_account",
+      "method": "GET",
+      "url": "https://graph.facebook.com/v21.0/quoxprobe?fields=id%2Cname%2Ccurrency%2Ctimezone_id%2Cmessage_template_namespace%2Caccount_review_status",
+      "status": 401,
+      "latency_ms": 142,
+      "classification": "AUTH_WALL",
+      "body_sha256": "f2bed895973976e7b07bbc5774c179356b87d011f1063fa182d5bc2dbec65cc6",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid OAuth access token - Cannot parse access token\",\"type\":\"OAuthException\",\"code\":190,\"fbtrace_id\":\"A60wc_t_yc477nXOzbEIHDy\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

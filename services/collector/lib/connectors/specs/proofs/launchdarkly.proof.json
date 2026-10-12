@@ -1,0 +1,90 @@
+{
+  "spec_id": "launchdarkly",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:47.949Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://app.launchdarkly.com/quox-shapeproof-control-031ac995",
+      "status": 404,
+      "latency_ms": 423,
+      "classification": "CONTROL",
+      "body_sha256": "ff3d0203c39a58a034c5641b9fdde0f910d5e57702016379f21d9f1a221ae7f8",
+      "body_excerpt": " \n<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    \n\n    <meta charset=\"utf-8\">\n    \n    <title>Not found</title>\n    <meta name=\"description\" content=\"LaunchDarkly\">\n    <meta name=\"viewport\" content=\"w",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://app.launchdarkly.com/api/v2/projects",
+      "status": 401,
+      "latency_ms": 524,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7aca7a15892ee1e588285da87ffe9b9e06fa5d89282745fe5dbeed0aee26b85d",
+      "body_excerpt": "{\"code\":\"unauthorized\",\"message\":\"Invalid account ID header\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "GET",
+      "url": "https://app.launchdarkly.com/api/v2/projects?limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 105,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7aca7a15892ee1e588285da87ffe9b9e06fa5d89282745fe5dbeed0aee26b85d",
+      "body_excerpt": "{\"code\":\"unauthorized\",\"message\":\"Invalid account ID header\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_flags",
+      "method": "GET",
+      "url": "https://app.launchdarkly.com/api/v2/flags/default?tag=quoxprobe&limit=20&offset=1&summary=true",
+      "status": 401,
+      "latency_ms": 367,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7aca7a15892ee1e588285da87ffe9b9e06fa5d89282745fe5dbeed0aee26b85d",
+      "body_excerpt": "{\"code\":\"unauthorized\",\"message\":\"Invalid account ID header\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_flag",
+      "method": "GET",
+      "url": "https://app.launchdarkly.com/api/v2/flags/default/quoxprobe",
+      "status": 401,
+      "latency_ms": 129,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7aca7a15892ee1e588285da87ffe9b9e06fa5d89282745fe5dbeed0aee26b85d",
+      "body_excerpt": "{\"code\":\"unauthorized\",\"message\":\"Invalid account ID header\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_environments",
+      "method": "GET",
+      "url": "https://app.launchdarkly.com/api/v2/projects/default/environments?limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 152,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7aca7a15892ee1e588285da87ffe9b9e06fa5d89282745fe5dbeed0aee26b85d",
+      "body_excerpt": "{\"code\":\"unauthorized\",\"message\":\"Invalid account ID header\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

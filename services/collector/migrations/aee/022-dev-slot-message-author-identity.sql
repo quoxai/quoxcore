@@ -1,0 +1,26 @@
+-- 022-dev-slot-message-author-identity.sql — DEVSUITE-SLOTS: unforgeable
+-- authorship for slot messages, keeping the display label useful.
+--
+-- Incident this closes: `from` (now `from_label`) is caller-controlled free
+-- text with no server check, so any session can post under another
+-- session's name. Live example: a session's posts appeared as
+-- "QUOX-SECURITY" (a different session entirely) because its shell carried
+-- a stale QUOX_STREAM.
+--
+-- Why not just overwrite the label server-side: many Claude sessions
+-- authenticate as the SAME user account (capture-viewer@example.com). If the
+-- server replaced the label with the authenticated identity, every session
+-- sharing an account would post under one indistinguishable name,
+-- destroying the session-level addressing that makes slots useful.
+--
+-- author_identity is the server-derived, unforgeable value (see
+-- deriveSlotAuthor / deriveCallerIdentity in devSlotMessagesStore.js): a
+-- resident resolves to `resident:<host>`, a human to their email, a service
+-- caller to 'service'. from_label stays the caller-chosen display name,
+-- now validated but never trusted for own-post filtering. NULL is allowed
+-- for backfill/inbound rows written before this migration or by callers
+-- that predate identity resolution.
+--
+-- Same additive-ALTER pattern as 013/017/018/019/020.
+
+ALTER TABLE dev_slot_messages ADD COLUMN author_identity TEXT;

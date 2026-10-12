@@ -1,0 +1,432 @@
+{
+  "spec_version": 1,
+  "id": "shutterstock",
+  "name": "Shutterstock",
+  "category": "media",
+  "credentialType": "shutterstock",
+  "requiredFields": [
+    "api_key",
+    "api_secret"
+  ],
+  "description": "READ-ONLY Shutterstock API v2 access with the application's consumer key and secret: search the image, video and audio libraries, read one image's or one track's metadata, and list the image categories. Metadata and preview URLs only, no licensing and no downloads.",
+  "docs": "https://developers.shutterstock.com/",
+  "base_url": "https://api.shutterstock.com",
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": "api_secret"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/images/search",
+    "query": {
+      "query": "test",
+      "per_page": "1"
+    }
+  },
+  "tools_source": "https://github.com/shutterstock/public-api-javascript-sdk/tree/master/docs",
+  "tools": [
+    {
+      "name": "search_images",
+      "description": "Search the Shutterstock image library and return image metadata (ID, description, image type, aspect ratio, contributor, preview and thumbnail asset URLs)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "One or more search terms separated by spaces; prefix a term with NOT to exclude it, e.g. 'dogs on the beach NOT puppy'"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 20, capped at 100 by this connector)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional page number to fetch (default 1)"
+          },
+          "image_type": {
+            "type": "string",
+            "enum": [
+              "photo",
+              "illustration",
+              "vector"
+            ],
+            "description": "Optional image type filter"
+          },
+          "orientation": {
+            "type": "string",
+            "enum": [
+              "horizontal",
+              "vertical"
+            ],
+            "description": "Optional orientation filter"
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "newest",
+              "oldest",
+              "popular",
+              "relevance",
+              "random"
+            ],
+            "description": "Optional result ordering (Shutterstock defaults to popular)"
+          },
+          "license": {
+            "type": "string",
+            "enum": [
+              "commercial",
+              "editorial",
+              "enhanced"
+            ],
+            "description": "Optional licence filter"
+          },
+          "color": {
+            "type": "string",
+            "description": "Optional dominant colour, either a hex value without the hash such as 4F21EA, or the literal 'grayscale'"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/images/search",
+        "query": {
+          "query": "{{input.query}}",
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}",
+          "image_type": "{{input.image_type}}",
+          "orientation": "{{input.orientation}}",
+          "sort": "{{input.sort}}",
+          "license": "{{input.license}}",
+          "color": "{{input.color}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_count": "total_count",
+          "page": "page",
+          "per_page": "per_page",
+          "search_id": "search_id",
+          "data[]": {
+            "id": "id",
+            "description": "description",
+            "image_type": "image_type",
+            "media_type": "media_type",
+            "aspect": "aspect",
+            "has_model_release": "has_model_release",
+            "contributor_id": "contributor.id",
+            "preview_url": "assets.preview.url",
+            "huge_thumb_url": "assets.huge_thumb.url"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.query": "mountain",
+        "input.image_type": "photo",
+        "input.orientation": "horizontal",
+        "input.sort": "popular",
+        "input.license": "commercial",
+        "input.color": "grayscale"
+      }
+    },
+    {
+      "name": "get_image",
+      "description": "Get metadata for one Shutterstock image by ID (description, image type, aspect ratio, contributor, model release, preview and thumbnail asset URLs)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "image_id": {
+            "type": "string",
+            "description": "Shutterstock image ID, as returned by search_images (e.g. 1572478477)"
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "minimal",
+              "full"
+            ],
+            "description": "Amount of detail to render in the response (Shutterstock defaults to full for this endpoint)"
+          }
+        },
+        "required": [
+          "image_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/images/{{input.image_id}}",
+        "query": {
+          "view": "{{input.view}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "description": "description",
+          "image_type": "image_type",
+          "media_type": "media_type",
+          "aspect": "aspect",
+          "has_model_release": "has_model_release",
+          "contributor_id": "contributor.id",
+          "categories": "categories",
+          "keywords": "keywords",
+          "preview_url": "assets.preview.url",
+          "huge_thumb_url": "assets.huge_thumb.url"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.image_id": "1572478477",
+        "input.view": "full"
+      }
+    },
+    {
+      "name": "search_videos",
+      "description": "Search the Shutterstock video library and return clip metadata (ID, description, duration, aspect ratio, contributor, preview and thumbnail asset URLs)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "One or more search terms separated by spaces; prefix a term with NOT to exclude it"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 20, capped at 100 by this connector)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional page number to fetch (default 1)"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "4k",
+              "high_definition",
+              "standard_definition"
+            ],
+            "description": "Optional resolution filter"
+          },
+          "orientation": {
+            "type": "string",
+            "enum": [
+              "horizontal",
+              "vertical"
+            ],
+            "description": "Optional orientation filter"
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "newest",
+              "oldest",
+              "popular",
+              "relevance",
+              "random"
+            ],
+            "description": "Optional result ordering (Shutterstock defaults to popular)"
+          },
+          "duration_from": {
+            "type": "number",
+            "description": "Optional minimum clip duration in seconds"
+          },
+          "duration_to": {
+            "type": "number",
+            "description": "Optional maximum clip duration in seconds"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/videos/search",
+        "query": {
+          "query": "{{input.query}}",
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}",
+          "resolution": "{{input.resolution}}",
+          "orientation": "{{input.orientation}}",
+          "sort": "{{input.sort}}",
+          "duration_from": "{{input.duration_from}}",
+          "duration_to": "{{input.duration_to}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_count": "total_count",
+          "page": "page",
+          "per_page": "per_page",
+          "search_id": "search_id",
+          "data[]": {
+            "id": "id",
+            "description": "description",
+            "duration": "duration",
+            "aspect_ratio": "aspect_ratio",
+            "media_type": "media_type",
+            "contributor_id": "contributor.id",
+            "preview_mp4_url": "assets.preview_mp4.url",
+            "thumb_jpg_url": "assets.thumb_jpg.url"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.query": "ocean",
+        "input.resolution": "high_definition",
+        "input.orientation": "horizontal",
+        "input.sort": "popular"
+      }
+    },
+    {
+      "name": "search_audio",
+      "description": "Search the Shutterstock music library and return track metadata (ID, title, description, duration, BPM, genres, moods, instruments, preview MP3 URL)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "One or more search terms separated by spaces, e.g. 'upbeat piano'"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 20, capped at 100 by this connector)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional page number to fetch (default 1)"
+          },
+          "genre": {
+            "type": "string",
+            "description": "Optional genre name; the valid set comes from Shutterstock's GET /v2/audio/genres"
+          },
+          "is_instrumental": {
+            "type": "boolean",
+            "description": "Optional filter for instrumental tracks only"
+          },
+          "bpm_from": {
+            "type": "number",
+            "description": "Optional minimum beats per minute"
+          },
+          "bpm_to": {
+            "type": "number",
+            "description": "Optional maximum beats per minute"
+          },
+          "duration_from": {
+            "type": "number",
+            "description": "Optional minimum track duration in seconds"
+          },
+          "duration_to": {
+            "type": "number",
+            "description": "Optional maximum track duration in seconds"
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "score",
+              "ranking_all",
+              "artist",
+              "title",
+              "bpm",
+              "freshness",
+              "duration"
+            ],
+            "description": "Optional result ordering"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/audio/search",
+        "query": {
+          "query": "{{input.query}}",
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}",
+          "genre": "{{input.genre}}",
+          "is_instrumental": "{{input.is_instrumental}}",
+          "bpm_from": "{{input.bpm_from}}",
+          "bpm_to": "{{input.bpm_to}}",
+          "duration_from": "{{input.duration_from}}",
+          "duration_to": "{{input.duration_to}}",
+          "sort": "{{input.sort}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_count": "total_count",
+          "page": "page",
+          "per_page": "per_page",
+          "search_id": "search_id",
+          "data[]": {
+            "id": "id",
+            "title": "title",
+            "description": "description",
+            "duration": "duration",
+            "bpm": "bpm",
+            "genres": "genres",
+            "moods": "moods",
+            "instruments": "instruments",
+            "is_instrumental": "is_instrumental",
+            "media_type": "media_type",
+            "contributor_id": "contributor.id",
+            "preview_mp3_url": "assets.preview_mp3.url"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.query": "piano",
+        "input.sort": "score"
+      }
+    },
+    {
+      "name": "list_image_categories",
+      "description": "List the Shutterstock-defined image categories with their IDs, for use as the category filter on an image search",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/images/categories"
+      },
+      "response": {
+        "pick": {
+          "total_count": "total_count",
+          "data[]": {
+            "id": "id",
+            "name": "name"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "auth KEPT AS SCAFFOLDED (basic api_key:api_secret), AND THE DOCS BACK IT: services/auth/config/integrationTypeRegistry.js key 'shutterstock' declares exactly two fields, api_key ('API Key') and api_secret ('API Secret'), and builds Authorization: `Basic ${Buffer.from(`${creds.api_key}:${creds.api_secret}`).toString('base64')}`, which is what this spec reproduces. Shutterstock's own SDK README says it verbatim: \"In HTTP basic authentication (also known as basic authentication), you pass your application's consumer key and secret key to the SDK along with the request.\" So api_key/api_secret ARE the application's consumer key and consumer secret. Nothing in the probe contradicts the scaffold, and nothing in the probe confirms it either: see the next two notes.",
+      "test (SCAFFOLD WAS WRONG FOR THESE CREDENTIALS, corrected this wave): the scaffolded test path GET /v2/user cannot ever succeed with a consumer key and secret. Verbatim from Shutterstock's generated reference for that endpoint (docs/UsersApi.md, getUser, `GET /v2/user`): \"### Accepted authentication\" lists \"- [OAuth](../README.md#OAuth_authentication) (No scope required.)\" and NOTHING else, while every endpoint shipped here lists \"- [Basic](../README.md#Basic_authentication)\" first. GET /v2/user needs a user-context access token this vault entry has no field for, so it is NOT exposed as a tool and the test block now points at GET /v2/images/search?query=test&per_page=1, which does accept Basic. Shipping a get_user tool that 401s forever on the only credentials we hold would have been a false claim, not a head start.",
+      "PATHS ARE PROVEN BY THE CONTROL DIFFERENTIAL, because routing runs BEFORE auth on this host. Verbatim, all probed 2026-09-12 with Basic base64(QUOXSHAPEPROOFDUMMYAPIKEY:QUOXSHAPEPROOFDUMMYAPISECRET): the control path https://api.shutterstock.com/quox-bogus-path-954f7752 answered 404 {\"fault\":{\"faultstring\":\"Unable to identify proxy for host: https_vhost and url: \\/quox-bogus-path-954f7752\",\"detail\":{\"errorcode\":\"messaging.adaptors.http.flow.ApplicationNotFound\"}}} and a bogus path INSIDE the API, /v2/quox-bogus-954f7752, answered 404 {\"statusCode\": 404, \"error\": \"Not Found\", \"message\": \"Not Found\"}, while /v2/images/search?query=mountain&per_page=1, /v2/videos/search, /v2/audio/search, /v2/images/categories and the identifier route /v2/images/quox-bogus-954f7752 all answered 401 {\"message\": \"Invalid auth credentials\"}. A different status and a different error identity from both controls means every tool path here matched a real route, so they are SHAPE_PROVEN.",
+      "WHAT THE PROBE DOES NOT PROVE: the 401 body is the byte-identical {\"message\": \"Invalid auth credentials\"} on every routed path, so it distinguishes 'this credential is wrong' from 'this path does not exist' but says nothing about WHICH auth scheme Shutterstock would have accepted. No Shutterstock credential was held, so no 2xx has ever been observed on this connector, and none of the five response picks has been checked against a real payload. Also note verbatim from the SDK README that a free key sees less than the full library: \"Applications that use this free API product can search and view media but not license or download media.\", and from the image search reference: \"Free API accounts show results only from a limited library of media, not the full Shutterstock media library.\"",
+      "READ-ONLY BY CONSTRUCTION: all five tools are GET metadata reads. Shutterstock's licensing and download surface (POST /v2/images/licenses, POST /v2/images/licenses/{id}/downloads, POST /v2/videos/licenses, POST /v2/audio/licenses, POST /v2/audio/licenses/{id}/downloads), its collection mutations (POST, DELETE on /v2/images/collections and the video and audio equivalents) and the generative endpoints are all deliberately absent. Nothing here can license an asset, spend a download from a subscription, or alter a collection.",
+      "CLAMPS ARE A CONNECTOR-SIDE CAP, NOT A DOCUMENTED LIMIT: the reference gives per_page as \"Number of results per page, defaults to 20\" for images, videos and audio and states no maximum in the generated docs, so per_page is clamped here to default 20, max 100 to keep one page of results inside truncate 2000. If a caller ever needs a bigger page, raise the clamp deliberately rather than assuming 100 is Shutterstock's ceiling. The enums are the documented value sets verbatim: image_type photo/illustration/vector, image orientation horizontal/vertical, image sort newest/popular/relevance/random/oldest, license commercial/editorial/enhanced, video resolution 4k/standard_definition/high_definition, video sort newest/oldest/popular/relevance/random, audio sort score/ranking_all/artist/title/bpm/freshness/duration, view minimal/full.",
+      "RESPONSE PICKS FOLLOW THE DOCUMENTED EXAMPLE PAYLOADS AND USE DOTTED PATHS INTO THE ASSET BLOCKS: image search and get_image are picked from the reference's example response keys (id, aspect, assets.preview.url, assets.huge_thumb.url, contributor.id, description, image_type, media_type, has_model_release, and categories plus keywords on the single-image read, which the docs note need view=full or a language parameter to be fully populated); video search from (id, aspect_ratio, duration, assets.preview_mp4.url, assets.thumb_jpg.url, contributor.id); audio search from (id, title, description, duration, bpm, genres, moods, instruments, is_instrumental, assets.preview_mp3.url); categories from the documented { data: [ { id, name } ], page, per_page, total_count } envelope. An unexpected or renamed key picks nothing rather than erroring, so all five are worth re-checking on the first 2xx with a real consumer key and secret.",
+      "PROBE VALUES ARE HARMLESS AND READ-ONLY: _probe supplies query values ('mountain', 'ocean', 'piano'), documented enum members, and image_id 1572478477, which is the ID used in Shutterstock's own published example response rather than a customer asset. With a dummy credential the call never reaches an asset lookup anyway. Credentials are never hinted, and _probe sits at TOOL level because the harness reads tool._probe and ignores one nested inside request."
+    ]
+  }
+}

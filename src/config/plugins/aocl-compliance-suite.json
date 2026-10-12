@@ -1,0 +1,170 @@
+{
+  "name": "aocl-compliance-suite",
+  "version": "1.0.0",
+  "displayName": "AOCL Compliance Suite",
+  "tagline": "Evidence for Every AI Audit",
+  "description": "Enterprise-grade audit trails and compliance exports for AI agent decisions. Export SOC2, HIPAA, GDPR, and ISO 27001 reports. Debug with Trace Replay. Compare behaviors across versions. Track every handoff in multi-agent workflows.",
+  "shortDescription": "Compliance exports, trace replay, comparison, and multi-agent correlation.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 499,
+  "priceDisplay": "$499/yr",
+  "priceModel": "annual",
+  "perpetualPrice": 999,
+  "perpetualDisplay": "$999",
+  "tier": "enterprise",
+  "featured": true,
+  "badge": "ENTERPRISE",
+  "infoUrl": "https://quox.ai/plugins/aocl-compliance-suite",
+  "docsUrl": "https://quox.ai/docs/plugins/aocl-compliance-suite",
+  "icon": "shield-check",
+  "heroGradient": "linear-gradient(135deg, #0ea5e9 0%, #3b82f6 50%, #6366f1 100%)",
+  "accentColor": "#3b82f6",
+  "marketingPoints": [
+    "Never fail an AI compliance audit again",
+    "SOC2, HIPAA, GDPR, ISO 27001 - one click export",
+    "Debug production issues with Trace Replay",
+    "Compare agent behavior across versions",
+    "Full visibility across multi-agent workflows"
+  ],
+  "features": {
+    "complianceExport": {
+      "name": "Compliance Export",
+      "description": "Export complete audit trails in SOC2, HIPAA, GDPR, and ISO 27001 formats. Auditor-ready documentation with evidence bundles.",
+      "icon": "file-badge",
+      "highlight": true
+    },
+    "traceReplay": {
+      "name": "Trace Replay",
+      "description": "Re-execute any historical trace with modifications. Debug production issues, test policy changes, and run what-if scenarios.",
+      "icon": "refresh-cw",
+      "highlight": true
+    },
+    "traceComparison": {
+      "name": "Trace Comparison",
+      "description": "Side-by-side comparison of two or more traces. See timing deltas, decision differences, and content changes highlighted.",
+      "icon": "columns",
+      "highlight": true
+    },
+    "multiAgentCorrelation": {
+      "name": "Multi-Agent Correlation",
+      "description": "Track every handoff across multi-agent workflows. Swimlane visualization shows the complete journey across all agents.",
+      "icon": "git-branch",
+      "highlight": true
+    },
+    "scheduledReports": {
+      "name": "Scheduled Compliance Jobs",
+      "description": "Automatically generate compliance reports on a schedule. Weekly, monthly, or custom intervals.",
+      "icon": "calendar"
+    },
+    "evidenceBundles": {
+      "name": "Evidence Bundles",
+      "description": "Download complete evidence packages for auditors. Includes trace samples, policy decisions, and verification results.",
+      "icon": "archive"
+    },
+    "auditReports": {
+      "name": "Audit Report Generation",
+      "description": "Generate auditor-ready reports with executive summaries, detailed findings, and remediation recommendations.",
+      "icon": "file-text"
+    },
+    "complianceDashboard": {
+      "name": "Compliance Dashboard",
+      "description": "Real-time compliance posture visibility. Track coverage, gaps, and trends across all compliance frameworks.",
+      "icon": "layout-dashboard"
+    }
+  },
+  "comparison": {
+    "free": {
+      "name": "Core (Free)",
+      "exportFormats": "JSON only",
+      "traceReplay": false,
+      "traceComparison": false,
+      "multiAgentCorrelation": false,
+      "scheduledReports": false,
+      "evidenceBundles": false
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "exportFormats": "SOC2, HIPAA, GDPR, ISO 27001, Custom",
+      "traceReplay": true,
+      "traceComparison": true,
+      "multiAgentCorrelation": true,
+      "scheduledReports": true,
+      "evidenceBundles": true
+    }
+  },
+  "limits": {
+    "free": {
+      "exportFormats": [
+        "json"
+      ],
+      "replayEnabled": false,
+      "comparisonEnabled": false,
+      "correlationEnabled": false,
+      "scheduledReports": false,
+      "maxReplayRetention": 0
+    },
+    "enterprise": {
+      "exportFormats": [
+        "json",
+        "soc2",
+        "hipaa",
+        "gdpr",
+        "iso27001",
+        "custom"
+      ],
+      "replayEnabled": true,
+      "comparisonEnabled": true,
+      "correlationEnabled": true,
+      "scheduledReports": true,
+      "maxReplayRetention": 90,
+      "maxScheduledJobs": 10,
+      "evidenceSampleSize": 100
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "quoxagent": ">=1.0.0",
+    "aoclCore": ">=1.0.0"
+  },
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "integration": {
+    "complianceExporter": "src/services/compliance/complianceExporter.js",
+    "replayOrchestrator": "src/services/replay/replayOrchestrator.js",
+    "traceComparator": "src/services/comparison/traceComparator.js",
+    "correlationEngine": "src/services/correlation/correlationEngine.js",
+    "pluginClient": "src/services/pluginClient.js"
+  },
+  "testimonials": [
+    {
+      "quote": "Our SOC2 auditor was impressed with the level of AI agent transparency. Passed with flying colors.",
+      "author": "CISO, Healthcare Tech"
+    },
+    {
+      "quote": "Trace Replay saved us hours of debugging. Found the root cause of a production issue in minutes.",
+      "author": "Platform Engineer"
+    }
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2025-01-27",
+      "changes": [
+        "Initial release",
+        "SOC2 compliance export with TSC mapping",
+        "HIPAA compliance export with Security Rule sections",
+        "GDPR compliance export with Article 30 records",
+        "ISO 27001 compliance export with Annex A controls",
+        "Trace Replay with modification support",
+        "Trace Comparison with timing and decision diff",
+        "Multi-Agent Correlation with swimlane view",
+        "Scheduled compliance job system",
+        "Evidence bundle export"
+      ]
+    }
+  },
+  "category": "Compliance & Audit"
+}

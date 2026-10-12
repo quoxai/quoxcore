@@ -1,0 +1,195 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "fleet",
+
+  "name": "Fleet Management Tools",
+  "description": "Tools for managing and monitoring the host fleet via QuoxAgent",
+  "category": "infrastructure",
+  "subcategory": "fleet",
+  "provider": "quox",
+  "version": "1.0.0",
+
+  "risk_level": "low",
+  "sandbox_profile": "standard",
+
+  "tools": [
+    {
+      "id": "fleet.status",
+      "name": "Fleet Status",
+      "description": "Get status of all QuoxAgent hosts in the fleet",
+      "aeeIntent": "quox.noc.fleet.status",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "include_offline": {
+          "type": "boolean",
+          "required": false,
+          "default": true
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "hosts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "hostname": { "type": "string" },
+                "ip": { "type": "string" },
+                "status": { "type": "string" },
+                "last_seen": { "type": "string" },
+                "agent_version": { "type": "string" },
+                "uptime": { "type": "string" }
+              }
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "number" },
+              "online": { "type": "number" },
+              "offline": { "type": "number" }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Check status of all managed hosts",
+        "when_to_use": [
+          "User asks about fleet status",
+          "Checking which hosts are online",
+          "Fleet health overview"
+        ]
+      }
+    },
+    {
+      "id": "fleet.health_matrix",
+      "name": "Fleet Health Matrix",
+      "description": "Get health metrics for all hosts (CPU, memory, disk)",
+      "aeeIntent": "quox.noc.fleet.health.query",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "warn_cpu": {
+          "type": "number",
+          "required": false,
+          "default": 80,
+          "description": "CPU % threshold for warning"
+        },
+        "warn_memory": {
+          "type": "number",
+          "required": false,
+          "default": 85,
+          "description": "Memory % threshold for warning"
+        },
+        "warn_disk": {
+          "type": "number",
+          "required": false,
+          "default": 90,
+          "description": "Disk % threshold for warning"
+        }
+      },
+      "instructions": {
+        "summary": "Get resource usage across all fleet hosts",
+        "when_to_use": [
+          "User asks about fleet health",
+          "Finding overloaded hosts",
+          "Capacity overview"
+        ]
+      }
+    },
+    {
+      "id": "fleet.execute",
+      "name": "Fleet Execute",
+      "description": "Execute a command across multiple hosts",
+      "aeeIntent": "quox.noc.fleet.execute",
+      "aoclClassification": { "layer": 5, "risk": "HIGH", "autonomy": "APPROVAL_REQUIRED" },
+      "accessLevel": "managers+",
+      "defconLevel": "ORANGE",
+      "requiresApproval": true,
+      "parameters": {
+        "hosts": {
+          "type": "array",
+          "required": true,
+          "description": "List of host IDs or 'all'"
+        },
+        "command": {
+          "type": "string",
+          "required": true,
+          "description": "Command to execute"
+        },
+        "timeout": {
+          "type": "number",
+          "required": false,
+          "default": 60,
+          "description": "Timeout in seconds"
+        },
+        "parallel": {
+          "type": "boolean",
+          "required": false,
+          "default": true
+        }
+      },
+      "instructions": {
+        "summary": "Run a command on multiple hosts simultaneously",
+        "when_to_use": [
+          "User wants to run command on multiple hosts",
+          "Fleet-wide operations",
+          "Bulk maintenance"
+        ]
+      }
+    },
+    {
+      "id": "fleet.compare",
+      "name": "Fleet Compare",
+      "description": "Compare configuration or packages across hosts",
+      "aeeIntent": "quox.noc.fleet.compare",
+      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "hosts": {
+          "type": "array",
+          "required": true,
+          "description": "Hosts to compare"
+        },
+        "compare_type": {
+          "type": "string",
+          "required": true,
+          "enum": ["packages", "services", "config_file"],
+          "description": "What to compare"
+        },
+        "config_path": {
+          "type": "string",
+          "required": false,
+          "description": "Path if comparing config files"
+        }
+      },
+      "instructions": {
+        "summary": "Find differences between hosts",
+        "when_to_use": [
+          "Checking for configuration drift",
+          "Comparing package versions",
+          "Troubleshooting inconsistencies"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {"base": "internal", "api": "bastion_ssh"},
+
+  "agent_hints": {
+    "primary_agent": "beacon",
+    "secondary_agents": ["nova"],
+    "delegation_keywords": ["fleet", "all hosts", "mha", "quoxagent", "host status", "compare hosts"]
+  }
+}

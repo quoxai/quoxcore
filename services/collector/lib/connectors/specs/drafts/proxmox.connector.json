@@ -1,0 +1,32 @@
+{
+  "spec_version": 1,
+  "id": "proxmox",
+  "name": "Proxmox VE",
+  "category": "uncategorized",
+  "credentialType": "proxmox",
+  "requiredFields": [
+    "base_url",
+    "token_id",
+    "token_secret"
+  ],
+  "docs": "https://pve.proxmox.com/pve-docs/api-viewer/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "PVEAPIToken={{token_id}}={{token_secret}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api2/json/version"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

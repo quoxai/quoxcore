@@ -1,0 +1,31 @@
+{
+  "id": "quoxplan",
+  "name": "quoxplan",
+  "displayName": "QuoxPlan",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "paid",
+  "badge": "PAID",
+  "category": "AI & Intelligence",
+  "accentColor": "#a855f7",
+  "description": "Full project-management surface for Quox streams: focus lens, board and timeline views, governed plan editing, and phase/note timelines. Every capability is an API first, so Claude sessions can brief on a stream and append notes with zero local install.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/quoxplan",
+      "label": "QuoxPlan",
+      "icon": "octahedron",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/quoxplan/*": "QuoxPlanView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

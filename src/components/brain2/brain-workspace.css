@@ -1,0 +1,269 @@
+/* ============================================================================
+   BRAIN2-V2 Phase 2b — workspace 3-zone layout (Library rail · Stage · Dock)
+   LAYOUT ONLY. Glass surfaces come from the design system: the rail, stage and
+   dock each carry `.qx-card` in the JSX (one cohesive glass panel per zone,
+   siblings — never nested, so no glass-on-glass). Rail sections are FLAT
+   (transparent, divider-separated) because the rail card already provides the
+   glass — per the glass-design-system "ghost panel" rule. Nothing here paints a
+   bespoke panel background, border, radius or shadow (gripe #543).
+   ============================================================================ */
+
+.bw-workspace {
+  display: flex;
+  gap: 16px;
+  flex: 1 1 auto;   /* fill the remaining height under the identity header */
+  min-height: 520px; /* keep the graph usable even when the page must scroll */
+  position: relative; /* anchor for the mobile rail drawer + scrim */
+}
+
+/* ── Library rail (composed with .qx-card in JSX) ───────────────────────── */
+.bw-rail {
+  flex: 0 0 240px;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;          /* denser than the card default (20) for a filter rail */
+  overflow: hidden;        /* the inner scroller handles overflow, radius stays clean */
+}
+
+.bw-rail__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Rail identity (Brain2 + total) + growth actions (Register/Reindex), pulled
+   out of the old top bar so the brain gets that height back (P2b-2). */
+.bw-rail__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 2px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  flex-shrink: 0;
+}
+.bw-rail__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  flex-shrink: 0;
+}
+
+/* Flat sections — divider-separated, no per-section glass (parent card owns it) */
+.bw-rail__section { flex-shrink: 0; border-top: 1px solid rgba(255, 255, 255, 0.09); }
+.bw-rail__scroll > .bw-rail__section:first-child { border-top: none; }
+.bw-rail__section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  list-style: none;
+}
+.bw-rail__section-head::-webkit-details-marker { display: none; }
+.bw-rail__section-title { flex: 1; min-width: 0; }
+.bw-rail__section-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.bw-rail__section-chevron { display: inline-flex; color: rgba(255, 255, 255, 0.7); transition: transform 0.15s ease; }
+.bw-rail__section[open] .bw-rail__section-chevron { transform: rotate(180deg); }
+.bw-rail__section-body { padding: 2px 2px 10px; display: flex; flex-direction: column; gap: 8px; }
+.bw-rail__chips { display: flex; flex-direction: column; gap: 6px; }
+
+
+/* ── Main (stage + dock) ────────────────────────────────────────────────── */
+.bw-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  gap: 16px;
+  position: relative; /* anchor for the Read-mode overlay */
+}
+
+/* ── Read mode (P2c) — expand a note to a 72ch column over stage+dock ────── */
+.bw-readmode {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* .qx-card in the JSX supplies the glass surface; the paused graph blurs
+     behind it, giving a focused reading page. */
+}
+.bw-readmode__bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+.bw-readmode__title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  color: #fff;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bw-readmode__scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 20px 40px; }
+.bw-readmode__col { max-width: 72ch; margin: 0 auto; }
+.bw-stage {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bw-dock {
+  flex: 0 0 var(--bw-dock-w, 440px);
+  min-width: 320px;  /* max comes from JS (dockMaxWidth): the graph keeps 360px */
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Dock resize separator (desktop side-by-side only) */
+.bw-resize-handle {
+  flex: 0 0 8px;
+  align-self: stretch;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 -8px;   /* straddle the 16px gap so it sits between the two cards */
+  position: relative;
+  z-index: 6;
+  touch-action: none;
+}
+.bw-resize-handle::before {
+  content: '';
+  width: 3px;
+  height: 44px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.16);
+  transition: background 0.15s ease, height 0.15s ease;
+}
+.bw-resize-handle:hover::before,
+.bw-resize-handle:focus-visible::before {
+  background: rgba(56, 189, 248, 0.7);
+  height: 72px;
+}
+.bw-resize-handle:focus-visible { outline: none; }
+
+/* Mobile "Library" trigger + scrim — hidden on desktop */
+.bw-rail-trigger { display: none; }
+.bw-rail-scrim { display: none; }
+
+/* ── Collapsed pane rails (the NotesQ pattern) ─────────────────────────────
+   A hidden pane leaves a labelled strip in its own slot: chevron, icon, a
+   book-spine label and (library) the active filter count. Never display:none,
+   so hiding is always visibly reversible. */
+.bw-pane-rail {
+  flex: 0 0 48px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.bw-pane-rail:hover { box-shadow: 0 0 0 1px var(--m-border-focus, rgba(56, 189, 248, 0.6)); }
+.bw-pane-rail .qx-btn { padding-inline: 8px; }
+.bw-pane-rail__icon { display: inline-flex; color: var(--m-text-primary, #fff); }
+.bw-pane-rail__label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);   /* reads bottom-to-top like a book spine */
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--m-text-primary, #fff);
+  white-space: nowrap;
+}
+.bw-pane-rail__count { margin-top: auto; }
+
+/* Hide controls live in each pane's header, where the eye already is. */
+.bw-pane-hide { padding-inline: 8px; flex-shrink: 0; }
+.bw-dock__wide { margin-left: auto; align-self: center; gap: 6px; }
+.bw-dock__hide { align-self: center; }
+.bw-exit-focus { gap: 6px; }
+.bw-exit-focus .qx-kbd { margin-left: 2px; }
+
+/* ── Layout states (data attributes set from the WORKSPACE width in JS, see
+   lib/workspaceLayout.js; container width, not viewport, because the nav rail
+   or a docked chat narrows us too) ───────────────────────────────────────── */
+
+/* Stacked (<= 760px): dock drops below the stage; a collapsed dock lies flat. */
+.bw-workspace[data-stacked="true"] .bw-main { flex-direction: column; }
+.bw-workspace[data-stacked="true"] .bw-dock { flex: 0 0 auto; max-width: none; min-width: 0; min-height: 300px; height: 45%; }
+.bw-workspace[data-stacked="true"] .bw-stage { min-height: 320px; }
+.bw-workspace[data-stacked="true"] .bw-pane-rail--dock { flex: 0 0 auto; flex-direction: row; padding: 6px 10px; }
+.bw-workspace[data-stacked="true"] .bw-pane-rail--dock .bw-pane-rail__label { writing-mode: horizontal-tb; transform: none; }
+
+/* Drawer (<= 680px): the library becomes an off-canvas drawer. */
+.bw-workspace[data-drawer="true"] .bw-rail {
+  position: absolute;
+  z-index: 45;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  flex-basis: 280px;
+  transform: translateX(-108%);
+  transition: transform 0.2s ease;
+}
+.bw-workspace[data-drawer="true"] .bw-rail--drawer-open { transform: translateX(0); }
+.bw-workspace[data-drawer="true"] .bw-rail-scrim {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 44;
+  background: rgba(2, 6, 12, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.bw-workspace[data-drawer="true"] .bw-rail-scrim--visible { opacity: 1; pointer-events: auto; }
+.bw-workspace[data-drawer="true"] .bw-rail-trigger { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Narrow stage header: the Focus button goes icon-only. */
+.bw-workspace[data-stacked="true"] .bw-btn-label {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* Wide (Expand on the dock): the note or chat fills the workspace beside a
+   compact 300px graph; the library is folded by the layout rules. */
+.bw-workspace[data-wide="true"] .bw-stage { flex: 0 0 300px; }
+.bw-workspace[data-wide="true"] .bw-dock { flex: 1 1 auto; min-width: 0; }
+.bw-workspace[data-wide="true"][data-stacked="true"] .bw-stage { flex: 0 0 220px; min-height: 220px; }
+.bw-workspace[data-wide="true"][data-stacked="true"] .bw-dock { flex: 1 1 auto; height: auto; min-height: 0; }

@@ -1,0 +1,181 @@
+{
+  "spec_version": 1,
+  "id": "circleci",
+  "name": "CircleCI",
+  "category": "developer",
+  "credentialType": "circleci",
+  "requiredFields": [
+    "token"
+  ],
+  "docs": "https://circleci.com/docs/api/v2/",
+  "tools_source": "https://circleci.com/docs/api/v2/index.html",
+  "base_url": "https://circleci.com",
+  "auth": {
+    "type": "header",
+    "header": "Circle-Token",
+    "template": "{{token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/me"
+  },
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the CircleCI user account that owns the configured API token",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "login": "login",
+          "name": "name"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_pipelines",
+      "description": "List recent CircleCI pipelines for one project, newest first, optionally filtered to a branch",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_slug": {
+            "type": "string",
+            "description": "CircleCI project slug in the form vcs/org/repo (e.g. gh/CircleCI-Public/api-preview-docs)"
+          },
+          "branch": {
+            "type": "string",
+            "description": "Optional branch name to filter pipelines by (e.g. main)"
+          }
+        },
+        "required": [
+          "project_slug"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/project/{{input.project_slug}}/pipeline",
+        "query": {
+          "branch": "{{input.branch}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "number": "number",
+            "state": "state",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "branch": "vcs.branch",
+            "revision": "vcs.revision",
+            "trigger_type": "trigger.type",
+            "triggered_by": "trigger.actor.login"
+          },
+          "next_page_token": "next_page_token"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.project_slug": "gh/CircleCI-Public/api-preview-docs",
+        "input.branch": "main"
+      }
+    },
+    {
+      "name": "get_pipeline",
+      "description": "Get one CircleCI pipeline by its pipeline id",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "pipeline_id": {
+            "type": "string",
+            "description": "CircleCI pipeline id (UUID, e.g. 5034460f-c7c4-4c43-9457-de07e2029e7b)"
+          }
+        },
+        "required": [
+          "pipeline_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/pipeline/{{input.pipeline_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "number": "number",
+          "project_slug": "project_slug",
+          "state": "state",
+          "created_at": "created_at",
+          "updated_at": "updated_at",
+          "branch": "vcs.branch",
+          "revision": "vcs.revision",
+          "trigger_type": "trigger.type",
+          "triggered_by": "trigger.actor.login"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_workflows",
+      "description": "List the workflows belonging to one CircleCI pipeline, with their current status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "pipeline_id": {
+            "type": "string",
+            "description": "CircleCI pipeline id (UUID, e.g. 5034460f-c7c4-4c43-9457-de07e2029e7b)"
+          }
+        },
+        "required": [
+          "pipeline_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/pipeline/{{input.pipeline_id}}/workflow"
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "project_slug": "project_slug",
+            "pipeline_number": "pipeline_number",
+            "started_by": "started_by",
+            "created_at": "created_at",
+            "stopped_at": "stopped_at"
+          },
+          "next_page_token": "next_page_token"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "CircleCI API v2 paginates by opaque page-token with a server-fixed page size: there is no limit/per-page parameter on any of these endpoints, so no clamp(20,50) applies. Pagination is surfaced by returning next_page_token instead",
+      "project_slug is a three-part slug (vcs/org/repo) carried in the path; the declarative runtime URL-encodes path placeholders, so the slashes ride as %2F. The shape-proof records the exact URL fired",
+      "list_workflows and get_pipeline take a pipeline UUID which cannot be discovered blind, so their probe identifiers are placeholders and only the route shape is exercised"
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

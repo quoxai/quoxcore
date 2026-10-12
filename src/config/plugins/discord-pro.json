@@ -1,0 +1,87 @@
+{
+  "name": "discord-pro",
+  "version": "0.1.0",
+  "displayName": "Quox Discord Pro",
+  "tagline": "The community server, run by the product",
+  "description": "A dedicated daemon that runs the Quox Discord community server: build and GitHub feeds posted straight into channels, AutoMod covering the baseline moderation load, and grounded support answers drawn from the same corpus Quox uses everywhere else. Replies that go beyond a grounded answer are governed and approval-gated, never sent unsupervised.",
+  "shortDescription": "Server management, build and GitHub feeds, AutoMod baseline, and governed grounded support in your Discord server",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 49,
+  "priceDisplay": "$49",
+  "priceModel": "one-time",
+  "tier": "standard",
+  "featured": false,
+  "icon": "message-circle",
+  "accentColor": "#5865F2",
+  "infoUrl": "https://quox.ai/solutions/discord-pro",
+  "docsUrl": "https://quox.ai/docs/discord-pro",
+  "marketingPoints": [
+    "Runs your Discord server as a real daemon, not a webhook glued to a workflow",
+    "Build and GitHub feeds posted into channels the moment they happen",
+    "AutoMod baseline handles the routine moderation load automatically",
+    "Grounded support answers cite the same corpus Quox uses everywhere else, never invented",
+    "Replies beyond a grounded answer are governed and approval-gated, human decides"
+  ],
+  "features": {
+    "status": {
+      "name": "Status",
+      "description": "Daemon health, uptime, and connection state for the running Discord Pro process.",
+      "icon": "activity",
+      "highlight": true
+    },
+    "bindings": {
+      "name": "Channel Bindings",
+      "description": "Every bound channel with its mode, agent instance, and persona in one table.",
+      "icon": "message-circle"
+    },
+    "supportGaps": {
+      "name": "Support Gaps",
+      "description": "Questions the grounded corpus could not answer, queued for a human to close.",
+      "icon": "check-square"
+    }
+  },
+  "safety": {
+    "destructiveActions": [],
+    "requiresApproval": [
+      "discord.reply.ungrounded"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": false
+  },
+  "capabilities": {
+    "aeeIntents": [
+      "discord.message.received",
+      "discord.reply.grounded",
+      "discord.reply.ungrounded",
+      "discord.gap.learned"
+    ]
+  },
+  "limits": {
+    "free": {},
+    "paid": {
+      "statusEnabled": true,
+      "bindingsEnabled": true,
+      "supportGapsEnabled": true
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0"
+  },
+  "integration": {
+    "service": "quoxai/quoxdiscordpro",
+    "port": 3109,
+    "healthEndpoint": "/health",
+    "client": "src/components/discord-pro/DiscordProView.jsx",
+    "view": "src/components/discord-pro/DiscordProView.jsx"
+  },
+  "changelog": {
+    "0.1.0": {
+      "date": "2026-08-08",
+      "changes": [
+        "Initial plugin registration: manifest, nav entry, route gating, status view, and a locked-state sales surface"
+      ]
+    }
+  },
+  "category": "Communication"
+}

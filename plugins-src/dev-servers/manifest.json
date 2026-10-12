@@ -1,0 +1,33 @@
+{
+  "id": "dev-servers",
+  "name": "Quox Dev Servers",
+  "displayName": "Quox Dev Servers",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "standard",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "developer-tools",
+  "accentColor": "#38bdf8",
+  "description": "Fleet visibility for hosts running the Quox dev-mode agent. Tabbed hub, per-host capability drill-in, and per-host resident/supervisor pages, on top of the always-free dev-server inventory + docs browser on /infra.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/dev-suite",
+      "label": "Dev Servers",
+      "icon": "server",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/dev-suite": "DevSuiteView",
+    "/dev-suite/servers/:hostId": "DevSuiteHostDetailView",
+    "/quoxperticus/:hostId": "QuoxperticusResidentView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

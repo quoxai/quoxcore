@@ -1,0 +1,89 @@
+{
+  "name": "inboxq",
+  "version": "0.1.0",
+  "displayName": "InboxQ",
+  "tagline": "Reads your mailbox, sorts what matters, proposes the rest.",
+  "description": "Polls a connected mailbox over IMAP and classifies new mail into Focus, FYI, Auto, and Screened zones, with a plain-language daily report. Filing a message or blocking a sender are proposals recorded for a human decision, v1 never executes a mail action on its own. Governed by the same AEE-witnessed, per-org licence path every collector-native surface uses.",
+  "shortDescription": "IMAP inbox triage: zones, a daily report, and human-decided proposals",
+  "author": "QUOX",
+  "license": "free",
+  "price": 29,
+  "priceDisplay": "$29",
+  "priceModel": "one-time",
+  "tier": "free",
+  "featured": false,
+  "icon": "mail",
+  "accentColor": "#38bdf8",
+  "infoUrl": "https://quox.ai/solutions/inboxq",
+  "docsUrl": "https://quox.ai/docs/inboxq",
+  "marketingPoints": [
+    "Polls a connected mailbox over IMAP and sorts new mail into Focus, FYI, Auto, and Screened",
+    "A daily report in plain language, not a dashboard you have to decode",
+    "Filing and blocking are proposals a human approves, v1 never moves or sends mail on its own",
+    "Single-org, IMAP-only in v1: no Gmail OAuth yet, read-first by design"
+  ],
+  "features": {
+    "zones": {
+      "name": "Zones",
+      "description": "Every new message sorted into Focus, FYI, Auto, or Screened, with the flags that explain why.",
+      "icon": "inbox",
+      "highlight": true
+    },
+    "dailyReport": {
+      "name": "Daily report",
+      "description": "A generated, plain-language summary of what came in and what needs a look.",
+      "icon": "file-text",
+      "highlight": true
+    },
+    "proposals": {
+      "name": "Proposals",
+      "description": "Filing and blocking suggestions queued for a human decision. Approving records the decision; v1 defers execution.",
+      "icon": "check-square",
+      "highlight": true
+    }
+  },
+  "safety": {
+    "destructiveActions": [],
+    "requiresApproval": [
+      "quox.inbox.propose"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": false
+  },
+  "capabilities": {
+    "aeeIntents": [
+      "quox.inbox.account.connect",
+      "quox.inbox.account.disconnect",
+      "quox.inbox.sync",
+      "quox.inbox.report",
+      "quox.inbox.watch.create",
+      "quox.inbox.propose",
+      "quox.inbox.proposal.approved",
+      "quox.inbox.proposal.denied"
+    ]
+  },
+  "limits": {
+    "free": {
+      "zonesEnabled": true,
+      "dailyReportEnabled": true,
+      "proposalsEnabled": true
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0"
+  },
+  "integration": {
+    "client": "src/components/inboxq/lib/api.js",
+    "view": "src/components/inboxq/InboxQView.jsx"
+  },
+  "changelog": {
+    "0.1.0": {
+      "date": "2026-09-25",
+      "changes": [
+        "Initial plugin registration: manifest, nav entry, route, and a locked-state surface",
+        "v1 is proposal-only, read-first, single-org, IMAP-only (no Gmail OAuth). Not yet server-side licence-governed (LICENSE_GOVERNED_PLUGINS)"
+      ]
+    }
+  },
+  "category": "Productivity"
+}

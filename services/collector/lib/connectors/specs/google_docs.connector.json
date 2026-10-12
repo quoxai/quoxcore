@@ -1,0 +1,69 @@
+{
+  "spec_version": 1,
+  "id": "google_docs",
+  "name": "Google Docs",
+  "category": "files_knowledge",
+  "credentialType": "google_docs",
+  "requiredFields": [
+    "service_account_json"
+  ],
+  "description": "Read-only Google Docs access: fetch one document's identity and title by ID. The Docs API v1 is a single-resource API, so this is its whole read surface.",
+  "docs": "https://developers.google.com/docs/api",
+  "base_url": "https://docs.googleapis.com",
+  "auth": {
+    "type": "google_service_account",
+    "scope": "https://www.googleapis.com/auth/documents.readonly",
+    "field": "service_account_json"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/documents/quoxprobe"
+  },
+  "tools_source": "https://developers.google.com/docs/api/reference/rest",
+  "tools": [
+    {
+      "name": "get_document",
+      "description": "Get a Google Docs document's ID and title by document ID (metadata only, not the document text)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "Google Docs document ID, the long identifier in the document URL after /document/d/"
+          }
+        },
+        "required": [
+          "document_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/documents/{{input.document_id}}"
+      },
+      "response": {
+        "pick": {
+          "documentId": "documentId",
+          "title": "title"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T00:00:00.000Z",
+    "source": "hand_authored",
+    "confidence": "high",
+    "needs_review": [
+      "one_tool_is_the_whole_surface: Docs API v1 exposes documents.get, documents.create and documents.batchUpdate only. create and batchUpdate are writes and this spec is read-only, so documents.get is the entire read surface. The tool count is honest, not thin.",
+      "body_deliberately_not_picked: documents.get returns the full document as body.content, a deeply nested tree of structural elements (paragraphs, each holding elements, each holding textRun.content). It is very large and spec v1 pick cannot flatten it (pick sources are dotted paths, with no join, walk or concat). Picking documentId and title ONLY keeps the response small and truthful; text extraction needs a computed escape hatch (spec v2 computed fields, or a custom_tools_module) before a get_document_text tool can exist.",
+      "no_list_tool: Docs API v1 has no documents.list. Discovering document IDs is a Drive API job (files.list with mimeType='application/vnd.google-apps.document'), so it belongs to the googledrive connector, not here.",
+      "service_account_visibility: the service account only sees documents explicitly shared with its client_email, or reachable through domain-wide delegation. An unshared document answers 404, not 403, so a missing share reads as a missing document.",
+      "rateLimit 30/min is a local courtesy and spend guard chosen here. Google publishes Docs API quotas per project in Cloud Console rather than a fixed documented per-minute band, so no published number was copied.",
+      "pick sources (documentId, title) are taken from the Docs API v1 reference, not from a live 2xx: no account was held, so the proof covers wiring only, never payload shape."
+    ]
+  }
+}

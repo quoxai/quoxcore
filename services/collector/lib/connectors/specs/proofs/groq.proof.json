@@ -1,0 +1,65 @@
+{
+  "spec_id": "groq",
+  "spec_version": 1,
+  "checked_at": "2026-09-16T17:58:34.271Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.groq.com/openai/v1/quox-shapeproof-control-0b79cf2d",
+      "status": 404,
+      "latency_ms": 229,
+      "classification": "CONTROL",
+      "body_sha256": "14128b59521fa796565768d22ca17f99731bf5c385ba0ba1e44d1cb3a7dcb4f4",
+      "body_excerpt": "{\"error\":{\"message\":\"Unknown request URL: GET /openai/v1/quox-shapeproof-control-0b79cf2d. Please check the URL for typos, or see the docs at https://console.groq.com/docs/\",\"type\":\"invalid_request_er",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true,
+        "retried": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.groq.com/openai/v1/models",
+      "status": 401,
+      "latency_ms": 182,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "96067afaedd86a1a01d2d194d304963d132e467cba508ed63accb6fd86959d6f",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid API Key\",\"type\":\"invalid_request_error\",\"code\":\"invalid_api_key\"}}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_models",
+      "method": "GET",
+      "url": "https://api.groq.com/openai/v1/models",
+      "status": 401,
+      "latency_ms": 185,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "96067afaedd86a1a01d2d194d304963d132e467cba508ed63accb6fd86959d6f",
+      "body_excerpt": "{\"error\":{\"message\":\"Invalid API Key\",\"type\":\"invalid_request_error\",\"code\":\"invalid_api_key\"}}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "chat_completion",
+      "method": "POST",
+      "url": null,
+      "status": null,
+      "latency_ms": null,
+      "classification": "SKIPPED_WRITE",
+      "body_sha256": null,
+      "body_excerpt": null,
+      "flags": {
+        "reason": "writes_not_included"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

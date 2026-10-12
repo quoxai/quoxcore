@@ -1,0 +1,105 @@
+{
+  "spec_id": "telegram",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:23.103Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.telegram.org/botQUOXSHAPEPROOFDUMMYBOTTOKEN/quox-shapeproof-control-3f404629",
+      "status": 404,
+      "latency_ms": 534,
+      "classification": "CONTROL",
+      "body_sha256": "b6b5da015ed9b1222c507c4df03d0351addf6621168f1dc3d3351afda7ab1d84",
+      "body_excerpt": "{\"ok\":false,\"error_code\":404,\"description\":\"Not Found\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.telegram.org/botQUOXSHAPEPROOFDUMMYBOTTOKEN/getMe",
+      "status": 404,
+      "latency_ms": 193,
+      "classification": "AUTH_WALL",
+      "body_sha256": "b6b5da015ed9b1222c507c4df03d0351addf6621168f1dc3d3351afda7ab1d84",
+      "body_excerpt": "{\"ok\":false,\"error_code\":404,\"description\":\"Not Found\"}",
+      "flags": {
+        "path_credential_wall": true,
+        "path_unproven": true,
+        "control_status": 404,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_me",
+      "method": "GET",
+      "url": "https://api.telegram.org/botQUOXSHAPEPROOFDUMMYBOTTOKEN/getMe",
+      "status": 404,
+      "latency_ms": 199,
+      "classification": "AUTH_WALL",
+      "body_sha256": "b6b5da015ed9b1222c507c4df03d0351addf6621168f1dc3d3351afda7ab1d84",
+      "body_excerpt": "{\"ok\":false,\"error_code\":404,\"description\":\"Not Found\"}",
+      "flags": {
+        "path_credential_wall": true,
+        "path_unproven": true,
+        "control_status": 404,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_chat",
+      "method": "GET",
+      "url": "https://api.telegram.org/botQUOXSHAPEPROOFDUMMYBOTTOKEN/getChat?chat_id=quoxprobe",
+      "status": 404,
+      "latency_ms": 238,
+      "classification": "AUTH_WALL",
+      "body_sha256": "b6b5da015ed9b1222c507c4df03d0351addf6621168f1dc3d3351afda7ab1d84",
+      "body_excerpt": "{\"ok\":false,\"error_code\":404,\"description\":\"Not Found\"}",
+      "flags": {
+        "path_credential_wall": true,
+        "path_unproven": true,
+        "control_status": 404,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_chat_member_count",
+      "method": "GET",
+      "url": "https://api.telegram.org/botQUOXSHAPEPROOFDUMMYBOTTOKEN/getChatMemberCount?chat_id=quoxprobe",
+      "status": 404,
+      "latency_ms": 269,
+      "classification": "AUTH_WALL",
+      "body_sha256": "b6b5da015ed9b1222c507c4df03d0351addf6621168f1dc3d3351afda7ab1d84",
+      "body_excerpt": "{\"ok\":false,\"error_code\":404,\"description\":\"Not Found\"}",
+      "flags": {
+        "path_credential_wall": true,
+        "path_unproven": true,
+        "control_status": 404,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_updates",
+      "method": "GET",
+      "url": "https://api.telegram.org/botQUOXSHAPEPROOFDUMMYBOTTOKEN/getUpdates?limit=10&timeout=0",
+      "status": 404,
+      "latency_ms": 287,
+      "classification": "AUTH_WALL",
+      "body_sha256": "b6b5da015ed9b1222c507c4df03d0351addf6621168f1dc3d3351afda7ab1d84",
+      "body_excerpt": "{\"ok\":false,\"error_code\":404,\"description\":\"Not Found\"}",
+      "flags": {
+        "path_credential_wall": true,
+        "path_unproven": true,
+        "control_status": 404,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

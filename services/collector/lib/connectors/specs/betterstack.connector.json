@@ -1,0 +1,223 @@
+{
+  "spec_version": 1,
+  "id": "betterstack",
+  "name": "Better Stack",
+  "category": "monitoring",
+  "credentialType": "betterstack",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://betterstack.com/docs/uptime/api/getting-started-with-uptime-api/",
+  "base_url": "https://uptime.betterstack.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/monitors"
+  },
+  "tools_source": "https://betterstack.com/docs/uptime/api/getting-started-with-uptime-api/",
+  "tools": [
+    {
+      "name": "list_monitors",
+      "description": "List Better Stack Uptime monitors with their current status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max monitors to return (default 20, max 50)"
+          },
+          "url": {
+            "type": "string",
+            "description": "Optional exact monitored URL or host to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/monitors",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}",
+          "url": "{{input.url}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "attributes.pronounceable_name",
+            "url": "attributes.url",
+            "monitor_type": "attributes.monitor_type",
+            "status": "attributes.status",
+            "paused": "attributes.paused",
+            "check_frequency": "attributes.check_frequency",
+            "last_checked_at": "attributes.last_checked_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_monitor",
+      "description": "Get one Better Stack Uptime monitor by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "monitor_id": {
+            "type": "string",
+            "description": "Better Stack monitor ID (from list_monitors)"
+          }
+        },
+        "required": [
+          "monitor_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/monitors/{{input.monitor_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "name": "data.attributes.pronounceable_name",
+          "url": "data.attributes.url",
+          "monitor_type": "data.attributes.monitor_type",
+          "status": "data.attributes.status",
+          "paused": "data.attributes.paused",
+          "check_frequency": "data.attributes.check_frequency",
+          "last_checked_at": "data.attributes.last_checked_at",
+          "expiration_policy": "data.attributes.expiration_policy"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_heartbeats",
+      "description": "List Better Stack Uptime heartbeats (cron and background job checks) with their status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max heartbeats to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/heartbeats",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "attributes.name",
+            "status": "attributes.status",
+            "period": "attributes.period",
+            "grace": "attributes.grace",
+            "paused": "attributes.paused",
+            "created_at": "attributes.created_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_incidents",
+      "description": "List Better Stack Uptime incidents, optionally filtered to one monitor",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max incidents to return (default 20, max 50)"
+          },
+          "monitor_id": {
+            "type": "string",
+            "description": "Optional Better Stack monitor ID to filter by"
+          },
+          "from": {
+            "type": "string",
+            "description": "Optional start date in YYYY-MM-DD form"
+          },
+          "to": {
+            "type": "string",
+            "description": "Optional end date in YYYY-MM-DD form"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/incidents",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}",
+          "monitor_id": "{{input.monitor_id}}",
+          "from": "{{input.from}}",
+          "to": "{{input.to}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "attributes.name",
+            "url": "attributes.url",
+            "cause": "attributes.cause",
+            "started_at": "attributes.started_at",
+            "acknowledged_at": "attributes.acknowledged_at",
+            "resolved_at": "attributes.resolved_at",
+            "monitor_id": "attributes.monitor_id"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_monitor_groups",
+      "description": "List Better Stack Uptime monitor groups",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max monitor groups to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/monitor-groups",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "attributes.name",
+            "sort_index": "attributes.sort_index",
+            "paused": "attributes.paused",
+            "created_at": "attributes.created_at"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "spec_id": "heroku",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:39.073Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.heroku.com/quox-shapeproof-control-ec5df277",
+      "status": 404,
+      "latency_ms": 1980,
+      "classification": "CONTROL",
+      "body_sha256": "49736e6596e407076354fd192373ca097cf4374a27fa840167be6ceb9afd7dc6",
+      "body_excerpt": "{\"id\":\"not_found\",\"message\":\"The requested API endpoint was not found. Are you using the right HTTP verb (i.e. `GET` vs. `POST`), and did you specify your intended version with the `Accept` header?\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.heroku.com/account",
+      "status": 401,
+      "latency_ms": 300,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0f2444910985d8eca8645a4c3bd7e15a0b47b6764e3c47cdd0c3dd3efe5acc9d",
+      "body_excerpt": "{\"id\":\"unauthorized\",\"message\":\"Invalid credentials provided.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_apps",
+      "method": "GET",
+      "url": "https://api.heroku.com/apps",
+      "status": 401,
+      "latency_ms": 368,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0f2444910985d8eca8645a4c3bd7e15a0b47b6764e3c47cdd0c3dd3efe5acc9d",
+      "body_excerpt": "{\"id\":\"unauthorized\",\"message\":\"Invalid credentials provided.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_app",
+      "method": "GET",
+      "url": "https://api.heroku.com/apps/quoxprobe",
+      "status": 404,
+      "latency_ms": 278,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e58e683b62d270f5e4371be1cf5560a72f84c202507bc01a37fcbc0859dfe156",
+      "body_excerpt": "{\"resource\":\"app\",\"id\":\"not_found\",\"message\":\"Couldn't find that app.\"}",
+      "flags": {
+        "identifier_404_differential": true,
+        "error_code": "Couldn't find that app.",
+        "control_error_code": "The requested API endpoint was not found. Are you using the right HTTP verb (i.e. `GET` vs. `POST`), and did you specify your intended version with the `Accept` header?"
+      }
+    },
+    {
+      "name": "list_dynos",
+      "method": "GET",
+      "url": "https://api.heroku.com/apps/quoxprobe/dynos",
+      "status": 404,
+      "latency_ms": 256,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e58e683b62d270f5e4371be1cf5560a72f84c202507bc01a37fcbc0859dfe156",
+      "body_excerpt": "{\"resource\":\"app\",\"id\":\"not_found\",\"message\":\"Couldn't find that app.\"}",
+      "flags": {
+        "identifier_404_differential": true,
+        "error_code": "Couldn't find that app.",
+        "control_error_code": "The requested API endpoint was not found. Are you using the right HTTP verb (i.e. `GET` vs. `POST`), and did you specify your intended version with the `Accept` header?"
+      }
+    },
+    {
+      "name": "list_releases",
+      "method": "GET",
+      "url": "https://api.heroku.com/apps/quoxprobe/releases",
+      "status": 404,
+      "latency_ms": 419,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e58e683b62d270f5e4371be1cf5560a72f84c202507bc01a37fcbc0859dfe156",
+      "body_excerpt": "{\"resource\":\"app\",\"id\":\"not_found\",\"message\":\"Couldn't find that app.\"}",
+      "flags": {
+        "identifier_404_differential": true,
+        "error_code": "Couldn't find that app.",
+        "control_error_code": "The requested API endpoint was not found. Are you using the right HTTP verb (i.e. `GET` vs. `POST`), and did you specify your intended version with the `Accept` header?"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

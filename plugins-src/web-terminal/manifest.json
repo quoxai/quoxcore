@@ -1,0 +1,37 @@
+{
+  "id": "web-terminal",
+  "name": "web-terminal",
+  "displayName": "Web Terminal",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "infrastructure",
+  "accentColor": "#22c55e",
+  "description": "Full-featured browser-based terminal for QuoxCORE, with multi-pane workspaces, SSH bastion access, an AI chat assistant and an AEE audit trail. Manage your entire infrastructure without leaving the dashboard.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/terminal",
+      "label": "Terminal",
+      "icon": "terminal",
+      "badge": "NEW",
+      "minRole": "runner"
+    }
+  ],
+  "routes": {
+    "/terminal": "TerminalView"
+  },
+  "routeGuards": {
+    "/terminal": {
+      "minRole": "runner"
+    }
+  },
+  "minQuoxVersion": "1.0.0"
+}

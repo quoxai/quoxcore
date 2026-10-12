@@ -1,0 +1,234 @@
+{
+  "spec_version": 1,
+  "id": "newrelic",
+  "name": "New Relic",
+  "category": "monitoring",
+  "credentialType": "newrelic",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/",
+  "base_url": "https://api.newrelic.com",
+  "auth": {
+    "type": "header",
+    "header": "API-Key",
+    "template": "{{api_key}}"
+  },
+  "static_headers": {
+    "Content-Type": "application/json"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/graphql",
+    "body": {
+      "query": "{ actor { user { name } } }"
+    }
+  },
+  "tools_source": "https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/",
+  "tools": [
+    {
+      "name": "get_user",
+      "description": "Get the New Relic user the API key belongs to (who am I: id, name, email)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql",
+        "body": {
+          "query": "query { actor { user { id name email } } }"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "data.actor.user.id",
+          "name": "data.actor.user.name",
+          "email": "data.actor.user.email",
+          "errors": "errors"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_accounts",
+      "description": "List the New Relic accounts the API key can read (id and name), the account IDs every other tool needs",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql",
+        "body": {
+          "query": "query { actor { accounts { id name } } }"
+        }
+      },
+      "response": {
+        "pick": {
+          "data.actor.accounts[]": {
+            "id": "id",
+            "name": "name"
+          },
+          "errors": "errors"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "nrql_query",
+      "description": "Run a read-only NRQL query against one New Relic account (e.g. SELECT count(*) FROM Transaction SINCE 1 hour ago) and return its results",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account_id": {
+            "type": "number",
+            "description": "New Relic account ID as a NUMBER, from list_accounts (e.g. 1234567)"
+          },
+          "nrql": {
+            "type": "string",
+            "description": "NRQL query string, e.g. SELECT count(*) FROM Transaction FACET appName SINCE 1 hour ago LIMIT 20"
+          }
+        },
+        "required": [
+          "account_id",
+          "nrql"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql",
+        "body": {
+          "query": "query ($accountId: Int!, $nrql: Nrql!) { actor { account(id: $accountId) { nrql(query: $nrql) { results totalResult metadata { eventTypes facets messages } } } } }",
+          "variables": {
+            "accountId": "{{input.account_id}}",
+            "nrql": "{{input.nrql}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "results": "data.actor.account.nrql.results",
+          "total_result": "data.actor.account.nrql.totalResult",
+          "event_types": "data.actor.account.nrql.metadata.eventTypes",
+          "facets": "data.actor.account.nrql.metadata.facets",
+          "messages": "data.actor.account.nrql.metadata.messages",
+          "errors": "errors"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "search_entities",
+      "description": "Search New Relic entities (applications, hosts, dashboards, monitors) with an entity search query, returning guid, name, domain, type and reporting state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Entity search query, e.g. name LIKE 'checkout' AND domain = 'APM' AND reporting = 'true'"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Optional nextCursor from a previous call, to fetch the next page"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql",
+        "body": {
+          "query": "query ($query: String!, $cursor: String) { actor { entitySearch(query: $query) { count results (cursor: $cursor) { nextCursor entities { guid name entityType domain type accountId reporting } } } } }",
+          "variables": {
+            "query": "{{input.query}}",
+            "cursor": "{{input.cursor}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "count": "data.actor.entitySearch.count",
+          "next_cursor": "data.actor.entitySearch.results.nextCursor",
+          "data.actor.entitySearch.results.entities[]": {
+            "guid": "guid",
+            "name": "name",
+            "entity_type": "entityType",
+            "domain": "domain",
+            "type": "type",
+            "account_id": "accountId",
+            "reporting": "reporting"
+          },
+          "errors": "errors"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_alert_policies",
+      "description": "List the alert policies in one New Relic account (id, name, incident preference)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account_id": {
+            "type": "number",
+            "description": "New Relic account ID as a NUMBER, from list_accounts (e.g. 1234567)"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Optional nextCursor from a previous call, to fetch the next page"
+          }
+        },
+        "required": [
+          "account_id"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql",
+        "body": {
+          "query": "query ($accountId: Int!, $cursor: String) { actor { account(id: $accountId) { alerts { policiesSearch (cursor: $cursor) { policies { id name incidentPreference } totalCount nextCursor } } } } }",
+          "variables": {
+            "accountId": "{{input.account_id}}",
+            "cursor": "{{input.cursor}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "total_count": "data.actor.account.alerts.policiesSearch.totalCount",
+          "next_cursor": "data.actor.account.alerts.policiesSearch.nextCursor",
+          "data.actor.account.alerts.policiesSearch.policies[]": {
+            "id": "id",
+            "name": "name",
+            "incident_preference": "incidentPreference"
+          },
+          "errors": "errors"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "NerdGraph is GraphQL-over-POST and spec v1 has no GraphQL type, so every tool is a FIXED read query sent as a POST body to /graphql, exactly as the committed monday.connector.json does it. Caller input never touches the query text: it is passed in the GraphQL `variables` object, where declarativeRuntime.renderBody keeps a solo placeholder's JSON type. Interpolating {{input.*}} into the document would let a caller close the read query and append a mutation, defeating the read-only (no write:true) intent of this spec.",
+      "nrql_query passes the caller's NRQL string as the `$nrql: Nrql!` VARIABLE, never as document text. NRQL itself is a query language with no mutation form (SELECT/SHOW only), and it cannot escape into the surrounding GraphQL document from a variable slot. What it CAN read is whatever the supplied API key is scoped to, which is a key-scoping decision, not something this spec can narrow.",
+      "account_id is declared as type number because NerdGraph types the account argument as Int!: a string would be rejected by GraphQL validation. A solo {{input.account_id}} placeholder preserves the JSON number through renderBody, so a numeric input arrives as a number.",
+      "GraphQL returns HTTP 200 with an `errors` array for query-level failures, so every tool picks `errors` through. Without it a permission or schema error would be shaped into an empty result and read as 'no accounts' (a silent-fallback falsehood).",
+      "pick keys carry the response path (`data.actor.accounts[]`, `data.actor.entitySearch.results.entities[]`) because applyPick sources an array from its KEY, not its value, so output keys read as the full dotted path. Functional but ugly; a spec v2 with a `from` on array picks would fix it.",
+      "base_url is the US data centre (api.newrelic.com). EU-region accounts serve NerdGraph from api.eu.newrelic.com, and an EU key against this host returns an auth-style failure rather than data. A per-customer region needs a base_url {fromCredential} variant, which this spec does not carry.",
+      "One request per tool (v1 limit) means no automatic paging: search_entities and list_alert_policies return a nextCursor and accept a cursor input, so a caller can page by passing it back, but the connector never loops. No clamp helper is used because none of these NerdGraph read fields takes a page-size argument (NRQL row limits live inside the caller's own LIMIT clause).",
+      "Field presence is taken from the NerdGraph documentation and schema, not from a live 2xx: no New Relic account was held, so the proof below covers wiring only, never payload shape.",
+      "What the shape-proof can and cannot say here: every tool posts to the SAME /graphql endpoint, so the SHAPE_PROVEN rows are one endpoint proven repeatedly (host, TLS, path, API-Key header). GraphQL document validity is NOT proven by them, because New Relic rejects on auth before it executes the query. Only a real key can prove the queries themselves."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

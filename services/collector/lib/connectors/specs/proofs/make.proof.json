@@ -1,0 +1,168 @@
+{
+  "spec_id": "make",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:41:42.738Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://us1.make.com/quox-shapeproof-control-d05aa2a1",
+      "status": 404,
+      "latency_ms": 878,
+      "classification": "CONTROL",
+      "body_sha256": "e9118d2e9307d7a16be8d2955b436e18f1560d35ad6f0f0145ac60ba90714862",
+      "body_excerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot GET /quox-shapeproof-control-d05aa2a1</pre>\n</body>\n</html>\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://us1.make.com/api/v2/users/me",
+      "status": 401,
+      "latency_ms": 139,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3d0d6db2ce798ce5158ba83055b71ad8cbbba5e8b083516084d2a1a6da919c71",
+      "body_excerpt": "{\"detail\":\"Invalid token header.\",\"message\":\"Access denied\",\"code\":\"SC401\",\"suberrors\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_me",
+      "method": "GET",
+      "url": "https://us1.make.com/api/v2/users/me",
+      "status": 401,
+      "latency_ms": 177,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3d0d6db2ce798ce5158ba83055b71ad8cbbba5e8b083516084d2a1a6da919c71",
+      "body_excerpt": "{\"detail\":\"Invalid token header.\",\"message\":\"Access denied\",\"code\":\"SC401\",\"suberrors\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_organizations",
+      "method": "GET",
+      "url": "https://us1.make.com/api/v2/organizations?pg%5Blimit%5D=20",
+      "status": 401,
+      "latency_ms": 263,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3d0d6db2ce798ce5158ba83055b71ad8cbbba5e8b083516084d2a1a6da919c71",
+      "body_excerpt": "{\"detail\":\"Invalid token header.\",\"message\":\"Access denied\",\"code\":\"SC401\",\"suberrors\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_teams",
+      "method": "GET",
+      "url": "https://us1.make.com/api/v2/teams?organizationId=quoxprobe&pg%5Blimit%5D=20",
+      "status": 401,
+      "latency_ms": 138,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3d0d6db2ce798ce5158ba83055b71ad8cbbba5e8b083516084d2a1a6da919c71",
+      "body_excerpt": "{\"detail\":\"Invalid token header.\",\"message\":\"Access denied\",\"code\":\"SC401\",\"suberrors\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_scenarios",
+      "method": "GET",
+      "url": "https://us1.make.com/api/v2/scenarios?teamId=QUOXSHAPEPROOFDUMMYTEAMID&search=quoxprobe&pg%5Blimit%5D=20",
+      "status": 401,
+      "latency_ms": 143,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3d0d6db2ce798ce5158ba83055b71ad8cbbba5e8b083516084d2a1a6da919c71",
+      "body_excerpt": "{\"detail\":\"Invalid token header.\",\"message\":\"Access denied\",\"code\":\"SC401\",\"suberrors\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_scenario",
+      "method": "GET",
+      "url": "https://us1.make.com/api/v2/scenarios/quoxprobe",
+      "status": 401,
+      "latency_ms": 203,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3d0d6db2ce798ce5158ba83055b71ad8cbbba5e8b083516084d2a1a6da919c71",
+      "body_excerpt": "{\"detail\":\"Invalid token header.\",\"message\":\"Access denied\",\"code\":\"SC401\",\"suberrors\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_scenario_logs",
+      "method": "GET",
+      "url": "https://us1.make.com/api/v2/scenarios/quoxprobe/logs?pg%5Blimit%5D=20",
+      "status": 401,
+      "latency_ms": 158,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3d0d6db2ce798ce5158ba83055b71ad8cbbba5e8b083516084d2a1a6da919c71",
+      "body_excerpt": "{\"detail\":\"Invalid token header.\",\"message\":\"Access denied\",\"code\":\"SC401\",\"suberrors\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_connections",
+      "method": "GET",
+      "url": "https://us1.make.com/api/v2/connections?teamId=QUOXSHAPEPROOFDUMMYTEAMID",
+      "status": 401,
+      "latency_ms": 143,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3d0d6db2ce798ce5158ba83055b71ad8cbbba5e8b083516084d2a1a6da919c71",
+      "body_excerpt": "{\"detail\":\"Invalid token header.\",\"message\":\"Access denied\",\"code\":\"SC401\",\"suberrors\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_data_stores",
+      "method": "GET",
+      "url": "https://us1.make.com/api/v2/data-stores?teamId=QUOXSHAPEPROOFDUMMYTEAMID&pg%5Blimit%5D=20",
+      "status": 401,
+      "latency_ms": 162,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3d0d6db2ce798ce5158ba83055b71ad8cbbba5e8b083516084d2a1a6da919c71",
+      "body_excerpt": "{\"detail\":\"Invalid token header.\",\"message\":\"Access denied\",\"code\":\"SC401\",\"suberrors\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_hooks",
+      "method": "GET",
+      "url": "https://us1.make.com/api/v2/hooks?teamId=QUOXSHAPEPROOFDUMMYTEAMID&typeName=quoxprobe",
+      "status": 401,
+      "latency_ms": 181,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3d0d6db2ce798ce5158ba83055b71ad8cbbba5e8b083516084d2a1a6da919c71",
+      "body_excerpt": "{\"detail\":\"Invalid token header.\",\"message\":\"Access denied\",\"code\":\"SC401\",\"suberrors\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_incomplete_executions",
+      "method": "GET",
+      "url": "https://us1.make.com/api/v2/dlqs?scenarioId=quoxprobe&status=quoxprobe",
+      "status": 401,
+      "latency_ms": 329,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3d0d6db2ce798ce5158ba83055b71ad8cbbba5e8b083516084d2a1a6da919c71",
+      "body_excerpt": "{\"detail\":\"Invalid token header.\",\"message\":\"Access denied\",\"code\":\"SC401\",\"suberrors\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

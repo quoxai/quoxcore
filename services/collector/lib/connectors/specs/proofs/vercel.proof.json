@@ -1,0 +1,103 @@
+{
+  "spec_id": "vercel",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:34.208Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.vercel.com/quox-shapeproof-control-9d3508a8",
+      "status": 404,
+      "latency_ms": 907,
+      "classification": "CONTROL",
+      "body_sha256": "a8c751a31ee518927f364df0798629a20e5dc09afec7b80fcaefd97177d51495",
+      "body_excerpt": "{\"error\":{\"code\":\"not_found\",\"message\":\"The requested API endpoint was not found.\"}}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.vercel.com/v2/user",
+      "status": 403,
+      "latency_ms": 195,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f22d115f4a38f3117888293206eb0612c58da5ff068d956381fbee56bc367645",
+      "body_excerpt": "{\"error\":{\"code\":\"forbidden\",\"message\":\"Not authorized\",\"invalidToken\":true}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_user",
+      "method": "GET",
+      "url": "https://api.vercel.com/v2/user",
+      "status": 403,
+      "latency_ms": 179,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f22d115f4a38f3117888293206eb0612c58da5ff068d956381fbee56bc367645",
+      "body_excerpt": "{\"error\":{\"code\":\"forbidden\",\"message\":\"Not authorized\",\"invalidToken\":true}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "GET",
+      "url": "https://api.vercel.com/v10/projects?limit=20&search=quoxprobe",
+      "status": 403,
+      "latency_ms": 183,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f22d115f4a38f3117888293206eb0612c58da5ff068d956381fbee56bc367645",
+      "body_excerpt": "{\"error\":{\"code\":\"forbidden\",\"message\":\"Not authorized\",\"invalidToken\":true}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_deployments",
+      "method": "GET",
+      "url": "https://api.vercel.com/v6/deployments?limit=20&projectId=quoxprobe",
+      "status": 403,
+      "latency_ms": 175,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f22d115f4a38f3117888293206eb0612c58da5ff068d956381fbee56bc367645",
+      "body_excerpt": "{\"error\":{\"code\":\"forbidden\",\"message\":\"Not authorized\",\"invalidToken\":true}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_deployment",
+      "method": "GET",
+      "url": "https://api.vercel.com/v13/deployments/quoxprobe",
+      "status": 403,
+      "latency_ms": 2171,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f22d115f4a38f3117888293206eb0612c58da5ff068d956381fbee56bc367645",
+      "body_excerpt": "{\"error\":{\"code\":\"forbidden\",\"message\":\"Not authorized\",\"invalidToken\":true}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_domains",
+      "method": "GET",
+      "url": "https://api.vercel.com/v5/domains?limit=20",
+      "status": 403,
+      "latency_ms": 366,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f22d115f4a38f3117888293206eb0612c58da5ff068d956381fbee56bc367645",
+      "body_excerpt": "{\"error\":{\"code\":\"forbidden\",\"message\":\"Not authorized\",\"invalidToken\":true}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

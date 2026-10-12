@@ -1,0 +1,13 @@
+{
+  "id": "startup-business",
+  "type": "team-pack",
+  "version": "1.0.0",
+  "displayName": "Startup Business Pack",
+  "description": "Everything you need to launch and secure a new deployment. Essential operations plus security hardening.",
+  "author": "Quox",
+  "tier": "free",
+  "teams": ["startup-ops", "secops"],
+  "tags": ["starter", "security", "devops"],
+  "icon": "rocket",
+  "accentColor": "#10b981"
+}

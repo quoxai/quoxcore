@@ -1,0 +1,18 @@
+-- QUOXTRUST F8 (engagement c4, FND_01M3R1V4865WWCB146PA5WWCB1) —
+-- bind action/actor into the approval_events integrity hash.
+--
+-- The hash-chained, Ed25519-signed approval_events log (AUDIT-REAL-1) chained
+-- and signed the event_hash, but event_hash's payload commitment covered ONLY
+-- the `payload` object — NOT `action` / `actor_type` / `actor_id`. Those three
+-- columns (who decided, and what the decision was) were stored but NOT bound
+-- into the hash, so an attacker with raw DB access could rewrite 'rejected' to
+-- 'approved', or swap the approver, and the chain still verified INTACT.
+--
+-- The fix binds those fields into the payload hash (approvalEvents.js). Because
+-- that changes what the hash covers, the scheme is VERSIONED so existing rows
+-- (written under the v1 payload-only scheme) still verify with their original
+-- algorithm and are not falsely reported BROKEN. New appends use v2 (bound).
+--
+-- hash_version: 1 = legacy payload-only commitment (action/actor UNBOUND —
+-- verification warns); 2 = action/actor_type/actor_id bound into the commitment.
+ALTER TABLE approval_events ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1;

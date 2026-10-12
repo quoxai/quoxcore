@@ -1,0 +1,258 @@
+{
+  "spec_version": 1,
+  "id": "meilisearch",
+  "name": "Meilisearch",
+  "category": "data_ai",
+  "credentialType": "meilisearch",
+  "requiredFields": [
+    "host",
+    "api_key"
+  ],
+  "docs": "https://www.meilisearch.com/docs/reference/api/",
+  "base_url": {
+    "fromCredential": "host"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/health"
+  },
+  "tools_source": "https://www.meilisearch.com/docs/reference/api/",
+  "tools": [
+    {
+      "name": "get_version",
+      "description": "Get the version of the Meilisearch instance (package version and build commit)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/version"
+      },
+      "response": {
+        "pick": {
+          "pkgVersion": "pkgVersion",
+          "commitSha": "commitSha",
+          "commitDate": "commitDate"
+        },
+        "truncate": 2000
+      },
+      "_probe": {}
+    },
+    {
+      "name": "get_stats",
+      "description": "Get instance-wide Meilisearch stats: database size, last update, and per-index document counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/stats"
+      },
+      "response": {
+        "pick": {
+          "databaseSize": "databaseSize",
+          "usedDatabaseSize": "usedDatabaseSize",
+          "lastUpdate": "lastUpdate",
+          "indexes": "indexes"
+        },
+        "truncate": 2000
+      },
+      "_probe": {}
+    },
+    {
+      "name": "list_indexes",
+      "description": "List the indexes on this Meilisearch instance",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max indexes to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of indexes to skip before returning results"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/indexes",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "uid": "uid",
+            "primaryKey": "primaryKey",
+            "createdAt": "createdAt",
+            "updatedAt": "updatedAt"
+          },
+          "total": "total",
+          "limit": "limit",
+          "offset": "offset"
+        },
+        "truncate": 2000
+      },
+      "_probe": {}
+    },
+    {
+      "name": "get_index",
+      "description": "Get one Meilisearch index by its uid (primary key and timestamps)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "index_uid": {
+            "type": "string",
+            "description": "Index uid (e.g. movies)"
+          }
+        },
+        "required": [
+          "index_uid"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/indexes/{{input.index_uid}}"
+      },
+      "response": {
+        "pick": {
+          "uid": "uid",
+          "primaryKey": "primaryKey",
+          "createdAt": "createdAt",
+          "updatedAt": "updatedAt"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.index_uid": "quoxproof-live"
+      }
+    },
+    {
+      "name": "search_index",
+      "description": "Search documents in one Meilisearch index (read-only GET search endpoint)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "index_uid": {
+            "type": "string",
+            "description": "Index uid to search in (e.g. movies)"
+          },
+          "q": {
+            "type": "string",
+            "description": "Search terms. Omit or leave empty to return documents without ranking"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max hits to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of hits to skip before returning results"
+          },
+          "filter": {
+            "type": "string",
+            "description": "Optional Meilisearch filter expression (e.g. genres = horror)"
+          }
+        },
+        "required": [
+          "index_uid"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/indexes/{{input.index_uid}}/search",
+        "query": {
+          "q": "{{input.q}}",
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}",
+          "filter": "{{input.filter}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "hits": "hits",
+          "query": "query",
+          "estimatedTotalHits": "estimatedTotalHits",
+          "processingTimeMs": "processingTimeMs",
+          "limit": "limit",
+          "offset": "offset"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.index_uid": "quoxproof-live"
+      }
+    },
+    {
+      "name": "list_tasks",
+      "description": "List recent Meilisearch tasks (indexing, settings and document operations) with their status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max tasks to return (default 20, max 100)"
+          },
+          "statuses": {
+            "type": "string",
+            "description": "Optional comma-separated statuses to filter by (enqueued, processing, succeeded, failed, canceled)"
+          },
+          "index_uids": {
+            "type": "string",
+            "description": "Optional comma-separated index uids to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/tasks",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "statuses": "{{input.statuses}}",
+          "indexUids": "{{input.index_uids}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "results[]": {
+            "uid": "uid",
+            "indexUid": "indexUid",
+            "type": "type",
+            "status": "status",
+            "duration": "duration",
+            "enqueuedAt": "enqueuedAt",
+            "finishedAt": "finishedAt"
+          },
+          "total": "total",
+          "limit": "limit",
+          "next": "next"
+        },
+        "truncate": 2000
+      },
+      "_probe": {}
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Live-proof _probe hints added 2026-09-12: get_index and search_index carry \"_probe\": {\"input.index_uid\": \"quoxproof-live\"}. The provisioner creates an index with exactly that uid on a fresh instance before the proof runs; every other tool resolves on an empty instance with no hints. Credentials are never hinted.",
+      "Write endpoints are deliberately excluded: this spec is read-only GET only. Meilisearch documents both POST and GET search; the GET form is used so the tool stays semantically and mechanically read-only."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

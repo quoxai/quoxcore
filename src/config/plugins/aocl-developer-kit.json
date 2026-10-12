@@ -1,0 +1,132 @@
+{
+  "name": "aocl-developer-kit",
+  "version": "1.0.0",
+  "displayName": "AOCL Developer Kit",
+  "tagline": "Extend the Pipeline",
+  "description": "Build custom processing layers for AOCL. Test layer behavior in isolation with the Playground. Create sentiment filters, validators, or domain-specific processors. Share plugins through the Marketplace.",
+  "shortDescription": "Layer Playground, custom plugins, and Marketplace access.",
+  "author": "QUOX",
+  "license": "free",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "free",
+  "tier": "free",
+  "featured": false,
+  "icon": "code-bracket",
+  "heroGradient": "linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%)",
+  "infoUrl": "https://quox.ai/plugins/aocl-developer-kit",
+  "docsUrl": "https://quox.ai/docs/plugins/aocl-developer-kit",
+  "accentColor": "#10b981",
+  "marketingPoints": [
+    "Test any layer in isolation before production",
+    "Create custom L4 and L6 processing layers",
+    "Share plugins through the Marketplace",
+    "Full SDK with TypeScript definitions",
+    "Debug with pre-built test scenarios"
+  ],
+  "features": {
+    "layerPlayground": {
+      "name": "Layer Playground",
+      "description": "Interactive sandbox for testing layer behavior in isolation. Input custom queries, context, and config. See results, timing, and emitted events.",
+      "icon": "terminal",
+      "highlight": true
+    },
+    "customPlugins": {
+      "name": "Custom Layer Plugins",
+      "description": "Create custom processing layers that run inside the AOCL pipeline. Build sentiment filters, validators, classifiers, or domain-specific processors.",
+      "icon": "puzzle",
+      "highlight": true
+    },
+    "pluginMarketplace": {
+      "name": "Plugin Marketplace",
+      "description": "Browse, install, and share community plugins. Ratings, reviews, and one-click installation.",
+      "icon": "shopping-cart",
+      "highlight": true
+    },
+    "layerSDK": {
+      "name": "Layer SDK",
+      "description": "Full SDK with TypeScript definitions, utilities, and examples. Build plugins faster with our development tools.",
+      "icon": "package",
+      "highlight": true
+    },
+    "pluginEditor": {
+      "name": "Plugin Editor",
+      "description": "In-browser code editor with syntax highlighting, validation, and live testing. Export plugins when ready.",
+      "icon": "code"
+    },
+    "testCases": {
+      "name": "Pre-built Test Cases",
+      "description": "Test your layers with pre-built scenarios for each layer type. One-click load and pass/fail indicators.",
+      "icon": "check-circle"
+    },
+    "sandboxExecution": {
+      "name": "Sandboxed Execution",
+      "description": "All plugins run in a secure sandbox with resource limits. CPU, memory, and network restrictions keep your system safe.",
+      "icon": "shield"
+    },
+    "pluginVersioning": {
+      "name": "Plugin Versioning",
+      "description": "Track plugin versions and rollback if needed. Semantic versioning support.",
+      "icon": "git-commit"
+    }
+  },
+  "comparison": {
+    "free": {
+      "name": "Core (Free)",
+      "playground": true,
+      "customPlugins": true,
+      "marketplace": true,
+      "maxCustomLayers": "Unlimited"
+    }
+  },
+  "limits": {
+    "free": {
+      "playgroundEnabled": true,
+      "customPluginsEnabled": true,
+      "marketplaceAccess": true,
+      "maxCustomLayers": -1,
+      "maxPluginSize": 1048576,
+      "pluginExecution": {
+        "timeoutMs": 5000,
+        "maxMemoryMb": 128
+      }
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "aoclCore": ">=1.0.0"
+  },
+  "integration": {
+    "pluginRegistry": "src/services/layers/pluginRegistry.js",
+    "pluginValidator": "src/services/layers/pluginValidator.js",
+    "playgroundExecutor": "src/services/playground/playgroundExecutor.js",
+    "pluginClient": "src/services/pluginClient.js"
+  },
+  "testimonials": [
+    {
+      "quote": "Built a custom sentiment filter in an afternoon. The Playground made testing a breeze.",
+      "author": "ML Engineer"
+    },
+    {
+      "quote": "Our domain-specific validation layer catches issues the base system would miss.",
+      "author": "Platform Architect"
+    }
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2025-01-27",
+      "changes": [
+        "Initial release",
+        "Layer Playground with isolated execution",
+        "Custom layer plugin system",
+        "Plugin Marketplace integration",
+        "Layer SDK with TypeScript support",
+        "In-browser plugin editor",
+        "Pre-built test cases for all layers",
+        "Sandboxed plugin execution",
+        "Plugin versioning system"
+      ]
+    }
+  },
+  "category": "Compliance & Audit"
+}

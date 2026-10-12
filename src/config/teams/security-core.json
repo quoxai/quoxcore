@@ -1,0 +1,55 @@
+{
+  "id": "security-core",
+  "type": "team",
+  "version": "1.0.0",
+  "displayName": "Security Testing (Core)",
+  "description": "QUOX-SECURITY Phase 1 team: engagement scoping, reconnaissance, web application testing, and adversarial findings verification for authorized security testing engagements. No scanning capability has shipped yet, this team owns engagement/scope and authorization, not live scanning (Phase 2).",
+  "author": "QUOX",
+  "tier": "free",
+  "price": 0,
+  "priceModel": "included",
+  "icon": "shield-check",
+  "accentColor": "#c9302c",
+
+  "orchestrator": {
+    "agentId": "security_lead",
+    "role": "orchestrator",
+    "domains": ["engagement scope", "authorization", "specialist delegation", "findings review"]
+  },
+
+  "members": [
+    {
+      "agentId": "recon_specialist",
+      "role": "specialist",
+      "domains": ["host discovery", "dns", "service enumeration"]
+    },
+    {
+      "agentId": "web_specialist",
+      "role": "specialist",
+      "domains": ["web application security", "authentication testing", "injection classes", "tls and header posture"]
+    },
+    {
+      "agentId": "findings_verifier",
+      "role": "analyst",
+      "domains": ["findings verification", "false-positive reduction", "evidence review"]
+    }
+  ],
+
+  "policies": {
+    "maxBudgetTokens": 200000,
+    "maxBudgetToolCalls": 80,
+    "maxDurationMs": 14400000,
+    "maxTaskDurationMs": 600000,
+    "heartbeatIntervalMs": 15000,
+    "maxParallelTasks": 2,
+    "requireApprovalBeforeStart": true,
+    "checkpointAfterEachTask": true,
+    "voltRequired": true,
+    "allowedChannels": ["slack", "telegram", "email"]
+  },
+
+  "sharedContext": {
+    "persistent": true,
+    "schema": {}
+  }
+}

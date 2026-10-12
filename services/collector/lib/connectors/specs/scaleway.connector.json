@@ -1,0 +1,310 @@
+{
+  "spec_version": 1,
+  "id": "scaleway",
+  "name": "Scaleway",
+  "category": "cloud_hosting",
+  "credentialType": "scaleway",
+  "requiredFields": [
+    "access_key",
+    "secret_key"
+  ],
+  "docs": "https://www.scaleway.com/en/developers/api/",
+  "base_url": "https://api.scaleway.com",
+  "auth": {
+    "type": "header",
+    "header": "X-Auth-Token",
+    "template": "{{secret_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/account/v3/projects"
+  },
+  "tools_source": "https://www.scaleway.com/en/developers/api/instance/v1/schema.yml + https://www.scaleway.com/en/developers/api/account/project/v3/schema.yml",
+  "tools": [
+    {
+      "name": "list_projects",
+      "description": "List the Projects of one Scaleway Organization, with their names, IDs and creation dates",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "description": "Scaleway Organization ID the Projects belong to (UUID, required by the Project API)"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Max Projects to return per page (default 20, max 100)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional Project name to filter by"
+          }
+        },
+        "required": [
+          "organization_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/account/v3/projects",
+        "query": {
+          "organization_id": "{{input.organization_id}}",
+          "page_size": "{{clamp input.page_size 20 100}}",
+          "name": "{{input.name}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "projects[]": {
+            "id": "id",
+            "name": "name",
+            "organization_id": "organization_id",
+            "description": "description",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "total_count": "total_count"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_instances",
+      "description": "List Scaleway Instances (servers) in one Availability Zone, optionally filtered by state or name",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "zone": {
+            "type": "string",
+            "enum": [
+              "fr-par-1",
+              "fr-par-2",
+              "fr-par-3",
+              "nl-ams-1",
+              "nl-ams-2",
+              "nl-ams-3",
+              "pl-waw-1",
+              "pl-waw-2",
+              "pl-waw-3",
+              "it-mil-1"
+            ],
+            "description": "Scaleway Availability Zone to target (e.g. fr-par-1)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max Instances to return per page (default 20, max 100)"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "running",
+              "stopped",
+              "stopped in place",
+              "starting",
+              "stopping",
+              "locked"
+            ],
+            "description": "Optional Instance state to filter by"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional name fragment to filter Instances by"
+          }
+        },
+        "required": [
+          "zone"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/instance/v1/zones/{{input.zone}}/servers",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "state": "{{input.state}}",
+          "name": "{{input.name}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "servers[]": {
+            "id": "id",
+            "name": "name",
+            "hostname": "hostname",
+            "commercial_type": "commercial_type",
+            "state": "state",
+            "state_detail": "state_detail",
+            "zone": "zone",
+            "arch": "arch",
+            "public_ip": "public_ip.address",
+            "image": "image.name",
+            "project": "project",
+            "tags": "tags",
+            "creation_date": "creation_date"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.zone": "fr-par-1"
+      }
+    },
+    {
+      "name": "get_instance",
+      "description": "Get one Scaleway Instance by ID, with its type, state, image and IP addresses",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "zone": {
+            "type": "string",
+            "enum": [
+              "fr-par-1",
+              "fr-par-2",
+              "fr-par-3",
+              "nl-ams-1",
+              "nl-ams-2",
+              "nl-ams-3",
+              "pl-waw-1",
+              "pl-waw-2",
+              "pl-waw-3",
+              "it-mil-1"
+            ],
+            "description": "Scaleway Availability Zone the Instance lives in (e.g. fr-par-1)"
+          },
+          "server_id": {
+            "type": "string",
+            "description": "Scaleway Instance ID (UUID)"
+          }
+        },
+        "required": [
+          "zone",
+          "server_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/instance/v1/zones/{{input.zone}}/servers/{{input.server_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "server.id",
+          "name": "server.name",
+          "hostname": "server.hostname",
+          "commercial_type": "server.commercial_type",
+          "state": "server.state",
+          "state_detail": "server.state_detail",
+          "zone": "server.zone",
+          "arch": "server.arch",
+          "public_ip": "server.public_ip.address",
+          "private_ip": "server.private_ip",
+          "image": "server.image.name",
+          "security_group": "server.security_group.name",
+          "project": "server.project",
+          "tags": "server.tags",
+          "creation_date": "server.creation_date",
+          "modification_date": "server.modification_date"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.zone": "fr-par-1"
+      }
+    },
+    {
+      "name": "list_volumes",
+      "description": "List Scaleway Instance volumes in one Availability Zone, with size, type and attached Instance",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "zone": {
+            "type": "string",
+            "enum": [
+              "fr-par-1",
+              "fr-par-2",
+              "fr-par-3",
+              "nl-ams-1",
+              "nl-ams-2",
+              "nl-ams-3",
+              "pl-waw-1",
+              "pl-waw-2",
+              "pl-waw-3",
+              "it-mil-1"
+            ],
+            "description": "Scaleway Availability Zone to target (e.g. fr-par-1)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max volumes to return per page (default 20, max 100)"
+          },
+          "volume_type": {
+            "type": "string",
+            "enum": [
+              "l_ssd",
+              "b_ssd",
+              "unified",
+              "scratch",
+              "sbs_volume",
+              "sbs_snapshot"
+            ],
+            "description": "Optional volume type to filter by"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional name fragment to filter volumes by"
+          }
+        },
+        "required": [
+          "zone"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/instance/v1/zones/{{input.zone}}/volumes",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "volume_type": "{{input.volume_type}}",
+          "name": "{{input.name}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "volumes[]": {
+            "id": "id",
+            "name": "name",
+            "size": "size",
+            "volume_type": "volume_type",
+            "state": "state",
+            "zone": "zone",
+            "server_id": "server.id",
+            "server_name": "server.name",
+            "project": "project",
+            "tags": "tags",
+            "creation_date": "creation_date"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.zone": "fr-par-1"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Tools written 2026-09-12 from the official OpenAPI schemas (Instance v1, Account Project v3), not from prose: every path, query parameter, enum and response key above is taken from those documents. Instance list responses carry no total_count (the count rides in a header), so only list_projects picks one.",
+      "Scaffolded auth (X-Auth-Token: {{secret_key}}) stands: it matches the X-Auth-Token cURL sample in both official schemas verbatim. access_key stays a required field because Scaleway issues the pair together and object storage needs it, though these four tools authenticate with the secret key alone.",
+      "Shape-proof _probe hint: \"input.zone\": \"fr-par-1\" on the three Instance tools. fr-par-1 is a public zone identifier from the documented enum, not a credential or a tenant name. list_projects gets no hint: organization_id is a tenant UUID with no public example, so the harness uses its dummy value.",
+      "OPEN, not fixed here: the scaffolded test call GET /account/v3/projects carries no organization_id, which the Project API schema marks required:true for ListProjects. A real credential may therefore get a 400 from the connection test rather than a 200. The test block has no access to tool inputs, so this cannot be expressed in the spec; it needs an owner decision on a different test route (IAM GET /iam/v1alpha1/users documents organization_id as optional, but needs IAM read permission on the key)."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

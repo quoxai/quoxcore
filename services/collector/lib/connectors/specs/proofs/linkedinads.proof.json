@@ -1,0 +1,103 @@
+{
+  "spec_id": "linkedinads",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:38:28.434Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.linkedin.com/quox-shapeproof-control-5f21c790",
+      "status": 404,
+      "latency_ms": 1443,
+      "classification": "CONTROL",
+      "body_sha256": "fa8a3156a9de35eee8787a01d6ad2aaea2f99ffae0d3a097c237c925fba1ca0f",
+      "body_excerpt": "<!DOCTYPE html>\n<!--[if lt IE 7]> <html lang=\"en\" class=\"ie ie6 lte9 lte8 lte7\"> <![endif]-->\n<!--[if IE 7]> <html lang=\"en\" class=\"ie ie7 lte9 lte8 lte7\"> <![endif]-->\n<!--[if IE 8]> <html lang=\"en\" ",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.linkedin.com/v2/userinfo",
+      "status": 401,
+      "latency_ms": 276,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a9e5ad960a0ad1b045cebad048a3624bff7398421976276f31a951e5ef64d0e5",
+      "body_excerpt": "{\"status\":401,\"serviceErrorCode\":65600,\"code\":\"INVALID_ACCESS_TOKEN\",\"message\":\"Invalid access token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_me",
+      "method": "GET",
+      "url": "https://api.linkedin.com/v2/userinfo",
+      "status": 401,
+      "latency_ms": 577,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a9e5ad960a0ad1b045cebad048a3624bff7398421976276f31a951e5ef64d0e5",
+      "body_excerpt": "{\"status\":401,\"serviceErrorCode\":65600,\"code\":\"INVALID_ACCESS_TOKEN\",\"message\":\"Invalid access token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_ad_accounts",
+      "method": "GET",
+      "url": "https://api.linkedin.com/rest/adAccounts?q=search&count=20",
+      "status": 401,
+      "latency_ms": 426,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a9e5ad960a0ad1b045cebad048a3624bff7398421976276f31a951e5ef64d0e5",
+      "body_excerpt": "{\"status\":401,\"serviceErrorCode\":65600,\"code\":\"INVALID_ACCESS_TOKEN\",\"message\":\"Invalid access token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_ad_account",
+      "method": "GET",
+      "url": "https://api.linkedin.com/rest/adAccounts/quoxprobe",
+      "status": 401,
+      "latency_ms": 765,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a9e5ad960a0ad1b045cebad048a3624bff7398421976276f31a951e5ef64d0e5",
+      "body_excerpt": "{\"status\":401,\"serviceErrorCode\":65600,\"code\":\"INVALID_ACCESS_TOKEN\",\"message\":\"Invalid access token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_campaign_groups",
+      "method": "GET",
+      "url": "https://api.linkedin.com/rest/adAccounts/QUOXSHAPEPROOFDUMMYADACCOUNTID/adCampaignGroups?q=search&count=20",
+      "status": 401,
+      "latency_ms": 251,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a9e5ad960a0ad1b045cebad048a3624bff7398421976276f31a951e5ef64d0e5",
+      "body_excerpt": "{\"status\":401,\"serviceErrorCode\":65600,\"code\":\"INVALID_ACCESS_TOKEN\",\"message\":\"Invalid access token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_campaigns",
+      "method": "GET",
+      "url": "https://api.linkedin.com/rest/adAccounts/QUOXSHAPEPROOFDUMMYADACCOUNTID/adCampaigns?q=search&count=20",
+      "status": 401,
+      "latency_ms": 446,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "a9e5ad960a0ad1b045cebad048a3624bff7398421976276f31a951e5ef64d0e5",
+      "body_excerpt": "{\"status\":401,\"serviceErrorCode\":65600,\"code\":\"INVALID_ACCESS_TOKEN\",\"message\":\"Invalid access token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

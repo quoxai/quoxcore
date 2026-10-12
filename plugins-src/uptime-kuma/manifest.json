@@ -1,0 +1,36 @@
+{
+  "id": "uptime-kuma",
+  "name": "uptime-kuma",
+  "displayName": "Uptime Kuma",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "starter",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "monitoring",
+  "accentColor": "#10b981",
+  "description": "The standalone Uptime Kuma page: guided setup, multi status-page management and full service status with ping times and uptime percentages. The compact uptime panel on NOC stays free and core.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/monitoring/uptime-kuma",
+      "label": "Uptime Kuma",
+      "icon": "uptime-kuma",
+      "minRole": "builder"
+    }
+  ],
+  "routes": {
+    "/monitoring/uptime-kuma": "UptimeKumaView"
+  },
+  "routeGuards": {
+    "/monitoring/uptime-kuma": {
+      "minRole": "builder"
+    }
+  },
+  "minQuoxVersion": "1.0.0"
+}

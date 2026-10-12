@@ -1,0 +1,160 @@
+/* Quox Voice view. Panels, pills, buttons and selects come from the qx-*
+ * design system; only the orb (a component with no qx equivalent yet) and
+ * layout glue live here. Tokens over literals wherever a token exists. */
+
+.quoxvoice-view {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.quoxvoice-card {
+  width: min(560px, 94%);
+  margin-top: 4vh;
+  text-align: center;
+}
+
+.quoxvoice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.quoxvoice-head h2 { margin: 0; font-size: 18px; }
+
+.quoxvoice-sub {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+
+.quoxvoice-orb {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  margin: 28px auto 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #cfe6dd;
+  background: radial-gradient(circle at 35% 30%,
+      rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03) 70%);
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.quoxvoice-orb--listening {
+  border-color: rgba(55, 208, 162, 0.8);
+  box-shadow: 0 0 34px rgba(55, 208, 162, 0.35);
+}
+
+.quoxvoice-orb--thinking {
+  border-color: rgba(167, 139, 250, 0.8);
+  box-shadow: 0 0 34px rgba(167, 139, 250, 0.35);
+}
+
+.quoxvoice-orb--speaking {
+  border-color: rgba(106, 183, 255, 0.85);
+  box-shadow: 0 0 34px rgba(106, 183, 255, 0.4);
+}
+
+.quoxvoice-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  pointer-events: none;
+}
+
+.quoxvoice-orb--speaking .quoxvoice-ring {
+  border-color: rgba(106, 183, 255, 0.35);
+  animation: quoxvoice-pulse 1.1s infinite;
+}
+
+@keyframes quoxvoice-pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.18); opacity: 0; }
+}
+
+.quoxvoice-status {
+  min-height: 22px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13.5px;
+  margin-top: 10px;
+}
+
+.quoxvoice-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.quoxvoice-transcript {
+  margin-top: 18px;
+  max-height: 220px;
+  overflow-y: auto;
+  text-align: left;
+  font-size: 13px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding-top: 12px;
+}
+
+.quoxvoice-line { margin: 6px 0; }
+
+.quoxvoice-line--interim { opacity: 0.55; font-style: italic; }
+
+.quoxvoice-who {
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.quoxvoice-line--you .quoxvoice-who { color: #37d0a2; }
+.quoxvoice-line--agent .quoxvoice-who { color: #6ab7ff; }
+
+.quoxvoice-session {
+  margin-top: 12px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+  font-family: ui-monospace, monospace;
+}
+
+/* Tool-activity strip: real governed tool calls, surfaced as they fire
+   (honesty made visible). Fed by the quox-voice-tool data-channel topic. */
+.quoxvoice-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+  justify-content: center;
+}
+
+.quoxvoice-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.quoxvoice-tool-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6ab7ff;
+}
+
+.quoxvoice-tool--running .quoxvoice-tool-dot { background: #f5c451; animation: quoxvoice-pulse 1s ease-in-out infinite; }
+.quoxvoice-tool--ok .quoxvoice-tool-dot { background: #37d0a2; }
+.quoxvoice-tool--error .quoxvoice-tool-dot { background: #ff6b6b; }
+
+@keyframes quoxvoice-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }

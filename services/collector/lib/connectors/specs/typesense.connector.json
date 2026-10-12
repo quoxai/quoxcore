@@ -1,0 +1,225 @@
+{
+  "spec_version": 1,
+  "id": "typesense",
+  "name": "Typesense",
+  "category": "data_ai",
+  "credentialType": "typesense",
+  "requiredFields": [
+    "host",
+    "api_key",
+    "port"
+  ],
+  "docs": "https://typesense.org/docs/",
+  "base_url": {
+    "fromCredential": "host",
+    "template": "https://{{host}}:{{port}}"
+  },
+  "auth": {
+    "type": "header",
+    "header": "X-TYPESENSE-API-KEY",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/health"
+  },
+  "tools_source": "https://typesense.org/docs/",
+  "tools": [
+    {
+      "name": "health",
+      "description": "Check whether the Typesense node is healthy and accepting requests",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/health"
+      },
+      "response": {
+        "pick": {
+          "ok": "ok"
+        },
+        "truncate": 2000
+      },
+      "_probe": {}
+    },
+    {
+      "name": "get_debug",
+      "description": "Get the Typesense node version and cluster state",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/debug"
+      },
+      "response": {
+        "pick": {
+          "version": "version",
+          "state": "state"
+        },
+        "truncate": 2000
+      },
+      "_probe": {}
+    },
+    {
+      "name": "list_collections",
+      "description": "List the collections on this Typesense node with their document counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/collections"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "name": "name",
+            "num_documents": "num_documents",
+            "default_sorting_field": "default_sorting_field",
+            "created_at": "created_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {}
+    },
+    {
+      "name": "get_collection",
+      "description": "Get one Typesense collection by name, including its field schema",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "collection": {
+            "type": "string",
+            "description": "Collection name (e.g. companies)"
+          }
+        },
+        "required": [
+          "collection"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/collections/{{input.collection}}"
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "num_documents": "num_documents",
+          "default_sorting_field": "default_sorting_field",
+          "created_at": "created_at",
+          "fields": "fields"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.collection": "quoxproof-live"
+      }
+    },
+    {
+      "name": "search_collection",
+      "description": "Search documents in one Typesense collection. Use q=* to list documents without a text query",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "collection": {
+            "type": "string",
+            "description": "Collection name to search in (e.g. companies)"
+          },
+          "q": {
+            "type": "string",
+            "description": "Search terms, or * to match every document"
+          },
+          "query_by": {
+            "type": "string",
+            "description": "Comma-separated fields to search in. Not needed when q is *"
+          },
+          "filter_by": {
+            "type": "string",
+            "description": "Optional Typesense filter expression (e.g. num_employees:>100)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max hits per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Results page to return (1-based)"
+          }
+        },
+        "required": [
+          "collection",
+          "q"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/collections/{{input.collection}}/documents/search",
+        "query": {
+          "q": "{{input.q}}",
+          "query_by": "{{input.query_by}}",
+          "filter_by": "{{input.filter_by}}",
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "found": "found",
+          "out_of": "out_of",
+          "page": "page",
+          "search_time_ms": "search_time_ms",
+          "hits": "hits"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.collection": "quoxproof-live",
+        "input.q": "*"
+      }
+    },
+    {
+      "name": "list_aliases",
+      "description": "List the collection aliases configured on this Typesense node",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/aliases"
+      },
+      "response": {
+        "pick": {
+          "aliases[]": {
+            "name": "name",
+            "collection_name": "collection_name"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {}
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:41:54.106Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url_template",
+      "multi_credential_host",
+      "auth_field_optional_in_registry:port",
+      "Live-proof _probe hints added 2026-09-12: get_collection and search_collection carry \"_probe\": {\"input.collection\": \"quoxproof-live\"}, and search_collection also pins q to * so it does not need query_by (Typesense only requires query_by when q is not the wildcard). The provisioner creates a collection with exactly that name on a fresh node before the proof runs; every other tool resolves on an empty node with no hints. Credentials are never hinted.",
+      "Write and cluster-operation endpoints are deliberately excluded: this spec is read-only GET only. /keys is excluded as well, since listing API keys is credential surface rather than search data."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

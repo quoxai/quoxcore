@@ -1,0 +1,64 @@
+{
+  "spec_id": "assemblyai",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:46:51.894Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.assemblyai.com/quox-shapeproof-control-71e6d383",
+      "status": 404,
+      "latency_ms": 1987,
+      "classification": "CONTROL",
+      "body_sha256": "e3ebaa16dd9d9b9fc107c42183fb6cf9d22927e1af03dbbdfa0ccc38e4e4ac31",
+      "body_excerpt": "Not found",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.assemblyai.com/v2/transcript?limit=1",
+      "status": 401,
+      "latency_ms": 217,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e90a67905c886930f16580feaa3b01a6418495e9fb4ab098b85d0799c2ab6a80",
+      "body_excerpt": "{\"error\": \"Authentication error, API token missing/invalid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_transcripts",
+      "method": "GET",
+      "url": "https://api.assemblyai.com/v2/transcript?limit=20&status=quoxprobe",
+      "status": 401,
+      "latency_ms": 210,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e90a67905c886930f16580feaa3b01a6418495e9fb4ab098b85d0799c2ab6a80",
+      "body_excerpt": "{\"error\": \"Authentication error, API token missing/invalid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_transcript",
+      "method": "GET",
+      "url": "https://api.assemblyai.com/v2/transcript/quoxprobe",
+      "status": 401,
+      "latency_ms": 225,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e90a67905c886930f16580feaa3b01a6418495e9fb4ab098b85d0799c2ab6a80",
+      "body_excerpt": "{\"error\": \"Authentication error, API token missing/invalid\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

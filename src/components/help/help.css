@@ -1,0 +1,168 @@
+/**
+ * Keyboard Shortcuts Modal
+ * Uses QuoxCORE Design System variables
+ */
+
+/* Keyboard Shortcuts Modal */
+.shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--m-z-modal, 10000);
+  animation: fadeIn var(--m-duration-fast, 0.15s) var(--m-ease-out, ease-out);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.shortcuts-modal {
+  background: var(--m-bg-elevated, #1a1a1a);
+  border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.08));
+  border-radius: var(--m-radius-lg, 8px);
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp var(--m-duration-normal, 0.2s) var(--m-ease-out, ease-out);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.shortcuts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--m-space-4, 1rem) var(--m-space-5, 1.25rem);
+  border-bottom: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.08));
+}
+
+.shortcuts-header h2 {
+  margin: 0;
+  font-size: var(--m-text-base, 1rem);
+  font-weight: var(--m-weight-semibold, 600);
+  color: var(--m-text-primary, #fff);
+  text-transform: uppercase;
+  letter-spacing: var(--m-tracking-wide, 0.05em);
+}
+
+.shortcuts-close {
+  background: none;
+  border: none;
+  color: var(--m-text-tertiary, rgba(255, 255, 255, 0.52));
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color var(--m-duration-fast, 0.15s);
+}
+
+.shortcuts-close:hover {
+  color: var(--m-text-primary, #fff);
+}
+
+.shortcuts-content {
+  padding: var(--m-space-4, 1rem) var(--m-space-5, 1.25rem);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.shortcuts-category {
+  margin-bottom: var(--m-space-5, 1.25rem);
+}
+
+.shortcuts-category:last-child {
+  margin-bottom: 0;
+}
+
+.shortcuts-category h3 {
+  font-size: var(--m-text-xs, 0.7rem);
+  text-transform: uppercase;
+  letter-spacing: var(--m-tracking-wider, 0.1em);
+  color: var(--m-quox-primary, #38bdf8);
+  margin: 0 0 var(--m-space-3, 0.75rem) 0;
+  font-weight: var(--m-weight-medium, 500);
+}
+
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--m-space-2, 0.5rem);
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--m-space-2, 0.5rem) 0;
+  border-bottom: 1px solid var(--m-border-subtle, rgba(255, 255, 255, 0.04));
+}
+
+.shortcut-item:last-child {
+  border-bottom: none;
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: var(--m-space-1, 0.25rem);
+}
+
+.shortcut-keys kbd {
+  background: var(--m-bg-wash, #26262c);
+  border: 1px solid var(--m-border-strong, rgba(255, 255, 255, 0.12));
+  border-radius: var(--m-radius-sm, 4px);
+  padding: var(--m-space-1, 0.25rem) var(--m-space-2, 0.5rem);
+  font-family: var(--m-font-mono, 'JetBrains Mono', monospace);
+  font-size: var(--m-text-xs, 0.75rem);
+  color: var(--m-text-primary, #fff);
+  min-width: 1.5rem;
+  text-align: center;
+  box-shadow: 0 2px 0 var(--m-bg-base, rgba(255, 255, 255, 0.04));
+}
+
+.key-plus {
+  color: var(--m-text-tertiary, rgba(255, 255, 255, 0.52));
+  font-size: var(--m-text-xs, 0.7rem);
+  margin: 0 0.1rem;
+}
+
+.shortcut-desc {
+  color: var(--m-text-secondary, rgba(255, 255, 255, 0.72));
+  font-size: var(--m-text-sm, 0.85rem);
+}
+
+.shortcuts-footer {
+  padding: var(--m-space-3, 0.75rem) var(--m-space-5, 1.25rem);
+  border-top: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.08));
+  text-align: center;
+}
+
+.shortcuts-hint {
+  color: var(--m-text-tertiary, rgba(255, 255, 255, 0.52));
+  font-size: var(--m-text-xs, 0.75rem);
+}
+
+.shortcuts-hint kbd {
+  background: var(--m-bg-wash, #26262c);
+  border: 1px solid var(--m-border-strong, rgba(255, 255, 255, 0.12));
+  border-radius: 3px;
+  padding: 0.15rem 0.35rem;
+  font-family: var(--m-font-mono, 'JetBrains Mono', monospace);
+  font-size: var(--m-text-xs, 0.7rem);
+  color: var(--m-text-tertiary, rgba(255, 255, 255, 0.52));
+}

@@ -1,0 +1,42 @@
+{
+  "spec_version": 1,
+  "id": "anthropic",
+  "name": "Anthropic",
+  "category": "uncategorized",
+  "credentialType": "anthropic",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.anthropic.com/en/api",
+  "base_url": "https://api.anthropic.com",
+  "auth": {
+    "type": "header",
+    "header": "x-api-key",
+    "template": "{{api_key}}"
+  },
+  "static_headers": {
+    "anthropic-version": "2023-06-01",
+    "Content-Type": "application/json"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/v1/messages",
+    "body": {
+      "model": "claude-3-5-haiku-20241022",
+      "max_tokens": 1,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ]
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

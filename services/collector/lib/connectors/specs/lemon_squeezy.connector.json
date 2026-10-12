@@ -1,0 +1,209 @@
+{
+  "spec_version": 1,
+  "id": "lemon_squeezy",
+  "name": "Lemon Squeezy",
+  "category": "commerce_finance",
+  "credentialType": "lemon_squeezy",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.lemonsqueezy.com/api",
+  "base_url": "https://api.lemonsqueezy.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "static_headers": {
+    "Accept": "application/vnd.api+json",
+    "Content-Type": "application/vnd.api+json"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/users/me"
+  },
+  "tools_source": "https://docs.lemonsqueezy.com/api",
+  "tools": [
+    {
+      "name": "get_user",
+      "description": "Retrieve the Lemon Squeezy user the API key belongs to, and whether the key is a test-mode key",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/users/me"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "name": "data.attributes.name",
+          "email": "data.attributes.email",
+          "createdAt": "data.attributes.createdAt",
+          "test_mode": "meta.test_mode"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_stores",
+      "description": "List the Lemon Squeezy stores on this account, with currency, plan and lifetime sales totals",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Results per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to retrieve (default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/stores",
+        "query": {
+          "page[size]": "{{clamp input.page_size 20 100}}",
+          "page[number]": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "attributes.name",
+            "slug": "attributes.slug",
+            "domain": "attributes.domain",
+            "plan": "attributes.plan",
+            "country": "attributes.country",
+            "currency": "attributes.currency",
+            "total_sales": "attributes.total_sales",
+            "total_revenue": "attributes.total_revenue",
+            "created_at": "attributes.created_at"
+          },
+          "total": "meta.page.total",
+          "last_page": "meta.page.lastPage"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_products",
+      "description": "List Lemon Squeezy products, optionally filtered to one store, with price and publication status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "store_id": {
+            "type": "string",
+            "description": "Optional store ID to filter products by"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Results per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to retrieve (default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/products",
+        "query": {
+          "filter[store_id]": "{{input.store_id}}",
+          "page[size]": "{{clamp input.page_size 20 100}}",
+          "page[number]": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "attributes.name",
+            "slug": "attributes.slug",
+            "status": "attributes.status",
+            "store_id": "attributes.store_id",
+            "price": "attributes.price",
+            "price_formatted": "attributes.price_formatted",
+            "created_at": "attributes.created_at"
+          },
+          "total": "meta.page.total",
+          "last_page": "meta.page.lastPage"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_orders",
+      "description": "List Lemon Squeezy orders (newest first), optionally filtered by store or buyer email, with totals, tax and refund state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "store_id": {
+            "type": "string",
+            "description": "Optional store ID to filter orders by"
+          },
+          "user_email": {
+            "type": "string",
+            "description": "Optional exact buyer email address to filter orders by"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Results per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to retrieve (default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/orders",
+        "query": {
+          "filter[store_id]": "{{input.store_id}}",
+          "filter[user_email]": "{{input.user_email}}",
+          "page[size]": "{{clamp input.page_size 20 100}}",
+          "page[number]": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "order_number": "attributes.order_number",
+            "identifier": "attributes.identifier",
+            "status": "attributes.status",
+            "store_id": "attributes.store_id",
+            "customer_id": "attributes.customer_id",
+            "user_email": "attributes.user_email",
+            "currency": "attributes.currency",
+            "subtotal": "attributes.subtotal",
+            "tax": "attributes.tax",
+            "total": "attributes.total",
+            "total_formatted": "attributes.total_formatted",
+            "refunded": "attributes.refunded",
+            "test_mode": "attributes.test_mode",
+            "created_at": "attributes.created_at"
+          },
+          "total": "meta.page.total",
+          "last_page": "meta.page.lastPage"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

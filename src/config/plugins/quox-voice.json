@@ -1,0 +1,45 @@
+{
+  "name": "quox-voice",
+  "version": "0.1.0",
+  "displayName": "Quox Voice",
+  "tagline": "Talk to your agents. Governed, witnessed, interruptible.",
+  "description": "Governed realtime voice conversations with CommanderQ. Speech recognition, agent reasoning and synthesis all run through the governed Quox stack: sessions are org-scoped, every one is witnessed, and you can interrupt the agent mid-sentence like a colleague. Browser first; business phone lines are the roadmap. Distinct from Advanced Voice, which provides the voice library and read-aloud controls for chat: Quox Voice is the live two-way conversation runtime.",
+  "shortDescription": "Realtime governed voice conversations with your agents",
+  "author": "QUOX",
+  "license": "free",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "free",
+  "tier": "free",
+  "featured": false,
+  "badge": "BETA",
+  "icon": "mic",
+  "infoUrl": "https://quox.ai/plugins/quox-voice",
+  "docsUrl": "https://quox.ai/docs/plugins/quox-voice",
+  "accentColor": "#37d0a2",
+  "marketingPoints": [
+    "Live spoken conversation with CommanderQ, sub-second listening, natural interruption",
+    "Every session org-scoped and witnessed: voice carries the same evidence trail as chat",
+    "The agent keeps its tools, knowledge and history; voice is a surface, not a fork",
+    "Pick a voice, or switch voices mid-conversation",
+    "Roadmap: your agents answering your business phone lines"
+  ],
+  "features": {
+    "conversation": {
+      "name": "Voice conversation",
+      "description": "Continuous listening, streamed spoken replies, live transcript, barge-in interruption.",
+      "icon": "mic",
+      "highlight": true
+    },
+    "governance": {
+      "name": "Witnessed sessions",
+      "description": "Session create and end are AEE-witnessed through the collector; org scope enforced end to end.",
+      "icon": "shield"
+    },
+    "voices": {
+      "name": "Voice selection",
+      "description": "Choose the agent's voice per session or switch live mid-conversation.",
+      "icon": "volume-2"
+    }
+  }
+}

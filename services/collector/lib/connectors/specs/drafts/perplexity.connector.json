@@ -1,0 +1,40 @@
+{
+  "spec_version": 1,
+  "id": "perplexity",
+  "name": "Perplexity",
+  "category": "uncategorized",
+  "credentialType": "perplexity",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.perplexity.ai/",
+  "base_url": "https://api.perplexity.ai",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "static_headers": {
+    "Content-Type": "application/json"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+      "model": "sonar",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "max_tokens": 1
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

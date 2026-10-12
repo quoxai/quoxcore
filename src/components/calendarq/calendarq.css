@@ -1,0 +1,505 @@
+/**
+ * Calendar-Q-scoped styles — layout only, same posture as
+ * src/components/inboxq/inboxq.css: every surface composes qx-* utilities
+ * straight from the shared design system (see src/styles/QX_INDEX.md). Do
+ * not duplicate qx-* rules here.
+ */
+
+.qx-view.cq-view {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.cq-workspace {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  gap: 16px;
+}
+.cq-toolbar {
+  flex: 0 0 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.cq-tabs {
+  flex: 0 0 auto;
+  min-width: 0;
+  overflow-x: auto;
+}
+.cq-body {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  gap: 16px;
+  overflow: hidden;
+}
+/* NotesQ look: the main pane is a TRANSPARENT scroll column — each tab's
+   cards carry the glass (header card + slate for the calendar face; one
+   card per admin tab). No backed slab, no padding of its own. */
+.cq-main {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+/* Agent dock column — same recipe as NotesQ's .nq-agent-dock: bordered,
+   radiused, opaque undercoat (the sidebar renders panel={false}). */
+.cq-chat-dock {
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  flex-shrink: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.14));
+  border-radius: var(--qx-radius, 14px);
+}
+/* Collapsed chat = a pane rail in the same column (visibly reversible). */
+.cq-chat-rail {
+  width: 48px;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+/* The calendar tab's column: header card + slate card, NotesQ card rhythm. */
+.cq-face-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.cq-slate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+/* NotesQ doc rhythm (12px inside the doc column, like .nq-doc__main). */
+.cq-main {
+  display: flex;
+  flex-direction: column;
+}
+.cq-face {
+  gap: 12px;
+}
+/* Month mode is FITTED: the slate takes the remaining height and the six
+   grid rows share it (floor 44px), so the whole month face is visible
+   without scrolling at 1280x720 (owner design-pass-2 requirement). Cells
+   clip their chip lines (the chips wrapper already hides overflow) the way
+   Apple Calendar drops event lines in short cells. Other modes keep
+   natural height and scroll in .cq-main. */
+.cq-face[data-mode="month"] {
+  flex: 1 1 0;
+  min-height: 0;
+}
+.cq-face[data-mode="month"] .cq-slate {
+  flex: 1 1 0;
+  min-height: 0;
+}
+/* CalendarGrid's root wrapper sits between the slate and the grid; it must
+   carry the flex chain or the fitted height never reaches the rows. */
+.cq-slate .cq-grid-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.cq-face[data-mode="month"] .cq-grid-wrap {
+  flex: 1 1 0;
+  min-height: 0;
+}
+.cq-face[data-mode="month"] .cq-grid--month {
+  flex: 1 1 0;
+  min-height: 0;
+  grid-auto-rows: minmax(44px, 1fr);
+}
+.cq-face[data-mode="month"] .cq-grid--month .cq-day {
+  min-height: 0;
+  overflow: hidden;
+}
+/* Year mode already flexes (.cq-year-grid); give it the same bounded chain. */
+.cq-face[data-mode="year"] {
+  flex: 1 1 0;
+  min-height: 0;
+}
+.cq-face[data-mode="year"] .cq-slate {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* --- Layer switcher row (AQ-9B design pass, UNIT 2) --- */
+.cq-layer-row {
+  gap: 8px;
+}
+.cq-layer-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.cq-layer-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* --- Unified nav row (AQ-9B PASS 2, familiarity fix 1) --- replaces the old
+   five stacked rows (coverage paragraph, layer chips, clash sentence, mode
+   row, month-nav row) with two: this row (title + prev/Today/next + the
+   mode seg + coverage pill, all supplied by CalendarNavRow.jsx) and the
+   layer-chip row below it. Layout only; colour comes from the qx-* chips/
+   buttons/disclosure already in use inside it. */
+.cq-nav-row {
+  align-items: center;
+  /* Wraps when the mode seg + coverage pill + text-size control outgrow
+     the card (was nowrap, which clipped the coverage pill off the card
+     edge once the zoom control landed). Fitted month mode absorbs the
+     extra row by compressing grid rows toward their 44px floor. */
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.cq-grid-label {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+}
+
+/* --- Coverage pill + flyout (AQ-9B PASS 2, familiarity fix 1) --- the old
+   full-width CoverageBanner paragraph compacted to a single row-1 chip;
+   the per-layer detail and the clash-window sentence move into the flyout
+   this opens. */
+.cq-coverage-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.cq-coverage-pill {
+  cursor: pointer;
+}
+.cq-coverage-pill--warn {
+  border-color: var(--qx-sev-warn);
+  color: var(--qx-sev-warn);
+}
+.cq-coverage-pill__dots {
+  display: inline-flex;
+  gap: 2px;
+}
+.cq-coverage-pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cq-coverage-flyout {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  width: 300px;
+}
+
+/* --- Month/Week grid (AQ-9B design pass, UNIT 1; PASS 2 familiarity fixes
+   2 + 4) --- layout only; every colour, radius and blur comes from qx-*
+   utilities/tokens, per QX_INDEX.
+   Cell min-height math for "full month grid visible without scrolling at
+   1280x720" (owner design-pass-2 requirement, computed not guessed):
+   app-shell__header 64 -> content 656. Toolbar ~44 + gap10 + outer tabs
+   ~36 + gap10 + cq-main padding 32 + nav-row ~30 + stack-gap8 + layer-row
+   ~28 + stack-gap8 + weekday-row ~17 + gap8 = ~231 fixed overhead ->
+   body budget ~425. 6 rows + 5x6px gaps(30) -> ~65.8px/row available; 58px
+   floor below leaves ~8px/row safety margin for font/border rounding. */
+.cq-weekday-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.cq-weekday {
+  text-align: center;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--m-text-tertiary);
+  padding: 1px 0;
+}
+.cq-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.cq-grid--month .cq-day {
+  min-height: 58px;
+}
+.cq-grid--week .cq-day {
+  min-height: 220px;
+}
+/* Weekend column tint (familiarity fix 4) — works for both the 42-cell
+   month matrix and the 7-cell week row since both start Monday: Saturday
+   is always the 6th cell of a 7-column row, Sunday the 7th. */
+.cq-grid .cq-day:nth-child(7n+6),
+.cq-grid .cq-day:nth-child(7n+7) {
+  background: rgba(255, 255, 255, 0.03);
+}
+.cq-day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px;
+  border-radius: 10px;
+  border: 1px solid var(--m-border-default);
+  background: var(--m-bg-base);
+  min-width: 0;
+}
+.cq-day--outside {
+  opacity: 0.3;
+}
+/* Today (familiarity fix 4): the day NUMBER gets the filled accent circle
+   (see .cq-day__num--today below) — the cell itself stays the same quiet
+   surface as any other day, like Apple Calendar, rather than a tinted/
+   ringed cell. Grid .cq-day--today rule placed after the weekend-tint rule
+   above so a weekend "today" still resolves to the plain surface (equal
+   specificity, source order decides). */
+.cq-grid .cq-day.cq-day--today {
+  background: var(--m-bg-base);
+}
+.cq-day--uncovered {
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0px, rgba(255, 255, 255, 0.035) 4px, transparent 4px, transparent 9px);
+}
+.cq-day__num {
+  font-size: 10px;
+  font-family: var(--qx-font-mono);
+  color: var(--m-text-secondary);
+  line-height: 1;
+}
+.cq-day__num--today {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a855f7, #38bdf8);
+  color: #fff;
+  font-weight: 700;
+}
+.cq-day__chips {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Slim occurrence lines (familiarity fix 2) — dot + mono HH:mm + title, no
+   pill background; hover gets a lift instead. Same-layer/same-title
+   repeats (cron heartbeats) collapse server-side-count-free into one line
+   carrying "x N" in place of a time, via CalendarGrid's buildDayLines. */
+.cq-day-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  font-size: 10px;
+  line-height: 1.3;
+  padding: 1px 2px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  color: var(--m-text-secondary);
+  font-family: inherit;
+  cursor: default;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.cq-day-line:hover {
+  background: var(--m-bg-elevated);
+  transform: translateX(1px);
+}
+.cq-day-line__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cq-day-line__time {
+  font-family: var(--qx-font-mono);
+  color: var(--m-text-tertiary);
+  flex-shrink: 0;
+}
+.cq-day-line__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+.cq-day-line--more {
+  justify-content: center;
+  cursor: pointer;
+  color: var(--m-text-tertiary);
+}
+.cq-day-flyout-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+}
+.cq-day-flyout {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 40;
+  width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* All-day tint bar (familiarity fix 2) — full-width, sits above the chip
+   lines rather than competing with them for the 3-line budget. */
+.cq-day__allday {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cq-day__allday-bar {
+  border-radius: 3px;
+  padding: 1px 4px;
+  overflow: hidden;
+}
+.cq-day__allday-title {
+  display: block;
+  font-size: 9px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Year view (AQ-9B PASS 2, familiarity fix 3) --- 12 mini-month grids,
+   presentation-only over already-fetched overlay data; an out-of-coverage
+   month renders dimmed + non-navigable with the same hatch language as an
+   out-of-coverage day. */
+.cq-year-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 10px;
+  flex: 1 1 0;
+  min-height: 0;
+}
+.cq-mini-month {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--m-border-default);
+  background: var(--m-bg-base);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  min-height: 0;
+}
+.cq-mini-month:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0px, rgba(255, 255, 255, 0.035) 4px, transparent 4px, transparent 9px);
+}
+.cq-mini-month--current {
+  border-color: rgba(56, 189, 248, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(168, 85, 247, 0.35);
+}
+.cq-mini-month__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--m-text-secondary);
+}
+.cq-mini-month__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  flex: 1 1 0;
+}
+.cq-mini-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+}
+.cq-mini-day__num {
+  font-size: 7px;
+  font-family: var(--qx-font-mono);
+  color: var(--m-text-tertiary);
+}
+.cq-mini-day--outside .cq-mini-day__num {
+  opacity: 0.3;
+}
+.cq-mini-day--today .cq-mini-day__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a855f7, #38bdf8);
+  color: #fff;
+  font-weight: 700;
+}
+.cq-mini-day__dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+}
+.cq-mini-day__dot--machine {
+  background: var(--m-text-tertiary);
+  opacity: 0.6;
+}
+
+/* --- Loading shimmer: a grid-shaped skeleton, not three flat bars, so the
+   calendar face is recognisable even before data lands. --- */
+.cq-grid-skeleton {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+/* --- NotesQ look, text zoom (rule 8) --- the slate carries --qx-text-zoom
+   (set by CalendarTab from useTextSize); the calendar face's fixed-size
+   text scales with it. Chrome and toolbars deliberately do not. */
+.cq-slate .cq-weekday { font-size: calc(10px * var(--qx-text-zoom, 1)); }
+.cq-slate .cq-day__num { font-size: calc(10px * var(--qx-text-zoom, 1)); }
+.cq-slate .cq-day__num--today {
+  width: calc(16px * var(--qx-text-zoom, 1));
+  height: calc(16px * var(--qx-text-zoom, 1));
+}
+.cq-slate .cq-day-line { font-size: calc(10px * var(--qx-text-zoom, 1)); }
+.cq-slate .cq-day__allday-title { font-size: calc(9px * var(--qx-text-zoom, 1)); }
+.cq-slate .cq-mini-month__title { font-size: calc(11px * var(--qx-text-zoom, 1)); }
+.cq-slate .cq-mini-day__num { font-size: calc(7px * var(--qx-text-zoom, 1)); }
+.cq-slate .cq-mini-day--today .cq-mini-day__num {
+  width: calc(11px * var(--qx-text-zoom, 1));
+  height: calc(11px * var(--qx-text-zoom, 1));
+}
+
+/* On the black slate the 0.03 weekend tint vanishes; lift it slightly. The
+   today-cell rule below restates the plain surface at matching specificity
+   (source order decides), same reasoning as the base rules above. */
+.cq-slate .cq-grid .cq-day:nth-child(7n+6),
+.cq-slate .cq-grid .cq-day:nth-child(7n+7) {
+  background: rgba(255, 255, 255, 0.05);
+}
+.cq-slate .cq-grid .cq-day.cq-day--today {
+  background: var(--m-bg-base);
+}

@@ -1,0 +1,93 @@
+{
+  "spec_id": "planetscale",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:21:55.941Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.planetscale.com/quox-shapeproof-control-8c6dd266",
+      "status": 404,
+      "latency_ms": 1322,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.planetscale.com/v1/organizations",
+      "status": 401,
+      "latency_ms": 325,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0f538430b25cd0aacbc896e0b08fab52f2272b295388dff0467310846077a4e7",
+      "body_excerpt": "{\"code\":\"unauthorized\",\"message\":\"Requires authentication\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_organizations",
+      "method": "GET",
+      "url": "https://api.planetscale.com/v1/organizations?page=1&per_page=25",
+      "status": 401,
+      "latency_ms": 242,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0f538430b25cd0aacbc896e0b08fab52f2272b295388dff0467310846077a4e7",
+      "body_excerpt": "{\"code\":\"unauthorized\",\"message\":\"Requires authentication\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_databases",
+      "method": "GET",
+      "url": "https://api.planetscale.com/v1/organizations/quoxprobe/databases?q=quoxprobe&page=1&per_page=25",
+      "status": 404,
+      "latency_ms": 386,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c9c2630f70e09b006b3c631d73ecdd05db5c4a6864958921ec6275535d2da8e3",
+      "body_excerpt": "{\"code\":\"not_found\",\"message\":\"Not Found\"}",
+      "flags": {
+        "identifier_404_differential": true,
+        "differential_basis": "body_sha"
+      }
+    },
+    {
+      "name": "get_database",
+      "method": "GET",
+      "url": "https://api.planetscale.com/v1/organizations/quoxprobe/databases/quoxprobe",
+      "status": 404,
+      "latency_ms": 277,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c9c2630f70e09b006b3c631d73ecdd05db5c4a6864958921ec6275535d2da8e3",
+      "body_excerpt": "{\"code\":\"not_found\",\"message\":\"Not Found\"}",
+      "flags": {
+        "identifier_404_differential": true,
+        "differential_basis": "body_sha"
+      }
+    },
+    {
+      "name": "list_branches",
+      "method": "GET",
+      "url": "https://api.planetscale.com/v1/organizations/quoxprobe/databases/quoxprobe/branches?q=quoxprobe&production=false&order=quoxprobe&page=1&per_page=25",
+      "status": 404,
+      "latency_ms": 406,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c9c2630f70e09b006b3c631d73ecdd05db5c4a6864958921ec6275535d2da8e3",
+      "body_excerpt": "{\"code\":\"not_found\",\"message\":\"Not Found\"}",
+      "flags": {
+        "identifier_404_differential": true,
+        "differential_basis": "body_sha"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,123 @@
+{
+  "spec_id": "tiktok_ads",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:34:01.118Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://business-api.tiktok.com/quox-shapeproof-control-5c0d7668",
+      "status": 404,
+      "latency_ms": 335,
+      "classification": "CONTROL",
+      "body_sha256": "b282ac8512c5e029959282e6fd450dc119f5db4a072869eabf45e31440596248",
+      "body_excerpt": "<html>\r\n<head><title>404 Not Found</title></head>\r\n<body>\r\n<center><h1>404 Not Found</h1></center>\r\n<hr><center>TLB</center>\r\n</body>\r\n</html>\r\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://business-api.tiktok.com/open_api/v1.3/user/info/",
+      "status": 200,
+      "latency_ms": 202,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "04628bd93c60e6ef5a6770bfdd792920c11b5891c0d13f3d5cb7349d82042dbe",
+      "body_excerpt": "{\"code\":40105,\"message\":\"Access token is incorrect or has been revoked.\",\"request_id\":\"202609121133562FBB65AA26108153E8BA\"}",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "get_user_info",
+      "method": "GET",
+      "url": "https://business-api.tiktok.com/open_api/v1.3/user/info/",
+      "status": 200,
+      "latency_ms": 204,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "376870de7e60079b97ce2bdedd7e8ad3bb621dd59dca645c1b2d55b2b30648f4",
+      "body_excerpt": "{\"code\":40105,\"message\":\"Access token is incorrect or has been revoked.\",\"request_id\":\"20260912113356CA63DB434EC81DCD19CA\"}",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "get_advertiser_info",
+      "method": "GET",
+      "url": "https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_ids=%5B%22QUOXSHAPEPROOFDUMMYADVERTISERID%22%5D",
+      "status": 200,
+      "latency_ms": 223,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "6e45ef1310d8ea69901a15e1cdb10147d61f6c2f504e618ba7ad69ad2b03c11d",
+      "body_excerpt": "{\"code\": 40002, \"message\": \"advertiser_ids.0: Not a valid integer or integer-string.\", \"request_id\": \"20260912113357BE0D9C0336F380BF21B1\", \"data\": {}}",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "list_campaigns",
+      "method": "GET",
+      "url": "https://business-api.tiktok.com/open_api/v1.3/campaign/get/?advertiser_id=QUOXSHAPEPROOFDUMMYADVERTISERID&page_size=20&page=1",
+      "status": 200,
+      "latency_ms": 250,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b6c0e00b4591a18eeea1c81c7ef091301cd265c59beee60a9c55a0565bc83f08",
+      "body_excerpt": "{\"code\": 40002, \"message\": \"advertiser_id: Not a valid integer or integer-string.\", \"request_id\": \"2026091211335787F64C50FE888B1BD502\", \"data\": {}}",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "list_adgroups",
+      "method": "GET",
+      "url": "https://business-api.tiktok.com/open_api/v1.3/adgroup/get/?advertiser_id=QUOXSHAPEPROOFDUMMYADVERTISERID&page_size=20&page=1",
+      "status": 200,
+      "latency_ms": 1835,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "26ff1a3046b18a5e4bfde011cb3c32e4c7f13867322ba18bad0193707296111b",
+      "body_excerpt": "{\"code\": 40002, \"message\": \"advertiser_id: Not a valid integer or integer-string.\", \"request_id\": \"202609121133587C90D99D78128D67BEAC\", \"data\": {}}",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "list_ads",
+      "method": "GET",
+      "url": "https://business-api.tiktok.com/open_api/v1.3/ad/get/?advertiser_id=QUOXSHAPEPROOFDUMMYADVERTISERID&page_size=20&page=1",
+      "status": 200,
+      "latency_ms": 230,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "6f110b8006899c3874b8a89a9fa125932129b41a080c856f794ecfad084405da",
+      "body_excerpt": "{\"code\": 40002, \"message\": \"advertiser_id: Not a valid integer or integer-string.\", \"request_id\": \"20260912113400C947EB4E12FB184A4DFE\", \"data\": {}}",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    },
+    {
+      "name": "get_campaign_report",
+      "method": "GET",
+      "url": "https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/?advertiser_id=QUOXSHAPEPROOFDUMMYADVERTISERID&report_type=BASIC&data_level=AUCTION_CAMPAIGN&dimensions=%5B%22campaign_id%22%5D&metrics=%5B%22spend%22%2C%22impressions%22%2C%22clicks%22%2C%22ctr%22%2C%22cpc%22%5D&start_date=2026-09-01&end_date=2026-09-02&page_size=20",
+      "status": 200,
+      "latency_ms": 245,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d8483b78900c590e6d4fbe756549db5ca78b9f2ea30e6147f7dc842d4fee3122",
+      "body_excerpt": "{\"code\": 40002, \"message\": \"advertiser_id: Not a valid integer or integer-string.\", \"request_id\": \"202609121134017C90D99D78128D67BF3C\", \"data\": {}}",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,106 @@
+{
+  "spec_version": 1,
+  "id": "deepseek",
+  "name": "DeepSeek",
+  "category": "data_ai",
+  "credentialType": "deepseek",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "Read-only DeepSeek access: the account's catalogue of available DeepSeek Coder and Chat models. Sending a chat completion is a billable POST against the account's usage, so it is modelled as write:true and HITL-gated rather than fired here; this is an OpenAI-compatible template child of the openai/groq/mistral connector shape, and the viral cost-disruptor brand.",
+  "docs": "https://platform.deepseek.com/api-docs",
+  "base_url": "https://api.deepseek.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/models"
+  },
+  "tools_source": "https://api-docs.deepseek.com/api/list-models",
+  "tools": [
+    {
+      "name": "list_models",
+      "description": "List the DeepSeek Coder and Chat models available to this API key",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/models"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "owned_by": "owned_by"
+          }
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "chat_completion",
+      "description": "Send a chat completion to a DeepSeek-hosted model. This spends the account's token usage, so it is HITL-gated and never fired by the shape-proof harness (write:true means blind proof always SKIPs it; a real credential would also need --include-writes)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "DeepSeek model id to route to (e.g. deepseek-chat, deepseek-reasoner), from list_models"
+          },
+          "messages": {
+            "type": "array",
+            "description": "OpenAI-format chat messages array: [{role, content}, ...]"
+          },
+          "max_tokens": {
+            "type": "number",
+            "description": "Optional cap on completion tokens"
+          }
+        },
+        "required": [
+          "model",
+          "messages"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/chat/completions",
+        "body": {
+          "model": "{{input.model}}",
+          "messages": "{{input.messages}}",
+          "max_tokens": "{{input.max_tokens}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "model": "model",
+          "choices": "choices",
+          "usage": "usage"
+        },
+        "truncate": 2000
+      },
+      "write": true
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-16, frontier-LLM gap fill (project_ai_tools_coverage_gaps_2026_09_16)",
+    "confidence": "high",
+    "needs_review": [
+      "NO LIVE CREDENTIAL AT AUTHORING TIME: this spec is shape-proved blind only. LIVE_PROVEN needs one real sk- key against /models, a zero-spend authed read per the coverage-gap plan.",
+      "base_url is the bare DeepSeek host (no /v1 segment): DeepSeek's own docs serve /models and /chat/completions directly off https://api.deepseek.com, confirmed live during authoring (dummy-key probe returned a structured 401 at /models, not a 404).",
+      "AUTH_WALL EXPECTED, NOT SHAPE_PROVEN: DeepSeek answers every path (real or bogus control) with the byte-identical 'Authentication Fails' 401 when the key is invalid, so the auth wall sits in front of routing; the path rests on tools_source documentary provenance, same as PagerDuty in the harness's own worked example.",
+      "TEMPLATE CHILD: this spec inherits the openrouter.connector.json Authorization: Bearer shape near-verbatim, per the coverage-gap plan's template-child list.",
+      "chat_completion is the only write:true tool: it is modelled for completeness but deliberately carries no _probe and is skipped by the shape-proof harness by default (writes_not_included), and even with --include-writes it only fires if the test call already proved an auth gate."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

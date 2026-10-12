@@ -1,0 +1,64 @@
+{
+  "spec_id": "anthropic",
+  "spec_version": 1,
+  "checked_at": "2026-09-16T18:13:00.572Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.anthropic.com/v1/quox-shapeproof-control-c70eca6b",
+      "status": 404,
+      "latency_ms": 1328,
+      "classification": "CONTROL",
+      "body_sha256": "a3c013a2249719308042d3b54a421d279126b12cc3dbd99e9bb169bb0076faf1",
+      "body_excerpt": "{\"type\":\"error\",\"error\":{\"type\":\"not_found_error\",\"message\":\"Not found\"},\"request_id\":\"req_011Cf7a6Wio5wYR4xpMuikt1\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.anthropic.com/v1/models",
+      "status": 401,
+      "latency_ms": 190,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7c4e9447cf961cb535ecbc5d948452d863282a58d814c2948c52fb70f43787e1",
+      "body_excerpt": "{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"invalid x-api-key\"},\"request_id\":\"req_011Cf7a6ZUzA5SGiMVYZbVgP\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_models",
+      "method": "GET",
+      "url": "https://api.anthropic.com/v1/models",
+      "status": 401,
+      "latency_ms": 322,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d1fa5699d6b638726ecf4003a313908d2ecdfbfea7e782b079f5e47f7d3c3238",
+      "body_excerpt": "{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"invalid x-api-key\"},\"request_id\":\"req_011Cf7a6bhh2EHfz5uUM1txU\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "send_message",
+      "method": "POST",
+      "url": null,
+      "status": null,
+      "latency_ms": null,
+      "classification": "SKIPPED_WRITE",
+      "body_sha256": null,
+      "body_excerpt": null,
+      "flags": {
+        "reason": "writes_not_included"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

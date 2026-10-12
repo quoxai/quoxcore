@@ -1,0 +1,145 @@
+{
+  "name": "quoxchat",
+  "version": "1.0.0",
+  "displayName": "QuoxChat",
+  "tagline": "AI chat widgets for any website",
+  "description": "Deploy AI-powered chat assistants on your websites. Train on your knowledge, style to your brand, connect to your systems. BYOK — bring your own LLM key. Unlimited widgets, unlimited conversations.",
+  "shortDescription": "Website chat widgets. BYOK, unlimited, fully customisable.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 199,
+  "priceDisplay": "$199/year",
+  "priceModel": "annual",
+  "tier": "standard",
+  "featured": true,
+  "badge": "NEW",
+  "icon": "message-circle",
+  "infoUrl": "https://quox.ai/solutions/quoxchat",
+  "docsUrl": "https://quox.ai/docs/quoxchat",
+  "heroGradient": "linear-gradient(135deg, #30ff90 0%, #38bdf8 50%, #a855f7 100%)",
+  "accentColor": "#30ff90",
+  "marketingPoints": [
+    "Deploy in minutes — one script tag on any website",
+    "Train on your docs, PDFs, URLs — answers with source citations",
+    "5 levels of CSS control — from colour picker to headless SDK",
+    "BYOK — use Claude, GPT, Gemini, or your own models",
+    "White-label — your brand, no Quox branding, ever",
+    "$199/year flat — no per-message fees, no conversation limits"
+  ],
+  "features": {
+    "widgetRoom": {
+      "name": "Widget Room",
+      "description": "7-tab management environment per assistant: Knowledge, Training, Style, Actions, Logs, Analytics, Settings.",
+      "icon": "layout-dashboard",
+      "highlight": true
+    },
+    "knowledgePipeline": {
+      "name": "Knowledge Pipeline",
+      "description": "Upload PDFs, crawl URLs, add Q&A pairs. Tiered RAG with FAQ cache, page context, and semantic search.",
+      "icon": "database",
+      "highlight": true
+    },
+    "cssControl": {
+      "name": "5-Level CSS Control",
+      "description": "Theme presets, CSS variables, ::part() selectors, full stylesheet override, or headless SDK.",
+      "icon": "palette",
+      "highlight": true
+    },
+    "whiteLabel": {
+      "name": "White-Label",
+      "description": "Your brand on your website. No 'Powered by' badge. No Quox branding. On all tiers.",
+      "icon": "eye-off",
+      "highlight": true
+    },
+    "budgetManagement": {
+      "name": "Budget Management",
+      "description": "Set monthly LLM budget limits. Auto-downgrade, hide widget, or show custom message when budget is hit.",
+      "icon": "wallet",
+      "highlight": false
+    },
+    "auditTrail": {
+      "name": "Full Audit Trail",
+      "description": "Every message traced with AEE correlation IDs. Conversation logs, AEE envelope drill-down. On all tiers.",
+      "icon": "file-text",
+      "highlight": true
+    },
+    "humanHandoff": {
+      "name": "Human Handoff",
+      "description": "When the AI can't help, seamless escalation to your team with full conversation context.",
+      "icon": "user-check",
+      "highlight": false
+    },
+    "headlessSdk": {
+      "name": "Headless SDK",
+      "description": "NPM package — build your own UI, we handle RAG, LLM routing, and audit trails.",
+      "icon": "code",
+      "highlight": false
+    },
+    "toolConnectors": {
+      "name": "Tool & Connectors",
+      "description": "Connect to databases, REST APIs, webhooks, and QuoxFlow workflows. Your widget can take actions, not just answer.",
+      "icon": "plug",
+      "highlight": true,
+      "tier": "professional"
+    },
+    "smartRouting": {
+      "name": "Smart LLM Routing",
+      "description": "Route simple queries to cheap models, complex to flagship. 70%+ LLM cost reduction with no quality drop.",
+      "icon": "git-branch",
+      "highlight": true,
+      "tier": "professional"
+    },
+    "simulationArena": {
+      "name": "Simulation Arena",
+      "description": "Test against 49 adversarial scenarios. Security score gates production deployment. A/B prompt testing.",
+      "icon": "shield-check",
+      "highlight": false,
+      "tier": "professional"
+    },
+    "proactiveEngagement": {
+      "name": "Proactive Engagement",
+      "description": "Widget initiates conversation based on visitor behaviour — time on page, scroll depth, exit intent.",
+      "icon": "message-square-plus",
+      "highlight": false,
+      "tier": "professional"
+    },
+    "voiceWidget": {
+      "name": "Voice Input/Output",
+      "description": "Visitors can speak to the widget and hear responses. ElevenLabs or browser TTS.",
+      "icon": "mic",
+      "highlight": false,
+      "tier": "professional"
+    }
+  },
+  "tiers": {
+    "standard": {
+      "name": "Standard",
+      "price": 199,
+      "priceDisplay": "$199/year",
+      "includes": "Everything you need to run great chat widgets",
+      "features": ["widgetRoom", "knowledgePipeline", "cssControl", "whiteLabel", "budgetManagement", "auditTrail", "humanHandoff", "headlessSdk"]
+    },
+    "professional": {
+      "name": "Professional",
+      "price": 499,
+      "priceDisplay": "$499/year",
+      "includes": "Standard plus power features for scale and automation",
+      "features": ["widgetRoom", "knowledgePipeline", "cssControl", "whiteLabel", "budgetManagement", "auditTrail", "humanHandoff", "headlessSdk", "toolConnectors", "smartRouting", "simulationArena", "proactiveEngagement", "voiceWidget"]
+    }
+  },
+  "requirements": {},
+  "route": "/quoxchat",
+  "integration": {
+    "sidebar": {
+      "id": "quoxchat",
+      "label": "QuoxChat",
+      "icon": "message-circle",
+      "group": "products"
+    }
+  },
+  "safety": {
+    "destructiveActions": [],
+    "requiresApproval": [],
+    "readOnly": false
+  }
+}

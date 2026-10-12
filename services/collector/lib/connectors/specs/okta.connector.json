@@ -1,0 +1,243 @@
+{
+  "spec_version": 1,
+  "id": "okta",
+  "name": "Okta",
+  "category": "cloud_hosting",
+  "credentialType": "okta",
+  "requiredFields": [
+    "domain",
+    "api_token"
+  ],
+  "description": "Read Okta directory state: users, groups and assigned applications from an Okta org",
+  "docs": "https://developer.okta.com/docs/reference/",
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "base_url": {
+    "fromCredential": "domain",
+    "template": "https://{{domain}}",
+    "_probe": {
+      "domain": "okta.okta.com"
+    }
+  },
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "SSWS {{api_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/users",
+    "query": {
+      "limit": "1"
+    }
+  },
+  "tools_source": "https://developer.okta.com/docs/reference/core-okta-api/",
+  "tools": [
+    {
+      "name": "list_users",
+      "description": "List users in the Okta org (id, status, login, name, email, lifecycle timestamps)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Users to return per page (default 25, max 200)"
+          },
+          "q": {
+            "type": "string",
+            "description": "Optional prefix search across firstName, lastName and email"
+          },
+          "filter": {
+            "type": "string",
+            "description": "Optional SCIM filter expression (e.g. status eq \"ACTIVE\")"
+          },
+          "after": {
+            "type": "string",
+            "description": "Opaque pagination cursor from a previous page's Link header"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/users",
+        "query": {
+          "limit": "{{clamp input.limit 25 200}}",
+          "q": "{{input.q}}",
+          "filter": "{{input.filter}}",
+          "after": "{{input.after}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "status": "status",
+            "login": "profile.login",
+            "email": "profile.email",
+            "firstName": "profile.firstName",
+            "lastName": "profile.lastName",
+            "created": "created",
+            "activated": "activated",
+            "statusChanged": "statusChanged",
+            "lastLogin": "lastLogin",
+            "lastUpdated": "lastUpdated"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_user",
+      "description": "Get one Okta user by id or login: status, profile and lifecycle timestamps",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Okta user id (e.g. 00u1abcdefGHIJ2klm3n4) or the user's login"
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/users/{{input.user_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "status": "status",
+          "login": "profile.login",
+          "email": "profile.email",
+          "secondEmail": "profile.secondEmail",
+          "firstName": "profile.firstName",
+          "lastName": "profile.lastName",
+          "mobilePhone": "profile.mobilePhone",
+          "created": "created",
+          "activated": "activated",
+          "statusChanged": "statusChanged",
+          "lastLogin": "lastLogin",
+          "lastUpdated": "lastUpdated",
+          "passwordChanged": "passwordChanged"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_groups",
+      "description": "List Okta groups (id, name, description, type, object class, membership timestamps)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Groups to return per page (default 25, max 200)"
+          },
+          "q": {
+            "type": "string",
+            "description": "Optional prefix search on group name"
+          },
+          "filter": {
+            "type": "string",
+            "description": "Optional SCIM filter expression (e.g. type eq \"OKTA_GROUP\")"
+          },
+          "after": {
+            "type": "string",
+            "description": "Opaque pagination cursor from a previous page's Link header"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/groups",
+        "query": {
+          "limit": "{{clamp input.limit 25 200}}",
+          "q": "{{input.q}}",
+          "filter": "{{input.filter}}",
+          "after": "{{input.after}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "profile.name",
+            "description": "profile.description",
+            "type": "type",
+            "objectClass": "objectClass",
+            "created": "created",
+            "lastUpdated": "lastUpdated",
+            "lastMembershipUpdated": "lastMembershipUpdated"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_apps",
+      "description": "List applications configured in the Okta org (id, label, status, sign-on mode, visibility)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Applications to return per page (default 20, max 200)"
+          },
+          "q": {
+            "type": "string",
+            "description": "Optional prefix search on application name or label"
+          },
+          "filter": {
+            "type": "string",
+            "description": "Optional SCIM filter expression (e.g. status eq \"ACTIVE\")"
+          },
+          "after": {
+            "type": "string",
+            "description": "Opaque pagination cursor from a previous page's Link header"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/apps",
+        "query": {
+          "limit": "{{clamp input.limit 20 200}}",
+          "q": "{{input.q}}",
+          "filter": "{{input.filter}}",
+          "after": "{{input.after}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "label": "label",
+            "status": "status",
+            "signOnMode": "signOnMode",
+            "created": "created",
+            "lastUpdated": "lastUpdated",
+            "hideWeb": "visibility.hide.web",
+            "hideIOS": "visibility.hide.iOS"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored from https://developer.okta.com/docs/reference/core-okta-api/ (CONNFAC)",
+    "confidence": "medium",
+    "needs_review": [
+      "READ-ONLY by design: no tool is marked write:true. Okta's user/group/app lifecycle operations (activate, suspend, deactivate, assign) are POSTs against the same token and are deliberately out of this wave.",
+      "base_url is tenant-prefixed. The vault field `domain` holds a bare host (registry placeholder 'dev-123456.okta.com'), so the template is https://{{domain}}. A customer who pastes 'https://dev-123456.okta.com' or a trailing path into that field would produce a malformed base URL; the field is not normalised anywhere today.",
+      "Okta orgs served on oktapreview.com (preview/sandbox) and custom vanity domains work through the same `domain` field, but the API token must be minted in the SAME org as the host: a mismatch surfaces as E0000011 'Invalid token provided', which is indistinguishable from a wrong token.",
+      "The shape-proof probes okta.okta.com (Okta's own production org) via base_url._probe. *.okta.com is wildcard-resolved, so a nonexistent tenant also answers the auth wall; the run proves the paths and the SSWS header shape against a live Okta API, not that any particular tenant exists.",
+      "Pagination is Link-header based (`after` cursor). The declarative response picker returns only the body, so an agent cannot page past the first `limit` results until the runtime surfaces response headers."
+    ]
+  }
+}

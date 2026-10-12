@@ -1,0 +1,225 @@
+{
+  "spec_version": 1,
+  "id": "buildkite",
+  "name": "Buildkite",
+  "category": "developer",
+  "credentialType": "buildkite",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://buildkite.com/docs/apis/rest-api",
+  "tools_source": "https://buildkite.com/docs/apis/rest-api",
+  "base_url": "https://api.buildkite.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/user"
+  },
+  "tools": [
+    {
+      "name": "whoami",
+      "description": "Get the Buildkite user account that owns the configured API access token",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/user"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "graphql_id": "graphql_id",
+          "name": "name",
+          "email": "email",
+          "avatar_url": "avatar_url",
+          "created_at": "created_at"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_organizations",
+      "description": "List the Buildkite organizations the API access token can see",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max organizations to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/organizations",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "graphql_id": "graphql_id",
+            "name": "name",
+            "slug": "slug",
+            "web_url": "web_url",
+            "created_at": "created_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_pipelines",
+      "description": "List the pipelines in one Buildkite organization, with their repository and current build counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_slug": {
+            "type": "string",
+            "description": "Buildkite organization slug, the org part of buildkite.com/<org>/<pipeline> (from list_organizations)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max pipelines to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "org_slug"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/organizations/{{input.org_slug}}/pipelines",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "slug": "slug",
+            "description": "description",
+            "repository": "repository",
+            "default_branch": "default_branch",
+            "web_url": "web_url",
+            "running_builds_count": "running_builds_count",
+            "scheduled_builds_count": "scheduled_builds_count",
+            "archived_at": "archived_at",
+            "created_at": "created_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.org_slug": "buildkite"
+      }
+    },
+    {
+      "name": "list_builds",
+      "description": "List recent builds for one Buildkite pipeline, newest first, optionally filtered by branch and build state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_slug": {
+            "type": "string",
+            "description": "Buildkite organization slug (from list_organizations)"
+          },
+          "pipeline_slug": {
+            "type": "string",
+            "description": "Buildkite pipeline slug within the organization (from list_pipelines)"
+          },
+          "branch": {
+            "type": "string",
+            "description": "Optional branch name to filter builds by (e.g. main)"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "running",
+              "scheduled",
+              "passed",
+              "failed",
+              "blocked",
+              "canceled",
+              "canceling",
+              "skipped",
+              "not_run",
+              "finished"
+            ],
+            "description": "Optional build state to filter by"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max builds to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "org_slug",
+          "pipeline_slug"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/organizations/{{input.org_slug}}/pipelines/{{input.pipeline_slug}}/builds",
+        "query": {
+          "branch": "{{input.branch}}",
+          "state": "{{input.state}}",
+          "per_page": "{{clamp input.per_page 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "number": "number",
+            "state": "state",
+            "blocked": "blocked",
+            "message": "message",
+            "branch": "branch",
+            "commit": "commit",
+            "source": "source",
+            "web_url": "web_url",
+            "created_at": "created_at",
+            "started_at": "started_at",
+            "finished_at": "finished_at",
+            "creator": "creator.name",
+            "pipeline_slug": "pipeline.slug"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.org_slug": "buildkite",
+        "input.pipeline_slug": "agent"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Buildkite paginates with ?page=&per_page= and documents a per_page cap of 100; the cap is documentary, not observable blind. Only per_page is exposed as a tool input, so every call returns the first page",
+      "list_builds' state enum is the documented set of Buildkite build states; Buildkite may accept further values, and an unknown state is rejected by the API rather than by this spec",
+      "The _probe slugs are buildkite/agent, Buildkite's own agent pipeline. api.buildkite.com routes before it authenticates (the bogus control path answers 404 unauthenticated while every /v2 path answers 401), so the paths are proven by that differential and the probe slug does not carry the proof",
+      "Only the per-pipeline builds route is exposed. The organization-wide /v2/organizations/{org}/builds and account-wide /v2/builds endpoints exist and are not wired here"
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

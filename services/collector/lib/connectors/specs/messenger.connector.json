@@ -1,0 +1,320 @@
+{
+  "spec_version": 1,
+  "id": "messenger",
+  "name": "Facebook Messenger",
+  "category": "communication",
+  "credentialType": "messenger",
+  "requiredFields": [
+    "page_access_token"
+  ],
+  "docs": "https://developers.facebook.com/docs/messenger-platform",
+  "base_url": "https://graph.facebook.com",
+  "auth": {
+    "type": "bearer",
+    "field": "page_access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v21.0/me"
+  },
+  "tools_source": "https://developers.facebook.com/docs/messenger-platform/reference",
+  "tools": [
+    {
+      "name": "get_page",
+      "description": "Get the Facebook Page the Messenger page access token belongs to (id, name, category, link)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/me",
+        "query": {
+          "fields": "id,name,username,category,link,fan_count"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "username": "username",
+          "category": "category",
+          "link": "link",
+          "fan_count": "fan_count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_messenger_profile",
+      "description": "Get the Messenger profile configured on the Page (greeting, get started button, persistent menu, ice breakers, whitelisted domains)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/me/messenger_profile",
+        "query": {
+          "fields": "greeting,get_started,persistent_menu,ice_breakers,whitelisted_domains,account_linking_url"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "greeting": "greeting",
+            "get_started": "get_started",
+            "persistent_menu": "persistent_menu",
+            "ice_breakers": "ice_breakers",
+            "whitelisted_domains": "whitelisted_domains",
+            "account_linking_url": "account_linking_url"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_subscribed_apps",
+      "description": "List the apps subscribed to this Page's Messenger webhooks, with the webhook fields each one receives",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/me/subscribed_apps",
+        "query": {
+          "fields": "id,name,subscribed_fields"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "subscribed_fields": "subscribed_fields"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_conversations",
+      "description": "List Messenger conversations for the Page, newest activity first, optionally filtered to one user",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max conversations to return (default 20, max 100)"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "Optional page-scoped user ID (PSID) to return only that person's conversation"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "messenger",
+              "instagram"
+            ],
+            "description": "Inbox to read (default messenger)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/me/conversations",
+        "query": {
+          "fields": "id,snippet,updated_time,message_count,unread_count,can_reply,is_subscribed,link",
+          "limit": "{{clamp input.limit 20 100}}",
+          "user_id": "{{input.user_id}}",
+          "platform": "{{input.platform}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "snippet": "snippet",
+            "updated_time": "updated_time",
+            "message_count": "message_count",
+            "unread_count": "unread_count",
+            "can_reply": "can_reply",
+            "is_subscribed": "is_subscribed",
+            "link": "link"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_conversation",
+      "description": "Get one Messenger conversation thread by ID (participants, message count, unread count, last activity)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "Messenger conversation (thread) ID, e.g. t_100000000000000"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/{{input.conversation_id}}",
+        "query": {
+          "fields": "id,snippet,updated_time,message_count,unread_count,can_reply,is_subscribed,link,participants"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "snippet": "snippet",
+          "updated_time": "updated_time",
+          "message_count": "message_count",
+          "unread_count": "unread_count",
+          "can_reply": "can_reply",
+          "is_subscribed": "is_subscribed",
+          "link": "link",
+          "participants.data[]": {
+            "id": "id",
+            "name": "name",
+            "email": "email"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_conversation_messages",
+      "description": "List the messages in one Messenger conversation, newest first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "Messenger conversation (thread) ID, e.g. t_100000000000000"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max messages to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/{{input.conversation_id}}/messages",
+        "query": {
+          "fields": "id,created_time,from,to,message",
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "created_time": "created_time",
+            "message": "message",
+            "from_name": "from.name",
+            "from_id": "from.id"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_message",
+      "description": "Get one Messenger message by ID (sender, recipients, text, attachments, shares)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "description": "Messenger message ID, e.g. m_AbCdEf123"
+          }
+        },
+        "required": [
+          "message_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/{{input.message_id}}",
+        "query": {
+          "fields": "id,created_time,from,to,message,attachments,shares,sticker"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "created_time": "created_time",
+          "message": "message",
+          "sticker": "sticker",
+          "from_id": "from.id",
+          "from_name": "from.name",
+          "to[]": {
+            "id": "id",
+            "name": "name"
+          },
+          "attachments.data[]": {
+            "id": "id",
+            "name": "name",
+            "mime_type": "mime_type",
+            "size": "size"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_user_profile",
+      "description": "Get the Messenger profile of one person who messaged the Page, by page-scoped user ID (PSID)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "psid": {
+            "type": "string",
+            "description": "Page-scoped user ID (PSID) from a Messenger webhook or conversation participant"
+          }
+        },
+        "required": [
+          "psid"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/{{input.psid}}",
+        "query": {
+          "fields": "id,name,first_name,last_name,profile_pic"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "first_name": "first_name",
+          "last_name": "last_name",
+          "profile_pic": "profile_pic"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

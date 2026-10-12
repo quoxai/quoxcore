@@ -1,0 +1,159 @@
+{
+  "spec_version": 1,
+  "id": "opsgenie",
+  "name": "OpsGenie",
+  "category": "monitoring",
+  "credentialType": "opsgenie",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.opsgenie.com/docs/api-overview",
+  "base_url": "https://api.opsgenie.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "GenieKey {{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/users/me"
+  },
+  "tools_source": "https://docs.opsgenie.com/docs/api-overview",
+  "tools": [
+    {
+      "name": "list_alerts",
+      "description": "List Opsgenie alerts, optionally filtered by a search query and sorted",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Optional Opsgenie search query, e.g. status:open priority:P1"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Optional sort field, e.g. createdAt, updatedAt, tinyId, status, priority"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum alerts to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/alerts",
+        "query": {
+          "query": "{{input.query}}",
+          "sort": "{{input.sort}}",
+          "limit": "{{clamp input.limit 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "next": "paging.next",
+          "data[]": {
+            "id": "id",
+            "message": "message",
+            "status": "status",
+            "priority": "priority",
+            "createdAt": "createdAt",
+            "acknowledged": "acknowledged"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_alert",
+      "description": "Get a single Opsgenie alert by id",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "alert_id": {
+            "type": "string",
+            "description": "Opsgenie alert id"
+          }
+        },
+        "required": [
+          "alert_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/alerts/{{input.alert_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "message": "data.message",
+          "status": "data.status",
+          "priority": "data.priority",
+          "createdAt": "data.createdAt",
+          "acknowledged": "data.acknowledged"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_teams",
+      "description": "List Opsgenie teams",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/teams"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_schedules",
+      "description": "List Opsgenie on-call schedules",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/schedules"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "description": "description",
+            "timezone": "timezone",
+            "enabled": "enabled"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

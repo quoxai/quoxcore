@@ -1,0 +1,718 @@
+/* QuoxChat Views — Glass Design System (2026-04-15 glass pass) */
+
+/* Kill parent scroll + hide breadcrumbs so the card sits in the standard gutter */
+.app-shell__content:has(.quoxchat-view) { overflow: hidden; }
+.app-shell__content:has(.quoxchat-view) .breadcrumbs { display: none; }
+
+.quoxchat-view {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 22px;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  background: var(--m-bg-base, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.18));
+  border-radius: var(--qx-radius, 20px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+  overflow-y: auto;
+}
+
+.quoxchat-view::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--qx-edges);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+}
+
+/* ── Header ── */
+.quoxchat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+.quoxchat-header__info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.quoxchat-header__icon {
+  font-size: 24px;
+}
+
+.quoxchat-header__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quoxchat-header__subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+}
+
+/* ── Buttons ── */
+.quoxchat-btn {
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+}
+
+.quoxchat-btn--primary {
+  background: linear-gradient(145deg, rgba(168,85,247,0.15) 0%, rgba(56,189,248,0.08) 100%);
+  border: 1px solid rgba(168,85,247,0.3);
+  color: #fff;
+}
+
+.quoxchat-btn--primary:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.008);
+  box-shadow: 0 0 20px rgba(168,85,247,0.2);
+}
+
+.quoxchat-btn--primary:active {
+  transform: translateY(1px) scale(0.995);
+}
+
+.quoxchat-btn--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quoxchat-btn--ghost {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.7);
+}
+
+.quoxchat-btn--ghost:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.15);
+  color: #fff;
+}
+
+/* ── Create wizard ── */
+.quoxchat-create {
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(168, 85, 247, 0.32);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.28),
+    0 0 30px rgba(168, 85, 247, 0.1);
+}
+
+.quoxchat-create__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.quoxchat-create__header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.quoxchat-create__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.quoxchat-errors {
+  padding: 10px 14px;
+  background: rgba(239,68,68,0.06);
+  border: 1px solid rgba(239,68,68,0.2);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #ef4444;
+}
+
+/* ── Form ── */
+.quoxchat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quoxchat-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.quoxchat-field input {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+  box-sizing: border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.quoxchat-field input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.quoxchat-field input:focus {
+  outline: none;
+  border-color: rgba(168,85,247,0.4);
+  box-shadow: 0 0 0 2px rgba(168,85,247,0.1);
+}
+
+.quoxchat-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.8);
+}
+
+/* ── Loading & Empty ── */
+.quoxchat-loading {
+  padding: 40px;
+  text-align: center;
+  color: rgba(255,255,255,0.8);
+  font-size: 13px;
+}
+
+.quoxchat-empty {
+  padding: 60px 20px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.quoxchat-empty__icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  filter: grayscale(0.3);
+}
+
+.quoxchat-empty h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  color: #fff;
+}
+
+.quoxchat-empty p {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.8);
+}
+
+/* ── Widget grid ── */
+.quoxchat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+}
+
+.quoxchat-card {
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.quoxchat-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.26);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.quoxchat-card__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.quoxchat-card__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(48,255,144,0.08);
+  flex-shrink: 0;
+}
+
+.quoxchat-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.quoxchat-card__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.quoxchat-card__domain {
+  font-size: 11px;
+  color: rgba(255,255,255,0.8);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.quoxchat-card__status {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.quoxchat-card__status--active {
+  background: rgba(48,255,144,0.1);
+  color: #30ff90;
+  border: 1px solid rgba(48,255,144,0.2);
+}
+
+.quoxchat-card__status--draft {
+  background: rgba(245,158,11,0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(245,158,11,0.2);
+}
+
+.quoxchat-card__status--paused {
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.8);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.quoxchat-card__meta {
+  display: flex;
+  gap: 16px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.8);
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ══════════════════════════════════════
+   Widget Room
+   ══════════════════════════════════════ */
+
+.wr-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0 12px 0;
+  /* Flat — page-level card already provides the glass via .quoxchat-view.
+     Tab bar below provides the divider; no additional frame needed here. */
+}
+
+.wr-back {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.wr-header__avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(48,255,144,0.08);
+  flex-shrink: 0;
+}
+
+.wr-header__info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wr-header__name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.wr-header__domain {
+  font-size: 11px;
+  color: rgba(255,255,255,0.8);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.wr-header__actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Widget Room Tabs — classic tab bar, flat, bottom-border indicator ── */
+.wr-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  overflow-x: auto;
+}
+
+.wr-tabs::-webkit-scrollbar { height: 0; }
+
+.wr-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px; /* overlap the tab bar's bottom border so active indicator sits flush */
+  background: transparent;
+  color: rgba(255,255,255,0.55);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.wr-tab:hover {
+  color: rgba(255,255,255,0.85);
+}
+
+.wr-tab--active {
+  color: #fff;
+  border-bottom-color: #a855f7;
+}
+
+.wr-tab__icon {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.wr-tab__label {
+  font-weight: 600;
+}
+
+/* ── Flat panel utility ── */
+/* Use for tab-content panels that should sit flat on the outer .quoxchat-view
+   glass. A hairline border gives separation without adding another glass layer. */
+.qx-flat-panel {
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  background: transparent;
+}
+
+.qx-flat-panel--ghost {
+  padding: 16px;
+  border: 1px dashed rgba(255,255,255,0.1);
+  border-radius: 12px;
+  background: transparent;
+}
+
+/* ── Widget Room Content ── */
+/* Transparent scroll container — tab components provide their own surfaces.
+   Previously stacked a 4th glass layer on top of .quoxchat-view + .wr-header
+   + .wr-tabs, producing glass-on-glass over-morphing. */
+.wr-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.wr-content::-webkit-scrollbar { width: 4px; }
+.wr-content::-webkit-scrollbar-track { background: transparent; }
+.wr-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+/* ── Availability tab (QUOXCHAT-PRO P1 UI) ── */
+.wr-avail__lamp {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.wr-avail__lamp--on {
+  background: #30ff90;
+  box-shadow: 0 0 12px rgba(48, 255, 144, 0.6);
+}
+
+.wr-avail__lamp--off {
+  background: #ef4444;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+}
+
+/* The go-offline override: deliberately the biggest control in the room. */
+.wr-avail__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  color: #fff;
+}
+
+.wr-avail__toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* When online, the button offers "Go offline" (red affordance). */
+.wr-avail__toggle--online {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.wr-avail__toggle--online:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.18);
+}
+
+/* When offline, the button offers "Go online" (green affordance). */
+.wr-avail__toggle--offline {
+  background: rgba(48, 255, 144, 0.12);
+  border: 1px solid rgba(48, 255, 144, 0.35);
+}
+
+.wr-avail__toggle--offline:hover:not(:disabled) {
+  background: rgba(48, 255, 144, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 0 20px rgba(48, 255, 144, 0.18);
+}
+
+/* Operator status chip in the room header (click-through to Availability). */
+.wr-header__operator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.wr-header__operator--online {
+  background: rgba(48, 255, 144, 0.08);
+  border: 1px solid rgba(48, 255, 144, 0.25);
+  color: #30ff90;
+}
+
+.wr-header__operator--offline {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+}
+
+.wr-header__operator:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.wr-header__operator-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Live-handoff pill in the room header (QUOXCHAT-PRO P3): one click from
+   any tab to the live Matrix room(s) for currently handed-off visitors. */
+.wr-header__live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.wr-header__live:hover {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.55);
+}
+
+.wr-header__live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: wr-live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes wr-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  50% { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); }
+}
+
+/* "Handoff is on but nobody gets alerted" nudge card (Logs + Availability). */
+.wr-nudge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.wr-nudge__icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.wr-nudge__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.wr-nudge__body strong {
+  color: #fbbf24;
+  font-size: 12px;
+}
+
+.wr-nudge__cta {
+  flex-shrink: 0;
+}
+
+.wr-nudge__dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.wr-nudge__dismiss:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Placeholder ── */
+.wr-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.wr-placeholder__icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+  filter: grayscale(0.2);
+}
+
+.wr-placeholder__title {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.wr-placeholder__desc {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.8);
+}
+
+.wr-placeholder__note {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(255,255,255,0.8);
+  font-style: italic;
+}

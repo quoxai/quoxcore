@@ -1,0 +1,32 @@
+{
+  "spec_version": 1,
+  "id": "kayako",
+  "name": "Kayako",
+  "category": "uncategorized",
+  "credentialType": "kayako",
+  "requiredFields": [
+    "base_url",
+    "api_key",
+    "secret_key"
+  ],
+  "docs": "https://developer.kayako.com/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": "secret_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/me"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

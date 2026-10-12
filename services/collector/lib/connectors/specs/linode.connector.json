@@ -1,0 +1,209 @@
+{
+  "spec_version": 1,
+  "id": "linode",
+  "name": "Linode (Akamai)",
+  "category": "cloud_hosting",
+  "credentialType": "linode",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://techdocs.akamai.com/linode-api/reference/api",
+  "base_url": "https://api.linode.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v4/profile"
+  },
+  "tools_source": "https://techdocs.akamai.com/linode-api/reference/api",
+  "tools": [
+    {
+      "name": "list_linodes",
+      "description": "List Linode compute instances in the account, with region, type, status and IP addresses",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "description": "Page of results to return (default 1)"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Results per page (default 25, max 100; the API itself allows 25 to 500)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v4/linode/instances",
+        "query": {
+          "page": "{{clamp input.page 1 100}}",
+          "page_size": "{{clamp input.page_size 25 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "label": "label",
+            "region": "region",
+            "type": "type",
+            "status": "status",
+            "image": "image",
+            "ipv4": "ipv4",
+            "ipv6": "ipv6",
+            "vcpus": "specs.vcpus",
+            "memory": "specs.memory",
+            "disk": "specs.disk",
+            "tags": "tags",
+            "created": "created",
+            "updated": "updated"
+          },
+          "page": "page",
+          "pages": "pages",
+          "results": "results"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_linode",
+      "description": "Get one Linode compute instance by numeric ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "linode_id": {
+            "type": "number",
+            "description": "Numeric Linode instance ID (e.g. 123)"
+          }
+        },
+        "required": [
+          "linode_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v4/linode/instances/{{input.linode_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "label": "label",
+          "region": "region",
+          "type": "type",
+          "status": "status",
+          "image": "image",
+          "ipv4": "ipv4",
+          "ipv6": "ipv6",
+          "hypervisor": "hypervisor",
+          "vcpus": "specs.vcpus",
+          "memory": "specs.memory",
+          "disk": "specs.disk",
+          "tags": "tags",
+          "created": "created",
+          "updated": "updated"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_volumes",
+      "description": "List Linode block storage volumes, with size, region and the instance each is attached to",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "description": "Page of results to return (default 1)"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Results per page (default 25, max 100; the API itself allows 25 to 500)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v4/volumes",
+        "query": {
+          "page": "{{clamp input.page 1 100}}",
+          "page_size": "{{clamp input.page_size 25 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "label": "label",
+            "status": "status",
+            "size": "size",
+            "region": "region",
+            "linode_id": "linode_id",
+            "linode_label": "linode_label",
+            "filesystem_path": "filesystem_path",
+            "hardware_type": "hardware_type",
+            "encryption": "encryption",
+            "tags": "tags",
+            "created": "created",
+            "updated": "updated"
+          },
+          "page": "page",
+          "pages": "pages",
+          "results": "results"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "account_info",
+      "description": "Get the Linode account profile: contact details, balance and enabled capabilities",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v4/account"
+      },
+      "response": {
+        "pick": {
+          "euuid": "euuid",
+          "company": "company",
+          "email": "email",
+          "first_name": "first_name",
+          "last_name": "last_name",
+          "city": "city",
+          "state": "state",
+          "country": "country",
+          "balance": "balance",
+          "balance_uninvoiced": "balance_uninvoiced",
+          "billing_source": "billing_source",
+          "active_since": "active_since",
+          "capabilities": "capabilities"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Tools and response picks read from the official Linode API v4 reference (techdocs.akamai.com/linode-api/reference) on 2026-09-12: instance fields (label, region, type, status, image, ipv4, ipv6, specs.vcpus/memory/disk, tags, created, updated, hypervisor), volume fields (label, status, size, region, linode_id, linode_label, filesystem_path, hardware_type, encryption) and account fields (euuid, company, email, balance, balance_uninvoiced, billing_source, active_since, capabilities) are all present in the published schemas, as are the page/pages/results pagination envelope and the page/page_size query parameters (page_size documented 25 to 500, default 100; clamped to 25 to 100 here to keep payloads small).",
+      "Scaffolded auth (bearer api_token) and the scaffolded test path GET /v4/profile both stand: the live host rejects a dummy bearer with a structured 401 {\"errors\":[{\"reason\":\"Invalid Token\"}]} at /v4/profile and at every read path used here, which is the auth handling the docs describe. Nothing was changed.",
+      "No _probe hints are needed: linode_id is numeric, and Linode validates the token before routing on the identifier, so the harness's generic dummy input still lands on a structured 401 that differs from the control response. Credentials are never hinted.",
+      "Shape-proof control note: the control path sits at the host root, where api.linode.com answers 301 to an HTML redirect rather than a 4xx, so it contributes no differential. The classifications here rest on the structured JSON 401 at each documented path instead."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "spec_id": "loki",
+  "spec_version": 1,
+  "checked_at": "2026-09-13T00:32:35.635Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/loki/api/v1/labels",
+      "status": 200,
+      "latency_ms": 127,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "9a14b700bc2581383cfae352c91f00fc65439392344a2f823a9645e8546a3bde",
+      "body_excerpt": "{\"status\":\"success\"}\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "labels",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/loki/api/v1/labels",
+      "status": 200,
+      "latency_ms": 7,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "9a14b700bc2581383cfae352c91f00fc65439392344a2f823a9645e8546a3bde",
+      "body_excerpt": "{\"status\":\"success\"}\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "label_values",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/loki/api/v1/label/job/values",
+      "status": 200,
+      "latency_ms": 7,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "9a14b700bc2581383cfae352c91f00fc65439392344a2f823a9645e8546a3bde",
+      "body_excerpt": "{\"status\":\"success\"}\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "query_range",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/loki/api/v1/query_range?query=%7Bjob%3D%7E%22.%2B%22%7D&start=1600000000000000000&end=1600000300000000000&limit=5",
+      "status": 200,
+      "latency_ms": 19,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "46954aabba0bb79cbe05d2afbca3af317899dc9b3080e6cb32b5138c9c8ca9ca",
+      "body_excerpt": "{\"status\":\"success\",\"data\":{\"resultType\":\"streams\",\"result\":[],\"stats\":{\"summary\":{\"bytesProcessedPerSecond\":0,\"linesProcessedPerSecond\":0,\"totalBytesProcessed\":0,\"totalLinesProcessed\":0,\"execTime\":0.",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "series",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/loki/api/v1/series?match%5B%5D=%7Bjob%3D%7E%22.%2B%22%7D",
+      "status": 200,
+      "latency_ms": 19,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "ae95db1547026a02f23a4c15794d18fecc43c2a4a38da3a12c77f822500559ce",
+      "body_excerpt": "{\"status\":\"success\",\"data\":[]}\n",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "grafana/loki:3.1.1"
+}

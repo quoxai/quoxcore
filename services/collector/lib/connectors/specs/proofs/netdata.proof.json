@@ -1,0 +1,80 @@
+{
+  "spec_id": "netdata",
+  "spec_version": 1,
+  "checked_at": "2026-09-13T00:04:11.478Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/info",
+      "status": 200,
+      "latency_ms": 156,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "34e5a939115bdce83b2b01257d1a1dac48fd5482461af86147eb063d72a6d83c",
+      "body_excerpt": "{\n    \"version\":\"v2.11.0-327-nightly\",\n    \"uid\":\"d3a91601-8396-4355-90e9-f7cc7e390e25\",\n    \"hosts-available\":1,\n    \"mirrored_hosts\":[\"e0e54bec74e0\"],\n    \"mirrored_hosts_status\":[{\n            \"hos",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "node_info",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/info",
+      "status": 200,
+      "latency_ms": 10,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "34e5a939115bdce83b2b01257d1a1dac48fd5482461af86147eb063d72a6d83c",
+      "body_excerpt": "{\n    \"version\":\"v2.11.0-327-nightly\",\n    \"uid\":\"d3a91601-8396-4355-90e9-f7cc7e390e25\",\n    \"hosts-available\":1,\n    \"mirrored_hosts\":[\"e0e54bec74e0\"],\n    \"mirrored_hosts_status\":[{\n            \"hos",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_charts",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/charts",
+      "status": 200,
+      "latency_ms": 71,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "64c78103d2f6cd51af96ebc1b5260ecd0cfb406ad6562aae82e972e489da7229",
+      "body_excerpt": "{\n    \"hostname\":\"e0e54bec74e0\",\n    \"version\":\"v2.11.0-327-nightly\",\n    \"release_channel\":\"nightly\",\n    \"os\":\"linux\",\n    \"timezone\":\"Etc/UTC\",\n    \"update_every\":1,\n    \"history\":0,\n    \"memory_mo",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_alarms",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/alarms?all=true",
+      "status": 200,
+      "latency_ms": 28,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "f7b9aff6b3fcd18b9f144d6389d61648e152d6812bb1cf00808622369e5a44f9",
+      "body_excerpt": "{\n\t\"hostname\": \"e0e54bec74e0\",\n\t\"latest_alarm_log_unique_id\": 1789252319,\n\t\"status\": true,\n\t\"now\": 1789257851,\n\t\"alarms\": {\n\t\t\"disk_space./.disk_space_usage\": {\n\t\t\t\"id\": 1789252061,\n\t\t\t\"config_hash_id",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "chart_data",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/data?chart=system.cpu&after=-60&points=5&format=json",
+      "status": 200,
+      "latency_ms": 19,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "92bf43875cb3b865c870195f6cfaf2032b31e069ed9d9271b9641eebe11e5888",
+      "body_excerpt": "{\n        \"labels\":[\"time\",\"guest_nice\",\"guest\",\"steal\",\"softirq\",\"irq\",\"user\",\"system\",\"nice\",\"iowait\"],\n        \"data\":[\n            [1789257840,0,0,0.0104297,0.0104428,0,0.13573,0.0939327,0,0],\n   ",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "netdata/netdata:v2.11.0"
+}

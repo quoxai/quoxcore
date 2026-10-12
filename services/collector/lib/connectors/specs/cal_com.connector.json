@@ -1,0 +1,181 @@
+{
+  "spec_version": 1,
+  "id": "cal_com",
+  "name": "Cal.com",
+  "category": "crm_sales",
+  "credentialType": "cal_com",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://cal.com/docs/api-reference/v2/introduction",
+  "base_url": "https://api.cal.com/v2",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/me"
+  },
+  "tools_source": "https://cal.com/docs/api-reference/v2/openapi.json",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the Cal.com profile this API key belongs to (username, email, timezone, organization)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/me"
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "id": "data.id",
+          "username": "data.username",
+          "email": "data.email",
+          "name": "data.name",
+          "time_zone": "data.timeZone",
+          "week_start": "data.weekStart",
+          "time_format": "data.timeFormat",
+          "locale": "data.locale",
+          "organization_id": "data.organizationId"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_event_types",
+      "description": "List Cal.com event types, optionally filtered to one username or event slug",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Optional Cal.com username to list event types for"
+          },
+          "event_slug": {
+            "type": "string",
+            "description": "Optional event type slug to filter by (needs username)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/event-types",
+        "query": {
+          "username": "{{input.username}}",
+          "eventSlug": "{{input.event_slug}}"
+        },
+        "headers": {
+          "cal-api-version": "2026-06-12"
+        }
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "data[]": {
+            "id": "id",
+            "title": "title",
+            "slug": "slug",
+            "length_minutes": "lengthInMinutes",
+            "hidden": "hidden",
+            "price": "price",
+            "currency": "currency",
+            "schedule_id": "scheduleId",
+            "owner_id": "ownerId",
+            "booking_url": "bookingUrl"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_bookings",
+      "description": "List Cal.com bookings, optionally filtered by status or attendee email (cursor paginated)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max bookings to return (default 20, max 100)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "upcoming",
+              "recurring",
+              "past",
+              "cancelled",
+              "unconfirmed"
+            ],
+            "description": "Optional single status filter; omit to walk all statuses"
+          },
+          "attendee_email": {
+            "type": "string",
+            "description": "Optional attendee email address to filter by"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Optional opaque cursor from a previous response's next_cursor"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/bookings",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "status": "{{input.status}}",
+          "attendeeEmail": "{{input.attendee_email}}",
+          "cursor": "{{input.cursor}}"
+        },
+        "headers": {
+          "cal-api-version": "2026-05-01"
+        }
+      },
+      "response": {
+        "pick": {
+          "status": "status",
+          "data[]": {
+            "id": "id",
+            "uid": "uid",
+            "title": "title",
+            "booking_status": "status",
+            "start": "start",
+            "end": "end",
+            "duration": "duration",
+            "event_type_id": "eventTypeId",
+            "location": "location",
+            "created_at": "createdAt"
+          },
+          "next_cursor": "pagination.nextCursor",
+          "has_more": "pagination.hasMore"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Tools written 2026-09-12 from Cal.com's own OpenAPI document (https://cal.com/docs/api-reference/v2/openapi.json, operationIds MeController_getMe, EventTypesController_2026_06_12_getEventTypes, BookingsController_2026_05_01_getBookings): GET /v2/me, GET /v2/event-types and GET /v2/bookings. All three are GET reads, write:false, and nothing that mutates a booking is expressed here.",
+      "base_url changed from the scaffolded https://api.cal.com to https://api.cal.com/v2 because v1 is gone. Observed live 2026-09-12: a GET outside /v2 on that host answers 410 with {\"message\":\"API v1 has been decommissioned. Please migrate to API v2: https://cal.com/docs/api-reference/v2\"}. Folding /v2 into base_url also puts the harness control probe under /v2, where the API answers a routed 404 NotFoundException, which is the differential the tool probes are read against.",
+      "Scaffolded auth kept (bearer on api_key) on documentary plus live evidence. The introduction page states verbatim \"Authentication to the API is performed via the Authorization header\" with `'Authorization': 'Bearer YOUR_API_KEY'`, and the OpenAPI Authorization parameter on /v2/me reads verbatim \"value must be `Bearer <token>` where `<token>` is api key prefixed with cal_, managed user access token, or OAuth access token\". The vault type collects exactly one field, api_key, with prefix cal_. No apiKey query parameter: that was the decommissioned v1 form.",
+      "cal-api-version is a REQUIRED header whose value is per-endpoint (OpenAPI: /v2/event-types requires 2026-06-12, /v2/bookings requires 2026-05-01, /v2/me takes no version), so it rides in per-tool request.headers, not static_headers. The shape-proof harness only sends static_headers, so those two probes reached the API WITHOUT the version header and were answered with a structured 403 (\"PermissionsGuard - no oAuth client found for access token\"); with the header the same call answers 401 (\"Invalid Access Token.\"). Either way host, TLS, route and auth enforcement are proven; the version header's own effect is documented, NOT proven by this run.",
+      "list_bookings pages the 2026-05-01 way: `cursor` plus `limit` (OpenAPI minimum 1, maximum 100, default 50), clamped here to 20..100. The older 2024-08-13 take/skip pagination is deliberately not used, because the current reference says verbatim \"Must pass `cal-api-version: 2026-05-01` header.\" for this endpoint. `status` filters to a single value per the same doc; parallel requests per status are the documented way to span several.",
+      "No _probe hints: none of these routes carries a tenant slug or an account prefix, so the harness's generic dummy inputs already route. Cal.com's documented API-key rate limit is 120 requests per minute; this spec declares the wave standard 30 per 60s, which is stricter."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

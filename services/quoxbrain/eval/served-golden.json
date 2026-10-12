@@ -1,0 +1,115 @@
+{
+  "description": "Served-eval golden set: real notes discovered from the dev org by eval/served.mjs --build. Read-only discovery.",
+  "org_id": "01KKNKH398KKEWB36JXRYR70QH",
+  "generatedAt": "2026-10-05T21:49:03.157Z",
+  "poolSize": 3444,
+  "pairs": [
+    {
+      "noteId": "001d6db9ef045509ec3327df4a4b4d7f762f3080",
+      "title": "STREAM RSP-ENG + LIN-ENG — Responsibility Engine / QuoxLineage — Combined Concept Review & Operationalization v1",
+      "query": "what do my notes say about STREAM RSP ENG LIN ENG and Responsibility Engine QuoxLineage Combined Concept Review"
+    },
+    {
+      "noteId": "0ea3310468df5c0296b5406c374b5b1801329b1d",
+      "title": "idea_agentchatsidebar_collapsed_avatar",
+      "query": "what do my notes say about idea agentchatsidebar collapsed avatar and Missed third render mode jsx 137"
+    },
+    {
+      "noteId": "1b0369cf981c7169ee859912f3189010064fa973",
+      "title": "[dashboard] COLL-VITEST: unify SKIP_DOCKER gating across all real-Docker collector tests + add test:fast",
+      "query": "what do my notes say about dashboard COLL VITEST unify SKIP and DOCKER gating across all real Docker"
+    },
+    {
+      "noteId": "29b757682cf81eb17faf1668cd2a4f5375c1ab6c",
+      "title": "QuoxCLI Audit Knowledge",
+      "query": "what do my notes say about QuoxCLI Audit Knowledge and Common Bug Response Key Mismatches State"
+    },
+    {
+      "noteId": "35bf2191aefd4793b8d7dca016c9013f862af8f8",
+      "title": "[dashboard] fleet #436: stop fabricating an Anthropic provider selection",
+      "query": "what do my notes say about dashboard fleet 436 stop fabricating and Anthropic provider selection Anthropic provider selection"
+    },
+    {
+      "noteId": "43ef4eeabb6f9ed99e44e3cac7bdf107dd827acd",
+      "title": "[dashboard] GLASS-TOAST-1: Modal.jsx → canonical .glass class",
+      "query": "what do my notes say about dashboard GLASS TOAST Modal jsx and canonical class canonical class Changed files"
+    },
+    {
+      "noteId": "50e9f37f1c10be539d14c56a09f683e3a8813f34",
+      "title": "QuoxRubric — owner idea, captured 2026-09-26 (do NOT build yet)",
+      "query": "what do my notes say about QuoxRubric owner idea captured 2026 and build yet build yet Status skills"
+    },
+    {
+      "noteId": "5dfecc260621d1880876655ee1316204c8e04c01",
+      "title": "[dashboard] G2D-6: gate restore container resolution to the target compose project (cross-stack hazard fix)",
+      "query": "what do my notes say about dashboard G2D gate restore container and resolution target compose project cross stack"
+    },
+    {
+      "noteId": "6a78180f857f268deae4e86e35d33006a0943274",
+      "title": "Stripe launch: sandbox sync, catalog reconcile, safe live promotion — note 3267",
+      "query": "what do my notes say about Stripe launch sandbox sync catalog and reconcile safe live promotion note 3267"
+    },
+    {
+      "noteId": "785b43143b2590f547a4c3f2725f5d6897909917",
+      "title": "QuoxTower UI (owner-parked idea, 2026-07-23)",
+      "query": "what do my notes say about QuoxTower owner parked idea 2026 and name status board description status board"
+    },
+    {
+      "noteId": "83f4ce170544a42d642d18288e7f1a39afd7f84d",
+      "title": "incident_2026_05_20_sandbox_tzdata_utc",
+      "query": "what do my notes say about incident 2026 sandbox tzdata utc and may have proposed pytz fallback hardcoded"
+    },
+    {
+      "noteId": "8fef555de6d7d9cb04fec222b59b5b85088e9493",
+      "title": "browserq-ca-complete",
+      "query": "what do my notes say about browserq complete and ultCard chat tables render HTML tables"
+    },
+    {
+      "noteId": "9d0c24ddb78b274d3e7a1f3f8df3baa3ba3ccb98",
+      "title": "quoxvoice-product-family-and-substrate-2026-10-01",
+      "query": "what do my notes say about quoxvoice product family substrate 2026 and HARD BUILD ORDER DIRECTIVE owner verbatim"
+    },
+    {
+      "noteId": "a89e3e219d36126203669b354fe8f3046d69a8f1",
+      "title": "reminder_sdk_protocol_eu_ai_act",
+      "query": "what do my notes say about reminder sdk protocol act and name description set 2026 review plans"
+    },
+    {
+      "noteId": "b4b73cf72bbdff5e65730800ba45c3cb735242e0",
+      "title": "QUOX-VOICE-AGENTS (part 9)",
+      "query": "what do my notes say about QUOX VOICE AGENTS part"
+    },
+    {
+      "noteId": "c02d34bd22876ca721368aff085a7b64f5f4cd1c",
+      "title": "website-future-improvements",
+      "query": "what do my notes say about website future improvements and name description Quox identified during March"
+    },
+    {
+      "noteId": "cd0e6b45a9bfbae473f427b07434f4536344ae2c",
+      "title": "[dashboard] auth: multi-key licence trust for the prod-authority cutover",
+      "query": "what do my notes say about dashboard auth multi key licence and trust prod authority cutover trust prod"
+    },
+    {
+      "noteId": "d90593a856369de615c954ed0a80206c58bb3bf6",
+      "title": "Integrations DEPTH — next-session plan (Phase 7 of 6.5 Connector Factory)",
+      "query": "what do my notes say about Integrations DEPTH next session plan and Phase Connector Factory Phase Connector Factory"
+    },
+    {
+      "noteId": "e663e9996c2cdbdcd1c86e5707bba171f8c765a4",
+      "title": "[dashboard] DEVSUITE: loop replay capture proving tokens: <1% shipped",
+      "query": "what do my notes say about dashboard DEVSUITE loop replay capture and proving tokens shipped proving tokens shipped"
+    },
+    {
+      "noteId": "f36f7b209e14c823a35eb890c50e3c7e43bb1760",
+      "title": "Quality Audit — Junk & Half-Finished Triage (2026-07-05)",
+      "query": "what do my notes say about Quality Audit Junk Half Finished and Triage 2026 Triage 2026 hunter sweep"
+    }
+  ],
+  "nonsense": [
+    "zxqv blorptangle quillfeather nonexistent flumph",
+    "purple elephants negotiate quarterly tax returns on mars",
+    "asdkjh qweoiu zmxncb 99182736 plorf",
+    "how many yaks fit inside a submarine kitchen cabinet",
+    "xylophone mortgage ghostwriter turbine lemon"
+  ]
+}

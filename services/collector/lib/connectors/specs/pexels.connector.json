@@ -1,0 +1,245 @@
+{
+  "spec_version": 1,
+  "id": "pexels",
+  "name": "Pexels",
+  "category": "media",
+  "credentialType": "pexels",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://www.pexels.com/api/documentation/",
+  "base_url": "https://api.pexels.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/curated"
+  },
+  "tools_source": "https://www.pexels.com/api/documentation/",
+  "tools": [
+    {
+      "name": "search_photos",
+      "description": "Search Pexels photos by keyword and return matching results with attribution and image URLs",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search terms (e.g. 'office desk')"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to retrieve (default 1)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 15, max 80)"
+          },
+          "orientation": {
+            "type": "string",
+            "enum": [
+              "landscape",
+              "portrait",
+              "square"
+            ],
+            "description": "Optional orientation filter"
+          },
+          "size": {
+            "type": "string",
+            "enum": [
+              "large",
+              "medium",
+              "small"
+            ],
+            "description": "Optional minimum photo size filter"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/search",
+        "query": {
+          "query": "{{input.query}}",
+          "page": "{{input.page}}",
+          "per_page": "{{clamp input.per_page 15 80}}",
+          "orientation": "{{input.orientation}}",
+          "size": "{{input.size}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_results": "total_results",
+          "page": "page",
+          "per_page": "per_page",
+          "photos[]": {
+            "id": "id",
+            "width": "width",
+            "height": "height",
+            "alt": "alt",
+            "avg_color": "avg_color",
+            "page_url": "url",
+            "image_url": "src.large",
+            "photographer": "photographer",
+            "photographer_url": "photographer_url"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_photo",
+      "description": "Get one Pexels photo by its ID, including dimensions, attribution and image URLs",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "photo_id": {
+            "type": "string",
+            "description": "Pexels photo ID (e.g. 2014422)"
+          }
+        },
+        "required": [
+          "photo_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/photos/{{input.photo_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "width": "width",
+          "height": "height",
+          "alt": "alt",
+          "avg_color": "avg_color",
+          "page_url": "url",
+          "image_url": "src.large",
+          "photographer": "photographer",
+          "photographer_url": "photographer_url"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_curated_photos",
+      "description": "List the photos currently curated by the Pexels team, newest first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "description": "Page number to retrieve (default 1)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Photos per page (default 15, max 80)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/curated",
+        "query": {
+          "page": "{{input.page}}",
+          "per_page": "{{clamp input.per_page 15 80}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_results": "total_results",
+          "page": "page",
+          "per_page": "per_page",
+          "photos[]": {
+            "id": "id",
+            "width": "width",
+            "height": "height",
+            "alt": "alt",
+            "avg_color": "avg_color",
+            "page_url": "url",
+            "image_url": "src.large",
+            "photographer": "photographer",
+            "photographer_url": "photographer_url"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "search_videos",
+      "description": "Search Pexels videos by keyword and return matching results with attribution and preview URLs",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search terms (e.g. 'city timelapse')"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to retrieve (default 1)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 15, max 80)"
+          },
+          "orientation": {
+            "type": "string",
+            "enum": [
+              "landscape",
+              "portrait",
+              "square"
+            ],
+            "description": "Optional orientation filter"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/videos/search",
+        "query": {
+          "query": "{{input.query}}",
+          "page": "{{input.page}}",
+          "per_page": "{{clamp input.per_page 15 80}}",
+          "orientation": "{{input.orientation}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_results": "total_results",
+          "page": "page",
+          "per_page": "per_page",
+          "videos[]": {
+            "id": "id",
+            "width": "width",
+            "height": "height",
+            "duration": "duration",
+            "page_url": "url",
+            "preview_image": "image",
+            "videographer": "user.name",
+            "videographer_url": "user.url"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,223 @@
+{
+  "spec_version": 1,
+  "id": "square",
+  "name": "Square",
+  "category": "commerce_finance",
+  "credentialType": "square",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://developer.squareup.com/docs",
+  "base_url": "https://connect.squareup.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "static_headers": {
+    "Square-Version": "2025-01-23",
+    "Accept": "application/json"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/merchants"
+  },
+  "tools_source": "https://developer.squareup.com/reference/square",
+  "tools": [
+    {
+      "name": "list_locations",
+      "description": "List the Square seller's locations (the IDs every other Square call is scoped by)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/locations"
+      },
+      "response": {
+        "pick": {
+          "locations[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "type": "type",
+            "country": "country",
+            "currency": "currency",
+            "timezone": "timezone",
+            "merchant_id": "merchant_id",
+            "created_at": "created_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_payments",
+      "description": "List Square payments, optionally filtered to one location or a start time",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max payments to return (default 20, max 100)"
+          },
+          "location_id": {
+            "type": "string",
+            "description": "Optional Square location ID to filter by (defaults to all locations the token can see)"
+          },
+          "begin_time": {
+            "type": "string",
+            "description": "Optional RFC 3339 start timestamp, e.g. 2026-01-01T00:00:00Z (defaults to one year before end_time)"
+          },
+          "sort_order": {
+            "type": "string",
+            "enum": [
+              "ASC",
+              "DESC"
+            ],
+            "description": "Optional sort order on created_at (default DESC)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/payments",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "location_id": "{{input.location_id}}",
+          "begin_time": "{{input.begin_time}}",
+          "sort_order": "{{input.sort_order}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "payments[]": {
+            "id": "id",
+            "status": "status",
+            "amount": "amount_money.amount",
+            "currency": "amount_money.currency",
+            "source_type": "source_type",
+            "location_id": "location_id",
+            "order_id": "order_id",
+            "receipt_number": "receipt_number",
+            "created_at": "created_at"
+          },
+          "cursor": "cursor"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_customers",
+      "description": "List Square customer profiles",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max customers to return (default 20, max 100)"
+          },
+          "sort_field": {
+            "type": "string",
+            "enum": [
+              "DEFAULT",
+              "CREATED_AT"
+            ],
+            "description": "Optional field to sort by (default DEFAULT, which is creation order)"
+          },
+          "sort_order": {
+            "type": "string",
+            "enum": [
+              "ASC",
+              "DESC"
+            ],
+            "description": "Optional sort order (default ASC)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/customers",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "sort_field": "{{input.sort_field}}",
+          "sort_order": "{{input.sort_order}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "customers[]": {
+            "id": "id",
+            "given_name": "given_name",
+            "family_name": "family_name",
+            "company_name": "company_name",
+            "email_address": "email_address",
+            "phone_number": "phone_number",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "cursor": "cursor"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_catalog",
+      "description": "List Square catalog objects (items, categories, taxes, discounts), optionally filtered by type",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "types": {
+            "type": "string",
+            "description": "Optional comma-separated catalog object types, e.g. ITEM,CATEGORY,TAX,DISCOUNT,MODIFIER_LIST (default ITEM plus the other top-level types)"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Optional pagination cursor returned by a previous call"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/catalog/list",
+        "query": {
+          "types": "{{input.types}}",
+          "cursor": "{{input.cursor}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "objects[]": {
+            "id": "id",
+            "type": "type",
+            "version": "version",
+            "is_deleted": "is_deleted",
+            "updated_at": "updated_at",
+            "item_name": "item_data.name",
+            "item_description": "item_data.description",
+            "category_name": "category_data.name"
+          },
+          "cursor": "cursor"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "square_version_pinned: Square requires a Square-Version header on every request and dates its API monthly, so the version is pinned statically here (2025-01-23) rather than left to Square's default, which is the oldest version the account has used. Bumping it is a deliberate spec edit, and the probe below confirms the header is accepted (an unsupported version answers 400 BAD_REQUEST, not 401).",
+      "read_only_surface: all four tools are GET. Square's write surface (CreatePayment, CreateCustomer, catalog upsert, refunds) is deliberately excluded from this wave, so no tool carries write:true.",
+      "list_payments_no_location_default: location_id is optional. Omitted, Square returns payments across every location the access token can see; a seller with many locations should pass one from list_locations first.",
+      "catalog_list_has_no_limit: ListCatalog takes cursor and types only, with no page-size parameter, so the response is bounded by truncate 2000 rather than by a clamp. Pagination is exposed through the cursor input.",
+      "rateLimit 30/min is a local courtesy and spend guard chosen here, not a documented Square ceiling; Square's own limits are per endpoint and per application.",
+      "pick sources follow the documented response envelopes in the Square API reference (locations[], payments[], customers[], objects[]), not a live 2xx: no account was held, so the proof below covers wiring only, never payload shape."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

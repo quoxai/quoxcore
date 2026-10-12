@@ -1,0 +1,103 @@
+{
+  "spec_id": "sentry",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:17.313Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://sentry.io/quox-shapeproof-control-0cf6855c",
+      "status": 301,
+      "latency_ms": 487,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://sentry.io/api/0/projects/",
+      "status": 401,
+      "latency_ms": 213,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "947442391553f0f9e3112e6cf5ffe068350ca91d21705b4dd9b4c9b2d984061f",
+      "body_excerpt": "{\"detail\":\"Invalid token\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_organizations",
+      "method": "GET",
+      "url": "https://sentry.io/api/0/organizations/?query=quoxprobe",
+      "status": 401,
+      "latency_ms": 224,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "947442391553f0f9e3112e6cf5ffe068350ca91d21705b4dd9b4c9b2d984061f",
+      "body_excerpt": "{\"detail\":\"Invalid token\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "GET",
+      "url": "https://sentry.io/api/0/organizations/sentry/projects/",
+      "status": 401,
+      "latency_ms": 237,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "947442391553f0f9e3112e6cf5ffe068350ca91d21705b4dd9b4c9b2d984061f",
+      "body_excerpt": "{\"detail\":\"Invalid token\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_issues",
+      "method": "GET",
+      "url": "https://sentry.io/api/0/projects/sentry/quoxprobe/issues/?query=quoxprobe&statsPeriod=quoxprobe",
+      "status": 401,
+      "latency_ms": 238,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "947442391553f0f9e3112e6cf5ffe068350ca91d21705b4dd9b4c9b2d984061f",
+      "body_excerpt": "{\"detail\":\"Invalid token\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_issue",
+      "method": "GET",
+      "url": "https://sentry.io/api/0/issues/quoxprobe/",
+      "status": 401,
+      "latency_ms": 243,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "947442391553f0f9e3112e6cf5ffe068350ca91d21705b4dd9b4c9b2d984061f",
+      "body_excerpt": "{\"detail\":\"Invalid token\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_teams",
+      "method": "GET",
+      "url": "https://sentry.io/api/0/organizations/sentry/teams/",
+      "status": 401,
+      "latency_ms": 256,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "947442391553f0f9e3112e6cf5ffe068350ca91d21705b4dd9b4c9b2d984061f",
+      "body_excerpt": "{\"detail\":\"Invalid token\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,31 @@
+{
+  "spec_version": 1,
+  "id": "jfrog_artifactory",
+  "name": "JFrog Artifactory",
+  "category": "developer",
+  "credentialType": "jfrog_artifactory",
+  "requiredFields": [
+    "base_url",
+    "api_key"
+  ],
+  "docs": "https://jfrog.com/help/r/jfrog-rest-apis/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "X-JFrog-Art-Api",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/system/ping"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

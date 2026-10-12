@@ -1,0 +1,274 @@
+{
+  "name": "mikrotik-routeros",
+  "version": "1.0.0",
+  "displayName": "RouterOS",
+  "tagline": "Intelligent Network Management",
+  "description": "The RouterOS plugin — device inventory, health, DHCP, firewall, and VPN capabilities — connects to live MikroTik routers via the RouterOS REST API. Plain English explanations for noobs, full RouterOS API access for professionals, deep Bastion integration, and NOC/SOC-grade monitoring.",
+  "shortDescription": "MikroTik RouterOS management — connects to live routers.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 35,
+  "priceDisplay": "$35",
+  "priceModel": "one-time",
+  "tier": "standard",
+  "featured": false,
+  "comingSoon": false,
+  "icon": "network",
+  "accentColor": "#e6522c",
+  "infoUrl": "https://quox.ai/plugins/mikrotik-routeros",
+  "docsUrl": "https://quox.ai/docs/plugins/mikrotik-routeros",
+  "marketingPoints": [
+    "Plain English explanations for networking noobs",
+    "Full RouterOS API access for professionals",
+    "Real-time network health monitoring",
+    "DHCP management with device identification",
+    "IP conflict detection and resolution",
+    "VPN tunnel health monitoring (WireGuard & IPsec)",
+    "Safe firewall management with address lists",
+    "Guided troubleshooting wizard",
+    "Before/after change previews",
+    "Automatic rollback on failure"
+  ],
+  "features": {
+    "discovery": {
+      "name": "Router Discovery",
+      "description": "Automatically discover MikroTik routers on your network using neighbor discovery protocols. Build a complete inventory of all devices.",
+      "icon": "search",
+      "highlight": true
+    },
+    "monitoring": {
+      "name": "Health Monitoring",
+      "description": "Real-time monitoring of CPU, memory, temperature, and interface status. Get health scores and instant alerts when issues arise.",
+      "icon": "heart",
+      "highlight": true
+    },
+    "dhcpManagement": {
+      "name": "DHCP Management",
+      "description": "View and manage DHCP leases, create static reservations, detect IP conflicts, and monitor pool utilization with MAC vendor lookup.",
+      "icon": "list"
+    },
+    "firewallRules": {
+      "name": "Firewall Management",
+      "description": "View firewall rules, block/unblock IPs using address lists, and see rule hit counters. All with safety controls to prevent mistakes.",
+      "icon": "shield"
+    },
+    "vpnHealth": {
+      "name": "VPN Monitoring",
+      "description": "Monitor WireGuard peers and IPsec tunnels. Track handshake freshness, traffic stats, and get alerts for stale connections.",
+      "icon": "lock"
+    },
+    "diagnostics": {
+      "name": "Troubleshooting",
+      "description": "AI-powered issue analysis with guided troubleshooting wizard. Ping, traceroute, DNS check, and MTU discovery from your router.",
+      "icon": "tool",
+      "highlight": true
+    },
+    "plainEnglish": {
+      "name": "Plain English Mode",
+      "description": "Every technical issue explained in plain English using analogies like house addresses and parking lots. Perfect for non-technical users.",
+      "icon": "message-circle"
+    },
+    "automation": {
+      "name": "Safe Automation",
+      "description": "Auto-remediation for common issues with preview, approval, and automatic rollback. Never make changes you can't undo.",
+      "icon": "zap"
+    }
+  },
+  "specialist": {
+    "name": "NETWATCH",
+    "description": "Your patient networking mentor who adapts to your skill level",
+    "avatar": "/assets/agents/netwatch.svg",
+    "capabilities": [
+      "Router discovery and inventory",
+      "Network health monitoring",
+      "DHCP lease management",
+      "IP conflict detection",
+      "Traffic analysis",
+      "VPN health monitoring",
+      "Guided troubleshooting",
+      "Safe configuration automation"
+    ]
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "MikroTik RouterOS device with API access enabled"
+  },
+  "integration": {
+    "backend": "mha/internal/plugins/mikrotik",
+    "tools": "src/config/entities/tools/mikrotik.json",
+    "agent": "src/config/entities/assistants/netwatch.json"
+  },
+  "limits": {
+    "free": {
+      "routers": 0,
+      "features": []
+    },
+    "standard": {
+      "routers": 10,
+      "features": [
+        "discovery",
+        "monitoring",
+        "dhcpManagement",
+        "diagnostics",
+        "plainEnglish"
+      ]
+    },
+    "professional": {
+      "routers": 50,
+      "features": [
+        "discovery",
+        "monitoring",
+        "dhcpManagement",
+        "firewallRules",
+        "vpnHealth",
+        "diagnostics",
+        "plainEnglish",
+        "automation"
+      ]
+    },
+    "enterprise": {
+      "routers": -1,
+      "features": [
+        "discovery",
+        "monitoring",
+        "dhcpManagement",
+        "firewallRules",
+        "vpnHealth",
+        "diagnostics",
+        "plainEnglish",
+        "automation",
+        "bastionIntegration",
+        "siemExport"
+      ]
+    }
+  },
+  "alerts": {
+    "routerUnreachable": {
+      "name": "Router Unreachable",
+      "severity": "critical",
+      "description": "Router has not responded to health checks",
+      "autoAction": "notify"
+    },
+    "ipConflict": {
+      "name": "IP Conflict Detected",
+      "severity": "high",
+      "description": "Two devices are using the same IP address",
+      "autoAction": "log"
+    },
+    "dhcpPoolExhausted": {
+      "name": "DHCP Pool Near Exhaustion",
+      "severity": "high",
+      "description": "DHCP pool is more than 90% utilized",
+      "autoAction": "notify"
+    },
+    "vpnTunnelDown": {
+      "name": "VPN Tunnel Down",
+      "severity": "high",
+      "description": "VPN tunnel has lost connectivity",
+      "autoAction": "retry"
+    },
+    "highBandwidth": {
+      "name": "High Bandwidth Usage",
+      "severity": "medium",
+      "description": "Interface utilization above 80%",
+      "autoAction": "log"
+    },
+    "newDevice": {
+      "name": "New Device Connected",
+      "severity": "low",
+      "description": "Previously unknown device joined the network",
+      "autoAction": "log"
+    }
+  },
+  "safetyLevels": {
+    "GREEN": {
+      "name": "Safe",
+      "description": "Read-only operations, no risk",
+      "examples": [
+        "Health checks",
+        "DHCP lease listing",
+        "Traffic monitoring"
+      ]
+    },
+    "BLUE": {
+      "name": "Informational",
+      "description": "Informational changes only",
+      "examples": [
+        "Adding comments",
+        "Enabling logging"
+      ]
+    },
+    "AMBER": {
+      "name": "Reversible",
+      "description": "Changes that can be undone",
+      "examples": [
+        "DHCP reservations",
+        "Address list entries",
+        "Interface restart"
+      ]
+    },
+    "RED": {
+      "name": "Dangerous",
+      "description": "Potentially destructive operations",
+      "examples": [
+        "Firewall rule deletion",
+        "Configuration reset"
+      ]
+    }
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2025-02-01",
+      "changes": [
+        "Initial release",
+        "Router discovery and inventory",
+        "Health monitoring with scores",
+        "DHCP management with MAC vendor lookup",
+        "IP conflict detection",
+        "Firewall rule viewing and address list management",
+        "WireGuard and IPsec VPN monitoring",
+        "Diagnostic tools (ping, traceroute, DNS, MTU)",
+        "Plain English mode for noob-friendly explanations",
+        "Safe automation with preview and rollback",
+        "NETWATCH specialist agent"
+      ]
+    }
+  },
+  "category": "Monitoring",
+  "nocIntegration": {
+    "tab": {
+      "label": "RouterOS",
+      "icon": "network",
+      "order": 60
+    },
+    "quickActions": [
+      {
+        "id": "mikrotik-interfaces",
+        "label": "Interfaces",
+        "icon": "network",
+        "description": "List MikroTik router interfaces",
+        "severity": "info",
+        "prompt": "List all interfaces on the MikroTik router with traffic stats"
+      },
+      {
+        "id": "mikrotik-firewall",
+        "label": "Firewall",
+        "icon": "shield",
+        "description": "Show active firewall rules",
+        "severity": "warning",
+        "prompt": "Show MikroTik firewall rules and any recent blocked connections"
+      }
+    ],
+    "schedulable": true,
+    "templateVariables": [
+      {
+        "name": "router_id",
+        "description": "Target router ID"
+      },
+      {
+        "name": "interface",
+        "description": "Specific interface to monitor"
+      }
+    ]
+  }
+}

@@ -1,0 +1,214 @@
+{
+  "spec_version": 1,
+  "id": "apollo",
+  "name": "Apollo.io",
+  "category": "crm_sales",
+  "credentialType": "apollo",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.apollo.io/reference/apollo-api",
+  "base_url": "https://api.apollo.io",
+  "auth": {
+    "type": "header",
+    "header": "X-Api-Key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/users/api_profile"
+  },
+  "tools_source": "https://docs.apollo.io/reference/apollo-api",
+  "tools": [
+    {
+      "name": "get_current_user_profile",
+      "description": "Get the Apollo user profile the API key acts as, with remaining credit counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/users/api_profile"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "team_id": "team_id",
+          "first_name": "first_name",
+          "last_name": "last_name",
+          "title": "title",
+          "email": "email",
+          "num_credits_remaining": "num_credits_remaining",
+          "total_unified_credits_used": "total_unified_credits_used"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "enrich_organization",
+      "description": "Enrich one company from Apollo's organization data by domain, website, name or LinkedIn URL",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "Company domain to enrich (e.g. apollo.io)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional company name, used when no domain is known"
+          },
+          "website": {
+            "type": "string",
+            "description": "Optional company website URL"
+          },
+          "linkedin_url": {
+            "type": "string",
+            "description": "Optional company LinkedIn page URL"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/organizations/enrich",
+        "query": {
+          "domain": "{{input.domain}}",
+          "name": "{{input.name}}",
+          "website": "{{input.website}}",
+          "linkedin_url": "{{input.linkedin_url}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "organization.id",
+          "name": "organization.name",
+          "website_url": "organization.website_url",
+          "primary_domain": "organization.primary_domain",
+          "industry": "organization.industry",
+          "estimated_num_employees": "organization.estimated_num_employees",
+          "founded_year": "organization.founded_year",
+          "linkedin_url": "organization.linkedin_url"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "search_organizations",
+      "description": "Search Apollo's company database by name and page through the matches",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Company name or partial name to search for"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 10, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page of results to return (default 1, max 500)"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/mixed_companies/search",
+        "query": {
+          "q_organization_name": "{{input.query}}",
+          "per_page": "{{clamp input.per_page 10 100}}",
+          "page": "{{clamp input.page 1 500}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "organizations[]": {
+            "id": "id",
+            "name": "name",
+            "website_url": "website_url",
+            "primary_domain": "primary_domain",
+            "industry": "industry",
+            "estimated_num_employees": "estimated_num_employees",
+            "linkedin_url": "linkedin_url"
+          },
+          "page": "pagination.page",
+          "per_page": "pagination.per_page",
+          "total_entries": "pagination.total_entries",
+          "total_pages": "pagination.total_pages"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "search_people",
+      "description": "Search Apollo's people database by name or keywords (API search returns obfuscated surnames)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "person_name": {
+            "type": "string",
+            "description": "Person name or partial name to search for"
+          },
+          "keywords": {
+            "type": "string",
+            "description": "Optional free-text keywords matched across the person and their company"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 10, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page of results to return (default 1, max 500)"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/mixed_people/api_search",
+        "query": {
+          "q_person_name": "{{input.person_name}}",
+          "q_keywords": "{{input.keywords}}",
+          "per_page": "{{clamp input.per_page 10 100}}",
+          "page": "{{clamp input.page 1 500}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "people[]": {
+            "id": "id",
+            "first_name": "first_name",
+            "last_name_obfuscated": "last_name_obfuscated",
+            "title": "title",
+            "has_email": "has_email",
+            "organization_name": "organization.name",
+            "last_refreshed_at": "last_refreshed_at"
+          },
+          "total_entries": "total_entries"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH UNCHANGED from the scaffold: the X-Api-Key header is what https://docs.apollo.io/reference/authentication documents (its own curl sample uses the same header, case-insensitively as 'x-api-key'), and a live probe with a dummy key answers 401 {\"error\":\"Invalid API key. See https://docs.apollo.io/reference/authentication ...\"}, which is Apollo reading the header.",
+      "test.path CORRECTED TWICE from the scaffold's /v1/auth/health. First, every Apollo REST route is under /api/v1 (the docs' own base is https://api.apollo.io/api/v1), so the scaffolded path could never route; base_url stays the host and the /api/v1 prefix rides in each path, matching the committed stripe/hubspot style. Second, the shape-proof run of 2026-09-12 showed /api/v1/auth/health answering HTTP 200 {\"healthy\":true,\"is_logged_in\":false} to a DUMMY key, so it cannot verify a credential at all: it would activate any string as a valid Apollo key. test is therefore GET /api/v1/users/api_profile, which is credential-gated (401 with a bad key).",
+      "PATHS DIFFER FROM THE BRIEF, which asked for /organizations/search and /people/search. The current official reference documents POST /api/v1/mixed_companies/search (Organization Search) and POST /api/v1/mixed_people/api_search (People API Search); the legacy apolloio.github.io paths are not in today's docs, so the documented ones are used.",
+      "Both search endpoints are POST with QUERY-STRING parameters, not a JSON body: the docs list q_organization_name / q_person_name / q_keywords / page / per_page as query params (readme param ids 'query-organizationSearch_*' and 'query-peopleApiSearch_*'). No request body is sent, so nothing the caller supplies can reach a body field.",
+      "READ-ONLY by design: no tool is marked write:true and every request is a documented read (two GETs plus two search endpoints whose semantics are read-only). Apollo's own rate limit on mixed_companies/search is 600 calls/hour per the docs, well above this spec's 30/minute cap.",
+      "per_page is clamped to 100 and page to 500. The docs pages state no explicit maximum for either, so the clamps are this spec's own conservative ceiling, not a documented limit.",
+      "search_people uses /mixed_people/api_search, whose documented response returns last_name_obfuscated rather than last_name; the pick reflects that rather than inventing a full-surname field.",
+      "Shape-proof 2026-09-12 (apollo.proof.json, runner shapeproof/1), verbatim: 'apollo  SHAPE_PROVEN  proven=5 authwall=0 ambiguous=0 failed=0 inconclusive=0 skipped=0'. The control probe at a bogus path answers 404 while all five real requests answer a structured 401 'Invalid API key', so the differential proves host, TLS, base_url, the X-Api-Key header and every path; only a real key can prove the response bodies."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

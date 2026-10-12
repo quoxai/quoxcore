@@ -1,0 +1,214 @@
+{
+  "spec_version": 1,
+  "id": "apify",
+  "name": "Apify",
+  "category": "developer",
+  "credentialType": "apify",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://docs.apify.com/api/v2",
+  "base_url": "https://api.apify.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/users/me"
+  },
+  "tools_source": "https://docs.apify.com/api/v2",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the Apify account the API token belongs to (username, id and plan)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/users/me"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "username": "data.username",
+          "email": "data.email",
+          "created_at": "data.createdAt",
+          "plan_id": "data.plan.id"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_actors",
+      "description": "List the Apify Actors the token can see (id, name, owner username and modified time)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max Actors to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional number of Actors to skip, for paging"
+          },
+          "my": {
+            "type": "boolean",
+            "description": "Optional: true returns only Actors owned by this account"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/acts",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}",
+          "my": "{{input.my}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total": "data.total",
+          "count": "data.count",
+          "offset": "data.offset",
+          "data.items[]": {
+            "id": "id",
+            "name": "name",
+            "username": "username",
+            "createdAt": "createdAt",
+            "modifiedAt": "modifiedAt"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_actor_runs",
+      "description": "List the runs of one Apify Actor, newest last, optionally filtered by run status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "actor_id": {
+            "type": "string",
+            "description": "Actor id or username~actor-name (e.g. apify~web-scraper)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max runs to return (default 20, max 100)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "READY",
+              "RUNNING",
+              "SUCCEEDED",
+              "FAILED",
+              "TIMING-OUT",
+              "TIMED-OUT",
+              "ABORTING",
+              "ABORTED"
+            ],
+            "description": "Optional run status to filter by"
+          }
+        },
+        "required": [
+          "actor_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/acts/{{input.actor_id}}/runs",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total": "data.total",
+          "count": "data.count",
+          "data.items[]": {
+            "id": "id",
+            "actId": "actId",
+            "status": "status",
+            "startedAt": "startedAt",
+            "finishedAt": "finishedAt",
+            "buildId": "buildId"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.actor_id": "apify~web-scraper"
+      }
+    },
+    {
+      "name": "list_datasets",
+      "description": "List the Apify datasets the token can see (id, name and item counts)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max datasets to return (default 20, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Optional number of datasets to skip, for paging"
+          },
+          "unnamed": {
+            "type": "boolean",
+            "description": "Optional: true also returns unnamed datasets (default only named ones)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/datasets",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "offset": "{{input.offset}}",
+          "unnamed": "{{input.unnamed}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total": "data.total",
+          "count": "data.count",
+          "data.items[]": {
+            "id": "id",
+            "name": "name",
+            "itemCount": "itemCount",
+            "cleanItemCount": "cleanItemCount",
+            "createdAt": "createdAt",
+            "modifiedAt": "modifiedAt"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Tools added 2026-09-12 from the official Apify API v2 reference (https://docs.apify.com/api/v2): all four are GET reads, no write tool is declared. Actor run-start, dataset-push and key-value writes exist in the API and are deliberately out of scope.",
+      "The scaffolded bearer auth and the /v2/users/me test are unchanged: the reference documents Authorization: Bearer <token> for every endpoint above, and the live 401 body {\"error\":{\"type\":\"user-or-token-not-found\"}} confirms the token is read from that header.",
+      "_probe supplies the public Apify-owned Actor 'apify~web-scraper' for the runs route, because a dummy identifier cannot route /v2/acts/{actorId}/runs. Its run list still requires a real token, so the probe proves routing only.",
+      "list_actors returns the Actors visible to the token; my=true narrows it to Actors this account owns."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

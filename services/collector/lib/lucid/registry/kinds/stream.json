@@ -1,0 +1,19 @@
+{
+  "kind": "stream", "prefixes": ["stream:"], "area": "plans", "derive": "stream",
+  "variants": [
+    { "id": "decision", "when": { "status": "DECISION_NEEDED" },
+      "urgency": [{ "is": "this week" }],
+      "short": "{code}",
+      "L0": "Decision needed: {name}",
+      "L1": { "who": "Roadmap (QuoxPlan), stream {code}", "what": "{about|name}", "why": "{note|\"It is parked until you choose.\"}" },
+      "how": "Tell me your decision and I will record it, or open the stream in QuoxPlan.",
+      "measures": ["decide", "open_stream"] },
+    { "id": "other",
+      "urgency": [{ "is": "whenever" }],
+      "short": "{code}",
+      "L0": "{name} is {status_words}",
+      "L1": { "who": "Roadmap (QuoxPlan), stream {code}", "what": "{about|name}", "why": "{note|\"No note explains it.\"}" },
+      "how": "Nothing to do until it is unblocked.",
+      "measures": ["open_stream"] }
+  ]
+}

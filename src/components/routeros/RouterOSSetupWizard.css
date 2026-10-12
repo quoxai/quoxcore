@@ -1,0 +1,859 @@
+/**
+ * RouterOS Setup Wizard Styles
+ */
+
+/* ============================================
+   WIZARD CONTAINER
+   ============================================ */
+
+.ros-wizard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--m-space-8);
+    min-height: 100%;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, #0f1020 50%, rgba(255, 255, 255, 0.04) 100%);
+}
+
+/* ============================================
+   PROGRESS BAR
+   ============================================ */
+
+.ros-wizard__progress {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    margin-bottom: var(--m-space-8);
+}
+
+.ros-wizard__progress-step {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    color: var(--m-text-tertiary);
+    font-size: var(--m-text-sm);
+}
+
+.ros-wizard__progress-step::after {
+    content: '';
+    width: 40px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 0 var(--m-space-2);
+}
+
+.ros-wizard__progress-step:last-child::after {
+    display: none;
+}
+
+.ros-wizard__progress-step.active {
+    color: #10b981;
+}
+
+.ros-wizard__progress-step.complete {
+    color: #10b981;
+}
+
+.ros-wizard__progress-step.complete::after {
+    background: rgba(16, 185, 129, 0.4);
+}
+
+.ros-wizard__progress-dot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    font-weight: var(--m-weight-semibold);
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.ros-wizard__progress-step.active .ros-wizard__progress-dot {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: #10b981;
+    color: #10b981;
+}
+
+.ros-wizard__progress-step.complete .ros-wizard__progress-dot {
+    background: #10b981;
+    border-color: #10b981;
+    color: white;
+}
+
+.ros-wizard__progress-dot svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* ============================================
+   CONTENT AREA
+   ============================================ */
+
+.ros-wizard__content {
+    width: 100%;
+    max-width: 640px;
+}
+
+.ros-wizard__step {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.15);
+    border-radius: var(--m-radius-xl);
+    padding: var(--m-space-8);
+    animation: ros-wizard-fade-in 0.3s ease;
+}
+
+@keyframes ros-wizard-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================
+   STEP: INTRO
+   ============================================ */
+
+.ros-wizard__step--intro {
+    text-align: center;
+}
+
+.ros-wizard__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    margin-bottom: var(--m-space-4);
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 50%;
+    color: #10b981;
+}
+
+.ros-wizard__step h2 {
+    margin: 0 0 var(--m-space-2);
+    font-size: var(--m-text-2xl);
+    font-weight: var(--m-weight-bold);
+    color: var(--m-text-primary);
+}
+
+.ros-wizard__subtitle {
+    margin: 0 0 var(--m-space-6);
+    color: var(--m-text-secondary);
+    line-height: 1.6;
+}
+
+.ros-wizard__features {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-2);
+    margin-bottom: var(--m-space-6);
+    text-align: left;
+}
+
+.ros-wizard__feature {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-3);
+    padding: var(--m-space-2) var(--m-space-3);
+    background: rgba(16, 185, 129, 0.05);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+}
+
+.ros-wizard__feature svg {
+    flex-shrink: 0;
+    color: #10b981;
+}
+
+.ros-wizard__requirements {
+    margin-bottom: var(--m-space-6);
+    padding: var(--m-space-4);
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-lg);
+    text-align: left;
+}
+
+.ros-wizard__requirements h4 {
+    margin: 0 0 var(--m-space-2);
+    font-size: var(--m-text-sm);
+    font-weight: var(--m-weight-semibold);
+    color: var(--m-text-primary);
+}
+
+.ros-wizard__requirements ul {
+    margin: 0;
+    padding-left: var(--m-space-5);
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+    line-height: 1.6;
+}
+
+.ros-wizard__requirements li {
+    margin-bottom: var(--m-space-1);
+}
+
+/* ============================================
+   STEP HEADER
+   ============================================ */
+
+.ros-wizard__step-header {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-3);
+    margin-bottom: var(--m-space-4);
+}
+
+.ros-wizard__step-header svg {
+    color: #10b981;
+}
+
+.ros-wizard__step-header h2 {
+    margin: 0;
+}
+
+.ros-wizard__step > p {
+    margin: 0 0 var(--m-space-6);
+    color: var(--m-text-secondary);
+    line-height: 1.6;
+}
+
+/* ============================================
+   METHODS / INSTRUCTIONS
+   ============================================ */
+
+.ros-wizard__methods {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-4);
+    margin-bottom: var(--m-space-6);
+}
+
+.ros-wizard__method {
+    padding: var(--m-space-4);
+    background: rgba(10, 10, 20, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--m-radius-lg);
+}
+
+.ros-wizard__method h4 {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    margin: 0 0 var(--m-space-3);
+    font-size: var(--m-text-sm);
+    font-weight: var(--m-weight-semibold);
+    color: var(--m-text-primary);
+}
+
+.ros-wizard__method h4 svg {
+    color: #10b981;
+}
+
+.ros-wizard__method ol {
+    margin: 0;
+    padding-left: var(--m-space-5);
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+    line-height: 1.8;
+}
+
+.ros-wizard__divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--m-text-tertiary);
+    font-size: var(--m-text-sm);
+    text-transform: uppercase;
+}
+
+.ros-wizard__divider::before,
+.ros-wizard__divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 0 var(--m-space-4);
+}
+
+/* ============================================
+   CODE BLOCKS
+   ============================================ */
+
+.ros-wizard__code {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    padding: var(--m-space-3);
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--m-radius-md);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.ros-wizard__code code {
+    flex: 1;
+    color: #10b981;
+    font-size: 13px;
+    word-break: break-all;
+}
+
+.ros-wizard__code--multi {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.ros-wizard__code--multi code {
+    white-space: pre-wrap;
+}
+
+.ros-wizard__code--multi .ros-wizard__copy {
+    align-self: flex-end;
+}
+
+.ros-wizard__version-label {
+    margin-top: var(--m-space-3);
+    margin-bottom: var(--m-space-1);
+    font-size: var(--m-text-xs);
+    font-weight: var(--m-weight-semibold);
+    color: var(--m-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.ros-wizard__version-label:first-of-type {
+    margin-top: 0;
+}
+
+.ros-wizard__copy {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--m-space-1);
+    background: transparent;
+    border: none;
+    color: var(--m-text-tertiary);
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.ros-wizard__copy:hover {
+    color: var(--m-text-primary);
+}
+
+.ros-wizard__code-note {
+    margin: var(--m-space-2) 0 0;
+    color: var(--m-text-tertiary);
+    font-size: var(--m-text-xs);
+}
+
+.ros-wizard__code-note code {
+    color: #f59e0b;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+}
+
+/* ============================================
+   TIP / INFO BOX
+   ============================================ */
+
+.ros-wizard__tip {
+    display: flex;
+    gap: var(--m-space-3);
+    padding: var(--m-space-4);
+    margin-bottom: var(--m-space-6);
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: var(--m-radius-lg);
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+    line-height: 1.5;
+}
+
+.ros-wizard__tip svg {
+    flex-shrink: 0;
+    color: #f59e0b;
+}
+
+.ros-wizard__info-box {
+    padding: var(--m-space-4);
+    margin-bottom: var(--m-space-6);
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-lg);
+}
+
+.ros-wizard__info-box h4 {
+    margin: 0 0 var(--m-space-3);
+    font-size: var(--m-text-sm);
+    font-weight: var(--m-weight-semibold);
+    color: var(--m-text-primary);
+}
+
+.ros-wizard__info-box p {
+    margin: var(--m-space-3) 0 0;
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+    line-height: 1.5;
+}
+
+.ros-wizard__groups {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-2);
+}
+
+.ros-wizard__group {
+    display: flex;
+    gap: var(--m-space-3);
+    padding: var(--m-space-2) var(--m-space-3);
+    background: rgba(10, 10, 20, 0.5);
+    border-radius: var(--m-radius-md);
+    font-size: var(--m-text-sm);
+}
+
+.ros-wizard__group strong {
+    flex-shrink: 0;
+    min-width: 60px;
+    color: #10b981;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+}
+
+.ros-wizard__group span {
+    color: var(--m-text-secondary);
+}
+
+/* ============================================
+   FORM
+   ============================================ */
+
+.ros-wizard__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-4);
+    margin-bottom: var(--m-space-6);
+}
+
+.ros-wizard__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--m-space-4);
+}
+
+.ros-wizard__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-1);
+}
+
+.ros-wizard__field label {
+    font-size: var(--m-text-sm);
+    font-weight: var(--m-weight-medium);
+    color: var(--m-text-secondary);
+}
+
+.ros-wizard__field label span {
+    color: #ef4444;
+}
+
+.ros-wizard__field input[type="text"],
+.ros-wizard__field input[type="password"],
+.ros-wizard__field input[type="number"] {
+    padding: var(--m-space-3);
+    background: rgba(10, 10, 20, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-primary);
+    font-size: var(--m-text-base);
+    transition: border-color 0.15s ease;
+}
+
+.ros-wizard__field input:focus {
+    outline: none;
+    border-color: #10b981;
+}
+
+.ros-wizard__field input::placeholder {
+    color: var(--m-text-tertiary);
+}
+
+.ros-wizard__hint {
+    font-size: 12px;
+    color: var(--m-text-tertiary);
+}
+
+.ros-wizard__field--checkbox {
+    flex-direction: row;
+    align-items: center;
+}
+
+.ros-wizard__field--checkbox label {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    cursor: pointer;
+}
+
+.ros-wizard__field--checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #10b981;
+}
+
+.ros-wizard__error {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    padding: var(--m-space-3);
+    margin-bottom: var(--m-space-4);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--m-radius-md);
+    color: #ef4444;
+    font-size: var(--m-text-sm);
+}
+
+/* ============================================
+   TEST STEP
+   ============================================ */
+
+.ros-wizard__testing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--m-space-4);
+    padding: var(--m-space-8);
+    color: var(--m-text-secondary);
+}
+
+.ros-wizard__spinner {
+    animation: ros-wizard-spin 1s linear infinite;
+    width: 32px;
+    height: 32px;
+    color: #10b981;
+}
+
+@keyframes ros-wizard-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.ros-wizard__ready {
+    text-align: center;
+    padding: var(--m-space-4) 0;
+}
+
+.ros-wizard__ready p {
+    margin: 0 0 var(--m-space-4);
+}
+
+.ros-wizard__config-summary {
+    display: inline-flex;
+    flex-direction: column;
+    gap: var(--m-space-1);
+    padding: var(--m-space-3);
+    background: rgba(10, 10, 20, 0.5);
+    border-radius: var(--m-radius-md);
+    text-align: left;
+    font-size: var(--m-text-sm);
+    color: var(--m-text-secondary);
+}
+
+.ros-wizard__config-summary span {
+    color: var(--m-text-tertiary);
+    min-width: 80px;
+    display: inline-block;
+}
+
+.ros-wizard__success {
+    text-align: center;
+    padding: var(--m-space-4) 0;
+}
+
+.ros-wizard__success-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    margin-bottom: var(--m-space-4);
+    background: rgba(16, 185, 129, 0.2);
+    border-radius: 50%;
+    color: #10b981;
+}
+
+.ros-wizard__success-icon svg {
+    width: 32px;
+    height: 32px;
+}
+
+.ros-wizard__success h3 {
+    margin: 0 0 var(--m-space-4);
+    color: #10b981;
+}
+
+.ros-wizard__router-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--m-space-3);
+    padding: var(--m-space-4);
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-lg);
+    text-align: left;
+}
+
+.ros-wizard__router-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ros-wizard__router-detail span {
+    font-size: 11px;
+    color: var(--m-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.ros-wizard__router-detail strong {
+    color: var(--m-text-primary);
+    font-size: var(--m-text-sm);
+}
+
+.ros-wizard__failure {
+    text-align: center;
+    padding: var(--m-space-4) 0;
+}
+
+.ros-wizard__failure-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    margin-bottom: var(--m-space-4);
+    background: rgba(239, 68, 68, 0.2);
+    border-radius: 50%;
+    color: #ef4444;
+}
+
+.ros-wizard__failure-icon svg {
+    width: 32px;
+    height: 32px;
+}
+
+.ros-wizard__failure h3 {
+    margin: 0 0 var(--m-space-2);
+    color: #ef4444;
+}
+
+.ros-wizard__failure-msg {
+    margin: 0 0 var(--m-space-4);
+    color: var(--m-text-secondary);
+}
+
+.ros-wizard__technical {
+    margin: var(--m-space-4) 0;
+    text-align: left;
+}
+
+.ros-wizard__technical summary {
+    cursor: pointer;
+    color: var(--m-text-tertiary);
+    font-size: var(--m-text-sm);
+}
+
+.ros-wizard__technical code {
+    display: block;
+    margin-top: var(--m-space-2);
+    padding: var(--m-space-3);
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: var(--m-radius-md);
+    color: #ef4444;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.ros-wizard__troubleshoot {
+    margin-top: var(--m-space-4);
+    padding: var(--m-space-4);
+    background: rgba(16, 185, 129, 0.05);
+    border-radius: var(--m-radius-lg);
+    text-align: left;
+}
+
+.ros-wizard__troubleshoot h4 {
+    margin: 0 0 var(--m-space-2);
+    font-size: var(--m-text-sm);
+    font-weight: var(--m-weight-semibold);
+    color: var(--m-text-primary);
+}
+
+.ros-wizard__troubleshoot ul {
+    margin: 0;
+    padding-left: var(--m-space-5);
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+    line-height: 1.8;
+}
+
+.ros-wizard__troubleshoot > p {
+    margin: 0 0 var(--m-space-3);
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+}
+
+.ros-wizard__troubleshoot li strong {
+    color: var(--m-text-primary);
+}
+
+.ros-wizard__troubleshoot li code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #10b981;
+}
+
+.ros-wizard__fix-section {
+    margin-top: var(--m-space-4);
+    padding: var(--m-space-4);
+    background: rgba(10, 10, 20, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--m-radius-md);
+}
+
+.ros-wizard__fix-section h5 {
+    margin: 0 0 var(--m-space-2);
+    font-size: var(--m-text-sm);
+    font-weight: var(--m-weight-semibold);
+    color: #10b981;
+}
+
+.ros-wizard__fix-section p {
+    margin: var(--m-space-2) 0;
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+}
+
+.ros-wizard__fix-section ul {
+    margin: var(--m-space-2) 0 0;
+    padding-left: var(--m-space-5);
+}
+
+.ros-wizard__fix-section .ros-wizard__code {
+    margin: var(--m-space-2) 0;
+}
+
+.ros-wizard__fix-section .ros-wizard__version-label {
+    margin-top: var(--m-space-2);
+}
+
+/* ============================================
+   ACTIONS
+   ============================================ */
+
+.ros-wizard__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-3);
+    justify-content: flex-end;
+}
+
+.ros-wizard__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    padding: var(--m-space-3) var(--m-space-5);
+    border: none;
+    border-radius: var(--m-radius-lg);
+    font-size: var(--m-text-sm);
+    font-weight: var(--m-weight-medium);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-wizard__btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ros-wizard__btn--primary {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+}
+
+.ros-wizard__btn--primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.ros-wizard__btn--secondary {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--m-text-secondary);
+}
+
+.ros-wizard__btn--secondary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--m-text-primary);
+}
+
+.ros-wizard__btn--text {
+    background: transparent;
+    color: var(--m-text-tertiary);
+}
+
+.ros-wizard__btn--text:hover:not(:disabled) {
+    color: var(--m-text-primary);
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+    .ros-wizard {
+        padding: var(--m-space-4);
+    }
+
+    .ros-wizard__progress {
+        display: none;
+    }
+
+    .ros-wizard__step {
+        padding: var(--m-space-5);
+    }
+
+    .ros-wizard__row {
+        grid-template-columns: 1fr;
+    }
+
+    .ros-wizard__router-info {
+        grid-template-columns: 1fr;
+    }
+
+    .ros-wizard__actions {
+        flex-direction: column-reverse;
+    }
+
+    .ros-wizard__btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

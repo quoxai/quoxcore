@@ -1,0 +1,53 @@
+{
+  "name": "comms",
+  "version": "0.1.0",
+  "displayName": "Comms",
+  "tagline": "Matrix rooms, right inside the dashboard.",
+  "description": "Real-time chat rooms backed by the Quox Matrix homeserver — room list, live timeline, and message composer for humans and agents to collaborate in the same governed workspace. Pilot surface; license tier TBD.",
+  "shortDescription": "Matrix chat rooms inside the dashboard (pilot).",
+  "author": "QUOX",
+  "license": "unlicensed",
+  "price": 0,
+  "priceDisplay": "TBD",
+  "priceModel": "tbd",
+  "tier": "free",
+  "featured": false,
+  "badge": "PILOT",
+  "icon": "message-square",
+  "accentColor": "#0088cc",
+  "infoUrl": "https://quox.ai/plugins/comms",
+  "docsUrl": "https://quox.ai/docs/plugins/comms",
+  "route": "/matrix-comms",
+  "marketingPoints": [
+    "Live Matrix rooms — humans and agents, one timeline",
+    "Federated, open-protocol chat under the quox homeserver",
+    "Server-side history — no browser-only state"
+  ],
+  "features": {
+    "roomList": {
+      "name": "Room List",
+      "description": "Joined rooms with name and last activity, live-updated via Matrix sync.",
+      "icon": "list",
+      "highlight": true
+    },
+    "timeline": {
+      "name": "Room Timeline",
+      "description": "Live message timeline: sender, body, timestamps. Renders m.text/m.notice; placeholder chip for media.",
+      "icon": "message-square",
+      "highlight": true
+    },
+    "composer": {
+      "name": "Message Composer",
+      "description": "Send m.text messages into the selected room.",
+      "icon": "send"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+  "integration": {
+    "service": "src/services/matrixClient.js",
+    "view": "src/pages/views/MatrixCommsView.jsx"
+  },
+  "category": "Communication"
+}

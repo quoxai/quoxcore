@@ -1,0 +1,13 @@
+{
+  "id": "growth-business",
+  "type": "team-pack",
+  "version": "1.0.0",
+  "displayName": "Growth Business Pack",
+  "description": "Scale your infrastructure with confidence. Performance optimization, capacity planning, and full-stack monitoring.",
+  "author": "Quox",
+  "tier": "free",
+  "teams": ["growth-ops", "startup-ops"],
+  "tags": ["scaling", "performance", "monitoring"],
+  "icon": "trending-up",
+  "accentColor": "#3b82f6"
+}

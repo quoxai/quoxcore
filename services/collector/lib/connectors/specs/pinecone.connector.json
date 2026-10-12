@@ -1,0 +1,153 @@
+{
+  "spec_version": 1,
+  "id": "pinecone",
+  "name": "Pinecone",
+  "category": "data_ai",
+  "credentialType": "pinecone",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.pinecone.io/",
+  "base_url": "https://api.pinecone.io",
+  "auth": {
+    "type": "header",
+    "header": "Api-Key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/indexes"
+  },
+  "tools_source": "https://docs.pinecone.io/reference/api/introduction",
+  "tools": [
+    {
+      "name": "list_indexes",
+      "description": "List the Pinecone indexes in this project, with their dimension, metric, host and readiness",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/indexes"
+      },
+      "response": {
+        "pick": {
+          "indexes[]": {
+            "name": "name",
+            "dimension": "dimension",
+            "metric": "metric",
+            "host": "host",
+            "vector_type": "vector_type",
+            "state": "status.state",
+            "ready": "status.ready",
+            "cloud": "spec.serverless.cloud",
+            "region": "spec.serverless.region"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "describe_index",
+      "description": "Describe one Pinecone index by name (dimension, metric, host, readiness and serverless placement)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "index_name": {
+            "type": "string",
+            "description": "Name of the Pinecone index (e.g. quox-memory)"
+          }
+        },
+        "required": [
+          "index_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/indexes/{{input.index_name}}"
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "dimension": "dimension",
+          "metric": "metric",
+          "host": "host",
+          "vector_type": "vector_type",
+          "deletion_protection": "deletion_protection",
+          "state": "status.state",
+          "ready": "status.ready",
+          "cloud": "spec.serverless.cloud",
+          "region": "spec.serverless.region"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_collections",
+      "description": "List the Pinecone collections (static index snapshots) in this project",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/collections"
+      },
+      "response": {
+        "pick": {
+          "collections[]": {
+            "name": "name",
+            "status": "status",
+            "dimension": "dimension",
+            "vector_count": "vector_count",
+            "size": "size",
+            "environment": "environment"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "describe_collection",
+      "description": "Describe one Pinecone collection by name (status, dimension, vector count and size)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "collection_name": {
+            "type": "string",
+            "description": "Name of the Pinecone collection"
+          }
+        },
+        "required": [
+          "collection_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/collections/{{input.collection_name}}"
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "status": "status",
+          "dimension": "dimension",
+          "vector_count": "vector_count",
+          "size": "size",
+          "environment": "environment"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

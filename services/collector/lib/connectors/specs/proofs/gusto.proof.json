@@ -1,0 +1,90 @@
+{
+  "spec_id": "gusto",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T00:37:51.204Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.gusto.com/quox-shapeproof-control-95f3aff4",
+      "status": 404,
+      "latency_ms": 1387,
+      "classification": "CONTROL",
+      "body_sha256": "08565d891b1cf425ca0b324163bbdf6ddd04ab235c259ee26be198649112ab67",
+      "body_excerpt": "<!DOCTYPE html>\n<html style=\"height:100%;\" lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <title>404 Error - Page Not Found - Gusto</title>\n    <link\n      rel=\"icon\"\n      type=\"image/x-icon\"\n ",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.gusto.com/v1/token_info",
+      "status": 401,
+      "latency_ms": 347,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_token_info",
+      "method": "GET",
+      "url": "https://api.gusto.com/v1/token_info",
+      "status": 401,
+      "latency_ms": 410,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_company",
+      "method": "GET",
+      "url": "https://api.gusto.com/v1/companies/quoxprobe",
+      "status": 401,
+      "latency_ms": 402,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_employees",
+      "method": "GET",
+      "url": "https://api.gusto.com/v1/companies/quoxprobe/employees?search_term=quoxprobe&page=1&per=25",
+      "status": 401,
+      "latency_ms": 784,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_company_locations",
+      "method": "GET",
+      "url": "https://api.gusto.com/v1/companies/quoxprobe/locations?page=1&per=25",
+      "status": 401,
+      "latency_ms": 371,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

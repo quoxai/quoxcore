@@ -1,0 +1,73 @@
+{
+  "spec_id": "runway",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:21:33.772Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.dev.runwayml.com/quox-shapeproof-control-ae679821",
+      "status": 401,
+      "latency_ms": 1147,
+      "classification": "CONTROL",
+      "body_sha256": "b98b2b2c0dcd6e6854eb987d08bdbbddc4da3c719e40831d5705677566998af2",
+      "body_excerpt": "{\"error\":\"The provided API key in the Authorization header did not start with `key_`.\",\"docUrl\":\"https://docs.dev.runwayml.com/api\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.dev.runwayml.com/v1/organization",
+      "status": 401,
+      "latency_ms": 268,
+      "classification": "AUTH_WALL",
+      "body_sha256": "b98b2b2c0dcd6e6854eb987d08bdbbddc4da3c719e40831d5705677566998af2",
+      "body_excerpt": "{\"error\":\"The provided API key in the Authorization header did not start with `key_`.\",\"docUrl\":\"https://docs.dev.runwayml.com/api\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_organization",
+      "method": "GET",
+      "url": "https://api.dev.runwayml.com/v1/organization",
+      "status": 401,
+      "latency_ms": 244,
+      "classification": "AUTH_WALL",
+      "body_sha256": "b98b2b2c0dcd6e6854eb987d08bdbbddc4da3c719e40831d5705677566998af2",
+      "body_excerpt": "{\"error\":\"The provided API key in the Authorization header did not start with `key_`.\",\"docUrl\":\"https://docs.dev.runwayml.com/api\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "get_task",
+      "method": "GET",
+      "url": "https://api.dev.runwayml.com/v1/tasks/quoxprobe",
+      "status": 401,
+      "latency_ms": 242,
+      "classification": "AUTH_WALL",
+      "body_sha256": "b98b2b2c0dcd6e6854eb987d08bdbbddc4da3c719e40831d5705677566998af2",
+      "body_excerpt": "{\"error\":\"The provided API key in the Authorization header did not start with `key_`.\",\"docUrl\":\"https://docs.dev.runwayml.com/api\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

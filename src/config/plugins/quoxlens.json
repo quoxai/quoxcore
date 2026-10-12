@@ -1,0 +1,81 @@
+{
+  "name": "quoxlens",
+  "version": "0.1.0",
+  "displayName": "QuoxLens",
+  "tagline": "Judges what you show it, and can prove why.",
+  "description": "Applies a reusable, versioned Lens (a declared evaluative stance) to an artifact and returns a typed, evidence-gated verdict: a finding needs a cited basis or it is dropped, never invented. Every live application is recorded as an AEE lens.applied envelope plus a VOLT evidence bundle, so a verdict is replayable, not just a chat response. Findings carry stable fingerprints and move through a real lifecycle (new, confirmed, accepted-risk, remediated, regressed) so a repeat sweep reports only what changed. An eval harness scores each Lens against a no-Lens baseline before it may claim to be proven; an unevaluated or losing Lens is stamped unproven everywhere it appears, including its own verdict. Panel judging (several Lenses independently assessing one artifact, with disagreement reported rather than averaged away) and gate mode (an AOCL policy naming a Lens as fail-closed admission control) are both engine-complete but not yet reachable from any route or wired to a real boundary. See docs/QUOXLENS_GATING.md.",
+  "shortDescription": "Evidence-gated Lens verdicts on artifacts, with typed findings and replayable evidence",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 29,
+  "priceDisplay": "$29",
+  "priceModel": "one-time",
+  "tier": "tier_b",
+  "featured": false,
+  "icon": "eye",
+  "accentColor": "#eab308",
+  "infoUrl": "https://quox.ai/solutions/quoxlens",
+  "docsUrl": "https://quox.ai/docs/quoxlens",
+  "marketingPoints": [
+    "Findings need a cited basis or they are dropped. A Lens never invents a claim",
+    "Findings carry stable fingerprints, so a repeat sweep reports only what changed, not the same issue twice",
+    "Every live verdict is recorded as an AEE lens.applied envelope plus a VOLT evidence bundle, not just a chat response",
+    "An eval harness scores each Lens against a no-Lens baseline before it can claim proven; anything unevaluated or losing is stamped unproven, everywhere it appears"
+  ],
+  "features": {
+    "lenses": {
+      "name": "Lenses",
+      "description": "Every registered Lens: its declared stance, blind spots, eval status, and whether it is proven or unproven against a no-Lens baseline.",
+      "icon": "eye",
+      "highlight": true
+    },
+    "findings": {
+      "name": "Findings",
+      "description": "Typed findings across every scope, tracked through a real lifecycle (new, confirmed, accepted-risk, remediated, regressed) with stable fingerprints that dedupe repeat sweeps.",
+      "icon": "check-square",
+      "highlight": true
+    },
+    "evidenceTrail": {
+      "name": "Evidence Trail",
+      "description": "Every applied verdict's AEE envelope and VOLT bundle, traceable back to the cited quote or record a finding was drawn from.",
+      "icon": "archive"
+    }
+  },
+  "safety": {
+    "destructiveActions": [],
+    "requiresApproval": [],
+    "aeeRequired": true,
+    "killSwitchEnabled": false
+  },
+  "capabilities": {
+    "aeeIntents": [
+      "lens.applied"
+    ]
+  },
+  "limits": {
+    "free": {},
+    "paid": {
+      "lensesEnabled": true,
+      "findingsEnabled": true,
+      "evidenceTrailEnabled": true
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0"
+  },
+  "integration": {
+    "client": "src/components/quoxlens/lib/api.js",
+    "view": "src/components/quoxlens/QuoxLensView.jsx"
+  },
+  "changelog": {
+    "0.1.0": {
+      "date": "2026-07-30",
+      "changes": [
+        "Initial plugin registration: manifest, nav gating, route gating, and a locked-state surface",
+        "Priced at $29 one-time, the tier_b floor. Set deliberately BELOW QuoxSignal at $39: that plugin runs end to end today, whereas QuoxLens ships panel mode and gate mode engine-complete but unreachable from any route, and WARD receipts do not surface on a verdict yet. STATUS_AND_LIMITS_QUOXLENS carries 1 Stable row against 20 Beta or worse, so the price reflects what a buyer can actually use today rather than the roadmap",
+        "Not yet server-side licence-governed (LICENSE_GOVERNED_PLUGINS). See docs/QUOXLENS_GATING.md for the cutover this requires"
+      ]
+    }
+  },
+  "category": "AI & Intelligence"
+}

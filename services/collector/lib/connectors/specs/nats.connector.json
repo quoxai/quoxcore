@@ -1,0 +1,166 @@
+{
+  "spec_version": 1,
+  "id": "nats",
+  "name": "NATS",
+  "category": "monitoring",
+  "credentialType": "nats",
+  "requiredFields": [
+    "base_url"
+  ],
+  "docs": "https://docs.nats.io/running-a-nats-service/nats_admin/monitoring",
+  "tools_source": "https://docs.nats.io/running-a-nats-service/nats_admin/monitoring",
+  "description": "NATS server reads over its monitoring HTTP endpoint: server identity and load, current client connections, subscription counts, JetStream usage and known routes. Read-only; the monitoring endpoint exposes no write surface, and this connector wires none. It is unauthenticated by default (base_url is the only credential); put it behind a reverse proxy for exposure beyond a trusted LAN.",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "none"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/varz"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 60
+  },
+  "tools": [
+    {
+      "name": "server_info",
+      "description": "Get the NATS server's identity, version, resource usage and message/connection totals",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/varz"
+      },
+      "response": {
+        "pick": {
+          "server_id": "server_id",
+          "server_name": "server_name",
+          "version": "version",
+          "host": "host",
+          "port": "port",
+          "uptime": "uptime",
+          "mem": "mem",
+          "cpu": "cpu",
+          "connections": "connections",
+          "total_connections": "total_connections",
+          "in_msgs": "in_msgs",
+          "out_msgs": "out_msgs",
+          "slow_consumers": "slow_consumers"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "connections",
+      "description": "List the client connections currently open on this server",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/connz"
+      },
+      "response": {
+        "pick": {
+          "now": "now",
+          "num_connections": "num_connections",
+          "total": "total",
+          "connections": "connections"
+        },
+        "truncate": 3000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "subscriptions",
+      "description": "Get subscription counts and interest-cache stats for this server",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/subsz"
+      },
+      "response": {
+        "pick": {
+          "num_subscriptions": "num_subscriptions",
+          "num_cache": "num_cache"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "jetstream",
+      "description": "Get JetStream usage: memory and storage totals, accounts, streams, consumers and message/byte counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/jsz"
+      },
+      "response": {
+        "pick": {
+          "memory": "memory",
+          "storage": "storage",
+          "accounts": "accounts",
+          "ha_assets": "ha_assets",
+          "api": "api",
+          "streams": "streams",
+          "consumers": "consumers",
+          "messages": "messages",
+          "bytes": "bytes"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "routes",
+      "description": "List the cluster routes this server knows about",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/routez"
+      },
+      "response": {
+        "pick": {
+          "now": "now",
+          "num_routes": "num_routes",
+          "routes": "routes"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    }
+  ],
+  "_scaffold": {
+    "source": "hand-authored 2026-09-13 observability tranche",
+    "confidence": "live",
+    "needs_review": [
+      "AUTH IS none BY DESIGN: NATS's monitoring HTTP port (default 8222) ships with no authentication of its own, so base_url is the only credential and auth.type is 'none'. Client-protocol auth (the NATS wire protocol on 4222) is a separate, unmodelled surface.",
+      "READ-ONLY: all five tools are GET, write:false. The monitoring endpoint has no mutating surface to model.",
+      "jetstream returns a 200 with near-empty counters when JetStream is enabled but unused, and a minimal envelope if JetStream is disabled entirely; both are valid live proofs, not failures.",
+      "routes returns an empty routes array on a standalone (non-clustered) server; that is a valid 200 proof of the endpoint, not a routing gap.",
+      "LIVE-PROOF CONTRACT: every tool takes no input, so every _probe is {}. Proven against docker nats:2.10, then destroyed."
+    ]
+  }
+}

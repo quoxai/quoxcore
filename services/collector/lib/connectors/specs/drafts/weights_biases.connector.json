@@ -1,0 +1,34 @@
+{
+  "spec_version": 1,
+  "id": "weights_biases",
+  "name": "Weights & Biases",
+  "category": "uncategorized",
+  "credentialType": "weights_biases",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.wandb.ai/",
+  "base_url": "https://api.wandb.ai",
+  "auth": {
+    "type": "basic",
+    "userField": "",
+    "passField": ""
+  },
+  "static_headers": {
+    "Content-Type": "application/json"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/graphql",
+    "body": "{\"query\":\"{ viewer { id } }\"}"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "basic_literal_user"
+    ]
+  }
+}

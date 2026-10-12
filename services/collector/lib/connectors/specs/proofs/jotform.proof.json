@@ -1,0 +1,79 @@
+{
+  "spec_id": "jotform",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:19:58.988Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.jotform.com/quox-shapeproof-control-a8bc6c15?apiKey=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 404,
+      "latency_ms": 6121,
+      "classification": "CONTROL",
+      "body_sha256": "fa264d9984ce456cde0baf60d2e4eb80d63514f84c87edf5958275a855dfb9cd",
+      "body_excerpt": "{\"responseCode\":404,\"message\":\"Requested URL (\\/quox-shapeproof-control-a8bc6c15) is not available!\",\"content\":\"\",\"duration\":\"175.31ms\",\"info\":\"https:\\/\\/api.jotform.com\\/docs\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.jotform.com/user?apiKey=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 401,
+      "latency_ms": 227,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "05a14084f570e8f9e42f0e9a2a0755f9294c30e9c147557fdfece851747b296f",
+      "body_excerpt": "{\"responseCode\":401,\"message\":\"You're not authorized to use (\\/user) \",\"content\":\"\",\"duration\":\"31.58ms\",\"info\":\"https:\\/\\/api.jotform.com\\/docs#user\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "user",
+      "method": "GET",
+      "url": "https://api.jotform.com/user?apiKey=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 401,
+      "latency_ms": 203,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "6c0081cb699e6647582788c3e2236345519473bef3570155c13545b7165abcfc",
+      "body_excerpt": "{\"responseCode\":401,\"message\":\"You're not authorized to use (\\/user) \",\"content\":\"\",\"duration\":\"23.64ms\",\"info\":\"https:\\/\\/api.jotform.com\\/docs#user\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_forms",
+      "method": "GET",
+      "url": "https://api.jotform.com/user/forms?limit=20&offset=1&orderby=quoxprobe&apiKey=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 401,
+      "latency_ms": 186,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9a8cadc295c8724c97f2d027b1fa899644b30b2196b109cd9c9d05fd3fe2a271",
+      "body_excerpt": "{\"responseCode\":401,\"message\":\"You're not authorized to use (\\/user-forms) \",\"content\":\"\",\"duration\":\"21.76ms\",\"info\":\"https:\\/\\/api.jotform.com\\/docs#user-forms\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_submissions",
+      "method": "GET",
+      "url": "https://api.jotform.com/form/quoxprobe/submissions?limit=20&offset=1&orderby=quoxprobe&apiKey=QUOXSHAPEPROOFDUMMYAPIKEY",
+      "status": 404,
+      "latency_ms": 218,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "ab43ecbd8d3d9d163b42e4ef86eff5d4fe3e3fb2f4e3e6c3c5af2079a1dc7a26",
+      "body_excerpt": "{\"responseCode\":404,\"message\":\"Requested URL (\\/form\\/quoxprobe\\/submissions) is not available!\",\"content\":\"\",\"duration\":\"30.81ms\",\"info\":\"https:\\/\\/api.jotform.com\\/docs\"}",
+      "flags": {
+        "identifier_404_differential": true,
+        "error_code": "Requested URL (/form/quoxprobe/submissions) is not available!",
+        "control_error_code": "Requested URL (/quox-shapeproof-control-a8bc6c15) is not available!"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

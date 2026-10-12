@@ -1,0 +1,132 @@
+# ===========================================================================
+# Public-deploy override — TRUST-GATE-OPS readiness fix
+# ===========================================================================
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.public.yml up -d
+#
+# Requires Docker Compose >= 2.24 (this file uses the `!override` merge tag
+# to fully replace — not append to — the base `volumes:`/`ports:` lists
+# below). Verified against docker compose v5.1.3: `!reset` alone clears a
+# field to empty rather than substituting a new value, so `!override` is
+# the tag that actually re-declares the list. Check your version with
+# `docker compose version`.
+#
+# WHY THIS FILE EXISTS
+# ---------------------------------------------------------------------------
+# The base docker-compose.yml is tuned for the shared dev box (this machine)
+# where every session already has full filesystem trust. It is NOT safe to
+# run unmodified on a public-facing single-tenant box:
+#
+#   1. /var/run/docker.sock is mounted into auth, collector, and
+#      orchestrator. Docker socket access is ROOT-EQUIVALENT HOST TAKEOVER —
+#      any RCE in those services (chat tool execution, script sandboxing,
+#      self-update automation) lets an attacker spawn arbitrary privileged
+#      containers on the host. This is the single highest-severity item in
+#      the readiness audit.
+#   2. auth and collector bind-mount the entire /opt/quoxcore tree
+#      (read-write for auth's backup/restore feature, read-only for
+#      collector's git-scan feature). On a public box that directory does
+#      not contain the same trusted, single-operator content this dev
+#      machine has, and read-write host access from a container is its own
+#      takeover vector independent of docker.sock.
+#
+# The features that rely on these mounts (auth's in-container backup/restore
+# admin UI, collector's TOOLSMITH-SANDBOX docker-based script execution and
+# host git-scan) are DEV-ONLY until TOOLSMITH-SANDBOX-HARDEN /
+# POWERS-SANDBOX-HARDEN ship a docker-socket-proxy with an operation
+# allowlist (run/exec/inspect/rm only, no socket passthrough). Until then,
+# public boxes trade those features for not handing out host root.
+#
+# Backups on public boxes are instead produced by the HOST-level cron job
+# (scripts/backup-quox.sh run directly on the host, which has real docker
+# access outside any container boundary) — see
+# docs/PUBLIC_DEPLOY_RUNBOOK.md.
+#
+# orchestrator's entire job is `docker compose build/up` self-update
+# automation; removing its docker.sock access disables that automation on
+# public boxes until the same socket-proxy mediation ships. Deploys/updates
+# on public boxes are manual (see runbook) until then.
+#
+# quoxmcp must be checked out as a SIBLING directory (../quoxmcp) alongside
+# this repo for the collector mounts below to resolve — same requirement as
+# the existing ../quoxflow sibling checkout. On /opt/quoxcore deploys that
+# means /opt/quoxmcp must exist alongside /opt/quoxcore.
+# ===========================================================================
+
+services:
+  auth:
+    environment:
+      # G2d slice 3 — the SERVER-WIDE backup/restore lane.
+      #
+      # On a public box the engine runs HOST-side (see the note above: the
+      # container deliberately has no docker.sock and no /opt/quoxcore mount,
+      # so it cannot run backup-quox.sh itself). BACKUP_RUNNER_HOST names the
+      # registered dev server whose quoxagent holds dev.backup / dev.restore;
+      # auth then reaches it through the collector's governed dev-backup
+      # control plane rather than spawning anything locally.
+      #
+      # Leave it EMPTY and the server-wide lane 503s with the env name and a
+      # pointer to the runbook. That is the honest default: a box with no
+      # runner configured has no server-wide backups, and must say so rather
+      # than silently pretending the button works.
+      - BACKUP_RUNNER_HOST=${BACKUP_RUNNER_HOST:-}
+      # Where the archives are visible INSIDE this container. Same-path by
+      # default (see the mount below), so a host-produced archive_path
+      # resolves unchanged.
+      - BACKUP_ROOT=${BACKUP_ROOT:-/opt/quoxcore/backups}
+    volumes: !override
+      - auth-data:/var/lib/quox
+      # Read-only archive mount, SAME PATH inside and out — the same pattern
+      # the base compose already uses for this directory. Same-path is the
+      # simplest correct translation: the host-side engine records absolute
+      # host paths in its archives listing and its receipts, and a same-path
+      # mount keeps those strings valid in here without any rewriting.
+      # Read-only on purpose: this lane only ever DOWNLOADS an archive. The
+      # engine that writes them runs on the host, outside this container.
+      - ${BACKUP_ROOT:-/opt/quoxcore/backups}:${BACKUP_ROOT:-/opt/quoxcore/backups}:ro
+
+  collector:
+    ports: !override
+      - "127.0.0.1:${COLLECTOR_PORT:-9848}:9848"
+    volumes: !override
+      - collector-data:/var/lib/quox
+      - collector-claude:/home/quox/.claude
+      - ${SSH_KEYS_PATH:-./ssh-keys}:/tmp/ssh-keys:ro
+      - ./src/config/entities/tools:/app/entity-tools:ro
+      - ./src/config/entities/assistants:/app/entity-assistants:ro
+      # QSKL-12: hot-reload persona files — bind-mounted so edits on host
+      # are visible to the watcher + personaReader (no rebuild required)
+      - ./src/config/personas:/app/src/config/personas:ro
+      # REQUIRED: QuoxMCP for AI tool execution — sibling checkout
+      # (git clone git@github.com:quoxai/quoxmcp.git alongside this repo)
+      - ${QUOXMCP_DEPLOY_PATH:-../quoxmcp/deploy}:/app/quoxmcp-deploy:ro
+      - ${QUOXMCP_PATH:-../quoxmcp}:/app/quoxmcp:ro
+      # WARD receipt chain service (required by server.js ./ward/ imports)
+      - ./services/ward:/app/ward:ro
+      # QuoxCLI TUI — mounted for web terminal /cli
+      - ./cli:/app/cli:ro
+      # DELIBERATELY OMITTED vs base compose:
+      #   /opt/quoxcore:/opt/quoxcore:ro        (git-scan endpoint, dev-only)
+      #   /var/run/docker.sock:/var/run/docker.sock  (scriptExecutor sandbox-run, dev-only)
+      # See file header for rationale.
+
+  orchestrator:
+    environment:
+      # Base compose defaults this to unix:///var/run/docker.sock, which is
+      # now meaningless (the socket is no longer mounted below). Blank it
+      # out so no docker.sock reference survives into `config` output.
+      - DOCKER_HOST=
+    volumes: !override
+      - orchestrator-data:/app/data
+      # DELIBERATELY OMITTED vs base compose:
+      #   /var/run/docker.sock:/var/run/docker.sock
+      # orchestrator's self-update automation (docker compose build/up) is
+      # disabled on public boxes until docker-socket-proxy mediation ships.
+      # See file header for rationale.
+
+  dashboard:
+    # Public boxes should terminate TLS directly: set DASHBOARD_PORT=443 in
+    # .env so nginx serves HTTPS on the standard port instead of dev's 3000.
+    ports:
+      - "${DASHBOARD_PORT:-3000}:443"
+      - "80:80"

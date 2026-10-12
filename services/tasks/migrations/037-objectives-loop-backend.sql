@@ -1,0 +1,11 @@
+-- 037-objectives-loop-backend.sql — DEVSUITE-DEVMODE loop backend selection.
+--
+-- The quoxified loop is NOT claude-only: dev.sessions' structured spawn is
+-- already backend-parameterized (BackendClaude / BackendCodex, see quoxagent
+-- internal/plugins/dev/sessions/structured.go), so a loop objective records
+-- which backend drives its turns. Default 'claude' (the one whose stream-json
+-- transport is empirically verified, be9179d); 'codex' is a recognized
+-- first-class value whose exact input transport still needs verification
+-- against a real codex binary (dispatchLoopObjective fails loud for it rather
+-- than shipping fabricated input bytes).
+ALTER TABLE objectives ADD COLUMN loop_backend TEXT NOT NULL DEFAULT 'claude';

@@ -1,0 +1,65 @@
+{
+  "id": "software-dev",
+  "type": "team",
+  "version": "1.0.0",
+  "displayName": "Software Dev",
+  "description": "Development operations team — code generation, automated testing, CI/CD pipelines, security review, and code analysis for software projects.",
+  "author": "QUOX",
+  "tier": "free",
+  "price": 0,
+  "priceModel": "included",
+  "icon": "code",
+  "accentColor": "#34d399",
+
+  "orchestrator": {
+    "agentId": "forge",
+    "role": "orchestrator",
+    "domains": ["engineering coordination", "build management", "code review orchestration"]
+  },
+
+  "members": [
+    {
+      "agentId": "quoxcode",
+      "role": "specialist",
+      "domains": ["code generation", "shell scripting", "CLI operations"]
+    },
+    {
+      "agentId": "tester",
+      "role": "specialist",
+      "domains": ["test writing", "coverage analysis", "regression testing"]
+    },
+    {
+      "agentId": "nova",
+      "role": "specialist",
+      "domains": ["CI/CD pipelines", "deployment automation", "release management"]
+    },
+    {
+      "agentId": "sentinel",
+      "role": "analyst",
+      "domains": ["security scanning", "dependency audit", "vulnerability assessment"]
+    },
+    {
+      "agentId": "archivist",
+      "role": "specialist",
+      "domains": ["code review", "documentation generation", "change analysis"]
+    }
+  ],
+
+  "policies": {
+    "maxBudgetTokens": 350000,
+    "maxBudgetToolCalls": 140,
+    "maxDurationMs": 21600000,
+    "maxTaskDurationMs": 1200000,
+    "heartbeatIntervalMs": 15000,
+    "maxParallelTasks": 3,
+    "requireApprovalBeforeStart": true,
+    "checkpointAfterEachTask": false,
+    "voltRequired": true,
+    "allowedChannels": ["slack", "telegram", "discord", "email"]
+  },
+
+  "sharedContext": {
+    "persistent": true,
+    "schema": {}
+  }
+}

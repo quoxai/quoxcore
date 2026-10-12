@@ -1,0 +1,178 @@
+{
+  "spec_version": 1,
+  "id": "datadog",
+  "name": "Datadog",
+  "category": "monitoring",
+  "credentialType": "datadog",
+  "requiredFields": [
+    "api_key",
+    "app_key",
+    "site"
+  ],
+  "docs": "https://docs.datadoghq.com/api/",
+  "tools_source": "https://docs.datadoghq.com/api/latest/",
+  "base_url": "https://api.datadoghq.com",
+  "auth": {
+    "type": "header",
+    "header": "DD-API-KEY",
+    "template": "{{api_key}}"
+  },
+  "static_headers": {
+    "DD-APPLICATION-KEY": "{{app_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/validate"
+  },
+  "tools": [
+    {
+      "name": "list_monitors",
+      "description": "List Datadog monitors, optionally filtered by a monitor name substring",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Filter monitors whose name contains this string"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/monitor",
+        "query": {
+          "name": "{{input.name}}"
+        }
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_monitor",
+      "description": "Get a single Datadog monitor by its numeric monitor id",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "monitor_id": {
+            "type": "string",
+            "description": "Datadog monitor id"
+          }
+        },
+        "required": [
+          "monitor_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/monitor/{{input.monitor_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "type": "type",
+          "overall_state": "overall_state",
+          "query": "query"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_dashboards",
+      "description": "List Datadog dashboards available to the organization",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/dashboard"
+      },
+      "response": {
+        "pick": {
+          "dashboards[]": {
+            "id": "id",
+            "title": "title",
+            "url": "url"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_events",
+      "description": "List Datadog events in a time window (unix seconds)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "number",
+            "description": "Window start, POSIX timestamp in seconds"
+          },
+          "end": {
+            "type": "number",
+            "description": "Window end, POSIX timestamp in seconds"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/events",
+        "query": {
+          "start": "{{input.start}}",
+          "end": "{{input.end}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "events[]": {
+            "id": "id",
+            "title": "title",
+            "date_happened": "date_happened"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "validate_key",
+      "description": "Validate the configured Datadog API key",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/validate"
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T20:46:44.333Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url pinned to the US1 default https://api.datadoghq.com so the spec is blind-provable; the 'site' credential field (datadoghq.eu, us3, us5) is collected but NOT yet used, so EU and other-site orgs need a site-aware base_url in a future revision",
+      "multi_auth_headers: DD-API-KEY is the auth header, DD-APPLICATION-KEY rides in static_headers; both template from credentials",
+      "list_monitors returns a top-level JSON array, which Connector Spec v1 pick cannot address (pick sources are dotted keys on an object), so the raw array is returned with truncate only instead of picking id/name/type/overall_state/query",
+      "list_monitors has no native limit parameter in GET /api/v1/monitor, so no clamp is applied"
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

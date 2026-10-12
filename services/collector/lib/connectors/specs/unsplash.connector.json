@@ -1,0 +1,245 @@
+{
+  "spec_version": 1,
+  "id": "unsplash",
+  "name": "Unsplash",
+  "category": "media",
+  "credentialType": "unsplash",
+  "requiredFields": [
+    "access_key"
+  ],
+  "docs": "https://unsplash.com/documentation",
+  "base_url": "https://api.unsplash.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "Client-ID {{access_key}}"
+  },
+  "static_headers": {
+    "Accept-Version": "v1"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/photos",
+    "query": {
+      "per_page": "1"
+    }
+  },
+  "tools_source": "https://unsplash.com/documentation",
+  "tools": [
+    {
+      "name": "search_photos",
+      "description": "Search Unsplash photos by keyword and return matching results with attribution and image URLs",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search terms (e.g. 'mountain sunrise')"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number to retrieve (default 1)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 10, max 30)"
+          },
+          "orientation": {
+            "type": "string",
+            "enum": [
+              "landscape",
+              "portrait",
+              "squarish"
+            ],
+            "description": "Optional orientation filter"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/search/photos",
+        "query": {
+          "query": "{{input.query}}",
+          "page": "{{input.page}}",
+          "per_page": "{{clamp input.per_page 10 30}}",
+          "orientation": "{{input.orientation}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total": "total",
+          "total_pages": "total_pages",
+          "results[]": {
+            "id": "id",
+            "description": "description",
+            "alt_description": "alt_description",
+            "width": "width",
+            "height": "height",
+            "color": "color",
+            "likes": "likes",
+            "image_url": "urls.regular",
+            "page_url": "links.html",
+            "photographer": "user.name",
+            "photographer_username": "user.username"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_photo",
+      "description": "Get one Unsplash photo by its ID, including dimensions, attribution and image URLs",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "photo_id": {
+            "type": "string",
+            "description": "Unsplash photo ID (e.g. Dwu85P9SOIk)"
+          }
+        },
+        "required": [
+          "photo_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/photos/{{input.photo_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "created_at": "created_at",
+          "description": "description",
+          "alt_description": "alt_description",
+          "width": "width",
+          "height": "height",
+          "color": "color",
+          "likes": "likes",
+          "downloads": "downloads",
+          "image_url": "urls.regular",
+          "page_url": "links.html",
+          "photographer": "user.name",
+          "photographer_username": "user.username"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_photos",
+      "description": "List Unsplash editorial photos, newest first by default",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "description": "Page number to retrieve (default 1)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Photos per page (default 10, max 30)"
+          },
+          "order_by": {
+            "type": "string",
+            "enum": [
+              "latest",
+              "oldest",
+              "popular"
+            ],
+            "description": "Sort order (default latest)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/photos",
+        "query": {
+          "page": "{{input.page}}",
+          "per_page": "{{clamp input.per_page 10 30}}",
+          "order_by": "{{input.order_by}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "created_at": "created_at",
+            "description": "description",
+            "alt_description": "alt_description",
+            "width": "width",
+            "height": "height",
+            "color": "color",
+            "likes": "likes",
+            "image_url": "urls.regular",
+            "page_url": "links.html",
+            "photographer": "user.name"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_topics",
+      "description": "List Unsplash topics (curated photo collections) with their photo counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "description": "Page number to retrieve (default 1)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Topics per page (default 10, max 30)"
+          },
+          "order_by": {
+            "type": "string",
+            "enum": [
+              "featured",
+              "latest",
+              "oldest",
+              "position"
+            ],
+            "description": "Sort order (default position)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/topics",
+        "query": {
+          "page": "{{input.page}}",
+          "per_page": "{{clamp input.per_page 10 30}}",
+          "order_by": "{{input.order_by}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "slug": "slug",
+            "title": "title",
+            "description": "description",
+            "published_at": "published_at",
+            "status": "status",
+            "total_photos": "total_photos",
+            "page_url": "links.html"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

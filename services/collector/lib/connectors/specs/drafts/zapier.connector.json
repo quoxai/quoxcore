@@ -1,0 +1,41 @@
+{
+  "spec_version": 1,
+  "id": "zapier",
+  "name": "Zapier",
+  "category": "developer",
+  "credentialType": "zapier",
+  "requiredFields": [
+    "api_key"
+  ],
+  "description": "NO TOOLS AUTHORED, DO NOT PROMOTE: the REST surface this vault entry points at (Zapier NLA / AI Actions on actions.zapier.com) has been retired and now 301-redirects off-host to mcp.zapier.com, and the one live Zapier REST API requires an OAuth 2.0 access token rather than the single api_key the vault collects. Kept as an annotated draft so the dead surface is recorded rather than papered over.",
+  "docs": "https://docs.zapier.com/powered-by-zapier",
+  "base_url": "https://actions.zapier.com",
+  "auth": {
+    "type": "header",
+    "header": "x-api-key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/check/"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "OUTCOME: FAIL, NO TOOLS SHIPPED. The surface the vault entry names no longer exists, and the surface that does exist cannot be authenticated with the credential the vault holds. Every line below is a verbatim probe run on 2026-09-12 from this box, or a quote from Zapier's current documentation.",
+      "THE VAULT'S OWN TEST ENDPOINT IS GONE: integrationTypeRegistry.js key 'zapier' declares testEndpoint 'https://actions.zapier.com/api/v2/check/' with testHeaders (creds) => ({'x-api-key': creds.api_key}). Checked live: GET https://actions.zapier.com/api/v2/check/ returns 301 with Location: https://mcp.zapier.com/. So does the host root (GET https://actions.zapier.com/ -> 301 Location: https://mcp.zapier.com/), so does the old NLA path (GET https://actions.zapier.com/api/v1/exposed/ -> 301 Location: https://mcp.zapier.com/), and so does the docs URL the scaffold carried (GET https://actions.zapier.com/docs/platform/api -> 301 Location: https://mcp.zapier.com/). The whole actions.zapier.com API surface is a redirect to a product page. nla.zapier.com behaves identically (301 Location: https://mcp.zapier.com/). An off-host redirect is a FAIL in the shape-proof harness for exactly this reason.",
+      "THE REPLACEMENT IS MCP, NOT REST, SO IT IS NOT EXPRESSIBLE AS A CONNECTOR SPEC v1: GET https://mcp.zapier.com/api/mcp/mcp with a dummy bearer returns 401 {\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid authorization token\"}}. That is a JSON-RPC MCP transport on a per-user server URL, not a set of GET routes with pickable JSON payloads. Connector Spec v1 has no MCP transport, and the vault entry carries no per-user server URL field, so there is nothing to template a base_url from either.",
+      "THE ONE LIVE ZAPIER REST API DOES NOT ACCEPT AN API KEY: api.zapier.com/v1 is alive and answers a bearer token with a structured refusal, GET https://api.zapier.com/v1/profiles/me with a dummy bearer returns 401 {\"errors\":[{\"status\":\"401\",\"code\":\"unauthenticated\",\"title\":\"User Not Authenticated\",\"detail\":\"User must be authenticated to access this resource. The provided access token may be invalid or expired.\",\"meta\":{\"source\":\"ZAPIER\"}}]}, and GET https://api.zapier.com/v1/zaps answers identically. But the SAME call carrying the vault's credential shape instead, GET https://api.zapier.com/v1/profiles/me with header 'X-API-Key: <dummy>', returns 403 {\"detail\":\"Invalid token header. No credentials provided.\"} which is BYTE-IDENTICAL to the same request sent with no authentication header at all. The header the vault collects is ignored entirely: it is not an authentication method this API recognises.",
+      "ZAPIER'S DOCUMENTATION AGREES: https://docs.zapier.com/powered-by-zapier/authentication/getting-started.md says of the user access token, 'Most endpoints use OAuth 2.0 authentication with the authorization code grant type ... At the end of the Oauth authentication code flow, you'll get a User Access Token that you'll pass in a header with each API request', with an App Access Token for a small number of partner endpoints and a bare Client ID for a smaller number still. There is no documented personal access token or API key path onto api.zapier.com, so no spec over it can be honestly authored against requiredFields ['api_key'].",
+      "WHY THE SCAFFOLDED BLOCKS WERE LEFT IN PLACE: base_url, auth and test still describe the vault entry as it stands, wrong as it now is, so the proof artifact at lib/connectors/specs/proofs/zapier.proof.json records evidence against the target the platform actually points customers at. Silently repointing base_url at api.zapier.com and inventing oauth2_refresh credential fields (client_id, client_secret, refresh_token) that integrationTypeRegistry.js key 'zapier' does not collect would produce a spec that validates, probes green and can never authenticate for a single customer. category was corrected from 'productivity' to 'developer' (the 12-value connector taxonomy has no 'productivity'), and docs was repointed from the dead actions.zapier.com page to https://docs.zapier.com/powered-by-zapier, which returns 200. Nothing else was touched.",
+      "WHAT WOULD HAVE TO CHANGE FIRST (registry and OAuth work, out of scope for this task): either (a) rewrite integrationTypeRegistry.js key 'zapier' to collect client_id, client_secret and refresh_token and add a Zapier OAuth app, after which base_url https://api.zapier.com with auth {type: oauth2_refresh, token_url: Zapier's token endpoint} becomes authorable over the documented /v1 read routes; or (b) treat Zapier as an MCP server rather than a connector, which is a different integration shape owned by the MCP surface, not by the connector factory. Until one of those lands, this draft stays tool-less and the proof stays FAIL."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

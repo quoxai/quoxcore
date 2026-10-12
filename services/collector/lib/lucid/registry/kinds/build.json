@@ -1,0 +1,27 @@
+{
+  "kind": "build", "prefixes": ["build:"], "area": "builds", "derive": "build",
+  "attention_statuses": ["failed", "error"],
+  "variants": [
+    { "id": "last_failed", "when": { "is_last": "true", "status": ["failed", "error"] },
+      "urgency": [{ "is": "today" }],
+      "short": "{target} build failed",
+      "L0": "{target} build {status}",
+      "L1": { "who": "Build queue", "what": "{summary}", "why": "The build broke, so the change it carried is not live." },
+      "how": "Ask me to look at the build log.",
+      "measures": ["show_log", "retry_build", "investigate"] },
+    { "id": "last", "when": { "is_last": "true" },
+      "urgency": [{ "is": "fyi" }],
+      "short": "{target} build {status}",
+      "L0": "{target} build {status}",
+      "L1": { "who": "Build queue", "what": "{summary}", "why": "" },
+      "how": "Nothing to do.",
+      "measures": [] },
+    { "id": "queue",
+      "urgency": [{ "is": "fyi" }],
+      "short": "{summary|\"Build queue\"}",
+      "L0": "{summary|\"Build queue\"}",
+      "L1": { "who": "Build queue", "what": "{summary}", "why": "" },
+      "how": "Nothing to do.",
+      "measures": [] }
+  ]
+}

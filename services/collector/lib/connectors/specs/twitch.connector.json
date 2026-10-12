@@ -1,0 +1,227 @@
+{
+  "spec_version": 1,
+  "id": "twitch",
+  "name": "Twitch",
+  "category": "media",
+  "credentialType": "twitch",
+  "requiredFields": [
+    "client_id",
+    "client_secret"
+  ],
+  "docs": "https://dev.twitch.tv/docs/api/",
+  "base_url": "https://api.twitch.tv",
+  "auth": {
+    "type": "oauth2_client_credentials",
+    "token_url": "https://id.twitch.tv/oauth2/token",
+    "clientIdField": "client_id",
+    "clientSecretField": "client_secret",
+    "client_auth": "form"
+  },
+  "static_headers": {
+    "Client-Id": "{{client_id}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/helix/users"
+  },
+  "tools_source": "https://dev.twitch.tv/docs/api/reference/",
+  "tools": [
+    {
+      "name": "get_users",
+      "description": "Look up a Twitch user by login name (display name, account type, description, profile image)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "login": {
+            "type": "string",
+            "description": "Twitch login name, lowercase (e.g. twitchdev). Omit to return the user the credential belongs to."
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/helix/users",
+        "query": {
+          "login": "{{input.login}}"
+        }
+      },
+      "_probe": {
+        "input.login": "twitchdev"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "login": "login",
+            "display_name": "display_name",
+            "type": "type",
+            "broadcaster_type": "broadcaster_type",
+            "description": "description",
+            "profile_image_url": "profile_image_url",
+            "offline_image_url": "offline_image_url",
+            "created_at": "created_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_streams",
+      "description": "List Twitch streams that are live right now, most viewers first, optionally narrowed to one game or one channel",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_login": {
+            "type": "string",
+            "description": "Optional channel login name, to check whether that one channel is live (e.g. twitchdev)"
+          },
+          "game_id": {
+            "type": "string",
+            "description": "Optional Twitch game/category ID to filter by (get one from get_games)"
+          },
+          "first": {
+            "type": "number",
+            "description": "Streams to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/helix/streams",
+        "query": {
+          "user_login": "{{input.user_login}}",
+          "game_id": "{{input.game_id}}",
+          "first": "{{clamp input.first 20 100}}"
+        }
+      },
+      "_probe": {
+        "input.user_login": "twitchdev"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "user_id": "user_id",
+            "user_login": "user_login",
+            "user_name": "user_name",
+            "game_id": "game_id",
+            "game_name": "game_name",
+            "type": "type",
+            "title": "title",
+            "tags": "tags",
+            "viewer_count": "viewer_count",
+            "started_at": "started_at",
+            "language": "language",
+            "is_mature": "is_mature"
+          },
+          "cursor": "pagination.cursor"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_games",
+      "description": "Look up a Twitch game or category by exact name, returning its ID for use with get_streams",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Game or category name. Must be the exact name Twitch uses (e.g. Science & Technology), not a partial match."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/helix/games",
+        "query": {
+          "name": "{{input.name}}"
+        }
+      },
+      "_probe": {
+        "input.name": "Science & Technology"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "box_art_url": "box_art_url",
+            "igdb_id": "igdb_id"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_channel",
+      "description": "Get one Twitch channel's current information by broadcaster ID (stream title, category, language, tags)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "broadcaster_id": {
+            "type": "string",
+            "description": "Twitch user ID of the channel owner, numeric (get one from get_users, e.g. 141981764)"
+          }
+        },
+        "required": [
+          "broadcaster_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/helix/channels",
+        "query": {
+          "broadcaster_id": "{{input.broadcaster_id}}"
+        }
+      },
+      "_probe": {
+        "input.broadcaster_id": "141981764"
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "broadcaster_id": "broadcaster_id",
+            "broadcaster_login": "broadcaster_login",
+            "broadcaster_name": "broadcaster_name",
+            "broadcaster_language": "broadcaster_language",
+            "game_id": "game_id",
+            "game_name": "game_name",
+            "title": "title",
+            "delay": "delay",
+            "tags": "tags",
+            "is_branded_content": "is_branded_content"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "VAULT-SIDE BLOCKER NOW LIFTED, and the auth swap is applied: auth.type is 'oauth2_client_credentials' against token_url https://id.twitch.tv/oauth2/token, clientIdField client_id, clientSecretField client_secret, client_auth 'form'. Spec v1 supports the grant (specSchema.js AUTH_TYPES, declarativeRuntime.js getClientCredentialsToken, which caches the token for expires_in minus a buffer, single-flights concurrent calls and keys the cache per pooled instance so a minted token never crosses tenants). The vault half was unblocked by an ADDITIVE field: services/auth/config/integrationTypeRegistry.js 'twitch' now carries client_secret alongside client_id and access_token, and the generated copies (src/config/integrationTypes.js, services/auth/config/integration-types.export.json) were regenerated by scripts/sync-integration-types.mjs, which a drift test enforces. client_auth 'form' is correct for Twitch: its client-credentials docs put client_id and client_secret in the POST body, not in a Basic header.",
+      "the LIFECYCLE gap that made the earlier bearer shape unfit is now closed, which is the real gain here, not tidiness: the connector mints its own app access token per pooled instance and re-mints it when it expires, instead of relying on a token pasted into access_token that dies in about 60 days (app token) or about 4 hours (user token) with no renewal path. That is why this is worth promoting where the bearer version was not.",
+      "the new client_secret vault field is required:false ON PURPOSE, so the addition could not invalidate credentials already stored against this type. The consequence is honest and worth stating: a twitch credential saved before this change has no client_secret, so this CONNECTOR will throw 'missing credential field client_secret' on its first call until the user edits the vault entry and supplies one. The vault UI will not warn them, because the field is optional there. This is a draft, so nothing regresses today, but promotion needs that migration story decided.",
+      "the vault TEST path still exercises the LEGACY token field, and deliberately so: testEndpoint/testMethod/testHeaders for this type were left untouched, so the vault's live test still sends 'Authorization: Bearer <access_token>' plus Client-Id and proves only that a pasted access_token works. It does NOT exercise the client-credentials exchange this connector now uses, so a green vault test is not evidence this connector can authenticate. access_token therefore stays in the registry (existing stored credentials keep testing green) while it is NO LONGER in this spec's requiredFields. Modernising testHeaders to mint a token the way the connector does is a separate AUTH-SIDE decision, out of scope for this file, and until it is taken the two paths test different things.",
+      "Helix requires TWO credential headers on every single call, not one: Authorization: Bearer <token> AND Client-Id: <client id>, and the client id must be the one the token was minted for or Twitch answers 401. static_headers carries the Client-Id, credential-templated as {{client_id}}, so the runtime renders it per request from the vault entry, while the Authorization bearer now comes from the token exchange. Keeping this header was load-bearing through the auth swap: dropping access_token from requiredFields did not remove the need for client_id, and client_id stays in requiredFields precisely because BOTH the token exchange and this header need it. The pairing is self-consistent by construction now, since the token is minted from the same client_id the header sends, which the earlier pasted-token shape could not guarantee.",
+      "READ-ONLY by design: no tool is marked write:true. Helix has mutating endpoints (PATCH /helix/channels to change title or category, POST /helix/streams/markers, POST/DELETE /helix/channels/commercial and the moderation routes); none is modelled.",
+      "paths and every picked field name are taken from the official endpoint reference (Get Users, Get Streams, Get Games, Get Channel Information), NOT from a live 2xx: the shape-proof stops at 401, so no response body was ever data. A wrong pick source yields empty output silently, so the first run with a real credential must confirm them.",
+      "beyond the requested tool list: get_streams also exposes user_login, because the single most common use of this endpoint is 'is channel X live right now?' and without it the tool can only browse the global top streams. It is a documented optional query parameter on the same endpoint, no extra call.",
+      "get_games requires name here, though the API itself accepts id, name or igdb_id and answers 400 when all three are missing. Only exact names match (Twitch does not do partial matching on this endpoint), so a near-miss name returns an empty data array rather than an error, which reads as 'no such game' to a caller.",
+      "pagination is first-page-only: get_streams exposes the pagination cursor in its output but the 'after' and 'before' parameters are not modelled, so an agent can see that more pages exist and cannot fetch them. get_users, get_games and get_channel are single-lookup by design and need no pagination.",
+      "picked 'tags' is an array of strings and is picked whole. content_classification_labels is deliberately not picked (array of label objects, inflates the payload). view_count on Get Users is deliberately not picked: Twitch deprecated it and it now returns 0 for everyone, so surfacing it would assert a falsehood.",
+      "rateLimit 30/min is a local courtesy and spend guard chosen here; it is not Twitch's documented ceiling. Helix rate-limits with a token bucket (800 points per minute for an app access token by default) and returns the budget in Ratelimit-Limit / Ratelimit-Remaining / Ratelimit-Reset headers, which this spec does not read.",
+      "shape-proof re-run 2026-09-12 AFTER the auth swap, overall SHAPE_PROVEN, runner line verbatim: 'twitch  SHAPE_PROVEN  proven=5 authwall=0 ambiguous=0 failed=0 inconclusive=0 skipped=0'. The proof artifact now also carries the harness note 'oauth2_client_credentials auth: probed with a dummy bearer token; the token-acquisition flow is NOT proven by this run.', which is the honest limit of this evidence: the API surface is proven, the exchange with id.twitch.tv is not, and cannot be blind. All five real paths answer 401 with the structured body {\"error\":\"Unauthorized\",\"status\":401,\"message\":\"Invalid OAuth token\"} while the bogus control path answers 404 with an EMPTY body (sha256 e3b0c442..., the empty-string digest), so host, TLS, base_url, both credential headers and every route are proven distinct from the control: a wrong path falls through to the 404-with-no-body shape instead of reaching Helix's authenticated handler. What the proof does NOT cover: the token acquisition discussed above, whether the Client-Id and token actually pair up (only a real credential shows that), and no response body was ever data."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

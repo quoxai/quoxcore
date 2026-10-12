@@ -1,0 +1,90 @@
+{
+  "spec_id": "neon",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:19:41.243Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://console.neon.tech/quox-shapeproof-control-1b6405d1",
+      "status": 404,
+      "latency_ms": 1143,
+      "classification": "CONTROL",
+      "body_sha256": "cac34465e129f6eca7de28b1f3c17fbd482fdd5da2601f71c0033bfa75e06d99",
+      "body_excerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    \n<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':\n    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],\n  j=d.crea",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://console.neon.tech/api/v2/projects",
+      "status": 401,
+      "latency_ms": 368,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9e854e95fe16c25a196a025b9df2c361480e2559ece481cfc724076de123c062",
+      "body_excerpt": "{\"request_id\":\"040b84ae-15a1-4b4b-9931-04e3b848e9ec\",\"code\":\"\",\"message\":\"supplied credentials do not pass authentication\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "GET",
+      "url": "https://console.neon.tech/api/v2/projects?limit=20&search=quoxprobe",
+      "status": 401,
+      "latency_ms": 408,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7408789553c74c5773610277485f62f82374b787deb5045bda6f58996ae436f7",
+      "body_excerpt": "{\"request_id\":\"16a60b55-ed57-4c6d-bb2f-a0ed05406e90\",\"code\":\"\",\"message\":\"supplied credentials do not pass authentication\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_project",
+      "method": "GET",
+      "url": "https://console.neon.tech/api/v2/projects/quoxprobe",
+      "status": 401,
+      "latency_ms": 372,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "0a99693d9e503a13d6561a9bd77b1d459c2c4d0089b5cde7766ea73d901ddbce",
+      "body_excerpt": "{\"request_id\":\"7ac2d540-81e7-4c28-bfa6-b0a526155a5e\",\"code\":\"\",\"message\":\"supplied credentials do not pass authentication\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_branches",
+      "method": "GET",
+      "url": "https://console.neon.tech/api/v2/projects/quoxprobe/branches?limit=20&search=quoxprobe",
+      "status": 401,
+      "latency_ms": 417,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4358c728c51aa6b1689e66cb2a17a7260ab797f92ecfc3a1fc5ae52e20cdd9d3",
+      "body_excerpt": "{\"request_id\":\"dd783786-20ec-414e-bd10-ae342e7d36f6\",\"code\":\"\",\"message\":\"supplied credentials do not pass authentication\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_databases",
+      "method": "GET",
+      "url": "https://console.neon.tech/api/v2/projects/quoxprobe/branches/quoxprobe/databases",
+      "status": 401,
+      "latency_ms": 358,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "88d582b2828dd9f9103b52f18b0c53a15017f598c0bdc498c4efdf292bea86db",
+      "body_excerpt": "{\"request_id\":\"2958562d-ebaa-443b-953e-28ffa81d13fa\",\"code\":\"\",\"message\":\"supplied credentials do not pass authentication\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

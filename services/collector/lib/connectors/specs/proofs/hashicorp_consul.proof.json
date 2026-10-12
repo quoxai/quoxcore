@@ -1,0 +1,93 @@
+{
+  "spec_id": "hashicorp_consul",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T19:16:58.043Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/agent/self",
+      "status": 200,
+      "latency_ms": 294,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "9b08f5e2ca7701134367a18b09c03fc645b721a655dca1ae7172e9ae83647617",
+      "body_excerpt": "{\n    \"Config\": {\n        \"Datacenter\": \"dc1\",\n        \"PrimaryDatacenter\": \"dc1\",\n        \"NodeName\": \"4320299834ff\",\n        \"NodeID\": \"92de3363-dd47-1ccc-058f-cfb8d4f1453d\",\n        \"Revision\": \"a3",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "agent_self",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/agent/self",
+      "status": 200,
+      "latency_ms": 18,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "9b08f5e2ca7701134367a18b09c03fc645b721a655dca1ae7172e9ae83647617",
+      "body_excerpt": "{\n    \"Config\": {\n        \"Datacenter\": \"dc1\",\n        \"PrimaryDatacenter\": \"dc1\",\n        \"NodeName\": \"4320299834ff\",\n        \"NodeID\": \"92de3363-dd47-1ccc-058f-cfb8d4f1453d\",\n        \"Revision\": \"a3",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_services",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/catalog/services",
+      "status": 200,
+      "latency_ms": 18,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "ac7615419f4bf0051838b0abceef8401c5492d57c7fedb8db2ff25b8fd6a8237",
+      "body_excerpt": "{\n    \"consul\": []\n}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_nodes",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/catalog/nodes",
+      "status": 200,
+      "latency_ms": 16,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "6bf5c69be054f975d5d147ba9d345bc715e4baa3ace06e4f7d593393519e7f6d",
+      "body_excerpt": "[\n    {\n        \"ID\": \"92de3363-dd47-1ccc-058f-cfb8d4f1453d\",\n        \"Node\": \"4320299834ff\",\n        \"Address\": \"127.0.0.1\",\n        \"Datacenter\": \"dc1\",\n        \"TaggedAddresses\": null,\n        \"Met",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "health_service",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/health/service/consul",
+      "status": 200,
+      "latency_ms": 14,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "0904579aeac9645377b668924ef431c22458449d81c4d869c45ec4475d88d3af",
+      "body_excerpt": "[\n    {\n        \"Node\": {\n            \"ID\": \"92de3363-dd47-1ccc-058f-cfb8d4f1453d\",\n            \"Node\": \"4320299834ff\",\n            \"Address\": \"127.0.0.1\",\n            \"Datacenter\": \"dc1\",\n           ",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "kv_get",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/v1/kv/quoxproof-live",
+      "status": 200,
+      "latency_ms": 9,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "a3d207cc1d954a14da7f3df5a9c533b6916ae1669aa97cdf4fe644f36b3e960f",
+      "body_excerpt": "[\n    {\n        \"LockIndex\": 0,\n        \"Key\": \"quoxproof-live\",\n        \"Flags\": 0,\n        \"Value\": \"eyJwcm9vZiI6ICJsaXZlIn0=\",\n        \"CreateIndex\": 22,\n        \"ModifyIndex\": 22\n    }\n]",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:hashicorp/consul:1.20"
+}

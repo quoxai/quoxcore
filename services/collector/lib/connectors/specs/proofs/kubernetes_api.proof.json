@@ -1,0 +1,93 @@
+{
+  "spec_id": "kubernetes_api",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T19:57:26.995Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/namespaces",
+      "status": 200,
+      "latency_ms": 147,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "fcc322fdbbb192299e77acdde20767ea363a62a9e5715af7b4cb182ce6a6c305",
+      "body_excerpt": "{\"kind\":\"NamespaceList\",\"apiVersion\":\"v1\",\"metadata\":{\"resourceVersion\":\"766\"},\"items\":[{\"metadata\":{\"name\":\"default\",\"uid\":\"6b8c9f1c-58ee-4e21-8f1f-18b765dff13b\",\"resourceVersion\":\"67\",\"creationTimes",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "version",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/version",
+      "status": 200,
+      "latency_ms": 6,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "56b078441d44f39e04eeab7f4ced3c5573fcb1bcf2ede0484f0671edc0852b4c",
+      "body_excerpt": "{\n  \"major\": \"1\",\n  \"minor\": \"31\",\n  \"gitVersion\": \"v1.31.3+k3s1\",\n  \"gitCommit\": \"6e6af9885f20413c28da7ba15feac3774375e822\",\n  \"gitTreeState\": \"clean\",\n  \"buildDate\": \"2024-12-05T21:29:39Z\",\n  \"goVer",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_namespaces",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/namespaces?limit=20",
+      "status": 200,
+      "latency_ms": 8,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "cb7cf4534aee0f3bf3730aceccd38f2cdacc022530624fb372bbe43309c548cc",
+      "body_excerpt": "{\"kind\":\"NamespaceList\",\"apiVersion\":\"v1\",\"metadata\":{\"resourceVersion\":\"767\"},\"items\":[{\"metadata\":{\"name\":\"default\",\"uid\":\"6b8c9f1c-58ee-4e21-8f1f-18b765dff13b\",\"resourceVersion\":\"67\",\"creationTimes",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_pods",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/namespaces/default/pods?limit=20",
+      "status": 200,
+      "latency_ms": 8,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "3ad762e193af4888d697de15eb4bd40c2f8fc6689b94dffd9652bcb259d9d77d",
+      "body_excerpt": "{\"kind\":\"PodList\",\"apiVersion\":\"v1\",\"metadata\":{\"resourceVersion\":\"767\"},\"items\":[]}\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_nodes",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v1/nodes?limit=20",
+      "status": 200,
+      "latency_ms": 8,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "b62380e0244530b66186d222e1319dc18eb52aeb837d50119fc0b8fe44e85ec7",
+      "body_excerpt": "{\"kind\":\"NodeList\",\"apiVersion\":\"v1\",\"metadata\":{\"resourceVersion\":\"767\"},\"items\":[{\"metadata\":{\"name\":\"b4dd8a92d303\",\"uid\":\"360f40a7-cdcf-4efc-88cc-882e8de5d9fc\",\"resourceVersion\":\"676\",\"creationTime",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_deployments",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/apis/apps/v1/namespaces/default/deployments?limit=20",
+      "status": 200,
+      "latency_ms": 8,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "8998d40b1b135605f61cfcac14bff98e60eeb0411afb303bf4ca24a50b755c25",
+      "body_excerpt": "{\"kind\":\"DeploymentList\",\"apiVersion\":\"apps/v1\",\"metadata\":{\"resourceVersion\":\"767\"},\"items\":[]}\n",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:rancher/k3s:v1.31.3-k3s1"
+}

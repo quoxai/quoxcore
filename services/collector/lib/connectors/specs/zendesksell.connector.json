@@ -1,0 +1,596 @@
+{
+  "spec_version": 1,
+  "id": "zendesksell",
+  "name": "Zendesk Sell",
+  "category": "crm_sales",
+  "credentialType": "zendesk_sell",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://developer.zendesk.com/api-reference/sales-crm/introduction/",
+  "base_url": "https://api.getbase.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/users/self"
+  },
+  "tools_source": "https://developer.zendesk.com/api-reference/sales-crm/resources/introduction/",
+  "tools": [
+    {
+      "name": "get_current_user",
+      "description": "Get the Zendesk Sell user the access token belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/users/self"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "name": "data.name",
+          "email": "data.email",
+          "status": "data.status",
+          "role": "data.role",
+          "confirmed_at": "data.confirmed_at",
+          "created_at": "data.created_at"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_users",
+      "description": "List Zendesk Sell users on the account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number, 1-based"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/users",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "data.id",
+            "name": "data.name",
+            "email": "data.email",
+            "status": "data.status",
+            "role": "data.role",
+            "created_at": "data.created_at"
+          },
+          "count": "meta.count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_contacts",
+      "description": "List Zendesk Sell contacts, optionally filtered by name, email or person/organization type",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number, 1-based"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional exact contact name to filter by"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional exact email address to filter by"
+          },
+          "is_organization": {
+            "type": "boolean",
+            "description": "Optional: true returns only organizations, false only people"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/contacts",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}",
+          "name": "{{input.name}}",
+          "email": "{{input.email}}",
+          "is_organization": "{{input.is_organization}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "data.id",
+            "name": "data.name",
+            "first_name": "data.first_name",
+            "last_name": "data.last_name",
+            "is_organization": "data.is_organization",
+            "email": "data.email",
+            "phone": "data.phone",
+            "title": "data.title",
+            "owner_id": "data.owner_id",
+            "created_at": "data.created_at"
+          },
+          "count": "meta.count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_contact",
+      "description": "Get one Zendesk Sell contact by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "number",
+            "description": "Zendesk Sell contact ID"
+          }
+        },
+        "required": [
+          "contact_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/contacts/{{input.contact_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "name": "data.name",
+          "first_name": "data.first_name",
+          "last_name": "data.last_name",
+          "is_organization": "data.is_organization",
+          "email": "data.email",
+          "phone": "data.phone",
+          "title": "data.title",
+          "industry": "data.industry",
+          "website": "data.website",
+          "owner_id": "data.owner_id",
+          "tags": "data.tags",
+          "created_at": "data.created_at"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_deals",
+      "description": "List Zendesk Sell deals, optionally filtered by contact, stage or hot flag",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number, 1-based"
+          },
+          "contact_id": {
+            "type": "number",
+            "description": "Optional contact ID to filter deals by"
+          },
+          "stage_id": {
+            "type": "number",
+            "description": "Optional pipeline stage ID to filter by"
+          },
+          "hot": {
+            "type": "boolean",
+            "description": "Optional: true returns only deals flagged hot"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/deals",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}",
+          "contact_id": "{{input.contact_id}}",
+          "stage_id": "{{input.stage_id}}",
+          "hot": "{{input.hot}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "data.id",
+            "name": "data.name",
+            "value": "data.value",
+            "currency": "data.currency",
+            "hot": "data.hot",
+            "stage_id": "data.stage_id",
+            "contact_id": "data.contact_id",
+            "owner_id": "data.owner_id",
+            "created_at": "data.created_at",
+            "last_stage_change_at": "data.last_stage_change_at"
+          },
+          "count": "meta.count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_deal",
+      "description": "Get one Zendesk Sell deal by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "deal_id": {
+            "type": "number",
+            "description": "Zendesk Sell deal ID"
+          }
+        },
+        "required": [
+          "deal_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/deals/{{input.deal_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "name": "data.name",
+          "value": "data.value",
+          "currency": "data.currency",
+          "hot": "data.hot",
+          "stage_id": "data.stage_id",
+          "contact_id": "data.contact_id",
+          "owner_id": "data.owner_id",
+          "source_id": "data.source_id",
+          "loss_reason_id": "data.loss_reason_id",
+          "tags": "data.tags",
+          "created_at": "data.created_at",
+          "last_stage_change_at": "data.last_stage_change_at"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_leads",
+      "description": "List Zendesk Sell leads, optionally filtered by email or status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number, 1-based"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional exact email address to filter by"
+          },
+          "status": {
+            "type": "string",
+            "description": "Optional lead status name to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/leads",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}",
+          "email": "{{input.email}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "data.id",
+            "first_name": "data.first_name",
+            "last_name": "data.last_name",
+            "organization_name": "data.organization_name",
+            "status": "data.status",
+            "email": "data.email",
+            "phone": "data.phone",
+            "owner_id": "data.owner_id",
+            "source_id": "data.source_id",
+            "created_at": "data.created_at"
+          },
+          "count": "meta.count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_pipelines",
+      "description": "List Zendesk Sell sales pipelines",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/pipelines",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "data.id",
+            "name": "data.name",
+            "disabled": "data.disabled",
+            "created_at": "data.created_at"
+          },
+          "count": "meta.count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_stages",
+      "description": "List Zendesk Sell pipeline stages, optionally for one pipeline",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 20, max 100)"
+          },
+          "pipeline_id": {
+            "type": "number",
+            "description": "Optional pipeline ID to list the stages of"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/stages",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "pipeline_id": "{{input.pipeline_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "data.id",
+            "name": "data.name",
+            "category": "data.category",
+            "position": "data.position",
+            "likelihood": "data.likelihood",
+            "pipeline_id": "data.pipeline_id"
+          },
+          "count": "meta.count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_tasks",
+      "description": "List Zendesk Sell tasks, optionally filtered by completion or the resource they hang off",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number, 1-based"
+          },
+          "completed": {
+            "type": "boolean",
+            "description": "Optional: true returns only completed tasks"
+          },
+          "resource_type": {
+            "type": "string",
+            "enum": [
+              "lead",
+              "contact",
+              "deal"
+            ],
+            "description": "Optional resource type the task belongs to"
+          },
+          "resource_id": {
+            "type": "number",
+            "description": "Optional resource ID the task belongs to"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/tasks",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}",
+          "completed": "{{input.completed}}",
+          "resource_type": "{{input.resource_type}}",
+          "resource_id": "{{input.resource_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "data.id",
+            "content": "data.content",
+            "due_date": "data.due_date",
+            "completed": "data.completed",
+            "completed_at": "data.completed_at",
+            "owner_id": "data.owner_id",
+            "resource_type": "data.resource_type",
+            "resource_id": "data.resource_id"
+          },
+          "count": "meta.count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_notes",
+      "description": "List Zendesk Sell notes, optionally filtered by the resource they hang off or a search term",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number, 1-based"
+          },
+          "resource_type": {
+            "type": "string",
+            "enum": [
+              "lead",
+              "contact",
+              "deal"
+            ],
+            "description": "Optional resource type the note belongs to"
+          },
+          "resource_id": {
+            "type": "number",
+            "description": "Optional resource ID the note belongs to"
+          },
+          "q": {
+            "type": "string",
+            "description": "Optional search term matched against note content"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/notes",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "page": "{{input.page}}",
+          "resource_type": "{{input.resource_type}}",
+          "resource_id": "{{input.resource_id}}",
+          "q": "{{input.q}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "data.id",
+            "content": "data.content",
+            "resource_type": "data.resource_type",
+            "resource_id": "data.resource_id",
+            "creator_id": "data.creator_id",
+            "created_at": "data.created_at"
+          },
+          "count": "meta.count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_lead_sources",
+      "description": "List Zendesk Sell lead sources",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/lead_sources",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "data.id",
+            "name": "data.name",
+            "resource_type": "data.resource_type"
+          },
+          "count": "meta.count"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_loss_reasons",
+      "description": "List Zendesk Sell deal loss reasons",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Results per page (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/loss_reasons",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "data.id",
+            "name": "data.name",
+            "created_at": "data.created_at"
+          },
+          "count": "meta.count"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "renamed from 'zendesk_sell' to 'zendesksell': the registered 'zendesk' connector owns the 'zendesk_' tool-name prefix, so a 'zendesk_sell' spec id would prefix-route its tools to zendesk. credentialType keeps the vault's 'zendesk_sell' id."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

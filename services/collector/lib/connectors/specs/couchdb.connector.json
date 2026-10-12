@@ -1,0 +1,271 @@
+{
+  "spec_version": 1,
+  "id": "couchdb",
+  "name": "CouchDB",
+  "category": "data_ai",
+  "credentialType": "couchdb",
+  "requiredFields": [
+    "base_url",
+    "username",
+    "password"
+  ],
+  "docs": "https://docs.couchdb.org/",
+  "tools_source": "https://docs.couchdb.org/en/stable/api/index.html",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "username",
+    "passField": "password"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/_session"
+  },
+  "tools": [
+    {
+      "name": "server_info",
+      "description": "Get the CouchDB server welcome document: version, git sha, instance uuid, enabled features and vendor",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/"
+      },
+      "response": {
+        "pick": {
+          "couchdb": "couchdb",
+          "version": "version",
+          "git_sha": "git_sha",
+          "uuid": "uuid",
+          "features": "features",
+          "vendor_name": "vendor.name"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "whoami",
+      "description": "Get the CouchDB session for the configured credentials: the authenticated user name, its roles and the handlers the server offers",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/_session"
+      },
+      "response": {
+        "pick": {
+          "ok": "ok",
+          "name": "userCtx.name",
+          "roles": "userCtx.roles",
+          "authenticated": "info.authenticated",
+          "authentication_db": "info.authentication_db",
+          "authentication_handlers": "info.authentication_handlers"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_databases",
+      "description": "List the database names on the CouchDB server",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max database names to return (default 20, max 100)"
+          },
+          "skip": {
+            "type": "number",
+            "description": "Optional number of database names to skip before returning results"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/_all_dbs",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "skip": "{{input.skip}}"
+        }
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "get_database",
+      "description": "Get one CouchDB database's document counts, update sequence, on-disk sizes and cluster parameters",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "db": {
+            "type": "string",
+            "description": "Database name as returned by list_databases"
+          }
+        },
+        "required": [
+          "db"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/{{input.db}}"
+      },
+      "response": {
+        "pick": {
+          "db_name": "db_name",
+          "doc_count": "doc_count",
+          "doc_del_count": "doc_del_count",
+          "update_seq": "update_seq",
+          "purge_seq": "purge_seq",
+          "compact_running": "compact_running",
+          "disk_format_version": "disk_format_version",
+          "size_file": "sizes.file",
+          "size_active": "sizes.active",
+          "size_external": "sizes.external",
+          "cluster_q": "cluster.q",
+          "cluster_n": "cluster.n",
+          "cluster_r": "cluster.r",
+          "cluster_w": "cluster.w"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.db": "quoxproof-live"
+      }
+    },
+    {
+      "name": "list_docs",
+      "description": "List document ids and revisions in one CouchDB database, without fetching document bodies",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "db": {
+            "type": "string",
+            "description": "Database name as returned by list_databases"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max documents to return (default 20, max 100)"
+          },
+          "skip": {
+            "type": "number",
+            "description": "Optional number of documents to skip before returning results"
+          },
+          "descending": {
+            "type": "boolean",
+            "description": "Return the ids in descending key order"
+          }
+        },
+        "required": [
+          "db"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/{{input.db}}/_all_docs",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "skip": "{{input.skip}}",
+          "descending": "{{input.descending}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total_rows": "total_rows",
+          "offset": "offset",
+          "rows[]": {
+            "id": "id",
+            "key": "key",
+            "rev": "value.rev",
+            "deleted": "value.deleted"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.db": "quoxproof-live"
+      }
+    },
+    {
+      "name": "get_changes",
+      "description": "Get the recent changes feed for one CouchDB database: changed document ids, their sequences and the current last sequence",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "db": {
+            "type": "string",
+            "description": "Database name as returned by list_databases"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max changes to return (default 20, max 100)"
+          },
+          "descending": {
+            "type": "boolean",
+            "description": "Return the newest changes first"
+          }
+        },
+        "required": [
+          "db"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/{{input.db}}/_changes",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "descending": "{{input.descending}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "last_seq": "last_seq",
+          "pending": "pending",
+          "results[]": {
+            "id": "id",
+            "seq": "seq",
+            "deleted": "deleted"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.db": "quoxproof-live"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "CouchDB is customer-hosted, so base_url comes from the credential and nothing here is provable against a vendor-run endpoint. Every tool is GET-only and the spec stays unproven until the live harness runs it against a real ephemeral container",
+      "GET /_all_dbs requires a server admin in CouchDB 3.x, so list_databases answers 401 for a database-scoped user even though whoami and get_database succeed for that same user. Documented, not fixable in the spec",
+      "list_databases returns a top-level array of STRINGS, which response.pick cannot address (a root-array pick maps sub-picks over objects). It therefore ships with truncate only and no pick, so the whole array reaches the caller",
+      "get_changes uses the default feed=normal. The continuous and longpoll feeds stream and would hold the 15s runtime request open, so they are deliberately not exposed",
+      "_changes and _all_docs both answer 200 on an empty database (empty results plus a last_seq or total_rows 0), which is the expected fresh-instance result",
+      "Single-document reads (GET /{db}/{docid}) are not wired: a fresh instance is not guaranteed to hold any document, so the tool could not carry a resolvable _probe",
+      "The _probe database name is quoxproof-live, which the live provisioner creates. On a server without it, get_database, list_docs and get_changes answer 404"
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

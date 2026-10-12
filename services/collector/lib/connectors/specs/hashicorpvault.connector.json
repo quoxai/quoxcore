@@ -1,0 +1,188 @@
+{
+  "spec_version": 1,
+  "id": "hashicorpvault",
+  "name": "HashiCorp Vault",
+  "category": "cloud_hosting",
+  "credentialType": "vault",
+  "requiredFields": [
+    "address",
+    "token"
+  ],
+  "docs": "https://developer.hashicorp.com/vault/api-docs",
+  "tools_source": "https://developer.hashicorp.com/vault/api-docs/system",
+  "description": "Self-hosted HashiCorp Vault reads: instance health, seal status, the mounted secrets engines, one KV v2 secret by path, and the configured ACL policy names. Read-only; every unseal, mount, policy write, token mint and secret write endpoint on the same API is deliberately absent.",
+  "base_url": {
+    "fromCredential": "address"
+  },
+  "auth": {
+    "type": "header",
+    "header": "X-Vault-Token",
+    "template": "{{token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/sys/health"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "health",
+      "description": "Check the health of the Vault instance this credential points at: initialised, sealed, standby and replication state plus version",
+      "request": {
+        "method": "GET",
+        "path": "/v1/sys/health"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "initialized": "initialized",
+          "sealed": "sealed",
+          "standby": "standby",
+          "performance_standby": "performance_standby",
+          "replication_performance_mode": "replication_performance_mode",
+          "replication_dr_mode": "replication_dr_mode",
+          "server_time_utc": "server_time_utc",
+          "version": "version",
+          "cluster_name": "cluster_name",
+          "cluster_id": "cluster_id"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "seal_status",
+      "description": "Get the seal status of the Vault instance: whether it is sealed, the unseal threshold and share count, and how far an in-progress unseal has got",
+      "request": {
+        "method": "GET",
+        "path": "/v1/sys/seal-status"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "type": "type",
+          "initialized": "initialized",
+          "sealed": "sealed",
+          "threshold": "t",
+          "shares": "n",
+          "progress": "progress",
+          "storage_type": "storage_type",
+          "version": "version",
+          "build_date": "build_date",
+          "migration": "migration",
+          "recovery_seal": "recovery_seal",
+          "cluster_name": "cluster_name",
+          "cluster_id": "cluster_id"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_mounts",
+      "description": "List the secrets engines mounted on this Vault instance, with each mount's type, description and options",
+      "request": {
+        "method": "GET",
+        "path": "/v1/sys/mounts"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "read_kv",
+      "description": "Read one secret from the KV version 2 engine mounted at secret/, by its path. Returns the secret's key/value data and its version metadata",
+      "request": {
+        "method": "GET",
+        "path": "/v1/secret/data/{{input.path}}"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Secret path inside the secret/ KV v2 mount, without the mount or the data/ segment (e.g. app/db-password)"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "response": {
+        "pick": {
+          "data": "data.data",
+          "version": "data.metadata.version",
+          "created_time": "data.metadata.created_time",
+          "deletion_time": "data.metadata.deletion_time",
+          "destroyed": "data.metadata.destroyed",
+          "custom_metadata": "data.metadata.custom_metadata"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.path": "quoxproof-live"
+      }
+    },
+    {
+      "name": "list_policies",
+      "description": "List the names of the ACL policies configured on this Vault instance. Names only; no policy document is returned",
+      "request": {
+        "method": "GET",
+        "path": "/v1/sys/policies/acl",
+        "query": {
+          "list": "true"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, AND THE DOCS SAY THE SAME THING: Vault's HTTP API authenticates with the client token in the X-Vault-Token request header (https://developer.hashicorp.com/vault/api-docs, 'Authentication'), so {type: header, header: X-Vault-Token, template: '{{token}}'} is unchanged. The vault entry (integrationTypeRegistry.vault) sends the identical header in testHeaders and its testEndpoint is address + /v1/sys/health, which is this spec's test block verbatim.",
+      "THE SCAFFOLD FLAGGED 'auth_field_optional_in_registry:token' AND THAT FLAG IS REAL BUT NOT FIXABLE HERE: the registry marks token required:false because it also accepts AppRole (role_id + secret_id) and its validateCredentials passes when either the token OR both AppRole fields are present. Spec v1 has no auth type for a two-step AppRole login (POST /v1/auth/approle/login, then use the returned client token), so this spec covers the TOKEN path only and lists token in requiredFields. An AppRole-only credential will not authenticate through this connector; supporting it needs a new auth type, not a spec edit.",
+      "ADDRESS IS CUSTOMER-SUPPLIED, SO NOTHING HERE IS PROVABLE BLIND: Vault is self-hosted, base_url comes from the credential ({fromCredential: 'address'}), and there is no vendor-run host to shape-prove against. This spec is NOT SHAPE_PROVEN by a blind 401 sweep; it is marked for the live harness, which stands up an ephemeral Vault container and drives every tool against it.",
+      "CATEGORY: the scaffold wrote 'uncategorized', which is not one of the twelve values in use across this spec directory (cloud_hosting, commerce_finance, communication, crm_sales, data_ai, developer, files_knowledge, hr_hiring, marketing_email, media, monitoring, project_management). Changed to 'cloud_hosting', which is where the other platform and identity control planes already sit (terraform, okta, cloudflarezerotrust). The vault entry has no category field for Vault; its sibling hashicorp_consul says 'security', which is not a spec-directory value.",
+      "PROBES RESOLVE ON A FRESH INSTANCE, BY CONSTRUCTION: health, seal_status, list_mounts and list_policies need no resource at all and carry an empty _probe. read_kv is the only tool needing an existing resource, and it probes path='quoxproof-live', the exact name the live provisioner writes into the secret/ KV v2 mount. A dev-mode Vault mounts KV v2 at secret/ and issues a root token, so list_mounts and list_policies (which need read on sys/mounts and sys/policies/acl) answer for the provisioned token; a production token scoped narrower will 403 on those two, which is a permission fact about the customer's token, not a spec defect.",
+      "read_kv RETURNS SECRET MATERIAL, BY DESIGN, AND IT IS THE ONLY TOOL THAT DOES: the whole point of a Vault read tool is the value at the path, so response.pick carries data.data. It is a GET against the customer's own Vault using the customer's own token, and the truncate of 2000 applies to the rendered result. Nothing here reads a credential belonging to another org, and no tool enumerates secret paths: reading requires the caller to already know the path.",
+      "TWO TOOLS OMIT response.pick DELIBERATELY, BECAUSE THEIR PAYLOADS ARE NOT FIXED-SHAPE: GET /v1/sys/mounts answers with a map keyed by MOUNT PATH (secret/, sys/, cubbyhole/, plus whatever the customer mounted), so there is no static dotted source to pick; 21 other tools across this directory take the same truncate-only route for dynamic payloads. list_policies is omitted for a different reason: Vault documents the operation as LIST /sys/policies/acl and returns the names under data.keys, but several sys endpoints ALSO mirror their fields at the top level, and which shape a given version emits is exactly what the live harness must settle before a pick can claim it.",
+      "list_policies USES GET WITH list=true RATHER THAN THE LIST VERB: Vault's API docs state that any endpoint supporting the LIST verb can be reached with GET plus the query parameter list=true, which is how LIST travels over proxies that reject the custom verb. The connector spec's HTTP methods and this connector's read-only rule both point the same way, so the GET form is used. The live harness is what confirms a real instance answers it.",
+      "NO CLAMPS: none of these five endpoints takes a limit, page or per_page parameter (Vault sys reads and a KV v2 read are single-shot), so there is nothing to clamp. rateLimit {windowMs: 60000, max: 30} is the directory default and is the only throttle here.",
+      "READ-ONLY BY CONSTRUCTION, AND THE OMISSIONS ARE THE POINT: all five tools are GETs. The same API exposes PUT on /v1/sys/unseal and /v1/sys/seal, PUT/DELETE on /v1/sys/mounts/{path}, PUT/DELETE on /v1/sys/policies/acl/{name}, POST/DELETE on KV v2 secrets, and the whole token and auth-method surface (/v1/auth/token/create). None is wired here. Nothing in this connector may be described as managing a Vault instance.",
+      "NAMESPACE: THE CONNECTOR ID 'vault' SHARES A PREFIX WITH FOUR EXISTING STATIC AGENT TOOLS AND THAT IS NOT RESOLVED HERE. lib/agentTools.js defines vault_list, vault_test, vault_types and vault_connect_guide (the org credential-vault tools, nothing to do with HashiCorp Vault), and registry.validateConnectorNamespace flags any static tool whose name starts with '<connectorId>_' as shadowed by the connector bridge. None of this spec's five routed names (vault_health, vault_seal_status, vault_list_mounts, vault_read_kv, vault_list_policies) is an EXACT duplicate of those four, so validateSpec's staticToolNames check is clean, but the PREFIX shadowing is a registry-wide decision (rename the connector id, rename the static tools, or pin the collisions the way test/connectorNamespace.test.js pins the pre-existing six) and is reported upward rather than decided in this file.",
+      "id renamed vault to hashicorpvault 2026-09-12: connector id vault prefix-shadows the Quox Vault product's own static agent tools (vault_list/test/types/connect_guide); credentialType keeps the vault-type mapping."
+    ]
+  }
+}

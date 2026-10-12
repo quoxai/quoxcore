@@ -1,0 +1,36 @@
+{
+  "id": "grafana",
+  "name": "grafana",
+  "displayName": "Grafana",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "starter",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "monitoring",
+  "accentColor": "#f46800",
+  "description": "The standalone Grafana page: browse and embed your dashboards, view alert rules and jump straight to any panel. The Grafana embed and alert badge on NOC stay free and core.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/monitoring/grafana",
+      "label": "Grafana",
+      "icon": "grafana",
+      "minRole": "builder"
+    }
+  ],
+  "routes": {
+    "/monitoring/grafana": "GrafanaView"
+  },
+  "routeGuards": {
+    "/monitoring/grafana": {
+      "minRole": "builder"
+    }
+  },
+  "minQuoxVersion": "1.0.0"
+}

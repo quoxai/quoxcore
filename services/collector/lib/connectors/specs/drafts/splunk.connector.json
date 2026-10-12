@@ -1,0 +1,30 @@
+{
+  "spec_version": 1,
+  "id": "splunk",
+  "name": "Splunk",
+  "category": "monitoring",
+  "credentialType": "splunk",
+  "requiredFields": [
+    "base_url",
+    "token"
+  ],
+  "docs": "https://docs.splunk.com/Documentation/Splunk/latest/RESTREF/RESTprolog",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/services/authentication/current-context"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

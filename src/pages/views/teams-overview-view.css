@@ -1,0 +1,433 @@
+/* TeamsOverviewView — glass pass (2026-04-16)
+ *
+ * Extracts ~60 inline style blocks from TeamCard + outer layout + stats
+ * header into proper classes. All overrides scoped to .teams-overview-view
+ * to avoid collateral on other PageSection consumers.
+ */
+
+@keyframes monitoring-dot-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+
+/* Hide breadcrumbs + kill parent scroll so the glass card owns the chrome */
+.app-shell__content:has(.teams-overview-view) .breadcrumbs { display: none; }
+
+/* PageSection injects extra padding around children — collapse it */
+.page-section.teams-overview-view > .page-section-body,
+.page-section.teams-overview-view .page-section-body {
+  padding: 0;
+}
+.page-section.teams-overview-view {
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+.page-section.teams-overview-view > .page-section-header {
+  display: none;
+}
+
+/* ═══════════════════════════════════════ Outer glass shell */
+.teams-overview-view__body {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  padding: 20px 22px;
+  gap: 0;
+  background: var(--m-bg-base, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--m-border-default, rgba(255, 255, 255, 0.18));
+  border-radius: var(--qx-radius, 20px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.teams-overview-view__body::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--qx-edges);
+  backdrop-filter: var(--qx-blur);
+  -webkit-backdrop-filter: var(--qx-blur);
+}
+
+.teams-overview-view__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-right: 16px;
+}
+
+/* ═══════════════════════════════════════ Stats header bar */
+.tov-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+}
+
+.tov-stats {
+  display: flex;
+  gap: 36px;
+}
+
+.tov-stat__label {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.tov-stat__value {
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tov-stat__value--active { color: #10b981; }
+
+.tov-stat__divider {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.tov-stats-empty {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 13px;
+}
+
+.tov-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ═══════════════════════════════════════ Buttons */
+.tov-btn-prism {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.tov-btn-prism:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.tov-btn-prism--active {
+  background: rgba(139, 92, 246, 0.18);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #a78bfa;
+}
+
+.tov-btn-create {
+  padding: 10px 22px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  border: 1px solid rgba(139, 92, 246, 0.6);
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 4px 14px rgba(139, 92, 246, 0.32);
+}
+.tov-btn-create:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 6px 20px rgba(139, 92, 246, 0.45);
+}
+
+/* ═══════════════════════════════════════ Loading / empty / error states */
+.tov-loading {
+  padding: 60px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.72);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.tov-error {
+  padding: 14px 18px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.32);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.92);
+  margin-bottom: 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.tov-empty {
+  padding: 80px 40px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.68);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+}
+.tov-empty__icon {
+  opacity: 0.38;
+  display: block;
+  margin: 0 auto 16px;
+}
+.tov-empty__title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #fff;
+}
+.tov-empty__text {
+  font-size: 13px;
+  margin-bottom: 16px;
+  max-width: 440px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.55;
+}
+.tov-empty__btn {
+  padding: 9px 20px;
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.18);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  color: #c4b5fd;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.tov-empty__btn:hover {
+  background: rgba(139, 92, 246, 0.28);
+  border-color: rgba(139, 92, 246, 0.6);
+}
+
+/* ═══════════════════════════════════════ Teams grid */
+.tov-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 20px;
+}
+
+/* ═══════════════════════════════════════ Team card */
+.tov-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s, background 0.2s;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+  text-align: left;
+  width: 100%;
+}
+
+.tov-card:hover,
+.tov-card:focus-visible {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--team-accent, #3b82f6);
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 10px 28px color-mix(in srgb, var(--team-accent, #3b82f6) 18%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--team-accent, #3b82f6) 30%, transparent);
+  outline: none;
+}
+
+.tov-card__topology-map {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  opacity: 0.5;
+}
+
+.tov-card__accent {
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--team-accent, #3b82f6) 0%, color-mix(in srgb, var(--team-accent, #3b82f6) 25%, transparent) 100%);
+}
+
+.tov-card__header {
+  padding: 22px 24px 18px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--team-accent, #3b82f6) 10%, transparent) 0%, transparent 50%);
+}
+
+.tov-card__header-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.tov-card__icon-box {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--team-accent, #3b82f6) 14%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--team-accent, #3b82f6) 38%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.tov-card__name {
+  color: #fff;
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1.3;
+  margin-bottom: 6px;
+}
+
+.tov-card__health-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #71717a;
+  flex-shrink: 0;
+  margin-bottom: 8px;
+}
+.tov-card--active .tov-card__health-dot {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.55);
+  animation: monitoring-dot-breathe 3s ease-in-out infinite;
+}
+
+.tov-card__badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tov-card__builtin {
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.tov-card__led-by {
+  color: var(--team-accent, #3b82f6);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--team-accent, #3b82f6) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--team-accent, #3b82f6) 32%, transparent);
+}
+
+/* ═══════════════════════════════════════ Team card body */
+.tov-card__body {
+  padding: 14px 24px 22px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.tov-card__desc {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0 0 18px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tov-card__roles {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tov-role-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  background: color-mix(in srgb, var(--role-color, #71717a) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--role-color, #71717a) 28%, transparent);
+  color: var(--role-color, rgba(255, 255, 255, 0.72));
+}
+
+.tov-role-chip--agents {
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* ═══════════════════════════════════════ PRISM sidebar column */
+.teams-overview-view__sidebar {
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.25s ease, opacity 0.25s ease;
+}
+.teams-overview-view__sidebar[data-open="true"] {
+  width: 380px;
+  opacity: 1;
+  pointer-events: auto;
+}
+.teams-overview-view__sidebar[data-open="false"] {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+}

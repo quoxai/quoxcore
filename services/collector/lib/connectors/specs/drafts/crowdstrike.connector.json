@@ -1,0 +1,30 @@
+{
+  "spec_version": 1,
+  "id": "crowdstrike",
+  "name": "CrowdStrike",
+  "category": "security",
+  "credentialType": "crowdstrike",
+  "requiredFields": [
+    "client_id",
+    "client_secret"
+  ],
+  "docs": "https://falcon.crowdstrike.com/documentation/",
+  "base_url": "https://api.crowdstrike.com",
+  "auth": null,
+  "static_headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/oauth2/token"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "no_auth_detected"
+    ]
+  }
+}

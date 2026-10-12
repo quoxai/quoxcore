@@ -1,0 +1,114 @@
+{
+  "spec_version": 1,
+  "id": "notion",
+  "name": "Notion",
+  "category": "knowledge",
+  "credentialType": "notion",
+  "requiredFields": [
+    "token"
+  ],
+  "description": "Notion pages, databases, and blocks",
+  "docs": "https://developers.notion.com/",
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 20
+  },
+  "base_url": "https://api.notion.com/v1",
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "static_headers": {
+    "Notion-Version": "2022-06-28"
+  },
+  "tools_source": "services/collector/lib/connectors/types/notion.js",
+  "tools": [
+    {
+      "name": "search",
+      "description": "Search Notion pages and databases by query",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "Search query" },
+          "filter_type": { "type": "string", "enum": ["page", "database"], "description": "Filter by object type" },
+          "page_size": { "type": "number", "description": "Results per page (max 100)" }
+        },
+        "required": ["query"]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/search",
+        "body": {
+          "query": "{{input.query}}",
+          "page_size": "{{clamp input.page_size 20 100}}",
+          "filter": {
+            "value": "{{input.filter_type}}",
+            "property": "object"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_page",
+      "description": "Get a Notion page and its properties",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_id": { "type": "string", "description": "Notion page ID" }
+        },
+        "required": ["page_id"]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/pages/{{input.page_id}}"
+      }
+    },
+    {
+      "name": "get_page_content",
+      "description": "Get the block content of a Notion page",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_id": { "type": "string", "description": "Notion page ID" }
+        },
+        "required": ["page_id"]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/blocks/{{input.page_id}}/children",
+        "query": { "page_size": "100" }
+      }
+    },
+    {
+      "name": "query_database",
+      "description": "Query a Notion database with optional filters and sorts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "database_id": { "type": "string", "description": "Notion database ID" },
+          "filter": { "type": "object", "description": "Notion filter object (see Notion API docs)" },
+          "page_size": { "type": "number", "description": "Results per page (max 100)" }
+        },
+        "required": ["database_id"]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/databases/{{input.database_id}}/query",
+        "body": {
+          "page_size": "{{clamp input.page_size 20 100}}",
+          "filter": "{{input.filter}}"
+        }
+      }
+    }
+  ],
+  "_scaffold": {
+    "source": "port attempt from types/notion.js (CONNFAC Phase 1)",
+    "confidence": "low",
+    "needs_review": [
+      "PARKED IN drafts/ ON PURPOSE: this spec is NOT registrable. Every notion tool post-processes its response with COMPUTED fields that Connector Spec v1 pick cannot express (rich-text plain_text joins, per-property-type switches, the dynamic blocks[b.type].rich_text key). Promoting it would silently change what agents receive.",
+      "create_page is omitted entirely: its request body is computed (per-value-type property wrapping plus the Name title wrapper), so not even its request ports.",
+      "search: request parity holds only when filter_type is supplied. Without it the legacy module omits the filter key; the runtime keeps {\"property\":\"object\"} because only the templated inner value drops.",
+      "Evidence for what DOES port: test/connectorNotionParity.test.js drives module and runtime side by side over the same mocked fetch."
+    ]
+  }
+}

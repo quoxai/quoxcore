@@ -1,0 +1,197 @@
+{
+  "spec_version": 1,
+  "id": "close",
+  "name": "Close",
+  "category": "crm_sales",
+  "credentialType": "close",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developer.close.com/",
+  "base_url": "https://api.close.com",
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": ""
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/me/"
+  },
+  "tools_source": "https://developer.close.com/llms.txt",
+  "tools": [
+    {
+      "name": "me",
+      "description": "Get the Close user the API key belongs to (own user id, email and the organizations it can reach)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/me/"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "email": "email",
+          "first_name": "first_name",
+          "last_name": "last_name",
+          "last_used_timezone": "last_used_timezone",
+          "date_created": "date_created",
+          "organizations[]": {
+            "id": "id",
+            "name": "name"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_leads",
+      "description": "List Close leads (companies) with their status and primary contact details",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max leads to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/lead/",
+        "query": {
+          "_limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "display_name": "display_name",
+            "status_label": "status_label",
+            "primary_email": "primary_email.email",
+            "primary_phone": "primary_phone.phone",
+            "url": "url",
+            "date_created": "date_created",
+            "date_updated": "date_updated"
+          },
+          "has_more": "has_more"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_lead",
+      "description": "Get one Close lead by ID, including its contact ids and description",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "lead_id": {
+            "type": "string",
+            "description": "Close lead ID (e.g. lead_abc123)"
+          }
+        },
+        "required": [
+          "lead_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/lead/{{input.lead_id}}/"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "display_name": "display_name",
+          "name": "name",
+          "description": "description",
+          "status_label": "status_label",
+          "url": "url",
+          "contact_ids": "contact_ids",
+          "contacts_summary": "contacts_summary",
+          "primary_email": "primary_email.email",
+          "primary_phone": "primary_phone.phone",
+          "date_created": "date_created",
+          "date_updated": "date_updated"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_opportunities",
+      "description": "List Close opportunities (deals), optionally narrowed to one lead or one status type",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max opportunities to return (default 20, max 100)"
+          },
+          "lead_id": {
+            "type": "string",
+            "description": "Optional Close lead ID to filter by (e.g. lead_abc123)"
+          },
+          "status_type": {
+            "type": "string",
+            "description": "Optional status type to filter by (Close uses active, won and lost)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/opportunity/",
+        "query": {
+          "_limit": "{{clamp input.limit 20 100}}",
+          "lead_id": "{{input.lead_id}}",
+          "status_type": "{{input.status_type}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "lead_id": "lead_id",
+            "lead_name": "lead_name",
+            "status_label": "status_label",
+            "status_type": "status_type",
+            "value": "value",
+            "value_currency": "value_currency",
+            "value_period": "value_period",
+            "confidence": "confidence",
+            "user_name": "user_name",
+            "date_created": "date_created",
+            "date_won": "date_won"
+          },
+          "has_more": "has_more",
+          "total_results": "total_results"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Tools added 2026-09-12 from the official Close API reference (https://developer.close.com/llms.txt, the machine index that site publishes): GET /api/v1/me/, GET /api/v1/lead/, GET /api/v1/lead/{id}/ and GET /api/v1/opportunity/. All four are GET reads and every tool carries write:false; lead/opportunity/contact creation and updates exist in the API and are deliberately out of scope this wave.",
+      "AUTH UNCHANGED from the scaffold: every endpoint page above documents 'Authorization header (basic auth, required) - Use your API key as the username and leave the password empty', which is exactly the scaffolded basic auth with userField api_key and passField \"\". Close also accepts a bearer token, but that is the OAuth path and needs a different credential type, so the scaffolded key-in-basic-auth form stands.",
+      "The scaffolded test block GET /api/v1/me/ stands: the reference calls it 'a special instance of the Users endpoint for the current user', useful for determining your own id and organization_id, so it proves the key with the smallest possible read.",
+      "_limit is clamped to a default of 20 and a maximum of 100 on both list tools. The reference documents _limit default 100 and warns that each resource has its own maximum above which it answers 400, so the clamp keeps the tool inside the documented floor for every resource.",
+      "Offset pagination (_skip) is NOT exposed: the reference documents a per-resource maximum _skip it does not publish, and recommends date-range narrowing over deep paging, so a skip input would invite a 400 the tool cannot predict. Both list tools return has_more so a caller can see there is more data.",
+      "get_lead returns contact_ids and contacts_summary rather than the lead's embedded contacts array: the reference marks that array deprecated.",
+      "Shape-proof 2026-09-12 (proofs/close.proof.json): SHAPE_PROVEN on all 5 probes, each classified on a structured JSON 401 body (flag structured_body: json). api.close.com answers the dummy basic-auth key with 401 {\"error\": \"Unauthorized\"} on all four documented paths, and the deterministic control path answers a structurally different 404 ('The requested URL was not found on the server'), so the routes are distinguishable from the auth wall. No 2xx was ever seen: field-level response shapes come from the documentation, not from this run."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

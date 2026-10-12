@@ -1,0 +1,236 @@
+{
+  "spec_version": 1,
+  "id": "box",
+  "name": "Box",
+  "category": "files_knowledge",
+  "credentialType": "box",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://developer.box.com/reference/",
+  "base_url": "https://api.box.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/2.0/users/me"
+  },
+  "tools_source": "https://developer.box.com/reference/",
+  "tools": [
+    {
+      "name": "get_current_user",
+      "description": "Get the Box user the credential belongs to (name, login, storage usage)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/users/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "login": "login",
+          "status": "status",
+          "created_at": "created_at",
+          "space_amount": "space_amount",
+          "space_used": "space_used"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_folder_items",
+      "description": "List the files and folders inside one Box folder (use folder_id 0 for the root folder)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "folder_id": {
+            "type": "string",
+            "description": "Box folder ID, or 0 for the root folder"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max items to return (default 20, max 50)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Offset into the item list for paging (default 0)"
+          }
+        },
+        "required": [
+          "folder_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/folders/{{input.folder_id}}/items",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "offset": "{{input.offset}}",
+          "fields": "id,type,name,size,modified_at"
+        }
+      },
+      "response": {
+        "pick": {
+          "entries[]": {
+            "id": "id",
+            "type": "type",
+            "name": "name",
+            "size": "size",
+            "modified_at": "modified_at"
+          },
+          "total_count": "total_count",
+          "limit": "limit",
+          "offset": "offset"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.folder_id": "0"
+      }
+    },
+    {
+      "name": "get_folder_info",
+      "description": "Get one Box folder by ID (name, path, size, owner)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "folder_id": {
+            "type": "string",
+            "description": "Box folder ID, or 0 for the root folder"
+          }
+        },
+        "required": [
+          "folder_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/folders/{{input.folder_id}}",
+        "query": {
+          "fields": "id,type,name,size,created_at,modified_at,item_status,owned_by"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "type": "type",
+          "name": "name",
+          "size": "size",
+          "created_at": "created_at",
+          "modified_at": "modified_at",
+          "item_status": "item_status"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.folder_id": "0"
+      }
+    },
+    {
+      "name": "get_file_info",
+      "description": "Get one Box file by ID (name, size, timestamps, sha1)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "description": "Box file ID"
+          }
+        },
+        "required": [
+          "file_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/files/{{input.file_id}}",
+        "query": {
+          "fields": "id,type,name,size,created_at,modified_at,sha1,item_status,extension"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "type": "type",
+          "name": "name",
+          "size": "size",
+          "created_at": "created_at",
+          "modified_at": "modified_at",
+          "sha1": "sha1",
+          "item_status": "item_status"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "search",
+      "description": "Search Box for files, folders and web links matching a query string",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search terms to match against file and folder content and metadata"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "file",
+              "folder",
+              "web_link"
+            ],
+            "description": "Optional item type to restrict the search to"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max results to return (default 20, max 50)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/2.0/search",
+        "query": {
+          "query": "{{input.query}}",
+          "type": "{{input.type}}",
+          "limit": "{{clamp input.limit 20 50}}",
+          "fields": "id,type,name,size,modified_at"
+        }
+      },
+      "response": {
+        "pick": {
+          "entries[]": {
+            "id": "id",
+            "type": "type",
+            "name": "name",
+            "size": "size",
+            "modified_at": "modified_at"
+          },
+          "total_count": "total_count",
+          "limit": "limit",
+          "offset": "offset"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "spec_id": "telnyx",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:12:18.755Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.telnyx.com/quox-shapeproof-control-866e1f18",
+      "status": 404,
+      "latency_ms": 1010,
+      "classification": "CONTROL",
+      "body_sha256": "ebbf441b23a756939ad10328b7a9bd8c31faa94b7eb64eff725832ea59cb546a",
+      "body_excerpt": "{\n  \"errors\": [{\n    \"code\": \"10005\",\n    \"title\": \"Resource not found\",\n    \"detail\": \"The requested resource or URL could not be found.\",\n    \"meta\": {\n      \"url\": \"https://developers.telnyx.com/do",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.telnyx.com/v2/balance",
+      "status": 401,
+      "latency_ms": 261,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4425ffe1d180123b7d1771e4c70585dee050883c65c7330e7174f65acefc6798",
+      "body_excerpt": "{\"errors\":[{\"code\":\"10009\",\"meta\":{\"url\":\"https://developers.telnyx.com/docs/overview/errors/10009\"},\"title\":\"Authentication failed\",\"source\":{\"pointer\":\"/\"},\"detail\":\"Could not find any usable creden",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_balance",
+      "method": "GET",
+      "url": "https://api.telnyx.com/v2/balance",
+      "status": 401,
+      "latency_ms": 349,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4425ffe1d180123b7d1771e4c70585dee050883c65c7330e7174f65acefc6798",
+      "body_excerpt": "{\"errors\":[{\"code\":\"10009\",\"meta\":{\"url\":\"https://developers.telnyx.com/docs/overview/errors/10009\"},\"title\":\"Authentication failed\",\"source\":{\"pointer\":\"/\"},\"detail\":\"Could not find any usable creden",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_phone_numbers",
+      "method": "GET",
+      "url": "https://api.telnyx.com/v2/phone_numbers?page%5Bsize%5D=20&filter%5Bphone_number%5D=quoxprobe&filter%5Bstatus%5D=quoxprobe",
+      "status": 401,
+      "latency_ms": 209,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4425ffe1d180123b7d1771e4c70585dee050883c65c7330e7174f65acefc6798",
+      "body_excerpt": "{\"errors\":[{\"code\":\"10009\",\"meta\":{\"url\":\"https://developers.telnyx.com/docs/overview/errors/10009\"},\"title\":\"Authentication failed\",\"source\":{\"pointer\":\"/\"},\"detail\":\"Could not find any usable creden",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_messaging_profiles",
+      "method": "GET",
+      "url": "https://api.telnyx.com/v2/messaging_profiles?page%5Bsize%5D=20&filter%5Bname%5D=quoxprobe",
+      "status": 401,
+      "latency_ms": 216,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4425ffe1d180123b7d1771e4c70585dee050883c65c7330e7174f65acefc6798",
+      "body_excerpt": "{\"errors\":[{\"code\":\"10009\",\"meta\":{\"url\":\"https://developers.telnyx.com/docs/overview/errors/10009\"},\"title\":\"Authentication failed\",\"source\":{\"pointer\":\"/\"},\"detail\":\"Could not find any usable creden",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

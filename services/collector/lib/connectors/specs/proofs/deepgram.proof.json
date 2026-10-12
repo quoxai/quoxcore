@@ -1,0 +1,65 @@
+{
+  "spec_id": "deepgram",
+  "spec_version": 1,
+  "checked_at": "2026-09-16T18:13:08.619Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.deepgram.com/v1/quox-shapeproof-control-f8849d86",
+      "status": 404,
+      "latency_ms": 1298,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.deepgram.com/v1/projects",
+      "status": 401,
+      "latency_ms": 374,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9d77ccf74c3cb93e82e06477e2a6237187f12d87530ae51fc683c193d4699a8e",
+      "body_excerpt": "{\"category\":\"UNAUTHORIZED\",\"message\":\"Authentication failed.\",\"details\":\"Check that you are using the correct credentials.\",\"request_id\":\"4db0da07-7304-412c-a157-472fbb0a186b\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "GET",
+      "url": "https://api.deepgram.com/v1/projects",
+      "status": 401,
+      "latency_ms": 301,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "20a4a663c4fae048aebf19546e50e23e55c8657f620a901662f662279182eac1",
+      "body_excerpt": "{\"category\":\"UNAUTHORIZED\",\"message\":\"Authentication failed.\",\"details\":\"Check that you are using the correct credentials.\",\"request_id\":\"babc8500-44c9-48f0-9cee-aaf8ac151a67\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_models",
+      "method": "GET",
+      "url": "https://api.deepgram.com/v1/models",
+      "status": 200,
+      "latency_ms": 3784,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3fc05c9dfa677561155b270e573be1540b876539d2bdfe7d97e2c0d4ae0971c7",
+      "body_excerpt": "{\"stt\":[{\"name\":\"conversationalai\",\"canonical_name\":\"conversationalai\",\"architecture\":\"base\",\"languages\":[\"en\",\"en-US\"],\"version\":\"2021-11-10.1\",\"uuid\":\"6b28e919-8427-4f32-9847-492e2efd7daf\",\"batch\":t",
+      "flags": {
+        "no_auth_required": true,
+        "public_endpoint": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

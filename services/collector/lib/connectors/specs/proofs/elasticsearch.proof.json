@@ -1,0 +1,106 @@
+{
+  "spec_id": "elasticsearch",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T18:13:16.531Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/_cluster/health",
+      "status": 200,
+      "latency_ms": 329,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "86803e500bbb76abf4f598035f056a76e39749fda5cf867b675e93c70a8702e2",
+      "body_excerpt": "{\"cluster_name\":\"docker-cluster\",\"status\":\"yellow\",\"timed_out\":false,\"number_of_nodes\":1,\"number_of_data_nodes\":1,\"active_primary_shards\":1,\"active_shards\":1,\"relocating_shards\":0,\"initializing_shards",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "cluster_health",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/_cluster/health",
+      "status": 200,
+      "latency_ms": 19,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "86803e500bbb76abf4f598035f056a76e39749fda5cf867b675e93c70a8702e2",
+      "body_excerpt": "{\"cluster_name\":\"docker-cluster\",\"status\":\"yellow\",\"timed_out\":false,\"number_of_nodes\":1,\"number_of_data_nodes\":1,\"active_primary_shards\":1,\"active_shards\":1,\"relocating_shards\":0,\"initializing_shards",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "cluster_stats",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/_cluster/stats",
+      "status": 200,
+      "latency_ms": 54,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "a3c57d71847ed43a5f0394b435c70fbdc234bf2b83c9879d01f40ee6a77472e4",
+      "body_excerpt": "{\"_nodes\":{\"total\":1,\"successful\":1,\"failed\":0},\"cluster_name\":\"docker-cluster\",\"cluster_uuid\":\"N7tdFQkBTz60clteCokCQQ\",\"timestamp\":1789236795128,\"status\":\"yellow\",\"indices\":{\"count\":1,\"shards\":{\"tota",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_indices",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/_cat/indices?format=json&h=index%2Chealth%2Cstatus%2Cpri%2Crep%2Cdocs.count%2Cstore.size&expand_wildcards=open",
+      "status": 200,
+      "latency_ms": 34,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "eb413a22a64ddf31320def98ba20c37d5c037e8a019378b0024c01db6ff623ae",
+      "body_excerpt": "[{\"index\":\"quoxproof-live\",\"health\":\"yellow\",\"status\":\"open\",\"pri\":\"1\",\"rep\":\"1\",\"docs.count\":\"0\",\"store.size\":\"227b\"}]",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_index",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/quoxproof-live",
+      "status": 200,
+      "latency_ms": 17,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "cd435f2f51af11eb2d30c7f2a5c5f815fa2a9a60a12473108885da06310a5e30",
+      "body_excerpt": "{\"quoxproof-live\":{\"aliases\":{},\"mappings\":{},\"settings\":{\"index\":{\"routing\":{\"allocation\":{\"include\":{\"_tier_preference\":\"data_content\"}}},\"number_of_shards\":\"1\",\"provided_name\":\"quoxproof-live\",\"cre",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "count_documents",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/quoxproof-live/_count",
+      "status": 200,
+      "latency_ms": 60,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "5eae55ff70fcf15feca24eff9f9771b08bedc38edbe6069fddb721d9903e9de9",
+      "body_excerpt": "{\"count\":0,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0}}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "search",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/quoxproof-live/_search?q=*&size=10&track_total_hits=true",
+      "status": 200,
+      "latency_ms": 47,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "0a4a6c5a35e34fb43262b806a926aa2d4e6b8ccae5dcba9d400163b4eacc8075",
+      "body_excerpt": "{\"took\":25,\"timed_out\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":0,\"relation\":\"eq\"},\"max_score\":null,\"hits\":[]}}",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:docker.elastic.co/elasticsearch/elasticsearch:8.15.3"
+}

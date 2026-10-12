@@ -1,0 +1,325 @@
+{
+  "spec_version": 1,
+  "id": "outreach",
+  "name": "Outreach",
+  "category": "crm_sales",
+  "credentialType": "outreach",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://api.outreach.io/api/v2/docs",
+  "base_url": "https://api.outreach.io",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/users",
+    "query": {
+      "page[size]": "1"
+    }
+  },
+  "tools_source": "https://api.outreach.io/api/v2/docs",
+  "tools": [
+    {
+      "name": "list_users",
+      "description": "List Outreach users on the org (JSON:API resources)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max users to return (default 25, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of users to skip for paging (default 0)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/users",
+        "query": {
+          "page[limit]": "{{clamp input.limit 25 100}}",
+          "page[offset]": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "type": "type",
+            "name": "attributes.name",
+            "first_name": "attributes.firstName",
+            "last_name": "attributes.lastName",
+            "email": "attributes.email",
+            "title": "attributes.title",
+            "locked": "attributes.locked",
+            "created_at": "attributes.createdAt",
+            "updated_at": "attributes.updatedAt"
+          },
+          "count": "meta.count",
+          "next_link": "links.next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_prospects",
+      "description": "List Outreach prospects, optionally filtered to one email address",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max prospects to return (default 25, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of prospects to skip for paging (default 0)"
+          },
+          "email": {
+            "type": "string",
+            "description": "Optional exact email address to filter by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/prospects",
+        "query": {
+          "page[limit]": "{{clamp input.limit 25 100}}",
+          "page[offset]": "{{input.offset}}",
+          "filter[emails]": "{{input.email}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "type": "type",
+            "name": "attributes.name",
+            "first_name": "attributes.firstName",
+            "last_name": "attributes.lastName",
+            "title": "attributes.title",
+            "emails": "attributes.emails",
+            "company": "attributes.company",
+            "occupation": "attributes.occupation",
+            "address_city": "attributes.addressCity",
+            "address_state": "attributes.addressState",
+            "address_country": "attributes.addressCountry",
+            "opted_out": "attributes.optedOut",
+            "engaged_at": "attributes.engagedAt",
+            "created_at": "attributes.createdAt",
+            "updated_at": "attributes.updatedAt"
+          },
+          "count": "meta.count",
+          "next_link": "links.next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_prospect",
+      "description": "Get one Outreach prospect by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "prospect_id": {
+            "type": "string",
+            "description": "Outreach prospect ID"
+          }
+        },
+        "required": [
+          "prospect_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/prospects/{{input.prospect_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "type": "data.type",
+          "name": "data.attributes.name",
+          "first_name": "data.attributes.firstName",
+          "last_name": "data.attributes.lastName",
+          "title": "data.attributes.title",
+          "emails": "data.attributes.emails",
+          "company": "data.attributes.company",
+          "occupation": "data.attributes.occupation",
+          "address_city": "data.attributes.addressCity",
+          "address_state": "data.attributes.addressState",
+          "address_country": "data.attributes.addressCountry",
+          "opted_out": "data.attributes.optedOut",
+          "engaged_at": "data.attributes.engagedAt",
+          "created_at": "data.attributes.createdAt",
+          "updated_at": "data.attributes.updatedAt"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_sequences",
+      "description": "List Outreach sequences with engagement counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max sequences to return (default 25, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of sequences to skip for paging (default 0)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/sequences",
+        "query": {
+          "page[limit]": "{{clamp input.limit 25 100}}",
+          "page[offset]": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "type": "type",
+            "name": "attributes.name",
+            "enabled": "attributes.enabled",
+            "sequence_type": "attributes.sequenceType",
+            "share_type": "attributes.shareType",
+            "locked": "attributes.locked",
+            "num_contacted_prospects": "attributes.numContactedProspects",
+            "num_replied_prospects": "attributes.numRepliedProspects",
+            "open_count": "attributes.openCount",
+            "click_count": "attributes.clickCount",
+            "reply_count": "attributes.replyCount",
+            "opt_out_count": "attributes.optOutCount",
+            "bounce_count": "attributes.bounceCount",
+            "created_at": "attributes.createdAt",
+            "updated_at": "attributes.updatedAt"
+          },
+          "count": "meta.count",
+          "next_link": "links.next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_accounts",
+      "description": "List Outreach accounts (companies), optionally filtered by domain",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max accounts to return (default 25, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of accounts to skip for paging (default 0)"
+          },
+          "domain": {
+            "type": "string",
+            "description": "Optional company domain to filter by (e.g. example.com)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/accounts",
+        "query": {
+          "page[limit]": "{{clamp input.limit 25 100}}",
+          "page[offset]": "{{input.offset}}",
+          "filter[domain]": "{{input.domain}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "type": "type",
+            "name": "attributes.name",
+            "domain": "attributes.domain",
+            "company_type": "attributes.companyType",
+            "industry": "attributes.industry",
+            "number_of_employees": "attributes.numberOfEmployees",
+            "website_url": "attributes.websiteUrl",
+            "locality": "attributes.locality",
+            "created_at": "attributes.createdAt",
+            "updated_at": "attributes.updatedAt"
+          },
+          "count": "meta.count",
+          "next_link": "links.next"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_mailings",
+      "description": "List Outreach mailings (sent emails) with delivery and engagement timestamps, without message bodies",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max mailings to return (default 25, max 100)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Number of mailings to skip for paging (default 0)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/mailings",
+        "query": {
+          "page[limit]": "{{clamp input.limit 25 100}}",
+          "page[offset]": "{{input.offset}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "type": "type",
+            "subject": "attributes.subject",
+            "state": "attributes.state",
+            "mailbox_address": "attributes.mailboxAddress",
+            "scheduled_at": "attributes.scheduledAt",
+            "delivered_at": "attributes.deliveredAt",
+            "opened_at": "attributes.openedAt",
+            "clicked_at": "attributes.clickedAt",
+            "replied_at": "attributes.repliedAt",
+            "bounced_at": "attributes.bouncedAt",
+            "open_count": "attributes.openCount",
+            "click_count": "attributes.clickCount",
+            "created_at": "attributes.createdAt",
+            "updated_at": "attributes.updatedAt"
+          },
+          "count": "meta.count",
+          "next_link": "links.next"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

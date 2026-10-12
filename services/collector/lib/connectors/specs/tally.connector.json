@@ -1,0 +1,173 @@
+{
+  "spec_version": 1,
+  "id": "tally",
+  "name": "Tally",
+  "category": "marketing_email",
+  "credentialType": "tally",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developers.tally.so/api-reference/introduction",
+  "base_url": "https://api.tally.so",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/users/me"
+  },
+  "tools_source": "https://developers.tally.so/api-reference/openapi.json",
+  "tools": [
+    {
+      "name": "me",
+      "description": "Get the Tally user the API key belongs to, including organization ID and subscription plan",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/users/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "firstName": "firstName",
+          "lastName": "lastName",
+          "fullName": "fullName",
+          "email": "email",
+          "organizationId": "organizationId",
+          "subscriptionPlan": "subscriptionPlan",
+          "hasTwoFactorEnabled": "hasTwoFactorEnabled",
+          "createdAt": "createdAt",
+          "updatedAt": "updatedAt"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_forms",
+      "description": "List Tally forms, with status and submission counts, one page at a time",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max forms to return per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional page number, for pagination (default 1)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/forms",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "page": "{{input.page}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "name": "name",
+            "workspaceId": "workspaceId",
+            "status": "status",
+            "numberOfSubmissions": "numberOfSubmissions",
+            "isClosed": "isClosed",
+            "createdAt": "createdAt",
+            "updatedAt": "updatedAt"
+          },
+          "page": "page",
+          "limit": "limit",
+          "total": "total",
+          "hasMore": "hasMore"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_submissions",
+      "description": "List submissions for one Tally form (metadata only, the submitted responses and the signed preview or PDF URLs are not returned)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "form_id": {
+            "type": "string",
+            "description": "Tally form ID (e.g. wA2bMd)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max submissions to return per page (default 20, max 100)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional page number, for pagination (default 1)"
+          },
+          "filter": {
+            "type": "string",
+            "enum": [
+              "all",
+              "completed",
+              "partial"
+            ],
+            "description": "Optional submission status to filter by"
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Optional ISO 8601 date-time: only submissions on or after it"
+          },
+          "endDate": {
+            "type": "string",
+            "description": "Optional ISO 8601 date-time: only submissions on or before it"
+          }
+        },
+        "required": [
+          "form_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/forms/{{input.form_id}}/submissions",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "page": "{{input.page}}",
+          "filter": "{{input.filter}}",
+          "startDate": "{{input.startDate}}",
+          "endDate": "{{input.endDate}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "submissions[]": {
+            "id": "id",
+            "formId": "formId",
+            "isCompleted": "isCompleted",
+            "submittedAt": "submittedAt"
+          },
+          "page": "page",
+          "limit": "limit",
+          "hasMore": "hasMore",
+          "total_all": "totalNumberOfSubmissionsPerFilter.all",
+          "total_completed": "totalNumberOfSubmissionsPerFilter.completed",
+          "total_partial": "totalNumberOfSubmissionsPerFilter.partial"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "kind": "approval", "prefixes": ["approval:"], "area": "approvals", "derive": "approval",
+  "actions": [
+    ["contacts?_send|sms|whatsapp", "send a message to one of your contacts"],
+    ["contacts?_(create|add)", "add a contact"],
+    ["notes?q?_(update|edit|append)", "edit a note"],
+    ["notes?q?_(create|add)", "create a note"],
+    ["notes?q?_delete", "delete a note"],
+    ["^x\\.post$|^x_post|twitter", "post on X"],
+    ["linkedin", "post on LinkedIn"],
+    ["facebook", "post on Facebook"],
+    ["instagram", "post on Instagram"],
+    ["email|mail_send|smtp", "send an email"],
+    ["deploy", "deploy to a server"],
+    ["ssh|exec|shell|command", "run a command on a server"],
+    ["delete|remove", "delete something"],
+    ["call|dial|phone", "make a phone call"],
+    ["pay|charge|stripe", "make a payment"],
+    ["calendar", "change your calendar"]
+  ],
+  "action_fallback": "take an action",
+  "variants": [
+    { "id": "with_action", "when": { "tool": { "re": ".+" } },
+      "urgency": [{ "when": { "doing": { "re": "post|send|deploy|command|delete|payment|call" } }, "is": "now" }, { "is": "today" }],
+      "short": "{L0} ({dur waited_ms})",
+      "L0": "{who} wants to {doing}",
+      "L1": { "who": "{who_line}", "what": "{what}", "why": "It is paused and cannot go ahead until you say yes or no." },
+      "how": "Say \"approve\" or \"deny\", or open Approvals on the dashboard.",
+      "measures": ["approve", "deny", "ask_agent_why"] },
+    { "id": "no_action",
+      "urgency": [{ "when": { "doing": { "re": "post|send|deploy|command|delete|payment|call" } }, "is": "now" }, { "is": "today" }],
+      "short": "{L0} ({dur waited_ms})",
+      "L0": "Approval needed: {summary70}",
+      "L1": { "who": "{who_line}", "what": "{what}", "why": "It is paused and cannot go ahead until you say yes or no." },
+      "how": "Say \"approve\" or \"deny\", or open Approvals on the dashboard.",
+      "measures": ["approve", "deny", "ask_agent_why"] }
+  ]
+}

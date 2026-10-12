@@ -1,0 +1,105 @@
+{
+  "spec_id": "greenhouse",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:36.696Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://harvest.greenhouse.io/quox-shapeproof-control-f300f108",
+      "status": 401,
+      "latency_ms": 1362,
+      "classification": "CONTROL",
+      "body_sha256": "f454103c219b2c8650019f553fb0a192bc47492805a2b8572c915e5490a1b321",
+      "body_excerpt": "{\"message\":\"Invalid Basic Auth credentials\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://harvest.greenhouse.io/v1/users?per_page=1",
+      "status": 401,
+      "latency_ms": 815,
+      "classification": "AUTH_WALL",
+      "body_sha256": "f454103c219b2c8650019f553fb0a192bc47492805a2b8572c915e5490a1b321",
+      "body_excerpt": "{\"message\":\"Invalid Basic Auth credentials\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_jobs",
+      "method": "GET",
+      "url": "https://harvest.greenhouse.io/v1/jobs?per_page=25&page=1&status=quoxprobe",
+      "status": 401,
+      "latency_ms": 335,
+      "classification": "AUTH_WALL",
+      "body_sha256": "f454103c219b2c8650019f553fb0a192bc47492805a2b8572c915e5490a1b321",
+      "body_excerpt": "{\"message\":\"Invalid Basic Auth credentials\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_candidates",
+      "method": "GET",
+      "url": "https://harvest.greenhouse.io/v1/candidates?per_page=25&page=1&job_id=quoxprobe&email=quoxprobe&updated_after=quoxprobe",
+      "status": 401,
+      "latency_ms": 773,
+      "classification": "AUTH_WALL",
+      "body_sha256": "f454103c219b2c8650019f553fb0a192bc47492805a2b8572c915e5490a1b321",
+      "body_excerpt": "{\"message\":\"Invalid Basic Auth credentials\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_departments",
+      "method": "GET",
+      "url": "https://harvest.greenhouse.io/v1/departments?per_page=25&page=1",
+      "status": 401,
+      "latency_ms": 260,
+      "classification": "AUTH_WALL",
+      "body_sha256": "f454103c219b2c8650019f553fb0a192bc47492805a2b8572c915e5490a1b321",
+      "body_excerpt": "{\"message\":\"Invalid Basic Auth credentials\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    },
+    {
+      "name": "list_offices",
+      "method": "GET",
+      "url": "https://harvest.greenhouse.io/v1/offices?per_page=25&page=1",
+      "status": 401,
+      "latency_ms": 310,
+      "classification": "AUTH_WALL",
+      "body_sha256": "f454103c219b2c8650019f553fb0a192bc47492805a2b8572c915e5490a1b321",
+      "body_excerpt": "{\"message\":\"Invalid Basic Auth credentials\"}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "error_code"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

@@ -1,0 +1,90 @@
+{
+  "spec_id": "fivetran",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:46:35.480Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.fivetran.com/quox-shapeproof-control-b35a1639",
+      "status": 404,
+      "latency_ms": 1425,
+      "classification": "CONTROL",
+      "body_sha256": "dc50de2adb7bc9ea880244f5a491b564f9f99a2f6c667be21e557d3074e7dbce",
+      "body_excerpt": "{\"code\":\"NotFound\",\"message\":\"HTTP 404 Not Found\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.fivetran.com/v1/users",
+      "status": 401,
+      "latency_ms": 243,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1fb08d9fb0b93ace393ceb8c4a90707d7c1a76d56b32a555c56bdf6f9e037049",
+      "body_excerpt": "{\"code\":\"AuthFailed\",\"message\":\"Invalid authorization credentials\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_groups",
+      "method": "GET",
+      "url": "https://api.fivetran.com/v1/groups?limit=20&cursor=quoxprobe",
+      "status": 401,
+      "latency_ms": 264,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1fb08d9fb0b93ace393ceb8c4a90707d7c1a76d56b32a555c56bdf6f9e037049",
+      "body_excerpt": "{\"code\":\"AuthFailed\",\"message\":\"Invalid authorization credentials\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_connectors",
+      "method": "GET",
+      "url": "https://api.fivetran.com/v1/groups/quoxprobe/connectors?limit=20&cursor=quoxprobe&schema=quoxprobe",
+      "status": 401,
+      "latency_ms": 171,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1fb08d9fb0b93ace393ceb8c4a90707d7c1a76d56b32a555c56bdf6f9e037049",
+      "body_excerpt": "{\"code\":\"AuthFailed\",\"message\":\"Invalid authorization credentials\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_connector",
+      "method": "GET",
+      "url": "https://api.fivetran.com/v1/connectors/quoxprobe",
+      "status": 401,
+      "latency_ms": 197,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1fb08d9fb0b93ace393ceb8c4a90707d7c1a76d56b32a555c56bdf6f9e037049",
+      "body_excerpt": "{\"code\":\"AuthFailed\",\"message\":\"Invalid authorization credentials\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_destinations",
+      "method": "GET",
+      "url": "https://api.fivetran.com/v1/destinations?limit=20&cursor=quoxprobe",
+      "status": 401,
+      "latency_ms": 182,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "1fb08d9fb0b93ace393ceb8c4a90707d7c1a76d56b32a555c56bdf6f9e037049",
+      "body_excerpt": "{\"code\":\"AuthFailed\",\"message\":\"Invalid authorization credentials\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

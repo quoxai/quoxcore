@@ -1,0 +1,351 @@
+{
+  "spec_version": 1,
+  "id": "sonarqube",
+  "name": "SonarQube",
+  "category": "developer",
+  "credentialType": "sonarqube",
+  "requiredFields": [
+    "base_url",
+    "token"
+  ],
+  "description": "Self-hosted SonarQube Server reads: instance status and health, the projects the token can administrate, one project's quality measures, its open issues, the instance's quality gates and its metric dictionary. Read-only; issue transitions, quality-gate editing, project provisioning and the whole /api/system restart and migration surface are deliberately absent.",
+  "docs": "https://docs.sonarsource.com/sonarqube/",
+  "tools_source": "https://docs.sonarsource.com/sonarqube-server/latest/extension-guide/web-api/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "token",
+    "passField": ""
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/authentication/validate"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "system_status",
+      "description": "Get the running status of the SonarQube instance this credential points at: id, version and status (STARTING, UP, DOWN, RESTARTING, DB_MIGRATION_NEEDED, DB_MIGRATION_RUNNING)",
+      "request": {
+        "method": "GET",
+        "path": "/api/system/status"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "version": "version",
+          "status": "status"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "system_health",
+      "description": "Get the health status of the SonarQube instance: GREEN (fully operational), YELLOW (usable but needs attention) or RED (not operational), with the causes and per-application-node detail. Requires the token's user to hold 'Administer System'",
+      "request": {
+        "method": "GET",
+        "path": "/api/system/health"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "health": "health",
+          "causes[]": {
+            "message": "message"
+          },
+          "nodes[]": {
+            "name": "name",
+            "type": "type",
+            "host": "host",
+            "port": "port",
+            "startedAt": "startedAt",
+            "health": "health"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_projects",
+      "description": "List the projects on this SonarQube instance (key, name, visibility, last analysis date, analysed revision). Requires the token's user to hold 'Administer System'",
+      "request": {
+        "method": "GET",
+        "path": "/api/projects/search",
+        "query": {
+          "q": "{{input.q}}",
+          "ps": "{{clamp input.page_size 100 500}}",
+          "p": "{{input.page}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "description": "Optional search string; matches project names and project keys that contain it"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Projects per page (default 100, max 500)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional 1-based page number to fetch (default 1)"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "page_index": "paging.pageIndex",
+          "page_size": "paging.pageSize",
+          "total": "paging.total",
+          "components[]": {
+            "key": "key",
+            "name": "name",
+            "qualifier": "qualifier",
+            "visibility": "visibility",
+            "lastAnalysisDate": "lastAnalysisDate",
+            "revision": "revision",
+            "managed": "managed"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "project_measures",
+      "description": "Get the current quality measures for one SonarQube component: bugs, vulnerabilities, code smells and coverage. A metric with no analysis is absent from the list rather than zero",
+      "request": {
+        "method": "GET",
+        "path": "/api/measures/component",
+        "query": {
+          "component": "{{input.component}}",
+          "metricKeys": "bugs,vulnerabilities,code_smells,coverage",
+          "branch": "{{input.branch}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "string",
+            "description": "Component key: a project key from list_projects, or a file key within it (e.g. quoxproof-live)"
+          },
+          "branch": {
+            "type": "string",
+            "description": "Optional branch name; the main branch is used when omitted"
+          }
+        },
+        "required": [
+          "component"
+        ]
+      },
+      "response": {
+        "pick": {
+          "key": "component.key",
+          "name": "component.name",
+          "qualifier": "component.qualifier",
+          "language": "component.language",
+          "path": "component.path",
+          "component.measures[]": {
+            "metric": "metric",
+            "value": "value",
+            "bestValue": "bestValue"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.component": "quoxproof-live"
+      }
+    },
+    {
+      "name": "list_issues",
+      "description": "Search issues on this SonarQube instance, optionally narrowed to given components, impact severities or issue statuses (rule, severity, status, file, line, message, effort)",
+      "request": {
+        "method": "GET",
+        "path": "/api/issues/search",
+        "query": {
+          "components": "{{input.components}}",
+          "impactSeverities": "{{input.impact_severities}}",
+          "issueStatuses": "{{input.issue_statuses}}",
+          "resolved": "{{input.resolved}}",
+          "ps": "{{clamp input.page_size 100 500}}",
+          "p": "{{input.page}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "components": {
+            "type": "string",
+            "description": "Optional comma-separated component keys to scope the search to (a project key, or a file key within it)"
+          },
+          "impact_severities": {
+            "type": "string",
+            "description": "Optional comma-separated impact severities: INFO, LOW, MEDIUM, HIGH, BLOCKER"
+          },
+          "issue_statuses": {
+            "type": "string",
+            "description": "Optional comma-separated issue statuses: OPEN, CONFIRMED, FALSE_POSITIVE, ACCEPTED, FIXED"
+          },
+          "resolved": {
+            "type": "boolean",
+            "description": "Optional: true returns only resolved issues, false only unresolved"
+          },
+          "page_size": {
+            "type": "number",
+            "description": "Issues per page (default 100, max 500)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional 1-based page number to fetch (default 1)"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "page_index": "paging.pageIndex",
+          "page_size": "paging.pageSize",
+          "total": "paging.total",
+          "issues[]": {
+            "key": "key",
+            "rule": "rule",
+            "severity": "severity",
+            "issueStatus": "issueStatus",
+            "status": "status",
+            "message": "message",
+            "component": "component",
+            "project": "project",
+            "line": "line",
+            "effort": "effort",
+            "type": "type",
+            "creationDate": "creationDate",
+            "updateDate": "updateDate"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.components": "quoxproof-live",
+        "input.page_size": 5
+      }
+    },
+    {
+      "name": "list_quality_gates",
+      "description": "List the quality gates configured on this SonarQube instance, with which one is the default, which are built in, and each gate's clean-as-you-code compliance status",
+      "request": {
+        "method": "GET",
+        "path": "/api/qualitygates/list"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "qualitygates[]": {
+            "name": "name",
+            "isDefault": "isDefault",
+            "isBuiltIn": "isBuiltIn",
+            "caycStatus": "caycStatus",
+            "isAiCodeSupported": "isAiCodeSupported"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_metrics",
+      "description": "List the metric keys this SonarQube instance knows about (key, name, type, domain, direction), which is what project_measures accepts as metric keys",
+      "request": {
+        "method": "GET",
+        "path": "/api/metrics/search",
+        "query": {
+          "ps": "{{clamp input.page_size 100 500}}",
+          "p": "{{input.page}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {
+            "type": "number",
+            "description": "Metrics per page (default 100, max 500)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Optional 1-based page number to fetch (default 1)"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "total": "total",
+          "page_index": "p",
+          "page_size": "ps",
+          "metrics[]": {
+            "key": "key",
+            "name": "name",
+            "type": "type",
+            "domain": "domain",
+            "description": "description",
+            "direction": "direction",
+            "qualitative": "qualitative",
+            "hidden": "hidden"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.page_size": 5
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, AND THE VENDOR DOCS STILL DOCUMENT IT: basic with userField token and passField \"\" sends base64(token + ':'), which is byte-identical to the vault entry integrationTypeRegistry.js key sonarqube, whose testHeaders is ``'Authorization': `Basic ${Buffer.from(`${creds.token}:`).toString('base64')}```, and whose testEndpoint is base_url + /api/authentication/validate, this spec's test block verbatim. Managing your tokens (https://docs.sonarsource.com/sonarqube-server/latest/user-guide/managing-tokens/, fetched 2026-09-12) says verbatim: 'when invoking web services, pass the token using the bearer or basic HTTP authentication scheme, see Web API.' followed by 'In both cases, you don't need to provide a password.' The token is therefore the basic-auth USERNAME with an empty password, which is exactly what passField \"\" expresses (the same form tailscale uses). Note for later: the Web API page (https://docs.sonarsource.com/sonarqube-server/latest/extension-guide/web-api/) says 'To authenticate to the Web API, we recommend that you use the bearer authentication scheme', so bearer with the same token is the vendor-preferred alternative. Basic is kept because it is still documented as supported AND it is the form the vault already proves against; switching to bearer would silently diverge the connector from the credential test.",
+      "CATEGORY CHANGED FROM 'security' TO 'developer': the scaffold wrote 'security', which is NOT one of the twelve values in use across this spec directory (cloud_hosting, commerce_finance, communication, crm_sales, data_ai, developer, files_knowledge, hr_hiring, marketing_email, media, monitoring, project_management). The vault entry also says 'developer', and the sibling connector sonarcloud.connector.json is 'developer', so SonarQube sits with the other code-quality and source control planes rather than inventing a thirteenth value.",
+      "PATHS, PARAMS AND CLAMPS COME FROM THE LIVE SELF-DESCRIBING REGISTRY, NOT FROM MEMORY: https://next.sonarqube.com/sonarqube/api/webservices/list (SonarSource's public SonarQube Server, version 2026.5.0.130905, fetched anonymously 2026-09-12, 200). Verbatim from it: api/projects/search is 'Search for projects or views to administrate them. ... Requires 'Administer System' permission' with ps defaultValue 100 maximumValue 500; api/system/health is 'Provide health status of SonarQube. ... Requires the 'Administer System' permission or system passcode (see sonar.web.systemPasscode in sonar.properties).'; api/measures/component is 'Return component with specified measures.' with component and metricKeys both required=true; api/issues/search is 'Search for issues. Requires the 'Browse' permission on the specified project(s).' with ps defaultValue 100 maximumValue 500; api/metrics/search ps defaultValue 100 maximumValue 500. Hence clamp 100 500 on all three paged tools, and the input descriptions state the vendor default and cap.",
+      "TWO TOOLS NEED AN ADMIN TOKEN, SO THE LIVE HARNESS MUST MINT ONE FOR AN ADMINISTRATOR: list_projects and system_health both require 'Administer System' per the registry lines quoted above, proven live 2026-09-12 by calling them anonymously on next.sonarqube.com and getting 403 {\"errors\":[{\"msg\":\"Insufficient privileges\"}]} from both. system_status is public (200 {\"id\":...,\"version\":\"2026.5.0.130905\",\"status\":\"UP\"} with no credential at all), which makes it the one tool that proves reachability independently of permissions.",
+      "RESPONSE SHAPES ARE EVIDENCED, NOT GUESSED. Proven live against next.sonarqube.com on 2026-09-12: /api/system/status returned {\"id\",\"version\",\"status\"}; /api/metrics/search?ps=2 returned {\"metrics\":[{\"id\",\"key\",\"type\",\"name\",\"description\",\"domain\",\"direction\",\"qualitative\",\"hidden\"}],\"total\",\"p\",\"ps\"}; /api/qualitygates/list returned {\"qualitygates\":[{\"name\",\"isDefault\",\"isBuiltIn\",\"actions\",\"caycStatus\",\"hasStandardConditions\",\"hasMQRConditions\",\"isAiCodeSupported\"}]}; /api/measures/component?component=<public project>&metricKeys=ncloc,bugs,code_smells returned {\"component\":{\"key\",\"name\",\"qualifier\",\"measures\":[{\"metric\",\"value\",\"bestValue\"}]}}; /api/issues/search?components=<public project>&ps=1 returned {\"total\",\"p\",\"ps\",\"paging\",\"effortTotal\",\"issues\":[{\"key\",\"rule\",\"severity\",\"component\",\"project\",\"line\",\"status\",\"message\",\"effort\",\"type\",\"issueStatus\",\"creationDate\",\"updateDate\",...}],\"components\":[...]}. The two admin-only shapes come from the instance's own published response examples (/api/webservices/response_example): projects/search gives {\"paging\":{\"pageIndex\",\"pageSize\",\"total\"},\"components\":[{\"key\",\"name\",\"qualifier\",\"visibility\",\"lastAnalysisDate\",\"revision\",\"managed\",\"projectUuid\"}]} and system/health gives {\"health\",\"causes\":[{\"message\"}],\"nodes\":[{\"name\",\"type\",\"host\",\"port\",\"startedAt\",\"health\",\"causes\"}]}.",
+      "QUALITY GATES NO LONGER CARRY AN id, SO NONE IS PICKED: on 2026.5 the qualitygates/list items are keyed by name only (the live body above has no id field at all), where SonarQube 9.x and 10.x returned one. Picking a dropped field would have produced a permanently absent key, so the pick is name, isDefault, isBuiltIn, caycStatus and isAiCodeSupported. The per-gate 'actions' object is deliberately skipped: it describes what the CALLER could mutate, which is meaningless in a read-only connector and pure token cost.",
+      "METRIC SET IS A FIXED LITERAL, MATCHING THE sonarcloud SIBLING: metricKeys is required=true and spec v1.1 has no default-value helper (clamp is the only helper and it is numeric), so an optional metric_keys input would render empty, be dropped from the query, and 400 the call. project_measures therefore hard-codes bugs,vulnerabilities,code_smells,coverage, exactly as sonarcloud.connector.json does, and list_metrics exists so a caller can discover what else the instance knows.",
+      "BASE URL IS CUSTOMER-SUPPLIED, SO NOTHING HERE IS PROVABLE BLIND: SonarQube Server is self-hosted, base_url comes from the credential ({fromCredential: 'base_url'}), and the paths above were exercised against SonarSource's own public instance rather than the customer's. This spec is NOT SHAPE_PROVEN by a blind 401 sweep; it is marked for the live harness, which stands up an ephemeral SonarQube container, mints an administrator user token, and provisions a project keyed quoxproof-live.",
+      "PROBES RESOLVE ON A FRESH INSTANCE, BY CONSTRUCTION: system_status, system_health, list_projects, list_quality_gates carry an empty or numeric-only _probe because they need no resource (a fresh instance already has its built-in quality gates and its full metric dictionary). project_measures and list_issues are the only tools that name a resource, and both probe the provisioner's project key quoxproof-live. RISK TO WATCH IN THE LIVE RUN: a project that has been provisioned but never analysed has no measures, so /api/measures/component may answer 404 'Component key not found' rather than 200 with an empty measures array, and /api/issues/search answers 200 with issues: [] but returns 503 while issue indexing is still in progress (the registry text says so verbatim). Neither is a spec defect; both are timing facts the harness must handle, by analysing once or by retrying.",
+      "READ-ONLY BY CONSTRUCTION, AND THE OMISSIONS ARE THE POINT: all seven tools are GETs. The same Web API exposes POST on issues (do_transition, assign, add_comment, set_severity), quality gate create/copy/destroy and condition editing, projects create/delete/bulk_delete, permission grants, user and token management, and the /api/system restart, migrate_db and logs surface. None is wired here. Nothing in this connector may be described as managing or remediating a SonarQube instance."
+    ]
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "spec_id": "hubspot",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:46.004Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.hubapi.com/quox-shapeproof-control-91b6da07",
+      "status": 404,
+      "latency_ms": 5262,
+      "classification": "CONTROL",
+      "body_sha256": "e556384d88fde5eb85df169fedfc0c1e009570ed384dc13cbefe538b26c6ffd6",
+      "body_excerpt": "<!DOCTYPE html> <html lang=en><meta charset=utf-8><title>Error</title><style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0px;padding:0px}h4,p,img{margin:0px;padding:0px;border:0px;font",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.hubapi.com/crm/v3/objects/contacts?limit=1",
+      "status": 401,
+      "latency_ms": 133,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "22d1a9171556bf57c82e2af5071c6eaf96bf0884fc63858979ffd294f01d08c6",
+      "body_excerpt": "{\"status\":\"error\",\"message\":\"Authentication credentials not found. This API supports OAuth 2.0 authentication and you can find more details at https://developers.hubspot.com/docs/methods/auth/oauth-ov",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_contacts",
+      "method": "GET",
+      "url": "https://api.hubapi.com/crm/v3/objects/contacts?limit=20&properties=quoxprobe",
+      "status": 401,
+      "latency_ms": 127,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b977653c5e023f7f84006a8068c69e009dfabefc2195cceaf350adb812f55f02",
+      "body_excerpt": "{\"status\":\"error\",\"message\":\"Authentication credentials not found. This API supports OAuth 2.0 authentication and you can find more details at https://developers.hubspot.com/docs/methods/auth/oauth-ov",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_contact",
+      "method": "GET",
+      "url": "https://api.hubapi.com/crm/v3/objects/contacts/quoxprobe?properties=quoxprobe",
+      "status": 401,
+      "latency_ms": 140,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "446f5bbadbf6c17064be5bba9c00b4dafc8cddd5b4833f95675f9d38acbda145",
+      "body_excerpt": "{\"status\":\"error\",\"message\":\"Authentication credentials not found. This API supports OAuth 2.0 authentication and you can find more details at https://developers.hubspot.com/docs/methods/auth/oauth-ov",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_companies",
+      "method": "GET",
+      "url": "https://api.hubapi.com/crm/v3/objects/companies?limit=20&properties=quoxprobe",
+      "status": 401,
+      "latency_ms": 120,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "af60f973d7a4eca67ad56c4ec3e1b50233617e101520b4b09ab3b3aaee822122",
+      "body_excerpt": "{\"status\":\"error\",\"message\":\"Authentication credentials not found. This API supports OAuth 2.0 authentication and you can find more details at https://developers.hubspot.com/docs/methods/auth/oauth-ov",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_deals",
+      "method": "GET",
+      "url": "https://api.hubapi.com/crm/v3/objects/deals?limit=20&properties=quoxprobe",
+      "status": 401,
+      "latency_ms": 250,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c8e5495c406c02e71f8455f59ecee4786d660a5384053186b15ecac79bf73408",
+      "body_excerpt": "{\"status\":\"error\",\"message\":\"Authentication credentials not found. This API supports OAuth 2.0 authentication and you can find more details at https://developers.hubspot.com/docs/methods/auth/oauth-ov",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "search_contacts",
+      "method": "POST",
+      "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+      "status": 401,
+      "latency_ms": 297,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b1e4bc0eab14afcf82862cfddb1b3ece7d4de0f0646b868d84402fe26cb55c6a",
+      "body_excerpt": "{\"status\":\"error\",\"message\":\"Authentication credentials not found. This API supports OAuth 2.0 authentication and you can find more details at https://developers.hubspot.com/docs/methods/auth/oauth-ov",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

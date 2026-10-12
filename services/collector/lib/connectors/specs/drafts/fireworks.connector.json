@@ -1,0 +1,27 @@
+{
+  "spec_version": 1,
+  "id": "fireworks",
+  "name": "Fireworks AI",
+  "category": "ai",
+  "credentialType": "fireworks",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.fireworks.ai/",
+  "base_url": "https://api.fireworks.ai",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/inference/v1/models"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

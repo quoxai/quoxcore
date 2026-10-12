@@ -1,0 +1,84 @@
+/* ProxmoxContextMenu — Right-click floating menu */
+
+.pxm {
+  min-width: 180px;
+  background: rgba(20, 20, 28, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(16px);
+  padding: 4px;
+  animation: pxm-fade-in 0.1s ease;
+}
+
+@keyframes pxm-fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.pxm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px 4px;
+  gap: 8px;
+}
+
+.pxm-header__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pxm-header__node {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  flex-shrink: 0;
+}
+
+.pxm-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 2px 6px 2px;
+}
+
+.pxm-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background 0.1s;
+  text-align: left;
+}
+
+.pxm-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.pxm-item--danger:hover {
+  background: rgba(255, 107, 48, 0.12);
+  color: #ff6b30;
+}
+
+.pxm-item__icon {
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.pxm-item__label {
+  flex: 1;
+}

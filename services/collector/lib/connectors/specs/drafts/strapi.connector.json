@@ -1,0 +1,30 @@
+{
+  "spec_version": 1,
+  "id": "strapi",
+  "name": "Strapi",
+  "category": "uncategorized",
+  "credentialType": "strapi",
+  "requiredFields": [
+    "base_url",
+    "api_token"
+  ],
+  "docs": "https://docs.strapi.io/dev-docs/api/rest",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/users/me"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

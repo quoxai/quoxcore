@@ -1,0 +1,124 @@
+{
+  "spec_id": "airtable",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:03.114Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.airtable.com/quox-shapeproof-control-40c57bb5",
+      "status": 404,
+      "latency_ms": 527,
+      "classification": "CONTROL",
+      "body_sha256": "1abe0d88107e6fab630aa5df7d7ff8a6eb5ed67863c86250c095afcfa9d40c6a",
+      "body_excerpt": "{\"error\":{\"type\":\"INVALID_API_VERSION\"}}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.airtable.com/v0/meta/whoami",
+      "status": 401,
+      "latency_ms": 130,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "16d99a2f379779a3f18d2d4434d4610d80a3caee8806f1b169957001a14a5995",
+      "body_excerpt": "{\"error\":{\"type\":\"AUTHENTICATION_REQUIRED\",\"message\":\"Authentication required\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "whoami",
+      "method": "GET",
+      "url": "https://api.airtable.com/v0/meta/whoami",
+      "status": 401,
+      "latency_ms": 148,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "16d99a2f379779a3f18d2d4434d4610d80a3caee8806f1b169957001a14a5995",
+      "body_excerpt": "{\"error\":{\"type\":\"AUTHENTICATION_REQUIRED\",\"message\":\"Authentication required\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_bases",
+      "method": "GET",
+      "url": "https://api.airtable.com/v0/meta/bases?offset=quoxprobe",
+      "status": 401,
+      "latency_ms": 250,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "16d99a2f379779a3f18d2d4434d4610d80a3caee8806f1b169957001a14a5995",
+      "body_excerpt": "{\"error\":{\"type\":\"AUTHENTICATION_REQUIRED\",\"message\":\"Authentication required\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_base_schema",
+      "method": "GET",
+      "url": "https://api.airtable.com/v0/meta/bases/quoxprobe/tables",
+      "status": 404,
+      "latency_ms": 219,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "540028bbd229cc8ce0f531f84e11296870f9b54faa231abb6f5da8557ae3df31",
+      "body_excerpt": "{\"error\":\"NOT_FOUND\"}",
+      "flags": {
+        "identifier_404_differential": true,
+        "error_code": "NOT_FOUND",
+        "control_error_code": "INVALID_API_VERSION"
+      }
+    },
+    {
+      "name": "list_records",
+      "method": "GET",
+      "url": "https://api.airtable.com/v0/quoxprobe/quoxprobe?maxRecords=20&view=quoxprobe&filterByFormula=quoxprobe",
+      "status": 404,
+      "latency_ms": 191,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "540028bbd229cc8ce0f531f84e11296870f9b54faa231abb6f5da8557ae3df31",
+      "body_excerpt": "{\"error\":\"NOT_FOUND\"}",
+      "flags": {
+        "identifier_404_differential": true,
+        "error_code": "NOT_FOUND",
+        "control_error_code": "INVALID_API_VERSION"
+      }
+    },
+    {
+      "name": "get_record",
+      "method": "GET",
+      "url": "https://api.airtable.com/v0/quoxprobe/quoxprobe/quoxprobe",
+      "status": 404,
+      "latency_ms": 142,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "540028bbd229cc8ce0f531f84e11296870f9b54faa231abb6f5da8557ae3df31",
+      "body_excerpt": "{\"error\":\"NOT_FOUND\"}",
+      "flags": {
+        "identifier_404_differential": true,
+        "error_code": "NOT_FOUND",
+        "control_error_code": "INVALID_API_VERSION"
+      }
+    },
+    {
+      "name": "list_comments",
+      "method": "GET",
+      "url": "https://api.airtable.com/v0/quoxprobe/quoxprobe/quoxprobe/comments?pageSize=20",
+      "status": 404,
+      "latency_ms": 113,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "540028bbd229cc8ce0f531f84e11296870f9b54faa231abb6f5da8557ae3df31",
+      "body_excerpt": "{\"error\":\"NOT_FOUND\"}",
+      "flags": {
+        "identifier_404_differential": true,
+        "error_code": "NOT_FOUND",
+        "control_error_code": "INVALID_API_VERSION"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

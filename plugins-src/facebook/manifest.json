@@ -1,0 +1,31 @@
+{
+  "id": "facebook",
+  "name": "facebook",
+  "displayName": "Facebook",
+  "version": "0.1.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "social",
+  "accentColor": "#1877F2",
+  "description": "Governed organic Facebook Page publishing and monitoring: page reads, post feed, organic Page Insights, and Lead Ads retrieval. Vault-stored long-lived Page access token with tracked ~60-day expiry, human approval on every publish, content feed, compose-and-publish panel, and insights summary.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/facebook",
+      "label": "Facebook",
+      "icon": "facebook",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/facebook": "FacebookView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

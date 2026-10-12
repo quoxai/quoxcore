@@ -1,0 +1,162 @@
+{
+  "spec_version": 1,
+  "id": "cloudinary",
+  "name": "Cloudinary",
+  "category": "media",
+  "credentialType": "cloudinary",
+  "requiredFields": [
+    "cloud_name",
+    "api_key",
+    "api_secret"
+  ],
+  "docs": "https://cloudinary.com/documentation/admin_api",
+  "tools_source": "https://cloudinary.com/documentation/admin_api",
+  "base_url": {
+    "template": "https://api.cloudinary.com/v1_1/{{cloud_name}}",
+    "_probe": {
+      "cloud_name": "demo"
+    }
+  },
+  "auth": {
+    "type": "basic",
+    "userField": "api_key",
+    "passField": "api_secret"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/usage"
+  },
+  "tools": [
+    {
+      "name": "list_resources",
+      "description": "List uploaded Cloudinary image assets, newest first, one page at a time",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max_results": {
+            "type": "number",
+            "description": "Max assets to return (default 10, max 50)"
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Optional pagination cursor returned as next_cursor by a previous call"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/resources/image",
+        "query": {
+          "max_results": "{{clamp input.max_results 10 50}}",
+          "next_cursor": "{{input.next_cursor}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "resources[]": {
+            "public_id": "public_id",
+            "format": "format",
+            "version": "version",
+            "resource_type": "resource_type",
+            "type": "type",
+            "created_at": "created_at",
+            "bytes": "bytes",
+            "width": "width",
+            "height": "height",
+            "secure_url": "secure_url"
+          },
+          "next_cursor": "next_cursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "usage",
+      "description": "Get the Cloudinary account's plan and current usage: credits, storage, bandwidth, transformations and object counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/usage"
+      },
+      "response": {
+        "pick": {
+          "plan": "plan",
+          "last_updated": "last_updated",
+          "credits_usage": "credits.usage",
+          "credits_limit": "credits.limit",
+          "credits_used_percent": "credits.used_percent",
+          "storage_usage": "storage.usage",
+          "storage_credits_usage": "storage.credits_usage",
+          "bandwidth_usage": "bandwidth.usage",
+          "bandwidth_credits_usage": "bandwidth.credits_usage",
+          "transformations_usage": "transformations.usage",
+          "transformations_credits_usage": "transformations.credits_usage",
+          "objects_usage": "objects.usage",
+          "requests": "requests",
+          "resources": "resources",
+          "derived_resources": "derived_resources"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_folders",
+      "description": "List the root-level asset folders in the Cloudinary product environment",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max_results": {
+            "type": "number",
+            "description": "Max folders to return (default 10, max 50)"
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Optional pagination cursor returned as next_cursor by a previous call"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/folders",
+        "query": {
+          "max_results": "{{clamp input.max_results 10 50}}",
+          "next_cursor": "{{input.next_cursor}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "folders[]": {
+            "name": "name",
+            "path": "path",
+            "external_id": "external_id"
+          },
+          "total_count": "total_count",
+          "next_cursor": "next_cursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "cloud_name is a vault credential field that rides in the host path, so base_url uses the canonical v1.1 { template } form and every tool path is relative to /v1_1/{cloud_name}. The shape-proof rendered it with Cloudinary's public demo cloud",
+      "list_resources returns image assets of the default 'upload' delivery type. Video and raw resource types, and prefix/tag filtering, need the /resources/{resource_type}/{type} subpath and are not wired here",
+      "Cloudinary documents a max_results cap of 500; both list tools clamp to 50 so a single tool result stays inside the 2000-character truncate",
+      "list_folders' max_results and next_cursor parameters are taken from the Admin API docs. Every path answers 401 with a dummy key, so parameter acceptance is documentary, not blind-verified",
+      "The scaffold inferred category 'uncategorized' from the description keywords; set to 'media' to match the shipped category set (the vault integration registry files Cloudinary under 'creative', which no shipped spec uses)"
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

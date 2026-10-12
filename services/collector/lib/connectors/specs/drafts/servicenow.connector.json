@@ -1,0 +1,35 @@
+{
+  "spec_version": 1,
+  "id": "servicenow",
+  "name": "ServiceNow",
+  "category": "uncategorized",
+  "credentialType": "servicenow",
+  "requiredFields": [
+    "instance_url",
+    "oauth_token"
+  ],
+  "docs": "https://developer.servicenow.com/dev.do#!/reference/api/latest/rest",
+  "base_url": {
+    "fromCredential": "instance_url"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "oauth_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/now/table/incident",
+    "query": {
+      "sysparm_limit": "1"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:40:16.577Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "auth_field_optional_in_registry:oauth_token"
+    ]
+  }
+}

@@ -1,0 +1,333 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "proxmox",
+
+  "name": "Proxmox Tools",
+  "description": "Proxmox VE tools for virtual machine and container management",
+  "category": "infrastructure",
+  "subcategory": "virtualization",
+  "provider": "proxmox",
+  "version": "1.0.0",
+
+  "risk_level": "medium",
+  "sandbox_profile": "standard",
+  "requires_license": null,
+
+  "tools": [
+    {
+      "id": "proxmox.vms",
+      "name": "List VMs",
+      "description": "List all virtual machines across the Proxmox cluster",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "node": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by node name (e.g., 'hyp-01')"
+        },
+        "status": {
+          "type": "string",
+          "required": false,
+          "enum": ["running", "stopped", "all"],
+          "default": "all",
+          "description": "Filter by VM status"
+        }
+      },
+      "returns": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "vmid": { "type": "number" },
+            "name": { "type": "string" },
+            "status": { "type": "string" },
+            "node": { "type": "string" },
+            "mem": { "type": "number" },
+            "cpu": { "type": "number" }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Get a list of all VMs with their status and resource usage",
+        "when_to_use": [
+          "User asks 'what VMs are running?'",
+          "User wants to see VM inventory",
+          "Before performing VM operations to get vmid"
+        ],
+        "when_not_to_use": [
+          "User wants LXC containers (use proxmox.containers)"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.containers",
+      "name": "List Containers",
+      "description": "List all LXC containers across the Proxmox cluster",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "node": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by node name"
+        }
+      },
+      "returns": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "vmid": { "type": "number" },
+            "name": { "type": "string" },
+            "status": { "type": "string" },
+            "node": { "type": "string" }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Get a list of all LXC containers",
+        "when_to_use": [
+          "User asks about containers",
+          "User wants LXC inventory"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.vm.start",
+      "externalEffect": true,
+      "name": "Start VM",
+      "description": "Start a virtual machine",
+      "accessLevel": "managers+",
+      "defconLevel": "AMBER",
+      "requiresApproval": false,
+      "parameters": {
+        "node": {
+          "type": "string",
+          "required": true,
+          "description": "Node hosting the VM"
+        },
+        "vmid": {
+          "type": "number",
+          "required": true,
+          "description": "VM ID to start"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "task": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Power on a stopped virtual machine",
+        "when_to_use": [
+          "User wants to start a VM",
+          "User says 'boot VM X' or 'power on X'"
+        ],
+        "when_not_to_use": [
+          "VM is already running (check with proxmox.vms first)"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.vm.stop",
+      "name": "Stop VM",
+      "description": "Stop a virtual machine (graceful shutdown via ACPI)",
+      "accessLevel": "managers+",
+      "defconLevel": "AMBER",
+      "requiresApproval": true,
+      "parameters": {
+        "node": {
+          "type": "string",
+          "required": true,
+          "description": "Node hosting the VM"
+        },
+        "vmid": {
+          "type": "number",
+          "required": true,
+          "description": "VM ID to stop"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "task": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Gracefully shutdown a running virtual machine",
+        "when_to_use": [
+          "User wants to stop a VM",
+          "User says 'shutdown VM X'",
+          "Maintenance window requires VM downtime"
+        ],
+        "when_not_to_use": [
+          "VM is already stopped",
+          "User needs immediate stop (use force stop)"
+        ],
+        "error_recovery": [
+          { "error": "shutdown timeout", "meaning": "Guest OS didn't respond to ACPI", "action": "Try force stop or check guest OS" }
+        ]
+      }
+    },
+    {
+      "id": "proxmox.cluster.status",
+      "name": "Cluster Status",
+      "description": "Get Proxmox cluster health, quorum status, and node information",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {},
+      "returns": {
+        "type": "object",
+        "properties": {
+          "nodes": { "type": "array" },
+          "quorate": { "type": "boolean" },
+          "version": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Check overall cluster health and node connectivity",
+        "when_to_use": [
+          "User asks about cluster health",
+          "Troubleshooting cluster issues",
+          "Before maintenance to verify quorum"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.templates.list",
+      "name": "List Templates",
+      "description": "List the golden-clone template catalogue: Proxmox VMs flagged template:1. Quox never creates templates — an operator marks a VM a template in Proxmox; this reads that flag only.",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "node": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by node name (e.g., 'hyp-01'). Leave empty for all nodes."
+        }
+      },
+      "returns": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "vmid": { "type": "number" },
+            "name": { "type": "string" },
+            "node": { "type": "string" },
+            "description": { "type": "string" },
+            "cores": { "type": "number" },
+            "memory": { "type": "number" }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Get the golden-clone catalogue before provisioning a new VM",
+        "when_to_use": [
+          "User wants to know what templates are available",
+          "Before calling proxmox.vm.clone — need a valid template_vmid",
+          "User says 'what can I clone from?' or 'list templates'"
+        ],
+        "when_not_to_use": [
+          "User wants ALL VMs, not just templates (use proxmox.vms)"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {
+    "base": "https://proxmox01:8006",
+    "cluster": "/api2/json/cluster",
+    "nodes": "/api2/json/nodes"
+  },
+
+  "instructions": {
+    "summary": "Manage Proxmox VE virtual machines, containers, and cluster resources",
+    "when_to_use": [
+      "User wants to manage VMs or containers",
+      "User asks about virtualization infrastructure",
+      "User needs to start/stop VMs",
+      "User wants cluster status or node resources"
+    ],
+    "when_not_to_use": [
+      "User wants Docker containers (use docker tools)",
+      "User needs OS-level metrics (use prometheus)",
+      "User wants to configure Proxmox itself"
+    ],
+    "usage_pattern": {
+      "format": "proxmox.<tool>(params)",
+      "common_queries": [
+        {
+          "intent": "List running VMs",
+          "tool": "proxmox.vms",
+          "params": { "status": "running" }
+        },
+        {
+          "intent": "Check cluster health",
+          "tool": "proxmox.cluster.status",
+          "params": {}
+        },
+        {
+          "intent": "Start a VM",
+          "tool": "proxmox.vm.start",
+          "params": { "node": "hyp-01", "vmid": 100 }
+        },
+        {
+          "intent": "Create backup snapshot",
+          "tool": "proxmox.vm.snapshot",
+          "params": { "node": "hyp-01", "vmid": 100, "snapname": "before-update" },
+          "note": "Defined in proxmox-extended.json — approval-gated (AMBER)"
+        },
+        {
+          "intent": "Check node capacity",
+          "tool": "proxmox.node.resources",
+          "params": { "node": "hyp-01" }
+        }
+      ]
+    },
+    "output_interpretation": {
+      "success": "Returns requested data or task ID for async operations",
+      "empty": "Empty list means no matching VMs/containers found",
+      "error": "Error response with message explaining the issue"
+    },
+    "error_recovery": [
+      { "error": "401 Unauthorized", "meaning": "API token invalid or expired", "action": "Check Proxmox API credentials" },
+      { "error": "500 Internal Server Error", "meaning": "Proxmox server error", "action": "Check Proxmox logs, retry" },
+      { "error": "node offline", "meaning": "Target node not responding", "action": "Check node connectivity in cluster status" },
+      { "error": "VM locked", "meaning": "VM has pending operation", "action": "Wait for lock to clear or investigate stuck task" }
+    ],
+    "chaining": {
+      "often_used_with": ["prometheus.query (for detailed metrics)", "quoxagent.execute (for in-VM commands)"],
+      "feeds_into": ["Reporting and capacity planning"],
+      "requires_first": ["proxmox.vms (to get vmid before operations)"]
+    }
+  },
+
+  "help": {
+    "man_url": "https://pve.proxmox.com/pve-docs/api-viewer/",
+    "quick_reference": "/docs/tools/proxmox-cheatsheet.md",
+    "examples_url": "/docs/tools/proxmox-examples.md",
+    "video_tutorial": null,
+    "troubleshooting": "/docs/tools/proxmox-troubleshooting.md"
+  },
+
+  "agent_hints": {
+    "context_tokens": 180,
+    "typical_latency_ms": 500,
+    "cacheable": true,
+    "cache_ttl_seconds": 30,
+    "batch_friendly": false,
+    "max_batch_size": 1,
+    "idempotent": false,
+    "side_effects": true
+  }
+}

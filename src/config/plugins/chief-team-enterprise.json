@@ -1,0 +1,47 @@
+{
+  "name": "chief-team-enterprise",
+  "version": "1.0.0",
+  "displayName": "Chief Team — Enterprise",
+  "tagline": "Full-scale multinational C-suite, fifty-one chiefs deep.",
+  "description": "Full-scale enterprise executive suite with 51 chiefs. Regional leadership for EMEA, APAC, and Americas across CEO, COO, CFO, CMO, and CISO. Specialised CTO variants (infrastructure, platform, AI), CLO variants (corporate, IP, compliance), and CPO/CCO/CDO/CRO disambiguations. VP-level execution leaders across engineering, sales, product, marketing, finance, and operations. Complete multinational C-suite coverage, all reporting to the same CEO orchestrator.",
+  "shortDescription": "51-chief AI executive suite for multinational enterprises.",
+  "author": "QUOX",
+  "license": "paid",
+  "price": 15,
+  "priceDisplay": "$15",
+  "priceModel": "one-time",
+  "tier": "tier_c",
+  "featured": false,
+  "icon": "globe",
+  "accentColor": "#1e293b",
+  "infoUrl": "https://quox.ai/docs/agentic-teams",
+  "docsUrl": "https://quox.ai/docs/agentic-teams",
+  "marketingPoints": [
+    "Everything in Chief Team — Medium Business",
+    "Regional leadership: EMEA, APAC, Americas",
+    "Specialised CTO, CLO, and CISO variants",
+    "VP-level execution leaders across six functions",
+    "51 chiefs, one CEO orchestrator"
+  ],
+  "features": {
+    "regionalLeadership": { "name": "Regional Leadership", "description": "Dedicated CEO, COO, CFO, CMO, and CISO for EMEA, APAC, and Americas.", "icon": "globe" },
+    "specialisedCTO": { "name": "Specialised CTO Variants", "description": "Infrastructure, platform, and AI-focused CTO chiefs.", "icon": "cpu" },
+    "specialisedCLO": { "name": "Specialised CLO Variants", "description": "Corporate, IP, and compliance-focused legal chiefs.", "icon": "scale" },
+    "vpExecution": { "name": "VP-Level Execution Leaders", "description": "Engineering, sales, product, marketing, finance, and operations VPs.", "icon": "users" },
+    "fullRoster": { "name": "Full 51-Chief Roster", "description": "Every chief from the small and medium tiers plus enterprise-only roles (CXO, CHRO, CKO, CGO, and more).", "icon": "network" }
+  },
+  "limits": {
+    "free": {},
+    "paid": {
+      "chiefCount": 51,
+      "orchestrator": "ceo",
+      "topology": "flat",
+      "includesTier": "tier_b"
+    }
+  },
+  "requirements": {
+    "quox": ">=4.0.0",
+    "includes": ["chief-enterprise", "chief-medium", "chief-small"]
+  },
+  "category": "AI & Intelligence"
+}

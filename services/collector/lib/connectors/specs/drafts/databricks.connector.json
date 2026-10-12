@@ -1,0 +1,30 @@
+{
+  "spec_version": 1,
+  "id": "databricks",
+  "name": "Databricks",
+  "category": "marketing",
+  "credentialType": "databricks",
+  "requiredFields": [
+    "host",
+    "token"
+  ],
+  "docs": "https://docs.databricks.com/",
+  "base_url": {
+    "fromCredential": "host"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/2.0/clusters/list"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

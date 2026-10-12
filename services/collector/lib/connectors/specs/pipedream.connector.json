@@ -1,0 +1,299 @@
+{
+  "spec_version": 1,
+  "id": "pipedream",
+  "name": "Pipedream",
+  "category": "developer",
+  "credentialType": "pipedream",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://pipedream.com/docs/api/",
+  "base_url": "https://api.pipedream.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/users/me"
+  },
+  "tools_source": "https://pipedream.com/docs/rest-api/",
+  "tools": [
+    {
+      "name": "get_current_user",
+      "description": "Get the Pipedream account the token belongs to, with its daily compute and invocation quotas and usage",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/users/me"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "username": "data.username",
+          "email": "data.email",
+          "daily_compute_time_quota": "data.daily_compute_time_quota",
+          "daily_compute_time_used": "data.daily_compute_time_used",
+          "daily_invocations_quota": "data.daily_invocations_quota",
+          "daily_invocations_used": "data.daily_invocations_used",
+          "billing_period_start_ts": "data.billing_period_start_ts",
+          "billing_period_end_ts": "data.billing_period_end_ts"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_sources",
+      "description": "List the event sources deployed on the current Pipedream account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max sources to return (default 20, max 100)"
+          },
+          "after": {
+            "type": "string",
+            "description": "Optional cursor from a previous page's page_info.end_cursor"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/users/me/sources",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "after": "{{input.after}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "name_slug": "name_slug",
+            "component_id": "component_id",
+            "active": "active",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+          },
+          "total_count": "page_info.total_count",
+          "end_cursor": "page_info.end_cursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_source",
+      "description": "Get one deployed Pipedream event source by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "description": "Pipedream source ID (e.g. dc_abc123)"
+          }
+        },
+        "required": [
+          "source_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/sources/{{input.source_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "data.id",
+          "name": "data.name",
+          "name_slug": "data.name_slug",
+          "component_id": "data.component_id",
+          "active": "data.active",
+          "created_at": "data.created_at",
+          "updated_at": "data.updated_at"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_source_events",
+      "description": "List recent events emitted by one Pipedream event source",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "description": "Pipedream source ID (e.g. dc_abc123)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max events to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "source_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/sources/{{input.source_id}}/event_summaries",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "indexed_at_ms": "indexed_at_ms"
+          },
+          "count": "page_info.count",
+          "end_cursor": "page_info.end_cursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_workflow_errors",
+      "description": "List recent errors thrown by one Pipedream workflow",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "description": "Pipedream workflow ID (e.g. p_abc123)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max error events to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "workflow_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/workflows/{{input.workflow_id}}/$errors/event_summaries",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "indexed_at_ms": "indexed_at_ms"
+          },
+          "count": "page_info.count",
+          "end_cursor": "page_info.end_cursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_apps",
+      "description": "Search the Pipedream app registry (integrations available to connect)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "description": "Optional search string matched against app names"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max apps to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/apps",
+        "query": {
+          "q": "{{input.q}}",
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "name_slug": "name_slug",
+            "auth_type": "auth_type",
+            "description": "description"
+          },
+          "total_count": "page_info.total_count",
+          "end_cursor": "page_info.end_cursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_components",
+      "description": "Search Pipedream registry components (sources and actions), optionally scoped to one app",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "description": "Optional search string matched against component names"
+          },
+          "app": {
+            "type": "string",
+            "description": "Optional app name slug to scope the search to (e.g. github)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max components to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/components",
+        "query": {
+          "q": "{{input.q}}",
+          "app": "{{input.app}}",
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "key": "key",
+            "name": "name",
+            "version": "version"
+          },
+          "total_count": "page_info.total_count",
+          "end_cursor": "page_info.end_cursor"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Response picks are documentation-derived, not data-verified: Pipedream answers every /v1 path with 401 {\"error\":\"Unauthorized\"} under a dummy token, so the blind proof covers host, TLS, bearer auth and the /v1 route space but never a success body. The data + page_info envelope and the workflow-error path /v1/workflows/{id}/$errors/event_summaries follow pipedream.com/docs/rest-api; confirm both against a real token before promoting."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

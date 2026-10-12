@@ -1,0 +1,31 @@
+{
+  "spec_version": 1,
+  "id": "unleash",
+  "name": "Unleash",
+  "category": "uncategorized",
+  "credentialType": "unleash",
+  "requiredFields": [
+    "base_url",
+    "api_token"
+  ],
+  "docs": "https://docs.getunleash.io/reference/api/",
+  "base_url": {
+    "fromCredential": "base_url"
+  },
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "{{api_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/admin/features"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

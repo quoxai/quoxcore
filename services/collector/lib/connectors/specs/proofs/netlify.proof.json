@@ -1,0 +1,90 @@
+{
+  "spec_id": "netlify",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:58.407Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.netlify.com/quox-shapeproof-control-58465a6f",
+      "status": 404,
+      "latency_ms": 3288,
+      "classification": "CONTROL",
+      "body_sha256": "0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5",
+      "body_excerpt": "Not Found",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.netlify.com/api/v1/user",
+      "status": 401,
+      "latency_ms": 393,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "270fb775b5ae66ae32f51b531026b62fb81143868a73a48de0735b49b1d14174",
+      "body_excerpt": "{\"code\":401,\"message\":\"Access Denied\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_user",
+      "method": "GET",
+      "url": "https://api.netlify.com/api/v1/user",
+      "status": 401,
+      "latency_ms": 370,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "270fb775b5ae66ae32f51b531026b62fb81143868a73a48de0735b49b1d14174",
+      "body_excerpt": "{\"code\":401,\"message\":\"Access Denied\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_sites",
+      "method": "GET",
+      "url": "https://api.netlify.com/api/v1/sites?name=quoxprobe&per_page=20",
+      "status": 401,
+      "latency_ms": 280,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "270fb775b5ae66ae32f51b531026b62fb81143868a73a48de0735b49b1d14174",
+      "body_excerpt": "{\"code\":401,\"message\":\"Access Denied\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_site",
+      "method": "GET",
+      "url": "https://api.netlify.com/api/v1/sites/quoxprobe",
+      "status": 401,
+      "latency_ms": 315,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "270fb775b5ae66ae32f51b531026b62fb81143868a73a48de0735b49b1d14174",
+      "body_excerpt": "{\"code\":401,\"message\":\"Access Denied\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_deploys",
+      "method": "GET",
+      "url": "https://api.netlify.com/api/v1/sites/quoxprobe/deploys?per_page=20",
+      "status": 401,
+      "latency_ms": 278,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "270fb775b5ae66ae32f51b531026b62fb81143868a73a48de0735b49b1d14174",
+      "body_excerpt": "{\"code\":401,\"message\":\"Access Denied\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

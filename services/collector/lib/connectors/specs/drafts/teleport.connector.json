@@ -1,0 +1,29 @@
+{
+  "spec_version": 1,
+  "id": "teleport",
+  "name": "Teleport",
+  "category": "security",
+  "credentialType": "teleport",
+  "requiredFields": [
+    "proxy_addr",
+    "api_token"
+  ],
+  "docs": "https://goteleport.com/docs/",
+  "base_url": {
+    "fromCredential": "proxy_addr"
+  },
+  "auth": null,
+  "test": {
+    "method": "GET",
+    "path": "/v1/webapi/ping"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "no_auth_detected"
+    ]
+  }
+}

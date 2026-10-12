@@ -1,0 +1,38 @@
+{
+  "spec_version": 1,
+  "id": "algolia",
+  "name": "Algolia",
+  "category": "uncategorized",
+  "credentialType": "algolia",
+  "requiredFields": [
+    "app_id",
+    "api_key"
+  ],
+  "docs": "https://www.algolia.com/doc/",
+  "base_url": {
+    "fromCredential": "app_id",
+    "template": "https://{{app_id}}.algolia.net"
+  },
+  "auth": {
+    "type": "header",
+    "header": "X-Algolia-API-Key",
+    "template": "{{api_key}}"
+  },
+  "static_headers": {
+    "X-Algolia-Application-Id": "{{app_id}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/1/indexes"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url_template",
+      "multi_auth_headers"
+    ]
+  }
+}

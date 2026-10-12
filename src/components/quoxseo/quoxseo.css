@@ -1,0 +1,67 @@
+/**
+ * QuoxSEO layout glue only: no qx-* class covers "the body of a view scrolls,
+ * the header/tabs bar above it does not." Every visual surface (panels,
+ * tables, chips, pills, empty states, skeletons) uses global .qx-* classes,
+ * see src/styles/QX_INDEX.md.
+ */
+
+.quoxseo-view__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 0 0;
+}
+
+/* DataForSEO activation banner: the one panel .qx-card doesn't shape on its own
+   (a two-column layout, message left, CTA right, wrapping to a stack on mobile). */
+.qx-dfs-banner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.qx-dfs-banner__main {
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qx-dfs-banner__msg {
+  margin: 0;
+}
+
+.qx-dfs-banner__cta {
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.qx-dfs-banner--compact .qx-dfs-banner__cta {
+  align-self: flex-start;
+}
+
+.qx-dfs-wordmark {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.qx-dfs-wordmark__accent {
+  color: #38bdf8;
+}
+
+@media (max-width: 640px) {
+  .qx-dfs-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .qx-dfs-banner__cta {
+    width: 100%;
+    justify-content: center;
+  }
+}

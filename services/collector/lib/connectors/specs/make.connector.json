@@ -1,0 +1,416 @@
+{
+  "spec_version": 1,
+  "id": "make",
+  "name": "Make (Integromat)",
+  "category": "developer",
+  "credentialType": "make",
+  "requiredFields": [
+    "api_token",
+    "team_id"
+  ],
+  "description": "Read-only access to a Make (formerly Integromat) zone: the authenticated user, organizations and teams, scenarios and their execution logs, connections, data stores, webhooks and incomplete executions.",
+  "docs": "https://developers.make.com/api-documentation",
+  "base_url": "https://us1.make.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "Token {{api_token}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v2/users/me"
+  },
+  "tools_source": "https://developers.make.com/api-documentation/api-reference",
+  "tools": [
+    {
+      "name": "get_me",
+      "description": "Get the Make user the stored API token belongs to (name, email, locale, last login, 2FA status)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/users/me"
+      },
+      "response": {
+        "pick": {
+          "id": "authUser.id",
+          "name": "authUser.name",
+          "email": "authUser.email",
+          "language": "authUser.language",
+          "timezoneId": "authUser.timezoneId",
+          "countryId": "authUser.countryId",
+          "lastLogin": "authUser.lastLogin",
+          "tfaStatus": "authUser.tfaStatus",
+          "supportEligible": "authUser.supportEligible"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_organizations",
+      "description": "List the Make organizations the token's user belongs to, with their zone, plan and scenario counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max organizations to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/organizations",
+        "query": {
+          "pg[limit]": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "organizations[]": {
+            "id": "id",
+            "name": "name",
+            "zone": "zone",
+            "createdAt": "createdAt",
+            "isPaused": "isPaused",
+            "productName": "productName",
+            "scenarios": "scenarios",
+            "activeScenarios": "activeScenarios"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_teams",
+      "description": "List the teams inside one Make organization",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "description": "Make organization ID (from list_organizations)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max teams to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "organization_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/teams",
+        "query": {
+          "organizationId": "{{input.organization_id}}",
+          "pg[limit]": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "teams[]": {
+            "id": "id",
+            "name": "name",
+            "organizationId": "organizationId",
+            "type": "type",
+            "operationsLimit": "operationsLimit"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_scenarios",
+      "description": "List the scenarios in the team the stored credential is scoped to, with their active/paused state and next scheduled run",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max scenarios to return (default 20, max 100)"
+          },
+          "search": {
+            "type": "string",
+            "description": "Optional text to match against scenario names"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/scenarios",
+        "query": {
+          "teamId": "{{team_id}}",
+          "search": "{{input.search}}",
+          "pg[limit]": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "scenarios[]": {
+            "id": "id",
+            "name": "name",
+            "teamId": "teamId",
+            "isActive": "isActive",
+            "isPaused": "isPaused",
+            "isinvalid": "isinvalid",
+            "folderPath": "folderPath",
+            "lastEdit": "lastEdit",
+            "nextExec": "nextExec",
+            "dlqCount": "dlqCount",
+            "description": "description"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_scenario",
+      "description": "Get one Make scenario by ID, including its scheduling, validity and last edit",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "scenario_id": {
+            "type": "string",
+            "description": "Make scenario ID (from list_scenarios)"
+          }
+        },
+        "required": [
+          "scenario_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/scenarios/{{input.scenario_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "scenario.id",
+          "name": "scenario.name",
+          "teamId": "scenario.teamId",
+          "description": "scenario.description",
+          "isActive": "scenario.isActive",
+          "isPaused": "scenario.isPaused",
+          "isinvalid": "scenario.isinvalid",
+          "scheduling": "scenario.scheduling",
+          "lastEdit": "scenario.lastEdit",
+          "nextExec": "scenario.nextExec",
+          "created": "scenario.created",
+          "dlqCount": "scenario.dlqCount"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_scenario_logs",
+      "description": "List recent execution logs for one Make scenario (status, duration, operations, data transfer)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "scenario_id": {
+            "type": "string",
+            "description": "Make scenario ID (from list_scenarios)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max log entries to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "scenario_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/scenarios/{{input.scenario_id}}/logs",
+        "query": {
+          "pg[limit]": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "scenarioLogs[]": {
+            "id": "id",
+            "type": "type",
+            "status": "status",
+            "timestamp": "timestamp",
+            "duration": "duration",
+            "operations": "operations",
+            "transfer": "transfer",
+            "instant": "instant",
+            "authorName": "authorName"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_connections",
+      "description": "List the app connections available to the team the stored credential is scoped to, with their account labels and expiry",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/connections",
+        "query": {
+          "teamId": "{{team_id}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "connections[]": {
+            "id": "id",
+            "name": "name",
+            "accountName": "accountName",
+            "accountLabel": "accountLabel",
+            "packageName": "packageName",
+            "accountType": "accountType",
+            "expire": "expire",
+            "teamId": "teamId",
+            "scoped": "scoped",
+            "upgradeable": "upgradeable"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_data_stores",
+      "description": "List the data stores in the team the stored credential is scoped to, with record counts and size usage",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max data stores to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/data-stores",
+        "query": {
+          "teamId": "{{team_id}}",
+          "pg[limit]": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "dataStores[]": {
+            "id": "id",
+            "name": "name",
+            "records": "records",
+            "size": "size",
+            "maxSize": "maxSize",
+            "teamId": "teamId",
+            "datastructureId": "datastructureId"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_hooks",
+      "description": "List the webhooks (hooks) in the team the stored credential is scoped to, with queue depth and enabled state. The hook's callable URL is deliberately not returned",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "type_name": {
+            "type": "string",
+            "description": "Optional hook type name to filter by (e.g. gateway-webhook)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/hooks",
+        "query": {
+          "teamId": "{{team_id}}",
+          "typeName": "{{input.type_name}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "hooks[]": {
+            "id": "id",
+            "name": "name",
+            "type": "type",
+            "typeName": "typeName",
+            "packageName": "packageName",
+            "enabled": "enabled",
+            "gone": "gone",
+            "queueCount": "queueCount",
+            "queueLimit": "queueLimit",
+            "scenarioId": "scenarioId"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_incomplete_executions",
+      "description": "List incomplete executions (the dead letter queue) for one Make scenario, with the failure reason and retry attempts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "scenario_id": {
+            "type": "string",
+            "description": "Make scenario ID (from list_scenarios)"
+          },
+          "status": {
+            "type": "string",
+            "description": "Optional status to filter by (e.g. pending, resolved)"
+          }
+        },
+        "required": [
+          "scenario_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/dlqs",
+        "query": {
+          "scenarioId": "{{input.scenario_id}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "dlqs[]": {
+            "id": "id",
+            "reason": "reason",
+            "created": "created",
+            "size": "size",
+            "resolved": "resolved",
+            "retry": "retry",
+            "attempts": "attempts"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, AND THE DOCS CONFIRM IT: https://developers.make.com/api-documentation/authentication.md states 'To authenticate your API request, send your API token in the following HTTP header parameter: Authorization: Token 12345678-12ef-abcd-1234-1234567890ab'. That is exactly the scaffolded block, auth {type: header, header: Authorization, template: 'Token {{api_token}}'}, so nothing was changed.",
+      "ZONE-DEPENDENT HOST, LEFT AS THE VAULT'S OWN us1 CONSTANT: Make's published servers list is https://eu1.make.com/api/v2, https://eu2.make.com/api/v2, https://us1.make.com/api/v2, https://us2.make.com/api/v2 plus the two Celonis zones, and the getting-started page documents the path as {zone_url}/api/v2/... where 'The zone_url refers to the Make zone you interact with. For example, https://eu1.make.com.' A templated base_url was considered and rejected because it cannot be filled: integrationTypeRegistry.js key 'make' collects only api_token and team_id, so {template: 'https://{{zone}}.make.com'} would throw on every call for a credential field the vault never asks for, and {fromCredential: 'base_url'} would do the same while also making the spec unprobeable (NEEDS_INSTANCE). The literal https://us1.make.com is the same host the vault's own testEndpoint already uses, so this spec works for exactly the tenants whose connection test already passes. EU and US2 tenants will get an auth failure against the wrong zone.",
+      "THE VAULT FIX THAT UNLOCKS EVERY ZONE (registry change, out of scope for this task): add a zone field to integrationTypeRegistry.js key 'make' (a select over eu1, eu2, us1, us2, defaulting to us1), then this spec's base_url becomes {template: 'https://{{zone}}.make.com', _probe: {zone: 'us1'}} and its testEndpoint becomes zone-derived too. Both zones were checked live 2026-09-12 and answer identically, GET https://us1.make.com/api/v2/users/me and GET https://eu1.make.com/api/v2/users/me with a dummy token both return 401 {\"detail\":\"Invalid token header.\",\"message\":\"Access denied\",\"code\":\"SC401\",\"suberrors\":[]}, so only the host constant differs, never the paths. There is no zone-agnostic host: api.make.com does not resolve (curl: (6) Could not resolve host: api.make.com).",
+      "TEAM-SCOPED TOOLS READ team_id FROM THE CREDENTIAL, NOT FROM AN INPUT: Make marks teamId as a REQUIRED query parameter on /api/v2/scenarios, /api/v2/connections, /api/v2/data-stores and /api/v2/hooks, and the vault already collects team_id as a required field. Those four tools therefore template {{team_id}} rather than asking the agent for it, so they work on first call. Consequence to know about: a token that spans several teams cannot list another team's scenarios through this connector, and list_teams plus a second credential is the only route. An optional input override was rejected because an omitted optional query param is dropped entirely by the runtime, which would send teamId-less requests that Make rejects at 400.",
+      "PATH PROVENANCE IS DOCUMENTARY, NOT DIFFERENTIAL, AND THE PROOF FILE OVERSTATES IT SLIGHTLY: every path here comes from the OpenAPI documents embedded in https://developers.make.com/api-documentation/api-reference (users/me, organizations, teams, scenarios, scenarios/{id}, scenarios/{id}/logs, connections, data-stores, hooks, dlqs), which is why tools_source is declared. Checked live 2026-09-12, Make's auth middleware sits in front of routing for the whole /api/v2 prefix: GET https://us1.make.com/api/v2/quox-bogus-xyz returns the same 401 {\"detail\":\"Invalid token header.\",...} as every real path. The shape-proof harness fires its control probe at the ROOT (/quox-shapeproof-control-<hash>), which Make answers with a 404 HTML page ('Cannot GET /quox-shapeproof-control-...'), so the differential makes each 401 read as SHAPE_PROVEN. Host, TLS, the auth header name and the /api/v2 prefix are genuinely proven by that run; the individual routes rest on the published OpenAPI above, and only a real token can confirm them.",
+      "GET /api/v2/ping IS PUBLIC AND WAS DELIBERATELY NOT USED AS THE TEST BLOCK: checked live 2026-09-12 it returns 200 with the plain-text body 'pong' and no authentication at all, which the harness would classify AMBIGUOUS (a 2xx whose body is not JSON) and drag the whole spec's overall class down. The documented /api/v2/users/me is kept instead, matching the vault's testEndpoint.",
+      "NO HOOK URLS ARE RETURNED, ON PURPOSE: /api/v2/hooks answers with a hooks[].url field that is the live callable trigger endpoint for that webhook. It is omitted from the pick so a hook URL cannot leak into a chat transcript or an agent's context from a read tool."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

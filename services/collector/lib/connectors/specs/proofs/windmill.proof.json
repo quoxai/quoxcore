@@ -1,0 +1,93 @@
+{
+  "spec_id": "windmill",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T19:42:29.346Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/users/whoami",
+      "status": 200,
+      "latency_ms": 148,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "6f0ac0d083256448d400dceaadd9d49a4721f580706b6ce7f318309491e46559",
+      "body_excerpt": "{\"email\":\"admin@windmill.dev\",\"login_type\":\"password\",\"super_admin\":true,\"devops\":false,\"verified\":true,\"name\":\"Admin\",\"company\":\"Windmill\",\"username\":\"admin\",\"first_time_user\":true,\"role_source\":\"man",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "server_health",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/health/detailed",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "4838d54b682168ada9dd5f02bf5a37e8ef5fe73fd8dae2064969c7f8e14fdde6",
+      "body_excerpt": "{\"status\":\"healthy\",\"checked_at\":\"2026-09-12T19:42:28.115100989Z\",\"version\":\"CE v1.811.0\",\"checks\":{\"database\":{\"healthy\":true,\"latency_ms\":0,\"pool\":{\"size\":9,\"idle\":8,\"max_connections\":50}},\"workers\"",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "whoami",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/users/whoami",
+      "status": 200,
+      "latency_ms": 9,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "6f0ac0d083256448d400dceaadd9d49a4721f580706b6ce7f318309491e46559",
+      "body_excerpt": "{\"email\":\"admin@windmill.dev\",\"login_type\":\"password\",\"super_admin\":true,\"devops\":false,\"verified\":true,\"name\":\"Admin\",\"company\":\"Windmill\",\"username\":\"admin\",\"first_time_user\":true,\"role_source\":\"man",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/workspaces/list",
+      "status": 200,
+      "latency_ms": 13,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "e00d69c250d17df46d7dd4336ce326c326c58f6a129174001b7e7010156c3df3",
+      "body_excerpt": "[{\"id\":\"quoxproof-live\",\"name\":\"quoxproof-live\",\"owner\":\"admin@windmill.dev\",\"deleted\":false,\"premium\":false,\"color\":null,\"parent_workspace_id\":null,\"is_dev_workspace\":false,\"dev_workspace_label\":null",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_scripts",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/w/quoxproof-live/scripts/list?per_page=20",
+      "status": 200,
+      "latency_ms": 39,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "body_excerpt": "[]",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_flows",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/w/quoxproof-live/flows/list?per_page=20",
+      "status": 200,
+      "latency_ms": 25,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "body_excerpt": "[]",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:ghcr.io/windmill-labs/windmill:main"
+}

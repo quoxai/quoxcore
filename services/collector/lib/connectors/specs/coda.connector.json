@@ -1,0 +1,185 @@
+{
+  "spec_version": 1,
+  "id": "coda",
+  "name": "Coda",
+  "category": "files_knowledge",
+  "credentialType": "coda",
+  "requiredFields": [
+    "api_token"
+  ],
+  "description": "Read-only Coda access: token identity, docs, the tables in a doc and the rows in a table",
+  "docs": "https://coda.io/developers/apis/v1",
+  "base_url": "https://coda.io/apis/v1",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/whoami"
+  },
+  "tools_source": "https://coda.io/developers/apis/v1",
+  "tools": [
+    {
+      "name": "whoami",
+      "description": "Identify the Coda account and workspace this API token belongs to",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/whoami"
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "login_id": "loginId",
+          "type": "type",
+          "scoped": "scoped",
+          "token_name": "tokenName",
+          "workspace_id": "workspace.id",
+          "workspace_browser_link": "workspace.browserLink"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_docs",
+      "description": "List the Coda docs this token can see",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max docs to return (default 20, capped at 100 by this connector)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/docs",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "name": "name",
+            "owner": "owner",
+            "owner_name": "ownerName",
+            "workspace_id": "workspaceId",
+            "folder_id": "folderId",
+            "browser_link": "browserLink",
+            "created_at": "createdAt",
+            "updated_at": "updatedAt"
+          },
+          "next_page_token": "nextPageToken"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_tables",
+      "description": "List the tables in one Coda doc",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "doc_id": {
+            "type": "string",
+            "description": "Coda doc ID, as returned by list_docs (e.g. AbCDeFGH)"
+          }
+        },
+        "required": [
+          "doc_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/docs/{{input.doc_id}}/tables"
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "name": "name",
+            "table_type": "tableType",
+            "row_count": "rowCount",
+            "browser_link": "browserLink",
+            "created_at": "createdAt",
+            "updated_at": "updatedAt"
+          },
+          "next_page_token": "nextPageToken"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_rows",
+      "description": "List the rows of one Coda table, with their cell values",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "doc_id": {
+            "type": "string",
+            "description": "Coda doc ID, as returned by list_docs (e.g. AbCDeFGH)"
+          },
+          "table_id": {
+            "type": "string",
+            "description": "Coda table ID or name, as returned by list_tables (e.g. grid-abcDEF123)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max rows to return (default 20, capped at 100 by this connector)"
+          }
+        },
+        "required": [
+          "doc_id",
+          "table_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/docs/{{input.doc_id}}/tables/{{input.table_id}}/rows",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "name": "name",
+            "index": "index",
+            "values": "values",
+            "browser_link": "browserLink",
+            "created_at": "createdAt",
+            "updated_at": "updatedAt"
+          },
+          "next_page_token": "nextPageToken"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "medium",
+    "needs_review": [
+      "base_url carries the /apis/v1 prefix (\"https://coda.io/apis/v1\") and tool paths are relative to it (/whoami rather than /apis/v1/whoami). Same requests on the wire either way, but it keeps the harness's control probe ON the API surface. With base_url \"https://coda.io\" the control path lands on Coda's marketing site, which answers 307 (verified by curl 2026-09-12); the differing status would let the harness read SHAPE_PROVEN off a website redirect, which proves nothing about the API routing.",
+      "The proof below is honestly AUTH_WALL, not SHAPE_PROVEN. Coda's auth wall sits IN FRONT OF routing: verified by curl 2026-09-12, /apis/v1/whoami, /apis/v1/docs, /apis/v1/docs/<bogus>/tables, /apis/v1/docs/<bogus>/tables/<bogus>/rows and a deliberately bogus /apis/v1/<control> path ALL answer a byte-identical 401 {\"statusCode\":401,\"statusMessage\":\"Unauthorized\",\"message\":\"Unauthorized\"}. Host, TLS, the bearer scheme and the API's own error envelope are proven; the four PATHS rest on documentary provenance (tools_source) and can only be confirmed by a real token.",
+      "Auth kept exactly as scaffolded (bearer on api_token), which matches the vault registry entry's live-tested testHeaders (services/auth/config/integrationTypeRegistry.js key 'coda').",
+      "Category set to 'files_knowledge' to match the shipped taxonomy (google_docs, contentful, box, dropbox); the scaffolded 'uncategorized' is not a bucket any shipped spec uses, and the vault entry already labels Coda 'documents'.",
+      "The limit cap of 100 is OURS, not Coda's: the API documents `limit` as a maximum-results parameter without publishing a hard ceiling, so the clamp is a deliberate response-size guard. UNVERIFIED what Coda's own ceiling is.",
+      "Every response pick comes from the API documentation (tools_source), not from a live 2xx: no Coda account was held for this draft. list_tables and list_rows pick next_page_token so a caller can tell a truncated page from a complete one; if Coda omits it on a single-page response the field simply drops out. list_rows picks the raw `values` map, which is why truncate 2000 matters on that tool in particular: a wide table's cell payload is unbounded.",
+      "list_rows does not send useColumnNames, so `values` is keyed by column ID rather than by the human column name. Deliberate: column IDs are stable, names are not."
+    ]
+  }
+}

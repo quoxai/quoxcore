@@ -1,0 +1,197 @@
+/* ProxmoxTopology — Node topology visualization */
+
+.pxtp {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 12px;
+  gap: 12px;
+}
+
+/* ── Legend ── */
+.pxtp-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 0;
+  flex-shrink: 0;
+}
+
+.pxtp-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.pxtp-legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.pxtp-legend__sep {
+  width: 1px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pxtp-legend__size {
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* ── Grid of node boxes ── */
+.pxtp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+}
+
+/* ── Node box ── */
+.pxtp-node {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.pxtp-node--offline {
+  opacity: 0.5;
+  border-color: rgba(255, 107, 48, 0.2);
+}
+
+.pxtp-node__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pxtp-node__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.pxtp-node__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pxtp-node__count {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.pxtp-node__body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px;
+  min-height: 48px;
+  align-items: flex-start;
+  align-content: flex-start;
+}
+
+.pxtp-node__empty {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.2);
+  padding: 8px;
+}
+
+/* ── VM/CT dot ── */
+.pxtp-dot {
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.15s, border-color 0.15s;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.pxtp-dot:hover {
+  transform: scale(1.3);
+  z-index: 10;
+}
+
+.pxtp-dot--selected {
+  border-color: #ff6b30 !important;
+  transform: scale(1.2);
+  box-shadow: 0 0 8px rgba(255, 107, 48, 0.3);
+}
+
+.pxtp-dot--stopped {
+  opacity: 0.5;
+}
+
+.pxtp-dot--stopped:hover {
+  opacity: 0.9;
+}
+
+/* ── Tooltip ── */
+.pxtp-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 140px;
+  padding: 8px 10px;
+  background: rgba(15, 15, 22, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  pointer-events: none;
+  animation: pxtp-fade 0.1s ease;
+}
+
+@keyframes pxtp-fade {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.pxtp-tooltip__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 3px;
+  white-space: nowrap;
+}
+
+.pxtp-tooltip__meta {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  margin-bottom: 2px;
+}
+
+.pxtp-tooltip__ip {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+.pxtp-tooltip__res {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  margin-top: 2px;
+}

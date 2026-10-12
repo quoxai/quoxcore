@@ -1,0 +1,98 @@
+{
+  "spec_id": "twitch",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:28.221Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.twitch.tv/quox-shapeproof-control-e32ac33f",
+      "status": 404,
+      "latency_ms": 1595,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.twitch.tv/helix/users",
+      "status": 401,
+      "latency_ms": 313,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "8b4f55de014002d80760ed1ac83771200868105f6d5810fb237278f4d151fcaa",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"status\":401,\"message\":\"Invalid OAuth token\"}",
+      "flags": {
+        "structured_body": "json",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_users",
+      "method": "GET",
+      "url": "https://api.twitch.tv/helix/users?login=twitchdev",
+      "status": 401,
+      "latency_ms": 358,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "8b4f55de014002d80760ed1ac83771200868105f6d5810fb237278f4d151fcaa",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"status\":401,\"message\":\"Invalid OAuth token\"}",
+      "flags": {
+        "structured_body": "json",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_streams",
+      "method": "GET",
+      "url": "https://api.twitch.tv/helix/streams?user_login=twitchdev&game_id=quoxprobe&first=20",
+      "status": 401,
+      "latency_ms": 400,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "8b4f55de014002d80760ed1ac83771200868105f6d5810fb237278f4d151fcaa",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"status\":401,\"message\":\"Invalid OAuth token\"}",
+      "flags": {
+        "structured_body": "json",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_games",
+      "method": "GET",
+      "url": "https://api.twitch.tv/helix/games?name=Science+%26+Technology",
+      "status": 401,
+      "latency_ms": 321,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "8b4f55de014002d80760ed1ac83771200868105f6d5810fb237278f4d151fcaa",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"status\":401,\"message\":\"Invalid OAuth token\"}",
+      "flags": {
+        "structured_body": "json",
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_channel",
+      "method": "GET",
+      "url": "https://api.twitch.tv/helix/channels?broadcaster_id=141981764",
+      "status": 401,
+      "latency_ms": 373,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "8b4f55de014002d80760ed1ac83771200868105f6d5810fb237278f4d151fcaa",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"status\":401,\"message\":\"Invalid OAuth token\"}",
+      "flags": {
+        "structured_body": "json",
+        "token_flow_untested": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run. This spec authenticates through a token exchange, which is NOT blind-provable: the harness probes the API surface with a dummy bearer token, so the endpoints, paths and auth handling are tested but the token-acquisition flow itself is not.",
+  "notes": [
+    "oauth2_client_credentials auth: probed with a dummy bearer token; the token-acquisition flow is NOT proven by this run."
+  ]
+}

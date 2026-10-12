@@ -1,0 +1,194 @@
+{
+  "spec_id": "hibob",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T04:07:56.311Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.hibob.com/quox-shapeproof-control-8a500cba",
+      "status": 200,
+      "latency_ms": 172,
+      "classification": "CONTROL",
+      "body_sha256": "4d01eec89f9bab48abbccb6e15ee3a3ee7057d43c92d4f7baec62ada12e4fc91",
+      "body_excerpt": "<!DOCTYPE html>\n<html lang=\"en\" dir=\"ltr\">\n  <head>\n    <meta charset=\"utf-8\"/>\n    <title>Customer login</title>\n    <base href=\"/login\"/>\n    <meta name=\"viewport\" content=\"width=device-width, initi",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.hibob.com/v1/profiles",
+      "status": 401,
+      "latency_ms": 51,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d26a4f05492fb78b5d8db4df4f1cf766b0873d845465506d51324255d9ede66c",
+      "body_excerpt": "{\"key\":\"exception.authentication.tokenNotMatch\",\"error\":\"Token not matches.\",\"args\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_profiles",
+      "method": "GET",
+      "url": "https://api.hibob.com/v1/profiles",
+      "status": 401,
+      "latency_ms": 71,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d26a4f05492fb78b5d8db4df4f1cf766b0873d845465506d51324255d9ede66c",
+      "body_excerpt": "{\"key\":\"exception.authentication.tokenNotMatch\",\"error\":\"Token not matches.\",\"args\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_company_lists",
+      "method": "GET",
+      "url": "https://api.hibob.com/v1/company/named-lists?includeArchived=false",
+      "status": 401,
+      "latency_ms": 50,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d26a4f05492fb78b5d8db4df4f1cf766b0873d845465506d51324255d9ede66c",
+      "body_excerpt": "{\"key\":\"exception.authentication.tokenNotMatch\",\"error\":\"Token not matches.\",\"args\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_company_list",
+      "method": "GET",
+      "url": "https://api.hibob.com/v1/company/named-lists/quoxprobe?includeArchived=false",
+      "status": 401,
+      "latency_ms": 49,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d26a4f05492fb78b5d8db4df4f1cf766b0873d845465506d51324255d9ede66c",
+      "body_excerpt": "{\"key\":\"exception.authentication.tokenNotMatch\",\"error\":\"Token not matches.\",\"args\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_people_fields",
+      "method": "GET",
+      "url": "https://api.hibob.com/v1/company/people/fields",
+      "status": 401,
+      "latency_ms": 49,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d26a4f05492fb78b5d8db4df4f1cf766b0873d845465506d51324255d9ede66c",
+      "body_excerpt": "{\"key\":\"exception.authentication.tokenNotMatch\",\"error\":\"Token not matches.\",\"args\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "whos_out",
+      "method": "GET",
+      "url": "https://api.hibob.com/v1/timeoff/whosout?from=2026-01-01&to=2026-01-31&includePending=false&includeHourly=false",
+      "status": 401,
+      "latency_ms": 54,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d26a4f05492fb78b5d8db4df4f1cf766b0873d845465506d51324255d9ede66c",
+      "body_excerpt": "{\"key\":\"exception.authentication.tokenNotMatch\",\"error\":\"Token not matches.\",\"args\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "out_today",
+      "method": "GET",
+      "url": "https://api.hibob.com/v1/timeoff/outtoday?today=2026-01-15&includeHourly=false&siteId=1",
+      "status": 401,
+      "latency_ms": 43,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d26a4f05492fb78b5d8db4df4f1cf766b0873d845465506d51324255d9ede66c",
+      "body_excerpt": "{\"key\":\"exception.authentication.tokenNotMatch\",\"error\":\"Token not matches.\",\"args\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_time_off_policy_types",
+      "method": "GET",
+      "url": "https://api.hibob.com/v1/timeoff/policy-types",
+      "status": 401,
+      "latency_ms": 50,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d26a4f05492fb78b5d8db4df4f1cf766b0873d845465506d51324255d9ede66c",
+      "body_excerpt": "{\"key\":\"exception.authentication.tokenNotMatch\",\"error\":\"Token not matches.\",\"args\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_time_off_balance",
+      "method": "GET",
+      "url": "https://api.hibob.com/v1/timeoff/employees/quoxprobe/balance?policyType=Holiday&date=2026-01-15",
+      "status": 401,
+      "latency_ms": 109,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d26a4f05492fb78b5d8db4df4f1cf766b0873d845465506d51324255d9ede66c",
+      "body_excerpt": "{\"key\":\"exception.authentication.tokenNotMatch\",\"error\":\"Token not matches.\",\"args\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_open_tasks",
+      "method": "GET",
+      "url": "https://api.hibob.com/v1/tasks",
+      "status": 401,
+      "latency_ms": 102,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d26a4f05492fb78b5d8db4df4f1cf766b0873d845465506d51324255d9ede66c",
+      "body_excerpt": "{\"key\":\"exception.authentication.tokenNotMatch\",\"error\":\"Token not matches.\",\"args\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_employee_tasks",
+      "method": "GET",
+      "url": "https://api.hibob.com/v1/tasks/people/quoxprobe?task_status=quoxprobe",
+      "status": 401,
+      "latency_ms": 44,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d26a4f05492fb78b5d8db4df4f1cf766b0873d845465506d51324255d9ede66c",
+      "body_excerpt": "{\"key\":\"exception.authentication.tokenNotMatch\",\"error\":\"Token not matches.\",\"args\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_company_reports",
+      "method": "GET",
+      "url": "https://api.hibob.com/v1/company/reports",
+      "status": 401,
+      "latency_ms": 42,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d26a4f05492fb78b5d8db4df4f1cf766b0873d845465506d51324255d9ede66c",
+      "body_excerpt": "{\"key\":\"exception.authentication.tokenNotMatch\",\"error\":\"Token not matches.\",\"args\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_onboarding_wizards",
+      "method": "GET",
+      "url": "https://api.hibob.com/v1/onboarding/wizards",
+      "status": 401,
+      "latency_ms": 44,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d26a4f05492fb78b5d8db4df4f1cf766b0873d845465506d51324255d9ede66c",
+      "body_excerpt": "{\"key\":\"exception.authentication.tokenNotMatch\",\"error\":\"Token not matches.\",\"args\":[]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

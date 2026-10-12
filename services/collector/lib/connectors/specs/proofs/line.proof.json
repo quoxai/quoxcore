@@ -1,0 +1,181 @@
+{
+  "spec_id": "line",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:30:16.988Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.line.me/quox-shapeproof-control-38a9c1e7",
+      "status": 404,
+      "latency_ms": 1403,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.line.me/v2/bot/info",
+      "status": 401,
+      "latency_ms": 285,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e1a03870841fac42c45fa950bde41c3d964bb3a372ea56bb24ef70472937cd97",
+      "body_excerpt": "{\"message\":\"Authentication failed. Confirm that the access token in the authorization header is valid.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_bot_info",
+      "method": "GET",
+      "url": "https://api.line.me/v2/bot/info",
+      "status": 401,
+      "latency_ms": 547,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e1a03870841fac42c45fa950bde41c3d964bb3a372ea56bb24ef70472937cd97",
+      "body_excerpt": "{\"message\":\"Authentication failed. Confirm that the access token in the authorization header is valid.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_message_quota",
+      "method": "GET",
+      "url": "https://api.line.me/v2/bot/message/quota",
+      "status": 401,
+      "latency_ms": 558,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e1a03870841fac42c45fa950bde41c3d964bb3a372ea56bb24ef70472937cd97",
+      "body_excerpt": "{\"message\":\"Authentication failed. Confirm that the access token in the authorization header is valid.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_message_quota_consumption",
+      "method": "GET",
+      "url": "https://api.line.me/v2/bot/message/quota/consumption",
+      "status": 401,
+      "latency_ms": 488,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e1a03870841fac42c45fa950bde41c3d964bb3a372ea56bb24ef70472937cd97",
+      "body_excerpt": "{\"message\":\"Authentication failed. Confirm that the access token in the authorization header is valid.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_webhook_endpoint",
+      "method": "GET",
+      "url": "https://api.line.me/v2/bot/channel/webhook/endpoint",
+      "status": 401,
+      "latency_ms": 514,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e1a03870841fac42c45fa950bde41c3d964bb3a372ea56bb24ef70472937cd97",
+      "body_excerpt": "{\"message\":\"Authentication failed. Confirm that the access token in the authorization header is valid.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_user_profile",
+      "method": "GET",
+      "url": "https://api.line.me/v2/bot/profile/quoxprobe",
+      "status": 401,
+      "latency_ms": 673,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e1a03870841fac42c45fa950bde41c3d964bb3a372ea56bb24ef70472937cd97",
+      "body_excerpt": "{\"message\":\"Authentication failed. Confirm that the access token in the authorization header is valid.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_group_summary",
+      "method": "GET",
+      "url": "https://api.line.me/v2/bot/group/quoxprobe/summary",
+      "status": 401,
+      "latency_ms": 410,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e1a03870841fac42c45fa950bde41c3d964bb3a372ea56bb24ef70472937cd97",
+      "body_excerpt": "{\"message\":\"Authentication failed. Confirm that the access token in the authorization header is valid.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_rich_menus",
+      "method": "GET",
+      "url": "https://api.line.me/v2/bot/richmenu/list",
+      "status": 401,
+      "latency_ms": 446,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e1a03870841fac42c45fa950bde41c3d964bb3a372ea56bb24ef70472937cd97",
+      "body_excerpt": "{\"message\":\"Authentication failed. Confirm that the access token in the authorization header is valid.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_follower_ids",
+      "method": "GET",
+      "url": "https://api.line.me/v2/bot/followers/ids?limit=300&start=quoxprobe",
+      "status": 401,
+      "latency_ms": 498,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e1a03870841fac42c45fa950bde41c3d964bb3a372ea56bb24ef70472937cd97",
+      "body_excerpt": "{\"message\":\"Authentication failed. Confirm that the access token in the authorization header is valid.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_follower_insight",
+      "method": "GET",
+      "url": "https://api.line.me/v2/bot/insight/followers?date=20260101",
+      "status": 401,
+      "latency_ms": 357,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e1a03870841fac42c45fa950bde41c3d964bb3a372ea56bb24ef70472937cd97",
+      "body_excerpt": "{\"message\":\"Authentication failed. Confirm that the access token in the authorization header is valid.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_message_delivery_insight",
+      "method": "GET",
+      "url": "https://api.line.me/v2/bot/insight/message/delivery?date=20260101",
+      "status": 401,
+      "latency_ms": 795,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e1a03870841fac42c45fa950bde41c3d964bb3a372ea56bb24ef70472937cd97",
+      "body_excerpt": "{\"message\":\"Authentication failed. Confirm that the access token in the authorization header is valid.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_demographic_insight",
+      "method": "GET",
+      "url": "https://api.line.me/v2/bot/insight/demographic",
+      "status": 401,
+      "latency_ms": 496,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "e1a03870841fac42c45fa950bde41c3d964bb3a372ea56bb24ef70472937cd97",
+      "body_excerpt": "{\"message\":\"Authentication failed. Confirm that the access token in the authorization header is valid.\"}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

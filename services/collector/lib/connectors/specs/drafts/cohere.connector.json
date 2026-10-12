@@ -1,0 +1,27 @@
+{
+  "spec_version": 1,
+  "id": "cohere",
+  "name": "Cohere",
+  "category": "uncategorized",
+  "credentialType": "cohere",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://docs.cohere.com/",
+  "base_url": "https://api.cohere.com",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/models"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

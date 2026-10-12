@@ -1,0 +1,255 @@
+{
+  "name": "youtube",
+  "version": "1.0.0",
+  "displayName": "YouTube",
+  "tagline": "Publish and Manage YouTube from QuoxCORE",
+  "description": "Upload videos, manage metadata, organise playlists, and monitor your YouTube channel — all from Quox. Vault-integrated Google OAuth, channel dashboard, upload panel, and AI-assisted metadata.",
+  "shortDescription": "YouTube channel management and video publishing.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 4,
+  "priceDisplay": "$4",
+  "priceModel": "one-time",
+  "tier": "tier_a",
+  "featured": false,
+  "badge": "NEW",
+  "icon": "youtube",
+  "heroGradient": "linear-gradient(135deg, #FF0000 0%, #CC0000 100%)",
+  "accentColor": "#FF0000",
+  "infoUrl": "https://quox.ai/plugins/youtube",
+  "docsUrl": "https://quox.ai/docs/plugins/youtube",
+  "route": "/youtube",
+  "marketingPoints": [
+    "Upload videos directly from Quox workflows or chat",
+    "AI-assisted titles, descriptions, and tags",
+    "Manage playlists and organise content",
+    "Custom thumbnail uploads",
+    "Channel overview dashboard with key metrics",
+    "Agent chat for hands-free channel management"
+  ],
+  "features": {
+    "videoUpload": {
+      "name": "Video Upload",
+      "description": "Upload MP4, MOV, and WebM videos with full metadata control. Resumable uploads handle large files and network interruptions.",
+      "icon": "upload",
+      "highlight": true
+    },
+    "metadataManagement": {
+      "name": "Metadata Management",
+      "description": "Edit titles, descriptions, tags, categories, and privacy status. AI-assisted suggestions for SEO-friendly metadata.",
+      "icon": "edit",
+      "highlight": true
+    },
+    "thumbnailUpload": {
+      "name": "Thumbnail Upload",
+      "description": "Set custom thumbnails on videos. Supports JPG and PNG up to 2MB at 1280x720.",
+      "icon": "image"
+    },
+    "playlistManagement": {
+      "name": "Playlist Management",
+      "description": "List channel playlists and add videos to them for organised content delivery.",
+      "icon": "list"
+    },
+    "channelOverview": {
+      "name": "Channel Overview",
+      "description": "View subscriber count, total views, video count, and recent upload performance at a glance.",
+      "icon": "bar-chart",
+      "highlight": true
+    },
+    "agentChat": {
+      "name": "YouTube Agent",
+      "description": "Chat with the YOUTUBE specialist agent to manage your channel hands-free.",
+      "icon": "message-circle"
+    },
+    "analytics": {
+      "name": "Analytics Dashboard",
+      "description": "View channel and video analytics: views, watch time, average duration, subscriber growth, daily trends.",
+      "icon": "trending-up",
+      "highlight": true
+    },
+    "comments": {
+      "name": "Comment Management",
+      "description": "Read, reply to, and moderate comments. Sentiment overview and inline reply drafting.",
+      "icon": "message-square"
+    },
+    "scheduling": {
+      "name": "Scheduled Publishing",
+      "description": "Schedule videos for future publication at a specific date and time.",
+      "icon": "clock"
+    },
+    "seo": {
+      "name": "SEO Optimisation",
+      "description": "AI-assisted title, description, and tag suggestions following YouTube search best practices.",
+      "icon": "search"
+    },
+    "captions": {
+      "name": "Caption Upload",
+      "description": "Upload SRT or VTT subtitle files to videos for accessibility and search discoverability.",
+      "icon": "subtitles"
+    }
+  },
+  "specialist": {
+    "name": "YOUTUBE",
+    "description": "YouTube channel management and video publishing specialist",
+    "avatar": "/assets/agents/youtube.svg",
+    "capabilities": [
+      "Upload videos to YouTube channels",
+      "Edit video metadata (title, description, tags, privacy)",
+      "Set custom thumbnails",
+      "Manage playlists",
+      "Monitor channel statistics",
+      "View analytics (views, watch time, retention)",
+      "Read, reply to, and moderate comments",
+      "Schedule videos for future publication",
+      "SEO-optimise metadata",
+      "Upload captions and subtitles"
+    ]
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "YouTube channel with YouTube Data API v3 enabled via Google Cloud Console. Google OAuth credentials stored in Quox Vault."
+  },
+  "integration": {
+    "connector": "youtube",
+    "view": "src/pages/views/YouTubeView.jsx",
+    "agent": "youtube"
+  },
+  "permissions": [
+    "vault:read",
+    "network:external"
+  ],
+  "activation": {
+    "type": "license",
+    "endpoint": "/api/v1/license/activate",
+    "validation": "quoxagent"
+  },
+  "configSchema": {
+    "channelId": {
+      "type": "string",
+      "label": "Channel ID",
+      "description": "Your YouTube channel ID (starts with UC...)",
+      "required": true,
+      "placeholder": "UC..."
+    },
+    "defaultPrivacy": {
+      "type": "string",
+      "label": "Default Upload Privacy",
+      "description": "Privacy status for new uploads. Private recommended.",
+      "default": "private",
+      "enum": ["private", "unlisted", "public"]
+    },
+    "defaultCategory": {
+      "type": "string",
+      "label": "Default Video Category",
+      "description": "YouTube category for new uploads",
+      "default": "28",
+      "enum": ["1", "2", "10", "15", "17", "20", "22", "23", "24", "25", "26", "27", "28"],
+      "enumLabels": {
+        "1": "Film & Animation",
+        "2": "Autos & Vehicles",
+        "10": "Music",
+        "15": "Pets & Animals",
+        "17": "Sports",
+        "20": "Gaming",
+        "22": "People & Blogs",
+        "23": "Comedy",
+        "24": "Entertainment",
+        "25": "News & Politics",
+        "26": "How-to & Style",
+        "27": "Education",
+        "28": "Science & Technology"
+      }
+    }
+  },
+  "safety": {
+    "destructiveActions": [
+      "youtube_upload_video",
+      "youtube_update_video",
+      "youtube_set_thumbnail"
+    ],
+    "requiresApproval": [
+      "youtube_upload_video",
+      "youtube_update_video"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": true
+  },
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "videoUpload": false,
+      "metadataManagement": false,
+      "thumbnailUpload": false,
+      "playlistManagement": false,
+      "channelOverview": false,
+      "agentChat": "Dashboard preview only"
+    },
+    "tier_a": {
+      "name": "YouTube ($4)",
+      "videoUpload": true,
+      "metadataManagement": true,
+      "thumbnailUpload": true,
+      "playlistManagement": true,
+      "channelOverview": true,
+      "agentChat": true
+    }
+  },
+  "limits": {
+    "free": {
+      "channels": 0,
+      "features": []
+    },
+    "starter": {
+      "channels": 1,
+      "features": [
+        "videoUpload",
+        "metadataManagement",
+        "thumbnailUpload",
+        "playlistManagement",
+        "channelOverview",
+        "agentChat"
+      ]
+    },
+    "professional": {
+      "channels": 3,
+      "features": [
+        "videoUpload",
+        "metadataManagement",
+        "thumbnailUpload",
+        "playlistManagement",
+        "channelOverview",
+        "agentChat",
+        "analytics",
+        "comments",
+        "scheduling",
+        "seo"
+      ]
+    }
+  },
+  "futureFeatures": [
+    "YouTube Analytics dashboard",
+    "Comment management and moderation",
+    "SEO optimisation suggestions",
+    "Scheduled publishing",
+    "Caption/subtitle upload",
+    "YouTube Shorts support",
+    "Multi-channel management",
+    "APOLLO video rendering integration"
+  ],
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-03-22",
+      "changes": [
+        "Initial release",
+        "Upload videos with metadata",
+        "Edit titles, descriptions, tags, categories, privacy",
+        "Custom thumbnail uploads",
+        "Playlist management",
+        "Channel overview dashboard",
+        "YOUTUBE agent with chat sidebar",
+        "Vault-integrated Google OAuth credentials"
+      ]
+    }
+  },
+  "category": "Social"
+}

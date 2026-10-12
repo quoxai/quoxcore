@@ -1,0 +1,38 @@
+{
+  "spec_version": 1,
+  "id": "algolia_search",
+  "name": "Algolia Search",
+  "category": "uncategorized",
+  "credentialType": "algolia_search",
+  "requiredFields": [
+    "app_id",
+    "admin_key"
+  ],
+  "docs": "https://www.algolia.com/doc/rest-api/search/",
+  "base_url": {
+    "fromCredential": "app_id",
+    "template": "https://{{app_id}}-dsn.algolia.net"
+  },
+  "auth": {
+    "type": "header",
+    "header": "X-Algolia-Application-Id",
+    "template": "{{app_id}}"
+  },
+  "static_headers": {
+    "X-Algolia-API-Key": "{{admin_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/1/keys"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url_template",
+      "multi_auth_headers"
+    ]
+  }
+}

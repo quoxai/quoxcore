@@ -1,0 +1,135 @@
+{
+  "name": "quoxagent-fleet",
+  "version": "1.0.0",
+  "displayName": "QuoxAgent Fleet Management",
+  "tagline": "Command Your Infrastructure",
+  "description": "Manage your distributed QuoxAgent agent fleet. Monitor host health, execute remote commands, track resource usage, and coordinate tasks across all your servers from one dashboard.",
+  "shortDescription": "Distributed agent management and remote execution.",
+  "author": "QUOX",
+  "license": "commercial",
+  "price": 39,
+  "priceDisplay": "$39",
+  "priceModel": "one-time",
+  "tier": "standard",
+  "featured": false,
+  "icon": "users",
+  "accentColor": "#7c3aed",
+  "infoUrl": "https://quox.ai/solutions/quoxagent",
+  "docsUrl": "https://quox.ai/docs/plugins/quoxagent-fleet",
+  "marketingPoints": [
+    "Real-time fleet status and health",
+    "Remote command execution with audit trail",
+    "Per-host resource monitoring",
+    "Agent deployment and management",
+    "Job tracking and history"
+  ],
+  "features": {
+    "fleetDashboard": {
+      "name": "Fleet Dashboard",
+      "description": "See all connected agents, their status, and resource usage in one view.",
+      "icon": "monitor",
+      "highlight": true
+    },
+    "remoteExecution": {
+      "name": "Remote Execution",
+      "description": "Execute commands on any host with full audit trail via AEE protocol.",
+      "icon": "terminal",
+      "highlight": true
+    },
+    "resourceMonitoring": {
+      "name": "Resource Monitoring",
+      "description": "Track CPU, memory, disk, and network across all agents.",
+      "icon": "activity"
+    },
+    "agentDeployment": {
+      "name": "Agent Deployment",
+      "description": "Deploy QuoxAgent agents to new hosts with one click.",
+      "icon": "download"
+    },
+    "jobTracking": {
+      "name": "Job Tracking",
+      "description": "View job history, status, and output for executed commands.",
+      "icon": "list"
+    },
+    "claudeSessions": {
+      "name": "Claude Sessions",
+      "description": "Track Claude API sessions running on remote agents.",
+      "icon": "message-circle"
+    },
+    "healthChecks": {
+      "name": "Health Checks",
+      "description": "Automatic agent health monitoring with connection status.",
+      "icon": "heart"
+    }
+  },
+  "requirements": {
+    "quox": ">=1.0.0",
+    "external": "QuoxAgent Collector and Agent(s)"
+  },
+  "integration": {
+    "client": "src/services/mhaClient.js",
+    "panel": "src/components/core/monitoring/AgentFleetPanel.jsx",
+    "tools": "src/config/entities/tools/quoxagent.json"
+  },
+  "safety": {
+    "destructiveActions": [
+      "execute.command"
+    ],
+    "requiresApproval": [
+      "execute.command"
+    ],
+    "aeeRequired": true,
+    "killSwitchEnabled": true
+  },
+  "notes": {
+    "important": "QuoxAgent Fleet provides the dashboard integration. The QuoxAgent Collector and Agent components are separate installations. See QuoxAgent documentation for setup."
+  },
+  "changelog": {
+    "1.0.0": {
+      "date": "2025-01-25",
+      "changes": [
+        "Initial release",
+        "Fleet status dashboard",
+        "Remote command execution",
+        "Resource monitoring",
+        "Agent deployment support",
+        "Job history tracking",
+        "AEE audit integration",
+        "Safety system integration"
+      ]
+    }
+  },
+  "category": "Infrastructure",
+  "nocIntegration": {
+    "tab": {
+      "label": "Agents",
+      "icon": "users",
+      "order": 30
+    },
+    "quickActions": [
+      {
+        "id": "agent-status",
+        "label": "Agent Status",
+        "icon": "health",
+        "description": "Check all QuoxAgent instances",
+        "severity": "info",
+        "prompt": "List all QuoxAgent instances with their status, version, and last heartbeat"
+      },
+      {
+        "id": "agent-tasks",
+        "label": "Active Tasks",
+        "icon": "tasks",
+        "description": "Show currently running agent tasks",
+        "severity": "info",
+        "prompt": "Show all active tasks across QuoxAgent fleet"
+      }
+    ],
+    "schedulable": true,
+    "templateVariables": [
+      {
+        "name": "host_filter",
+        "description": "Filter agents by hostname pattern"
+      }
+    ]
+  }
+}

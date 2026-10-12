@@ -1,0 +1,98 @@
+{
+  "spec_id": "spotify",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:19.869Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.spotify.com/quox-shapeproof-control-2b78da3d",
+      "status": 410,
+      "latency_ms": 613,
+      "classification": "CONTROL",
+      "body_sha256": "ffb68e30e1b5dfe5a8233197e07effa39d96c6d62d096d9e2774b1a9239dd8e6",
+      "body_excerpt": "{\n  \"error\": {\n    \"status\": 410,\n    \"message\": \"\"\n  }\n}\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/search?q=quox&type=artist&limit=1",
+      "status": 401,
+      "latency_ms": 153,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "03a3960286cd556ff895b5bcaf7381d7da0d43e81c1ac26066c19d78af87d78d",
+      "body_excerpt": "{\n  \"error\": {\n    \"status\": 401,\n    \"message\": \"Missing/invalid/expired access token\"\n  }\n}\n",
+      "flags": {
+        "www_authenticate": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "search",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/search?q=quoxprobe&type=artist&market=quoxprobe&limit=20",
+      "status": 401,
+      "latency_ms": 184,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "03a3960286cd556ff895b5bcaf7381d7da0d43e81c1ac26066c19d78af87d78d",
+      "body_excerpt": "{\n  \"error\": {\n    \"status\": 401,\n    \"message\": \"Missing/invalid/expired access token\"\n  }\n}\n",
+      "flags": {
+        "www_authenticate": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_artist",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/artists/0TnOYISbd1XYRBk9myaseg",
+      "status": 401,
+      "latency_ms": 195,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "03a3960286cd556ff895b5bcaf7381d7da0d43e81c1ac26066c19d78af87d78d",
+      "body_excerpt": "{\n  \"error\": {\n    \"status\": 401,\n    \"message\": \"Missing/invalid/expired access token\"\n  }\n}\n",
+      "flags": {
+        "www_authenticate": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_album",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/albums/4aawyAB9vmqN3uQ7FjRGTy?market=quoxprobe",
+      "status": 401,
+      "latency_ms": 203,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "03a3960286cd556ff895b5bcaf7381d7da0d43e81c1ac26066c19d78af87d78d",
+      "body_excerpt": "{\n  \"error\": {\n    \"status\": 401,\n    \"message\": \"Missing/invalid/expired access token\"\n  }\n}\n",
+      "flags": {
+        "www_authenticate": true,
+        "token_flow_untested": true
+      }
+    },
+    {
+      "name": "get_track",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/tracks/11dFghVXANMlKmJXsNCbNl?market=quoxprobe",
+      "status": 401,
+      "latency_ms": 516,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "03a3960286cd556ff895b5bcaf7381d7da0d43e81c1ac26066c19d78af87d78d",
+      "body_excerpt": "{\n  \"error\": {\n    \"status\": 401,\n    \"message\": \"Missing/invalid/expired access token\"\n  }\n}\n",
+      "flags": {
+        "www_authenticate": true,
+        "token_flow_untested": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run. This spec authenticates through a token exchange, which is NOT blind-provable: the harness probes the API surface with a dummy bearer token, so the endpoints, paths and auth handling are tested but the token-acquisition flow itself is not.",
+  "notes": [
+    "oauth2_client_credentials auth: probed with a dummy bearer token; the token-acquisition flow is NOT proven by this run."
+  ]
+}

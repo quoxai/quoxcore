@@ -1,0 +1,243 @@
+{
+  "spec_version": 1,
+  "id": "statuspage",
+  "name": "Statuspage",
+  "category": "monitoring",
+  "credentialType": "statuspage",
+  "requiredFields": [
+    "api_key",
+    "page_id"
+  ],
+  "docs": "https://developer.statuspage.io/",
+  "base_url": "https://api.statuspage.io",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "OAuth {{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/pages/{{page_id}}",
+    "_probe": {
+      "page_id": "kctbh9vrtdwd"
+    }
+  },
+  "tools_source": "https://developer.statuspage.io/",
+  "tools": [
+    {
+      "name": "list_pages",
+      "description": "List the Statuspage status pages this API key can manage",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max pages to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/pages",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "subdomain": "subdomain",
+            "domain": "domain",
+            "url": "url",
+            "time_zone": "time_zone",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_page",
+      "description": "Get one Statuspage status page by its page ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_id": {
+            "type": "string",
+            "description": "Statuspage page ID (from list_pages, e.g. kctbh9vrtdwd)"
+          }
+        },
+        "required": [
+          "page_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/pages/{{input.page_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "page_description": "page_description",
+          "subdomain": "subdomain",
+          "domain": "domain",
+          "url": "url",
+          "time_zone": "time_zone",
+          "created_at": "created_at",
+          "updated_at": "updated_at"
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.page_id": "kctbh9vrtdwd"
+      }
+    },
+    {
+      "name": "list_incidents",
+      "description": "List incidents on one Statuspage page, most recent first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_id": {
+            "type": "string",
+            "description": "Statuspage page ID (from list_pages, e.g. kctbh9vrtdwd)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max incidents to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "page_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/pages/{{input.page_id}}/incidents",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "impact": "impact",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "resolved_at": "resolved_at",
+            "shortlink": "shortlink"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.page_id": "kctbh9vrtdwd"
+      }
+    },
+    {
+      "name": "list_unresolved_incidents",
+      "description": "List the currently unresolved incidents on one Statuspage page",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_id": {
+            "type": "string",
+            "description": "Statuspage page ID (from list_pages, e.g. kctbh9vrtdwd)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max incidents to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "page_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/pages/{{input.page_id}}/incidents/unresolved",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "impact": "impact",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "shortlink": "shortlink"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.page_id": "kctbh9vrtdwd"
+      }
+    },
+    {
+      "name": "list_components",
+      "description": "List the components (services) on one Statuspage page with their current status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_id": {
+            "type": "string",
+            "description": "Statuspage page ID (from list_pages, e.g. kctbh9vrtdwd)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max components to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "page_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v1/pages/{{input.page_id}}/components",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "description": "description",
+            "group_id": "group_id",
+            "group": "group",
+            "position": "position",
+            "updated_at": "updated_at"
+          }
+        },
+        "truncate": 2000
+      },
+      "_probe": {
+        "input.page_id": "kctbh9vrtdwd"
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

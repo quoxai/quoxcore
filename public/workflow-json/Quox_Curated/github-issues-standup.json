@@ -1,0 +1,69 @@
+{
+  "id": "wf-quox-github-issues-standup",
+  "name": "GitHub Issues to Stand-up",
+  "description": "Every Monday at 9am, fetches new GitHub issues opened in the past week, asks the assistant to write a stand-up summary, and posts it to the team channel.",
+  "source": "quox-curated",
+  "category": "devops",
+  "tags": ["github", "issues", "standup", "schedule", "assistant", "notification", "devops", "weekly"],
+  "nodes": [
+    {
+      "id": "trig",
+      "type": "trigger:schedule",
+      "name": "Monday 9am",
+      "category": "trigger",
+      "config": {
+        "cron": "0 9 * * 1",
+        "timezone": "UTC",
+        "enabled": true
+      },
+      "position": { "x": 100, "y": 300 }
+    },
+    {
+      "id": "fetch-issues",
+      "type": "call",
+      "name": "Fetch New GitHub Issues",
+      "category": "action",
+      "config": {
+        "url": "https://api.github.com/repos/{{GITHUB_ORG}}/{{GITHUB_REPO}}/issues?state=open&sort=created&direction=desc&per_page=20",
+        "method": "GET",
+        "timeout": 15000
+      },
+      "position": { "x": 400, "y": 300 }
+    },
+    {
+      "id": "summarise",
+      "type": "assistant:invoke",
+      "name": "Write Stand-up Summary",
+      "category": "action",
+      "config": {
+        "assistant_id": "corey",
+        "prompt": "Write a concise team stand-up summary from these GitHub issues. Group by: New This Week, In Progress, Blocked. For each issue include: number, title, labels. Issues data: ${JSON.stringify(nodes['fetch-issues'].output)}. Keep the summary under 400 words.",
+        "name": "Write Stand-up Summary"
+      },
+      "position": { "x": 700, "y": 300 }
+    },
+    {
+      "id": "deliver",
+      "type": "notification:deliver",
+      "name": "Post to Team Channel",
+      "category": "notification",
+      "config": {
+        "title": "Weekly Stand-up — GitHub Issues",
+        "message": "${nodes['summarise'].output.result}",
+        "assignTo": ["team-engineering"],
+        "priority": "normal"
+      },
+      "position": { "x": 1000, "y": 300 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trig", "target": "fetch-issues" },
+    { "id": "e2", "source": "fetch-issues", "target": "summarise" },
+    { "id": "e3", "source": "summarise", "target": "deliver" }
+  ],
+  "meta": {
+    "version": "1.0.0",
+    "createdBy": "quox-curated",
+    "estimatedRuntime": "30s"
+  }
+}

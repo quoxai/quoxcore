@@ -1,0 +1,9 @@
+{
+  "description": "TEMPLATE only. noteId values are placeholders and will be reported as unresolvable; replace with real ids from your org.",
+  "paraphrases": [
+    { "noteId": "REPLACE_WITH_REAL_NOTE_ID", "question": "which practice keeps people from committing straight onto a colleague's working line of development" }
+  ],
+  "nearMisses": [
+    { "query": "what was the exact price we quoted the first enterprise customer for the dashboard licence", "topic": "pricing" }
+  ]
+}

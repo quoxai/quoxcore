@@ -1,0 +1,227 @@
+{
+  "spec_version": 1,
+  "id": "whatsapp",
+  "name": "WhatsApp Business API",
+  "category": "communication",
+  "credentialType": "whatsapp",
+  "requiredFields": [
+    "phone_number_id",
+    "access_token"
+  ],
+  "docs": "https://developers.facebook.com/docs/whatsapp/cloud-api",
+  "base_url": "https://graph.facebook.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v21.0/{{phone_number_id}}"
+  },
+  "tools_source": "https://developers.facebook.com/docs/whatsapp/cloud-api/reference",
+  "tools": [
+    {
+      "name": "get_business_profile",
+      "description": "Get the WhatsApp business profile (about, address, description, email, websites, vertical) for one phone number",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "phone_number_id": {
+            "type": "string",
+            "description": "WhatsApp Business phone number ID (the numeric ID from WhatsApp Manager)"
+          }
+        },
+        "required": [
+          "phone_number_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/{{input.phone_number_id}}/whatsapp_business_profile",
+        "query": {
+          "fields": "about,address,description,email,profile_picture_url,websites,vertical"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "about": "about",
+            "address": "address",
+            "description": "description",
+            "email": "email",
+            "vertical": "vertical",
+            "websites": "websites"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_phone_numbers",
+      "description": "List the phone numbers registered under one WhatsApp Business Account (WABA)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "waba_id": {
+            "type": "string",
+            "description": "WhatsApp Business Account (WABA) ID"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max phone numbers to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "waba_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/{{input.waba_id}}/phone_numbers",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "display_phone_number": "display_phone_number",
+            "verified_name": "verified_name",
+            "quality_rating": "quality_rating",
+            "code_verification_status": "code_verification_status",
+            "platform_type": "platform_type"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_phone_number",
+      "description": "Get one WhatsApp Business phone number by ID (display number, verified name, quality rating)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "phone_number_id": {
+            "type": "string",
+            "description": "WhatsApp Business phone number ID"
+          }
+        },
+        "required": [
+          "phone_number_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/{{input.phone_number_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "display_phone_number": "display_phone_number",
+          "verified_name": "verified_name",
+          "quality_rating": "quality_rating",
+          "code_verification_status": "code_verification_status",
+          "platform_type": "platform_type"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_message_templates",
+      "description": "List message templates for one WhatsApp Business Account, optionally filtered by approval status",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "waba_id": {
+            "type": "string",
+            "description": "WhatsApp Business Account (WABA) ID"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max templates to return (default 20, max 100)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "APPROVED",
+              "PENDING",
+              "REJECTED",
+              "PAUSED",
+              "DISABLED"
+            ],
+            "description": "Optional template approval status to filter by"
+          }
+        },
+        "required": [
+          "waba_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/{{input.waba_id}}/message_templates",
+        "query": {
+          "limit": "{{clamp input.limit 20 100}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "data[]": {
+            "id": "id",
+            "name": "name",
+            "language": "language",
+            "status": "status",
+            "category": "category",
+            "quality_score": "quality_score.score"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_business_account",
+      "description": "Get one WhatsApp Business Account (name, currency, timezone, message template namespace)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "waba_id": {
+            "type": "string",
+            "description": "WhatsApp Business Account (WABA) ID"
+          }
+        },
+        "required": [
+          "waba_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v21.0/{{input.waba_id}}",
+        "query": {
+          "fields": "id,name,currency,timezone_id,message_template_namespace,account_review_status"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "name": "name",
+          "currency": "currency",
+          "timezone_id": "timezone_id",
+          "message_template_namespace": "message_template_namespace",
+          "account_review_status": "account_review_status"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

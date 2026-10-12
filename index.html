@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/logo-quox-180.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>QuoxCORE Dashboard</title>
+    <meta property="og:title" content="QuoxCORE Dashboard" />
+    <meta property="og:description" content="AI-powered infrastructure command center. Multi-agent orchestration for enterprise." />
+    <meta property="og:image" content="/logo-quox.png" />
+    <meta name="twitter:card" content="summary" />
+    <style>
+      /* Minimal pre-React background — no theater, just brand surface. */
+      #boot-loader {
+        position: fixed;
+        inset: 0;
+        background:
+          radial-gradient(ellipse 50% 40% at 15% 20%, rgba(0, 229, 255, 0.18), transparent 70%),
+          radial-gradient(ellipse 45% 40% at 85% 15%, rgba(139, 92, 246, 0.20), transparent 70%),
+          radial-gradient(ellipse 50% 45% at 75% 80%, rgba(59, 130, 246, 0.16), transparent 70%),
+          #06080d;
+        z-index: 99999;
+        transition: opacity 0.16s ease-out;
+        pointer-events: none;
+      }
+      #boot-loader.fade-out {
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="boot-loader"></div>
+    <div id="root"></div>
+    <script>
+      window.hideBootLoader = function() {
+        const loader = document.getElementById('boot-loader');
+        if (loader) {
+          loader.classList.add('fade-out');
+          setTimeout(() => loader.remove(), 160);
+        }
+      };
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,64 @@
+# Quox Sandbox - Standard Profile
+# Egress-only network, limited writes, moderate resources
+#
+# Use cases: API calls, web scraping, file processing
+
+FROM python:3.12-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    jq \
+    git \
+    nodejs \
+    npm \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages
+RUN pip install --no-cache-dir \
+    httpx \
+    requests \
+    aiohttp \
+    pydantic \
+    beautifulsoup4 \
+    lxml \
+    pandas \
+    openpyxl \
+    PyYAML \
+    python-dotenv
+
+# Install Node packages globally
+RUN npm install -g \
+    axios \
+    cheerio \
+    puppeteer-core \
+    typescript
+
+# Create sandbox user
+RUN useradd -m -u 1000 sandbox
+
+# Create work directories
+RUN mkdir -p /sandbox /data /tmp/sandbox \
+    && chown -R sandbox:sandbox /sandbox /data /tmp/sandbox
+
+# Copy tool runner
+COPY --chmod=755 runner.sh /sandbox/runner
+COPY --chmod=755 tool-wrapper.py /sandbox/tool-wrapper.py
+
+# Set environment
+ENV PYTHONUNBUFFERED=1
+ENV NODE_ENV=production
+ENV HOME=/home/sandbox
+
+# Switch to sandbox user
+USER sandbox
+WORKDIR /sandbox
+
+# Default command - wait for exec
+CMD ["tail", "-f", "/dev/null"]
+
+# Labels
+LABEL quox.sandbox.profile="standard"
+LABEL quox.sandbox.network="egress-only"
+LABEL quox.sandbox.filesystem="limited-write"

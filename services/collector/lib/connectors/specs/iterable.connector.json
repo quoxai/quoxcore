@@ -1,0 +1,134 @@
+{
+  "spec_version": 1,
+  "id": "iterable",
+  "name": "Iterable",
+  "category": "marketing_email",
+  "credentialType": "iterable",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://api.iterable.com/api/docs",
+  "base_url": "https://api.iterable.com",
+  "auth": {
+    "type": "header",
+    "header": "Api-Key",
+    "template": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/channels"
+  },
+  "tools_source": "https://api.iterable.com/api/docs",
+  "tools": [
+    {
+      "name": "list_campaigns",
+      "description": "List all Iterable campaigns with their state, medium and audience lists",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/campaigns"
+      },
+      "response": {
+        "pick": {
+          "campaigns[]": {
+            "id": "id",
+            "name": "name",
+            "campaignState": "campaignState",
+            "type": "type",
+            "messageMedium": "messageMedium",
+            "templateId": "templateId",
+            "listIds": "listIds",
+            "sendSize": "sendSize",
+            "createdAt": "createdAt",
+            "updatedAt": "updatedAt",
+            "startAt": "startAt"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_lists",
+      "description": "List Iterable contact lists (id, name and list type)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/lists"
+      },
+      "response": {
+        "pick": {
+          "lists[]": {
+            "id": "id",
+            "name": "name",
+            "listType": "listType",
+            "createdAt": "createdAt"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_channels",
+      "description": "List Iterable channels (the delivery channels message types belong to)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/channels"
+      },
+      "response": {
+        "pick": {
+          "channels[]": {
+            "id": "id",
+            "name": "name",
+            "channelType": "channelType",
+            "messageMedium": "messageMedium"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_message_types",
+      "description": "List Iterable message types with their channel, subscription policy and rate limit",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/messageTypes"
+      },
+      "response": {
+        "pick": {
+          "messageTypes[]": {
+            "id": "id",
+            "name": "name",
+            "channelId": "channelId",
+            "subscriptionPolicy": "subscriptionPolicy",
+            "rateLimitPerMinute": "rateLimitPerMinute"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

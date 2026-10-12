@@ -1,0 +1,41 @@
+{
+  "spec_version": 1,
+  "id": "auth0",
+  "name": "Auth0",
+  "category": "uncategorized",
+  "credentialType": "auth0",
+  "requiredFields": [
+    "domain",
+    "client_id",
+    "client_secret"
+  ],
+  "docs": "https://auth0.com/docs/api",
+  "base_url": {
+    "fromCredential": "domain",
+    "template": "https://{{domain}}"
+  },
+  "auth": null,
+  "static_headers": {
+    "Content-Type": "application/json"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/oauth/token",
+    "body": {
+      "grant_type": "client_credentials",
+      "client_id": "{{client_id}}",
+      "client_secret": "{{client_secret}}",
+      "audience": "https://{{domain}}/api/v2/"
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "base_url_template",
+      "no_auth_detected"
+    ]
+  }
+}

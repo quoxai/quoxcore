@@ -1,0 +1,90 @@
+{
+  "spec_id": "twilio",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:27.685Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.twilio.com/quox-shapeproof-control-89d01c9b",
+      "status": 404,
+      "latency_ms": 1561,
+      "classification": "CONTROL",
+      "body_sha256": "c800027ecf972183715f49833b6e8fc218eb2347d3e0d725a80c035d72f2c8fe",
+      "body_excerpt": "{\"code\":20404,\"message\":\"The requested resource /quox-shapeproof-control-89d01c9b was not found\",\"more_info\":\"https://www.twilio.com/docs/errors/20404\",\"status\":404}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.twilio.com/2010-04-01/Accounts/QUOXSHAPEPROOFDUMMYACCOUNTSID.json",
+      "status": 401,
+      "latency_ms": 254,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc9c0d9d5e70d54cb237605b8fb0fe47cfdb32bb910f8025c022df624b71cb73",
+      "body_excerpt": "{\"code\":20003,\"message\":\"Authentication Error - invalid username\",\"more_info\":\"https://www.twilio.com/docs/errors/20003\",\"status\":401}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_account",
+      "method": "GET",
+      "url": "https://api.twilio.com/2010-04-01/Accounts/QUOXSHAPEPROOFDUMMYACCOUNTSID.json",
+      "status": 401,
+      "latency_ms": 286,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc9c0d9d5e70d54cb237605b8fb0fe47cfdb32bb910f8025c022df624b71cb73",
+      "body_excerpt": "{\"code\":20003,\"message\":\"Authentication Error - invalid username\",\"more_info\":\"https://www.twilio.com/docs/errors/20003\",\"status\":401}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_messages",
+      "method": "GET",
+      "url": "https://api.twilio.com/2010-04-01/Accounts/QUOXSHAPEPROOFDUMMYACCOUNTSID/Messages.json?PageSize=20&To=quoxprobe&From=quoxprobe",
+      "status": 401,
+      "latency_ms": 314,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc9c0d9d5e70d54cb237605b8fb0fe47cfdb32bb910f8025c022df624b71cb73",
+      "body_excerpt": "{\"code\":20003,\"message\":\"Authentication Error - invalid username\",\"more_info\":\"https://www.twilio.com/docs/errors/20003\",\"status\":401}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_calls",
+      "method": "GET",
+      "url": "https://api.twilio.com/2010-04-01/Accounts/QUOXSHAPEPROOFDUMMYACCOUNTSID/Calls.json?PageSize=20&To=quoxprobe&From=quoxprobe&Status=quoxprobe",
+      "status": 401,
+      "latency_ms": 371,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc9c0d9d5e70d54cb237605b8fb0fe47cfdb32bb910f8025c022df624b71cb73",
+      "body_excerpt": "{\"code\":20003,\"message\":\"Authentication Error - invalid username\",\"more_info\":\"https://www.twilio.com/docs/errors/20003\",\"status\":401}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_incoming_numbers",
+      "method": "GET",
+      "url": "https://api.twilio.com/2010-04-01/Accounts/QUOXSHAPEPROOFDUMMYACCOUNTSID/IncomingPhoneNumbers.json?PageSize=20&PhoneNumber=quoxprobe",
+      "status": 401,
+      "latency_ms": 284,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc9c0d9d5e70d54cb237605b8fb0fe47cfdb32bb910f8025c022df624b71cb73",
+      "body_excerpt": "{\"code\":20003,\"message\":\"Authentication Error - invalid username\",\"more_info\":\"https://www.twilio.com/docs/errors/20003\",\"status\":401}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

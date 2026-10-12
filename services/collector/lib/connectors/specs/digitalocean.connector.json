@@ -1,0 +1,198 @@
+{
+  "spec_version": 1,
+  "id": "digitalocean",
+  "name": "DigitalOcean",
+  "category": "cloud_hosting",
+  "credentialType": "digitalocean",
+  "requiredFields": [
+    "token"
+  ],
+  "docs": "https://docs.digitalocean.com/reference/api/",
+  "base_url": "https://api.digitalocean.com",
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/account"
+  },
+  "tools_source": "https://docs.digitalocean.com/reference/api/api-reference/",
+  "tools": [
+    {
+      "name": "get_account",
+      "description": "Get the DigitalOcean account profile, including status and droplet limit",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/account"
+      },
+      "response": {
+        "pick": {
+          "uuid": "account.uuid",
+          "email": "account.email",
+          "email_verified": "account.email_verified",
+          "status": "account.status",
+          "droplet_limit": "account.droplet_limit",
+          "floating_ip_limit": "account.floating_ip_limit",
+          "team": "account.team.name"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_droplets",
+      "description": "List DigitalOcean droplets, optionally filtered by tag",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max droplets to return (default 20, max 50)"
+          },
+          "tag_name": {
+            "type": "string",
+            "description": "Optional tag name to filter droplets by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/droplets",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}",
+          "tag_name": "{{input.tag_name}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "droplets[]": {
+            "id": "id",
+            "name": "name",
+            "status": "status",
+            "memory": "memory",
+            "vcpus": "vcpus",
+            "disk": "disk",
+            "region": "region.slug",
+            "image": "image.slug",
+            "created_at": "created_at"
+          },
+          "total": "meta.total"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_droplet",
+      "description": "Get one DigitalOcean droplet by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "droplet_id": {
+            "type": "number",
+            "description": "Numeric DigitalOcean droplet ID (e.g. 3164444)"
+          }
+        },
+        "required": [
+          "droplet_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/droplets/{{input.droplet_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "droplet.id",
+          "name": "droplet.name",
+          "status": "droplet.status",
+          "memory": "droplet.memory",
+          "vcpus": "droplet.vcpus",
+          "disk": "droplet.disk",
+          "region": "droplet.region.slug",
+          "image": "droplet.image.slug",
+          "created_at": "droplet.created_at",
+          "tags": "droplet.tags"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_domains",
+      "description": "List DNS domains managed in the DigitalOcean account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max domains to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/domains",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "domains[]": {
+            "name": "name",
+            "ttl": "ttl"
+          },
+          "total": "meta.total"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_kubernetes_clusters",
+      "description": "List DigitalOcean Kubernetes (DOKS) clusters and their state",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max clusters to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/kubernetes/clusters",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "kubernetes_clusters[]": {
+            "id": "id",
+            "name": "name",
+            "region": "region",
+            "version": "version",
+            "status": "status.state",
+            "created_at": "created_at"
+          },
+          "total": "meta.total"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

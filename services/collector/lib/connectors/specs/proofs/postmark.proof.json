@@ -1,0 +1,90 @@
+{
+  "spec_id": "postmark",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:09.568Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.postmarkapp.com/quox-shapeproof-control-40a9f85e",
+      "status": 404,
+      "latency_ms": 375,
+      "classification": "CONTROL",
+      "body_sha256": "c6dbe82bc30c4e1a13c2043813a7fbfdc64ba572a979a5a567e04ee2d4fbc4e8",
+      "body_excerpt": "<!DOCTYPE html>\r\n<html>\r\n    <head>\r\n        <title>The resource cannot be found.</title>\r\n        <meta name=\"viewport\" content=\"width=device-width\" />\r\n        <style>\r\n         body {font-family:\"V",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.postmarkapp.com/server",
+      "status": 401,
+      "latency_ms": 127,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fda0a6de48eb96764b48b6dbd6429c4109a80841b004760770a9217e23f2c48b",
+      "body_excerpt": "{\"ErrorCode\":10,\"Message\":\"Request does not contain a valid Server token.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_server",
+      "method": "GET",
+      "url": "https://api.postmarkapp.com/server",
+      "status": 401,
+      "latency_ms": 124,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fda0a6de48eb96764b48b6dbd6429c4109a80841b004760770a9217e23f2c48b",
+      "body_excerpt": "{\"ErrorCode\":10,\"Message\":\"Request does not contain a valid Server token.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "outbound_overview",
+      "method": "GET",
+      "url": "https://api.postmarkapp.com/stats/outbound?tag=quoxprobe&fromdate=quoxprobe&todate=quoxprobe",
+      "status": 401,
+      "latency_ms": 134,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fda0a6de48eb96764b48b6dbd6429c4109a80841b004760770a9217e23f2c48b",
+      "body_excerpt": "{\"ErrorCode\":10,\"Message\":\"Request does not contain a valid Server token.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_outbound_messages",
+      "method": "GET",
+      "url": "https://api.postmarkapp.com/messages/outbound?count=20&offset=0&recipient=quoxprobe&tag=quoxprobe&status=quoxprobe",
+      "status": 401,
+      "latency_ms": 129,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fda0a6de48eb96764b48b6dbd6429c4109a80841b004760770a9217e23f2c48b",
+      "body_excerpt": "{\"ErrorCode\":10,\"Message\":\"Request does not contain a valid Server token.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_bounces",
+      "method": "GET",
+      "url": "https://api.postmarkapp.com/bounces?count=20&offset=0&type=quoxprobe&emailFilter=quoxprobe&tag=quoxprobe&inactive=false",
+      "status": 401,
+      "latency_ms": 139,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fda0a6de48eb96764b48b6dbd6429c4109a80841b004760770a9217e23f2c48b",
+      "body_excerpt": "{\"ErrorCode\":10,\"Message\":\"Request does not contain a valid Server token.\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

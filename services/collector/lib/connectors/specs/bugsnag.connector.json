@@ -1,0 +1,233 @@
+{
+  "spec_version": 1,
+  "id": "bugsnag",
+  "name": "Bugsnag",
+  "category": "developer",
+  "credentialType": "bugsnag",
+  "requiredFields": [
+    "auth_token"
+  ],
+  "docs": "https://bugsnagapiv2.docs.apiary.io/",
+  "base_url": "https://api.bugsnag.com",
+  "auth": {
+    "type": "header",
+    "header": "Authorization",
+    "template": "token {{auth_token}}"
+  },
+  "static_headers": {
+    "X-Version": "2"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/user/organizations"
+  },
+  "tools_source": "https://bugsnagapiv2.docs.apiary.io/",
+  "tools": [
+    {
+      "name": "list_organizations",
+      "description": "List the Bugsnag organizations the auth token can see",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/user/organizations"
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "slug": "slug",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "collaborators_count": "collaborators_count"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_projects",
+      "description": "List the projects in one Bugsnag organization",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "description": "Bugsnag organization ID (from list_organizations)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max projects per page (default 20, max 100)"
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "",
+              "created_at",
+              "favourite"
+            ],
+            "description": "Optional sort field for the project list"
+          }
+        },
+        "required": [
+          "org_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/organizations/{{input.org_id}}/projects",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "sort": "{{input.sort}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "name": "name",
+            "slug": "slug",
+            "type": "type",
+            "created_at": "created_at",
+            "updated_at": "updated_at",
+            "open_error_count": "open_error_count",
+            "for_review_error_count": "for_review_error_count",
+            "html_url": "html_url"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_errors",
+      "description": "List the errors in one Bugsnag project, newest activity first by default",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "Bugsnag project ID (from list_projects)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max errors per page (default 20, max 100)"
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "",
+              "last_seen",
+              "first_seen",
+              "users",
+              "events",
+              "unsorted"
+            ],
+            "description": "Optional sort field for the error list (default last_seen)"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "",
+              "asc",
+              "desc"
+            ],
+            "description": "Optional sort direction (default desc)"
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/projects/{{input.project_id}}/errors",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "sort": "{{input.sort}}",
+          "direction": "{{input.direction}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "project_id": "project_id",
+            "error_class": "error_class",
+            "message": "message",
+            "context": "context",
+            "severity": "severity",
+            "status": "status",
+            "events": "events",
+            "users": "users",
+            "first_seen": "first_seen",
+            "last_seen": "last_seen",
+            "release_stages": "release_stages"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_error",
+      "description": "Get one Bugsnag error by ID, with its severity, status, event and user counts",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "error_id": {
+            "type": "string",
+            "description": "Bugsnag error ID (from list_errors)"
+          }
+        },
+        "required": [
+          "error_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/errors/{{input.error_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "project_id": "project_id",
+          "error_class": "error_class",
+          "message": "message",
+          "context": "context",
+          "severity": "severity",
+          "original_severity": "original_severity",
+          "overridden_severity": "overridden_severity",
+          "status": "status",
+          "events": "events",
+          "users": "users",
+          "first_seen": "first_seen",
+          "last_seen": "last_seen",
+          "release_stages": "release_stages",
+          "grouping_reason": "grouping_reason",
+          "assigned_collaborator_id": "assigned_collaborator_id"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "Tools added 2026-09-11 from the official Bugsnag Data Access API reference (https://bugsnagapiv2.docs.apiary.io/): all four are GET reads, no write tool is declared.",
+      "static_headers X-Version: 2 pins the Data Access API version, as the reference requires on every request. The scaffolded token auth is unchanged.",
+      "Organization, project and error IDs are opaque Bugsnag ObjectIDs with no public example, so no _probe hints are supplied: the blind harness cannot route a made-up ID, and the shape proof records that honestly rather than guessing an identifier."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

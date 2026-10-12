@@ -1,0 +1,32 @@
+/* OfflineBanner — amber warning bar for network offline state.
+   Uses .qx-banner--warn tokens; overrides shape to stay flush with terminal chrome. */
+
+.offline-banner {
+  /* shape override — strip radius so it sits flush inside the terminal pane */
+  border-radius: 0;
+  border-left-width: 0;
+  border-right-width: 0;
+  border-top-width: 0;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  flex-shrink: 0;
+  animation: offline-banner-slide 0.2s ease-out;
+}
+
+.offline-banner__text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes offline-banner-slide {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

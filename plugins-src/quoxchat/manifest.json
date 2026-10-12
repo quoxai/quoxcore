@@ -1,0 +1,32 @@
+{
+  "id": "quoxchat",
+  "name": "quoxchat",
+  "displayName": "QuoxChat",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "paid",
+  "badge": "PAID",
+  "category": "Communication",
+  "accentColor": "#30ff90",
+  "description": "Deploy AI-powered chat assistants on your websites. Train on your knowledge, style to your brand, connect to your systems. BYOK — bring your own LLM key. Unlimited widgets, unlimited conversations.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/quoxchat",
+      "label": "QuoxChat",
+      "icon": "messageSquare",
+      "badge": "NEW"
+    }
+  ],
+  "routes": {
+    "/quoxchat": "QuoxChatView",
+    "/quoxchat/:widgetId": "QuoxChatWidgetRoom"
+  },
+  "minQuoxVersion": "1.0.0"
+}

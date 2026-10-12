@@ -1,0 +1,36 @@
+{
+  "id": "codebase-mirror",
+  "name": "Codebase Mirror",
+  "displayName": "Codebase Mirror",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "free",
+  "license": "free",
+  "badge": "FREE",
+  "category": "developer-tools",
+  "accentColor": "#4f46e5",
+  "description": "Structural code awareness across all scanned projects. Indexes registries, routes, services, schemas, and detects drift automatically. Agents get code context injected without reading entire files.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/codebase-mirror",
+      "label": "Codebase Mirror",
+      "icon": "layers",
+      "minRole": "builder"
+    }
+  ],
+  "routes": {
+    "/codebase-mirror": "CodebaseMirrorView"
+  },
+  "routeGuards": {
+    "/codebase-mirror": {
+      "minRole": "builder"
+    }
+  },
+  "minQuoxVersion": "1.0.0"
+}

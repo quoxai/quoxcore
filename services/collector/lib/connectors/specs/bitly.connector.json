@@ -1,0 +1,148 @@
+{
+  "spec_version": 1,
+  "id": "bitly",
+  "name": "Bitly",
+  "category": "marketing_email",
+  "credentialType": "bitly",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://dev.bitly.com/",
+  "base_url": "https://api-ssl.bitly.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v4/user"
+  },
+  "tools_source": "https://dev.bitly.com/api-reference",
+  "tools": [
+    {
+      "name": "get_user",
+      "description": "Get the authenticated Bitly user (login, name, default group and email verification state)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v4/user"
+      },
+      "response": {
+        "pick": {
+          "login": "login",
+          "name": "name",
+          "email": "email",
+          "is_active": "is_active",
+          "is_2fa_enabled": "is_2fa_enabled",
+          "has_verified_email": "has_verified_email",
+          "default_group_guid": "default_group_guid",
+          "created": "created",
+          "modified": "modified"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_groups",
+      "description": "List Bitly groups the authenticated user can access (group_guid values for the other tools)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization_guid": {
+            "type": "string",
+            "description": "Optional Bitly organization GUID to filter groups by"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v4/groups",
+        "query": {
+          "organization": "{{input.organization_guid}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "groups[]": {
+            "guid": "guid",
+            "name": "name",
+            "organization_guid": "organization_guid",
+            "role": "role",
+            "is_active": "is_active",
+            "bsds": "bsds",
+            "created": "created",
+            "modified": "modified"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_bitlinks",
+      "description": "List the Bitlinks in one Bitly group, newest first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "group_guid": {
+            "type": "string",
+            "description": "Bitly group GUID (from list_groups or the user's default_group_guid)"
+          },
+          "size": {
+            "type": "number",
+            "description": "Max Bitlinks to return (default 20, max 50)"
+          },
+          "archived": {
+            "type": "string",
+            "enum": [
+              "on",
+              "off",
+              "both"
+            ],
+            "description": "Whether to include archived Bitlinks (default off)"
+          }
+        },
+        "required": [
+          "group_guid"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v4/groups/{{input.group_guid}}/bitlinks",
+        "query": {
+          "size": "{{clamp input.size 20 50}}",
+          "archived": "{{input.archived}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "links[]": {
+            "id": "id",
+            "link": "link",
+            "long_url": "long_url",
+            "title": "title",
+            "archived": "archived",
+            "tags": "tags",
+            "created_at": "created_at"
+          },
+          "total": "pagination.total",
+          "size": "pagination.size",
+          "page": "pagination.page"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

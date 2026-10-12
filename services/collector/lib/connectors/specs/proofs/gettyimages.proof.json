@@ -1,0 +1,64 @@
+{
+  "spec_id": "gettyimages",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:45:20.010Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.gettyimages.com/quox-shapeproof-control-d9c5c329",
+      "status": 403,
+      "latency_ms": 1739,
+      "classification": "CONTROL",
+      "body_sha256": "f249b63cb2fcb66b47e86f906c98f8fd912e82dd035b4e53d7e72fc1960cfd16",
+      "body_excerpt": "{\"message\":\"Missing Authentication Token\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.gettyimages.com/v3/search/images?phrase=test&page_size=1",
+      "status": 403,
+      "latency_ms": 622,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "12a22880bc2e59f8278b4a5e547567f0aa14d020ea456598267fa00208cfebc5",
+      "body_excerpt": "{\"message\":\"Forbidden\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "search_images",
+      "method": "GET",
+      "url": "https://api.gettyimages.com/v3/search/images?phrase=mountain&page_size=30&page=1&asset_family=creative&sort_order=best_match",
+      "status": 403,
+      "latency_ms": 810,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "12a22880bc2e59f8278b4a5e547567f0aa14d020ea456598267fa00208cfebc5",
+      "body_excerpt": "{\"message\":\"Forbidden\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_image",
+      "method": "GET",
+      "url": "https://api.gettyimages.com/v3/images/1234567890",
+      "status": 403,
+      "latency_ms": 620,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "12a22880bc2e59f8278b4a5e547567f0aa14d020ea456598267fa00208cfebc5",
+      "body_excerpt": "{\"message\":\"Forbidden\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

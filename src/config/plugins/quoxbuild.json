@@ -1,0 +1,97 @@
+{
+  "name": "quoxbuild",
+  "version": "0.1.0",
+  "displayName": "QuoxBuild",
+  "tagline": "Green only after the service answered.",
+  "description": "A governed build queue for your dev servers. A dispatch names a target the host already registered, never a command, so the build path can never become a remote shell. Builds serialise and coalesce, every outcome writes a witnessed receipt, and a receipt only reads green once a post-deploy probe confirms the service actually came up. Repeated failures are recorded, so the next dispatch of a target warns you before you approve it.",
+  "shortDescription": "Governed build queue with verified receipts for dev servers",
+  "author": "QUOX",
+  "license": "paid",
+  "_pricingNote": "PROVISIONAL. DEVSUITE plan keeps bundle SKU + final pricing owner-gated; this figure exists so the manifest is well-formed and the plugin can be enabled, not as an approved price.",
+  "price": 20,
+  "priceDisplay": "$20",
+  "priceModel": "one-time",
+  "tier": "standard",
+  "featured": false,
+  "icon": "octahedron",
+  "accentColor": "#f59e0b",
+  "infoUrl": "https://quox.ai/solutions/quoxbuild",
+  "docsUrl": "https://quox.ai/docs/plugins/quoxbuild",
+  "dashboardSurface": "embedded",
+  "dashboardSurfaceNote": "No standalone route by design: the build queue is reached from its host card in /dev-suite via a capability pill, because a build queue belongs to a host.",
+  "category": "Developer Tools",
+
+  "marketingPoints": [
+    "Queued is not built, and built is not verified: a receipt goes green only after a probe answered",
+    "A dispatch can only name a pre-registered target, so the envelope can never carry a command",
+    "Parallel dispatches coalesce into one build whose receipt names both requesters",
+    "A killed build reports the failing step and exit code, never a hollow green",
+    "Repeated failures become a warning on the next dispatch, before you approve it",
+    "No model anywhere in the build path"
+  ],
+
+  "features": {
+    "governedDispatch": {
+      "name": "Signed dispatch, registered targets",
+      "description": "Dispatches are signed and delivered over the fleet gateway, and the host refuses any target it does not already know.",
+      "icon": "lock",
+      "highlight": true
+    },
+    "verifiedReceipts": {
+      "name": "Receipts that mean something",
+      "description": "Every build writes a durable receipt. Green requires a post-deploy check that the container is alive and, where a health endpoint exists, answering.",
+      "icon": "check",
+      "highlight": true
+    },
+    "coalescing": {
+      "name": "Serialised and coalesced",
+      "description": "Concurrent requests for the same target become one build, so parallel sessions cannot race each other into a corrupted image.",
+      "icon": "shield",
+      "highlight": true
+    },
+    "failureLearning": {
+      "name": "It learns from its own receipts",
+      "description": "A target that fails repeatedly records the pattern, and the next dispatch surfaces it before a human approves. Deliberately restrained: one red build is a typo, not a lesson.",
+      "icon": "eye"
+    }
+  },
+
+  "safety": {
+    "destructiveActions": ["dev.build.dispatch"],
+    "requiresApproval": ["bob_dispatch_build"],
+    "aeeRequired": true,
+    "killSwitchEnabled": false
+  },
+
+  "limits": {
+    "free": { "buildsPerDay": 0 },
+    "paid": { "registeredTargets": 20, "receiptHistoryDays": 90 }
+  },
+
+  "requirements": {
+    "quox": ">=4.0.0",
+    "plugins": ["dev-servers"]
+  },
+
+  "integration": {
+    "service": "quoxai/collector",
+    "collectorAlias": "build",
+    "healthEndpoint": "/health",
+    "view": "src/components/devsuite/panels/DevBuildPanel.jsx"
+  },
+
+  "capabilities": {
+    "aeeIntents": ["quox.build.receipt"],
+    "agentTools": [
+      "bob_build_status",
+      "bob_build_history",
+      "bob_verify_deploy",
+      "bob_detect_repeated_failures",
+      "bob_build_targets",
+      "bob_dispatch_build"
+    ],
+    "agents": ["bob"]
+  },
+
+  "includedIn": ["dev-suite-bundle"]
+}

@@ -1,0 +1,299 @@
+{
+  "outcomes": {
+    "approved": "approved",
+    "denied": "denied",
+    "expired": "expired, nobody answered",
+    "gone": "dealt with",
+    "retired": "retired",
+    "error": "approved, but it failed when it ran",
+    "resuming": "approved, running now",
+    "succeeded": "done",
+    "success": "done",
+    "failed": "failed",
+    "resolved": "dealt with",
+    "calmed": "calmed down"
+  },
+  "areas": [
+    {
+      "key": "approvals",
+      "label": "Approvals",
+      "order": 1,
+      "feeds": [
+        "approvals",
+        "hitl"
+      ],
+      "unwired": "anything your agents are waiting for you to approve",
+      "L0": {
+        "composer": "phrases",
+        "empty": "Nothing waiting for you"
+      },
+      "stats": {
+        "waiting": {
+          "count": "needs"
+        },
+        "oldest": {
+          "oldest": "needs"
+        },
+        "who": {
+          "names": "needs"
+        }
+      }
+    },
+    {
+      "key": "messages",
+      "label": "Messages",
+      "order": 2,
+      "feeds": [
+        "inboxq"
+      ],
+      "unwired": "your priority email and chat messages",
+      "L0": {
+        "composer": "phrases",
+        "empty": "Nothing new that needs you"
+      },
+      "stats": {
+        "waiting": {
+          "count": "needs"
+        },
+        "open": {
+          "count": "open"
+        }
+      }
+    },
+    {
+      "key": "calls",
+      "label": "Calls",
+      "order": 3,
+      "feeds": [
+        "voice"
+      ],
+      "unwired": "missed calls and voicemail",
+      "L0": {
+        "composer": "phrases",
+        "empty": "No missed calls"
+      },
+      "stats": {
+        "waiting": {
+          "count": "needs"
+        },
+        "open": {
+          "count": "open"
+        }
+      }
+    },
+    {
+      "key": "sessions",
+      "label": "Sessions",
+      "order": 4,
+      "feeds": [
+        "sessions",
+        "session-hooks",
+        "runs"
+      ],
+      "unwired": "which Claude sessions are working or waiting for you",
+      "L0": {
+        "composer": "groups",
+        "empty": "No sessions running",
+        "groups": [
+          {
+            "key": "working",
+            "label": "working",
+            "when": {
+              "phase": "working"
+            }
+          },
+          {
+            "key": "waiting",
+            "label": "waiting on you",
+            "when": {
+              "phase": "waiting"
+            }
+          },
+          {
+            "key": "turn_done",
+            "label": "finished their turn",
+            "when": {
+              "phase": "turn_done"
+            }
+          },
+          {
+            "key": "idle",
+            "label": "idle",
+            "when": {
+              "phase": "idle"
+            }
+          },
+          {
+            "key": "other",
+            "label": "running",
+            "when": {
+              "phase": "other"
+            }
+          }
+        ]
+      },
+      "stats": {
+        "working": {
+          "names": {
+            "phase": "working"
+          }
+        },
+        "waiting": {
+          "names": {
+            "phase": "waiting"
+          }
+        },
+        "idle": {
+          "names": {
+            "phase": "idle"
+          }
+        }
+      }
+    },
+    {
+      "key": "systems",
+      "label": "Systems",
+      "order": 5,
+      "feeds": [
+        "vital",
+        "units",
+        "sentry",
+        "sites",
+        "containers"
+      ],
+      "unwired": "which servers and services are up",
+      "L0": {
+        "composer": "phrases",
+        "empty": "Everything I watch is up"
+      },
+      "stats": {
+        "problems": {
+          "count": "attention"
+        },
+        "down": {
+          "names": "attention"
+        }
+      }
+    },
+    {
+      "key": "security",
+      "label": "Security",
+      "order": 6,
+      "feeds": [
+        "security"
+      ],
+      "unwired": "failed logins and security findings",
+      "L0": {
+        "composer": "phrases",
+        "empty": "No open findings"
+      },
+      "stats": {
+        "open": {
+          "count": "open"
+        },
+        "findings": {
+          "names": "attention"
+        }
+      }
+    },
+    {
+      "key": "builds",
+      "label": "Builds",
+      "order": 7,
+      "feeds": [
+        "build"
+      ],
+      "unwired": "whether builds and deploys succeed",
+      "L0": {
+        "composer": "phrases",
+        "empty": "No builds seen",
+        "fallback_subject": "build:queue",
+        "fallback_map": {
+          "idle": "Builds idle"
+        }
+      },
+      "stats": {
+        "failed": {
+          "count": {
+            "status": [
+              "failed"
+            ]
+          }
+        },
+        "running": {
+          "names": {
+            "status": [
+              "running"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "key": "plans",
+      "label": "Plans",
+      "order": 8,
+      "feeds": [
+        "quoxplan"
+      ],
+      "unwired": "which roadmap decisions are waiting for you",
+      "L0": {
+        "composer": "phrases",
+        "prefix": "Decisions waiting: ",
+        "item": "{code} ({dur waited_ms})",
+        "joiner": ", ",
+        "empty": "No decisions waiting",
+        "aside": "{n} kept aside"
+      },
+      "stats": {
+        "decisions": {
+          "count": "needs"
+        },
+        "kept_aside": {
+          "count": "shelved"
+        },
+        "which": {
+          "names": "needs"
+        }
+      }
+    },
+    {
+      "key": "money",
+      "label": "Money",
+      "order": 9,
+      "feeds": [
+        "metron"
+      ],
+      "brief_unwired": false,
+      "unwired": "what your AI usage is costing you",
+      "L0": {
+        "composer": "phrases",
+        "empty": "Nothing to report"
+      },
+      "stats": {
+        "open": {
+          "count": "open"
+        }
+      }
+    },
+    {
+      "key": "people",
+      "label": "People",
+      "order": 10,
+      "feeds": [
+        "contacts"
+      ],
+      "brief_unwired": false,
+      "unwired": "who has been in touch across email, calls and approvals",
+      "L0": {
+        "composer": "phrases",
+        "empty": "Nothing to report"
+      },
+      "stats": {
+        "open": {
+          "count": "open"
+        }
+      }
+    }
+  ]
+}

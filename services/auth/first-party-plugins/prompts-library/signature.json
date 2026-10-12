@@ -1,0 +1,10 @@
+{
+  "keyId": "SXrktTWt+cOYgtw19j3sKSqgMqRI1Q1nedSb4UYHTgQ=",
+  "digest": "ccrfkrbyUJz9Dld42ThWQFfaauOpwD7aLsJoPvCoVw4=",
+  "signature": "f3ibHhmfHETulNqRFpHk1t0PVYfeRP/4hIX2qGvmRNyC48rte03613oPUHaRebYF9eDN7wtsEAoUIZIMHAHMAQ==",
+  "algorithm": "Ed25519",
+  "hashAlgorithm": "SHA-256",
+  "timestamp": "2026-10-11T02:03:25.911Z",
+  "pluginId": "prompts-library",
+  "pluginVersion": "1.0.0"
+}

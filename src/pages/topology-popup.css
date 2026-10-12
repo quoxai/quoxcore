@@ -1,0 +1,98 @@
+/**
+ * TopologyPopup Styles
+ * Fullscreen detachable brain galaxy visualizer
+ */
+
+.topology-popup {
+  width: 100vw;
+  height: 100vh;
+  background: #0a0a0a;
+  position: relative;
+  overflow: hidden;
+}
+
+.topology-popup.fullscreen {
+  background: #000;
+}
+
+/* Main visualizer container */
+.topology-popup-visualizer {
+  width: 100%;
+  height: 100%;
+}
+
+/* Controls overlay */
+.topology-popup-controls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 16px 24px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.topology-popup-controls.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Actions */
+.topology-popup-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.topology-popup-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.topology-popup-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.topology-popup-btn.close:hover {
+  background: rgba(255, 80, 80, 0.3);
+  border-color: rgba(255, 80, 80, 0.5);
+  color: #60d0ff;
+}
+
+/* Hint at bottom */
+.topology-popup-hint {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+}
+
+.topology-popup-hint kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #fff;
+}

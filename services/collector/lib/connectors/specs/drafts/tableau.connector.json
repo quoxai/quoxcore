@@ -1,0 +1,43 @@
+{
+  "spec_version": 1,
+  "id": "tableau",
+  "name": "Tableau",
+  "category": "data",
+  "credentialType": "tableau",
+  "requiredFields": [
+    "server_url",
+    "site_id",
+    "token_name",
+    "token_value"
+  ],
+  "docs": "https://help.tableau.com/current/api/rest_api/en-us/",
+  "base_url": {
+    "fromCredential": "server_url"
+  },
+  "auth": null,
+  "static_headers": {
+    "Content-Type": "application/json"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/api/3.21/auth/signin",
+    "body": {
+      "credentials": {
+        "personalAccessTokenName": "{{token_name}}",
+        "personalAccessTokenSecret": "{{token_value}}",
+        "site": {
+          "contentUrl": "{{site_id}}"
+        }
+      }
+    }
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "no_auth_detected"
+    ]
+  }
+}

@@ -1,0 +1,129 @@
+{
+  "spec_id": "split",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:56:26.251Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.split.io/quox-shapeproof-control-ad1a6405",
+      "status": 404,
+      "latency_ms": 958,
+      "classification": "CONTROL",
+      "body_sha256": "fb57d66475f05cd74c9363a25d6451b2df1102330efdd584f338d4f23f9aa73a",
+      "body_excerpt": "<html>\n<head>\n<meta http-equiv=\"Content-Type\" content=\"text/html;charset=ISO-8859-1\"/>\n<title>Error 404 Not Found</title>\n</head>\n<body>\n<h2>HTTP ERROR 404 Not Found</h2>\n<table>\n<tr><th>URI:</th><td>",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.split.io/internal/api/v2/workspaces",
+      "status": 401,
+      "latency_ms": 148,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7569aeb9f2a7beebcd09bd87aa1de193ba04fb7f821e205c04c1294d1f733929",
+      "body_excerpt": "{\"code\":401,\"message\":\"API key unauthorized: xxxxXXXXXXXXXXXXXXXXXXXXXXXXXXXPIKEY\",\"details\":null,\"transactionId\":\"3wjyndtmyft\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "method": "GET",
+      "url": "https://api.split.io/internal/api/v2/workspaces?limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 136,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3c74a1e3d0174226f287163b45860579ffdc7006c3488107313491b9e0f73fde",
+      "body_excerpt": "{\"code\":401,\"message\":\"API key unauthorized: xxxxXXXXXXXXXXXXXXXXXXXXXXXXXXXPIKEY\",\"details\":null,\"transactionId\":\"3wjyne6cnsi\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_environments",
+      "method": "GET",
+      "url": "https://api.split.io/internal/api/v2/environments/ws/quoxprobe",
+      "status": 401,
+      "latency_ms": 279,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "2b6929696bf74cc8a7adae7a91243704b3e8b699d922e5ed8c98174047f99c7d",
+      "body_excerpt": "{\"code\":401,\"message\":\"API key unauthorized: xxxxXXXXXXXXXXXXXXXXXXXXXXXXXXXPIKEY\",\"details\":null,\"transactionId\":\"3wjynejlxfs\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_feature_flags",
+      "method": "GET",
+      "url": "https://api.split.io/internal/api/v2/splits/ws/quoxprobe?limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 302,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b1c4987aa501737c56172614385f38cd001c4e275d120ab4e35124d454a80637",
+      "body_excerpt": "{\"code\":401,\"message\":\"API key unauthorized: xxxxXXXXXXXXXXXXXXXXXXXXXXXXXXXPIKEY\",\"details\":null,\"transactionId\":\"3wjyneymect\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_feature_flag",
+      "method": "GET",
+      "url": "https://api.split.io/internal/api/v2/splits/ws/quoxprobe/quoxprobe",
+      "status": 401,
+      "latency_ms": 347,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "4a971c533dfd5ca392c14ffa7484748a4ae5f44a3038a52da892ad878a5394a3",
+      "body_excerpt": "{\"code\":401,\"message\":\"API key unauthorized: xxxxXXXXXXXXXXXXXXXXXXXXXXXXXXXPIKEY\",\"details\":null,\"transactionId\":\"3wjynffctac\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_feature_flag_definition",
+      "method": "GET",
+      "url": "https://api.split.io/internal/api/v2/splits/ws/quoxprobe/quoxprobe/environments/quoxprobe",
+      "status": 401,
+      "latency_ms": 332,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "c98667234a7220402c906f1780853f674ba0e4eafeb5c05308b2f86cc8a91997",
+      "body_excerpt": "{\"code\":401,\"message\":\"API key unauthorized: xxxxXXXXXXXXXXXXXXXXXXXXXXXXXXXPIKEY\",\"details\":null,\"transactionId\":\"3wjynfxgzom\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_segments",
+      "method": "GET",
+      "url": "https://api.split.io/internal/api/v2/segments/ws/quoxprobe/quoxprobe?limit=20&offset=1",
+      "status": 401,
+      "latency_ms": 144,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "8061bc839faed8c23342c592d60766f2b398c5dec4e26254faa723289005cc8c",
+      "body_excerpt": "{\"code\":401,\"message\":\"API key unauthorized: xxxxXXXXXXXXXXXXXXXXXXXXXXXXXXXPIKEY\",\"details\":null,\"transactionId\":\"3wjyngg0hxb\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_traffic_types",
+      "method": "GET",
+      "url": "https://api.split.io/internal/api/v2/trafficTypes/ws/quoxprobe",
+      "status": 401,
+      "latency_ms": 210,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "433934409ce433fa3d8c007b2eb9a4434458d985fee70564c6786f4079f7d8da",
+      "body_excerpt": "{\"code\":401,\"message\":\"API key unauthorized: xxxxXXXXXXXXXXXXXXXXXXXXXXXXXXXPIKEY\",\"details\":null,\"transactionId\":\"3wjyngu8mss\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

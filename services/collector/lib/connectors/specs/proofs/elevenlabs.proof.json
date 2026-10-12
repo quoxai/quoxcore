@@ -1,0 +1,103 @@
+{
+  "spec_id": "elevenlabs",
+  "spec_version": 1,
+  "checked_at": "2026-09-16T16:44:55.749Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.elevenlabs.io/quox-shapeproof-control-e853b4e1",
+      "status": 404,
+      "latency_ms": 1457,
+      "classification": "CONTROL",
+      "body_sha256": "37ec4665a8102d115ffd1ac20dae94c98b4dac64b0c1a68228aa2a531caeb35d",
+      "body_excerpt": "{\"detail\":\"Not Found\"}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.elevenlabs.io/v1/user",
+      "status": 401,
+      "latency_ms": 298,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "f443adf60d62cb042e798100ad0c68f3c78174a06b4c1f296eec0800b46dc307",
+      "body_excerpt": "{\"detail\":{\"type\":\"authentication_error\",\"code\":\"unauthorized\",\"message\":\"Invalid API key\",\"status\":\"invalid_api_key\",\"request_id\":\"a8283ef03a1bd8f9e51b9c17b92fea92\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_user",
+      "method": "GET",
+      "url": "https://api.elevenlabs.io/v1/user",
+      "status": 401,
+      "latency_ms": 312,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "d89f710124cd41a23664f8abacf1a77e5c94149971a48e6cf932d38860f89c32",
+      "body_excerpt": "{\"detail\":{\"type\":\"authentication_error\",\"code\":\"unauthorized\",\"message\":\"Invalid API key\",\"status\":\"invalid_api_key\",\"request_id\":\"04e75534874a0c20e51b9c17b92fe106\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_voices",
+      "method": "GET",
+      "url": "https://api.elevenlabs.io/v1/voices",
+      "status": 401,
+      "latency_ms": 354,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fb3a6fd2811fb42e3fae73171a4ca786966a9f0f5d3508ecc73eb72de467224e",
+      "body_excerpt": "{\"detail\":{\"type\":\"authentication_error\",\"code\":\"unauthorized\",\"message\":\"Invalid API key\",\"status\":\"invalid_api_key\",\"request_id\":\"01596c9330627384e51b9c17b92fec1b\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_models",
+      "method": "GET",
+      "url": "https://api.elevenlabs.io/v1/models",
+      "status": 401,
+      "latency_ms": 129,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "32750741dfa42441ca99ce04cec30a4e26fde8da0f7e6b3f35ab49492c814fc4",
+      "body_excerpt": "{\"detail\":{\"type\":\"authentication_error\",\"code\":\"unauthorized\",\"message\":\"Invalid API key\",\"status\":\"invalid_api_key\",\"request_id\":\"31ea79245a992d5fe51b9c17b92fe8af\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_history",
+      "method": "GET",
+      "url": "https://api.elevenlabs.io/v1/history?page_size=100",
+      "status": 401,
+      "latency_ms": 137,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "7f7ec3a5f70086229b564b5b55aee9113906c78676ee96f0bfbf1bca12cacf13",
+      "body_excerpt": "{\"detail\":{\"type\":\"authentication_error\",\"code\":\"unauthorized\",\"message\":\"Invalid API key\",\"status\":\"invalid_api_key\",\"request_id\":\"5f23411978d44e26e51b9c17b92fe2bf\"}}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "text_to_speech",
+      "method": "POST",
+      "url": null,
+      "status": null,
+      "latency_ms": null,
+      "classification": "SKIPPED_WRITE",
+      "body_sha256": null,
+      "body_excerpt": null,
+      "flags": {
+        "reason": "writes_not_included"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

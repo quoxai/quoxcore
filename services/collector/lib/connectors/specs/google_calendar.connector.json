@@ -1,0 +1,149 @@
+{
+  "spec_version": 1,
+  "id": "google_calendar",
+  "name": "Google Calendar",
+  "category": "files_knowledge",
+  "credentialType": "google_calendar",
+  "requiredFields": [
+    "service_account_json"
+  ],
+  "docs": "https://developers.google.com/calendar/api",
+  "base_url": "https://www.googleapis.com",
+  "auth": {
+    "type": "google_service_account",
+    "scope": "https://www.googleapis.com/auth/calendar.readonly",
+    "field": "service_account_json"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/calendar/v3/users/me/calendarList"
+  },
+  "tools_source": "https://developers.google.com/calendar/api/v3/reference",
+  "tools": [
+    {
+      "name": "list_calendars",
+      "description": "List the calendars on the service account's calendar list, with their IDs and access roles",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max_results": {
+            "type": "number",
+            "description": "Max calendars to return (default 20, max 50)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/calendar/v3/users/me/calendarList",
+        "query": {
+          "maxResults": "{{clamp input.max_results 20 50}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "summary": "summary",
+            "primary": "primary",
+            "accessRole": "accessRole",
+            "timeZone": "timeZone"
+          },
+          "nextPageToken": "nextPageToken"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_events",
+      "description": "List events on one calendar, optionally bounded by a start and end time. Recurring events are expanded into single instances",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "calendar_id": {
+            "type": "string",
+            "description": "Calendar ID (an email-style address, or 'primary' for the credential's own default calendar)"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Max events to return (default 20, max 50)"
+          },
+          "time_min": {
+            "type": "string",
+            "description": "Optional earliest event end time, RFC3339 (e.g. 2026-09-11T00:00:00Z)"
+          },
+          "time_max": {
+            "type": "string",
+            "description": "Optional latest event start time, RFC3339 (e.g. 2026-09-18T00:00:00Z)"
+          }
+        },
+        "required": [
+          "calendar_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/calendar/v3/calendars/{{input.calendar_id}}/events",
+        "query": {
+          "maxResults": "{{clamp input.max_results 20 50}}",
+          "timeMin": "{{input.time_min}}",
+          "timeMax": "{{input.time_max}}",
+          "singleEvents": "true"
+        }
+      },
+      "response": {
+        "pick": {
+          "items[]": {
+            "id": "id",
+            "summary": "summary",
+            "start": "start",
+            "end": "end",
+            "status": "status",
+            "organizer_email": "organizer.email"
+          },
+          "nextPageToken": "nextPageToken"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_event",
+      "description": "Get one calendar event by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "calendar_id": {
+            "type": "string",
+            "description": "Calendar ID (an email-style address, or 'primary' for the credential's own default calendar)"
+          },
+          "event_id": {
+            "type": "string",
+            "description": "Event ID, as returned by list_events"
+          }
+        },
+        "required": [
+          "calendar_id",
+          "event_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/calendar/v3/calendars/{{input.calendar_id}}/events/{{input.event_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "summary": "summary",
+          "start": "start",
+          "end": "end",
+          "status": "status",
+          "organizer_email": "organizer.email"
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

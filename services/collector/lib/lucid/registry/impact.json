@@ -1,0 +1,14 @@
+{
+  "note": "Static edges: declared (feed) beats these, these beat inferred kind rules. Add edges here, no code change.",
+  "edges": {
+    "unit:node_exporter.service": [
+      { "ref": "service:monitoring-graphs", "label": "monitoring graphs", "how": "will stop updating" }
+    ],
+    "unit:docker.service": [
+      { "ref": "service:containers", "label": "every container on the box", "how": "stops running" }
+    ],
+    "site:quox.ai": [
+      { "ref": "site:quox.ai", "label": "the public website", "how": "visitors cannot load it" }
+    ]
+  }
+}

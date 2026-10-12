@@ -1,0 +1,311 @@
+{
+  "spec_version": 1,
+  "id": "kubernetes_api",
+  "name": "Kubernetes API",
+  "category": "cloud_hosting",
+  "credentialType": "kubernetes_api",
+  "requiredFields": [
+    "api_server",
+    "token"
+  ],
+  "docs": "https://kubernetes.io/docs/reference/kubernetes-api/",
+  "tools_source": "https://kubernetes.io/docs/reference/kubernetes-api/",
+  "description": "Direct Kubernetes cluster reads through the apiserver: server version, namespaces, pods and deployments in one namespace, and cluster nodes. Read-only; create, patch, delete, scale, eviction, exec, attach, port-forward, log streaming and the Secret endpoints are all deliberately absent.",
+  "base_url": {
+    "fromCredential": "api_server"
+  },
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/v1/namespaces"
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  },
+  "tools": [
+    {
+      "name": "version",
+      "description": "Get the Kubernetes version the apiserver reports, including build and platform",
+      "request": {
+        "method": "GET",
+        "path": "/version"
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "major": "major",
+          "minor": "minor",
+          "gitVersion": "gitVersion",
+          "gitCommit": "gitCommit",
+          "gitTreeState": "gitTreeState",
+          "buildDate": "buildDate",
+          "goVersion": "goVersion",
+          "compiler": "compiler",
+          "platform": "platform"
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {}
+    },
+    {
+      "name": "list_namespaces",
+      "description": "List the namespaces in the cluster with their phase and creation time",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/namespaces",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "continue": "{{input.continue}}",
+          "labelSelector": "{{input.labelSelector}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max namespaces to return per chunk (default 20, capped at 50 by this connector)"
+          },
+          "continue": {
+            "type": "string",
+            "description": "Continue token from a previous response's continue field, to fetch the next chunk"
+          },
+          "labelSelector": {
+            "type": "string",
+            "description": "Label selector, for example environment=production"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "resourceVersion": "metadata.resourceVersion",
+          "continue": "metadata.continue",
+          "remainingItemCount": "metadata.remainingItemCount",
+          "items[]": {
+            "name": "metadata.name",
+            "uid": "metadata.uid",
+            "creationTimestamp": "metadata.creationTimestamp",
+            "phase": "status.phase"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.limit": 5
+      }
+    },
+    {
+      "name": "list_pods",
+      "description": "List the pods in one namespace with their phase, node, IP and start time",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/namespaces/{{input.namespace}}/pods",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "continue": "{{input.continue}}",
+          "labelSelector": "{{input.labelSelector}}",
+          "fieldSelector": "{{input.fieldSelector}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "description": "Namespace name, for example default"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max pods to return per chunk (default 20, capped at 50 by this connector)"
+          },
+          "continue": {
+            "type": "string",
+            "description": "Continue token from a previous response's continue field, to fetch the next chunk"
+          },
+          "labelSelector": {
+            "type": "string",
+            "description": "Label selector, for example app=nginx"
+          },
+          "fieldSelector": {
+            "type": "string",
+            "description": "Field selector, for example status.phase=Running"
+          }
+        },
+        "required": [
+          "namespace"
+        ]
+      },
+      "response": {
+        "pick": {
+          "resourceVersion": "metadata.resourceVersion",
+          "continue": "metadata.continue",
+          "remainingItemCount": "metadata.remainingItemCount",
+          "items[]": {
+            "name": "metadata.name",
+            "namespace": "metadata.namespace",
+            "creationTimestamp": "metadata.creationTimestamp",
+            "nodeName": "spec.nodeName",
+            "restartPolicy": "spec.restartPolicy",
+            "phase": "status.phase",
+            "podIP": "status.podIP",
+            "hostIP": "status.hostIP",
+            "startTime": "status.startTime"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.namespace": "default",
+        "input.limit": 5
+      }
+    },
+    {
+      "name": "list_nodes",
+      "description": "List the cluster nodes with their kubelet version, OS image, capacity and schedulability",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/nodes",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "continue": "{{input.continue}}",
+          "labelSelector": "{{input.labelSelector}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "number",
+            "description": "Max nodes to return per chunk (default 20, capped at 50 by this connector)"
+          },
+          "continue": {
+            "type": "string",
+            "description": "Continue token from a previous response's continue field, to fetch the next chunk"
+          },
+          "labelSelector": {
+            "type": "string",
+            "description": "Label selector, for example node-role.kubernetes.io/control-plane"
+          }
+        },
+        "required": []
+      },
+      "response": {
+        "pick": {
+          "resourceVersion": "metadata.resourceVersion",
+          "continue": "metadata.continue",
+          "remainingItemCount": "metadata.remainingItemCount",
+          "items[]": {
+            "name": "metadata.name",
+            "creationTimestamp": "metadata.creationTimestamp",
+            "unschedulable": "spec.unschedulable",
+            "podCIDR": "spec.podCIDR",
+            "kubeletVersion": "status.nodeInfo.kubeletVersion",
+            "osImage": "status.nodeInfo.osImage",
+            "architecture": "status.nodeInfo.architecture",
+            "containerRuntimeVersion": "status.nodeInfo.containerRuntimeVersion",
+            "kernelVersion": "status.nodeInfo.kernelVersion",
+            "capacityCpu": "status.capacity.cpu",
+            "capacityMemory": "status.capacity.memory",
+            "capacityPods": "status.capacity.pods"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.limit": 5
+      }
+    },
+    {
+      "name": "list_deployments",
+      "description": "List the deployments in one namespace with desired, ready and available replica counts",
+      "request": {
+        "method": "GET",
+        "path": "/apis/apps/v1/namespaces/{{input.namespace}}/deployments",
+        "query": {
+          "limit": "{{clamp input.limit 20 50}}",
+          "continue": "{{input.continue}}",
+          "labelSelector": "{{input.labelSelector}}"
+        }
+      },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "description": "Namespace name, for example default"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max deployments to return per chunk (default 20, capped at 50 by this connector)"
+          },
+          "continue": {
+            "type": "string",
+            "description": "Continue token from a previous response's continue field, to fetch the next chunk"
+          },
+          "labelSelector": {
+            "type": "string",
+            "description": "Label selector, for example app=nginx"
+          }
+        },
+        "required": [
+          "namespace"
+        ]
+      },
+      "response": {
+        "pick": {
+          "resourceVersion": "metadata.resourceVersion",
+          "continue": "metadata.continue",
+          "remainingItemCount": "metadata.remainingItemCount",
+          "items[]": {
+            "name": "metadata.name",
+            "namespace": "metadata.namespace",
+            "creationTimestamp": "metadata.creationTimestamp",
+            "generation": "metadata.generation",
+            "desiredReplicas": "spec.replicas",
+            "strategy": "spec.strategy.type",
+            "replicas": "status.replicas",
+            "readyReplicas": "status.readyReplicas",
+            "updatedReplicas": "status.updatedReplicas",
+            "availableReplicas": "status.availableReplicas",
+            "unavailableReplicas": "status.unavailableReplicas"
+          }
+        },
+        "truncate": 2000
+      },
+      "write": false,
+      "_probe": {
+        "input.namespace": "default",
+        "input.limit": 5
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "AUTH KEPT AS SCAFFOLDED, AND THE DOCS AGREE: Kubernetes authentication (https://kubernetes.io/docs/reference/access-authn-authz/authentication/) documents ServiceAccount bearer tokens sent as 'Authorization: Bearer <token>', and the vault entry (integrationTypeRegistry.kubernetes_api) already sends exactly that header in testHeaders. So {type: bearer, field: token} is unchanged, and the test block stays the vault's own testEndpoint, GET /api/v1/namespaces",
+      "TLS IS THE LIVE-PROOF BLOCKER, STATED VERBATIM: declarativeRuntime.js issues 'await fetch(url, options)' with only method, headers, signal and body. It sets no TLS agent, no undici dispatcher and no rejectUnauthorized, and it NEVER reads the vault's optional ca_cert field (that field is declared in integrationTypeRegistry but consumed by nothing in the connector runtime). A kube-apiserver on a fresh cluster serves https with a self-signed cluster CA, so Node will reject the connection before any tool runs, with SELF_SIGNED_CERT_IN_CHAIN or UNABLE_TO_VERIFY_LEAF_SIGNATURE. There is no per-connector way to skip verification or to trust the cluster CA today. Therefore: these tools CANNOT be live-proven as the runtime stands. The harness must either front the apiserver with a certificate the collector already trusts, or start the collector with NODE_EXTRA_CA_CERTS pointing at the ephemeral cluster CA, or the runtime must grow support for ca_cert (and an explicit, opt-in insecure flag). The spec is authored anyway, per instruction, and nothing in it is claimed proven",
+      "BASE URL IS CUSTOMER-SUPPLIED, SO NOTHING HERE IS PROVABLE BLIND: api_server points at the customer's own apiserver, and there is no vendor-run cluster to shape-prove against. This spec is NOT shape proven by a blind 401 sweep; it is marked for the live harness, which stands up an ephemeral cluster (and a namespace named quoxproof-live where a dedicated namespace is wanted) and drives every tool against it, subject to the TLS blocker above",
+      "RBAC DECIDES WHETHER A VALID TOKEN STILL GETS 403: the ServiceAccount needs cluster-scoped list on namespaces and nodes, and get/list on pods and deployments in the target namespace. A namespace-scoped ServiceAccount will authenticate and still be refused on list_namespaces and list_nodes. That is a cluster binding fact, not something the spec can fix",
+      "PROBES RESOLVE ON A FRESH CLUSTER, BY CONSTRUCTION: version, list_namespaces and list_nodes need no resource. list_pods and list_deployments probe namespace='default', which exists on every cluster from creation, and both answer 200 with an empty items array when nothing is deployed there, so neither probe depends on a workload existing. The live convention name quoxproof-live is what the provisioner creates when a dedicated namespace is used",
+      "LIMIT AND CONTINUE ARE KUBERNETES' OWN CHUNKED LIST: the apiserver treats limit as a hint and returns metadata.continue plus metadata.remainingItemCount when more remains, so every list tool picks those through and accepts a continue token back. The 20 default and 50 cap are this connector's, which is why the input descriptions say so rather than implying an apiserver limit",
+      "READ-ONLY BY CONSTRUCTION, AND THE OMISSIONS ARE THE POINT: all five tools are GETs against list and version endpoints. The same apiserver exposes POST/PUT/PATCH/DELETE on every resource, subresources /exec, /attach, /portforward, /log, /eviction and /scale, and the Secret and ConfigMap endpoints that would hand back credential material. None is wired here. Nothing in this connector may be described as managing or operating a cluster",
+      "CATEGORY CHANGED: the scaffold wrote 'infrastructure', which is NOT one of the twelve values in use in this spec directory (cloud_hosting, commerce_finance, communication, crm_sales, data_ai, developer, files_knowledge, hr_hiring, marketing_email, media, monitoring, project_management). Set to 'cloud_hosting', which is where the other compute control planes live (digitalocean, docker_hub, fly_io style entries). The vault entry says category 'kubernetes', which is a vault grouping, not a spec-directory value",
+      "RESPONSE SHAPES COME FROM THE API REFERENCE: picked fields are Info (major, minor, gitVersion, gitCommit, gitTreeState, buildDate, goVersion, compiler, platform), NamespaceList/Namespace (metadata.name, uid, creationTimestamp, status.phase), PodList/Pod (spec.nodeName, spec.restartPolicy, status.phase, podIP, hostIP, startTime), NodeList/Node (spec.unschedulable, spec.podCIDR, status.nodeInfo.*, status.capacity.*) and DeploymentList/Deployment (spec.replicas, spec.strategy.type, status.replicas, readyReplicas, updatedReplicas, availableReplicas, unavailableReplicas). Per-container status, node conditions and addresses are deliberately not picked: they are nested arrays that would dominate the payload. Confirming these field names against a real cluster is the live harness's job"
+    ]
+  }
+}

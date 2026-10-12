@@ -1,0 +1,28 @@
+{
+  "spec_version": 1,
+  "id": "meta",
+  "name": "Meta (Facebook/Instagram)",
+  "category": "uncategorized",
+  "credentialType": "meta",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://developers.facebook.com/docs/graph-api/",
+  "base_url": "https://graph.facebook.com",
+  "auth": {
+    "type": "query",
+    "param": "access_token",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/me"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  }
+}

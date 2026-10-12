@@ -1,0 +1,77 @@
+{
+  "spec_id": "stability",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T03:23:41.348Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.stability.ai/quox-shapeproof-control-b1e79532",
+      "status": 404,
+      "latency_ms": 936,
+      "classification": "CONTROL",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body_excerpt": "",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.stability.ai/v1/user/account",
+      "status": 401,
+      "latency_ms": 273,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "125301e229eabbed26392e16749b20e84db8f4b708dac4534201723e8af86df4",
+      "body_excerpt": "{\"id\":\"a143de0adb754dd409517d4c854aebae\",\"message\":\"Incorrect API key provided: QUOXSHA**************IKEY. You can find your API key at https://stability.ai.\",\"name\":\"unauthorized\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "account",
+      "method": "GET",
+      "url": "https://api.stability.ai/v1/user/account",
+      "status": 401,
+      "latency_ms": 178,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "5f134db8b009edda08b7767a9a21e37fe93bd9ef1f20bef3ddbb466734f56a49",
+      "body_excerpt": "{\"id\":\"45ff401e5ff894540e0ec8ae6c17dc0c\",\"message\":\"Incorrect API key provided: QUOXSHA**************IKEY. You can find your API key at https://stability.ai.\",\"name\":\"unauthorized\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "balance",
+      "method": "GET",
+      "url": "https://api.stability.ai/v1/user/balance",
+      "status": 401,
+      "latency_ms": 178,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b79ddf37aff9ec4b2ba48d73d6b5f020dc0f3d7eb19a4ad670d54d970285582e",
+      "body_excerpt": "{\"id\":\"e27ffe673fa5302042a682bc1cd677d8\",\"message\":\"Incorrect API key provided: QUOXSHA**************IKEY. You can find your API key at https://stability.ai.\",\"name\":\"unauthorized\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_engines",
+      "method": "GET",
+      "url": "https://api.stability.ai/v1/engines/list",
+      "status": 401,
+      "latency_ms": 229,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "548ae670f92e05cf51378c0897877b3ff76abf6ae06dee98669a898f5de5f9b7",
+      "body_excerpt": "{\"id\":\"4cfc6f7fcd290daadfe52b8d30c77501\",\"message\":\"Incorrect API key provided: QUOXSHA**************IKEY. You can find your API key at https://stability.ai.\",\"name\":\"unauthorized\"}\n",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

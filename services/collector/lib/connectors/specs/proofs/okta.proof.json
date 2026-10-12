@@ -1,0 +1,90 @@
+{
+  "spec_id": "okta",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:59.764Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://okta.okta.com/quox-shapeproof-control-65819e19",
+      "status": 404,
+      "latency_ms": 2002,
+      "classification": "CONTROL",
+      "body_sha256": "37781561d189be2bc000be913269c371fa2db6099fc6194c9104ccbc90c6ccf6",
+      "body_excerpt": "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">\n<html>\n<head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewpor",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://okta.okta.com/api/v1/users?limit=1",
+      "status": 401,
+      "latency_ms": 284,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "214a20338f2a860792de27f5d0596d0d78eef82a35fd4a1e51ac685cf2b7e8d8",
+      "body_excerpt": "{\"errorCode\":\"E0000011\",\"errorSummary\":\"Invalid token provided\",\"errorLink\":\"E0000011\",\"errorId\":\"oaetuG6Pw4zSmC9b-D_TPt-FA\",\"errorCauses\":[]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_users",
+      "method": "GET",
+      "url": "https://okta.okta.com/api/v1/users?limit=25&q=quoxprobe&filter=quoxprobe&after=quoxprobe",
+      "status": 401,
+      "latency_ms": 226,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "de709566b8c5b0e2a355cd88a459d602210df66c8156e30af0325c19ddc1c6c2",
+      "body_excerpt": "{\"errorCode\":\"E0000011\",\"errorSummary\":\"Invalid token provided\",\"errorLink\":\"E0000011\",\"errorId\":\"oaex3eqGnkLSaW7ATSD-5y3wg\",\"errorCauses\":[]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_user",
+      "method": "GET",
+      "url": "https://okta.okta.com/api/v1/users/quoxprobe",
+      "status": 401,
+      "latency_ms": 238,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "97118c509ca7c5f7103bf42c78ebf6d2d28d20b7a9171aea1b0e277d1fc8abd6",
+      "body_excerpt": "{\"errorCode\":\"E0000011\",\"errorSummary\":\"Invalid token provided\",\"errorLink\":\"E0000011\",\"errorId\":\"oaeuV7g2YGISA2Y8KFN1xJDiw\",\"errorCauses\":[]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_groups",
+      "method": "GET",
+      "url": "https://okta.okta.com/api/v1/groups?limit=25&q=quoxprobe&filter=quoxprobe&after=quoxprobe",
+      "status": 401,
+      "latency_ms": 236,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "b6617414359c39e686d20e31af35691278fdd4e6e33c021c37c44f9db742cf78",
+      "body_excerpt": "{\"errorCode\":\"E0000011\",\"errorSummary\":\"Invalid token provided\",\"errorLink\":\"E0000011\",\"errorId\":\"oaenEgUvPTnQjOlBwyerCnDww\",\"errorCauses\":[]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_apps",
+      "method": "GET",
+      "url": "https://okta.okta.com/api/v1/apps?limit=20&q=quoxprobe&filter=quoxprobe&after=quoxprobe",
+      "status": 401,
+      "latency_ms": 233,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "83735e091d18667fdbf09559dfddf7d41b490e6e73a9db3c848ac72c3e33c9e4",
+      "body_excerpt": "{\"errorCode\":\"E0000011\",\"errorSummary\":\"Invalid token provided\",\"errorLink\":\"E0000011\",\"errorId\":\"oaej4WMOytxTWKvPoOQ9STpiQ\",\"errorCauses\":[]}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

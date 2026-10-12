@@ -1,0 +1,313 @@
+{
+  "spec_version": 1,
+  "id": "wolfram_alpha",
+  "name": "Wolfram Alpha",
+  "category": "data_ai",
+  "credentialType": "wolfram_alpha",
+  "requiredFields": [
+    "app_id"
+  ],
+  "description": "Read-only computational knowledge queries against the Wolfram|Alpha Full Results API (/v2/query) and the Validate Query function (/v2/validatequery). Every tool pins output=json and format=plaintext: the API's default output is XML, which the declarative runtime cannot parse.",
+  "docs": "https://products.wolframalpha.com/api/documentation",
+  "base_url": "https://api.wolframalpha.com",
+  "auth": {
+    "type": "query",
+    "param": "appid",
+    "field": "app_id"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v2/query",
+    "query": {
+      "input": "1+1",
+      "output": "json"
+    }
+  },
+  "tools_source": "https://products.wolframalpha.com/api/documentation",
+  "tools": [
+    {
+      "name": "compute",
+      "description": "Compute a natural-language or mathematical query with Wolfram|Alpha and return every result pod as plain text (Full Results API)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The query to compute, in natural language or Wolfram syntax (e.g. 'population of France', 'integrate x^2', 'weather in Helsinki')"
+          },
+          "units": {
+            "type": "string",
+            "enum": [
+              "metric",
+              "nonmetric"
+            ],
+            "description": "Preferred measurement system; 'nonmetric' means US customary units. Omit to let Wolfram choose."
+          },
+          "assumption": {
+            "type": "string",
+            "description": "Optional assumption token disambiguating the query, taken verbatim from an earlier response's assumptions values (e.g. '*C.pi-_*Movie')"
+          },
+          "pod_timeout_seconds": {
+            "type": "number",
+            "description": "Seconds Wolfram may spend formatting any one pod (default 4, max 20)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/query",
+        "query": {
+          "input": "{{input.query}}",
+          "output": "json",
+          "format": "plaintext",
+          "units": "{{input.units}}",
+          "assumption": "{{input.assumption}}",
+          "podtimeout": "{{clamp input.pod_timeout_seconds 4 20}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "success": "queryresult.success",
+          "error": "queryresult.error",
+          "numpods": "queryresult.numpods",
+          "inputstring": "queryresult.inputstring",
+          "datatypes": "queryresult.datatypes",
+          "timedout": "queryresult.timedout",
+          "queryresult.pods[]": {
+            "id": "id",
+            "title": "title",
+            "scanner": "scanner",
+            "position": "position",
+            "primary": "primary",
+            "error": "error",
+            "numsubpods": "numsubpods",
+            "subpods[]": {
+              "title": "title",
+              "plaintext": "plaintext"
+            }
+          },
+          "assumptions": "queryresult.assumptions",
+          "didyoumeans": "queryresult.didyoumeans"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_short_answer",
+      "description": "Compute a query and return only its primary Result pod as plain text (includepodid=Result). Queries with no pod whose id is 'Result' come back with an empty pod list: use compute for those.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The query to compute (e.g. 'distance from earth to mars', '17 percent of 240')"
+          },
+          "units": {
+            "type": "string",
+            "enum": [
+              "metric",
+              "nonmetric"
+            ],
+            "description": "Preferred measurement system; 'nonmetric' means US customary units"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/query",
+        "query": {
+          "input": "{{input.query}}",
+          "output": "json",
+          "format": "plaintext",
+          "includepodid": "Result",
+          "units": "{{input.units}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "success": "queryresult.success",
+          "error": "queryresult.error",
+          "numpods": "queryresult.numpods",
+          "inputstring": "queryresult.inputstring",
+          "queryresult.pods[]": {
+            "id": "id",
+            "title": "title",
+            "primary": "primary",
+            "subpods[]": {
+              "title": "title",
+              "plaintext": "plaintext"
+            }
+          },
+          "didyoumeans": "queryresult.didyoumeans"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_pod",
+      "description": "Compute a query and return only the one pod with the given pod id, as plain text (includepodid)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The query to compute"
+          },
+          "pod_id": {
+            "type": "string",
+            "description": "Exact Wolfram pod id to keep, as reported by compute (e.g. 'Input', 'Result', 'DecimalApproximation', 'NumberLine')"
+          },
+          "units": {
+            "type": "string",
+            "enum": [
+              "metric",
+              "nonmetric"
+            ],
+            "description": "Preferred measurement system; 'nonmetric' means US customary units"
+          }
+        },
+        "required": [
+          "query",
+          "pod_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/query",
+        "query": {
+          "input": "{{input.query}}",
+          "output": "json",
+          "format": "plaintext",
+          "includepodid": "{{input.pod_id}}",
+          "units": "{{input.units}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "success": "queryresult.success",
+          "error": "queryresult.error",
+          "numpods": "queryresult.numpods",
+          "inputstring": "queryresult.inputstring",
+          "queryresult.pods[]": {
+            "id": "id",
+            "title": "title",
+            "scanner": "scanner",
+            "position": "position",
+            "error": "error",
+            "numsubpods": "numsubpods",
+            "subpods[]": {
+              "title": "title",
+              "plaintext": "plaintext"
+            }
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_pods_by_scanner",
+      "description": "Compute a query and return only the pods produced by one Wolfram scanner, as plain text (scanner parameter)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The query to compute"
+          },
+          "scanner": {
+            "type": "string",
+            "description": "Wolfram scanner name whose pods to keep, as reported in each pod's scanner field (e.g. 'Numeric', 'Data', 'Unit', 'Identity', 'Music')"
+          }
+        },
+        "required": [
+          "query",
+          "scanner"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/query",
+        "query": {
+          "input": "{{input.query}}",
+          "output": "json",
+          "format": "plaintext",
+          "scanner": "{{input.scanner}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "success": "queryresult.success",
+          "error": "queryresult.error",
+          "numpods": "queryresult.numpods",
+          "inputstring": "queryresult.inputstring",
+          "queryresult.pods[]": {
+            "id": "id",
+            "title": "title",
+            "scanner": "scanner",
+            "position": "position",
+            "numsubpods": "numsubpods",
+            "subpods[]": {
+              "title": "title",
+              "plaintext": "plaintext"
+            }
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "validate_query",
+      "description": "Check whether Wolfram|Alpha can parse a query at all, without computing it (validatequery function). Returns the parse result and any assumptions Wolfram would make, so an expensive compute can be skipped or disambiguated first.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The query to parse-check"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v2/validatequery",
+        "query": {
+          "input": "{{input.query}}",
+          "output": "json"
+        }
+      },
+      "response": {
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "OUTCOME: 5 read-only tools authored over the two JSON-capable Wolfram|Alpha endpoints (/v2/query and /v2/validatequery). Every line below is a verbatim probe run on 2026-09-12 from this box with the dummy credential QUOXSHAPEPROOFDUMMYAPPID, or a quote from the current API documentation at https://products.wolframalpha.com/api/documentation (200).",
+      "THE AUTH PARAM NAME IS PROVEN, NOT ASSUMED: the scaffolded auth block (type 'query', param 'appid', field 'app_id') was kept because Wolfram distinguishes a missing appid from a bad one. GET https://api.wolframalpha.com/v2/query?input=1%2B1&output=json (no appid) returns 400 {\"status\":400,\"message\":\"Appid Missing\"}; the same call with &appid=QUOXSHAPEPROOFDUMMYAPPID returns 401 {\"status\":401,\"message\":\"Invalid appid\"}. The query parameter is therefore parsed under exactly the name the spec sends. The control path GET https://api.wolframalpha.com/quox-bogus-control-path returns 404 text/html '<html>\\n<head><title>404 Not Found</title></head>' from nginx, so the 401 at the real paths is a differential, not a blanket wall.",
+      "output=json IS LOAD-BEARING ON EVERY TOOL: the API's default output is XML. GET /v2/query?appid=<dummy>&input=1%2B1 (no output param) returns 401 as text/xml, body verbatim '<?xml version=\"1.0\" encoding=\"UTF-8\"?><error status=\"401\" message=\"Invalid appid\"></error>'; adding &output=json flips the same 401 to application/json {\"status\":401,\"message\":\"Invalid appid\"}. declarativeRuntime.js calls resp.json() on every response, so a spec that omitted output=json would throw on every successful call. format=plaintext is pinned for the same class of reason: the default format returns image URLs alongside the text, which burns the 2000-char truncation budget on MSP image links.",
+      "THE PLAIN-TEXT SHORT-ANSWER APIs WERE DELIBERATELY NOT AUTHORED: GET /v1/result?appid=<dummy>&i=1%2B1 returns 401 text/plain, body 'Invalid appid' (13 bytes), and its success body is plain text too; /v1/spoken answers identically. GET /v2/simple?appid=<dummy>&i=1%2B1 returns a GIF image on success. resp.json() cannot parse any of them, so none is expressible in Connector Spec v1. get_short_answer covers the same need through /v2/query with includepodid=Result, which the docs show as JSON: 'if you only wanted the \"Result\" pod from the above output, you could use the includepodid parameter'.",
+      "THE CONVERSATIONAL API WAS EXCLUDED AS UNPROVABLE: GET https://api.wolframalpha.com/v1/conversation.jsp?appid=<dummy>&i=1%2B1 returned zero bytes and no status on two separate attempts, 'curl: (28) Operation timed out after 15001 milliseconds with 0 bytes received' and again after 40003 ms. An endpoint that hangs rather than refusing an invalid appid cannot be blind-proven, and would hit the runtime's own AbortSignal.timeout(15000) at every call, so it is not shipped.",
+      "validate_query SHIPS WITH NO response.pick ON PURPOSE: the documented XML root of this function is '<validatequeryresult success=\"true\" error=\"false\" timing=\"3.556\" parsetiming=\"3.54\" version=\"2.6\">' with a nested <assumptions count=\"1\"> block, and output=json is demonstrably parsed on that route (GET /v2/validatequery?appid=<dummy>&input=1%2B1 returns the XML error envelope, while the same call with &output=json returns {\"status\":401,\"message\":\"Invalid appid\"}). What CANNOT be confirmed without a real appid is the JSON root key name, and /v2/simple proves the error content type does not predict the success content type (it errors in JSON and succeeds in GIF). A wrong pick returns nulls silently, so this tool returns the parsed payload with strings truncated at 2000 instead. Add the pick once a real appid confirms the root.",
+      "STEP-BY-STEP SOLUTIONS WERE NOT AUTHORED: the podstate parameter is documented ('Specifies a pod state change, which replaces a pod with a modified version', values such as '2@DecimalApproximation__More+digits'), but step-by-step content is an entitlement on the AppID rather than a property of the route, so whether it answers for a given customer cannot be established blind. get_pod plus a documented pod id covers the provable part of the same ground.",
+      "POD AND SUBPOD FIELD NAMES ARE TAKEN VERBATIM FROM THE DOCUMENTED PAYLOAD, not inferred: the reference response shows '<pod title=\"Result\" scanner=\"Data\" id=\"Result\" position=\"200\" error=\"false\" numsubpods=\"1\" primary=\"true\"><subpod title=\"\"><plaintext>64.1 million people (world rank: 21st) (2014 estimate)</plaintext>', and the JSON example gives the same keys as { \"title\", \"scanner\", \"id\", \"position\", \"error\", \"numsubpods\", \"primary\", \"subpods\" }. queryresult.assumptions is picked as a whole value rather than as an array because Wolfram returns it as an object with a count attribute, and flattening it would assert a shape the docs do not guarantee.",
+      "units VALUES ARE THE DOCUMENTED PAIR: 'Lets you specify the preferred measurement system, either \"metric\" or \"nonmetric\" (US customary units)'. The enum is exactly those two, so an agent cannot send 'imperial' and have it silently ignored. podtimeout is clamped to a max of 20 against the documented default of 'Individual pods time out after 4.0 seconds'.",
+      "WHAT ELSE WAS CORRECTED ON THE SCAFFOLD: category 'uncategorized' became 'data_ai' (the 12 shipped buckets have no 'uncategorized'; the vault entry integrationTypeRegistry.js key 'wolfram_alpha' labels it category 'ai'). docs was repointed from https://products.wolframalpha.com/api to the reference page https://products.wolframalpha.com/api/documentation (both return 200). rateLimit was added. requiredFields, base_url, auth and the test block are the scaffold's, unchanged, because the probes above prove them right."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

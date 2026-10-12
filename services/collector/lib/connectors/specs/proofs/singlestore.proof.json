@@ -1,0 +1,168 @@
+{
+  "spec_id": "singlestore",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T04:01:18.821Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.singlestore.com/quox-shapeproof-control-c489831c",
+      "status": 404,
+      "latency_ms": 1087,
+      "classification": "CONTROL",
+      "body_sha256": "b16e15764b8bc06c5c3f9f19bc8b99fa48e7894aa5a6ccdad65da49bbf564793",
+      "body_excerpt": "404 page not found\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.singlestore.com/v1/organizations/current",
+      "status": 401,
+      "latency_ms": 178,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc4a6451e57ac6e25f7e1b5f9182b51ade2a5667e1009a6e505537fe32ef68d5",
+      "body_excerpt": "invalid API Key, wrong format: encoding/hex: invalid byte: U+0051 'Q'\n",
+      "flags": {
+        "structured_body": "compact"
+      }
+    },
+    {
+      "name": "get_organization",
+      "method": "GET",
+      "url": "https://api.singlestore.com/v1/organizations/current",
+      "status": 401,
+      "latency_ms": 279,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc4a6451e57ac6e25f7e1b5f9182b51ade2a5667e1009a6e505537fe32ef68d5",
+      "body_excerpt": "invalid API Key, wrong format: encoding/hex: invalid byte: U+0051 'Q'\n",
+      "flags": {
+        "structured_body": "compact"
+      }
+    },
+    {
+      "name": "list_workspace_groups",
+      "method": "GET",
+      "url": "https://api.singlestore.com/v1/workspaceGroups",
+      "status": 401,
+      "latency_ms": 182,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc4a6451e57ac6e25f7e1b5f9182b51ade2a5667e1009a6e505537fe32ef68d5",
+      "body_excerpt": "invalid API Key, wrong format: encoding/hex: invalid byte: U+0051 'Q'\n",
+      "flags": {
+        "structured_body": "compact"
+      }
+    },
+    {
+      "name": "get_workspace_group",
+      "method": "GET",
+      "url": "https://api.singlestore.com/v1/workspaceGroups/quoxprobe",
+      "status": 401,
+      "latency_ms": 197,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc4a6451e57ac6e25f7e1b5f9182b51ade2a5667e1009a6e505537fe32ef68d5",
+      "body_excerpt": "invalid API Key, wrong format: encoding/hex: invalid byte: U+0051 'Q'\n",
+      "flags": {
+        "structured_body": "compact"
+      }
+    },
+    {
+      "name": "list_workspaces",
+      "method": "GET",
+      "url": "https://api.singlestore.com/v1/workspaces?workspaceGroupID=quoxprobe",
+      "status": 401,
+      "latency_ms": 317,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc4a6451e57ac6e25f7e1b5f9182b51ade2a5667e1009a6e505537fe32ef68d5",
+      "body_excerpt": "invalid API Key, wrong format: encoding/hex: invalid byte: U+0051 'Q'\n",
+      "flags": {
+        "structured_body": "compact"
+      }
+    },
+    {
+      "name": "get_workspace",
+      "method": "GET",
+      "url": "https://api.singlestore.com/v1/workspaces/quoxprobe",
+      "status": 401,
+      "latency_ms": 311,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc4a6451e57ac6e25f7e1b5f9182b51ade2a5667e1009a6e505537fe32ef68d5",
+      "body_excerpt": "invalid API Key, wrong format: encoding/hex: invalid byte: U+0051 'Q'\n",
+      "flags": {
+        "structured_body": "compact"
+      }
+    },
+    {
+      "name": "list_starter_workspaces",
+      "method": "GET",
+      "url": "https://api.singlestore.com/v1/sharedtier/virtualWorkspaces",
+      "status": 401,
+      "latency_ms": 345,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc4a6451e57ac6e25f7e1b5f9182b51ade2a5667e1009a6e505537fe32ef68d5",
+      "body_excerpt": "invalid API Key, wrong format: encoding/hex: invalid byte: U+0051 'Q'\n",
+      "flags": {
+        "structured_body": "compact"
+      }
+    },
+    {
+      "name": "get_starter_workspace",
+      "method": "GET",
+      "url": "https://api.singlestore.com/v1/sharedtier/virtualWorkspaces/quoxprobe",
+      "status": 401,
+      "latency_ms": 255,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc4a6451e57ac6e25f7e1b5f9182b51ade2a5667e1009a6e505537fe32ef68d5",
+      "body_excerpt": "invalid API Key, wrong format: encoding/hex: invalid byte: U+0051 'Q'\n",
+      "flags": {
+        "structured_body": "compact"
+      }
+    },
+    {
+      "name": "list_regions",
+      "method": "GET",
+      "url": "https://api.singlestore.com/v1/regions",
+      "status": 401,
+      "latency_ms": 186,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc4a6451e57ac6e25f7e1b5f9182b51ade2a5667e1009a6e505537fe32ef68d5",
+      "body_excerpt": "invalid API Key, wrong format: encoding/hex: invalid byte: U+0051 'Q'\n",
+      "flags": {
+        "structured_body": "compact"
+      }
+    },
+    {
+      "name": "list_starter_regions",
+      "method": "GET",
+      "url": "https://api.singlestore.com/v1/regions/sharedtier",
+      "status": 401,
+      "latency_ms": 212,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc4a6451e57ac6e25f7e1b5f9182b51ade2a5667e1009a6e505537fe32ef68d5",
+      "body_excerpt": "invalid API Key, wrong format: encoding/hex: invalid byte: U+0051 'Q'\n",
+      "flags": {
+        "structured_body": "compact"
+      }
+    },
+    {
+      "name": "get_billing_usage",
+      "method": "GET",
+      "url": "https://api.singlestore.com/v1/billing/usage?startTime=quoxprobe&endTime=quoxprobe&metric=quoxprobe&aggregateBy=quoxprobe",
+      "status": 401,
+      "latency_ms": 241,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fc4a6451e57ac6e25f7e1b5f9182b51ade2a5667e1009a6e505537fe32ef68d5",
+      "body_excerpt": "invalid API Key, wrong format: encoding/hex: invalid byte: U+0051 'Q'\n",
+      "flags": {
+        "structured_body": "compact"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

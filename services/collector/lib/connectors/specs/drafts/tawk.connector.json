@@ -1,0 +1,32 @@
+{
+  "spec_version": 1,
+  "id": "tawk",
+  "name": "Tawk.to",
+  "category": "communication",
+  "credentialType": "tawk",
+  "requiredFields": [
+    "api_key"
+  ],
+  "docs": "https://developer.tawk.to/",
+  "base_url": "https://api.tawk.to",
+  "auth": {
+    "type": "bearer",
+    "field": "api_key"
+  },
+  "static_headers": {
+    "x-tawk-api-key": "{{api_key}}"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v1/property"
+  },
+  "tools": [],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "low",
+    "needs_review": [
+      "multi_auth_headers"
+    ]
+  }
+}

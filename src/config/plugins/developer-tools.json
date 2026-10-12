@@ -1,0 +1,98 @@
+{
+  "name": "developer-tools",
+  "version": "1.0.0",
+  "displayName": "Developer Tools",
+  "tagline": "Build and publish to the marketplace",
+  "description": "Register as a marketplace seller, create listings, upload plugin packages, and manage your submissions. Everything you need to publish plugins, workflows, agents, and agent teams to the QuoxCORE marketplace.",
+  "shortDescription": "Seller registration, listing management, and package submission for marketplace developers.",
+  "author": "QUOX",
+  "license": "open-core",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "free",
+  "tier": "free",
+  "featured": false,
+  "badge": "FREE",
+  "icon": "code",
+  "infoUrl": "https://quox.ai/developers",
+  "docsUrl": "https://quox.ai/docs/plugin-sdk",
+  "heroGradient": "linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #6366f1 100%)",
+  "accentColor": "#a78bfa",
+
+  "marketingPoints": [
+    "Register your organisation as a marketplace seller",
+    "Create and manage plugin listings with version tracking",
+    "Upload .quoxplugin packages with automated review",
+    "Track submission status through the review pipeline",
+    "Scaffold new plugins from 7 archetype templates via the SDK"
+  ],
+
+  "features": {
+    "sellerRegistration": {
+      "name": "Seller Registration",
+      "description": "Register your organisation as a seller on the Quox Marketplace with a public profile.",
+      "icon": "building",
+      "highlight": true
+    },
+    "listingManagement": {
+      "name": "Listing Management",
+      "description": "Create, edit, and manage listings for plugins, workflows, agents, and agent teams.",
+      "icon": "layers",
+      "highlight": true
+    },
+    "versionUpload": {
+      "name": "Package Upload",
+      "description": "Upload .quoxplugin packages with automated Gate 1 review (manifest, size, security checks).",
+      "icon": "upload",
+      "highlight": true
+    },
+    "reviewTracking": {
+      "name": "Review Tracking",
+      "description": "Track your submissions through automated and human review stages.",
+      "icon": "shield"
+    },
+    "sdkTemplates": {
+      "name": "SDK Templates",
+      "description": "Scaffold from 5 archetype templates: monitoring, fleet, service bridge, UI feature, enterprise.",
+      "icon": "terminal"
+    }
+  },
+
+  "comparison": {
+    "free": {
+      "name": "Free",
+      "sellerProfiles": "1 per org",
+      "listings": "Unlimited",
+      "uploads": "Unlimited",
+      "packageSize": "5MB"
+    }
+  },
+
+  "limits": {
+    "free": {
+      "maxListings": -1,
+      "maxVersionsPerListing": -1,
+      "maxPackageSize": 5242880
+    }
+  },
+
+  "requirements": {
+    "quox": ">=1.0.0"
+  },
+
+  "configSchema": {},
+
+  "category": "Productivity",
+
+  "changelog": {
+    "1.0.0": {
+      "date": "2026-03-20",
+      "changes": [
+        "Seller registration and profile management",
+        "Listing CRUD with version tracking",
+        "Package upload with automated review gate",
+        "Review status tracking"
+      ]
+    }
+  }
+}

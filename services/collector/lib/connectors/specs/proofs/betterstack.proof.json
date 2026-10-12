@@ -1,0 +1,103 @@
+{
+  "spec_id": "betterstack",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:05.446Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://uptime.betterstack.com/quox-shapeproof-control-a00b50b6",
+      "status": 404,
+      "latency_ms": 204,
+      "classification": "CONTROL",
+      "body_sha256": "93ca68da6f72f85b2b501c99b77280bfd65f3939c18e6f16c334912c9a25f0f0",
+      "body_excerpt": "<!DOCTYPE html>\n<html class='dark bg-[#0B0C14]' lang='en' prefix='og: https://ogp.me/ns#'>\n<head>\n<meta content='text/html; charset=UTF-8' http-equiv='Content-Type'>\n<meta charset='utf-8'>\n<meta conte",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://uptime.betterstack.com/api/v2/monitors",
+      "status": 401,
+      "latency_ms": 109,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "50c9ce2c8b81f6e55fcc667ae0e2acc78e51ba01034fdf007617f8ffec3f77fc",
+      "body_excerpt": "{\"errors\":\"Invalid Team API token. How to find your Team API token: https://betterstack.com/docs/uptime/api/getting-started-with-uptime-api/#get-an-uptime-api-token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_monitors",
+      "method": "GET",
+      "url": "https://uptime.betterstack.com/api/v2/monitors?per_page=20&url=quoxprobe",
+      "status": 401,
+      "latency_ms": 74,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "50c9ce2c8b81f6e55fcc667ae0e2acc78e51ba01034fdf007617f8ffec3f77fc",
+      "body_excerpt": "{\"errors\":\"Invalid Team API token. How to find your Team API token: https://betterstack.com/docs/uptime/api/getting-started-with-uptime-api/#get-an-uptime-api-token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_monitor",
+      "method": "GET",
+      "url": "https://uptime.betterstack.com/api/v2/monitors/quoxprobe",
+      "status": 401,
+      "latency_ms": 143,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "50c9ce2c8b81f6e55fcc667ae0e2acc78e51ba01034fdf007617f8ffec3f77fc",
+      "body_excerpt": "{\"errors\":\"Invalid Team API token. How to find your Team API token: https://betterstack.com/docs/uptime/api/getting-started-with-uptime-api/#get-an-uptime-api-token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_heartbeats",
+      "method": "GET",
+      "url": "https://uptime.betterstack.com/api/v2/heartbeats?per_page=20",
+      "status": 401,
+      "latency_ms": 129,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "50c9ce2c8b81f6e55fcc667ae0e2acc78e51ba01034fdf007617f8ffec3f77fc",
+      "body_excerpt": "{\"errors\":\"Invalid Team API token. How to find your Team API token: https://betterstack.com/docs/uptime/api/getting-started-with-uptime-api/#get-an-uptime-api-token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_incidents",
+      "method": "GET",
+      "url": "https://uptime.betterstack.com/api/v2/incidents?per_page=20&monitor_id=quoxprobe&from=quoxprobe&to=quoxprobe",
+      "status": 401,
+      "latency_ms": 160,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "50c9ce2c8b81f6e55fcc667ae0e2acc78e51ba01034fdf007617f8ffec3f77fc",
+      "body_excerpt": "{\"errors\":\"Invalid Team API token. How to find your Team API token: https://betterstack.com/docs/uptime/api/getting-started-with-uptime-api/#get-an-uptime-api-token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_monitor_groups",
+      "method": "GET",
+      "url": "https://uptime.betterstack.com/api/v2/monitor-groups?per_page=20",
+      "status": 401,
+      "latency_ms": 139,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "50c9ce2c8b81f6e55fcc667ae0e2acc78e51ba01034fdf007617f8ffec3f77fc",
+      "body_excerpt": "{\"errors\":\"Invalid Team API token. How to find your Team API token: https://betterstack.com/docs/uptime/api/getting-started-with-uptime-api/#get-an-uptime-api-token\"}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

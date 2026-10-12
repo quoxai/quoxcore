@@ -1,0 +1,16 @@
+{
+  "name": "edge-case",
+  "input": {
+    "connection_string": "<connection_string>",
+    "query": "SELECT id FROM events WHERE org_id = $1",
+    "params": ["org_abc123"],
+    "row_cap": 5000,
+    "timeout_ms": 60000,
+    "schema": "public"
+  },
+  "expects": {
+    "contains": ["rows", "rows_returned", "truncated"],
+    "not_contains": ["error"]
+  },
+  "notes": "row_cap at maximum (5000) — truncated should be true if table has more than 5000 matching rows"
+}

@@ -1,0 +1,105 @@
+{
+  "spec_id": "upcloud",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:30.588Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.upcloud.com/quox-shapeproof-control-19eda5e2",
+      "status": 401,
+      "latency_ms": 558,
+      "classification": "CONTROL",
+      "body_sha256": "4d33fd073890b9e8cb39d211aa8737b19dd87703c20949fe0baaaf6ba8262116",
+      "body_excerpt": "{\"error\":{\"error_code\":\"AUTHENTICATION_FAILED\",\"error_message\":\"authentication failed using the given username and password\"}}",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.upcloud.com/1.3/account",
+      "status": 401,
+      "latency_ms": 122,
+      "classification": "AUTH_WALL",
+      "body_sha256": "4d33fd073890b9e8cb39d211aa8737b19dd87703c20949fe0baaaf6ba8262116",
+      "body_excerpt": "{\"error\":{\"error_code\":\"AUTHENTICATION_FAILED\",\"error_message\":\"authentication failed using the given username and password\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "key_shape"
+      }
+    },
+    {
+      "name": "get_account",
+      "method": "GET",
+      "url": "https://api.upcloud.com/1.3/account",
+      "status": 401,
+      "latency_ms": 66,
+      "classification": "AUTH_WALL",
+      "body_sha256": "4d33fd073890b9e8cb39d211aa8737b19dd87703c20949fe0baaaf6ba8262116",
+      "body_excerpt": "{\"error\":{\"error_code\":\"AUTHENTICATION_FAILED\",\"error_message\":\"authentication failed using the given username and password\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "key_shape"
+      }
+    },
+    {
+      "name": "list_servers",
+      "method": "GET",
+      "url": "https://api.upcloud.com/1.3/server?limit=20&state=quoxprobe&search=quoxprobe",
+      "status": 401,
+      "latency_ms": 70,
+      "classification": "AUTH_WALL",
+      "body_sha256": "4d33fd073890b9e8cb39d211aa8737b19dd87703c20949fe0baaaf6ba8262116",
+      "body_excerpt": "{\"error\":{\"error_code\":\"AUTHENTICATION_FAILED\",\"error_message\":\"authentication failed using the given username and password\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "key_shape"
+      }
+    },
+    {
+      "name": "list_storages",
+      "method": "GET",
+      "url": "https://api.upcloud.com/1.3/storage",
+      "status": 401,
+      "latency_ms": 52,
+      "classification": "AUTH_WALL",
+      "body_sha256": "4d33fd073890b9e8cb39d211aa8737b19dd87703c20949fe0baaaf6ba8262116",
+      "body_excerpt": "{\"error\":{\"error_code\":\"AUTHENTICATION_FAILED\",\"error_message\":\"authentication failed using the given username and password\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "key_shape"
+      }
+    },
+    {
+      "name": "list_zones",
+      "method": "GET",
+      "url": "https://api.upcloud.com/1.3/zone",
+      "status": 401,
+      "latency_ms": 52,
+      "classification": "AUTH_WALL",
+      "body_sha256": "4d33fd073890b9e8cb39d211aa8737b19dd87703c20949fe0baaaf6ba8262116",
+      "body_excerpt": "{\"error\":{\"error_code\":\"AUTHENTICATION_FAILED\",\"error_message\":\"authentication failed using the given username and password\"}}",
+      "flags": {
+        "auth_wall": true,
+        "path_unproven": true,
+        "control_status": 401,
+        "control_match": "key_shape"
+      }
+    }
+  ],
+  "overall": "AUTH_WALL",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

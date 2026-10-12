@@ -1,0 +1,182 @@
+{
+  "spec_version": 1,
+  "id": "surveymonkey",
+  "name": "SurveyMonkey",
+  "category": "marketing_email",
+  "credentialType": "surveymonkey",
+  "requiredFields": [
+    "access_token"
+  ],
+  "docs": "https://developer.surveymonkey.com/",
+  "base_url": "https://api.surveymonkey.com",
+  "auth": {
+    "type": "bearer",
+    "field": "access_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/v3/users/me"
+  },
+  "tools_source": "https://developer.surveymonkey.com/api/v3/",
+  "tools": [
+    {
+      "name": "me",
+      "description": "Get the SurveyMonkey account the access token belongs to (identity and account type)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/users/me"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "username": "username",
+          "first_name": "first_name",
+          "last_name": "last_name",
+          "email": "email",
+          "account_type": "account_type",
+          "language": "language",
+          "date_created": "date_created"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_surveys",
+      "description": "List SurveyMonkey surveys in the account, optionally filtered by a title search term",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "number",
+            "description": "Max surveys to return (default 20, max 100)"
+          },
+          "title": {
+            "type": "string",
+            "description": "Optional search term matched against survey titles"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/surveys",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "title": "{{input.title}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total": "total",
+          "page": "page",
+          "per_page": "per_page",
+          "data[]": {
+            "id": "id",
+            "title": "title",
+            "nickname": "nickname",
+            "href": "href"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "get_survey",
+      "description": "Get one SurveyMonkey survey by ID (summary counts only, no question or page tree)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "survey_id": {
+            "type": "string",
+            "description": "SurveyMonkey survey ID (e.g. 123456789)"
+          }
+        },
+        "required": [
+          "survey_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/surveys/{{input.survey_id}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "title": "title",
+          "nickname": "nickname",
+          "category": "category",
+          "language": "language",
+          "question_count": "question_count",
+          "page_count": "page_count",
+          "response_count": "response_count",
+          "date_created": "date_created",
+          "date_modified": "date_modified"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_responses",
+      "description": "List responses to one SurveyMonkey survey (response metadata only, answer payloads are not returned)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "survey_id": {
+            "type": "string",
+            "description": "SurveyMonkey survey ID (e.g. 123456789)"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Max responses to return (default 20, max 100)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "disqualified",
+              "overquota",
+              "partial"
+            ],
+            "description": "Optional response status to filter by"
+          }
+        },
+        "required": [
+          "survey_id"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/v3/surveys/{{input.survey_id}}/responses",
+        "query": {
+          "per_page": "{{clamp input.per_page 20 100}}",
+          "status": "{{input.status}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "total": "total",
+          "page": "page",
+          "per_page": "per_page",
+          "data[]": {
+            "id": "id",
+            "href": "href"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

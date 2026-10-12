@@ -1,0 +1,62 @@
+{
+  "name": "quoxflow",
+  "version": "0.1.0",
+  "description": "Auditable Workflow Engine with n8n Compatibility",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "quoxflow": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc && mkdir -p dist/security && cp src/security/*.yaml dist/security/",
+    "dev": "tsx src/cli.ts",
+    "server": "tsx src/server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "run:workflow": "tsx src/cli.ts run",
+    "prepare": "husky || true"
+  },
+  "keywords": [
+    "workflow",
+    "audit",
+    "n8n",
+    "automation",
+    "envelope",
+    "orchestration"
+  ],
+  "author": "Quox Ltd",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/quoxai/quoxflow.git"
+  },
+  "homepage": "https://github.com/quoxai/quoxflow",
+  "bugs": {
+    "url": "https://github.com/quoxai/quoxflow/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.2.1",
+    "@types/pg": "^8.16.0",
+    "husky": "^9.1.7"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.9",
+    "croner": "^10.0.1",
+    "hono": "^4.11.8",
+    "isolated-vm": "^5.0.4",
+    "js-yaml": "^4.1.1",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.18.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "ulid": "^3.0.2",
+    "vitest": "^1.6.0",
+    "zod": "^4.3.6"
+  }
+}

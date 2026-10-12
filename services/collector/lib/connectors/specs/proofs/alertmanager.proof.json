@@ -1,0 +1,93 @@
+{
+  "spec_id": "alertmanager",
+  "spec_version": 1,
+  "checked_at": "2026-09-13T00:31:52.553Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/status",
+      "status": 200,
+      "latency_ms": 165,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "e891ad871cb7e29db475a2806f43ade81655b5396dc0eac403e02770f32b46e5",
+      "body_excerpt": "{\"cluster\":{\"name\":\"01M2C2EXPVY6K3ZYHQ7GB5EXVE\",\"peers\":[{\"address\":\"[RFC1918_REDACTED]:9094\",\"name\":\"01M2C2EXPVY6K3ZYHQ7GB5EXVE\"}],\"status\":\"ready\"},\"config\":{\"original\":\"global:\\n  resolve_timeout: 5m\\n  ht",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "status",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/status",
+      "status": 200,
+      "latency_ms": 7,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "e891ad871cb7e29db475a2806f43ade81655b5396dc0eac403e02770f32b46e5",
+      "body_excerpt": "{\"cluster\":{\"name\":\"01M2C2EXPVY6K3ZYHQ7GB5EXVE\",\"peers\":[{\"address\":\"[RFC1918_REDACTED]:9094\",\"name\":\"01M2C2EXPVY6K3ZYHQ7GB5EXVE\"}],\"status\":\"ready\"},\"config\":{\"original\":\"global:\\n  resolve_timeout: 5m\\n  ht",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_alerts",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/alerts",
+      "status": 200,
+      "latency_ms": 11,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "body_excerpt": "[]\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_alert_groups",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/alerts/groups",
+      "status": 200,
+      "latency_ms": 7,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "body_excerpt": "[]\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_silences",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/silences",
+      "status": 200,
+      "latency_ms": 6,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "body_excerpt": "[]\n",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_receivers",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/api/v2/receivers",
+      "status": 200,
+      "latency_ms": 8,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "435aafe436b14949ee3b02f96662784e4af5c3147abe0d8eccd31dbe7fc24151",
+      "body_excerpt": "[{\"name\":\"web.hook\"}]\n",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "prom/alertmanager:v0.27.0"
+}

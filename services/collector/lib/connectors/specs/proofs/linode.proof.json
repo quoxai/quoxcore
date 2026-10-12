@@ -1,0 +1,90 @@
+{
+  "spec_id": "linode",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:57:50.942Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.linode.com/quox-shapeproof-control-200e997d",
+      "status": 301,
+      "latency_ms": 286,
+      "classification": "CONTROL",
+      "body_sha256": "9e17cb15dd75bbbd5dbb984eda674863c3b10ab72613cf8a39a00c3e11a8492a",
+      "body_excerpt": "<html>\r\n<head><title>301 Moved Permanently</title></head>\r\n<body>\r\n<center><h1>301 Moved Permanently</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.linode.com/v4/profile",
+      "status": 401,
+      "latency_ms": 218,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9ddf5507a7636f45df066ca14ba6ab8635cf76dbf9a8015b2d08ea6b0629858d",
+      "body_excerpt": "{\"errors\": [{\"reason\": \"Invalid Token\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_linodes",
+      "method": "GET",
+      "url": "https://api.linode.com/v4/linode/instances?page=1&page_size=25",
+      "status": 401,
+      "latency_ms": 188,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9ddf5507a7636f45df066ca14ba6ab8635cf76dbf9a8015b2d08ea6b0629858d",
+      "body_excerpt": "{\"errors\": [{\"reason\": \"Invalid Token\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "get_linode",
+      "method": "GET",
+      "url": "https://api.linode.com/v4/linode/instances/1",
+      "status": 401,
+      "latency_ms": 160,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9ddf5507a7636f45df066ca14ba6ab8635cf76dbf9a8015b2d08ea6b0629858d",
+      "body_excerpt": "{\"errors\": [{\"reason\": \"Invalid Token\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "list_volumes",
+      "method": "GET",
+      "url": "https://api.linode.com/v4/volumes?page=1&page_size=25",
+      "status": 401,
+      "latency_ms": 303,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9ddf5507a7636f45df066ca14ba6ab8635cf76dbf9a8015b2d08ea6b0629858d",
+      "body_excerpt": "{\"errors\": [{\"reason\": \"Invalid Token\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    },
+    {
+      "name": "account_info",
+      "method": "GET",
+      "url": "https://api.linode.com/v4/account",
+      "status": 401,
+      "latency_ms": 330,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "9ddf5507a7636f45df066ca14ba6ab8635cf76dbf9a8015b2d08ea6b0629858d",
+      "body_excerpt": "{\"errors\": [{\"reason\": \"Invalid Token\"}]}",
+      "flags": {
+        "structured_body": "json"
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

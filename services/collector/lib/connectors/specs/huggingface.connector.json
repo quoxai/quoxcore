@@ -1,0 +1,182 @@
+{
+  "spec_version": 1,
+  "id": "huggingface",
+  "name": "Hugging Face",
+  "category": "data_ai",
+  "credentialType": "huggingface",
+  "requiredFields": [
+    "api_token"
+  ],
+  "docs": "https://huggingface.co/docs/api-inference",
+  "base_url": "https://huggingface.co",
+  "auth": {
+    "type": "bearer",
+    "field": "api_token"
+  },
+  "test": {
+    "method": "GET",
+    "path": "/api/whoami-v2"
+  },
+  "tools_source": "https://huggingface.co/docs/hub/api",
+  "tools": [
+    {
+      "name": "whoami",
+      "description": "Identify the Hugging Face account behind the token (name, type, organisations and the token's role)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/whoami-v2"
+      },
+      "response": {
+        "pick": {
+          "name": "name",
+          "fullname": "fullname",
+          "type": "type",
+          "email": "email",
+          "canPay": "canPay",
+          "token_role": "auth.accessToken.role",
+          "token_name": "auth.accessToken.displayName",
+          "orgs[]": {
+            "name": "name",
+            "fullname": "fullname",
+            "role": "roleInOrg"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_models",
+      "description": "Search the Hugging Face Hub for models, newest-matching first",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "search": {
+            "type": "string",
+            "description": "Optional free-text search over model ids (e.g. whisper)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max models to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/models",
+        "query": {
+          "search": "{{input.search}}",
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "author": "author",
+            "pipeline_tag": "pipeline_tag",
+            "library_name": "library_name",
+            "downloads": "downloads",
+            "likes": "likes",
+            "private": "private",
+            "lastModified": "lastModified"
+          }
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "model_info",
+      "description": "Get one namespaced Hugging Face model repo (owner plus model name, e.g. openai + whisper-large-v3). Canonical single-segment ids such as bert-base-uncased are not addressable here: path values are URL-encoded, so the owner and the name must be supplied separately",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Repo owner: user or organisation (e.g. openai)"
+          },
+          "model_name": {
+            "type": "string",
+            "description": "Model name within that owner (e.g. whisper-large-v3)"
+          }
+        },
+        "required": [
+          "owner",
+          "model_name"
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/models/{{input.owner}}/{{input.model_name}}"
+      },
+      "response": {
+        "pick": {
+          "id": "id",
+          "author": "author",
+          "sha": "sha",
+          "pipeline_tag": "pipeline_tag",
+          "library_name": "library_name",
+          "downloads": "downloads",
+          "likes": "likes",
+          "private": "private",
+          "gated": "gated",
+          "lastModified": "lastModified",
+          "tags": "tags"
+        },
+        "truncate": 2000
+      }
+    },
+    {
+      "name": "list_datasets",
+      "description": "Search the Hugging Face Hub for datasets",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "search": {
+            "type": "string",
+            "description": "Optional free-text search over dataset ids (e.g. squad)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max datasets to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/api/datasets",
+        "query": {
+          "search": "{{input.search}}",
+          "limit": "{{clamp input.limit 20 100}}"
+        }
+      },
+      "response": {
+        "pick": {
+          "[]": {
+            "id": "id",
+            "author": "author",
+            "downloads": "downloads",
+            "likes": "likes",
+            "private": "private",
+            "gated": "gated",
+            "lastModified": "lastModified"
+          }
+        },
+        "truncate": 2000
+      }
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": []
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

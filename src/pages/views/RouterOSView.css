@@ -1,0 +1,777 @@
+/**
+ * RouterOSView Styles
+ *
+ * MikroTik router management dashboard styling.
+ * Follows the same patterns as CognitiveTopologyView.css
+ */
+
+/* ============================================
+   MAIN CONTAINER
+   ============================================ */
+.ros-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, #0f1020 50%, rgba(255, 255, 255, 0.04) 100%);
+}
+
+.ros-view--loading {
+    align-items: center;
+    justify-content: center;
+}
+
+/* ============================================
+   HEADER
+   ============================================ */
+.ros-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--m-space-4) var(--m-space-6);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), var(--m-bg-base);
+    -webkit-backdrop-filter: var(--qx-blur);
+    backdrop-filter: var(--qx-blur);
+    flex-shrink: 0;
+}
+
+.ros-header__left {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-4);
+}
+
+.ros-header__title {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    margin: 0;
+    font-size: var(--m-text-lg);
+    font-weight: var(--m-weight-semibold);
+    color: var(--m-text-primary);
+}
+
+.ros-header__title svg {
+    color: #10b981;
+}
+
+.ros-header__right {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-4);
+}
+
+/* ============================================
+   SETTINGS BUTTON
+   ============================================ */
+.ros-settings-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-settings-btn:hover {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #10b981;
+}
+
+/* ============================================
+   RECONFIGURE HEADER
+   ============================================ */
+.ros-reconfigure-header {
+    display: flex;
+    align-items: center;
+    padding: var(--m-space-4) var(--m-space-6);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), var(--m-bg-base);
+    -webkit-backdrop-filter: var(--qx-blur);
+    backdrop-filter: var(--qx-blur);
+}
+
+.ros-reconfigure-cancel {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    padding: var(--m-space-2) var(--m-space-3);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-reconfigure-cancel:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--m-text-primary);
+}
+
+/* ============================================
+   TAB SWITCHER
+   ============================================ */
+.ros-tabs {
+    display: flex;
+    gap: var(--m-space-1);
+    padding: var(--m-space-1);
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--m-radius-lg);
+}
+
+.ros-tab {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    padding: var(--m-space-2) var(--m-space-4);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+    font-weight: var(--m-weight-medium);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-tab:hover {
+    background: rgba(16, 185, 129, 0.05);
+    color: var(--m-text-primary);
+}
+
+.ros-tab--active {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #10b981;
+}
+
+.ros-tab svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* ============================================
+   CONTENT
+   ============================================ */
+.ros-content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ============================================
+   ROUTER SELECTOR
+   ============================================ */
+.ros-router-selector {
+    position: relative;
+}
+
+.ros-router-selector__trigger {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    padding: var(--m-space-2) var(--m-space-3);
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-primary);
+    font-size: var(--m-text-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-router-selector__trigger:hover {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.ros-router-selector__name {
+    font-weight: var(--m-weight-medium);
+}
+
+.ros-router-selector__status {
+    padding: 2px 6px;
+    border-radius: var(--m-radius-sm);
+    font-size: 10px;
+    font-weight: var(--m-weight-semibold);
+    text-transform: uppercase;
+}
+
+.ros-router-selector__status--online {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.ros-router-selector__status--offline {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.ros-router-selector__status--unknown {
+    background: rgba(156, 163, 175, 0.2);
+    color: #9ca3af;
+}
+
+.ros-router-selector__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+}
+
+.ros-router-selector__dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: var(--m-space-1);
+    min-width: 280px;
+    background: rgba(15, 16, 32, 0.98);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: var(--m-radius-lg);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(20px);
+    z-index: 101;
+    overflow: hidden;
+}
+
+.ros-router-selector__option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: var(--m-space-3) var(--m-space-4);
+    background: transparent;
+    border: none;
+    color: var(--m-text-primary);
+    font-size: var(--m-text-sm);
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.ros-router-selector__option:hover {
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.ros-router-selector__option--selected {
+    background: rgba(16, 185, 129, 0.15);
+}
+
+.ros-router-selector__option-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ros-router-selector__option-name {
+    font-weight: var(--m-weight-medium);
+}
+
+.ros-router-selector__option-model {
+    font-size: 11px;
+    color: var(--m-text-tertiary);
+}
+
+/* ============================================
+   LOADING STATE
+   ============================================ */
+.ros-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--m-space-4);
+    min-height: 400px;
+    color: var(--m-text-tertiary);
+}
+
+.ros-loading__spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(16, 185, 129, 0.2);
+    border-top-color: #10b981;
+    border-radius: 50%;
+    animation: ros-spin 1s linear infinite;
+}
+
+@keyframes ros-spin {
+    to { transform: rotate(360deg); }
+}
+
+.ros-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--m-space-3);
+    min-height: 400px;
+    color: var(--m-text-tertiary);
+}
+
+.ros-empty svg {
+    width: 48px;
+    height: 48px;
+    opacity: 0.5;
+}
+
+/* ============================================
+   DASHBOARD LAYOUT
+   ============================================ */
+.ros-dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-4);
+    padding: var(--m-space-4) var(--m-space-6);
+    overflow-y: auto;
+}
+
+.ros-dashboard__row {
+    display: grid;
+    gap: var(--m-space-4);
+}
+
+.ros-dashboard__row--top {
+    grid-template-columns: 2fr 1fr;
+}
+
+.ros-dashboard__row--middle {
+    grid-template-columns: 1fr 1fr;
+}
+
+.ros-dashboard__row--bottom {
+    grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 1200px) {
+    .ros-dashboard__row--top,
+    .ros-dashboard__row--middle,
+    .ros-dashboard__row--bottom {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================
+   PAYWALL
+   ============================================ */
+.ros-paywall {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--m-space-8);
+    min-height: 100%;
+}
+
+.ros-paywall__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 480px;
+    padding: var(--m-space-8);
+    background: rgba(15, 16, 32, 0.8);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: var(--m-radius-xl);
+    text-align: center;
+}
+
+.ros-paywall__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    margin-bottom: var(--m-space-4);
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 50%;
+    color: #10b981;
+}
+
+.ros-paywall__title {
+    margin: 0 0 var(--m-space-2);
+    font-size: var(--m-text-2xl);
+    font-weight: var(--m-weight-bold);
+    color: var(--m-text-primary);
+}
+
+.ros-paywall__subtitle {
+    margin: 0 0 var(--m-space-4);
+    padding: var(--m-space-1) var(--m-space-3);
+    background: rgba(16, 185, 129, 0.2);
+    border-radius: var(--m-radius-full);
+    font-size: var(--m-text-xs);
+    font-weight: var(--m-weight-semibold);
+    color: #10b981;
+    text-transform: uppercase;
+}
+
+.ros-paywall__desc {
+    margin: 0 0 var(--m-space-6);
+    color: var(--m-text-secondary);
+    line-height: 1.6;
+}
+
+.ros-paywall__features {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-2);
+    width: 100%;
+    margin-bottom: var(--m-space-6);
+    text-align: left;
+}
+
+.ros-paywall__feature {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+}
+
+.ros-paywall__check {
+    color: #10b981;
+    font-weight: var(--m-weight-bold);
+}
+
+.ros-paywall__cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--m-space-3) var(--m-space-6);
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border: none;
+    border-radius: var(--m-radius-lg);
+    color: white;
+    font-size: var(--m-text-base);
+    font-weight: var(--m-weight-semibold);
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ros-paywall__cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+}
+
+/* ============================================
+   NETWATCH CHAT
+   ============================================ */
+.ros-netwatch {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: var(--m-space-4);
+    height: 100%;
+    padding: var(--m-space-4) var(--m-space-6);
+    overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+    .ros-netwatch {
+        grid-template-columns: 1fr;
+    }
+
+    .ros-netwatch__sidebar {
+        display: none;
+    }
+}
+
+.ros-netwatch__main {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: rgba(15, 16, 32, 0.5);
+    border: 1px solid rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-xl);
+    overflow: hidden;
+}
+
+.ros-netwatch__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--m-space-4);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), var(--m-bg-base);
+    -webkit-backdrop-filter: var(--qx-blur);
+    backdrop-filter: var(--qx-blur);
+}
+
+.ros-netwatch__header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--m-space-2);
+    font-weight: var(--m-weight-semibold);
+    color: #10b981;
+}
+
+.ros-netwatch__subtitle {
+    color: var(--m-text-tertiary);
+    font-weight: var(--m-weight-normal);
+    font-size: var(--m-text-sm);
+}
+
+.ros-netwatch__header-right {
+    display: flex;
+    gap: var(--m-space-2);
+}
+
+.ros-netwatch__action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-netwatch__action:hover {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #10b981;
+}
+
+.ros-netwatch__action.muted {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.ros-netwatch__chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--m-space-4);
+}
+
+.ros-netwatch__welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--m-space-4);
+    padding: var(--m-space-8);
+    text-align: center;
+}
+
+.ros-netwatch__welcome-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 50%;
+    color: #10b981;
+}
+
+.ros-netwatch__welcome-icon svg {
+    width: 32px;
+    height: 32px;
+}
+
+.ros-netwatch__welcome h2 {
+    margin: 0;
+    font-size: var(--m-text-xl);
+    color: #10b981;
+}
+
+.ros-netwatch__welcome p {
+    margin: 0;
+    max-width: 400px;
+    color: var(--m-text-secondary);
+    line-height: 1.5;
+}
+
+.ros-netwatch__suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--m-space-2);
+    margin-top: var(--m-space-4);
+}
+
+.ros-netwatch__suggestions button {
+    padding: var(--m-space-2) var(--m-space-3);
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-netwatch__suggestions button:hover {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: var(--m-text-primary);
+}
+
+.ros-netwatch__input {
+    border-top: 1px solid rgba(16, 185, 129, 0.1);
+}
+
+/* Sidebar */
+.ros-netwatch__sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-4);
+    overflow-y: auto;
+}
+
+.ros-netwatch__stop {
+    display: flex;
+}
+
+.ros-netwatch__stop button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--m-space-2);
+    width: 100%;
+    padding: var(--m-space-3);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--m-radius-md);
+    color: #ef4444;
+    font-size: var(--m-text-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-netwatch__stop button:hover {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+.ros-netwatch__section {
+    background: rgba(15, 16, 32, 0.5);
+    border: 1px solid rgba(16, 185, 129, 0.1);
+    border-radius: var(--m-radius-lg);
+    padding: var(--m-space-4);
+}
+
+.ros-netwatch__section h4 {
+    margin: 0 0 var(--m-space-3);
+    font-size: var(--m-text-sm);
+    font-weight: var(--m-weight-semibold);
+    color: var(--m-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.ros-netwatch__actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--m-space-2);
+}
+
+.ros-netwatch__actions button {
+    padding: var(--m-space-2) var(--m-space-3);
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.15);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-secondary);
+    font-size: var(--m-text-sm);
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ros-netwatch__actions button:hover:not(:disabled) {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: var(--m-text-primary);
+}
+
+.ros-netwatch__actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ============================================
+   CHAT MESSAGES
+   ============================================ */
+.ros-msg {
+    display: flex;
+    gap: var(--m-space-3);
+    margin-bottom: var(--m-space-4);
+}
+
+.ros-msg--user {
+    flex-direction: row-reverse;
+}
+
+.ros-msg__avatar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 50%;
+    color: var(--m-text-secondary);
+    font-weight: var(--m-weight-bold);
+    font-size: var(--m-text-lg);
+}
+
+.ros-msg--user .ros-msg__avatar {
+    background: rgba(56, 189, 248, 0.1);
+    color: #38bdf8;
+}
+
+.ros-msg__content {
+    max-width: 70%;
+    padding: var(--m-space-3) var(--m-space-4);
+    background: rgba(16, 185, 129, 0.08);
+    border-radius: var(--m-radius-lg);
+    color: var(--m-text-primary);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.ros-msg--user .ros-msg__content {
+    background: rgba(56, 189, 248, 0.1);
+}
+
+.ros-msg__typing {
+    display: flex;
+    gap: 4px;
+    padding: var(--m-space-3) var(--m-space-4);
+}
+
+.ros-msg__typing span {
+    width: 8px;
+    height: 8px;
+    background: #10b981;
+    border-radius: 50%;
+    animation: ros-typing 1.4s infinite ease-in-out both;
+}
+
+.ros-msg__typing span:nth-child(1) { animation-delay: -0.32s; }
+.ros-msg__typing span:nth-child(2) { animation-delay: -0.16s; }
+.ros-msg__typing span:nth-child(3) { animation-delay: 0; }
+
+@keyframes ros-typing {
+    0%, 80%, 100% {
+        transform: scale(0.6);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}

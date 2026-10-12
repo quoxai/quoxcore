@@ -1,0 +1,31 @@
+{
+  "id": "core-comms",
+  "name": "core-comms",
+  "displayName": "Quox CoreComms",
+  "version": "1.0.0",
+  "author": "Quox",
+  "official": true,
+  "tier": "paid",
+  "license": "commercial",
+  "badge": "PAID",
+  "category": "communication",
+  "accentColor": "#0088cc",
+  "description": "External notification channels for HITL and service alerts: Telegram, Slack, and Email, with per-channel priority routing, a delivery log, and one-click connection tests.",
+  "permissions": [
+    "sidebar",
+    "storage",
+    "network"
+  ],
+  "sidebar": [
+    {
+      "path": "/comms",
+      "label": "Comms",
+      "icon": "bell",
+      "shortcut": "C"
+    }
+  ],
+  "routes": {
+    "/comms": "CommsView"
+  },
+  "minQuoxVersion": "1.0.0"
+}

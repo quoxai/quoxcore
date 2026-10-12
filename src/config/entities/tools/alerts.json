@@ -1,0 +1,210 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "alerts",
+
+  "name": "Alert Management Tools",
+  "description": "Tools for managing Prometheus/Alertmanager alerts",
+  "category": "monitoring",
+  "subcategory": "alerts",
+  "provider": "prometheus",
+  "version": "1.0.0",
+
+  "risk_level": "low",
+  "sandbox_profile": "standard",
+
+  "tools": [
+    {
+      "id": "alerts.active",
+      "name": "Active Alerts",
+      "description": "List all currently firing alerts",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "severity": {
+          "type": "string",
+          "required": false,
+          "enum": ["critical", "warning", "info", "all"],
+          "default": "all"
+        },
+        "filter": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by alertname pattern"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "alerts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "alertname": { "type": "string" },
+                "severity": { "type": "string" },
+                "instance": { "type": "string" },
+                "summary": { "type": "string" },
+                "started_at": { "type": "string" },
+                "duration": { "type": "string" }
+              }
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "critical": { "type": "number" },
+              "warning": { "type": "number" },
+              "info": { "type": "number" }
+            }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "View all currently firing alerts",
+        "when_to_use": [
+          "User asks about alerts",
+          "Checking what's alerting",
+          "Morning health check"
+        ]
+      }
+    },
+    {
+      "id": "alerts.silence",
+      "name": "Silence Alert",
+      "description": "Silence an alert for a specified duration",
+      "accessLevel": "managers+",
+      "defconLevel": "YELLOW",
+      "requiresApproval": true,
+      "parameters": {
+        "matchers": {
+          "type": "object",
+          "required": true,
+          "description": "Label matchers (e.g., {alertname: 'HighCPU', instance: 'host1'})"
+        },
+        "duration": {
+          "type": "string",
+          "required": true,
+          "description": "Duration (e.g., '2h', '1d')"
+        },
+        "comment": {
+          "type": "string",
+          "required": true,
+          "description": "Reason for silencing"
+        },
+        "created_by": {
+          "type": "string",
+          "required": false,
+          "description": "Who created the silence"
+        }
+      },
+      "instructions": {
+        "summary": "Temporarily silence an alert",
+        "when_to_use": [
+          "User asks to silence an alert",
+          "Planned maintenance",
+          "False positive alert"
+        ]
+      }
+    },
+    {
+      "id": "alerts.silences",
+      "name": "List Silences",
+      "description": "List all active alert silences",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {},
+      "instructions": {
+        "summary": "View active silences",
+        "when_to_use": [
+          "Checking what's silenced",
+          "Reviewing maintenance windows"
+        ]
+      }
+    },
+    {
+      "id": "alerts.unsilence",
+      "name": "Remove Silence",
+      "description": "Remove an alert silence",
+      "accessLevel": "managers+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "silence_id": {
+          "type": "string",
+          "required": true,
+          "description": "ID of the silence to remove"
+        }
+      },
+      "instructions": {
+        "summary": "Remove a silence to re-enable alerting",
+        "when_to_use": [
+          "Maintenance complete",
+          "User asks to unsilence"
+        ]
+      }
+    },
+    {
+      "id": "alerts.history",
+      "name": "Alert History",
+      "description": "View historical alert data",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "alertname": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by alert name"
+        },
+        "hours": {
+          "type": "number",
+          "required": false,
+          "default": 24
+        }
+      },
+      "instructions": {
+        "summary": "View when alerts fired in the past",
+        "when_to_use": [
+          "Understanding alert patterns",
+          "Post-incident review",
+          "Alert tuning"
+        ]
+      }
+    },
+    {
+      "id": "alerts.test",
+      "name": "Test Alert Rule",
+      "description": "Test an alert rule without triggering notifications",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "rule": {
+          "type": "string",
+          "required": true,
+          "description": "PromQL expression for the alert rule"
+        }
+      },
+      "instructions": {
+        "summary": "Test if an alert rule would fire right now",
+        "when_to_use": [
+          "Validating new alert rules",
+          "Debugging why alert isn't firing",
+          "Testing threshold changes"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {"base": "internal", "api": "bastion_ssh"},
+
+  "agent_hints": {
+    "primary_agent": "metrics",
+    "secondary_agents": ["beacon"],
+    "delegation_keywords": ["alert", "silence", "firing", "notification", "alertmanager"]
+  }
+}

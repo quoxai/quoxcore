@@ -1,0 +1,256 @@
+{
+  "spec_version": 1,
+  "id": "railway",
+  "name": "Railway",
+  "category": "cloud_hosting",
+  "credentialType": "railway",
+  "requiredFields": [
+    "token"
+  ],
+  "docs": "https://docs.railway.com/integrations/api",
+  "base_url": "https://backboard.railway.com",
+  "auth": {
+    "type": "bearer",
+    "field": "token"
+  },
+  "static_headers": {
+    "Content-Type": "application/json"
+  },
+  "test": {
+    "method": "POST",
+    "path": "/graphql/v2",
+    "body": {
+      "query": "{ me { id email } }"
+    }
+  },
+  "tools_source": "https://docs.railway.com/integrations/api",
+  "tools": [
+    {
+      "name": "me",
+      "description": "Get the Railway account the API token belongs to (who am I)",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql/v2",
+        "body": {
+          "query": "query { me { id name email createdAt avatar } }"
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "data.me.id",
+          "name": "data.me.name",
+          "email": "data.me.email",
+          "createdAt": "data.me.createdAt",
+          "avatar": "data.me.avatar",
+          "errors": "errors"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_projects",
+      "description": "List Railway projects visible to the token (id, name, description, created and updated times)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "first": {
+            "type": "number",
+            "description": "Max projects to return (default 20, max 100)"
+          }
+        }
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql/v2",
+        "body": {
+          "query": "query ($first: Int) { projects (first: $first) { edges { node { id name description createdAt updatedAt } } } }",
+          "variables": {
+            "first": "{{clamp input.first 20 100}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "data.projects.edges[]": {
+            "id": "node.id",
+            "name": "node.name",
+            "description": "node.description",
+            "createdAt": "node.createdAt",
+            "updatedAt": "node.updatedAt"
+          },
+          "errors": "errors"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_project",
+      "description": "Get one Railway project by id, with the services and environments it contains",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "Railway project id from list_projects (a UUID)"
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql/v2",
+        "body": {
+          "query": "query ($id: String!) { project (id: $id) { id name description createdAt services { edges { node { id name icon } } } environments { edges { node { id name } } } } }",
+          "variables": {
+            "id": "{{input.project_id}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "data.project.id",
+          "name": "data.project.name",
+          "description": "data.project.description",
+          "createdAt": "data.project.createdAt",
+          "data.project.services.edges[]": {
+            "id": "node.id",
+            "name": "node.name",
+            "icon": "node.icon"
+          },
+          "data.project.environments.edges[]": {
+            "id": "node.id",
+            "name": "node.name"
+          },
+          "errors": "errors"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "get_service",
+      "description": "Get one Railway service by id (name, icon, owning project, creation time)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "description": "Railway service id from get_project (a UUID)"
+          }
+        },
+        "required": [
+          "service_id"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql/v2",
+        "body": {
+          "query": "query ($id: String!) { service (id: $id) { id name icon createdAt projectId } }",
+          "variables": {
+            "id": "{{input.service_id}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "id": "data.service.id",
+          "name": "data.service.name",
+          "icon": "data.service.icon",
+          "createdAt": "data.service.createdAt",
+          "projectId": "data.service.projectId",
+          "errors": "errors"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    },
+    {
+      "name": "list_deployments",
+      "description": "List deployments for one Railway service, newest first (status, url, creation time)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "description": "Railway service id from get_project (a UUID)"
+          },
+          "project_id": {
+            "type": "string",
+            "description": "Optional Railway project id to scope the list to (a UUID)"
+          },
+          "environment_id": {
+            "type": "string",
+            "description": "Optional Railway environment id to scope the list to (a UUID)"
+          },
+          "first": {
+            "type": "number",
+            "description": "Max deployments to return (default 20, max 100)"
+          }
+        },
+        "required": [
+          "service_id"
+        ]
+      },
+      "request": {
+        "method": "POST",
+        "path": "/graphql/v2",
+        "body": {
+          "query": "query ($input: DeploymentListInput!, $first: Int) { deployments (input: $input, first: $first) { edges { node { id status createdAt url staticUrl } } } }",
+          "variables": {
+            "input": {
+              "serviceId": "{{input.service_id}}",
+              "projectId": "{{input.project_id}}",
+              "environmentId": "{{input.environment_id}}"
+            },
+            "first": "{{clamp input.first 20 100}}"
+          }
+        }
+      },
+      "response": {
+        "pick": {
+          "data.deployments.edges[]": {
+            "id": "node.id",
+            "status": "node.status",
+            "createdAt": "node.createdAt",
+            "url": "node.url",
+            "staticUrl": "node.staticUrl"
+          },
+          "errors": "errors"
+        },
+        "truncate": 2000
+      },
+      "write": false
+    }
+  ],
+  "_scaffold": {
+    "generated_at": "2026-09-11T21:24:24.400Z",
+    "source": "integrationTypeRegistry",
+    "confidence": "high",
+    "needs_review": [
+      "base_url moved from backboard.railway.app (scaffolded) to backboard.railway.com, which is the endpoint the current docs give. Both hosts answer today, so this is a follow-the-docs change rather than a fix to a break; the docs URL moved with it, since docs.railway.app/reference/public-api now redirects to docs.railway.com/integrations/api.",
+      "Railway is GraphQL-over-POST and spec v1 has no GraphQL type, so every tool is a FIXED read query sent as a POST body to /graphql/v2. Caller input never touches the query string: it rides in the GraphQL `variables` object, where declarativeRuntime.renderBody keeps a solo placeholder's JSON type and drops keys that render to nothing (so an omitted optional variable is absent rather than null). That is deliberate, not cosmetic. Interpolating {{input.*}} into the query text would let a caller close the read query and append a mutation, defeating the read-only (no write:true) intent of this spec.",
+      "The scaffolded bearer auth stands: the docs authenticate account tokens and workspace tokens with `Authorization: Bearer <token>`, and a dummy bearer is rejected by the API itself. Nothing was changed. KNOWN GAP: Railway PROJECT tokens use a different header (Project-Access-Token, not Authorization), so this spec supports account and workspace tokens only; a project token would fail every call.",
+      "Railway answers HTTP 200 with an `errors` array for query-level failures, INCLUDING authorization failures ('Not Authorized' at 200, confirmed live with a dummy token), so every tool picks `errors` through. Without it an auth or permission error would be shaped into an empty result set and read as 'no projects' (a silent-fallback falsehood). GraphQL validation failures are the exception: they come back as HTTP 400 with extensions.code GRAPHQL_VALIDATION_FAILED.",
+      "Because Railway validates the query document BEFORE it checks authorization, the shape-proof below does prove these five documents against the live schema: a bogus field or argument returns 400 GRAPHQL_VALIDATION_FAILED, while all five tools return 200 with 'Not Authorized'. That is stronger than the monday.com precedent, where the auth wall sits in front of the parser. What is still unproven: response field VALUES and shapes, and every permission-scoped behaviour.",
+      "pick keys carry the response path (`data.projects.edges[]`, `data.project.services.edges[]`) because applyPick sources an array from its KEY, not its value, so output keys read `data.projects.edges` rather than `projects`. Functional but ugly; a spec v2 with a `from` on array picks would fix it.",
+      "One request per tool (spec v1 limit) means no pagination: the Relay connections expose edges only, with no cursor tool to follow, and `first` is clamped at 100. Railway does not document a maximum for `first`, so that cap is ours, not theirs.",
+      "rateLimit is the factory default (30 requests per 60s), which is LOOSER than Railway's own documented hourly ceiling (100 requests per hour on Free, 1000 on Hobby). Sustained use at our cap would hit Railway's 429 long before ours; a per-hour limiter would be the honest shape once spec v1 can express one.",
+      "No _probe hints are set: Railway has no public project, service or environment id to hint with, and none is needed, since document validation and the authorization wall both land before any identifier is resolved.",
+      "All five tools post to the SAME /graphql/v2 endpoint, so five SHAPE_PROVEN rows are one endpoint proven five times (host, TLS, path, bearer header, document validity). They are not five independent routes.",
+      "READ THE PROOF FILE WITH THIS CAVEAT: every railway row is HTTP 200, so the harness tags it no_auth_required + public_endpoint. Those flags are WRONG here and are an artifact of GraphQL-over-POST, not a finding. The endpoint is authenticated; the rejection ('Not Authorized', and 'Project not found' for get_project) sits inside the 200 body's errors array, which is exactly what the body excerpts show."
+    ]
+  },
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 30
+  }
+}

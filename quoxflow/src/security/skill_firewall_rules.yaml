@@ -1,0 +1,309 @@
+# Quox Skill Firewall — Rule Set
+#
+# Schema per rule:
+#   id:            string   — unique rule identifier (e.g. PI-001)
+#   name:          string   — human-readable rule name
+#   category:      string   — prompt_injection | secret_leak | suspicious_code | url_safety | policy_compliance
+#   severity:      string   — low | medium | high | block
+#                             Only 'block' returns allow=false in the FirewallReport.
+#                             low/medium/high are recorded as findings but allow=true.
+#   surfaces:      string[] — body_md | references | scripts | metadata
+#                             Which skill sections to apply this rule to.
+#   pattern:       string   — regex string (used when pattern_type is regex or regex_i)
+#   pattern_type:  string   — regex | regex_i (case-insensitive)
+#   remediation:   string   — guidance for the skill author
+#   exempt_authors: string[] — author_id values that bypass this rule
+#   exempt_tags:   string[] — skill tags that bypass this rule
+
+version: 2
+rules:
+  # ── Prompt Injection (PI) ────────────────────────────────────────────────
+
+  - id: PI-001
+    name: "Direct instruction override"
+    category: prompt_injection
+    severity: block
+    surfaces: [body_md, references]
+    pattern: '\b(ignore|disregard|forget)\s+(all\s+)?(previous|above|prior|earlier)\s+(instructions?|context|rules?|constraints?)'
+    pattern_type: regex_i
+    remediation: >
+      Skills must not instruct the LLM to discard prior context. If the skill genuinely
+      needs to scope conversation, use the scope field in skill metadata instead.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: PI-002
+    name: "Role override / DAN-style jailbreak"
+    category: prompt_injection
+    severity: block
+    surfaces: [body_md, references]
+    pattern: '\b(DAN\s*(mode|prompt)?|developer\s+mode|jailbreak|unlock\s+(full|all)\s+(capabilities|features|access))\b'
+    pattern_type: regex_i
+    remediation: >
+      Skills must not attempt to override the LLM role or jailbreak restrictions.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: PI-003
+    name: "Delimiter spoofing"
+    category: prompt_injection
+    severity: medium
+    surfaces: [body_md, references]
+    pattern: '<<\s*/?SYS\s*>>|\[INST\]|\[/INST\]|###\s*(Human|Assistant|System|User)\s*:'
+    pattern_type: regex_i
+    remediation: >
+      Skills must not include LLM prompt delimiter markers. These confuse prompt parsers
+      and may be used to smuggle instructions past reviewers.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: PI-004
+    name: "Zero-width / invisible Unicode smuggling"
+    category: prompt_injection
+    severity: block
+    surfaces: [body_md, references, scripts]
+    pattern: '[​‌‍‎‏  ‪‫‬‭‮ ﻿]'
+    pattern_type: regex
+    remediation: >
+      Skills must not contain zero-width or invisible Unicode characters. These can hide
+      instructions from human reviewers while still being processed by the LLM.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: PI-005
+    name: "System prompt injection markers"
+    category: prompt_injection
+    severity: high
+    surfaces: [body_md, references]
+    pattern: '\b(you\s+are\s+(now|actually)\b|pretend\s+(you\s+are|to\s+be)|assume\s+the\s+role\s+of|override\s+(safety|security|filter|restriction))'
+    pattern_type: regex_i
+    remediation: >
+      Skills must not attempt to redefine the LLM identity or override safety mechanisms.
+    exempt_authors: []
+    exempt_tags: []
+
+  # ── Secret Leakage (SL) ──────────────────────────────────────────────────
+
+  - id: SL-001
+    name: "OpenAI / Anthropic API key"
+    category: secret_leak
+    severity: block
+    surfaces: [body_md, references, scripts, metadata]
+    pattern: '\b(sk-[A-Za-z0-9]{20,}|sk-ant-[A-Za-z0-9-]{20,})\b'
+    pattern_type: regex
+    remediation: >
+      Remove the API key from the skill. Store credentials in the Quox Vault and
+      reference them via environment variables or the credential manager.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: SL-002
+    name: "AWS access key"
+    category: secret_leak
+    severity: block
+    surfaces: [body_md, references, scripts, metadata]
+    pattern: '\bAKIA[0-9A-Z]{16,}\b'
+    pattern_type: regex
+    remediation: >
+      Remove the AWS access key from the skill. Use IAM roles or the Quox credential
+      manager to inject credentials at runtime.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: SL-003
+    name: "GitHub PAT / OAuth token"
+    category: secret_leak
+    severity: block
+    surfaces: [body_md, references, scripts, metadata]
+    pattern: '\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}\b'
+    pattern_type: regex
+    remediation: >
+      Remove the GitHub token from the skill. Use the Quox credential manager to
+      inject tokens at runtime.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: SL-004
+    name: "Slack token"
+    category: secret_leak
+    severity: block
+    surfaces: [body_md, references, scripts, metadata]
+    pattern: '\bxox[bpoars]-[A-Za-z0-9-]{10,}\b'
+    pattern_type: regex
+    remediation: >
+      Remove the Slack token from the skill. Use the Quox credential manager to
+      inject tokens at runtime.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: SL-005
+    name: "PEM private key block"
+    category: secret_leak
+    severity: block
+    surfaces: [body_md, references, scripts]
+    pattern: '-----BEGIN\s+(RSA\s+|EC\s+|OPENSSH\s+|PGP\s+|ENCRYPTED\s+)?PRIVATE\s+KEY-----'
+    pattern_type: regex
+    remediation: >
+      Remove the private key from the skill. Keys must never be committed to skill
+      content. Use the Quox Vault key management system.
+    exempt_authors: []
+    exempt_tags: []
+
+  # ── Suspicious Code (SC) ─────────────────────────────────────────────────
+
+  - id: SC-001
+    name: "Dynamic eval/exec of user input in script"
+    category: suspicious_code
+    severity: block
+    surfaces: [scripts]
+    pattern: '\b(eval|exec|Function|compile)\s*\(\s*[^)]*\b(input|stdin|request|fetch|read|args)\b'
+    pattern_type: regex
+    remediation: >
+      Dynamic eval of user-controlled input is a code-injection vector. Refactor
+      to explicit dispatch with a whitelist of allowed operations.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: SC-002
+    name: "Fork bomb signature"
+    category: suspicious_code
+    severity: block
+    surfaces: [scripts]
+    pattern: ':\(\)\s*\{\s*:\|:&\s*\};:|while\s+True\s*:\s*os\.fork\(\)'
+    pattern_type: regex
+    remediation: >
+      This script contains a fork bomb pattern that would exhaust system resources.
+      Remove the offending code.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: SC-003
+    name: "Shell escape via subprocess"
+    category: suspicious_code
+    severity: high
+    surfaces: [scripts]
+    pattern: '\b(subprocess\.call|subprocess\.Popen|os\.system|os\.popen|shell\s*=\s*True)\b'
+    pattern_type: regex
+    remediation: >
+      Shell execution via subprocess with shell=True is a code-injection risk.
+      Use explicit argument lists and avoid shell=True.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: SC-004
+    name: "Filesystem traversal in script path"
+    category: suspicious_code
+    severity: block
+    surfaces: [scripts]
+    pattern: '(\.\./|/etc/passwd|/etc/shadow|/root/\.ssh)'
+    pattern_type: regex
+    remediation: >
+      Script contains a filesystem traversal pattern or access to sensitive system
+      files. Use sandbox-relative paths only.
+    exempt_authors: []
+    exempt_tags: []
+
+  # Gadget-chain sandbox escape (SC-005..SC-008).
+  #
+  # A name denylist only ever knows the shapes someone thought to name. The
+  # red-team exercise in loop-research-prototypes/witnessed-skill-store proved a
+  # working escape that uses ZERO imports and ZERO denylisted identifiers: walk
+  # the live object graph with ().__class__.__base__.__subclasses__() until you
+  # land on subprocess.Popen, then call it. SC-003 (subprocess.Popen literal)
+  # never sees it. These rules catch the mechanism instead of the name.
+  #
+  # Each pattern family is split across two rules so severity can follow the
+  # surface: 'block' on scripts (executable), 'high' on body_md/references
+  # (prose may legitimately teach Python internals, so it is recorded in the
+  # findings but does not gate).
+
+  - id: SC-005
+    name: "Python dunder gadget chain in script"
+    category: suspicious_code
+    severity: block
+    surfaces: [scripts]
+    pattern: '__(class|subclasses|bases|base|mro|globals|builtins|import)__'
+    pattern_type: regex
+    remediation: >
+      Walking Python internals (__class__ / __base__ / __subclasses__ /
+      __globals__ / __builtins__ / __import__) reaches arbitrary classes such as
+      subprocess.Popen without any import, which defeats import denylists.
+      Skill scripts must call the capabilities they need directly through the
+      declared tool surface instead of reflecting over the object graph.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: SC-006
+    name: "Python dunder gadget chain in prose"
+    category: suspicious_code
+    severity: high
+    surfaces: [body_md, references]
+    pattern: '__(class|subclasses|bases|base|mro|globals|builtins|import)__'
+    pattern_type: regex
+    remediation: >
+      Skill prose references Python introspection internals used by sandbox
+      escapes. This is recorded, not blocked, because a tutorial skill may
+      legitimately explain them. Review the surrounding text and confirm no
+      script ships the same chain.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: SC-007
+    name: "Reflective attribute / namespace access in script"
+    category: suspicious_code
+    severity: block
+    surfaces: [scripts]
+    pattern: 'getattr\s*\(|\b(globals|vars|locals)\s*\(\s*\)'
+    pattern_type: regex
+    remediation: >
+      getattr() and globals()/vars()/locals() let a script assemble attribute
+      names at runtime ("__cla" + "ss__"), which hides a gadget chain from any
+      literal-token scanner. Use direct attribute access with names written in
+      the source. Known false-positive risk: legitimate dynamic dispatch also
+      uses getattr(); such skills need an explicit exempt_tags entry rather than
+      a weaker rule.
+    exempt_authors: []
+    exempt_tags: []
+
+  - id: SC-008
+    name: "Reflective attribute / namespace access in prose"
+    category: suspicious_code
+    severity: high
+    surfaces: [body_md, references]
+    pattern: 'getattr\s*\(|\b(globals|vars|locals)\s*\(\s*\)'
+    pattern_type: regex
+    remediation: >
+      Skill prose describes runtime attribute or namespace reflection. Recorded,
+      not blocked, since documentation may legitimately cover getattr(). Confirm
+      no shipped script builds attribute names at runtime.
+    exempt_authors: []
+    exempt_tags: []
+
+  # ── URL Safety (US) ──────────────────────────────────────────────────────
+
+  - id: US-001
+    name: "Internal RFC1918 / link-local URL"
+    category: url_safety
+    severity: medium
+    surfaces: [body_md, references, scripts]
+    pattern: 'https?://(10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+|169\.254\.\d+\.\d+|127\.\d+\.\d+\.\d+)'
+    pattern_type: regex
+    remediation: >
+      Skills should not reference private-range IP addresses. These only resolve
+      inside a specific network perimeter and are a potential SSRF vector.
+    exempt_authors: []
+    exempt_tags: []
+
+  # Alias exposed in tests as US-002
+  - id: US-002
+    name: "Internal RFC1918 / link-local URL (alias)"
+    category: url_safety
+    severity: medium
+    surfaces: [body_md, references, scripts]
+    pattern: 'https?://(10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+|169\.254\.\d+\.\d+|127\.\d+\.\d+\.\d+)'
+    pattern_type: regex
+    remediation: >
+      Skills should not reference private-range IP addresses. These only resolve
+      inside a specific network perimeter and are a potential SSRF vector.
+    exempt_authors: []
+    exempt_tags: []

@@ -1,0 +1,339 @@
+/**
+ * LoginEyeBackdrop — login-only HAL-style backdrop styles.
+ * Ported from quox-website/src/styles/landing.css (.hal-*) with the
+ * --accent-rgb / --accent-deep-rgb variables INLINED and class prefix
+ * renamed to .login-eye-* to avoid any cross-component leakage.
+ *
+ * Uses cyan (56,189,248) as accent and violet (124,58,237) as accent-deep.
+ */
+
+.login-eye-hero {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 1;
+}
+
+/* Atmosphere */
+.login-eye-atmosphere {
+    position: absolute;
+    width: 360px;
+    height: 360px;
+    border-radius: 50%;
+    background: radial-gradient(circle,
+        rgba(56, 189, 248, 0.10) 0%,
+        rgba(124, 58, 237, 0.04) 50%,
+        transparent 70%);
+    animation: login-eye-atmo-pulse 4s ease-in-out infinite;
+}
+
+.login-eye-atmosphere-2 {
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle,
+        rgba(124, 58, 237, 0.06) 0%,
+        rgba(56, 189, 248, 0.03) 40%,
+        transparent 60%);
+    animation-delay: 2s;
+    animation-duration: 6s;
+}
+
+@keyframes login-eye-atmo-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.08); opacity: 1; }
+}
+
+/* Data particles */
+.login-eye-data-field {
+    position: absolute;
+    width: 380px;
+    height: 380px;
+}
+
+.login-eye-particle {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(56, 189, 248, 0.6);
+    box-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
+    animation: login-eye-particle-float linear infinite;
+}
+
+@keyframes login-eye-particle-float {
+    0% { opacity: 0; transform: translateY(0) scale(0); }
+    15% { opacity: 0.8; transform: translateY(-10px) scale(1); }
+    85% { opacity: 0.4; transform: translateY(-40px) scale(0.6); }
+    100% { opacity: 0; transform: translateY(-60px) scale(0); }
+}
+
+/* Housing rings */
+.login-eye-housing {
+    position: absolute;
+    width: 280px;
+    height: 280px;
+}
+
+.login-eye-housing-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(124, 58, 237, 0.08);
+    animation: login-eye-rotate 40s linear infinite;
+}
+
+.login-eye-housing-ring-2 {
+    inset: -20px;
+    border-color: rgba(124, 58, 237, 0.05);
+    animation-duration: 60s;
+    animation-direction: reverse;
+}
+
+.login-eye-housing-ring-3 {
+    inset: -40px;
+    border-color: rgba(124, 58, 237, 0.03);
+    animation-duration: 80s;
+}
+
+@keyframes login-eye-rotate {
+    to { transform: rotate(360deg); }
+}
+
+.login-eye-housing-notch {
+    position: absolute;
+    width: 8px;
+    height: 2px;
+    background: rgba(124, 58, 237, 0.20);
+    top: 50%;
+    left: 50%;
+    transform-origin: center;
+    transform: rotate(var(--notch-angle)) translateX(140px);
+}
+
+/* Scanner */
+.login-eye-scanner {
+    position: absolute;
+    width: 200px;
+    height: 200px;
+}
+
+.login-eye-scan-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(56, 189, 248, 0.08);
+    border-top-color: rgba(56, 189, 248, 0.30);
+    animation: login-eye-rotate 6s linear infinite;
+}
+
+.login-eye-scan-ring-2 {
+    inset: -12px;
+    border-top-color: rgba(124, 58, 237, 0.20);
+    animation-duration: 8s;
+    animation-direction: reverse;
+}
+
+.login-eye-scan-ray {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(124, 58, 237, 0.15), transparent);
+    transform-origin: left center;
+    animation: login-eye-rotate 4s linear infinite;
+}
+
+.login-eye-scan-ray-2 {
+    animation-delay: -2s;
+}
+
+/* Main eye */
+.login-eye-main {
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-eye-lens-outer {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(124, 58, 237, 0.06), transparent 70%);
+    border: 1px solid rgba(124, 58, 237, 0.10);
+    overflow: hidden;
+}
+
+.login-eye-lens-reflection {
+    position: absolute;
+    width: 60%;
+    height: 30%;
+    top: 8%;
+    left: 20%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+    border-radius: 50%;
+}
+
+.login-eye-lens-reflection-2 {
+    width: 30%;
+    height: 15%;
+    top: auto;
+    bottom: 12%;
+    left: 35%;
+    background: linear-gradient(0deg, rgba(255, 255, 255, 0.02), transparent);
+}
+
+/* Iris */
+.login-eye-iris {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+}
+
+.login-eye-iris-segment {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 38px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 30%, rgba(56, 189, 248, 0.18));
+    transform-origin: left center;
+    transform: rotate(var(--segment-angle));
+    animation: login-eye-iris-pulse 3s ease-in-out infinite;
+}
+
+@keyframes login-eye-iris-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+.login-eye-iris-ring {
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    border: 1px solid rgba(124, 58, 237, 0.10);
+}
+
+.login-eye-iris-ring-2 {
+    inset: 16px;
+    border-color: rgba(124, 58, 237, 0.15);
+}
+
+/* Pupil */
+.login-eye-pupil {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: radial-gradient(circle,
+        rgba(56, 189, 248, 0.35),
+        rgba(124, 58, 237, 0.15) 70%);
+    animation: login-eye-pupil-breathe 3s ease-in-out infinite;
+}
+
+@keyframes login-eye-pupil-breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+.login-eye-pupil-inner {
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    background: radial-gradient(circle,
+        rgba(56, 189, 248, 0.6),
+        rgba(124, 58, 237, 0.25) 70%);
+}
+
+.login-eye-pupil-glow {
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    background: radial-gradient(circle,
+        rgba(56, 189, 248, 0.20),
+        rgba(124, 58, 237, 0.08) 40%,
+        transparent 60%);
+}
+
+.login-eye-pupil-highlight {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    top: 6px;
+    right: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.30);
+}
+
+/* Core light */
+.login-eye-core {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #7dd3fc;
+    box-shadow:
+        0 0 8px rgba(56, 189, 248, 0.9),
+        0 0 20px rgba(56, 189, 248, 0.6),
+        0 0 40px rgba(124, 58, 237, 0.35),
+        0 0 60px rgba(124, 58, 237, 0.20);
+    animation: login-eye-core-glow 2s ease-in-out infinite;
+}
+
+@keyframes login-eye-core-glow {
+    0%, 100% { opacity: 0.8; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* Diagnostic SVG */
+.login-eye-diagnostics {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    pointer-events: none;
+}
+
+.login-eye-diag-circle {
+    fill: none;
+    stroke: rgba(124, 58, 237, 0.04);
+    stroke-width: 0.3;
+    stroke-dasharray: 4 4;
+    animation: login-eye-rotate 30s linear infinite;
+    transform-origin: center;
+}
+
+.login-eye-diag-circle-2 {
+    animation-direction: reverse;
+    animation-duration: 45s;
+}
+
+.login-eye-diag-tick {
+    stroke: rgba(124, 58, 237, 0.10);
+    stroke-width: 0.5;
+}
+
+/* Backdrop wrapper — fills viewport, scales graphic 2× larger than the
+   website hero, sits BEHIND the login content. */
+.login-eye-backdrop {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 0;
+    overflow: hidden;
+}
+
+.login-eye-backdrop > .login-eye-hero {
+    position: relative;
+    width: 560px;
+    height: 560px;
+    transform: scale(2.4);
+    transform-origin: center;
+    opacity: 0.85;
+}

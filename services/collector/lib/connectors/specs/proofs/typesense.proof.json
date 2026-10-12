@@ -1,0 +1,106 @@
+{
+  "spec_id": "typesense",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T18:01:01.758Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/health",
+      "status": 200,
+      "latency_ms": 243,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "4062edaf750fb8074e7e83e0c9028c94e32468a8b6f1614774328ef045150f93",
+      "body_excerpt": "{\"ok\":true}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "health",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/health",
+      "status": 200,
+      "latency_ms": 18,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "4062edaf750fb8074e7e83e0c9028c94e32468a8b6f1614774328ef045150f93",
+      "body_excerpt": "{\"ok\":true}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_debug",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/debug",
+      "status": 200,
+      "latency_ms": 23,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "b987b58a2273f1a36c02972f33f78386d1bcc74ae727388d7396494f991185a6",
+      "body_excerpt": "{\"state\":1,\"version\":\"27.1\"}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_collections",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/collections",
+      "status": 200,
+      "latency_ms": 12,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "63cbd0ba9f10e103655fe62810bfb4fa2a2ad43ad96b63498fb9c5ef5dd45ab9",
+      "body_excerpt": "[{\"created_at\":1789235922,\"default_sorting_field\":\"\",\"enable_nested_fields\":false,\"fields\":[{\"facet\":false,\"index\":true,\"infix\":false,\"locale\":\"\",\"name\":\"title\",\"optional\":false,\"sort\":false,\"stem\":fa",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "get_collection",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/collections/quoxproof-live",
+      "status": 200,
+      "latency_ms": 17,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "64f9ce895fbc83c9bc218dc5f8bff09be5e83753a388ea23caa1cdde50274db1",
+      "body_excerpt": "{\"created_at\":1789235922,\"default_sorting_field\":\"\",\"enable_nested_fields\":false,\"fields\":[{\"facet\":false,\"index\":true,\"infix\":false,\"locale\":\"\",\"name\":\"title\",\"optional\":false,\"sort\":false,\"stem\":fal",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "search_collection",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/collections/quoxproof-live/documents/search?q=*&per_page=20",
+      "status": 200,
+      "latency_ms": 17,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "a768f0c9af655c5a6d9ca6789fe9808c5c2e3bcdbf9679d2df61b5678556d8cd",
+      "body_excerpt": "{\"facet_counts\":[],\"found\":0,\"hits\":[],\"out_of\":0,\"page\":1,\"request_params\":{\"collection_name\":\"quoxproof-live\",\"first_q\":\"*\",\"per_page\":20,\"q\":\"*\"},\"search_cutoff\":false,\"search_time_ms\":0}",
+      "flags": {
+        "live": true
+      }
+    },
+    {
+      "name": "list_aliases",
+      "method": "GET",
+      "url": "[LIVE_REDACTED]/aliases",
+      "status": 200,
+      "latency_ms": 13,
+      "classification": "LIVE_PROVEN",
+      "body_sha256": "98edafdd23a87cc06cf01377827540ac317e143f291cae3765a19ec96fef8647",
+      "body_excerpt": "{\"aliases\":[]}",
+      "flags": {
+        "live": true
+      }
+    }
+  ],
+  "overall": "LIVE_PROVEN",
+  "method_notes": "LIVE mode: each call fired with real credentials; LIVE_PROVEN requires HTTP 2xx and a parseable JSON body on every non-write call. Credential values (including the instance host) are scrubbed from this file; `target` names what was proven against.",
+  "notes": [
+    "live proof: real credentials against a live instance; every fired call must be 2xx JSON."
+  ],
+  "mode": "live",
+  "target": "docker:typesense/typesense:27.1"
+}

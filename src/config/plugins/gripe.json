@@ -1,0 +1,83 @@
+{
+  "name": "gripe",
+  "version": "0.1.0",
+  "displayName": "Gripe",
+  "tagline": "One line in, a filed issue out. From the dashboard or the terminal.",
+  "description": "The fastest possible complaint. Type a one-liner about something broken and it becomes a labelled GitHub issue in the right repo, without a form, a triage meeting or a context switch. Gripe never investigates and never blocks on ambiguity for more than one question, because the whole point is that the friction of reporting is what stops things getting reported. File it from the Gripe page in the dashboard (/gripe) or from the terminal with `quox gripe`. The page previews the repo and fleet label it inferred, lets you edit both, and files through the governed GitHub proxy (POST /github/issues: policy, entitlement, rate limit, org vault credential and the approval gate). It shows an issue URL only when GitHub returned one.",
+  "shortDescription": "One-liner complaints become filed, labelled GitHub issues, from the dashboard or the CLI.",
+  "author": "QUOX",
+  "license": "paid",
+  "_pricingNote": "PROVISIONAL. DEVSUITE plan keeps bundle SKU + final pricing owner-gated; this figure exists so the manifest is well-formed and the plugin can be enabled, not as an approved price.",
+  "price": 0,
+  "priceDisplay": "Free",
+  "priceModel": "free",
+  "tier": "free",
+  "featured": false,
+  "icon": "octahedron",
+  "accentColor": "#f87171",
+  "infoUrl": "https://quox.ai/solutions/gripe",
+  "docsUrl": "https://quox.ai/docs/plugins/gripe",
+  "dashboardSurface": "route",
+  "dashboardSurfaceNote": "Standalone route /gripe (GripeView): a one-line pad with repo and fleet-label preview, recent fleet-labelled issues, and the GRIPE agent in the sidebar. `quox gripe` remains as the terminal entry.",
+  "dataPlane": "collector-proxy",
+  "dataPlaneNote": "The Gripe page files through the collector GitHub proxy: POST /github/issues, which routes through executeConnectorTool('github', 'create_issue') (policy, entitlement, rate limit, org vault credential, approval gate, execution ledger). A held-for-approval response (HTTP 202) is shown as held, never as filed. The GRIPE chat agent and `quox gripe` keep using the github_create_issue agent tool.",
+  "category": "Developer Tools",
+
+  "marketingPoints": [
+    "A one-liner is the whole interface: no form, no template, no triage meeting",
+    "File from the Gripe page in the dashboard, or from the terminal you are already in with quox gripe",
+    "Infers the repo and label so you do not have to decide",
+    "Refuses to say filed without an issue URL to show you",
+    "Files through the governed GitHub proxy, so policy, rate limits and approvals apply",
+    "Built because the friction of reporting is what stops things being reported"
+  ],
+
+  "features": {
+    "oneLiner": {
+      "name": "One-liner filing",
+      "description": "Type the complaint as you would say it out loud. Gripe turns it into a title, a body and a label and files it.",
+      "icon": "check",
+      "highlight": true
+    },
+    "terminalNative": {
+      "name": "Dashboard or terminal",
+      "description": "File from the Gripe page, or with quox gripe straight from the shell you are working in, which is where you actually notice things are broken.",
+      "icon": "eye",
+      "highlight": true
+    },
+    "honestConfirmation": {
+      "name": "No hollow confirmations",
+      "description": "It reports an issue as filed only when it has a real issue URL, and says plainly when no GitHub connector is configured.",
+      "icon": "shield",
+      "highlight": true
+    }
+  },
+
+  "safety": {
+    "destructiveActions": [],
+    "requiresApproval": ["github_create_issue"],
+    "aeeRequired": true,
+    "killSwitchEnabled": false
+  },
+
+  "limits": {
+    "free": { "gripesPerMonth": 500 }
+  },
+
+  "requirements": { "quox": ">=4.0.0" },
+
+  "integration": {
+    "service": "quoxai/collector",
+    "healthEndpoint": "/health"
+  },
+
+  "capabilities": {
+    "agentTools": ["github_create_issue"],
+    "agents": ["gripe"],
+    "prerequisites": [
+      "A configured GitHub connector for the org. Without one, filing honestly refuses rather than failing silently."
+    ]
+  },
+
+  "includedIn": ["dev-suite-bundle"]
+}

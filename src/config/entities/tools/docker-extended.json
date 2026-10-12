@@ -1,0 +1,240 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "docker-extended",
+
+  "name": "Docker Extended Tools",
+  "description": "Extended Docker container management for troubleshooting and operations",
+  "category": "infrastructure",
+  "subcategory": "containers",
+  "provider": "docker",
+  "version": "1.0.0",
+
+  "risk_level": "medium",
+  "sandbox_profile": "standard",
+
+  "tools": [
+    {
+      "id": "docker.logs",
+      "name": "Container Logs",
+      "description": "Get logs from a Docker container with filtering options",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "container": {
+          "type": "string",
+          "required": true,
+          "description": "Container name or ID"
+        },
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "docker01",
+          "description": "Docker host"
+        },
+        "tail": {
+          "type": "number",
+          "required": false,
+          "default": 100,
+          "description": "Number of lines to return (max 500)"
+        },
+        "since": {
+          "type": "string",
+          "required": false,
+          "description": "Show logs since timestamp (e.g., '1h', '30m', '2024-01-01')"
+        },
+        "grep": {
+          "type": "string",
+          "required": false,
+          "description": "Filter logs containing this pattern"
+        }
+      },
+      "instructions": {
+        "summary": "Retrieve and filter container logs for troubleshooting",
+        "when_to_use": [
+          "User asks for container logs",
+          "Troubleshooting a failing container",
+          "User wants to see error messages",
+          "Debugging application issues"
+        ]
+      }
+    },
+    {
+      "id": "docker.stats",
+      "name": "Container Stats",
+      "description": "Get real-time resource usage statistics for containers",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "docker01",
+          "description": "Docker host"
+        },
+        "container": {
+          "type": "string",
+          "required": false,
+          "description": "Specific container (omit for all)"
+        }
+      },
+      "returns": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "cpu_percent": { "type": "number" },
+            "memory_usage": { "type": "string" },
+            "memory_percent": { "type": "number" },
+            "network_io": { "type": "string" },
+            "block_io": { "type": "string" }
+          }
+        }
+      },
+      "instructions": {
+        "summary": "Check CPU, memory, and I/O usage for containers",
+        "when_to_use": [
+          "User asks about container resource usage",
+          "Diagnosing performance issues",
+          "Capacity planning for containers"
+        ]
+      }
+    },
+    {
+      "id": "docker.restart",
+      "name": "Restart Container",
+      "description": "Restart a container and verify it becomes healthy",
+      "accessLevel": "managers+",
+      "defconLevel": "YELLOW",
+      "requiresApproval": true,
+      "parameters": {
+        "container": {
+          "type": "string",
+          "required": true,
+          "description": "Container name or ID"
+        },
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "docker01",
+          "description": "Docker host"
+        },
+        "timeout": {
+          "type": "number",
+          "required": false,
+          "default": 30,
+          "description": "Timeout in seconds to wait for healthy state"
+        }
+      },
+      "instructions": {
+        "summary": "Restart a container with health verification",
+        "when_to_use": [
+          "User asks to restart a container",
+          "Container is unhealthy and needs restart",
+          "Service recovery"
+        ],
+        "when_not_to_use": [
+          "Container is part of a stack (use docker-compose)",
+          "User wants to stop without restarting"
+        ]
+      }
+    },
+    {
+      "id": "docker.inspect",
+      "name": "Inspect Container",
+      "description": "Get detailed configuration and state of a container",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "container": {
+          "type": "string",
+          "required": true,
+          "description": "Container name or ID"
+        },
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "docker01"
+        }
+      },
+      "instructions": {
+        "summary": "Get detailed container configuration (ports, volumes, env vars)",
+        "when_to_use": [
+          "User asks about container configuration",
+          "Debugging port mappings or volume mounts",
+          "Checking environment variables"
+        ]
+      }
+    },
+    {
+      "id": "docker.images",
+      "name": "List Images",
+      "description": "List Docker images on a host with size information",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "docker01"
+        },
+        "filter": {
+          "type": "string",
+          "required": false,
+          "description": "Filter by image name pattern"
+        }
+      },
+      "instructions": {
+        "summary": "List Docker images and their sizes",
+        "when_to_use": [
+          "User asks what images are available",
+          "Checking disk usage from images",
+          "Finding image versions/tags"
+        ]
+      }
+    },
+    {
+      "id": "docker.prune",
+      "name": "Cleanup Docker",
+      "description": "Remove unused containers, images, networks, and volumes",
+      "accessLevel": "managers+",
+      "defconLevel": "ORANGE",
+      "requiresApproval": true,
+      "parameters": {
+        "host": {
+          "type": "string",
+          "required": false,
+          "default": "docker01"
+        },
+        "type": {
+          "type": "string",
+          "required": false,
+          "enum": ["containers", "images", "volumes", "networks", "all"],
+          "default": "all",
+          "description": "What to prune"
+        }
+      },
+      "instructions": {
+        "summary": "Clean up unused Docker resources to free disk space",
+        "when_to_use": [
+          "User asks to clean up Docker",
+          "Disk space is running low",
+          "Removing old unused images"
+        ]
+      }
+    }
+  ],
+
+  "endpoints": {"base": "internal", "api": "bastion_ssh"},
+
+  "agent_hints": {
+    "primary_agent": "nova",
+    "delegation_keywords": ["docker logs", "container logs", "restart container", "docker stats", "container memory", "docker images", "docker cleanup", "prune"]
+  }
+}

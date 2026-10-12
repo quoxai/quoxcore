@@ -1,0 +1,90 @@
+{
+  "spec_id": "todoist",
+  "spec_version": 1,
+  "checked_at": "2026-09-12T02:58:25.191Z",
+  "runner": "shapeproof/1",
+  "results": [
+    {
+      "name": "_control",
+      "method": "GET",
+      "url": "https://api.todoist.com/quox-shapeproof-control-282a6dc5",
+      "status": 404,
+      "latency_ms": 1094,
+      "classification": "CONTROL",
+      "body_sha256": "d44630bdd16f50e4a0c8b4c273ebaa576a57235ebbd4cead33ac49dd8d4e746f",
+      "body_excerpt": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n    <meta http-equiv=\"Conte",
+      "flags": {
+        "control_probe": true,
+        "bogus_path": true
+      }
+    },
+    {
+      "name": "test",
+      "method": "GET",
+      "url": "https://api.todoist.com/api/v1/projects",
+      "status": 401,
+      "latency_ms": 366,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "80929b3c8d34c8da2fcd523e2fc41efdf67894666bab396874c66ad7c33b7a94",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"error_code\":477,\"error_extra\":{\"event_id\":\"8e89a3b0d13c4d01ad438bbc308a15fa\",\"retry_after\":3},\"error_tag\":\"UNAUTHORIZED\",\"http_code\":401}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_projects",
+      "method": "GET",
+      "url": "https://api.todoist.com/api/v1/projects",
+      "status": 401,
+      "latency_ms": 373,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "fd4e36db6b49afb158d954d535024f7d204a09a55048c74bd0b2367428236565",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"error_code\":477,\"error_extra\":{\"event_id\":\"a630048719f948208948b10f04cb37f8\",\"retry_after\":2},\"error_tag\":\"UNAUTHORIZED\",\"http_code\":401}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_tasks",
+      "method": "GET",
+      "url": "https://api.todoist.com/api/v1/tasks?project_id=quoxprobe",
+      "status": 401,
+      "latency_ms": 373,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "3ba16f407de5cf0a64d6f6a7efefcd3865dc4e41f71d45bdf838d6fbc6573773",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"error_code\":477,\"error_extra\":{\"event_id\":\"8d80bdf069624f8eac54a104092626f3\",\"retry_after\":7},\"error_tag\":\"UNAUTHORIZED\",\"http_code\":401}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "get_task",
+      "method": "GET",
+      "url": "https://api.todoist.com/api/v1/tasks/quoxprobe",
+      "status": 401,
+      "latency_ms": 470,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "886d9adfec1ea0c2583f15eac048278f29af96829c7300cdbfd79ac2f1e9eb1f",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"error_code\":477,\"error_extra\":{\"event_id\":\"238b7dc128084797b51d8a1033fbb5ee\",\"retry_after\":8},\"error_tag\":\"UNAUTHORIZED\",\"http_code\":401}",
+      "flags": {
+        "www_authenticate": true
+      }
+    },
+    {
+      "name": "list_sections",
+      "method": "GET",
+      "url": "https://api.todoist.com/api/v1/sections?project_id=quoxprobe",
+      "status": 401,
+      "latency_ms": 311,
+      "classification": "SHAPE_PROVEN",
+      "body_sha256": "8c35ce8f296358c3cdc35017580411551a90726950b6cff051b1e3003e2bc131",
+      "body_excerpt": "{\"error\":\"Unauthorized\",\"error_code\":477,\"error_extra\":{\"event_id\":\"21d10213d78540e597f2e93428123a64\",\"retry_after\":18},\"error_tag\":\"UNAUTHORIZED\",\"http_code\":401}",
+      "flags": {
+        "www_authenticate": true
+      }
+    }
+  ],
+  "overall": "SHAPE_PROVEN",
+  "method_notes": "Every network spec is probed against a control request at a deliberately bogus path on the same host with the same dummy credential. AUTH_WALL means host, TLS and auth rejection are proven but the path is not: the API answers the control path with the same status and the same error identity, so only a real credential can confirm the route, however structured the body looks. If the control probe itself could not be run, every result that depends on the differential is INCONCLUSIVE, never FAIL. A structured 400/405/422 whose status or error code differs from the control proves the endpoint is live and routed (structured_4xx). A 404 whose error identity differs from the control 404 proves the route pattern matched and identifier validation ran (identifier_404_differential); a 404 indistinguishable from the control is a wrong path, FAIL. When the credential rides in the base_url path (telegram-style), an invalid one makes every subpath unroutable, so an identical structured 4xx envelope everywhere is AUTH_WALL (path_credential_wall): host, TLS and the API's own structured envelope are proven, and the paths rest on documentary provenance rather than on this run.",
+  "notes": []
+}

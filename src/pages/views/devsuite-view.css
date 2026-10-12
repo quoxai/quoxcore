@@ -1,0 +1,46 @@
+/* DevSuiteView — layout only. Visual atoms (cards, pills) come from the qx-* system. */
+
+.ds-view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 4px 0 40px;
+}
+
+/* Compact head (owner correction 2026-08-14: no promo hero in the app) */
+.ds-head__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+.ds-head__title {
+  font-size: clamp(20px, 2.8vw, 26px);
+  letter-spacing: -0.01em;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+.ds-head .ds-hero__meta { margin-top: 0; }
+.ds-hero__meta {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* BUNDLE POLISH B: the hub's call to action. The header named QLoop as the
+   flagship and offered no way to start one, so the marketed surface described
+   a capability rather than opening a door to it. */
+.ds-head__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  margin-top: 10px;
+}
