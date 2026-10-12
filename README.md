@@ -68,7 +68,7 @@ Every agent action is wrapped in an envelope and written to an append-only recor
 - [WARD](https://github.com/quoxai/ward): write-once receipt digests that make the record tamper-evident
 - [QuoxProof](https://github.com/quoxai/quoxproof): offline-verifiable receipts you can check without trusting us
 
-What works today, and how mature each part is, is documented per area in `docs/STATUS_AND_LIMITS_*.md`. Where a capability is beta or experimental, those pages say so.
+Some parts are stable and some are beta or experimental. Per-area maturity pages (what works, what does not yet) will be published in this repository in a coming release.
 
 ## Extend it
 
