@@ -24,7 +24,7 @@
  * without the module-level `queries` singleton.
  */
 
-import { getSessionPolicy, isSessionExpired, REMEMBER_ME_MAX_SESSION_SEC } from './sessionPolicy.js';
+import { getSessionPolicy, isSessionExpired, applyClientClass, REMEMBER_ME_MAX_SESSION_SEC } from './sessionPolicy.js';
 import { listIpAllowlist, isIpAllowed, normaliseIp, isIpv6 } from './ipAllowlist.js';
 import { evaluateMfaPolicy, MFA_MODES } from './mfaPolicy.js';
 import { ulid } from './helpers.js';
@@ -51,7 +51,10 @@ export function enforceSessionPolicy(db, { sessionId, userId, now = Date.now() }
         return { allowed: false, reason: 'session_revoked' };
     }
 
-    const policy = row.org_id ? getSessionPolicy(db, row.org_id) : getSessionPolicy(db, null);
+    // CLI session class: read defensively (older schemas / fixtures have no `client` column => web).
+    let client = 'web';
+    try { client = db.prepare(`SELECT client FROM sessions WHERE id = ?`).get(sessionId)?.client || 'web'; } catch { client = 'web'; }
+    const policy = applyClientClass(db, row.org_id ? getSessionPolicy(db, row.org_id) : getSessionPolicy(db, null), row.org_id || null, client);
     const issuedAt    = tsMs(row.created_at);
     // Treat missing last_active_at as "just touched" so idle=0, never
     // trips the idle timeout on the first touch after migration.

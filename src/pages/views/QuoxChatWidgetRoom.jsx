@@ -24,29 +24,32 @@ import GoLiveControl from '../../components/assistant-editor/tabs/chatbot/GoLive
 import NotificationFailedBanner from '../../components/assistant-editor/tabs/chatbot/NotificationFailedBanner'
 import OnboardingWizard from '../../components/assistant-editor/tabs/chatbot/OnboardingWizard'
 import ModeToggle from '../../components/assistant-editor/tabs/chatbot/ModeToggle'
-import { parseNotificationSettings } from '../../components/assistant-editor/tabs/chatbot/AvailabilityTab'
 import { computeCompletion, resolveDefaultMode, wizardStepToTab } from '../../widget/completionUtils'
+import { publishBreadcrumbLeaf } from '../../components/layout/breadcrumbLeaf'
+import { alertsUnconfigured, WIDGET_ROOM_TABS, resolveTabParam, withTabParam, fullEditorState } from './widgetRoomTabs'
+// Tab blurbs live here, not in widgetRoomTabs.js: that module is reached from
+// the free build (OnboardingWizard via completionUtils), and these strings are
+// the plugin's dist-scan markers (scripts/strip-markers.mjs).
+const TAB_DESC = {
+  knowledge: 'Train on your content',
+  training: 'Tune personality & test',
+  style: 'Customise appearance',
+  actions: 'Connect tools & webhooks',
+  simulation: 'Scenario arena + publish gate',
+  availability: 'Operator status, office hours, alerts',
+  logs: 'Conversation archive',
+  analytics: 'Performance metrics',
+  settings: 'Domains, LLM, budget',
+  compliance: 'Risk tier, retention, DPIA',
+}
 import './quoxchat.css'
-
-const WIDGET_ROOM_TABS = [
-  { id: 'knowledge', label: 'Knowledge', icon: '📚', desc: 'Train on your content' },
-  { id: 'training', label: 'Training', icon: '🏋️', desc: 'Tune personality & test' },
-  { id: 'style', label: 'Style', icon: '🎨', desc: 'Customise appearance' },
-  { id: 'actions', label: 'Actions', icon: '⚡', desc: 'Connect tools & webhooks' },
-  { id: 'simulation', label: 'Simulation', icon: '🧪', desc: 'Scenario arena + publish gate' },
-  { id: 'availability', label: 'Availability', icon: '🕒', desc: 'Operator status, office hours, alerts' },
-  { id: 'logs', label: 'Logs', icon: '📜', desc: 'Conversation archive' },
-  { id: 'analytics', label: 'Analytics', icon: '📊', desc: 'Performance metrics' },
-  { id: 'settings', label: 'Settings', icon: '⚙️', desc: 'Domains, LLM, security' },
-  { id: 'compliance', label: 'Compliance', icon: '🛡️', desc: 'Risk tier, retention, DPIA' },
-]
 
 function TabPlaceholder({ tab }) {
   return (
     <div className="wr-placeholder">
       <div className="wr-placeholder__icon">{tab.icon}</div>
       <h3 className="wr-placeholder__title">{tab.label}</h3>
-      <p className="wr-placeholder__desc">{tab.desc}</p>
+      <p className="wr-placeholder__desc">{TAB_DESC[tab.id]}</p>
       <p className="wr-placeholder__note">Coming in a future CW phase</p>
     </div>
   )
@@ -55,7 +58,7 @@ function TabPlaceholder({ tab }) {
 export default function QuoxChatWidgetRoom() {
   const { widgetId } = useParams()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { authFetch, user } = useAuth()
   const { currentOrg } = useWorkspace()
   const orgId = currentOrg?.id
@@ -63,14 +66,18 @@ export default function QuoxChatWidgetRoom() {
   const [widget, setWidget] = useState(null)
   const [stats, setStats] = useState({})
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('knowledge')
+  // W12: non-OK load (429/5xx) or network failure shows an error + Retry
+  // instead of a permanent "Widget not found" / "Loading..." state.
+  const [loadError, setLoadError] = useState(null)
+  const [reloadTick, setReloadTick] = useState(0)
+  // Tab state lives in the URL (?tab=logs) so tabs are linkable and survive reload.
+  const activeTab = resolveTabParam(searchParams.get('tab'))
+  const setActiveTab = (id) => setSearchParams(withTabParam(searchParams, id), { replace: false })
   const [mode, setMode] = useState(null) // resolved after widget loads
   // QUOXCHAT-PRO P3: live handoff surfacing. Currently handed-off
   // conversations (status = handed_off) polled every 60s so the header can
   // show a one-click jump to the live Matrix room(s).
   const [liveConvs, setLiveConvs] = useState([])
-  // Handoff tool state for the "handoff on but nobody gets alerted" nudge.
-  const [handoffToolEnabled, setHandoffToolEnabled] = useState(false)
   const [alertNudgeDismissed, setAlertNudgeDismissed] = useState(() => {
     try { return window.sessionStorage?.getItem(`quoxchat.alertNudge.${widgetId}`) === '1' } catch { return false }
   })
@@ -106,12 +113,22 @@ export default function QuoxChatWidgetRoom() {
   useEffect(() => {
     if (!authFetch || !orgId || !widgetId || resolvingPublicId) return
     setLoading(true)
+    setLoadError(null)
     authFetch(`/api/orgs/${orgId}/widgets/${widgetId}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => setWidget(data?.widget || null))
-      .catch(() => setWidget(null))
+      .then(async r => {
+        if (r.ok) {
+          const data = await r.json()
+          setWidget(data?.widget || null)
+        } else if (r.status === 404) {
+          setWidget(null)
+        } else {
+          setWidget(null)
+          setLoadError(`Could not load this widget (HTTP ${r.status}).`)
+        }
+      })
+      .catch((err) => { setWidget(null); setLoadError(`Could not load this widget (${err?.message || 'network error'}).`) })
       .finally(() => setLoading(false))
-  }, [authFetch, orgId, widgetId, resolvingPublicId])
+  }, [authFetch, orgId, widgetId, resolvingPublicId, reloadTick])
 
   // Load stats for completion calc
   useEffect(() => {
@@ -127,7 +144,7 @@ export default function QuoxChatWidgetRoom() {
     if (!authFetch || !orgId || !widgetId || resolvingPublicId) return
     let cancelled = false
     const load = () => {
-      authFetch(`/api/orgs/${orgId}/widgets/${widgetId}/conversations?status=handed_off&limit=100`)
+      authFetch(`/api/orgs/${orgId}/widgets/${widgetId}/conversations?status=handed_off&limit=100&exclude_test=1`)
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (cancelled || !data) return
@@ -141,20 +158,13 @@ export default function QuoxChatWidgetRoom() {
     return () => { cancelled = true; clearInterval(t) }
   }, [authFetch, orgId, widgetId, resolvingPublicId])
 
-  // Is the human_handoff builtin tool active? Drives the alerts nudge.
+  // Breadcrumb shows the widget name, not the ULID in the URL.
   useEffect(() => {
-    if (!authFetch || !orgId || !widgetId || resolvingPublicId) return
-    let cancelled = false
-    authFetch(`/api/orgs/${orgId}/widgets/${widgetId}/tools`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (cancelled || !data) return
-        const items = Array.isArray(data?.items) ? data.items : []
-        setHandoffToolEnabled(items.some(t => t.builtin_kind === 'human_handoff' && t.status !== 'disabled'))
-      })
-      .catch(() => { /* non-fatal */ })
-    return () => { cancelled = true }
-  }, [authFetch, orgId, widgetId, resolvingPublicId])
+    if (!widget?.name || !widget?.id) return
+    const path = `/quoxchat/${widgetId}`
+    publishBreadcrumbLeaf(path, widget.name)
+    return () => publishBreadcrumbLeaf(path, null)
+  }, [widget?.name, widget?.id, widgetId])
 
   const completion = useMemo(() => computeCompletion(widget || {}, stats), [widget, stats])
 
@@ -174,12 +184,9 @@ export default function QuoxChatWidgetRoom() {
   // handoff_requested event has no enabled delivery channel. Recomputes when
   // AvailabilityTab saves (onWidgetChange merges the PATCHed widget back).
   const handoffAlertsUnconfigured = useMemo(() => {
-    if (!handoffToolEnabled || !widget) return false
-    const settings = parseNotificationSettings(widget.notification_settings_json ?? widget.notification_settings)
-    const evt = settings.handoff_requested
-    const hasChannel = !!(evt.emails.trim() || evt.webhookUrl.trim() || evt.otherChannels.length > 0)
-    return !(evt.enabled && hasChannel)
-  }, [handoffToolEnabled, widget])
+    if (!widget) return false
+    return alertsUnconfigured(widget.notification_settings_json ?? widget.notification_settings)
+  }, [widget])
 
   const dismissAlertNudge = () => {
     setAlertNudgeDismissed(true)
@@ -201,13 +208,17 @@ export default function QuoxChatWidgetRoom() {
     const storageKey = `quoxchat.mode.${widgetId}`
     const stored = typeof window !== 'undefined' ? window.sessionStorage?.getItem(storageKey) : null
     const urlParam = searchParams.get('mode')
-    setMode(resolveDefaultMode({ widget, completion, urlParam, stored }))
+    setMode(resolveDefaultMode({ widget, completion, urlParam, stored, tabParam: searchParams.get('tab') }))
   }, [widget, completion, widgetId, searchParams, mode])
 
   const changeMode = (next) => {
     setMode(next)
     try { window.sessionStorage?.setItem(`quoxchat.mode.${widgetId}`, next) } catch {}
   }
+
+  // Every tab that PATCHes the widget reports the server response here so the
+  // shared state never goes stale (cross-tab config overwrite fix).
+  const handleWidgetChange = (w) => setWidget(prev => ({ ...(prev || {}), ...(w || {}) }))
 
   const handleWizardComplete = (id, lastStepId) => {
     changeMode('advanced')
@@ -218,6 +229,21 @@ export default function QuoxChatWidgetRoom() {
     return (
       <div className="quoxchat-view">
         <div className="quoxchat-loading">Loading widget...</div>
+      </div>
+    )
+  }
+
+  if (!widget && loadError) {
+    return (
+      <div className="quoxchat-view">
+        <div className="quoxchat-empty" role="alert">
+          <div className="quoxchat-empty__icon">⚠️</div>
+          <h2>Widget unavailable</h2>
+          <p>{loadError}</p>
+          <button className="quoxchat-btn quoxchat-btn--primary glass-btn" onClick={() => setReloadTick(t => t + 1)}>
+            Retry
+          </button>
+        </div>
       </div>
     )
   }
@@ -302,7 +328,7 @@ export default function QuoxChatWidgetRoom() {
           <ModeToggle mode={mode || 'advanced'} onChange={changeMode} completion={completion} />
           <button
             className="quoxchat-btn quoxchat-btn--ghost"
-            onClick={() => navigate(`/settings`, { state: { section: 'assistants', editAgent: widgetId } })}
+            onClick={() => navigate(`/settings`, { state: fullEditorState(widget) })}
             title="Open the backing assistant in the full Settings editor"
           >
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
@@ -332,7 +358,7 @@ export default function QuoxChatWidgetRoom() {
             key={tab.id}
             className={`wr-tab ${activeTab === tab.id ? 'wr-tab--active' : ''}`}
             onClick={() => setActiveTab(tab.id)}
-            title={tab.desc}
+            title={TAB_DESC[tab.id]}
           >
             <span className="wr-tab__icon">{tab.icon}</span>
             <span className="wr-tab__label">{tab.label}</span>
@@ -346,19 +372,19 @@ export default function QuoxChatWidgetRoom() {
             handoff_requested event has no delivery channel, so a visitor
             asking for a human alerts nobody. Shown on the two tabs where an
             operator would look for live traffic (Logs, Availability). */}
-        {handoffAlertsUnconfigured && !alertNudgeDismissed && (activeTab === 'logs' || activeTab === 'availability') && (
+        {handoffAlertsUnconfigured && !alertNudgeDismissed && (
           <div className="wr-nudge" role="note">
             <span className="wr-nudge__icon" aria-hidden="true">🔔</span>
             <div className="wr-nudge__body">
-              <strong>Handoff is on, but nobody gets alerted.</strong>
+              <strong>Handoffs and leads land in the inbox but nobody is alerted: set up alerts.</strong>
               <span>
-                Visitors can ask for a human, yet no email or webhook is set for the
-                "Human handoff requested" event, so requests can sit unnoticed.
+                No email or webhook is set for "Human handoff requested" or "New conversation",
+                so requests can sit unnoticed.
               </span>
             </div>
             <button type="button" className="quoxchat-btn quoxchat-btn--primary wr-nudge__cta" onClick={goToAlertsSection}>
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-              Configure alerts
+              Set up alerts
             </button>
             <button type="button" className="wr-nudge__dismiss" onClick={dismissAlertNudge} title="Dismiss for this session" aria-label="Dismiss">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -366,9 +392,9 @@ export default function QuoxChatWidgetRoom() {
           </div>
         )}
         {activeTab === 'knowledge' ? (
-          <KnowledgeTab widget={widget} authFetch={authFetch} orgId={orgId} />
+          <KnowledgeTab widget={widget} authFetch={authFetch} orgId={orgId} onWidgetChange={handleWidgetChange} />
         ) : activeTab === 'training' ? (
-          <TrainingTab widget={widget} authFetch={authFetch} orgId={orgId} correctedBy={user?.email || user?.primary_email || null} />
+          <TrainingTab widget={widget} authFetch={authFetch} orgId={orgId} onWidgetChange={handleWidgetChange} correctedBy={user?.email || user?.primary_email || null} />
         ) : activeTab === 'logs' ? (
           <LogsTab widget={widget} authFetch={authFetch} orgId={orgId} correctedBy={user?.email || user?.primary_email || null} />
         ) : activeTab === 'analytics' ? (
@@ -382,13 +408,13 @@ export default function QuoxChatWidgetRoom() {
             onDeleted={() => navigate('/quoxchat')}
           />
         ) : activeTab === 'actions' ? (
-          <ActionsTab widget={widget} authFetch={authFetch} orgId={orgId} />
+          <ActionsTab widget={widget} authFetch={authFetch} orgId={orgId} onWidgetChange={handleWidgetChange} />
         ) : activeTab === 'simulation' ? (
-          <SimulationTab widget={widget} authFetch={authFetch} orgId={orgId} />
+          <SimulationTab widget={widget} authFetch={authFetch} orgId={orgId} onWidgetChange={handleWidgetChange} />
         ) : activeTab === 'style' ? (
-          <StyleTab widget={widget} authFetch={authFetch} orgId={orgId} />
+          <StyleTab widget={widget} authFetch={authFetch} orgId={orgId} onWidgetChange={handleWidgetChange} />
         ) : activeTab === 'compliance' ? (
-          <ComplianceTab widget={widget} authFetch={authFetch} orgId={orgId} />
+          <ComplianceTab widget={widget} authFetch={authFetch} orgId={orgId} onWidgetChange={handleWidgetChange} />
         ) : activeTab === 'availability' ? (
           <AvailabilityTab
             widget={widget}

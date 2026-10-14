@@ -5,6 +5,7 @@
  * Tokens stored in config profile's auth field.
  */
 
+import { readFileSync, statSync } from 'node:fs';
 import { QuoxAuthError, QuoxApiError, QuoxTransientAuthError } from './errors.js';
 import { loadResidentProfile, residentLogin, resolveResidentBaseUrl } from './residentAuth.js';
 
@@ -94,11 +95,60 @@ function residentProfileHint(config, deadOrgId = null) {
   }
 }
 
+// QUOX_TOKEN_FILE: the W4 builder principal (SDK-TEAM design v2, 2.1.3) runs
+// on ONE agent token that an owner-side helper writes to a file and rewrites
+// near expiry. The builder holds no refresh token, no user session and no
+// service key, so this mode is exclusive and fails CLOSED: the file's token or
+// nothing, never the profile, never an ambient QUOX_SERVICE_KEY. Its "refresh"
+// is re-reading the file; it never calls the auth service and never writes or
+// clears the profile.
+function tokenFilePath() {
+  return process.env.QUOX_TOKEN_FILE || null;
+}
+
+function readTokenFile(file) {
+  let st;
+  try {
+    st = statSync(file);
+  } catch {
+    throw new QuoxAuthError(`QUOX_TOKEN_FILE ${file} is not readable. The owner-side builder helper writes it; is the lease live?`);
+  }
+  if (st.mode & 0o004) {
+    throw new QuoxAuthError(`QUOX_TOKEN_FILE ${file} is readable by other users (mode ${(st.mode & 0o777).toString(8)}); refusing to use it. Expected 0640 or tighter.`);
+  }
+  const token = readFileSync(file, 'utf8').trim();
+  if (!token) throw new QuoxAuthError(`QUOX_TOKEN_FILE ${file} is empty.`);
+  return { access_token: token, expires_at: jwtExpiryMs(token), token_file: file };
+}
+
+// Expiry only, for the client's "looks expired, try the refresh seam" signal.
+// Not verification: the server verifies. Undecodable means no local expiry.
+function jwtExpiryMs(token) {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Keep the last login email on the profile (not a secret) so a signed-out session can prefill /login. */
+export function rememberEmail(config, email) {
+  try {
+    const prof = config.getActiveProfile?.();
+    if (prof && email && prof.last_email !== email) { prof.last_email = email; config.save?.(); }
+  } catch { /* best-effort */ }
+}
+
 export function createAuth(config) {
   return {
     async login(baseUrl, email, password, orgId) {
+      if (tokenFilePath()) {
+        throw new QuoxAuthError('QUOX_TOKEN_FILE is set: this principal runs on its issued token only and cannot log in as a user.');
+      }
       const url = `${baseUrl}/api/auth/login`;
-      const body = { email, password };
+      // client: 'cli' marks this a CLI/TUI sign-in so the server gives it the longer CLI session window.
+      const body = { email, password, client: 'cli' };
       if (orgId) body.org_id = orgId;
 
       const res = await fetch(url, {
@@ -129,6 +179,7 @@ export function createAuth(config) {
       };
 
       config.setAuth(authData);
+      rememberEmail(config, email);
       return { ...data, authData };
     },
 
@@ -176,6 +227,17 @@ export function createAuth(config) {
     },
 
     async refresh(baseUrl) {
+      const tokenFile = tokenFilePath();
+      if (tokenFile) {
+        const before = this._tokenFileLast;
+        const now = readTokenFile(tokenFile);
+        const stillExpired = now.expires_at && Date.now() > now.expires_at;
+        if (stillExpired || (before && now.access_token === before)) {
+          throw new QuoxAuthError(`QUOX_TOKEN_FILE ${tokenFile} has not been renewed; the owner-side helper re-mints it. Not falling back to any other credential.`);
+        }
+        this._tokenFileLast = now.access_token;
+        return { access_token: now.access_token };
+      }
       const auth = config.getAuth();
 
       // Resident agents authenticate via a signed challenge, not a refresh
@@ -260,10 +322,14 @@ export function createAuth(config) {
             );
           }
           config.clearAuth({ refresh: true });
-          throw new QuoxAuthError(
+          const dead = new QuoxAuthError(
             `Session expired (refresh rejected: ${(data && data.error) || res.status}). Please login again.`
             + residentProfileHint(config, auth?.org_id),
           );
+          // Machine-readable, so the TUI can say WHY (idle_timeout | max_session, from the server's session policy).
+          dead.code = 'session_expired';
+          dead.reason = (data && data.reason) || null;
+          throw dead;
         }
         throw new QuoxAuthError(`Token refresh failed (${res.status}); stored session kept. Retry, or login again if this persists.`);
       }
@@ -279,10 +345,20 @@ export function createAuth(config) {
     },
 
     getTokens() {
+      const tokenFile = tokenFilePath();
+      if (tokenFile) {
+        const t = readTokenFile(tokenFile);
+        this._tokenFileLast = t.access_token;
+        return t;
+      }
       return config.getAuth();
     },
 
     isLoggedIn() {
+      const tokenFile = tokenFilePath();
+      if (tokenFile) {
+        try { readTokenFile(tokenFile); return true; } catch { return false; }
+      }
       // Precedence, matching client.js: a stored USER token is what we
       // actually authenticate with, so it decides this answer. A configured
       // QUOX_SERVICE_KEY still counts as authenticated on its own, but only
@@ -300,6 +376,15 @@ export function createAuth(config) {
     },
 
     isExpired() {
+      const tokenFile = tokenFilePath();
+      if (tokenFile) {
+        try {
+          const { expires_at } = readTokenFile(tokenFile);
+          return expires_at ? Date.now() > expires_at : false;
+        } catch {
+          return true;
+        }
+      }
       // A forced service key is not a locally-tracked JWT: never "expired".
       if (process.env.QUOX_FORCE_SERVICE_KEY && process.env.QUOX_SERVICE_KEY) return false;
       // A stored user token is the credential in play (see isLoggedIn), so

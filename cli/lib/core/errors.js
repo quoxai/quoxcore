@@ -93,6 +93,23 @@ const STATUS_HINTS = {
   503: 'Service temporarily unavailable. Check `quox service health`.',
 };
 
+// quox#803: a 403 signature_invalid is not a permissions problem; the org
+// enforces trusted plugin keys. Only real verbs are named: `quox plugin
+// trusted-keys add` (CLI) and scripts/sign-plugin.js (quox-plugin-sdk).
+function signatureInvalidHint(reason) {
+  const why = reason ? ` (reason: ${reason})` : '';
+  return `This org enforces trusted plugin signing keys${why}. Sign the bundle with quox-plugin-sdk's \`node scripts/sign-plugin.js\` and pass \`--signature <file>\`, `
+    + 'or have an org admin register your public key with `quox plugin trusted-keys add`.';
+}
+
+// Z2H-3c: a 402 LICENSE_REQUIRED printed only "Request failed with status 402" (seen on `quox fleet hosts`
+// on a fresh install). Name what is locked and the real verbs that unlock or inspect it.
+function licenseRequiredHint(body) {
+  const plugin = body?.plugin || body?.requiredPlugin;
+  return `${plugin ? `This needs a licence that includes \`${plugin}\`` : 'This needs a licence entitlement'}, and this install does not have it. `
+    + 'Activate one with `quox setup license activate --key-file <path>`; see what you have with `quox setup license status`.';
+}
+
 export function handleError(err, outputFormat = 'table') {
   if (outputFormat === 'json') {
     const obj = {
@@ -113,7 +130,11 @@ export function handleError(err, outputFormat = 'table') {
     console.error(chalk.red(`Error: ${err.message}`));
     if (err.detail) console.error(chalk.dim(`  Detail: ${err.detail}`));
     console.error(chalk.dim(`  Status: ${err.status} ${err.code || ''}`));
-    const hint = STATUS_HINTS[err.status];
+    const hint = err.status === 403 && (err.code === 'signature_invalid' || err.body?.error === 'signature_invalid')
+      ? signatureInvalidHint(err.body?.reason)
+      : err.status === 402 && (err.code === 'LICENSE_REQUIRED' || err.body?.error === 'LICENSE_REQUIRED')
+        ? licenseRequiredHint(err.body)
+        : STATUS_HINTS[err.status];
     if (hint) console.error(chalk.yellow(`  Hint: ${hint}`));
   } else if (err instanceof QuoxAuthError) {
     console.error(chalk.red(`Auth: ${err.message}`));

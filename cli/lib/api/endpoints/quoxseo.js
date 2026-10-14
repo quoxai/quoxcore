@@ -77,6 +77,12 @@ export const quoxseo = {
     service: 'collector',
     path: () => `/api/v1/quoxseo/sites`,
   },
+  // Symmetric removal (quoxwebsite#63); org-scoped at the collector proxy.
+  'quoxseo.sites.remove': {
+    method: 'DELETE',
+    service: 'collector',
+    path: ({ id }) => `/api/v1/quoxseo/sites/${encodeURIComponent(id)}`,
+  },
   // quox#676: governed report delivery (email via instance SMTP and/or the HITL
   // inbox, AEE-witnessed at the collector).
   'quoxseo.report.deliver': {

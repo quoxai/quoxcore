@@ -8,7 +8,7 @@ import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-export const TMUX_FORMAT = '#{session_name}\t#{session_created}\t#{session_attached}\t#{pane_current_command}\t#{pane_pid}';
+export const TMUX_FORMAT = '#{session_name}\t#{session_created}\t#{session_attached}\t#{pane_current_command}\t#{pane_pid}\t#{session_activity}';
 
 const AGENT_PROGRAMS = new Set(['claude', 'codex', 'gemini']);
 
@@ -21,6 +21,7 @@ export function parseTmuxPanes(out) {
     if (seen.has(c[0])) continue;
     const created = Number(c[1]);
     const pid = Number.parseInt(c[4], 10);
+    const activity = Number(c[5]);
     seen.set(c[0], {
       name: c[0],
       tmux: true,
@@ -28,6 +29,7 @@ export function parseTmuxPanes(out) {
       program: c[3] || null,
       pid: Number.isInteger(pid) ? pid : null,
       started_at: Number.isFinite(created) && created > 0 ? new Date(created * 1000).toISOString() : null,
+      last_active: Number.isFinite(activity) && activity > 0 ? new Date(activity * 1000).toISOString() : null,
     });
   }
   return [...seen.values()];
@@ -76,7 +78,8 @@ export function buildReport({ tmuxOut, held, env = {}, host, attachLookup = read
     // the slot entry records the bare NAME.
     const bare = s.name.replace(/^quox-/, '');
     const hit = bySession[s.name] || bySession[bare] || null;
-    const out = { ...s, slot: hit ? hit.slot : null };
+    const { last_active: lastActive, ...rest } = s;
+    const out = { ...rest, slot: hit ? hit.slot : null };
     const att = hit ? attachLookup(hit.pid) : null;
     if (att) {
       out.agent = att.agent;
@@ -85,7 +88,8 @@ export function buildReport({ tmuxOut, held, env = {}, host, attachLookup = read
     // No stream from env: QUOX_STREAM goes stale in inherited shells (house
     // rule, and it mislabelled VULCAN as QUOX-SECURITY on the first live run).
     // The column stays for a reliable source later (slot or attach metadata).
-    out.meta = { agent_program: AGENT_PROGRAMS.has(s.program) };
+    // last_active (tmux session_activity) feeds the J1 index's working/resting state.
+    out.meta = { agent_program: AGENT_PROGRAMS.has(s.program), ...(lastActive ? { last_active: lastActive } : {}) };
     return out;
   });
   return { host: host || hostname(), sessions };

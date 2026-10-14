@@ -56,7 +56,7 @@ import {
     setEnabled,
     sha256Hex,
 } from './plugins.js';
-import { FIRST_PARTY_PLUGINS, FIRST_PARTY_ACTOR } from '../config/firstPartyPlugins.js';
+import { FIRST_PARTY_PLUGINS, OFFICIAL_LICENSED_PLUGINS, FIRST_PARTY_ACTOR } from '../config/firstPartyPlugins.js';
 import { hasPlugin } from '../lib/entitlements.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -146,9 +146,9 @@ function bundleSha(bundle) {
  *
  * @returns {Array<{pluginId,version,manifestJson,bundleBuf,cssBuf}>}
  */
-export function loadFirstPartyBundles({ logger = console } = {}) {
+export function loadFirstPartyBundles({ logger = console, entries = FIRST_PARTY_PLUGINS } = {}) {
     const bundles = [];
-    for (const entry of FIRST_PARTY_PLUGINS) {
+    for (const entry of entries) {
         try {
             const base = join(BUNDLE_ROOT, entry.dir);
             const manifestJson = readFileSync(join(base, 'manifest.json'), 'utf-8');
@@ -433,4 +433,29 @@ export function provisionFirstPartyForNewOrg(db, orgId, { logger = console, hasE
         }
     }
     return summary;
+}
+
+let _officialShas = null;
+/**
+ * SEC-PLUGIN-TRUST C1: pluginId -> { sha, backend } for each bundle Quox ships in
+ * this image (first-party-plugins/<dir>/plugin.esm.js hashed exactly as
+ * plugin_installs.bundle_sha256, plus the SHIPPED manifest's backend spec).
+ * Tenants cannot write that directory. The bytes alone are not enough to be
+ * official: they are public (quoxcore mirror), so a tenant could pair them with
+ * its own manifest; callers must also take the backend spec from here.
+ */
+export function getOfficialBundleShas({ logger = console } = {}) {
+    if (!_officialShas) {
+        _officialShas = new Map(loadFirstPartyBundles({ logger, entries: [...FIRST_PARTY_PLUGINS, ...OFFICIAL_LICENSED_PLUGINS] }).map((b) => {
+            let backend = null;
+            try {
+                const m = JSON.parse(b.manifestJson);
+                if (m && m.backend && typeof m.backend.image === 'string' && m.backend.image) {
+                    backend = { image: m.backend.image, port: m.backend.port ?? null, healthPath: m.backend.healthPath || '/health' };
+                }
+            } catch { /* no backend */ }
+            return [b.pluginId, { sha: bundleSha(b), backend }];
+        }));
+    }
+    return _officialShas;
 }

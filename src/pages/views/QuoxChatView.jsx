@@ -173,7 +173,7 @@ export default function QuoxChatView() {
                   </span>
                 </div>
                 <div className="quoxchat-card__meta">
-                  <span>Conversations: {typeof w.conversation_count === 'number' ? w.conversation_count : '–'}</span>
+                  <span>Conversations: {w.conversation_count != null && Number.isFinite(Number(w.conversation_count)) ? Number(w.conversation_count) : '–'}</span>
                   {w.notification_failed_count > 0 && <span style={{ color: '#ff8a8a' }}>{w.notification_failed_count} failed notification{w.notification_failed_count === 1 ? '' : 's'}</span>}
                   <span>Created {new Date(w.created_at).toLocaleDateString()}</span>
                 </div>

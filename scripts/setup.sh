@@ -129,6 +129,8 @@ echo ""
 # ─── Step 2: Generate secrets + .env ───────────────────────
 log "Step 2/7: Environment configuration"
 
+# Z2H-3c: remember whether this is a re-run (an owner may already exist) for the final banner.
+if [ -f .env ]; then SETUP_RERUN=1; else SETUP_RERUN=0; fi
 if [ -f .env ]; then
     # Check if .env has placeholder values
     if grep -qE "CHANGE_ME|change-this" .env 2>/dev/null; then
@@ -164,6 +166,20 @@ if [ ${#MISSING_VARS[@]} -gt 0 ]; then
     exit 1
 fi
 log "  .env validated (JWT_SECRET, POSTGRES_PASSWORD, INTERNAL_SERVICE_KEY, DOCKER_GID)"
+echo ""
+
+# ─── Matrix is optional (quox#801) ─────────────────────────
+# docker-compose.yml attaches dashboard + auth to the external network created by the separate
+# quox-matrix stack. On a machine without it, `docker compose up` refuses to create anything, so
+# add the no-matrix override (persisted in .env so later `docker compose ...` calls agree).
+if ! grep -q "^COMPOSE_FILE=" .env 2>/dev/null; then
+    if docker network inspect quox-matrix_default &>/dev/null; then
+        log "  Matrix network found: dashboard and auth will attach to it"
+    else
+        info "  No Matrix stack on this machine: using docker-compose.nomatrix.yml"
+        echo "COMPOSE_FILE=docker-compose.yml:docker-compose.nomatrix.yml" >> .env
+    fi
+fi
 echo ""
 
 # ─── Step 3: SSL certificates ──────────────────────────────
@@ -324,6 +340,7 @@ log "Step 5/7: Cleaning up stale state"
 
 if [ "$RESET" = true ]; then
     warn "  --reset flag: removing all QuoxCORE containers and volumes"
+    SETUP_RERUN=0 # the owner account goes with the volumes: the banner gives first-run guidance
     docker compose -p quox down -v 2>/dev/null || true
     docker compose down -v 2>/dev/null || true
     log "  Volumes and containers removed"
@@ -364,15 +381,125 @@ if [ -z "$DOCKER_GID" ]; then
     export DOCKER_GID
 fi
 
-info "  Building images (this takes a few minutes on first run)..."
-if ! DOCKER_GID="$DOCKER_GID" docker compose build 2>&1 | tail -3; then
-    err "  Build failed. Check the output above."
+# quox#801: this step used to pipe into `tail -3`; a pipeline's status is the LAST command's,
+# so a failed build read as success. Keep the full log in a file and test the BUILD's own exit
+# status via PIPESTATUS (a global pipefail would break the `grep | cut` pipelines elsewhere in
+# this script that legitimately have no match).
+LOG_DIR="${QUOX_DIR:-$HOME/quox-install}/logs"
+mkdir -p "$LOG_DIR" 2>/dev/null || LOG_DIR="${TMPDIR:-/tmp}"
+BUILD_LOG="$LOG_DIR/build-$(date +%Y%m%d-%H%M%S).log"
+# Z2H-R4: stamp the images with this checkout's short commit (the same form `quox server update` uses), so
+# `quox server status` and the update health check can match the running build to the checkout. Without it
+# every fresh install reported "Running 0.0.0 · differs from the checkout". A caller-set value wins.
+if [ -z "${QUOXCORE_VERSION:-}" ]; then
+    QUOXCORE_VERSION="$(git rev-parse --short HEAD 2>/dev/null || true)"
+    [ -n "$QUOXCORE_VERSION" ] && export QUOXCORE_VERSION || unset QUOXCORE_VERSION
+fi
+# Z2H-R4: end stamp
+# Z2H-R2: parallel buildx targets on a small box hit transient registry resets (ECONNRESET) on 3 of 4
+# fresh-VM runs. Build one-at-a-time on <=2 cores, and retry (max 3 attempts) ONLY when the log shows
+# a transient network error or a containerd/buildkit restart mid-build (Z2H-R3: unattended-upgrades); any other failure stops at once.
+if [ -z "${COMPOSE_PARALLEL_LIMIT:-}" ]; then
+    CORES=$(nproc 2>/dev/null || echo 4)
+    if [ "$CORES" -le 2 ]; then export COMPOSE_PARALLEL_LIMIT=1; fi
+fi
+TRANSIENT_RE='ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|ENOTFOUND|TLS handshake timeout|50[234] (Bad Gateway|Service Unavailable|Gateway Time-?out)|unexpected HTTP status: 50[234]|error reading from server: EOF|failed to extract layer|rpc error: code = Unavailable|connection reset by peer|failed to solve:.*EOF'
+BUILD_MAX="${QUOX_BUILD_ATTEMPTS:-3}"
+BUILD_TRY=1
+# Z2H-IMAGES: prefer prebuilt images from GHCR (ghcr.io/quoxai/quoxcore-<service>:<release tag>) and
+# build locally only as a fallback. QUOX_IMAGES=build forces the local build; QUOX_IMAGES=prebuilt (the
+# default whenever docker-compose.images.yml ships in this tree, i.e. public installs) tries the pull first.
+IMAGE_SERVICES="dashboard auth files collector tasks orchestrator memory quoxbrain quoxflow"
+PULLED=0
+if [ -z "${QUOX_IMAGES:-}" ]; then
+    if [ -f docker-compose.images.yml ]; then QUOX_IMAGES=prebuilt; else QUOX_IMAGES=build; fi
+fi
+if [ "$QUOX_IMAGES" = "prebuilt" ] && [ ! -f docker-compose.images.yml ]; then
+    warn "  QUOX_IMAGES=prebuilt but docker-compose.images.yml is missing: building locally instead"
+    QUOX_IMAGES=build
+fi
+if [ "$QUOX_IMAGES" = "prebuilt" ]; then
+    if [ -z "${QUOX_IMAGE_TAG:-}" ]; then
+        QUOX_IMAGE_TAG="v$(tr -d '[:space:]' < VERSION 2>/dev/null)"
+        [ "$QUOX_IMAGE_TAG" = "v" ] && QUOX_IMAGE_TAG=latest
+    fi
+    export QUOX_IMAGE_TAG
+    # compose reads COMPOSE_FILE from .env (the no-Matrix step above may have set it); keep that base.
+    IMG_BASE="${COMPOSE_FILE:-$(grep '^COMPOSE_FILE=' .env 2>/dev/null | head -1 | cut -d= -f2-)}"
+    IMG_BASE="${IMG_BASE:-docker-compose.yml}"
+    case ":$IMG_BASE:" in *:docker-compose.images.yml:*) ;; *) IMG_BASE="$IMG_BASE:docker-compose.images.yml" ;; esac
+    info "  Downloading prebuilt images (ghcr.io/quoxai/quoxcore-*:$QUOX_IMAGE_TAG)..."
+    PULL_START=$(date +%s)
+    PULL_MAX="${QUOX_PULL_ATTEMPTS:-3}"
+    PULL_TRY=1
+    while :; do
+        COMPOSE_FILE="$IMG_BASE" docker compose pull $IMAGE_SERVICES 2>&1 | tee -a "$BUILD_LOG" | tail -3
+        PULL_RC=${PIPESTATUS[0]}
+        [ "$PULL_RC" -eq 0 ] && break
+        if [ "$PULL_TRY" -lt "$PULL_MAX" ] && tail -200 "$BUILD_LOG" | grep -qE "$TRANSIENT_RE"; then
+            PULL_TRY=$((PULL_TRY + 1))
+            warn "  network hiccup during pull, retrying $PULL_TRY/$PULL_MAX"
+            sleep "${QUOX_BUILD_RETRY_SLEEP:-10}"
+            continue
+        fi
+        break
+    done
+    if [ "$PULL_RC" -eq 0 ]; then
+        PULLED=1
+        # persist the image overlay so the later `up` and any `docker compose ...` call agree with this install
+        export COMPOSE_FILE="$IMG_BASE"
+        if [ -f .env ]; then
+            if grep -q "^COMPOSE_FILE=" .env; then sed -i "s#^COMPOSE_FILE=.*#COMPOSE_FILE=$IMG_BASE#" .env; else echo "COMPOSE_FILE=$IMG_BASE" >> .env; fi
+            grep -q "^QUOX_IMAGE_TAG=" .env || echo "QUOX_IMAGE_TAG=$QUOX_IMAGE_TAG" >> .env
+        fi
+        log "  pulled prebuilt images in $(( $(date +%s) - PULL_START ))s"
+    else
+        PULL_WHY=$(tail -200 "$BUILD_LOG" | grep -iE 'not found|manifest unknown|denied|unauthorized|no such host|timeout|EOF|reset' | tail -1 | cut -c1-120)
+        warn "  prebuilt images unavailable for $QUOX_IMAGE_TAG (${PULL_WHY:-pull exit $PULL_RC}): building locally instead"
+    fi
+fi
+if [ "$PULLED" -ne 1 ]; then
+    info "  Building images (this takes a few minutes on first run)..."
+fi
+while :; do
+    if [ "$PULLED" -eq 1 ]; then BUILD_RC=0; break; fi
+    DOCKER_GID="$DOCKER_GID" docker compose build 2>&1 | tee -a "$BUILD_LOG" | tail -3
+    BUILD_RC=${PIPESTATUS[0]}
+    [ "$BUILD_RC" -eq 0 ] && break
+    if [ "$BUILD_TRY" -lt "$BUILD_MAX" ] && tail -200 "$BUILD_LOG" | grep -qE "$TRANSIENT_RE"; then
+        BUILD_TRY=$((BUILD_TRY + 1))
+        warn "  network hiccup during build, retrying $BUILD_TRY/$BUILD_MAX"
+        sleep "${QUOX_BUILD_RETRY_SLEEP:-10}"
+        continue
+    fi
+    break
+done
+if [ "$BUILD_RC" -ne 0 ]; then
+    err "  Build failed (exit $BUILD_RC). Last lines:"
+    tail -25 "$BUILD_LOG" | sed 's/^/    /'
+    err "  Full build log: $BUILD_LOG"
     exit 1
 fi
+log "  Build log: $BUILD_LOG"
 
 info "  Starting services..."
-if ! DOCKER_GID="$DOCKER_GID" docker compose up -d 2>&1; then
-    err "  Failed to start. Check: docker compose logs"
+# Z2H-R4: `up` pulls the third-party images on a fresh box; pull quietly (no per-layer progress bars in
+# the log) and retry transient registry errors the same way as BUILD. Any other failure stops at once.
+START_TRY=1
+while :; do
+    DOCKER_GID="$DOCKER_GID" docker compose up -d --quiet-pull 2>&1 | tee -a "$BUILD_LOG"
+    START_RC=${PIPESTATUS[0]}
+    [ "$START_RC" -eq 0 ] && break
+    if [ "$START_TRY" -lt "$BUILD_MAX" ] && tail -200 "$BUILD_LOG" | grep -qE "$TRANSIENT_RE"; then
+        START_TRY=$((START_TRY + 1))
+        warn "  network hiccup while starting, retrying $START_TRY/$BUILD_MAX"
+        sleep "${QUOX_BUILD_RETRY_SLEEP:-10}"
+        continue
+    fi
+    break
+done
+if [ "$START_RC" -ne 0 ]; then
+    err "  Failed to start. Check: docker compose logs  (start output is in $BUILD_LOG)"
     exit 1
 fi
 echo ""
@@ -450,8 +577,12 @@ for service in "${CRITICAL_SERVICES[@]}"; do
     esac
 done
 
-LOCAL_IP=$(grep "^CORS_ORIGINS=" .env | grep -oE '([0-9]+\.){3}[0-9]+' | head -1)
-LOCAL_IP="${LOCAL_IP:-$(ip route get 1 2>/dev/null | awk '{print $7; exit}' || echo 'localhost')}"
+# Z2H-3c: final banner (start)
+# The address saved in CORS_ORIGINS is from the FIRST install; a DHCP change makes it stale. Print the
+# current one, and say when it moved (the self-signed certificate still names the old address).
+SAVED_IP=$(grep "^CORS_ORIGINS=" .env 2>/dev/null | grep -oE '([0-9]+\.){3}[0-9]+' | grep -v '^127\.' | head -1)
+CUR_IP=$(ip route get 1 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "src") { print $(i + 1); exit }}')
+LOCAL_IP="${CUR_IP:-${SAVED_IP:-localhost}}"
 
 if [ ${#CRITICAL_NOT_READY[@]} -eq 0 ]; then
     echo -e "${GREEN}${BOLD}QuoxCORE full platform is ready!${NC}"
@@ -467,12 +598,22 @@ else
 fi
 echo ""
 echo -e "  Open: ${BOLD}https://${LOCAL_IP}:3000${NC}"
+if [ -n "$SAVED_IP" ] && [ -n "$CUR_IP" ] && [ "$SAVED_IP" != "$CUR_IP" ]; then
+    warn "This machine's address changed since install (was ${SAVED_IP}, now ${CUR_IP})."
+    warn "  The browser certificate still names ${SAVED_IP}. To reissue it: rm ssl/quox.crt ssl/quox.key && ./scripts/setup.sh"
+fi
 echo ""
-echo "  Complete the Setup Wizard to configure your API keys and create"
-echo "  your first admin account."
-echo "  Then confirm Web Terminal and Quox CLI health in Verify before"
-echo "  treating the install as fully ready."
+if [ "${SETUP_RERUN:-0}" = "1" ]; then
+    echo "  Sign in with your existing owner account; nothing about it changed."
+    echo "  In a terminal: quox (or quox login if your session ended)."
+else
+    echo "  Complete the Setup Wizard to configure your API keys and create"
+    echo "  your first admin account."
+    echo "  Then confirm Web Terminal and Quox CLI health in Verify before"
+    echo "  treating the install as fully ready."
+fi
 echo ""
+# Z2H-3c: final banner (end)
 echo "  Useful commands:"
 echo "    ./scripts/post-install-smoke.sh https://${LOCAL_IP}:3000  # Verify platform proxies and critical services"
 echo "    docker compose logs -f          # View all logs"

@@ -1,4 +1,6 @@
-const THIRD_PARTY_PROVIDERS = ['openai', 'perplexity', 'gemini', 'google'];
+// CLI-QUOX B5: the hosted OpenAI-compatible presets are third parties in the data path too
+// (openai_compatible = a custom hosted endpoint). Keep in step with auth routes/consent.js.
+const THIRD_PARTY_PROVIDERS = ['openai', 'perplexity', 'gemini', 'google', 'openrouter', 'huggingface', 'groq', 'together', 'openai_compatible'];
 
 function requiresThirdPartyConsent(provider) {
   return THIRD_PARTY_PROVIDERS.includes(String(provider || '').toLowerCase());

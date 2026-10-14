@@ -56,6 +56,10 @@
 
 const { applyLenses } = require('./lensComposer.js');
 const configResolver = require('./configResolver.js');
+const { promptSections } = require('./promptSections.js'); // D3: section sizes on model.requested
+// QUOXON-PARITY (#815, #810, #811): the same claim rules every API path gets (lib/turnToolSelection.js).
+const CLAIM_RULES_MD = require('./turnToolSelection.js').CLAIM_RULES.map((r) => `- ${r}`).join('\n');
+const { applyTurnCredential, pickCliToolsEnv } = require('./turnToken.js'); // QUOXON-IDENTITY
 
 // VAULT-INTEG P17: was a bare process.env read frozen at module load — now
 // resolved per-call via configResolver.getSetting(orgId, ...)
@@ -63,7 +67,8 @@ const configResolver = require('./configResolver.js');
 // dispatchClaudeCli() below, org-scoped via opts.orgId. Kept here only as
 // the ultimate fallback default when the resolver itself has nothing (env
 // unset, no stored override, registry unreachable).
-const CLAUDE_CLI_DEFAULT_MODEL_FALLBACK = 'claude-sonnet-4-6';
+// A family alias, not an id: the CLI resolves it to the newest Sonnet itself, so nobody maintains this.
+const CLAUDE_CLI_DEFAULT_MODEL_FALLBACK = 'sonnet';
 
 // VOICE FAST PATH (owner 2026-10-09): a phone turn must be snappy. The CLI spawn carried no
 // --model and no --max-turns, so voice ran the default (Sonnet) with an unbounded agentic tool
@@ -75,6 +80,55 @@ const CLAUDE_CLI_VOICE_MODEL = 'claude-haiku-4-5-20251001';
 // worst-case latency; a genuinely multi-step action degrades gracefully to "let me sort that and
 // come back" rather than making the caller wait through 5 slow rounds (owner 2026-10-10).
 const CLAUDE_CLI_VOICE_MAX_TURNS = 3;
+
+// QUOXON-PARITY (2026-10-13): the model the subscription CLI is told to run, so turn.started can
+// name it truthfully. A claude-* request wins; anything else (or none) is the org's
+// CLAUDE_CLI_DEFAULT_MODEL setting. Callers that pass opts.model get it as --model.
+function resolveCliModel({ orgId = null, requestedModel = null } = {}) {
+  // QUOXON-MODEL: a full id, or a family alias (fable|opus|sonnet|haiku) the CLI resolves to the newest model itself.
+  if (typeof requestedModel === 'string' && /^(claude-[a-z0-9.\-]+|fable|opus|sonnet|haiku)$/i.test(requestedModel.trim())) return requestedModel.trim();
+  let v = null;
+  try { v = configResolver.getSetting(orgId || null, 'CLAUDE_CLI_DEFAULT_MODEL').value; } catch { v = null; }
+  return v || CLAUDE_CLI_DEFAULT_MODEL_FALLBACK;
+}
+// --model for a non-voice turn whose caller named a model (voice keeps its fast model).
+const explicitModelArgs = (isVoice, requestedModel) => (!isVoice && typeof requestedModel === 'string' && requestedModel ? ['--model', requestedModel] : []);
+
+// CLI-QUOX history (2026-10-12): the "Recent Conversation" block used to keep
+// 6 turns cut to 500 chars each, so a 1388-char reply reached the next turn
+// half-written; the model concluded its own message "got cut off" and asked the
+// user to confirm again. Same budgets as chatSessionHistory (4000 per turn,
+// 12 turns, 12000 total), newest kept first so the latest reply is never the
+// one dropped, and any cut is marked so it is never mistaken for the real text.
+const RECENT_TURN_MAX_CHARS = 4000;
+const RECENT_TURNS_MAX = 12;
+const RECENT_TOTAL_MAX_CHARS = 12000;
+function formatRecentConversation(history) {
+  if (!Array.isArray(history) || history.length === 0) return '';
+  const lines = [];
+  let used = 0;
+  let omitted = 0;
+  const valid = history.filter((t) => t && t.role && typeof t.content === 'string' && t.content);
+  // /compact: the stored summary heads the history. It is always carried, first, and
+  // labelled as a summary (never as something the user said); its own size is capped upstream.
+  const head = valid.find((t) => t.summary === true || t.role === 'summary');
+  const turns = valid.filter((t) => t !== head && t.role !== 'summary').slice(-RECENT_TURNS_MAX);
+  const budget = head ? Math.max(0, RECENT_TOTAL_MAX_CHARS - head.content.length) : RECENT_TOTAL_MAX_CHARS;
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const t = turns[i];
+    let text = t.content.length > RECENT_TURN_MAX_CHARS
+      ? `${t.content.slice(0, RECENT_TURN_MAX_CHARS)} [...rest of this message omitted from this summary]`
+      : t.content;
+    if (used + text.length > budget) { omitted = i + 1; break; }
+    used += text.length;
+    lines.unshift(`${t.role === 'user' ? 'User' : 'Assistant'}: ${text}`);
+  }
+  if (head) lines.unshift(`Summary of the earlier conversation: ${head.content}`);
+  if (lines.length === 0) return '';
+  return '\n\n## Recent Conversation\n'
+    + (omitted ? `[${omitted} earlier message(s) omitted]\n` : '')
+    + lines.join('\n') + '\n';
+}
 
 // QUOXLENS P0: no lens has ever been part of this path's prompt (verified —
 // "Execution Integrity" text only ever lived in directProviderPrompt.js), so
@@ -145,6 +199,15 @@ async function dispatchClaudeCli(opts, deps) {
     decisionEvidenceLevel,
     model: requestedModel = null,
     nativeWebSearch = false, // research turns: allow the CLI's WebSearch + WebFetch built-ins
+    // CLI-QUOX: opt-in. When a function, the CLI-tools path runs stream-json and
+    // forwards each parsed event (lib/cliStreamJson.js) as it arrives. Unset:
+    // the one-shot `--output-format json` path, unchanged.
+    onStreamEvent = null,
+    // CLI-QUOX continuity (quox client only, lib/cliSessionContinuity.js):
+    // { resumeSessionId, includeHistory, missedTurns, onFallback }. When set, the
+    // CLI-tools path resumes that CLI session with --resume instead of sending the
+    // Recent Conversation block, and never resumes session_id itself. Unset: unchanged.
+    cliContinuity = null,
   } = opts;
 
   const {
@@ -209,12 +272,10 @@ async function dispatchClaudeCli(opts, deps) {
   //     file/Task/SendMessage tools). This is the entire point of the mode:
   //     the container's blast radius is exactly what `quox tool exec` itself
   //     governs (auth, org scoping, tool allowlist) server-side.
-  //   - Auth reaches the collector via QUOX_SERVICE_KEY (the same
-  //     internalServiceKey the MCP path injects into its MCP config env
-  //     above) + QUOX_FORCE_SERVICE_KEY=1 + QUOX_ORG_ID, matching exactly
-  //     what cli/lib/core/client.js and cli/lib/commands/tool.js `tool exec`
-  //     read (verified against the CLAUDE-INSTALLED /opt/quoxcli and the
-  //     dev quox-dashboard-cli worktree source, not guessed).
+  //   - Auth reaches the collector via QUOX_AUTH_TOKEN: a short-lived per-turn
+  //     JWT for the CALLER (lib/turnToken.js, audience quox:tools-execute,
+  //     accepted only by /api/v1/tools/execute). The service key is NOT in this
+  //     env (QUOXON-IDENTITY); tool.js never falls back to one.
   // ────────────────────────────────────────────────────────────────────────
   if (process.env.QUOX_TOOL_MODE === 'cli') {
     console.log(`[CLI-TOOLS] PATH enabled — agent=${selected_agent}, session=${session_id}`);
@@ -334,10 +395,13 @@ async function dispatchClaudeCli(opts, deps) {
 - After getting tool results, analyse them and provide recommendations.
 - If a tool call fails or times out, that IS diagnostic data — explain what the failure means.
 - DO the work. Do NOT write assessment reports or escalation plans. Execute commands and show results.
+${CLAIM_RULES_MD}
 
 ## Live tools — use the CLI, never guess
 To read live data or run an action, call this via Bash and parse its JSON result:
   quox tool exec <name> --args '<json-args>'
+Each Bash call runs exactly one \`quox tool exec <name> --args '<json>'\`: no &&, ;, pipes, subshells or other commands, and no other \`quox\` verbs (for example \`quox seo ...\`). Anything else is refused by your shell's permission gate and no approval card can be raised for it, so the user sees only a failure. When an action needs human approval, quox tool exec returns it as pending and the user gets an approval card: say it is waiting for their approval.
+Your tool calls run one after another, never at the same time: describe what you are doing, but never say they run in parallel or simultaneously.
 These are NOT native tools: never call one directly and never look one up with ToolSearch (it will not be found). Even where this prompt writes a tool like a function call, e.g. quoxbrain_search({query:'x'}), run it as: quox tool exec quoxbrain_search --args '{"query":"x"}'
 Available tools:
 ${ctToolCatalogue}`;
@@ -382,14 +446,8 @@ Agent: ${selected_agent}
       cliToolsSysPrompt += `\n\n## Managed Infrastructure\n${ctAllHostIds.length} hosts: ${ctAllHostIds.join(', ')}\nAll accessible via ssh_exec (through quox tool exec) via the bastion${bastionHost ? ` (${bastionHost})` : ''}.`;
     }
 
-    if (Array.isArray(conversation_history) && conversation_history.length > 0) {
-      cliToolsSysPrompt += '\n\n## Recent Conversation\n';
-      for (const turn of conversation_history.slice(-6)) {
-        if (turn.role && turn.content) {
-          cliToolsSysPrompt += `${turn.role === 'user' ? 'User' : 'Assistant'}: ${turn.content.substring(0, 500)}\n`;
-        }
-      }
-    }
+    const ctSysHead = cliToolsSysPrompt;
+    cliToolsSysPrompt = '';
 
     if (memory_context) {
       cliToolsSysPrompt += `\n\n## Memory\n${typeof memory_context === 'string' ? memory_context : JSON.stringify(memory_context)}`;
@@ -402,29 +460,61 @@ Agent: ${selected_agent}
       cliToolsSysPrompt += buildDecisionEvidenceInstructions(decisionEvidenceLevel);
     }
 
-    cliToolsSysPrompt = applyLenses(cliToolsSysPrompt, DEFAULT_LENSES);
+    const ctSysTail = cliToolsSysPrompt;
+    const ctContinuity = cliContinuity && typeof cliContinuity === 'object' ? cliContinuity : null;
+    const ctUuid = (v) => (typeof isValidUUID === 'function' ? isValidUUID(v) : false);
+    // Continuity: resume only a stored CLI session id, never the conversation id.
+    let ctResumeId = ctContinuity && ctUuid(ctContinuity.resumeSessionId) ? ctContinuity.resumeSessionId : null;
+    const ctBuildSys = (resumeId) => {
+      let mid;
+      if (resumeId) {
+        // The resumed session holds this agent's real prior turns; add only the
+        // turns other agents took since (after an /attach switch), never a full replay.
+        const missed = Array.isArray(ctContinuity && ctContinuity.missedTurns) ? ctContinuity.missedTurns : [];
+        const block = formatRecentConversation(missed);
+        mid = block ? block.replace('## Recent Conversation\n', '## Conversation since your last turn\n(Other agents in this conversation, after your previous reply.)\n') : '';
+      } else {
+        mid = formatRecentConversation(conversation_history);
+      }
+      return applyLenses(ctSysHead + mid + ctSysTail, DEFAULT_LENSES);
+    };
+    cliToolsSysPrompt = ctBuildSys(ctResumeId);
 
-    const ctIsUuid = typeof isValidUUID === 'function' ? isValidUUID(session_id) : false;
+    // Legacy resume (dashboard / voice): the caller's session_id when it is a UUID.
+    const ctIsUuid = !ctContinuity && ctUuid(session_id);
 
-    const cliToolsArgs = [
-      '--output-format', 'json',
+    const ctStreaming = typeof onStreamEvent === 'function';
+    const ctNewParser = () => (ctStreaming
+      ? require('./cliStreamJson.js').createStreamJsonParser({ onEvent: onStreamEvent })
+      : null);
+    let ctStreamParser = ctNewParser();
+    const ctBuildArgs = (sysPrompt, resumeId) => [
+      ...(ctStreaming ? require('./cliStreamJson.js').CLI_STREAM_OUTPUT_ARGS : ['--output-format', 'json']),
       // VOICE FAST PATH: fast model + bounded tool loop, ONLY for a phone turn (isVoice). This is
       // what turns a 20-36s governed turn into a few seconds. Default (typed) chat is unchanged.
       ...(isVoice ? ['--model', CLAUDE_CLI_VOICE_MODEL, '--max-turns', String(CLAUDE_CLI_VOICE_MAX_TURNS)] : []),
+      ...explicitModelArgs(isVoice, requestedModel),
       '--allowedTools', nativeAllowedTools('Bash(quox tool exec:*)', nativeWebSearch),
+      // QUOXON-PARITY (2026-10-13): restrict the BUILT-IN tool set, not just what is pre-approved.
+      // --allowedTools only auto-approves; tools that need no permission still ran: the parity
+      // eval saw this path call Skill, RemoteTrigger and CronCreate (CronCreate succeeded) with
+      // no Quox envelope, receipt or approval. Allowlist: Bash (for `quox tool exec`) and,
+      // on research turns, the two web tools.
+      '--tools', nativeAllowedTools('Bash', nativeWebSearch),
       // ToolSearch can never find a catalogue tool here (they are not native);
       // the model used it to conclude tools were missing (AQ-9D scorecard).
       '--disallowedTools', 'ToolSearch',
-      '--system-prompt', cliToolsSysPrompt,
-      ...(session_id && ctIsUuid ? ['-r', session_id] : []),
+      '--system-prompt', sysPrompt,
+      ...(resumeId ? ['--resume', resumeId] : (session_id && ctIsUuid ? ['-r', session_id] : [])),
       '-p', userMessage,
     ];
+    let cliToolsArgs = ctBuildArgs(cliToolsSysPrompt, ctResumeId);
 
-    console.log(`[CLI-TOOLS] CLI call (${selected_agent}, sys_prompt: ${cliToolsSysPrompt.length} chars${ctIsUuid ? `, resume=${session_id.slice(0, 8)}...` : ''})`);
+    console.log(`[CLI-TOOLS] CLI call (${selected_agent}, sys_prompt: ${cliToolsSysPrompt.length} chars${ctResumeId ? `, continuity resume=${ctResumeId.slice(0, 8)}...` : (ctIsUuid ? `, resume=${session_id.slice(0, 8)}...` : '')})`);
 
     const ctModelReqEvent = ctVoltEmit(ctVoltRunId, 'model.requested', {
       actor: { actor_type: 'system', actor_id: 'collector' },
-      model: (requestedModel || claudeCliDefaultModel), path: 'cli-tools', prompt_length: cliToolsSysPrompt.length,
+      model: (requestedModel || claudeCliDefaultModel), path: 'cli-tools', prompt_length: cliToolsSysPrompt.length, prompt_sections: promptSections(cliToolsSysPrompt),
     });
     if (ctModelReqEvent?.event_id && typeof persistVoltContent === 'function') {
       persistVoltContent(ctVoltRunId, ctModelReqEvent.event_id, 'model.requested', {
@@ -439,8 +529,8 @@ Agent: ${selected_agent}
     // token), plus the service-key + org + collector-URL vars the `quox`
     // CLI's tool.js `exec` action + core/client.js resolve auth/routing
     // from (verified against source, see block comment above).
-    const cliToolsEnv = {
-      ...process.env,
+    const cliToolsEnvBase = {
+      ...pickCliToolsEnv(process.env),
       HOME: runtimeHomeDir,
       USER: runtimeUser,
       ...(cliOAuthToken ? { CLAUDE_CODE_OAUTH_TOKEN: cliOAuthToken } : {}),
@@ -448,8 +538,8 @@ Agent: ${selected_agent}
       // CLI's 120s Bash default; the turn timeout above still bounds the whole turn.
       BASH_DEFAULT_TIMEOUT_MS: String(CLI_TOOLS_BASH_TIMEOUT_MS),
       BASH_MAX_TIMEOUT_MS: String(CLI_TOOLS_BASH_TIMEOUT_MS),
-      QUOX_SERVICE_KEY: internalServiceKey,
-      QUOX_FORCE_SERVICE_KEY: '1',
+      // QUOXON-IDENTITY: NO service key on this path (the model drives this
+      // subprocess). Identity is the per-turn scoped token minted below.
       QUOX_ORG_ID: orgId || jwtOrgId || '',
       // QUOXHAT T0 driven finding (2026-10-01): without these, `quox tool
       // exec` POSTed /api/v1/tools/execute with no session/user — the hat
@@ -467,6 +557,15 @@ Agent: ${selected_agent}
       QUOX_AGENT_ID: selected_agent || '',
       QUOX_COLLECTOR_URL: process.env.QUOX_COLLECTOR_URL || `http://localhost:${collectorPort}`,
     };
+    // Per-turn credential for the CALLER (expiry = turn timeout + margin). Also
+    // strips any service key inherited from the collector's own env.
+    const cliToolsEnv = applyTurnCredential(cliToolsEnvBase, {
+      userId: userId || jwtUserId,
+      orgId: orgId || jwtOrgId,
+      conversationId: ctSessionId,
+      agentId: selected_agent,
+      ttlMs: (typeof maxDurationMs === 'number' && maxDurationMs > 0) ? maxDurationMs : CLI_TOOLS_TURN_TIMEOUT_MS,
+    });
     if (cliOAuthToken) {
       console.log('[Claude] Passing OAuth token via CLAUDE_CODE_OAUTH_TOKEN env var');
     }
@@ -501,11 +600,19 @@ Agent: ${selected_agent}
       // Spawn + parse — same shape as the MCP path's block (timeout,
       // client-disconnect kill every 2s), args/env only differ per the
       // security posture documented above.
-      const ctOutput = await new Promise((resolve, reject) => {
-        const proc = spawnFn('claude', cliToolsArgs, { env: cliToolsEnv, stdio: ['pipe', 'pipe', 'pipe'] });
+      const ctRunOnce = (cliArgs, parser) => new Promise((resolve, reject) => {
+        const proc = spawnFn('claude', cliArgs, { env: cliToolsEnv, stdio: ['pipe', 'pipe', 'pipe'] });
         let stdout = '';
         let stderr = '';
-        proc.stdout.on('data', (d) => { stdout += d; });
+        proc.stdout.on('data', (d) => {
+          if (parser) {
+            parser.push(String(d));
+            // stream-json is verbose; keep only a bounded head for error logs.
+            if (stdout.length < 65536) stdout += d;
+          } else {
+            stdout += d;
+          }
+        });
         proc.stderr.on('data', (d) => { stderr += d; });
         if (proc.stdin && typeof proc.stdin.end === 'function') proc.stdin.end();
         // 285s: under the dashboard's 300s fetch abort and nginx's 300s read timeout.
@@ -546,7 +653,58 @@ Agent: ${selected_agent}
         });
       });
 
-      const ctClaudeResponse = JSON.parse(ctOutput);
+      // One attempt: spawn, then parse the result (stream-json or one-shot json).
+      const ctAttempt = async (cliArgs, parser) => {
+        const out = await ctRunOnce(cliArgs, parser);
+        if (parser) {
+          parser.end();
+          const r = parser.result();
+          if (!r) {
+            const noResult = new Error('CLI stream-json produced no result line');
+            noResult._stdout = out;
+            throw noResult;
+          }
+          return r;
+        }
+        return JSON.parse(out);
+      };
+
+      // CLI-QUOX continuity fallback. Retried ONCE, fresh, with the history block,
+      // only when the resumed session is missing AND the failed attempt produced
+      // no events (no text, no tool call), so nothing can have run twice.
+      const ctResumeFailure = (errOrResult, parser) => {
+        if (!ctResumeId) return null;
+        if (parser && parser.eventCount() > 0) return null;
+        const r = errOrResult && !(errOrResult instanceof Error) ? errOrResult : null;
+        if (r && !(r.is_error && !r.num_turns)) return null;
+        const errs = r && Array.isArray(r.errors) ? r.errors.join(' ') : '';
+        const text = [errOrResult && errOrResult._stderr, errOrResult && errOrResult._stdout, r && r.result, errs, errOrResult instanceof Error ? errOrResult.message : '']
+          .filter((x) => typeof x === 'string').join('\n');
+        if (/No conversation found with session ID/i.test(text)) return 'session_not_found';
+        if (/\bsession\b[^\n]{0,60}\b(not found|does not exist|invalid|expired|corrupt)/i.test(text)) return 'session_unusable';
+        return null;
+      };
+
+      let ctResumeFallback = null;
+      let ctClaudeResponse;
+      try {
+        ctClaudeResponse = await ctAttempt(cliToolsArgs, ctStreamParser);
+        const why = ctClaudeResponse && ctClaudeResponse.is_error ? ctResumeFailure(ctClaudeResponse, ctStreamParser) : null;
+        if (why) { const e = new Error('resume failed'); e._resumeWhy = why; throw e; }
+      } catch (firstErr) {
+        const why = firstErr._resumeWhy || ctResumeFailure(firstErr, ctStreamParser);
+        if (!why) throw firstErr;
+        console.warn(`[CLI-TOOLS] continuity: resume of ${ctResumeId.slice(0, 8)}... failed (${why}); retrying in a fresh session with history`);
+        ctResumeFallback = why;
+        ctResumeId = null;
+        if (typeof ctContinuity.onFallback === 'function') {
+          try { ctContinuity.onFallback(why); } catch { /* a client notice never breaks the turn */ }
+        }
+        cliToolsSysPrompt = ctBuildSys(null);
+        cliToolsArgs = ctBuildArgs(cliToolsSysPrompt, null);
+        ctStreamParser = ctNewParser();
+        ctClaudeResponse = await ctAttempt(cliToolsArgs, ctStreamParser);
+      }
 
       if (ctClaudeResponse.is_error) {
         if (voltEmitter && typeof voltEmitter.failRun === 'function' && ctVoltRunId) {
@@ -719,7 +877,14 @@ Agent: ${selected_agent}
         toolExecutions: ctToolExecutions,
         model: ctClaudeResponse.model || (requestedModel || claudeCliDefaultModel),
         cost_usd: ctClaudeResponse.total_cost_usd || 0,
+        // CLI-QUOX: the CLI's own numbers, null when it reported none (cost_usd above keeps its legacy 0).
+        usage: require('./cliStreamJson.js').cliUsageFrom(ctClaudeResponse),
         cliSessionId: ctClaudeResponse.session_id || null,
+        // CLI-QUOX continuity: whether this turn ran in a resumed session, why a
+        // resume fell back, and the context size the next turn's guard checks.
+        resumed: !!ctResumeId,
+        resumeFallback: ctResumeFallback,
+        ...require('./cliStreamJson.js').cliContextFrom(ctClaudeResponse, ctStreamParser ? ctStreamParser.lastUsage() : null),
         richContent: null,
         decisionEvidence: ctDecisionEvidence || null,
         inputTokens: ctClaudeResponse.usage?.input_tokens,
@@ -727,6 +892,17 @@ Agent: ${selected_agent}
         durationMs: Date.now() - ctStartTime,
       };
     } catch (ctErr) {
+      // D5: an interrupted / killed turn has no result line, but the CLI already
+      // announced its session and appended to that file; hand it to the caller so
+      // continuity (and the context guard) can still advance.
+      if (ctErr && typeof ctErr === 'object' && ctStreamParser && typeof ctStreamParser.sessionId === 'function' && ctStreamParser.sessionId()) {
+        try {
+          ctErr._cliSession = {
+            cliSessionId: ctStreamParser.sessionId(),
+            ...require('./cliStreamJson.js').cliContextFrom(null, ctStreamParser.lastUsage()),
+          };
+        } catch { /* best-effort */ }
+      }
       const errMsg = ctErr.message || 'CLI-tools execution error';
       console.error(`[CLI-TOOLS] Error: ${errMsg}`);
       if (ctErr._stderr) console.error(`[CLI-TOOLS] stderr: ${ctErr._stderr.substring(0, 500)}`);
@@ -870,7 +1046,8 @@ Agent: ${selected_agent}
 - Never ask the user to run SSH commands — use ssh_exec to run them yourself.
 - After getting tool results, analyse them and provide recommendations.
 - If a tool call fails or times out, that IS diagnostic data — explain what the failure means.
-- DO the work. Do NOT write assessment reports or escalation plans. Execute commands and show results.`;
+- DO the work. Do NOT write assessment reports or escalation plans. Execute commands and show results.
+${CLAIM_RULES_MD}`;
 
     // CORECOMM-UX #190 — Rooms/chat replies were coming back as huge markdown
     // tables and were leaking internal tool identifiers to the user. This
@@ -916,14 +1093,7 @@ Agent: ${selected_agent}
       mcpSysPrompt += `\n\n## Managed Infrastructure\n${allHostIds.length} hosts: ${allHostIds.join(', ')}\nAll accessible via ssh_exec through the bastion${bastionHost ? ` (${bastionHost})` : ''}.`;
     }
 
-    if (Array.isArray(conversation_history) && conversation_history.length > 0) {
-      mcpSysPrompt += '\n\n## Recent Conversation\n';
-      for (const turn of conversation_history.slice(-6)) {
-        if (turn.role && turn.content) {
-          mcpSysPrompt += `${turn.role === 'user' ? 'User' : 'Assistant'}: ${turn.content.substring(0, 500)}\n`;
-        }
-      }
-    }
+    mcpSysPrompt += formatRecentConversation(conversation_history);
 
     if (memory_context) {
       mcpSysPrompt += `\n\n## Memory\n${typeof memory_context === 'string' ? memory_context : JSON.stringify(memory_context)}`;
@@ -955,6 +1125,7 @@ Agent: ${selected_agent}
       // VOICE FAST PATH (owner 2026-10-09): a phone turn forces a fast model + bounded tool loop.
       // This is the path a live voice call actually takes (mcpEnabled). Default chat is unchanged.
       ...(isVoice ? ['--model', CLAUDE_CLI_VOICE_MODEL, '--max-turns', String(CLAUDE_CLI_VOICE_MAX_TURNS)] : []),
+      ...explicitModelArgs(isVoice, requestedModel),
       '--dangerously-skip-permissions',
       // COMMANDERQ P7 (root cause #1): scope the CLI to ONLY the governed
       // quox-tools MCP server. Without this the model also saw Claude Code's
@@ -966,6 +1137,16 @@ Agent: ${selected_agent}
       // server (not denylisting natives — allowlist is the safe posture) makes
       // delegate_to_agent the ONLY delegation path and removes native tool access.
       '--allowedTools', nativeAllowedTools('mcp__quox-tools', nativeWebSearch),
+      // QUOXON-PROOF (quox#819): --allowedTools only PRE-APPROVES. Proven in the collector
+      // container (CLI init event, 2026-10-14): this spawn still loaded 29 Claude Code
+      // built-ins (Bash, Write, Edit, CronCreate, RemoteTrigger, Skill, Task...) and the
+      // account's claude.ai connectors (Gmail, Drive, Calendar, Docs), under
+      // --dangerously-skip-permissions, the source of phantom names like whoami.
+      // --strict-mcp-config: only the quox-tools server below. --tools: the only built-in is
+      // ToolSearch, because quox-tools are deferred and without it the model cannot reach
+      // them at all (also proven); with strict config it finds only quox-tools.
+      '--strict-mcp-config',
+      '--tools', nativeAllowedTools('ToolSearch', nativeWebSearch),
       '--mcp-config', tmpConfig,
       '--system-prompt', mcpSysPrompt,
     ];
@@ -978,7 +1159,7 @@ Agent: ${selected_agent}
 
     const mcpModelReqEvent = voltEmit(voltRunId, 'model.requested', {
       actor: { actor_type: 'system', actor_id: 'collector' },
-      model: (requestedModel || claudeCliDefaultModel), path: 'mcp', prompt_length: mcpSysPrompt.length,
+      model: (requestedModel || claudeCliDefaultModel), path: 'mcp', prompt_length: mcpSysPrompt.length, prompt_sections: promptSections(mcpSysPrompt),
     });
     if (mcpModelReqEvent?.event_id && typeof persistVoltContent === 'function') {
       persistVoltContent(voltRunId, mcpModelReqEvent.event_id, 'model.requested', {
@@ -1308,6 +1489,7 @@ Agent: ${selected_agent}
         toolExecutions: mcpToolExecutions,
         model: claudeResponse.model || (requestedModel || claudeCliDefaultModel),
         cost_usd: claudeResponse.total_cost_usd || 0,
+        usage: require('./cliStreamJson.js').cliUsageFrom(claudeResponse),
         cliSessionId: claudeResponse.session_id || null,
         richContent: mcpRichContent,
         decisionEvidence: decisionEvidence || null,
@@ -1474,14 +1656,7 @@ Agent: ${selected_agent}
     sysPrompt += `\n\n## All Hosts (${allHostIds.length} connected)\n${hostSummary}`;
   }
 
-  if (Array.isArray(conversation_history) && conversation_history.length > 0) {
-    sysPrompt += '\n\n## Recent Conversation\n';
-    for (const turn of conversation_history.slice(-6)) {
-      if (turn.role && turn.content) {
-        sysPrompt += `${turn.role === 'user' ? 'User' : 'Assistant'}: ${turn.content.substring(0, 600)}\n`;
-      }
-    }
-  }
+  sysPrompt += formatRecentConversation(conversation_history);
 
   if (memory_context) {
     sysPrompt += `\n\n## Memory\n${typeof memory_context === 'string' ? memory_context : JSON.stringify(memory_context)}`;
@@ -1753,10 +1928,11 @@ All ${allHostIds.length} hosts are reachable via SSH bastion.`;
     toolExecutions,
     model: claudeResponse.model || (requestedModel || claudeCliDefaultModel),
     cost_usd: claudeResponse.total_cost_usd || 0,
+    usage: require('./cliStreamJson.js').cliUsageFrom(claudeResponse),
     cliSessionId: claudeResponse.session_id || null,
     richContent: null,
     decisionEvidence: decisionEvidence || null,
   };
 }
 
-module.exports = { dispatchClaudeCli, CLI_TOOLS_TURN_TIMEOUT_MS, CLI_TOOLS_BASH_TIMEOUT_MS, nativeAllowedTools, mergeNativeTools, VOICE_BRAIN_RECALL_PROMPT, captureOverride, wantsCaptureOverride };
+module.exports = { dispatchClaudeCli, resolveCliModel, formatRecentConversation, CLI_TOOLS_TURN_TIMEOUT_MS, CLI_TOOLS_BASH_TIMEOUT_MS, nativeAllowedTools, mergeNativeTools, VOICE_BRAIN_RECALL_PROMPT, captureOverride, wantsCaptureOverride };

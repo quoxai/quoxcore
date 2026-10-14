@@ -2,7 +2,7 @@
  * Shared helpers for command modules
  */
 
-import { QuoxValidationError } from '../core/errors.js';
+import { QuoxValidationError, QuoxNetworkError } from '../core/errors.js';
 
 /**
  * Resolve the active org ID from --org flag or stored auth.
@@ -76,4 +76,21 @@ export function buildListQuery(options) {
   if (options.status) query.status = options.status;
   if (options.sort) query.sort = options.sort;
   return query;
+}
+
+/**
+ * Run a request; if it times out, rethrow with what timed out and how to narrow
+ * it (still a QuoxNetworkError, so the exit code stays 7). A bare
+ * "Request timed out after 30000ms" does not tell the operator which call hung
+ * or what to try (quox#806, quox#807).
+ */
+export async function withTimeoutHint(what, hint, fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof QuoxNetworkError && /timed out/i.test(err.message || '')) {
+      throw new QuoxNetworkError(`${what} timed out (${err.message}). ${hint}`, err);
+    }
+    throw err;
+  }
 }

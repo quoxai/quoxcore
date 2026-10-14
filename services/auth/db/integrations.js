@@ -9,6 +9,7 @@ import { encrypt, decrypt, getKeyPreview, reencrypt } from '../utils/encryption.
 import { getKind } from '../config/credentialKinds.js';
 import { extractCertExpiry } from '../utils/certExpiry.js';
 import { getType as getIntegrationType } from '../config/integrationTypeRegistry.js';
+import { notifyConnectorCredentialsChanged } from '../lib/connectorToolsCacheNotify.js';
 
 /**
  * LI-OVERHAUL P5: expiry stamp for integration types whose tokens have a
@@ -97,6 +98,7 @@ export function createCredential(data) {
         credential_kind, resolved_release_policy, resolved_expires_at
     );
 
+    notifyConnectorCredentialsChanged();
     return getCredentialById(id);
 }
 
@@ -348,6 +350,7 @@ export function updateCredential(id, updates) {
         WHERE id = ?
     `).run(...values);
 
+    notifyConnectorCredentialsChanged();
     return getCredentialById(id);
 }
 
@@ -361,6 +364,7 @@ export function deleteCredential(id) {
         DELETE FROM integration_credentials WHERE id = ?
     `).run(id);
 
+    if (result.changes > 0) notifyConnectorCredentialsChanged();
     return result.changes > 0;
 }
 
@@ -386,6 +390,7 @@ export function setDefault(id) {
         WHERE id = ?
     `).run(id);
 
+    notifyConnectorCredentialsChanged();
     return getCredentialById(id);
 }
 
@@ -705,6 +710,7 @@ export function rotateCredential(id, newCredentials, expiresAt) {
         WHERE id = ?
     `).run(...values);
 
+    notifyConnectorCredentialsChanged();
     const updated = getCredentialById(id);
     // Attach old key preview for audit forensics
     if (updated) updated._oldKeyPreview = oldKeyPreview;

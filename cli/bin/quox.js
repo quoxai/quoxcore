@@ -1,19 +1,6 @@
 #!/usr/bin/env node
+import '../lib/core/prodEnv.js'; // first: production React unless NODE_ENV is set (before anything loads React)
 
-import { Command } from 'commander';
-import { loadConfig, resolveProfileFlagFromArgv } from '../lib/core/config.js';
-import { resolveCliVersion, BASE_VERSION } from '../lib/core/version.js';
-import { mergeShadowedGlobals } from '../lib/core/global-flags.js';
-import { createAuth } from '../lib/core/auth.js';
-import { extractActingAs } from '../lib/core/actingAs.js';
-import { createClient } from '../lib/core/client.js';
-import { handleError } from '../lib/core/errors.js';
-import { assertOrgOverrideSafe, commandPath } from '../lib/core/org-override.js';
-// QUOXIFY pass 2 (DEVSUITE phase 15): the two dev-suite members that had no
-// unified verb at all. Gripe's own definition of done named `quox gripe`.
-import { generateCompletion } from '../lib/core/completions.js';
-import { loadAllPlugins } from '../lib/plugins/loader.js';
-import { registerCommandGroups } from '../lib/core/lazyCommands.js';
 import v8 from 'node:v8';
 
 // CORTEX-BENCH: Node's fetch parses HTTP with a WebAssembly module, and V8
@@ -21,6 +8,44 @@ import v8 from 'node:v8';
 // that compile before exiting, adding 350-700ms to every short command after
 // its output is already printed. The baseline tier is plenty for a CLI.
 v8.setFlagsFromString('--liftoff-only');
+
+// Bare `quox` is the conversation (CLI-QUOXON Q3, owner decision): with no
+// subcommand and only client flags, a TTY gets the QUOXON client and
+// `--print` runs headless. The old 15-item menu is `quox tui`. Decided from
+// argv alone, before config or any command module loads.
+// R3 D4: raw mode before ANY heavy module loads. The command modules below used to be static imports,
+// evaluated before this block, so keys typed in the first ~2 s echoed cooked and an Enter was lost.
+{
+  const { routesToQuoxon } = await import('../lib/quoxon/route.js');
+  const qArgv = process.argv.slice(2);
+  if (routesToQuoxon(qArgv, process.stdout.isTTY)) {
+    if (!qArgv.some(a => a === '--print' || a.startsWith('--print=') || a === '-h' || a === '--help')) (await import('../lib/quoxon/earlyInput.js')).captureEarlyInput();
+    const { main: quoxonMain } = await import('../lib/quoxon/main.js');
+    try {
+      await quoxonMain(qArgv);
+    } catch (err) {
+      console.error(err?.message || err);
+      process.exitCode = 1;
+    }
+    process.exit(process.exitCode || 0);
+  }
+}
+
+// The commander CLI: loaded only when the conversation client is not (see the block above).
+const { Command } = await import('commander');
+const { loadConfig, resolveProfileFlagFromArgv } = await import('../lib/core/config.js');
+const { resolveCliVersion, BASE_VERSION } = await import('../lib/core/version.js');
+const { mergeShadowedGlobals } = await import('../lib/core/global-flags.js');
+const { createAuth } = await import('../lib/core/auth.js');
+const { extractActingAs } = await import('../lib/core/actingAs.js');
+const { createClient } = await import('../lib/core/client.js');
+const { handleError } = await import('../lib/core/errors.js');
+const { assertOrgOverrideSafe, commandPath } = await import('../lib/core/org-override.js');
+// QUOXIFY pass 2 (DEVSUITE phase 15): the two dev-suite members that had no
+// unified verb at all. Gripe's own definition of done named `quox gripe`.
+const { generateCompletion } = await import('../lib/core/completions.js');
+const { loadAllPlugins } = await import('../lib/plugins/loader.js');
+const { registerCommandGroups } = await import('../lib/core/lazyCommands.js');
 
 // #610: --version must reflect the ACTUAL running commit, not a frozen literal
 // (the global CLI worktree was silently 32 commits behind and --version never
@@ -47,7 +72,8 @@ program
   .option('--debug', 'show HTTP request/response details')
   .option('--dry-run', 'show what would happen without executing')
   .option('-y, --yes', 'skip confirmation prompts')
-  .option('--insecure', 'allow self-signed SSL certificates');
+  .option('--insecure', 'allow self-signed SSL certificates')
+  .addHelpText('after', '\nConversation (QUOXON client):\n  quox                                  interactive conversation (terminal only)\n  quox --print "<prompt>" [--output text|json] [--conversation <id>] [--timeout <s>]   one headless turn; exit 0 completed, 2 held for approval, 3 interrupted, 4 not signed in, 5 unconfirmed\n  quox --demo                           simulated journey, nothing real runs\n');
 
 // Wire up global flags
 program.hook('preAction', (thisCommand) => {
@@ -114,98 +140,8 @@ const ctx = { config, auth, client, program };
 // module(s) that define the command being run (see lib/core/lazyCommands.js),
 // with a full load whenever the command is unknown, help is asked for, or the
 // lazy path fails. A miss can only be slower, never wrong.
-const COMMAND_REGISTRARS = [
-  ['../lib/commands/auth.js', 'registerAuthCommands'],
-  ['../lib/commands/service.js', 'registerServiceCommands'],
-  ['../lib/commands/status.js', 'registerStatusCommand'],
-  ['../lib/commands/doctor.js', 'registerDoctorCommand'],
-  ['../lib/commands/open.js', 'registerOpenCommand'],
-  ['../lib/commands/config-cmd.js', 'registerConfigCommands'],
-  ['../lib/commands/org.js', 'registerOrgCommands'],
-  ['../lib/commands/invites.js', 'registerInvitesCommands'],
-  ['../lib/commands/team.js', 'registerTeamCommands'],
-  ['../lib/commands/department.js', 'registerDepartmentCommands'],
-  ['../lib/commands/agent.js', 'registerAgentCommands'],
-  ['../lib/commands/tool.js', 'registerToolCommands'],
-  ['../lib/commands/workflow.js', 'registerWorkflowCommands'],
-  ['../lib/commands/objective.js', 'registerObjectiveCommands'],
-  ['../lib/commands/assistant.js', 'registerAssistantCommands'],
-  ['../lib/commands/fleet.js', 'registerFleetCommands'],
-  ['../lib/commands/chat.js', 'registerChatCommands'],
-  ['../lib/commands/memory.js', 'registerMemoryCommands'],
-  ['../lib/commands/brain.js', 'registerBrainCommands'],
-  ['../lib/commands/entity.js', 'registerEntityCommands'],
-  ['../lib/commands/backup.js', 'registerBackupCommands'],
-  ['../lib/commands/inbox.js', 'registerInboxCommands'],
-  ['../lib/commands/mail.js', 'registerMailCommands'],
-  ['../lib/commands/calendar.js', 'registerCalendarCommands'],
-  ['../lib/commands/notes.js', 'registerNotesCommands'],
-  ['../lib/commands/contacts.js', 'registerContactsCommands'],
-  ['../lib/commands/licence.js', 'registerLicenceCommands'],
-  ['../lib/commands/run.js', 'registerRunCommands'],
-  ['../lib/commands/file.js', 'registerFileCommands'],
-  ['../lib/commands/admin.js', 'registerAdminCommands'],
-  ['../lib/commands/aee.js', 'registerAeeCommands'],
-  ['../lib/commands/integration.js', 'registerIntegrationCommands'],
-  ['../lib/commands/consent.js', 'registerConsentCommands'],
-  ['../lib/commands/setup.js', 'registerSetupCommands'],
-  ['../lib/commands/watch.js', 'registerWatchCommands'],
-  ['../lib/commands/tag.js', 'registerTagCommands'],
-  ['../lib/commands/scope.js', 'registerScopeCommands'],
-  ['../lib/commands/notification.js', 'registerNotificationCommands'],
-  ['../lib/commands/prompt.js', 'registerPromptCommands'],
-  ['../lib/commands/plugin.js', 'registerPluginCommands'],
-  ['../lib/commands/powers.js', 'registerPowersCommands'],
-  ['../lib/commands/conversation.js', 'registerConversationCommands'],
-  ['../lib/commands/vault.js', 'registerVaultCommands'],
-  ['../lib/commands/volt.js', 'registerVoltCommands'],
-  ['../lib/commands/governance.js', 'registerGovernanceCommands'],
-  ['../lib/commands/skills.js', 'registerSkillsCommands'],
-  ['../lib/commands/claude.js', 'registerClaudeCommands'],
-  ['../lib/commands/monitoring.js', 'registerMonitoringCommands'],
-  ['../lib/commands/trigger.js', 'registerTriggerCommands'],
-  ['../lib/commands/webhook.js', 'registerWebhookCommands'],
-  ['../lib/commands/sso.js', 'registerSsoCommands'],
-  ['../lib/commands/role.js', 'registerRoleCommands'],
-  ['../lib/commands/domain.js', 'registerDomainCommands'],
-  ['../lib/commands/security.js', 'registerSecurityCommands'],
-  ['../lib/commands/safety.js', 'registerSafetyCommands'],
-  ['../lib/commands/scim.js', 'registerScimCommands'],
-  ['../lib/commands/llm-policy.js', 'registerLlmPolicyCommands'],
-  ['../lib/commands/hat.js', 'registerHatCommands'],
-  ['../lib/commands/settings.js', 'registerSettingsCommands'],
-  ['../lib/commands/llm.js', 'registerLlmCommands'],
-  ['../lib/commands/quoxchat.js', 'registerQuoxchatCommands'],
-  ['../lib/commands/budget.js', 'registerBudgetCommands'],
-  ['../lib/commands/trace.js', 'registerTraceCommands'],
-  ['../lib/commands/mon.js', 'registerMonCommands'],
-  ['../lib/commands/quoxbox.js', 'registerQuoxboxCommands'],
-  ['../lib/commands/plan.js', 'registerPlanCommands'],
-  ['../lib/commands/engagement.js', 'registerEngagementCommands'],
-  ['../lib/commands/done.js', 'registerDoneCommands'],
-  ['../lib/commands/discord.js', 'registerDiscordCommands'],
-  ['../lib/commands/qlarity.js', 'registerQlarityCommands'],
-  ['../lib/commands/reach.js', 'registerReachCommands'],
-  ['../lib/commands/inventory.js', 'registerInventoryCommands'],
-  ['../lib/commands/policy.js', 'registerPolicyCommands'],
-  ['../lib/commands/quoxseo.js', 'registerQuoxseoCommands'],
-  ['../lib/commands/voice.js', 'registerVoiceCommands'],
-  ['../lib/commands/awareness.js', 'registerAwarenessCommands'],
-  ['../lib/commands/lucid.js', 'registerLucidCommands'],
-  ['../lib/commands/tg.js', 'registerTgCommands'],
-  ['../lib/commands/dev.js', 'registerDevCommands'],
-  ['../lib/commands/build.js', 'registerBuildCommands'],
-  ['../lib/commands/slot.js', 'registerSlotCommands'],
-  ['../lib/commands/gripe.js', 'registerGripeCommands'],
-  ['../lib/commands/nucleus.js', 'registerNucleusCommands'],
-  ['../lib/commands/onboard.js', 'registerOnboardCommands'],
-  ['../lib/commands/x.js', 'registerXCommands'],
-  ['../lib/commands/linkedin.js', 'registerLinkedInCommands'],
-  ['../lib/commands/facebook.js', 'registerFacebookCommands'],
-  ['../lib/commands/instagram.js', 'registerInstagramCommands'],
-  ['../lib/commands/tiktok.js', 'registerTikTokCommands'],
-];
-await registerCommandGroups(program, ctx, COMMAND_REGISTRARS, process.argv.slice(2), import.meta.url);
+const { COMMAND_REGISTRARS, COMMAND_REGISTRARS_BASE } = await import('../lib/core/commandRegistrars.js');
+await registerCommandGroups(program, ctx, COMMAND_REGISTRARS, process.argv.slice(2), COMMAND_REGISTRARS_BASE);
 
 // TUI command
 program
@@ -214,7 +150,7 @@ program
   .option('--governed', 'Run the TUI in a Quox governed tmux session (survives sleep and drops)')
   .option('--name <name>', 'Session name for --governed (reattaches if it is already running)')
   .option('--no-tmux', 'With --governed: skip tmux')
-  .description('Launch interactive TUI')
+  .description('Launch the classic menu TUI (bare `quox` opens the conversation)')
   .action(async (screen, opts) => {
     if (opts && opts.governed) {
       const { runTuiGoverned } = await import('../lib/commands/claude.js');
@@ -248,16 +184,23 @@ try {
   // Plugin loading should never crash the CLI
 }
 
-// Auto-launch TUI when no args and running in a terminal
-if (process.argv.length <= 2 && process.stdout.isTTY) {
+// C4: once a day, warn when this CLI and the server differ in major/minor. Never for JSON/quiet output,
+// a non-TTY stderr, or `quox server …` itself (that verb shows versions); never fails a command.
+async function warnVersionSkew() {
   try {
-    const { launchTUI } = await import('../lib/tui/index.js');
-    await launchTUI(ctx);
-  } catch (err) {
-    handleError(err, 'table');
-    process.exit(err.exitCode || 1);
-  }
-} else {
+    const o = program.opts();
+    if (o.output === 'json' || o.output === 'quiet' || o.json || o.quiet || !process.stderr.isTTY || process.env.QUOX_NO_SKEW_CHECK) return;
+    const first = process.argv.slice(2).find((a) => !a.startsWith('-'));
+    if (!first || first === 'server') return;
+    const { checkSkewOncePerDay } = await import('../lib/server/skew.js');
+    const sk = await checkSkewOncePerDay({ collectorUrl: config.getServiceUrl('collector') });
+    if (sk) process.stderr.write(`\u26a0 version skew: ${sk.message}\n`);
+  } catch { /* advisory only */ }
+}
+
+// Bare `quox` in a TTY never reaches here (routed to QUOXON above); bare
+// non-TTY prints the banner so a script never hangs.
+{
   try {
     if (process.argv.length <= 2) {
       // Bare `quox`: the splash, not a help dump (DEVSUITE-GLYPH).
@@ -268,6 +211,7 @@ if (process.argv.length <= 2 && process.stdout.isTTY) {
       process.exit(0);
     }
     await program.parseAsync(process.argv);
+    await warnVersionSkew();
   } catch (err) {
     handleError(err, program.opts().output);
     process.exit(err.exitCode || 1);

@@ -36,7 +36,16 @@ const {
   flattenOpenAIMessageContent,
 } = require('./openaiRequest.js');
 
+const { createLoopControl, buildGovernedToolCtx, dispatchGovernedToolCall, handleOfferGate } = require('./governedToolDispatch.js');
+
+const { readOpenAIChatStream } = require('./openaiChatStream.js');
+
 const MAX_TOOL_ROUNDS = 5;
+const ROUND_SEPARATOR = '\n\n';
+
+function safeParseArgs(raw) {
+  try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
+}
 
 function serializeToolResultForModel(toolName, toolResult) {
   // A gated tool held for a human is not a failure: say so, with the id, so the model
@@ -106,7 +115,49 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
     voltRunId, // CRP-AU-4: optional VOLT run for evidence tracking
     hatManifest, // QUOXHAT P2: arms the executeTool membership gate when enforced
     effectiveSessionId, // QUOXHAT P4: hat-binding conversation key
+    // CLI-QUOXON Q2 (all optional; absent = byte-identical legacy behaviour):
+    evidenceCorrId, // turn_id: corr for the per-tool AEE/AOCL envelopes
+    onEvent, // conversation events: tool.started/finished, approval.requested
+    // control: { shouldStop(): string|null, drainSteer(): string[], drainNotes?(): string[] }.
+    // shouldStop is checked before every model call and before every tool dispatch (an
+    // already dispatched tool always completes); drainSteer and drainNotes are read at
+    // each model boundary (notes: server facts such as an approval resolved mid-turn).
+    control,
+    signal, // AbortSignal: cancels the in-flight provider call (quox#547)
+    // CLI-QUOX B1: when a function, every model call streams (`stream: true`) and each
+    // text fragment is handed over as it arrives. Absent = the JSON path, unchanged.
+    onTextDelta,
+    // CLI-QUOX B5: vendor request extras (OpenRouter usage accounting). Keys the loop already
+    // sets (model, messages, tools, stream, ...) are never overridden. Absent = unchanged.
+    extraBody,
+    // D3: per-turn tool offer (lib/turnToolSelection.js createToolOffer). When set, each
+    // round sends toolOffer.tools() instead of agentTools, and a call to a tool that was
+    // not offered is refused before executeTool. Absent = unchanged.
+    toolOffer,
+    // QUOXON: called once per model round with that round's reasoning text (when the model
+    // returned any). It is never part of content or fullText. Absent = unchanged.
+    onReasoning,
   } = opts;
+  // B2: the control accessors, toolCtx and per-call dispatch are shared with the
+  // Anthropic loop (lib/governedToolDispatch.js); behaviour unchanged.
+  const { stopReason, takeSteer, takeNotes, hasSteer } = createLoopControl(control);
+  // B1 / R1 #36: every round's text (intermediate answers included) in order, separated
+  // by a blank line. In streaming mode it is exactly the concatenation of the deltas.
+  const streaming = typeof onTextDelta === 'function';
+  let fullText = '';
+  const appendText = (t) => {
+    if (!t) return;
+    fullText += t;
+    if (streaming) { try { onTextDelta(t); } catch { /* a client write must never break the governed loop */ } }
+  };
+  // QUOX-MODEL: provider usage summed across every model round (stream_options.include_usage).
+  const { addRoundUsage, newUsageAccumulator } = require('./openaiTurnUsage.js');
+  const usage = newUsageAccumulator();
+  const stoppedResult = (reason, lastContent) => ({ content: lastContent || '', toolsUsed, data: null, stopped: reason, fullText, usage });
+  const emitEvent = (ev) => {
+    if (typeof onEvent !== 'function') return;
+    try { onEvent(ev); } catch { /* a client-facing event must never break the governed loop */ }
+  };
 
   const { fetchFn, executeTool, voltEmitter, storeAuditEnvelope, emitToolEvidence } = deps || {};
   if (typeof fetchFn !== 'function') {
@@ -115,24 +166,26 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
 
   const messages = buildOpenAIStyleConversationMessages(systemPrompt, userMessage, conversation_history);
   const openAITools = agentTools.length > 0 ? toOpenAIChatTools(agentTools) : [];
+  const roundToolsFor = () => (toolOffer && agentTools.length > 0 ? toOpenAIChatTools(toolOffer.tools()) : openAITools);
+  // QUOXON-ADV: provider-safe names out, registered names back (toolsmith.runScript <-> toolsmith__runScript)
+  const decodeToolName = require('./providerToolNames.js').toolNameDecoder(() => (toolOffer ? [...agentTools, ...toolOffer.tools()] : agentTools));
   const toolsUsed = [];
   const maxToolRounds = MAX_TOOL_ROUNDS;
-  const toolCtx = {
-    agentId: selected_agent,
-    userId: userId || undefined,
-    orgId: orgId || undefined,
-    token: userAccessToken || undefined,
-    _delegationDepth: req?.body?._delegation_depth || 0,
-    memory_context: memory_context || undefined,
-    quox_context: quox_context || undefined,
-    conversation_history: conversation_history || undefined,
-    session_id: effectiveSessionId || session_id || undefined,
-    conversationId: effectiveSessionId || session_id || undefined, // QUOXHAT P4
-    voice_mode: req?.body?.voice_mode || 'hal',
-    hatManifest: hatManifest || undefined, // QUOXHAT P2 membership gate context
-  };
+  const toolCtx = buildGovernedToolCtx(req, {
+    selected_agent, userId, orgId, userAccessToken, memory_context, quox_context,
+    conversation_history, session_id, effectiveSessionId, hatManifest,
+  });
 
+  let lastContent = '';
   for (let round = 0; round <= maxToolRounds; round++) {
+    const stopBeforeModel = stopReason();
+    if (stopBeforeModel) return stoppedResult(stopBeforeModel, lastContent);
+    // Steer: queued user text enters at this model boundary.
+    for (const text of takeSteer()) {
+      messages.push({ role: 'user', content: require('./governedToolDispatch.js').frameBoundarySteer(text) });
+      emitEvent({ type: 'steer.applied', text });
+    }
+    for (const note of takeNotes()) messages.push({ role: 'system', content: note });
     // CRP-AU-4: VOLT — model request
     if (voltEmitter && typeof voltEmitter.emit === 'function') {
       voltEmitter.emit(voltRunId, 'model.requested', {
@@ -141,16 +194,30 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
       });
     }
 
+    const roundTools = roundToolsFor();
+    const requestBody = buildOpenAIChatCompletionBody({
+      model,
+      messages,
+      maxTokens: 4096,
+      tools: roundTools.length > 0 && round < maxToolRounds ? roundTools : undefined,
+      toolChoice: 'auto',
+    });
+    if (streaming) {
+      requestBody.stream = true;
+      requestBody.stream_options = { include_usage: true };
+    }
+    if (extraBody && typeof extraBody === 'object') {
+      for (const [k, v] of Object.entries(extraBody)) {
+        if (!['model', 'messages', 'tools', 'tool_choice', 'stream', 'stream_options'].includes(k) && !(k in requestBody)) requestBody[k] = v;
+      }
+    }
+    const roundAbort = streaming && typeof control?.hasSteer === 'function' ? require('./governedToolDispatch.js').createRoundAbort(signal) : null;
+    const roundSignal = roundAbort ? roundAbort.signal : signal;
     const response = await fetchFn(apiUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify(buildOpenAIChatCompletionBody({
-        model,
-        messages,
-        maxTokens: 4096,
-        tools: openAITools.length > 0 && round < maxToolRounds ? openAITools : undefined,
-        toolChoice: 'auto',
-      })),
+      body: JSON.stringify(requestBody),
+      ...(roundSignal ? { signal: roundSignal } : {}),
     }, timeoutMs);
 
     if (!response.ok) {
@@ -159,7 +226,7 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
       err.status = response.status;
       err.body = errText;
       if (
-        openAITools.length > 0 &&
+        roundTools.length > 0 &&
         round === 0 &&
         response.status === 400 &&
         /(tool|function|tool_choice|tool_calls)/i.test(errText)
@@ -169,9 +236,32 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
       throw err;
     }
 
-    const data = await response.json();
+    let data;
+    if (streaming) {
+      let roundStarted = false;
+      data = await readOpenAIChatStream(response, {
+        providerLabel,
+        idleTimeoutMs: timeoutMs,
+        // A steer that arrives while the answer streams cuts it here (never mid tool call).
+        ...(roundAbort ? { interruptWhen: () => !stopReason() && hasSteer() } : {}),
+        onTextDelta: (d) => {
+          if (!roundStarted && fullText) appendText(ROUND_SEPARATOR);
+          roundStarted = true;
+          appendText(d);
+        },
+      });
+      if (data.steerInterrupted && roundAbort) roundAbort.abort();
+    } else {
+      data = await response.json();
+    }
+    addRoundUsage(usage, data && data.usage);
     const assistantMessage = data.choices?.[0]?.message || {};
     const content = flattenOpenAIMessageContent(assistantMessage.content);
+    const roundReasoning = typeof assistantMessage.reasoning === 'string' ? assistantMessage.reasoning
+      : (typeof assistantMessage.reasoning_content === 'string' ? assistantMessage.reasoning_content : '');
+    if (roundReasoning && typeof onReasoning === 'function') {
+      try { onReasoning(roundReasoning, { round }); } catch { /* a stage event must never break the governed loop */ }
+    }
     const toolCalls = Array.isArray(assistantMessage.tool_calls)
       ? assistantMessage.tool_calls.filter((call) => call?.type === 'function' && call.function?.name)
       : [];
@@ -187,7 +277,39 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
       });
     }
 
+    lastContent = content || lastContent;
+    if (data.steerInterrupted) {
+      // The partial answer already reached the client: keep it as the assistant turn and
+      // continue from it with the steer, so nothing is streamed twice.
+      const early = takeSteer();
+      if (early.length > 0) {
+        if (content) messages.push({ role: 'assistant', content });
+        messages.push({ role: 'user', content: require('./governedToolDispatch.js').frameMidAnswerSteer(early) });
+        for (const text of early) emitEvent({ type: 'steer.applied', text, applied_at: 'mid_answer' });
+        continue;
+      }
+    }
+    if (!streaming && content) appendText(fullText ? ROUND_SEPARATOR + content : content);
+    if (toolCalls.length === 0 && round < maxToolRounds && !stopReason()) {
+      // A steer that arrived while the final model call was in flight is not
+      // dropped: answer-then-steer becomes one more round carrying it.
+      const late = takeSteer();
+      if (late.length > 0) {
+        messages.push({ role: 'assistant', content: content || '' });
+        for (const text of late) {
+          messages.push({ role: 'user', content: require('./governedToolDispatch.js').frameBoundarySteer(text) });
+          emitEvent({ type: 'steer.applied', text });
+        }
+        continue;
+      }
+    }
     if (toolCalls.length === 0 || round === maxToolRounds) {
+      // An interrupt that landed during this final model call: the answer is complete,
+      // but say so honestly (stopped) rather than reporting an uninterrupted turn.
+      const lateStop = stopReason();
+      if (lateStop === 'interrupted') {
+        return { content, toolsUsed, data, stopped: lateStop, fullText, usage };
+      }
       // BRAIN2-V2-1: retrieval → answer. Same key this path puts on the tool
       // ctx above (toolCtx.session_id = `session_id || undefined`), so the
       // register and finalize ends cannot disagree. No-op unless this turn
@@ -196,7 +318,7 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
         const { finalizeAnswer } = require('./brainCitationTrace.js');
         Promise.resolve(finalizeAnswer(effectiveSessionId || session_id, content)).catch(() => {});
       } catch { /* non-fatal — evidence must never affect the chat path */ }
-      return { content, toolsUsed, data };
+      return { content, toolsUsed, data, fullText, usage };
     }
 
     messages.push({
@@ -206,53 +328,29 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
     });
 
     for (const call of toolCalls) {
-      const toolName = call.function.name;
+      const stopBeforeTool = stopReason();
+      if (stopBeforeTool) return stoppedResult(stopBeforeTool, lastContent);
+      const toolName = decodeToolName(call.function.name);
+      const gated = handleOfferGate({ toolOffer, callId: call.id, toolName, input: safeParseArgs(call.function.arguments), emitEvent });
+      if (gated) {
+        messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(gated).substring(0, 10000) });
+        continue;
+      }
       toolsUsed.push(toolName);
 
-      let toolResult;
-      let parsedInput = {}; // hoisted so the T1/D1 evidence emit below can bind it
-      const toolStart = Date.now();
+      let parsedInput = {};
+      let argsError = null;
       try {
-        parsedInput = call.function.arguments
-          ? JSON.parse(call.function.arguments)
-          : {};
-        // QUOXTRUST D6: this dispatcher emits its own per-tool evidence (below);
-        // opt the executeTool choke out to avoid a double-emit.
-        if (toolCtx) toolCtx._callerEmitsToolEvidence = true;
-        toolResult = typeof executeTool === 'function'
-          ? await executeTool(toolName, parsedInput, toolCtx)
-          : { success: false, error: 'executeTool dep missing' };
+        parsedInput = call.function.arguments ? JSON.parse(call.function.arguments) : {};
       } catch (err) {
-        toolResult = {
-          success: false,
-          error: `Invalid tool arguments for ${toolName}: ${err.message}`,
-        };
+        argsError = err.message;
       }
-
-      // CRP-AU-4: VOLT — tool executed
-      if (voltEmitter && typeof voltEmitter.emit === 'function') {
-        voltEmitter.emit(voltRunId, 'tool.call.executed', {
-          actor: { actor_type: 'agent', actor_id: selected_agent },
-          tool: toolName, success: toolResult.success !== false,
-          duration_ms: Date.now() - toolStart, provider: providerLabel,
-          error: toolResult.success === false ? (toolResult.error || 'unknown') : undefined,
-        });
-      }
-
-      // P2 evidence parity: per-tool AEE/AOCL envelope + NOC outcome, matching
-      // the /api/v1/tools/execute gold path so agent-chat actions are evidenced.
-      if (typeof emitToolEvidence === 'function') {
-        emitToolEvidence({
-          toolName,
-          input: parsedInput, // QUOXTRUST T1/D1: bind the effective action into the receipt
-          ctx: { agentId: toolCtx.agentId || selected_agent, orgId: toolCtx.orgId, userId: toolCtx.userId },
-          corrId: toolCtx.session_id || voltRunId,
-          durationMs: Date.now() - toolStart,
-          success: toolResult.success !== false && !toolResult.error,
-          error: (toolResult.success === false || toolResult.error) ? (toolResult.error || 'unknown') : undefined,
-          storeAuditEnvelope,
-        });
-      }
+      const toolResult = await dispatchGovernedToolCall({
+        callId: call.id, toolName, startedInput: safeParseArgs(call.function.arguments),
+        input: parsedInput, argsError, toolCtx, emitEvent, selectedAgent: selected_agent,
+        providerLabel, voltRunId, evidenceCorrId,
+        deps: { executeTool, voltEmitter, storeAuditEnvelope, emitToolEvidence },
+      });
 
       messages.push({
         role: 'tool',
@@ -262,10 +360,14 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
     }
   }
 
+  const limitText = 'Tool execution limit reached. Please try a more specific query.';
+  appendText(fullText ? ROUND_SEPARATOR + limitText : limitText);
   return {
-    content: 'Tool execution limit reached. Please try a more specific query.',
+    content: limitText,
     toolsUsed,
     data: null,
+    fullText,
+    usage,
   };
 }
 

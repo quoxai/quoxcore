@@ -178,15 +178,20 @@ export function CitedNotesRow({ record, onCitationSelect }) {
     const finalized = record.finalized !== false;
     const retrieved = record.citations.length;
     const shown = flagged.length > 0 ? flagged : (finalized ? [] : record.citations);
-    // Cited != supported. "supported" is a LEXICAL check (the citing sentence
-    // shares content words with the cited passage), never semantic proof.
+    // Cited != supported. "supported" is reserved for the opt-in semantic
+    // entailment check. A lexical-only pass is "overlap": the citing sentence
+    // shares the passage's words, NOT checked for meaning.
     // supported is null/absent when the collector could not check it.
     const supportMeasured = flagged.some((c) => c.supported === true || c.supported === false);
     const supportedCount = flagged.filter((c) => c.supported === true).length;
-    // ONE-BRAIN CX1: when every measured verdict came from the opt-in model
-    // check, say so; otherwise it is still the lexical heuristic.
-    const measured = flagged.filter((c) => c.supported === true || c.supported === false);
-    const semanticChecked = measured.length > 0 && measured.every((c) => c.support_method === 'semantic');
+    const overlapCount = flagged.filter((c) => c.overlap === true).length;
+    // Unchecked (claim cap or evicted passage) is NOT unsupported: no verdict was reached.
+    const uncheckedCount = flagged.filter((c) => c.unchecked).length;
+    // Fabricated: the answer cited a handle that was never retrieved. Counted, never ignored.
+    const fabricatedCount = flagged.filter((c) => c.fabricated).length;
+    const fabricatedLabel = fabricatedCount > 0
+        ? <span className="cortex-cite-fabricated" title="The answer cites a source handle that was never retrieved for this turn. It is counted as unsupported."> · fabricated {fabricatedCount}</span>
+        : null;
 
     if (flagged.length === 0 && finalized) {
         return (
@@ -202,11 +207,14 @@ export function CitedNotesRow({ record, onCitationSelect }) {
         <div className="cortex-cite-row">
             <span className="cortex-cite-grounded">
                 {flagged.length > 0
-                    ? <><NoteChipIcon /> cited {shown.length} note{shown.length === 1 ? '' : 's'}{supportMeasured
-                        ? (semanticChecked
-                            ? <span title="A model checked that the cited passage supports this sentence."> · supported {supportedCount} (checked)</span>
-                            : <span title="Lexical check: the sentence citing the note shares enough words with the note's passage. Not a semantic proof."> · supported {supportedCount} (lexical)</span>)
-                        : null}</>
+                    ? <><NoteChipIcon /> cited {shown.length} note{shown.length === 1 ? '' : 's'}{fabricatedLabel}{supportMeasured
+                        ? <>
+                            {supportedCount > 0 && <span title="A model checked that the cited passage supports this sentence."> · supported {supportedCount} (checked)</span>}
+                            {overlapCount > 0 && <span title="The sentence citing the note shares the passage's words; not checked for meaning."> · overlap {overlapCount} (words match, not checked for meaning)</span>}
+                            {supportedCount === 0 && overlapCount === 0 && uncheckedCount === 0 && <span title="Neither a meaning check nor enough shared wording found support."> · supported 0</span>}
+                            {uncheckedCount > 0 && <span title="Not checked (too many claims in one answer, or the passage text was no longer held). This is not a verdict of unsupported."> · unchecked {uncheckedCount}</span>}
+                        </>
+                        : (uncheckedCount > 0 ? <span title="Not checked (too many claims in one answer, or the passage text was no longer held). This is not a verdict of unsupported."> · unchecked {uncheckedCount}</span> : null)}</>
                     : <>retrieved {retrieved}, checking citations</>}
             </span>
             <div className="cortex-cite-chips">
@@ -214,8 +222,8 @@ export function CitedNotesRow({ record, onCitationSelect }) {
                     <button
                         key={c.noteId || `${c.index}-${i}`}
                         type="button"
-                        className={`cortex-cite-chip${c.supported === false ? ' cortex-cite-chip--unsupported' : ''}`}
-                        title={`${c.supported === false ? '(cited, but the sentence shares little wording with this note) ' : ''}${c.snippet || c.title || c.relPath || ''}`}
+                        className={`cortex-cite-chip${c.supported === false && c.overlap !== true && !c.unchecked ? ' cortex-cite-chip--unsupported' : ''}`}
+                        title={`${c.supported === false && c.overlap !== true && !c.unchecked ? '(cited, but the sentence shares little wording with this note) ' : ''}${c.snippet || c.title || c.relPath || ''}`}
                         onClick={() => onCitationSelect?.(c.noteId, { charStart: c.charStart, charEnd: c.charEnd })}
                     >
                         <NoteChipIcon />

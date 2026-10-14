@@ -249,6 +249,14 @@ export async function dispatchBackupToRunner({
         const sizeBytes = (archive && typeof archive.size_bytes === 'number' ? archive.size_bytes : null)
             ?? (typeof receipt.archive_size_bytes === 'number' ? receipt.archive_size_bytes : null);
 
+        // QUOXON-PROOF (quox#823): a runner that reports a 0-byte archive backed nothing
+        // up. That is a failed backup, never 'completed'. (An unreported size stays as the
+        // receipt says; only an explicit 0 is known-empty.)
+        if (sizeBytes === 0) {
+            failRow(`NO ARCHIVE: ${hostId} reported success but a 0-byte archive. Recorded as failed, not completed.`);
+            return;
+        }
+
         // No hash means no verifiable manifest. Say so in the row rather than
         // writing a manifest that asserts a checksum nobody computed — the
         // controller would "verify" a hash we invented.

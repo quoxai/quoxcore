@@ -29,6 +29,26 @@ const crypto = require('crypto');
 const { requireServiceOrUserAuth } = require('./httpAuth');
 
 const userGate = requireServiceOrUserAuth();
+// QUOXON-IDENTITY: the per-turn tools/execute credential (aud quox:tools-execute)
+// is accepted ONLY on POST /api/v1/tools/execute. Everywhere else the default
+// gate rejects audience-bearing tokens. The route re-verifies the same audience.
+const toolsExecuteGate = requireServiceOrUserAuth({ acceptAudience: require('../lib/turnToken.js').TURN_TOKEN_AUDIENCE });
+// SEC-PLUGIN-TRUST C1: a per-plugin qplg_ credential (+ signed org ticket) is
+// accepted ONLY on the routes a plugin backend needs. Without this the default
+// gate refuses every qplg_ before the route's own acceptPluginCredential runs.
+const pluginCredentialGate = requireServiceOrUserAuth({ acceptPluginCredential: true });
+// Background plugin evidence (no ticket) is instance-scoped and AEE-only.
+const pluginEvidenceGate = requireServiceOrUserAuth({ acceptPluginCredential: true, allowTicketlessPlugin: true });
+const PLUGIN_EVIDENCE_ROUTES = new Set(['/aee/store', '/aee/sync']);
+const PLUGIN_CREDENTIAL_ROUTES = new Set(['/chat', '/chat/claude', '/aee/store', '/aee/sync']);
+function acceptsPluginCredential(req) {
+  return req.method === 'POST' && PLUGIN_CREDENTIAL_ROUTES.has(req.path);
+}
+function gateFor(req) {
+  if (req.method === 'POST' && req.path === '/api/v1/tools/execute') return toolsExecuteGate;
+  if (acceptsPluginCredential(req)) return PLUGIN_EVIDENCE_ROUTES.has(req.path) ? pluginEvidenceGate : pluginCredentialGate;
+  return userGate;
+}
 
 // LICENSE-LAUNCH LL-6b: the shadow DEFAULT documented above is exactly the
 // hazard — an unset var on a production box leaves this whole gate decorative,
@@ -253,7 +273,7 @@ module.exports = function collectorAuthGate(req, res, next) {
   }
 
   if (isEnforced()) {
-    return userGate(req, res, next); // fail-closed 401/403
+    return gateFor(req)(req, res, next); // fail-closed 401/403
   }
 
   // Shadow mode: run the real auth check against a throwaway response so we
@@ -265,7 +285,7 @@ module.exports = function collectorAuthGate(req, res, next) {
     status() { return shadowRes; },
     json() { return shadowRes; },
   };
-  Promise.resolve(userGate(req, shadowRes, () => { calledNext = true; }))
+  Promise.resolve(gateFor(req)(req, shadowRes, () => { calledNext = true; }))
     .then(() => {
       if (calledNext) return next();
       console.warn(`[collector-auth-shadow] WOULD-DENY method=${req.method} path=${req.path} reason=no-auth`);
@@ -278,7 +298,9 @@ module.exports = function collectorAuthGate(req, res, next) {
 };
 
 module.exports.isAllowlisted = isAllowlisted;
+module.exports.acceptsPluginCredential = acceptsPluginCredential;
 module.exports.isEnforced = isEnforced;
 module.exports.isHeartbeatPush = isHeartbeatPush;
 module.exports.agentKeyValid = agentKeyValid;
 module.exports.heartbeatBeltOpen = heartbeatBeltOpen;
+module.exports.gateFor = gateFor;

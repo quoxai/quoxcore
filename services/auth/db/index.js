@@ -175,11 +175,11 @@ export const queries = {
     // AUTH-REMEMBER-ME: remember_me defaults to 0 (unset) for backward
     // compatibility with any caller not passing it.
     createSession: (session) => prepare(`
-        INSERT INTO sessions (id, user_id, org_id, refresh_token_hash, device_fingerprint, ip_address, user_agent, expires_at, remember_me)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO sessions (id, user_id, org_id, refresh_token_hash, device_fingerprint, ip_address, user_agent, expires_at, remember_me, client)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(session.id, session.user_id, session.org_id, session.refresh_token_hash,
            session.device_fingerprint, session.ip_address, session.user_agent, session.expires_at,
-           session.remember_me ? 1 : 0),
+           session.remember_me ? 1 : 0, session.client === 'cli' ? 'cli' : 'web'),
 
     getSessionByTokenHash: (hash) => prepare(`
         SELECT * FROM sessions WHERE refresh_token_hash = ? AND revoked_at IS NULL

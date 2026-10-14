@@ -407,6 +407,12 @@ services:
       # browser never holds it; an empty default makes the proxy return a graceful 503.
       - QUOX_TELEPHONY_BRIDGE_URL=${QUOX_TELEPHONY_BRIDGE_URL:-http://host.docker.internal:3112}
       - TELEPHONY_TRIGGER_SECRET=${TELEPHONY_TRIGGER_SECRET:-}
+      # ApprovalsQ (QVOICE-OUTBOUND #521 P2): stale-approval phone escalation. OFF unless
+      # QUOX_APPROVALSQ_WATCHER is truthy. The bridge must be reachable from THIS container
+      # (QUOX_TELEPHONY_BRIDGE_URL above). CALLBACK_BASE is where the host bridge POSTs the
+      # call outcome back (collector's published host port).
+      - QUOX_APPROVALSQ_WATCHER=${QUOX_APPROVALSQ_WATCHER:-}
+      - QUOX_APPROVALSQ_CALLBACK_BASE=${QUOX_APPROVALSQ_CALLBACK_BASE:-}
     volumes:
       - collector-data:/var/lib/quox
       - collector-claude:/home/quox/.claude

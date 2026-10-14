@@ -278,18 +278,24 @@ export async function attemptSlotClaim({
         return { claimed: false, reason: 'error', error: err };
       }
       claimState.held = false;
+      claimState.lapsed = true;
     }
   }
   try {
+    const wasHeld = !!(claimState && claimState.everHeld);
     const res = await checkoutSlot();
-    if (claimState) { claimState.held = true; claimState.claimedAt = now(); }
+    if (claimState) { claimState.held = true; claimState.everHeld = true; claimState.claimedAt = now(); }
     const refreshed = !!(res && res.refreshed);
+    // GRIPE-797: log state transitions only. A periodic safety re-checkout
+    // of a hold this process already had is a renewal, not a new claim.
+    if (wasHeld && claimState && !claimState.lapsed) return { claimed: true, refreshed: true };
+    if (claimState) claimState.lapsed = false;
     log('info', refreshed
       ? `slot ${slot}: already held by this resident, refreshed.`
       : `slot ${slot}: claimed (was free), now present.`);
     return refreshed ? { claimed: true, refreshed } : { claimed: true };
   } catch (err) {
-    if (claimState) claimState.held = false;
+    if (claimState) { claimState.held = false; claimState.lapsed = true; }
     if (err && err.status === 409) {
       const holder = err.detail?.holder_session || null;
       if (holder && holder !== selfIdentity) {
@@ -480,6 +486,40 @@ export function detectTurnError(result) {
 }
 
 /**
+ * GRIPE-797: an expired provider login (claude "Failed to authenticate:
+ * OAuth session expired and could not be refreshed", codex "not logged in"
+ * or a 401) is NOT a generic provider error: the fix is a human running a
+ * login command on this host. Returns {provider, command} or null.
+ */
+export function detectAuthExpiry(result) {
+  if (!result || result.timedOut || result.error) return null;
+  // Only a FAILED turn can be an expiry: a successful reply that merely
+  // talks about logins or 401s is a reply, never an alert.
+  if (!detectTurnError(result)) return null;
+  const parts = [result.text, result.stdout, result.stderr];
+  const raw = result.raw;
+  if (raw && typeof raw === 'object') {
+    parts.push(raw.result, raw.message, raw.error && (raw.error.message || raw.error));
+  }
+  const blob = parts.filter((x) => typeof x === 'string').join('\n');
+  if (!blob) return null;
+  if (/failed to authenticate|oauth session expired|could not be refreshed|invalid authentication credentials|please run \/login/i.test(blob)) {
+    return { provider: 'claude', command: 'claude /login' };
+  }
+  if (/not logged in|codex login|401 unauthorized|\b401\b[^\n]{0,40}(unauthorized|authentication)|token (has )?expired/i.test(blob)) {
+    const claudeish = /claude/i.test(blob) && !/codex/i.test(blob);
+    return claudeish ? { provider: 'claude', command: 'claude /login' } : { provider: 'codex', command: 'codex login' };
+  }
+  return null;
+}
+
+export function buildAuthExpiryNoticeText(hostId, auth) {
+  const cmd = auth && auth.provider === 'codex' ? 'codex login' : 'claude /login';
+  const alt = auth && auth.provider === 'codex' ? '(or `claude /login`)' : '(or `codex login`)';
+  return `My login on ${hostId} has expired; run \`${cmd}\` ${alt} on ${hostId}.`;
+}
+
+/**
  * One short, plain-language, single-sentence notice: no stack, no JSON, no
  * raw provider payload. This is the ONE honest signal an operator gets per
  * distinct error signature per hour; silence forever is also wrong.
@@ -644,6 +684,7 @@ export async function runPollOnce({
   claimState = null,
   postHeartbeat = null,
   postTurnReceipt = null,
+  alertOwner = null,
   state,
   log = () => {},
   now = () => Date.now(),
@@ -786,6 +827,29 @@ export async function runPollOnce({
     // resident's own reply. Log the full error, record it in state for
     // `status` to surface, and post at most one short plain-language
     // notice per distinct error signature per hour.
+    const authExpiry = detectAuthExpiry(result);
+    if (authExpiry) {
+      log('error', `turn auth expiry for message ${message.id}: provider=${authExpiry.provider} (login expired; never posted raw)`);
+      await receipt({ outcome: 'error', message_id: message.id, message_from: message.from, duration_ms: durationMs, error_note: `auth_expired: ${authExpiry.provider}` });
+      const noticeText = buildAuthExpiryNoticeText(hostId, authExpiry);
+      nextState = {
+        ...nextState,
+        last_turn_error: { type: 'auth_expired', message: noticeText, category: 'auth expiry', signature: `auth_expired:${authExpiry.provider}`, at: new Date(now()).toISOString() },
+      };
+      // ONE slot reply + ONE owner alert per expiry episode; the flag is
+      // cleared only by a successful reply below.
+      if (!nextState.auth_expiry_alerted_at) {
+        await postReply(noticeText);
+        if (alertOwner) {
+          try { await alertOwner(noticeText); } catch (err) { log('warn', `auth-expiry owner alert failed: ${err.message}`); }
+        }
+        nextState = { ...nextState, auth_expiry_alerted_at: new Date(now()).toISOString() };
+        log('warn', `posted auth-expiry notice and owner alert (once per episode): ${noticeText}`);
+      } else {
+        log('warn', 'auth-expiry notice suppressed (already alerted this episode; clears on next successful turn).');
+      }
+      continue;
+    }
     const turnError = detectTurnError(result);
     if (turnError) {
       log('error', `turn error for message ${message.id}: type=${turnError.type} message=${turnError.message} (never posted to the channel)`);
@@ -813,6 +877,11 @@ export async function runPollOnce({
       continue;
     }
 
+    if (nextState.auth_expiry_alerted_at) {
+      const { auth_expiry_alerted_at: _cleared, ...rest } = nextState;
+      nextState = rest;
+      log('info', 'auth recovered: successful turn, auth-expiry alert re-armed.');
+    }
     await postReply(replyText);
     log('info', `replied to ${message.id} (${replyText.length} chars, session_id=${result.session_id || 'n/a'}, cost_usd=${result.total_cost_usd ?? 'n/a'})`);
     await receipt({

@@ -172,12 +172,35 @@ export function isPrivateIPv4(ip) {
 }
 
 /**
+ * Extract the embedded IPv4 address from an IPv4-mapped IPv6 address.
+ * Accepts ::ffff:a.b.c.d and ::ffff:hhhh:hhhh (optionally bracketed).
+ * @param {string} ip
+ * @returns {string|null} dotted-quad IPv4, or null if not IPv4-mapped
+ */
+function mappedIpv4FromIpv6(ip) {
+    const lower = String(ip).toLowerCase().replace(/^\[|\]$/g, '');
+    const dotted = lower.match(/^(?:0{0,4}:){0,4}:?(?:0{0,4}:)?ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+    if (dotted) return dotted[1];
+    const hex = lower.match(/^(?:0{0,4}:){0,4}:?(?:0{0,4}:)?ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+    if (!hex) return null;
+    const hi = parseInt(hex[1], 16);
+    const lo = parseInt(hex[2], 16);
+    return `${(hi >> 8) & 255}.${hi & 255}.${(lo >> 8) & 255}.${lo & 255}`;
+}
+
+/**
  * Check if an IPv6 address is private/reserved
  * @param {string} ip - IPv6 address string
  * @returns {boolean}
  */
 export function isPrivateIPv6(ip) {
     const normalizedIp = ip.toLowerCase();
+
+    // IPv4-mapped IPv6 (::ffff:a.b.c.d or the hex form ::ffff:hhhh:hhhh the
+    // WHATWG URL parser emits) is judged by its embedded IPv4 address, so a
+    // mapped spelling can never reach a range the IPv4 check blocks.
+    const mapped = mappedIpv4FromIpv6(normalizedIp);
+    if (mapped) return isPrivateIPv4(mapped);
 
     for (const prefix of PRIVATE_IPV6_PREFIXES) {
         if (normalizedIp.startsWith(prefix.toLowerCase())) {
@@ -220,6 +243,33 @@ export function isRfc1918Ipv4(ip) {
 }
 
 /**
+ * Carrier-grade NAT 100.64.0.0/10 (RFC 6598), the range Tailscale assigns
+ * peer addresses from, MINUS 100.100.100.0/24, which is never admitted:
+ * Alibaba Cloud's instance metadata service is 100.100.100.200 and Tailscale
+ * reserves the /24 for its own service addresses (100.100.100.100 resolver),
+ * never for nodes. Only consulted when allowPrivate is set.
+ * @param {string} ip - IPv4 address string
+ * @returns {boolean}
+ */
+export function isCgnatIpv4(ip) {
+    const octets = parseIPv4(ip);
+    if (!octets) return false;
+    if (octets[0] !== 100 || octets[1] < 64 || octets[1] > 127) return false;
+    if (octets[1] === 100 && octets[2] === 100) return false;
+    return true;
+}
+
+/**
+ * The set an allowPrivate caller may reach: RFC1918 plus CGNAT (minus the
+ * reserved metadata /24). Everything else reserved stays blocked.
+ * @param {string} ip - IPv4 address string
+ * @returns {boolean}
+ */
+function isAllowPrivateIpv4(ip) {
+    return isRfc1918Ipv4(ip) || isCgnatIpv4(ip);
+}
+
+/**
  * Check if a hostname is blocked (localhost, local, etc.)
  *
  * SECURITY NOTE (VAULT-INTEG, owner-approved 2026-09-06): opts.allowPrivate
@@ -231,6 +281,14 @@ export function isRfc1918Ipv4(ip) {
  * patterns remain rejected unconditionally. Residual risk, stated honestly:
  * on an enabled instance, an org admin with SECRETS_WRITE can probe RFC1918
  * hosts via the declared types' credential test endpoints.
+ *
+ * EXTENDED 2026-10-12 (owner decision): allowPrivate also admits CGNAT
+ * 100.64.0.0/10 so a lanAllowed type (Ollama) can reach a Tailscale peer such
+ * as a model server on an operator's laptop. 100.100.100.0/24 stays blocked
+ * unconditionally (Alibaba Cloud metadata at 100.100.100.200, Tailscale
+ * service addresses). Same residual risk as above, now including peers on the
+ * instance's tailnet. IPv4-mapped IPv6 spellings are judged by their embedded
+ * IPv4 address and are NOT admitted by allowPrivate (literal IPv4 only).
  * @param {string} hostname - Hostname to check
  * @param {{allowPrivate?: boolean}} [opts]
  * @returns {boolean}
@@ -252,7 +310,7 @@ export function isBlockedHostname(hostname, opts = {}) {
 
     // Check if it's an IP address and if it's private
     if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(normalizedHostname)) {
-        if (opts.allowPrivate && isRfc1918Ipv4(normalizedHostname)) {
+        if (opts.allowPrivate && isAllowPrivateIpv4(normalizedHostname)) {
             return false;
         }
         return isPrivateIPv4(normalizedHostname);
@@ -347,7 +405,7 @@ export function validateUrlBasic(url, opts = {}) {
 export async function resolveAndValidateHostname(hostname, opts = {}) {
     // If hostname is already an IP, validate it directly
     if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
-        if (opts.allowPrivate && isRfc1918Ipv4(hostname)) {
+        if (opts.allowPrivate && isAllowPrivateIpv4(hostname)) {
             return { valid: true, ips: [hostname] };
         }
         if (isPrivateIPv4(hostname)) {
@@ -399,10 +457,11 @@ export async function resolveAndValidateHostname(hostname, opts = {}) {
     }
 
     // Check ALL resolved IPs - if any are private, reject.
-    // allowPrivate permits RFC1918 IPv4 resolutions only (a LAN DNS name for a
-    // lanAllowed device); private IPv6 and every other reserved range still reject.
+    // allowPrivate permits RFC1918 and CGNAT (minus 100.100.100.0/24) IPv4
+    // resolutions only (a LAN or tailnet DNS name for a lanAllowed device);
+    // private IPv6 and every other reserved range still reject.
     for (const ip of resolvedIps) {
-        if (opts.allowPrivate && /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip) && isRfc1918Ipv4(ip)) {
+        if (opts.allowPrivate && /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip) && isAllowPrivateIpv4(ip)) {
             continue;
         }
         if (isPrivateIP(ip)) {
@@ -516,6 +575,7 @@ export default {
     isPrivateIPv4,
     isPrivateIPv6,
     isRfc1918Ipv4,
+    isCgnatIpv4,
     isBlockedHostname,
     validateUrlScheme,
     validateUrlBasic,

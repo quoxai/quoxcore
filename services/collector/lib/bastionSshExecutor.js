@@ -11,7 +11,7 @@
 
 const BASTION_URL = process.env.BASTION_URL || '';
 const BASTION_TOKEN = process.env.BASTION_API_TOKEN || '';
-const BASTION_UNAVAILABLE_MESSAGE = 'Bastion not configured for this installation. Ask an admin to configure QuoxBastion.';
+const { BASTION_UNAVAILABLE_MESSAGE } = require('./bastionUnavailable');
 
 // TRUST-PROOF slice 4 — QuoxBastion's (config-gated, rolling out) approval
 // gate verifies an X-Bastion-Approval-Grant header: a short-lived Ed25519-
@@ -165,6 +165,46 @@ async function mintEngagementGrant({ orgId, engagementId, command, targets, targ
   }
 }
 
+/**
+ * Fleet standing grants (2026-10-13): mint a grant anchored to an org admin's
+ * STANDING grant (lib/fleetStandingGrants.js) instead of a HITL inbox item.
+ * The auth mint-standing route re-validates the standing grant (host, anchored
+ * command regex, VMID range, expiry, revocation) via its own keyed callback to
+ * the collector BEFORE signing. Returns the base64 grant, or null on any
+ * failure; the caller fails CLOSED on null.
+ */
+async function mintStandingGrant({ orgId, grantId, host, command, targets }) {
+  if (!orgId || !grantId || !AUTH_SERVICE_URL) return null;
+  try {
+    const resp = await fetch(`${AUTH_SERVICE_URL}/api/internal/approval-grants/mint-standing`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(INTERNAL_SERVICE_KEY ? { 'X-Service-Key': INTERNAL_SERVICE_KEY } : {}),
+      },
+      body: JSON.stringify({
+        org_id: orgId,
+        standing_grant_id: grantId,
+        action: 'exec',
+        host,
+        command,
+        targets: Array.isArray(targets) ? targets : [targets].filter(Boolean),
+      }),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      console.error(`[BastionSSH] standing-grant mint failed (${resp.status}) for ${grantId}: ${text.slice(0, 300)}`);
+      return null;
+    }
+    const data = await resp.json();
+    return data && typeof data.grant_base64 === 'string' && data.grant_base64 ? data.grant_base64 : null;
+  } catch (err) {
+    console.error(`[BastionSSH] standing-grant mint error for ${grantId}: ${err.message}`);
+    return null;
+  }
+}
+
 // AGENT-OVERHAUL-3 (QuoxPlan notes #2332/#2333) — golden-clone snapshot/clone
 // executors. DI-testable (take callBastion as a param), shared with the
 // native proxmox_templates_list read tool in toolExecutors/proxmox.js so
@@ -212,7 +252,7 @@ async function callBastion(hostId, command, grant) {
 
     if (!resp.ok) {
       const text = await resp.text();
-      return { success: false, error: `Bastion returned ${resp.status}: ${text}` };
+      return require("./bastionRefusal.js").bastionHttpErrorResult(resp.status, text); // #815: a 403 is a refusal, never an approval card
     }
 
     const data = await resp.json();
@@ -1136,4 +1176,4 @@ module.exports = {
 
 // Test-only surface (bastionGrantFailClosed.test.js pins the fail-closed
 // mint semantics without driving a full executor call).
-module.exports._internal = { mintGrantForCtx, mintApprovalGrant, mintEngagementGrant };
+module.exports._internal = { mintGrantForCtx, mintApprovalGrant, mintEngagementGrant, mintStandingGrant };

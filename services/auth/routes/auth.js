@@ -40,7 +40,7 @@ import { enforceIpAllowlist, enforceMfaGate, enforceSessionPolicy } from '../uti
 import { setAccessTokenCookie, resolveCookieSecure } from '../lib/accessTokenCookie.js';
 import { resolveAppBaseUrl } from '../lib/instanceConfigOverrides.js';
 import { mintEnrolmentTicket } from '../lib/mfaEnrolmentTicket.js';
-import { getSessionPolicy, REMEMBER_ME_MAX_SESSION_SEC } from '../utils/sessionPolicy.js';
+import { getSessionPolicy, REMEMBER_ME_MAX_SESSION_SEC, CLI_SESSION_MAX_SEC } from '../utils/sessionPolicy.js';
 import { MFA_MODES } from '../utils/mfaPolicy.js';
 import { autoJoinByVerifiedDomain } from '../utils/autoJoin.js';
 import {
@@ -528,7 +528,8 @@ router.post('/signup', authLimiter, async (req, res) => {
  */
 router.post('/login', authLimiter, async (req, res) => {
     try {
-        const { email, password, org_id, remember_me } = req.body;
+        const { email, password, org_id, remember_me, client } = req.body;
+        const sessionClient = client === 'cli' ? 'cli' : 'web'; // CLI-SESSION-CLASS marker; anything else is a browser session
 
         if (!email || !password) {
             return res.status(400).json({
@@ -811,7 +812,8 @@ router.post('/login', authLimiter, async (req, res) => {
         const refreshToken = createRefreshToken({
             sub: user.id,
             session_id: sessionId
-        }, rememberMeActive ? { expiresIn: `${REMEMBER_ME_MAX_SESSION_SEC / 86400}d` } : {});
+        }, rememberMeActive ? { expiresIn: `${REMEMBER_ME_MAX_SESSION_SEC / 86400}d` }
+            : sessionClient === 'cli' ? { expiresIn: `${CLI_SESSION_MAX_SEC / 86400}d` } : {});
 
         queries.createSession({
             id: sessionId,
@@ -822,7 +824,8 @@ router.post('/login', authLimiter, async (req, res) => {
             ip_address: req.ip,
             user_agent: req.headers['user-agent']?.slice(0, 500),
             expires_at: refreshToken.expiresAt,
-            remember_me: rememberMeActive
+            remember_me: rememberMeActive,
+            client: sessionClient
         });
 
         // Create access token (carries session_id so authenticate()

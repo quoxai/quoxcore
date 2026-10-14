@@ -92,7 +92,10 @@ function AddSourcePanel({ widgetId, authFetch, orgId, onSourceAdded, onCancel })
           _prevId: tempId,
           type: 'file',
           name: data.fileName || file.name,
-          status: data.embedded > 0 ? 'indexed' : 'error',
+          status: data.quarantined === true ? 'quarantined' : (data.embedded > 0 ? 'indexed' : 'error'),
+          quarantined: data.quarantined === true,
+          injectionFlags: Number(data.injection_flags) || 0,
+          injectionHigh: Number(data.injection_high) || 0,
           chunks: data.embedded || 0,
           size: formatBytes(data.fileSize ?? file.size),
           lastSync: data.embedded > 0
@@ -147,7 +150,7 @@ function AddSourcePanel({ widgetId, authFetch, orgId, onSourceAdded, onCancel })
       })
       const data = await resp.json().catch(() => ({}))
       if (!resp.ok || data.success === false) {
-        throw new Error(data.error || `Crawl failed (${resp.status})`)
+        throw new Error(data.message || data.error || `Crawl failed (${resp.status})`)
       }
       onSourceAdded({
         id: data.source_id || tempId,
@@ -176,6 +179,7 @@ function AddSourcePanel({ widgetId, authFetch, orgId, onSourceAdded, onCancel })
         lastSync: 'failed',
         errorMessage: err.message,
       }, { replace: true })
+      setErrors([`Crawl failed: ${err.message}`])
     } finally {
       setBusy(false)
     }
@@ -337,12 +341,22 @@ function formatBytesFromConfig(cfg, fallback) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
+// Passages excluded from answers for a quarantined source.
+function excludedCount(s) {
+  if (s.flaggedPassages && s.flaggedPassages.length > 0) return s.flaggedPassages.length
+  return s.status === 'quarantined' ? (s.injectionHigh || s.injectionFlags || 0) : 0
+}
+
 function hydrateSource(row) {
   const cfg = row.config || {}
   let size = '-'
   if (row.type === 'file') size = formatBytesFromConfig(cfg, '-')
   else if (row.type === 'url') size = `${cfg.pages || 0} pages`
   else if (row.type === 'qa') size = `${(cfg.question?.length || 0) + (cfg.answer?.length || 0)} chars`
+  // Wave 10: the collector records config.flagged_passages [{chunk, text}] and
+  // may quarantine only the flagged chunks. Render whichever fields exist.
+  const flaggedPassages = (Array.isArray(cfg.flagged_passages) ? cfg.flagged_passages : [])
+    .map(p => (typeof p === 'string' ? { chunk: null, text: p } : { chunk: p?.chunk ?? null, text: typeof p?.text === 'string' ? p.text : '' }))
   return {
     id: row.id,
     type: row.type,
@@ -355,7 +369,11 @@ function hydrateSource(row) {
     injectionFlags: Number(cfg.injection_flags) || 0,
     injectionHigh: Number(cfg.injection_high) || 0,
     superseded: cfg.superseded === true,
-    quarantined: row.status === 'quarantined' || row.quarantined === true,
+    autoSuperseded: cfg.auto_superseded === true && cfg.superseded === true,
+    suggestSuperseded: cfg.suggest_superseded === true && cfg.superseded !== true,
+    flaggedPassages,
+    quarantined: row.status === 'quarantined' || row.quarantined === true || flaggedPassages.length > 0,
+    flaggedPassage: typeof cfg.flagged_passage === 'string' ? cfg.flagged_passage : null,
     _persisted: true,
   }
 }
@@ -451,11 +469,24 @@ export default function KnowledgeTab({ widget, authFetch, orgId }) {
         setRemoveError(data.message || data.error || `Update failed (${resp.status}). Nothing changed.`)
         return
       }
-      setSources(prev => prev.map(s => (s.id === source.id ? { ...s, superseded: next } : s)))
+      setSources(prev => prev.map(s => (s.id === source.id ? { ...s, superseded: next, autoSuperseded: next ? s.autoSuperseded : false } : s)))
       setSelectedSource(prev => (prev && prev.id === source.id ? { ...prev, superseded: next } : prev))
     } catch (err) {
       setRemoveError(`Update failed: ${err.message}. Nothing changed.`)
     }
+  }
+
+  // w9: "Keep current" is a decision, so persist it (clears the stored suggestion).
+  const handleKeepCurrent = async (source) => {
+    setSources(prev => prev.map(x => (x.id === source.id ? { ...x, suggestSuperseded: false } : x)))
+    if (!authFetch || !orgId || !widgetId || !source?.id) return
+    try {
+      await authFetch(`/api/orgs/${orgId}/widgets/${widgetId}/knowledge/sources/${source.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ superseded: false }),
+      })
+    } catch { /* best effort: the pill returns on reload if this failed */ }
   }
 
   const handleRemove = async (sourceId) => {
@@ -555,17 +586,44 @@ export default function KnowledgeTab({ widget, authFetch, orgId }) {
               <span style={{ fontSize: 14 }}>{TYPE_ICONS[s.type]}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
-                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.65)' }}>{s.chunks || 0} chunks · {s.size}{s.superseded ? ' · Superseded: reference only' : ''}</div>
+                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.chunks || 0} chunks · {s.size}</div>
               </div>
-              {s.status === 'quarantined' && (
-                <span data-testid="quarantined-pill" style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 999, background: 'rgba(239,68,68,0.18)', border: '1px solid rgba(239,68,68,0.5)', color: '#ff8a8a' }}>quarantined</span>
+              {s.suggestSuperseded && !s.superseded && (
+                <span data-testid="outdated-pill" style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 999, background: 'rgba(245,158,11,0.2)', border: '1px solid rgba(245,158,11,0.6)', color: '#ffcf70' }}>Possibly outdated</span>
               )}
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.color, flexShrink: 0, boxShadow: `0 0 4px ${st.color}44` }} />
+              {(s.status === 'quarantined' || s.quarantined) && (
+                <span data-testid="quarantined-pill" style={{ flexShrink: 1, minWidth: 0, maxWidth: '55%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 999, background: 'rgba(239,68,68,0.18)', border: '1px solid rgba(239,68,68,0.5)', color: '#ff8a8a' }}>
+                  Quarantined{excludedCount(s) > 0 ? ` · ${excludedCount(s)} ${excludedCount(s) === 1 ? 'passage' : 'passages'} excluded` : ''}
+                </span>
+              )}
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: (s.status === 'quarantined' || s.quarantined) ? '#ef4444' : st.color, flexShrink: 0, boxShadow: `0 0 4px ${st.color}44` }} />
             </button>
+            {s.superseded && s.autoSuperseded && (
+              <div data-testid="auto-superseded-pill" style={{ margin: '4px 2px 0', padding: '6px 8px', fontSize: 11, fontWeight: 600, color: '#e2e8f0', background: 'rgba(148,163,184,0.12)', border: '1px solid rgba(148,163,184,0.4)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ flex: 1 }}>Reference only (set automatically)</span>
+                <button type="button" className="glass-btn" data-testid="auto-superseded-undo" onClick={() => handleToggleSuperseded(s)} style={{ padding: '2px 10px', fontSize: 11, cursor: 'pointer' }}>Undo</button>
+              </div>
+            )}
+            {s.superseded && !s.autoSuperseded && (
+              <button type="button" data-testid="superseded-toggle" onClick={() => handleToggleSuperseded(s)} style={{ margin: '4px 2px 0', width: 'calc(100% - 4px)', padding: '6px 8px', fontSize: 11, fontWeight: 600, textAlign: 'left', color: '#e2e8f0', background: 'rgba(148,163,184,0.12)', border: '1px solid rgba(148,163,184,0.4)', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Superseded: reference only (click to use in answers again)
+              </button>
+            )}
             {s.suggestSuperseded && !s.superseded && (
-              <div data-testid="superseded-prompt" style={{ margin: '4px 2px 0', padding: '6px 8px', fontSize: 10, color: '#ffcf70', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ flex: 1 }}>This looks like an old or replaced document.</span>
-                <button type="button" onClick={() => { handleToggleSuperseded(s); setSources(prev => prev.map(x => (x.id === s.id ? { ...x, suggestSuperseded: false } : x))) }} style={{ fontSize: 10, cursor: 'pointer' }}>Treat as reference only</button>
+              <div role="alert" data-testid="superseded-prompt" style={{ margin: '4px 2px 0', padding: '8px 10px', fontSize: 11, fontWeight: 600, color: '#ffcf70', background: 'rgba(245,158,11,0.14)', border: '1px solid rgba(245,158,11,0.6)', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span>This looks like an old version. Visitors are being answered from it.</span>
+                <span style={{ display: 'flex', gap: 6 }}>
+                  <button type="button" onClick={() => { handleToggleSuperseded(s); setSources(prev => prev.map(x => (x.id === s.id ? { ...x, suggestSuperseded: false } : x))) }} style={{ fontSize: 11, cursor: 'pointer' }}>Treat as reference only</button>
+                  <button type="button" onClick={() => { handleKeepCurrent(s) }} style={{ fontSize: 11, cursor: 'pointer' }}>Keep current</button>
+                </span>
+              </div>
+            )}
+            {s.quarantined && (
+              <div role="alert" data-testid="quarantine-banner" style={{ margin: '4px 2px 0', padding: '8px 10px', fontSize: 11, fontWeight: 600, color: '#ff8a8a', background: 'rgba(239,68,68,0.14)', border: '1px solid rgba(239,68,68,0.6)', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {s.status === 'quarantined'
+                  ? <span>{Math.max(s.injectionFlags, excludedCount(s)) > 1 ? `${Math.max(s.injectionFlags, excludedCount(s))} passages looked` : '1 passage looked'} like instructions to the bot, so this whole file is excluded from answers.</span>
+                  : <span>{excludedCount(s) > 1 ? `${excludedCount(s)} passages looked` : '1 passage looked'} like instructions to the bot and {excludedCount(s) > 1 ? 'are' : 'is'} excluded from answers. The rest of the file is still used.</span>}
+                <span><button type="button" onClick={() => { setShowAdd(false); handleSelectSource(s) }} style={{ fontSize: 11, cursor: 'pointer' }}>Review</button></span>
               </div>
             )}
             </div>
@@ -634,6 +692,19 @@ export default function KnowledgeTab({ widget, authFetch, orgId }) {
               {selectedSource.injectionFlags > 0 && (
                 <div role="alert" data-testid="injection-warning" style={{ marginTop: 10, padding: 8, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 6, fontSize: 11, color: '#f59e0b' }}>
                   {selectedSource.injectionFlags} passages look like instructions to the bot; {selectedSource.injectionHigh} excluded
+                </div>
+              )}
+              {selectedSource.quarantined && (
+                <div role="alert" data-testid="quarantine-detail" style={{ marginTop: 10, padding: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.5)', borderRadius: 6, fontSize: 11, color: '#ff8a8a' }}>
+                  {selectedSource.status === 'quarantined'
+                    ? 'This whole file is excluded from answers because part of it looked like instructions to the bot. Removing only the flagged passage is not supported yet: edit the file and upload it again, or remove it.'
+                    : 'Only the flagged passages below are excluded from answers. The rest of the file is still used.'}
+                  {(selectedSource.flaggedPassages || []).map((p, i) => (
+                    <blockquote key={i} data-testid="flagged-passage-item" style={{ margin: '8px 0 0', padding: '6px 8px', borderLeft: '3px solid #ef4444', color: '#fff' }}>{p.chunk != null ? `Passage ${p.chunk}: ` : ''}{p.text}</blockquote>
+                  ))}
+                  {selectedSource.flaggedPassage && (
+                    <blockquote data-testid="flagged-passage" style={{ margin: '8px 0 0', padding: '6px 8px', borderLeft: '3px solid #ef4444', color: '#fff' }}>{selectedSource.flaggedPassage}</blockquote>
+                  )}
                 </div>
               )}
               {removeError && (

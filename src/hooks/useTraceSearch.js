@@ -38,6 +38,8 @@ export default function useTraceSearch(initialFilters = {}) {
       const params = new URLSearchParams()
       params.set('limit', limit)
       params.set('offset', offset)
+      // quox#806: /traces no longer counts by default; the paginated UI needs the total.
+      params.set('count', '1')
       if (filters.sort) params.set('sort', filters.sort)
       if (filters.after) params.set('after', filters.after)
       if (filters.before) params.set('before', filters.before)

@@ -4,6 +4,7 @@
 # Use cases: Pure compute, parsing, validation, transformations
 
 FROM alpine:3.19
+ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install minimal runtime dependencies
 RUN apk add --no-cache \

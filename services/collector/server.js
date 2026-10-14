@@ -42,6 +42,11 @@ const { version: RESOLVED_VERSION, source: VERSION_SOURCE } = (() => {
   } catch { /* file absent — fall through */ }
   return { version: '0.0.0', source: 'fallback (unstamped — build did not inject a commit)' };
 })();
+// C4: the platform RELEASE (semver, the repo VERSION file the Dockerfile copies to /app/VERSION), separate
+// from the commit above, so `quox` can warn when CLI and server differ in major/minor. null when absent.
+const RESOLVED_RELEASE = (() => {
+  try { const v = fs.readFileSync('/app/VERSION', 'utf8').trim(); return /^\d+\.\d+\.\d+$/.test(v) ? v : null; } catch { return null; }
+})();
 
 // STABILITY-AUDITS #1: process-level safety net. Without these, an escaped
 // rejection or a synchronous throw outside an Express handler (timers,
@@ -111,6 +116,7 @@ const wardApiModule = loadOptionalModule(
   }),
   'WARD'
 );
+const { buildTraceListQuery } = require('./lib/traceListQuery');
 const { initWardHooks, wardHookAEE, wardHookAOCL, wardHookVOLT, countersignVoltBundle, closeWardHooks, getHookKeypair, wardHooksStatus } = wardHooksModule;
 // One ward.db transaction per sync batch (speed audit 2026-10-10); a stub without the module.
 const wardBatch = typeof wardHooksModule.wardBatch === 'function' ? wardHooksModule.wardBatch : (fn) => fn();
@@ -127,6 +133,9 @@ const { resolveWardReceiptForBundle } = require('./lib/wardReceiptResolver.js');
 // back to undefined in degraded mode (loadOptionalModule's fallback object
 // doesn't define it) — createWardChainHandler treats that as unavailable.
 const getWardService = wardApiModule.getWardService;
+// QUOXON-PARITY lane E1 (#809, #811): the chat agent's ward_verify / ward_status read the
+// same in-process WARD service the /ward routes use (lib/parityReadTools.js).
+require('./lib/parityReadTools.js').setParityReadDeps({ getWardService: typeof getWardService === 'function' ? getWardService : undefined });
 
 // CLI-PARITY WP1.1: runtime route-introspection helper for GET /__routes.
 // Loaded fail-safe via loadOptionalModule — the image flattens services/collector
@@ -166,6 +175,11 @@ const { startReflectionMiningScheduler } = require('./lib/reflectionMiningSchedu
 // ingestion scheduler — feeds QuoxBrain from AEE conversations (F1) and, later,
 // host-file/fleet/connector sources (F2+). Ships dark (QUOXFEED_ENABLED=false by default).
 const { startFeedScheduler } = require('./lib/feedScheduler.js');
+const approvalsqWatcher = require('./lib/approvalsqWatcher.js');
+const { createApprovalsqStore } = require('./lib/approvalsqStore.js');
+const { normalizePolicy: normalizeApprovalsqPolicy } = require('./lib/approvalsqPolicy.js');
+const { registerApprovalsqRoutes } = require('./lib/approvalsqRoutes.js');
+const { registerFleetStandingGrantRoutes } = require('./lib/fleetStandingGrantRoutes.js');
 // X-PLUGIN P4: inbound @mention poller — dark unless X_INBOUND_POLL_ENABLED=1
 // and X_INBOUND_POLL_ORGS is set (see lib/xInboundPoller.js header for the
 // NO-ENV-ONLY-CONFIG note and the loop-triad implementation).
@@ -179,7 +193,7 @@ const { startReachDigestScheduler } = require('./lib/reach/digestScheduler.js');
 const { recordHeartbeat: recordSignalHeartbeat, getConcerns, getSignalStats, getFleetSnapshot } = require('./lib/signalAggregator.js');
 
 // Connector Bridge — Phase 6.4 (dynamic connector tool activation)
-const { initBridge, getBridgeStatus, executeConnectorTool, getAvailableTools, activateConnector, deactivateConnector, shutdownBridge } = require('./lib/connectors/bridge');
+const { initBridge, getBridgeStatus, executeConnectorTool, getAvailableTools, invalidateAvailableToolsCache, activateConnector, deactivateConnector, shutdownBridge } = require('./lib/connectors/bridge');
 
 // Action tool handlers for REST API endpoints
 const { isActionTool, setAuditFn: setActionsAuditFn } = require('./lib/actionToolHandlers.js');
@@ -501,7 +515,7 @@ const mcpBundleRoutes = require('./routes/mcp-bundle.js');
 // Plugin Gateway — Phase 1 third-party plugin backend proxy
 const { registerPluginBackend, unregisterPluginBackend, getPluginBackend, listPluginBackends, proxyToPlugin, healthCheckPlugin, registerPluginTools, unregisterPluginTools, startHealthChecks } = require('./lib/pluginGateway.js');
 // LICENSE-ENFORCE LE-3f: server-enforced entitlement gate on the plugin data plane.
-const { isPluginLicensed: isPluginLicensedForOrg } = require('./lib/licenseGate.js');
+const { isPluginLicensed: isPluginLicensedForOrg, licenseVerdict: licenseVerdictForOrg } = require('./lib/licenseGate.js');
 
 // DEVSUITE 5.2 (2026-08-19): licence gate for a plugin's data plane. The
 // implementation, and the reasoning for why it fails closed, live in
@@ -518,9 +532,27 @@ const requireLicence = createRequireLicence({
 // Mirrors that proxy's 402 LICENSE_REQUIRED body and service-key bypass; mount
 // AFTER requireServiceOrUserAuth(). See lib/requirePluginEntitlement.js.
 const { createRequirePluginEntitlement } = require('./lib/requirePluginEntitlement.js');
-const requirePluginEntitlement = createRequirePluginEntitlement({ isPluginLicensed: isPluginLicensedForOrg });
+const requirePluginEntitlement = createRequirePluginEntitlement({ isPluginLicensed: isPluginLicensedForOrg, licenseVerdict: licenseVerdictForOrg });
+// Owner ruling 2026-09-01: first FREE_FLEET_HOSTS managed hosts are free on
+// bastion-fleet (see lib/fleetFreeAllowance.js). Wraps the entitlement check.
+const { createFleetAllowanceGate } = require('./lib/fleetFreeAllowance.js');
+const requireFleetAllowance = createFleetAllowanceGate({
+  isPluginLicensed: isPluginLicensedForOrg,
+  licenseVerdict: licenseVerdictForOrg,
+  listHosts: async () => {
+    const url = process.env.BASTION_URL || '';
+    const token = process.env.BASTION_API_TOKEN || '';
+    if (!url || !token) return null;
+    const r = await fetchWithTimeout(`${url.replace(/\/+$/, '')}/api/v1/hosts`,
+      { headers: { Authorization: `Bearer ${token}` } }, 10000);
+    if (!r.ok) throw new Error(`bastion hosts HTTP ${r.status}`);
+    const d = await r.json();
+    return Array.isArray(d) ? d : (d.hosts || d.data || []);
+  },
+});
 // RES.5 (plan/19): start/stop a plugin's backend container via powers-host.
 const pluginBackendLifecycle = require('./lib/pluginBackendClient.js');
+const { createPluginBackendHandlers } = require('./lib/pluginBackendAdmin.js');
 
 // GOV-1: Unified Policy Store
 const { initPolicyStore, createPolicy: createPolicyRecord, getPolicy: getPolicyRecord, listPolicies: listPolicyRecords, updatePolicy: updatePolicyRecord, deletePolicy: deletePolicyRecord, seedDefaultPolicies, validatePolicy: validatePolicyRecord } = require('./lib/policyStore.js');
@@ -678,6 +710,11 @@ function getNodePty() {
 async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  // A caller-supplied signal (client disconnect / turn interrupt) also cancels the call.
+  if (options && options.signal) {
+    if (options.signal.aborted) controller.abort();
+    else options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
 
   try {
     const response = await fetch(url, {
@@ -2426,28 +2463,13 @@ try {
 // already-running container), so this is cheap for live backends. Retries in the
 // background until auth is reachable. (Sibling of the tool-definitions reseed.)
 async function _reseedPluginBackends() {
-  const authUrl = process.env.AUTH_SERVICE_URL || 'http://auth:3101';
-  const key = process.env.INTERNAL_SERVICE_KEY || '';
-  const resp = await fetch(`${authUrl}/api/internal/plugins/backends`, {
-    headers: key ? { 'X-Service-Key': key } : {},
-    signal: AbortSignal.timeout(10_000),
+  // SEC-PLUGIN-TRUST P5: official and eligible community backends start; an
+  // ineligible one (e.g. revoked while the collector was down) is stopped.
+  return require('./lib/pluginBackendAdmin.js').reseedPluginBackends({
+    lifecycle: pluginBackendLifecycle,
+    registerPluginBackend,
+    unregisterPluginBackend,
   });
-  if (!resp.ok) throw new Error(`auth ${resp.status}`);
-  const body = await resp.json();
-  let ok = 0, fail = 0;
-  for (const b of (body.backends || [])) {
-    try {
-      const started = await pluginBackendLifecycle.startPluginBackend(b.pluginId, {
-        image: b.image, port: b.port, healthPath: b.healthPath,
-      });
-      registerPluginBackend(b.pluginId, { url: started.url, healthPath: b.healthPath, port: b.port });
-      ok++;
-    } catch (e) {
-      fail++;
-      console.warn(`[PluginGateway] boot-reseed ${b.pluginId} failed: ${e.message}`);
-    }
-  }
-  return { ok, fail, total: (body.backends || []).length };
 }
 let _pbReseedAttempt = 0;
 const _pbReseedMax = 20; // ~10 minutes of 30s retries
@@ -4190,6 +4212,9 @@ app.post('/api/v1/agent-attach/detach', requireServiceOrUserAuth(), createAgentA
   // has no other way to reach a server.js-local function.
   const { setInboxqToolsAuditFn } = require('./lib/inboxqTools.js');
   setInboxqToolsAuditFn((e) => storeAuditEnvelope({ from: 'agent.inboxq', to: 'audit.system', ...e }));
+  // QUOXON-ASK lane J: quox_cli / quox_cli_write evidence (content-free receipt on
+  // system.tools + argv on audit.system), WARD-witnessed through the same choke.
+  require('./lib/quoxCliTools.js').setQuoxCliAuditFn((e) => storeAuditEnvelope(e));
 
   // INBOXQ background sync scheduler. DARK unless INBOXQ_SYNC_ENABLED=1 (env
   // master, registered in envRegistry); then only orgs whose inboxq_settings
@@ -4472,6 +4497,99 @@ app.get('/api/v1/agh-chain/status', requireServiceOrUserAuth(), (req, res) => {
   const effective = platformSettingsStore.getEffectiveFlag(voltDb, orgId, 'AGH_CHAIN_ENABLED');
   return res.json({ enabled: effective.on, source: effective.source });
 });
+
+// QUOXON E1: GET /api/v1/capabilities, what this Quox can do for the caller's
+// org right now (installed | requires_setup | unavailable | planned, with an
+// honest reason and setup hint). Not to be confused with the env-flag registry
+// at /api/v1/platform/capabilities below. Every availability comes from a real
+// signal wired here; lib/capabilities/ never defaults to "installed". Org comes
+// from the verified token only (service-key callers send X-Org-Id). Authenticated
+// like every other route under the default-deny gate; no allowlist entry.
+{
+  const { createCapabilitiesService, createCapabilitiesHandler, SERVICES: CAP_SERVICES } = require('./lib/capabilities/index.js');
+  const capServiceUrls = {
+    auth: process.env.AUTH_SERVICE_URL || 'http://auth:3101',
+    memory: process.env.MEMORY_SERVICE_URL || 'http://memory:3103',
+    tasks: process.env.TASKS_SERVICE_URL || 'http://tasks:3104',
+    quoxflow: process.env.QUOXFLOW_URL || 'http://quoxflow:3200',
+    quoxbrain: process.env.QUOXBRAIN_URL || 'http://quoxbrain:3106',
+    quoxplan: process.env.QUOXPLAN_URL || 'http://host.docker.internal:3107',
+    quoxseo: process.env.QUOXSEO_URL || 'http://quoxseo:3110',
+    qlarity: process.env.QLARITY_URL || 'http://qlarity:3109',
+    quoxsignal: process.env.QUOXSIGNAL_URL || 'http://host.docker.internal:3108',
+    voice: process.env.QUOX_VOICE_URL || 'http://host.docker.internal:3111',
+  };
+  const capServiceHealth = (key) => {
+    const base = capServiceUrls[key];
+    if (!base) return Promise.resolve({ status: 'down' });
+    return checkServiceHealth(base, (CAP_SERVICES[key] && CAP_SERVICES[key].health) || '/health', 2500);
+  };
+  const capabilitiesService = createCapabilitiesService({
+    probes: {
+      serviceHealth: capServiceHealth,
+      licence: (orgId, pluginId) => require('./lib/licenseGate.js').checkPluginLicense(orgId, pluginId),
+      // The org's plugin install rows (with is_enabled) live in auth and are
+      // member-readable; forward the caller's own credentials, never a service key.
+      installs: async (orgId, ctx = {}) => {
+        if (!ctx.authHeader && !ctx.cookie) return { ok: false };
+        const headers = {};
+        if (ctx.authHeader) headers.authorization = ctx.authHeader;
+        if (ctx.cookie) headers.cookie = ctx.cookie;
+        const r = await fetch(`${capServiceUrls.auth}/api/orgs/${encodeURIComponent(orgId)}/plugins`, { headers, signal: AbortSignal.timeout(2500) });
+        if (!r.ok) return { ok: false };
+        const body = await r.json();
+        const rows = Array.isArray(body && body.plugins) ? body.plugins.map((p) => ({ plugin_id: p.plugin_id, is_enabled: !!p.is_enabled })) : null;
+        return rows ? { ok: true, rows } : { ok: false };
+      },
+      // Booleans only: the key values these helpers return are dropped here and
+      // never leave this function (same sources as GET /chat/status).
+      providers: async (orgId) => {
+        const claudeKeys = await getClaudeKeys(orgId);
+        const providerKeys = await getProviderKeys(orgId);
+        const openai = !!(providerKeys.openai_api_key || process.env.OPENAI_API_KEY);
+        const anthropic = !!(claudeKeys.anthropic_api_key || process.env.ANTHROPIC_API_KEY);
+        let claudeSubscription = !!claudeKeys.claude_oauth_token || validateCliCredentials().valid;
+        if (!claudeSubscription) {
+          const cli = validateCliCredentials();
+          if (cli.reason === 'expired' && cli.hasRefreshToken) claudeSubscription = await checkCliRefreshable();
+        }
+        if (!openai && !anthropic && !claudeSubscription) {
+          // The key helpers swallow vault errors; with auth unhealthy "none" is
+          // "could not check", not "not connected".
+          const h = await capServiceHealth('auth');
+          if (h.status !== 'ok') throw new Error('auth unavailable');
+        }
+        // CLI-QUOX B5: the OpenAI-compatible presets, from the org vault (booleans only).
+        // A vault read failure marks only the presets as unknown (null), never "not connected".
+        let compat;
+        try { compat = await require('./lib/openaiCompatProvider.js').compatProviderAvailability(orgId, { resolveCredentials }); }
+        catch { compat = Object.fromEntries(Object.keys(require('./lib/openaiCompatProvider.js').PRESETS).map((id) => [id, null])); }
+        // QUOXON-PROOF (quox#822): Ollama, from the org's default vault credential's
+        // existence only (no field read). A vault error is unknown (null), never "not connected".
+        let ollama;
+        try {
+          const r = await resolveCredentials(orgId, ['ollama']);
+          ollama = r ? !!(r.providers && r.providers.ollama && r.providers.ollama.credentialId) : null;
+        } catch { ollama = null; }
+        return { ok: true, openai, anthropic, claude_subscription: claudeSubscription, ...compat, ollama };
+      },
+      mailAccounts: async (orgId) => require('./lib/inboxq/store.js').listAccounts(orgId).length,
+      calendarConnections: async (orgId) => require('./lib/calendarq/store.js').listConnections(orgId).length,
+      devServers: async (orgId) => {
+        if (!aeeDb) throw new Error('aee db not open');
+        return listDevServers(aeeDb, { orgId }).length;
+      },
+      collectorEvidence: () => Boolean(aeeDb && aeeStatements),
+      lucidReady: () => Boolean(lucidDb),
+      // Core surfaces (safety gate, hats, install health) are served by this very
+      // process; the signal is that the capabilities route itself is answering.
+      // Not used for anything backed by another service or a licence.
+      collectorCore: () => true,
+    },
+  });
+  const capabilitiesHandler = createCapabilitiesHandler({ service: capabilitiesService });
+  app.get('/api/v1/capabilities', requireServiceOrUserAuth(), capabilitiesHandler);
+}
 
 // PLATFORM CAPABILITIES (Phase 24, owner hard rule #setecastronomy): read-only
 // visibility for every product-behaviour env flag. Backs
@@ -5496,6 +5614,15 @@ app.delete('/api/v1/plugins/:pluginId/storage/:key', requireServiceOrUserAuth(),
   res.json({ ok: true });
 });
 
+// ApprovalsQ (QVOICE-OUTBOUND #521): escalation ledger routes. Escalations are
+// recorded in voltDb.approvalsq_escalations (migrations/volt/009). The routes
+// never touch an approval item; the watcher (started below, OFF unless
+// QUOX_APPROVALSQ_WATCHER is set) only places calls so a human decides.
+const approvalsqStore = voltDb ? createApprovalsqStore(voltDb) : null;
+registerApprovalsqRoutes(app, { getStore: () => approvalsqStore, auth: requireServiceOrUserAuth });
+// Fleet standing grants (owner decision 2026-10-13): org-admin pre-approved ssh_exec lanes.
+registerFleetStandingGrantRoutes(app, { auth: requireServiceOrUserAuth, requireHumanAdmin });
+
 app.get('/api/v1/plugins/:pluginId/storage', requireServiceOrUserAuth(), requirePluginStorageOrg({ isPluginLicensed: isPluginLicensedForOrg }), (req, res) => {
   if (!pluginStorageStatements) return res.status(503).json({ error: 'Storage not available' });
   const rows = pluginStorageStatements.all.all(req.params.pluginId, req.pluginStorageOrgId);
@@ -5648,6 +5775,7 @@ app.get('/version', (req, res) => {
   res.json({
     service: 'quox-collector',
     version: RESOLVED_VERSION,
+    release: RESOLVED_RELEASE,
     stamped: VERSION_SOURCE.startsWith('env') || VERSION_SOURCE.startsWith('file'),
     source: VERSION_SOURCE,
     node: process.version,
@@ -5979,6 +6107,9 @@ if (aeeDb) {
   try {
     require('./lib/toolApprovalStore.js').ensure(aeeDb);
     console.log('[HITL] tool-approval store ensured on aee.db');
+    // Fleet standing grants share aee.db; every create/use/revoke is an AEE envelope.
+    require('./lib/fleetStandingGrants.js').ensure(aeeDb);
+    require('./lib/fleetStandingGrants.js').setEmitter((envelope) => storeAuditEnvelope(envelope));
   } catch (tErr) {
     console.warn('[HITL] tool-approval store init failed:', tErr.message);
   }
@@ -6231,6 +6362,16 @@ app.post('/api/internal/agent-tools/invalidate-cache', requireInternalServiceKey
   }
   invalidateAgentToolCache(agent_id);
   res.json({ ok: true, agent_id });
+});
+
+// QUOXON A2: connector tool-list cache invalidation. Auth calls this whenever
+// its credential resolver cache is cleared (every vault credential write), so
+// a new, rotated or deleted credential reaches the next chat turn instead of
+// waiting out the 60 s TTL. Body { org_id } drops one org; no org_id drops all.
+app.post('/api/internal/connectors/invalidate-tools-cache', requireInternalServiceKey, (req, res) => {
+  const orgId = req.body && typeof req.body.org_id === 'string' && req.body.org_id ? req.body.org_id : undefined;
+  invalidateAvailableToolsCache(orgId);
+  res.json({ ok: true, scope: orgId ? 'org' : 'all' });
 });
 
 // ============================================================================
@@ -6644,7 +6785,7 @@ async function devServerHeartbeatCallBastion(hostId, command, grantOrTimeout = 3
   const bastionUrl = process.env.BASTION_URL || '';
   const bastionToken = process.env.BASTION_API_TOKEN || '';
   if (!bastionUrl || !bastionToken) {
-    return { success: false, error: 'Bastion not configured for this installation. Ask an admin to configure QuoxBastion.' };
+    return { success: false, error: require('./lib/bastionUnavailable').BASTION_UNAVAILABLE_MESSAGE };
   }
   // DEVSUITE B′ (quox#608): the 3rd arg is polymorphic for backward compat — a
   // number is a timeout (legacy callers), a string is a collector-signed
@@ -8299,6 +8440,105 @@ app.get('/api/v1/live-sessions', requireServiceOrUserAuth(), (req, res) => {
 });
 
 // ============================================================================
+// QUOXON J1: one org-scoped index of live sessions (GET /api/v1/sessions) +
+// the `quox claude` wrapper heartbeat/end. Same auth and org resolution as the
+// live-sessions routes above (authenticated only, resolveSlotOrgId, fails
+// closed). Objectives/executions are read from tasks/quoxflow with the
+// CALLER'S OWN bearer token (both lists are org-scoped by that token), so the
+// index never sees more than the caller could list directly. Handlers live in
+// lib/sessionsIndexRoutes.js; deps are closures so later-declared module
+// state (devSlots) is read at request time.
+// ============================================================================
+{
+  const forwardJson = async (url, req) => {
+    const authz = req.headers.authorization;
+    if (!authz) throw new Error('no user token to forward');
+    const r = await fetch(url, { headers: { Authorization: authz, Accept: 'application/json' }, signal: AbortSignal.timeout(2500) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  };
+  const listOf = (d, ...keys) => { for (const k of keys) if (Array.isArray(d?.[k])) return d[k]; return Array.isArray(d) ? d : null; };
+  require('./lib/sessionsIndexRoutes.js').registerSessionsIndexRoutes(app, {
+    db: () => aeeDb,
+    auth: requireServiceOrUserAuth,
+    resolveOrgId: resolveSlotOrgId,
+    listConversations: ({ orgId, userId, limit }) => require('./lib/chatSessionHistory.js').listSessions({ orgId, userId, limit }),
+    listSlots: ({ orgId }) => devSlots.listSlots({ orgId }),
+    // Declared later in this file; read at request time. Running turns only (finished = resting).
+    runningConversations: ({ orgId, userId }) => conversationTurnRegistry.runningConversations({ orgId, userId }),
+    fetchObjectives: async ({ req }) => {
+      const base = `http://${process.env.TASKS_HOST || 'tasks'}:${process.env.TASKS_PORT || '3104'}`;
+      return listOf(await forwardJson(`${base}/api/objectives?limit=100`, req), 'objectives');
+    },
+    fetchExecutions: async ({ req }) => {
+      const base = process.env.QUOXFLOW_URL || 'http://quoxflow:3200';
+      return listOf(await forwardJson(`${base}/api/executions`, req), 'data', 'items', 'executions');
+    },
+    // No server host label: the collector runs in a container (os.hostname() is a container id).
+    hostname: () => null,
+  });
+}
+
+// ============================================================================
+// QUOXON E5: "What happened while I was away?" GET /api/v1/away?since=<iso>.
+// Read-only digest from real sources (lib/awayDigest.js). Remote services are
+// read with the CALLER'S OWN bearer (each list is org- and member-scoped by that
+// token, as in the sessions index above); a service caller without a bearer
+// uses the service key with its resolved org. A source that cannot be read is
+// reported as blind, never as empty.
+// ============================================================================
+{
+  const away = require('./lib/awayDigest.js');
+  const listOf = (d, ...keys) => { for (const k of keys) if (Array.isArray(d?.[k])) return d[k]; return Array.isArray(d) ? d : []; };
+  const getJson = async (url, req, ctx) => {
+    const headers = { Accept: 'application/json' };
+    if (req.headers.authorization) headers.Authorization = req.headers.authorization;
+    else if (req.service && process.env.INTERNAL_SERVICE_KEY) {
+      headers['X-Service-Key'] = process.env.INTERNAL_SERVICE_KEY;
+      headers['X-Org-Id'] = ctx.orgId;
+      if (ctx.userId) headers['X-User-Id'] = ctx.userId;
+    } else throw new Error('no credential to forward');
+    const r = await fetch(url, { headers, signal: AbortSignal.timeout(4000) });
+    if (!r.ok) throw new Error(away.httpReason(r.status, await r.text().catch(() => '')));
+    return r.json();
+  };
+  const aee = () => { if (!aeeDb) throw new Error('evidence store unavailable'); return aeeDb; };
+  require('./lib/awayRoutes.js').registerAwayRoutes(app, {
+    auth: requireServiceOrUserAuth,
+    resolveOrgId: resolveSlotOrgId,
+    readersFor: (req, ctx) => ({
+      approvals: async () => {
+        const base = `${AUTH_SERVICE_URL}/api/orgs/${encodeURIComponent(ctx.orgId)}/inbox?kind=approval&limit=100`;
+        const [waiting, resolved] = await Promise.all([getJson(base, req, ctx), getJson(`${base}&status=resolved`, req, ctx)]);
+        return { items: away.mapApprovals(listOf(waiting, 'items'), listOf(resolved, 'items'), ctx.sinceMs) };
+      },
+      objectives: async () => {
+        const base = `http://${process.env.TASKS_HOST || 'tasks'}:${process.env.TASKS_PORT || '3104'}`;
+        return { items: away.mapObjectives(listOf(await getJson(`${base}/api/objectives?limit=100`, req, ctx), 'objectives'), ctx.sinceMs) };
+      },
+      workflows: async () => {
+        const base = process.env.QUOXFLOW_URL || 'http://quoxflow:3200';
+        return { items: away.mapExecutions(listOf(await getJson(`${base}/api/executions?limit=100`, req, ctx), 'data', 'items', 'executions'), ctx.sinceMs, ctx.userId) };
+      },
+      lucid: async () => {
+        const journal = require('./lib/lucid/journal.js');
+        if (!lucidDb || !journal.isReady()) throw new Error('LUCID storage unavailable');
+        const viewer = ctx.userId ? `user:${ctx.userId}` : 'owner';
+        const v = require('./lib/lucid/routes.js').situationFor(ctx.orgId, { since: String(journal.latestSeq(ctx.orgId)), viewer, surface: 'away', advance: false });
+        return away.mapSituation(v.situation, ctx.sinceMs);
+      },
+      decisions: async () => {
+        const base = (process.env.QUOXBRAIN_URL || 'http://quoxbrain:3106').replace(/\/$/, '');
+        const d = await getJson(`${base}/brain/decisions?since=${encodeURIComponent(new Date(ctx.sinceMs).toISOString())}`, req, ctx);
+        return { items: away.mapDecisions(listOf(d, 'decisions')) };
+      },
+      turns: async () => ({ items: away.failedTurns(aee(), ctx) }),
+      activity: async () => ({ activity: away.agentActivity(aee(), ctx) }),
+    }),
+  });
+}
+
+// ============================================================================
 // DEVSUITE-SLOTS Phase 3 — server-side slot registry (design in QuoxPlan
 // DEVSUITE-SLOTS plan v2 section 2a). A slot is a fixed, org-curated
 // address (T1..T8, or named: `triage`, `builder`) that a session checks
@@ -8310,6 +8550,12 @@ app.get('/api/v1/live-sessions', requireServiceOrUserAuth(), (req, res) => {
 // cadence to be worth a WARD entry per beat).
 // ============================================================================
 const devSlots = require('./lib/devSlotsStore.js').createDevSlotsStore({ getDb: () => aeeDb });
+// QUOXON-PROOF (quox#824): the slot_list agent tool reads this store in-process (same
+// licence gate as GET /api/v1/slots) instead of a loopback fetch that queued behind busy turns.
+require('./lib/slotTools.js').configureSlotStore({
+  listSlots: (args) => devSlots.listSlots(args),
+  isLicensed: (orgId) => isPluginLicensedForOrg(orgId, 'quoxslots'),
+});
 const {
   callerFromReq, evaluateMemberJoin, createClaimHandler: createSlotClaimHandler,
 } = require('./lib/slotSplinter.js');
@@ -9446,7 +9692,7 @@ app.get('/api/v1/agents/:hostId/logs', async (req, res) => {
     if (!result || !result.success) {
       return res.status(503).json({
         success: false,
-        error: result?.error || 'Failed to retrieve logs from host',
+        error: require('./lib/bastionHostNotRegistered').describeHostNotRegistered(result?.error, hostId) || 'Failed to retrieve logs from host',
         host_id: hostId
       });
     }
@@ -9472,7 +9718,7 @@ app.get('/api/v1/agents/:hostId/logs', async (req, res) => {
 // route, so mounting the gate here matches the LE-3f contract: user orgs
 // need the 'bastion-fleet' entitlement (402 LICENSE_REQUIRED otherwise),
 // pure INTERNAL_SERVICE_KEY monitoring callers (no req.user) bypass.
-app.get('/api/v1/fleet/status', requirePluginEntitlement('bastion-fleet'), (req, res) => {
+app.get('/api/v1/fleet/status', requireFleetAllowance('bastion-fleet'), (req, res) => {
   const now = Date.now();
   let connected = 0, stale = 0, dead = 0;
 
@@ -9495,7 +9741,7 @@ app.get('/api/v1/fleet/status', requirePluginEntitlement('bastion-fleet'), (req,
 
 // Fleet summary
 // LL-7 D3: entitlement-gated (see /api/v1/fleet/status note above).
-app.get('/api/v1/fleet/summary', requirePluginEntitlement('bastion-fleet'), (req, res) => {
+app.get('/api/v1/fleet/summary', requireFleetAllowance('bastion-fleet'), (req, res) => {
   const now = Date.now();
   let connected = 0, stale = 0, dead = 0;
   let totalCpu = 0, totalMem = 0;
@@ -9554,7 +9800,7 @@ app.get('/api/v1/fleet/summary', requirePluginEntitlement('bastion-fleet'), (req
 // ALLOWLIST — same default-deny requireServiceOrUserAuth() as its fleet/*
 // siblings above, no per-route auth middleware needed.
 // LL-7 D3: entitlement-gated (see /api/v1/fleet/status note above).
-app.get('/api/v1/fleet/hosts', requirePluginEntitlement('bastion-fleet'), async (req, res) => {
+app.get('/api/v1/fleet/hosts', requireFleetAllowance('bastion-fleet'), async (req, res) => {
   const bastionUrl = process.env.BASTION_URL || '';
   const bastionToken = process.env.BASTION_API_TOKEN || '';
   if (!bastionUrl || !bastionToken) {
@@ -10030,6 +10276,28 @@ app.post('/api/tools/bulk-import-catalog', requireAuth(), async (req, res) => {
 
 // ─── end STUDY-REV-2/P1.A ─────────────────────────────────────────────────
 
+// QUOXON-REACH: the REGISTERED specialist roster (entity JSONs), as opposed to
+// /api/v1/tools/agents which returns every AGENT_TOOLS key incl. C-suite personas.
+// Org comes from the authenticated user only, never from the query.
+app.get('/api/v1/agent-registry', requireServiceOrUserAuth(), async (req, res) => {
+  try {
+    const loader = require('./lib/entityAssistantLoader.js');
+    const { buildAgentRegistryList } = require('./lib/agentRegistryList.js');
+    const { AGENT_REQUIRES_PLUGIN } = require('./lib/agentTools.js');
+    const assistants = loader.listAssistants().map((id) => loader.getAssistant(id)).filter(Boolean);
+    const out = await buildAgentRegistryList({
+      assistants,
+      agentTools: AGENT_TOOLS,
+      governed: AGENT_REQUIRES_PLUGIN || {},
+      checkPluginLicense: require('./lib/licenseGate.js').checkPluginLicense,
+      orgId: req.user?.org_id || null,
+    });
+    res.json(out);
+  } catch (err) {
+    res.status(500).json({ error: 'agent registry unavailable', detail: err.message });
+  }
+});
+
 // Return agent-to-tool permission mapping
 app.get('/api/v1/tools/agents', (req, res) => {
   const mapping = {};
@@ -10186,8 +10454,11 @@ app.get('/agents/:agentId/tools', requireAuth(), (req, res) => {
 });
 
 // Execute a tool (used by QuoxMCP callback)
-app.post('/api/v1/tools/execute', toolLimiter, requireServiceOrUserAuth(), async (req, res) => {
-  const { tool_name, input, session_id, org_id, user_id, auth_token } = req.body;
+app.post('/api/v1/tools/execute', toolLimiter, requireServiceOrUserAuth({ acceptAudience: require('./lib/turnToken.js').TURN_TOKEN_AUDIENCE }), async (req, res) => {
+  const { tool_name, input, org_id, user_id, auth_token } = req.body;
+  // QUOXON-IDENTITY: a per-turn credential pins the conversation; body session_id
+  // is only honoured for callers that do not carry one.
+  const session_id = req.user?.conversation_id || req.body.session_id;
 
   if (!tool_name) {
     return res.status(400).json({ success: false, error: 'tool_name is required' });
@@ -10257,8 +10528,11 @@ app.post('/api/v1/tools/execute', toolLimiter, requireServiceOrUserAuth(), async
     agentId: agentIdResult.agentId,
     session_id: session_id || undefined,
     orgId: resolveCallerOrgId({ isServiceKeyAuth, bodyOrgId: org_id, user: req.user }) || undefined,
-    userId: user_id || req.user?.id || undefined,
-    token: auth_token || req.headers.authorization?.replace('Bearer ', '') || undefined,
+    // QUOXON-IDENTITY: an authenticated identity (user JWT / per-turn token) is
+    // authoritative; body user_id is honoured only for service-key callers.
+    userId: (req.user?.id || (isServiceKeyAuth ? user_id : undefined)) || undefined,
+    // The caller's own bearer wins over a body-supplied auth_token.
+    token: (req.headers.authorization?.replace('Bearer ', '')) || auth_token || undefined,
     // QUOXIDENTITY F2b: for attach-lease callers (req.user.attach_lease_id,
     // e.g. agent.seer driven via the attach JWT), the lease holder is the
     // human responsible for the action — surfaced onto req.user in
@@ -10727,6 +11001,21 @@ app.get('/api/v1/mcp/sessions/:session_id/calls', requireServiceOrUserAuth(), (r
 
 // Internal tool execution endpoint (used by QuoxFlow action:tool nodes)
 // Service-key only — no JWT fallback. QuoxFlow runs as 'quoxflow' agent with restricted RBAC.
+// quox#791: governed read of a gated tool's stored outcome. After a human
+// approves a held tool the resume executor runs it and stores the output on the
+// approval row; this is the supported way to read it (previously: query aee.db).
+// Auth: requireServiceOrUserAuth (JWT or service key). Org: a user JWT is locked
+// to its own org; a service-key caller supplies ?org_id= (same rule as
+// /api/v1/tools/execute). Another org's approval is a 404, never a 403.
+app.get('/api/v1/approvals/:id/result', requireServiceOrUserAuth(), (req, res) => {
+  const { resolveCallerOrgId } = require('./lib/toolExecuteOrgScope.js');
+  const orgId = resolveCallerOrgId({ isServiceKeyAuth: !req.user, bodyOrgId: req.query.org_id, user: req.user });
+  if (!orgId) return res.status(400).json({ error: 'org_id is required for service-key authenticated calls' });
+  const out = require('./lib/approvalResult.js').readApprovalResult(String(req.params.id), orgId);
+  if (!out) return res.status(404).json({ error: 'Approval not found' });
+  res.json(out);
+});
+
 app.post('/api/internal/tools/execute', toolLimiter, requireServiceOrUserAuth(), async (req, res) => {
   const { tool, input } = req.body;
 
@@ -15074,7 +15363,7 @@ app.all('/api/v1/quoxseo/*', requireServiceOrUserAuth(), requirePluginEntitlemen
   // day-one comment demanded.
   const seoPolicy = require('./lib/quoxseoProxyPolicy').evaluateQuoxseoRequest(req.method, req.path);
   if (!seoPolicy.allowed) {
-    return res.status(405).json({ error: 'read_only', message: 'QuoxSEO API is read-only apart from site registration (POST /sites); ingest runs server-side on a schedule.' });
+    return res.status(405).json({ error: 'read_only', message: 'QuoxSEO API is read-only apart from site registration and removal (POST /sites, DELETE /sites/:id); ingest runs server-side on a schedule.' });
   }
   // Same org posture as the QuoxPlan proxy: authenticated users need an org;
   // org-less USERS are refused so no-org access stays a loopback privilege.
@@ -15097,17 +15386,20 @@ app.all('/api/v1/quoxseo/*', requireServiceOrUserAuth(), requirePluginEntitlemen
       method: req.method,
       headers: {
         'Accept': 'application/json',
-        ...(seoPolicy.mutation ? { 'Content-Type': 'application/json' } : {}),
+        ...(seoPolicy.mutation && req.method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
         ...(callerOrgId ? { 'X-Quoxseo-Org': callerOrgId } : {}),
       },
-      ...(seoPolicy.mutation ? { body: JSON.stringify(req.body ?? {}) } : {}),
+      ...(seoPolicy.mutation && req.method === 'POST' ? { body: JSON.stringify(req.body ?? {}) } : {}),
       signal: AbortSignal.timeout(30000),
     });
     if (seoPolicy.mutation && resp.ok) {
       // Witness the governed write. emitProxyAEE records field NAMES plus the
       // ids we pass; origin is the identity of what was registered, not a
       // secret, so it belongs in the trail.
-      emitProxyAEE(req, callerOrgId, { intent: 'quox.seo.site_register', ids: { origin: req.body?.origin } }, { to: 'service.quoxseo', corrPrefix: 'QUOXSEO' });
+      const removing = seoPolicy.intent === 'quox.seo.site_remove';
+      emitProxyAEE(req, callerOrgId, removing
+        ? { intent: 'quox.seo.site_remove', ids: { site_id: req.path.split('/').filter(Boolean).pop() } }
+        : { intent: 'quox.seo.site_register', ids: { origin: req.body?.origin } }, { to: 'service.quoxseo', corrPrefix: 'QUOXSEO' });
     }
     res.status(resp.status);
     const contentType = resp.headers.get('content-type') || '';
@@ -16389,6 +16681,9 @@ wss.on('connection', (ws, req) => {
 // CLI credential file path — created by `claude /login` via web terminal
 const RUNTIME_HOME_DIR = resolveRuntimeHomeDir();
 const RUNTIME_USER = resolveRuntimeUser(RUNTIME_HOME_DIR);
+// D2: where spawned Claude CLIs (HOME = RUNTIME_HOME_DIR) write session files, so GDPR
+// purge and the TTL prune can delete the ones an org / user owns.
+require('./lib/chatSessionHistory.js').setCliProjectsDir(path.join(RUNTIME_HOME_DIR, '.claude', 'projects'));
 const CLI_CREDS_PATH = path.join(RUNTIME_HOME_DIR, '.claude', '.credentials.json');
 
 // DEVSUITE-DEVMODE 5c: codex is the second loop backend and gets the same
@@ -16522,27 +16817,15 @@ let _cliRefreshCache = { result: null, checkedAt: 0 };
 const CLI_REFRESH_CACHE_MS = 120000; // 2 min
 const CLI_HEALTH_CACHE_MS = 60000; // 1 min
 
+// QUOXON-PARITY: retry a transient probe failure once; cache a failure for seconds, not a minute (lib/claudeCliHealth.js).
+const _claudeCliHealth = require('./lib/claudeCliHealth.js').createClaudeCliHealth({
+  execFile,
+  env: () => ({ ...process.env, HOME: RUNTIME_HOME_DIR, USER: RUNTIME_USER }),
+});
 async function getClaudeCliHealth({ timeoutMs = 15000, cacheMs = CLI_HEALTH_CACHE_MS, force = false } = {}) {
-  const now = Date.now();
-  if (!force && global._cliHealthCache && (now - global._cliHealthCache.ts) < cacheMs) {
-    return global._cliHealthCache;
-  }
-
-  const cliEnv = { ...process.env, HOME: RUNTIME_HOME_DIR, USER: RUNTIME_USER };
-  const cliHealthy = await new Promise((resolve) => {
-    execFile('claude', ['--version'], { encoding: 'utf8', timeout: timeoutMs, env: cliEnv }, (err, stdout) => {
-      if (err) {
-        console.error('[Claude] CLI health check failed:', err.message);
-        resolve({ ok: false, error: err.message, ts: Date.now() });
-      } else {
-        console.log('[Claude] CLI version:', stdout.trim());
-        resolve({ ok: true, version: stdout.trim(), ts: Date.now() });
-      }
-    });
-  });
-
-  global._cliHealthCache = cliHealthy;
-  return cliHealthy;
+  const r = await _claudeCliHealth.get({ timeoutMs, cacheMs, force });
+  global._cliHealthCache = r;
+  return r;
 }
 
 async function getTerminalCapabilityStatus() {
@@ -18227,9 +18510,14 @@ app.get('/install', (req, res) => {
     // Name the resolved path and the knob that controls it.
     console.error(`[install] install script missing at ${scriptPath} (QuoxAgent_ROOT=${QuoxAgent_ROOT})`);
     res.status(503).type('text/plain').send(
-      `QuoxAgent install script not available: ${scriptPath} does not exist on the collector.\n` +
-      `This is a deployment misconfiguration: set QuoxAgent_ROOT (currently "${QuoxAgent_ROOT}") ` +
-      `to the quoxagent checkout and make sure it is mounted into the collector container.\n`
+      // Z2H-3c: this body is piped into `sudo bash` by the documented one-liner, so it is a shell stub that
+      // only explains and fails; the operator detail rides along as comments.
+      `#!/bin/sh\n` +
+      `# QuoxAgent install script not available: ${scriptPath} does not exist on the collector.\n` +
+      `# This is a deployment misconfiguration: set QuoxAgent_ROOT (currently "${QuoxAgent_ROOT}") ` +
+      `to the quoxagent checkout and make sure it is mounted into the collector container.\n` +
+      `echo "Quox: this server cannot enrol hosts yet: its QuoxAgent installer is not available (HTTP 503). Nothing was installed." >&2\n` +
+      `exit 1\n`
     );
   }
 });
@@ -18486,7 +18774,7 @@ app.post('/aee/store', requireAeeAuth(), (req, res) => {
   // leave an attach-token AEE envelope carrying an unrewritten/forgeable
   // `from`. Every other caller's behavior is unchanged (still gated behind
   // AEE_ENDPOINT_AUTH_ENFORCE).
-  if (req.user?.attach_lease_id || (isAeeAuthEnforced() && req.aeeAuthenticated)) {
+  if (req.pluginAuth || req.user?.attach_lease_id || (isAeeAuthEnforced() && req.aeeAuthenticated)) {
     envelope.from = deriveAeeFrom(req, envelope.from);
   }
 
@@ -18560,7 +18848,7 @@ app.post('/aee/sync', requireAeeAuth(), async (req, res) => {
 
   // QUOXIDENTITY P4 §1: unconditional for attach-lease callers, mirroring
   // /aee/store above; every other caller's behavior is unchanged.
-  const enforceAeeAuth = !!req.user?.attach_lease_id || (isAeeAuthEnforced() && req.aeeAuthenticated);
+  const enforceAeeAuth = !!req.pluginAuth || !!req.user?.attach_lease_id || (isAeeAuthEnforced() && req.aeeAuthenticated);
 
   // QUOXTRUST D3 (2026-09-29): ONE storability predicate governs insert, witness
   // AND VOLT-ingest. Previously the witness loop re-checked only `id`, so a
@@ -21418,27 +21706,14 @@ app.get('/traces', (req, res) => {
       return res.json({ traces: [], total: 0, offset, limit });
     }
 
-    // Build WHERE clause for traceable conversations (those with AOCL run events)
-    let whereSql = "e.intent LIKE 'aocl.run.%' AND e.org_id = ?";
-    const whereParams = [orgId];
-    if (after) { whereSql += ' AND e.ts >= ?'; whereParams.push(after); }
-    if (before) { whereSql += ' AND e.ts < ?'; whereParams.push(before); }
+    // quox#806: index-searchable range + no unbounded COUNT (see lib/traceListQuery.js).
+    const wantCount = req.query.count === '1' || req.query.count === 'true';
+    const q = buildTraceListQuery({ orgId, after, before, sort, limit, offset, withCount: wantCount });
+    const totalTraces = q.countSql ? aeeDb.prepare(q.countSql).get(...q.countParams).total : null;
 
-    // Get total count first (for correct pagination)
-    const countSql = `SELECT COUNT(DISTINCT e.corr) as total FROM envelopes e WHERE ${whereSql}`;
-    const { total: totalTraces } = aeeDb.prepare(countSql).get(...whereParams);
-
-    // Get paginated conversation IDs
-    let listSql = `
-      SELECT DISTINCT e.corr, MIN(e.ts) as first_ts, MAX(e.ts) as last_ts
-      FROM envelopes e WHERE ${whereSql}
-      GROUP BY e.corr
-    `;
-    if (sort === 'oldest') listSql += ' ORDER BY first_ts ASC';
-    else listSql += ' ORDER BY last_ts DESC';
-    listSql += ' LIMIT ? OFFSET ?';
-
-    const corrRows = aeeDb.prepare(listSql).all(...whereParams, limit, offset);
+    const probeRows = aeeDb.prepare(q.listSql).all(...q.listParams);
+    const has_more = probeRows.length > limit;
+    const corrRows = has_more ? probeRows.slice(0, limit) : probeRows;
 
     // Batch-load all envelopes for these conversations in one query
     // (fixes N+1 query problem — 1 query instead of N)
@@ -21471,7 +21746,7 @@ app.get('/traces', (req, res) => {
     if (sort === 'slowest') traces.sort((a, b) => b.duration_ms - a.duration_ms);
     else if (sort === 'fastest') traces.sort((a, b) => a.duration_ms - b.duration_ms);
 
-    res.json({ traces, total: totalTraces, offset, limit });
+    res.json({ traces, total: totalTraces, has_more, offset, limit });
   } catch (err) {
     console.error('[TRV] List traces error:', err);
     res.status(500).json({ error: 'Failed to list traces' });
@@ -22626,6 +22901,8 @@ function requireWebhookAdmin(req, res) {
 function isCliRequest(req) {
   return req.headers['x-quox-client'] === 'cli';
 }
+
+const NO_PROVIDER_MESSAGE = 'No AI is connected yet. Pick one: /connect openai (recommended), /connect anthropic, /connect ollama <host>, or /connect for the list. In the dashboard: Settings → Core Integrations.';
 
 const CLAUDE_NOT_CONNECTED_MESSAGE = {
   dashboard: 'Claude is not connected. Open the Terminal to sign in with your Claude subscription. An API key in Settings → Core Integrations also works if you prefer.',
@@ -24024,17 +24301,143 @@ function chatStreamPostBody(req, res, next) {
   next();
 }
 app.get('/chat/stream', chatStreamLegacyGet, chatStreamHandler);
+// CLI-QUOXON Q2: running-turn registry + interrupt/steer routes (docs/QUOXON_EVENTS_v1.md).
+const conversationTurnRegistry = require('./lib/turnRegistry.js').createTurnRegistry();
+require('./lib/turnControlRoutes.js').registerTurnControlRoutes(app, { registry: conversationTurnRegistry, auth: requireAuth,
+  // Steer text is model input: same AOCL L3 pre-LLM policy gate as the original prompt.
+  policyCheck: async (entry, text) => {
+    if (!entry.aoclCtx) return { ok: false, reason: 'no_policy_context' };
+    const { runPreLLMPipeline } = require('./lib/aoclPipeline.js');
+    const probe = { ...entry.aoclCtx, query: text, queryLength: text.length, layerResults: {}, status: undefined, deniedAtLayer: undefined };
+    const pre = await runPreLLMPipeline(voltDb, probe);
+    return pre.proceed ? { ok: true } : { ok: false, reason: pre.errorCode || 'denied' };
+  },
+  // Evidence for an accepted steer: length and hash only, never the text.
+  onSteerAccepted: (entry, text) => {
+    storeAuditEnvelope({
+      type: 'event', from: `human.${entry.userId}`, to: 'audit.system', intent: 'quox.chat.steer',
+      corr: entry.corr || entry.turnId, org_id: entry.orgId,
+      payload: { turn_id: entry.turnId, length: text.length, sha256: require('crypto').createHash('sha256').update(text).digest('hex') },
+    });
+  },
+});
+// QUOXON C5 (docs/QUOXON_EVENTS_v1_1.md): per-turn event log (seq, replay cursor) + reattach routes.
+// Sealed at rest; memory-only for an org with transcript storage disabled.
+const conversationTurnEventLog = require('./lib/turnEventLog.js').createTurnEventLog({
+  db: require('./lib/turnEventLog.js').openTurnEventDb(),
+  persistAllowed: (orgId) => { try { return !platformSettingsStore.getEffectiveFlag(voltDb, orgId, 'DISABLE_TRANSCRIPT_STORAGE').on; } catch { return false; } },
+});
+require('./lib/turnEventRoutes.js').registerTurnEventRoutes(app, { registry: conversationTurnRegistry, eventLog: conversationTurnEventLog, auth: requireAuth, corsOrigin: (req) => getSecureCorsOrigin(req) });
+require('./lib/conversationListRoutes.js').registerConversationListRoutes(app, { store: require('./lib/chatSessionHistory.js'), auth: requireAuth });
+// /compact + /context for the quox client (lib/conversationCompactRoutes.js).
+// The summary is a governed model call: the org's resolved provider plan (same as
+// /chat/complete: policy plan, failover chain, allow_oauth lane), the third-party AI
+// consent check for the provider actually used, and an AEE envelope per outcome
+// (lengths, hashes, tokens; never content).
+async function summariseForCompaction({ orgId, userId, conversationId, userAccessToken, system, prompt, maxTokens }) {
+  const claudeKeys = await getClaudeKeys(orgId);
+  const providerKeys = await getProviderKeys(orgId);
+  const anthropicApiKey = claudeKeys.anthropic_api_key || process.env.ANTHROPIC_API_KEY || '';
+  let cliOAuthToken = resolveCliOAuthToken(claudeKeys);
+  let candidates;
+  let plan = null;
+  try {
+    const resolved = await resolveCollectorPolicyPlan({ orgId, userAccessToken, anthropicApiKey, cliOAuthToken, providerKeys });
+    plan = resolved.plan;
+    candidates = buildCandidateChain({ plan: resolved.plan, policyContext: resolved.policyContext });
+  } catch (planErr) {
+    console.warn(`[compact] Policy resolution failed, defaulting to anthropic: ${planErr.message}`);
+    candidates = [{ provider: 'anthropic', model: configResolver.getSetting(orgId || null, 'ANTHROPIC_MODEL').value || 'claude-sonnet-5', source: 'default' }];
+  }
+  if (plan?.credentialConstraints?.allowOAuth === false) cliOAuthToken = '';
+  const supported = candidates.filter((c) => c.provider === 'anthropic' || c.provider === 'openai');
+  if (!supported.length) { const e = new Error('no_provider'); e.code = 'no_provider'; throw e; }
+  const corr = `COMPACT_${String(conversationId).slice(0, 60)}`;
+  const attempt = async (candidate) => {
+    // Consent for the provider this attempt would send the conversation to. Fail closed.
+    const gate = await require('./lib/streamConsentGate.js').checkStreamConsent(
+      { provider: candidate.provider, userId: userId || null, orgId: orgId || null, accessToken: userAccessToken }, { verifyAIConsent });
+    if (!gate.ok) {
+      const e = new Error('ai_consent_required');
+      e.code = 'ai_consent_required'; e.reason = gate.event.reason; e.retryable = gate.event.retryable; e.status = 403;
+      throw e;
+    }
+    if (candidate.provider === 'anthropic') {
+      if (anthropicApiKey) return attemptAnthropicApiInvoke({ candidate, agentId: 'compact', context: system, task: prompt, apiKey: anthropicApiKey, maxTokens });
+      if (cliOAuthToken) return attemptAnthropicCliInvoke({ candidate, agentId: 'compact', context: system, task: prompt, cliOAuthToken });
+      const e = new Error('anthropic_auth_unavailable'); e.status = 401; throw e;
+    }
+    const openaiKey = providerKeys?.openai_api_key || process.env.OPENAI_API_KEY;
+    if (!openaiKey) { const e = new Error('openai_auth_unavailable'); e.status = 401; throw e; }
+    return attemptOpenAiInvoke({ candidate, agentId: 'compact', context: system, task: prompt, apiKey: openaiKey, userId, orgId, userAccessToken });
+  };
+  let outcome;
+  try {
+    outcome = await executeWithFailover({
+      candidates: supported, attempt,
+      onHop: (hop, next) => {
+        try {
+          storeAuditEnvelope({ type: 'event', from: 'system.llm-router', to: 'audit.system', intent: 'quox.llm.failover', corr, org_id: orgId,
+            payload: { path: 'compact', from_provider: hop.provider, from_model: hop.model, to_provider: next?.provider || null, to_model: next?.model || null, error: hop.error, status: hop.status } });
+        } catch { /* audit never breaks failover */ }
+      },
+    });
+  } catch (err) {
+    // A consent refusal on any hop is the answer the user needs, not a generic failure.
+    const hops = Array.isArray(err.hops) ? err.hops : [];
+    if (err.code === 'ai_consent_required' || hops.some((h) => h && h.error === 'ai_consent_required')) {
+      const e = new Error('ai_consent_required'); e.code = 'ai_consent_required'; e.reason = err.reason || 'no_consent'; throw e;
+    }
+    throw err;
+  }
+  const { result, candidate } = outcome;
+  return { text: result.result, provider: candidate.provider, model: result.usage?.model || candidate.model, usage: result.usage || null };
+}
+require('./lib/conversationCompactRoutes.js').registerConversationCompactRoutes(app, {
+  store: require('./lib/chatSessionHistory.js'), auth: requireAuth, summarise: summariseForCompaction,
+  isBusy: ({ orgId, userId, conversationId }) => conversationTurnRegistry.hasRunning({ orgId, userId, conversationId }),
+  transcriptsDisabled: (orgId) => { try { return platformSettingsStore.getEffectiveFlag(voltDb, orgId, 'DISABLE_TRANSCRIPT_STORAGE').on; } catch { return false; } },
+  onCompacted: (who, out) => storeAuditEnvelope({
+    type: 'event', from: `human.${who.userId}`, to: 'audit.system', intent: 'quox.chat.compact',
+    corr: `COMPACT_${String(who.conversationId).slice(0, 60)}`, org_id: who.orgId,
+    payload: { conversation_id: who.conversationId, provider: out.provider, model: out.model, input_tokens: out.usage?.input_tokens, output_tokens: out.usage?.output_tokens,
+      tokens_before: out.tokens_before, tokens_after: out.tokens_after, turns_compacted: out.turns_compacted, preserved_lines_appended: out.preserved_lines_appended,
+      cli_sessions_reset: out.cli_sessions_reset, summary_length: out.summary.length, summary_sha256: require('crypto').createHash('sha256').update(out.summary).digest('hex') },
+  }),
+  onFailed: (who, err) => storeAuditEnvelope({
+    type: 'error', from: `human.${who.userId}`, to: 'audit.system', intent: 'quox.chat.compact.failed',
+    corr: `COMPACT_${String(who.conversationId).slice(0, 60)}`, org_id: who.orgId,
+    payload: { conversation_id: who.conversationId, error: err && err.code ? String(err.code) : 'model_call_failed', hops: Array.isArray(err?.hops) ? err.hops.length : 0 },
+  }),
+});
 async function chatStreamHandler(req, res) {
   const sp = req._streamParams || {};
-  const { query_id, prompt, assistant, session_id, context } = sp;
-
-  if (!query_id || !prompt) {
+  if (!sp.query_id || !sp.prompt) {
     return res.status(400).json({ error: 'Missing query_id or prompt' });
   }
+  // CLI-QUOXON Q2 (docs/QUOXON_EVENTS_v1.md): one turn, one id. The client may
+  // send turn_id (ULID or QXN_ shape) and conversation_id (alias of session_id).
+  const turnStreamLib = require('./lib/turnStream.js');
+  const turnIdentity = turnStreamLib.ensureConversationId(turnStreamLib.resolveTurnIdentity(sp));
+  if (!turnIdentity.ok) {
+    return res.status(400).json({ error: turnIdentity.error, message: 'turn_id must be 8-80 chars of [A-Za-z0-9_-]' });
+  }
+  if (turnIdentity.explicit) sp.turn_id = turnIdentity.turnId; else delete sp.turn_id;
+  if (!sp.session_id && turnIdentity.conversationId && !turnIdentity.generated) sp.session_id = turnIdentity.conversationId;
+  const { query_id, prompt, assistant, session_id, context } = sp;
+  // R1 #12-#14: ONE conversation id for this exchange (client-supplied or server-generated),
+  // used for history, done.session_id, turn.started/finished and the registry.
+  const historySessionId = session_id || turnIdentity.conversationId;
+  // corr for envelopes this turn emits: the explicit turn_id when the client sent
+  // one (a stable per-turn id), else the legacy per-route choice (dashboard unchanged).
+  const corrFor = (legacyCorr) => (turnIdentity.explicit ? turnIdentity.turnId : legacyCorr);
 
   const decodedPrompt = prompt;
   // Never log prompt text (quox#782): length only.
   console.log(`[SSE] Stream started for query ${query_id} (prompt ${decodedPrompt.length} chars)`);
+  // QUOXON A2: per-turn latency breakdown, logged as one [TurnTiming] line at dispatch
+  // and one when the CLI returns. Times are ms from this line (the turn's start here).
+  const _turnTiming = { t0: Date.now(), connector_tools_ms: null, connector_cache: null };
 
   // AOCL-FULL-2: run identity + policy gates BEFORE sending any SSE frames.
   // If L1/L3 reject, we return a plain HTTP error (not a partial SSE response)
@@ -24052,8 +24455,12 @@ async function chatStreamHandler(req, res) {
     // require in scope, so the AOCL pre-LLM policy gate threw ReferenceError
     // instead of running. Same local-require pattern as the working site
     // further down this file.
-    const { runPreLLMPipeline } = require('./lib/aoclPipeline.js');
-    const preflight = await runPreLLMPipeline(voltDb, setup.aoclCtx);
+    // QUOXON-AOCL: a streamed turn runs the same L0-L10 layer modules as stack mode
+    // (lib/streamAoclTurn.js): L0-L4 here, fail-closed, before any SSE frame; L5-L10 when
+    // the stream ends (runPost in the res.end hook below). Was L1+L3 only (2 of 11).
+    const { createStreamAoclTurn } = require('./lib/streamAoclTurn.js');
+    const aoclTurn = createStreamAoclTurn({ aoclCtx: setup.aoclCtx, voltDb });
+    const preflight = await aoclTurn.runPre();
     if (!preflight.proceed) {
       return res.status(preflight.httpStatus || 403).json({
         error: preflight.errorCode,
@@ -24064,6 +24471,7 @@ async function chatStreamHandler(req, res) {
     }
     // Stash aoclCtx on req for downstream use during the stream.
     req._aoclCtx = setup.aoclCtx;
+    req._aoclTurn = aoclTurn;
 
     // quox#503: kill switch / DEFCON chokepoint backstop. /chat/stream is a
     // genuinely separate entry point from handleCollectorChat (does not
@@ -24079,10 +24487,16 @@ async function chatStreamHandler(req, res) {
       from: `human.${setup.aoclCtx?.userId || 'unknown'}`,
     });
     if (safetyDenial) return res.status(423).json(safetyDenial);
+    // R1 #42: a finished turn_id is never re-run (retried submissions must not repeat effects).
+    if (turnIdentity.explicit && conversationTurnRegistry.wasUsed({ orgId: setup.aoclCtx?.orgId, turnId: turnIdentity.turnId })) {
+      return res.status(409).json({ error: 'turn_id_reused', message: 'This turn_id already ran; use a new turn_id.' });
+    }
   } catch (gateErr) {
     console.error('[SSE] pre-stream AOCL check failed:', gateErr.message);
-    // Fail open for now so a bug in the gate doesn't break all streaming —
-    // but log the failure so it's visible in collector logs.
+    // Fail CLOSED: if the AOCL preflight or the kill-switch/DEFCON gate
+    // throws, no policy or kill-switch check ran, so the stream must not
+    // proceed. Plain HTTP 503 before any SSE frame; clients may retry.
+    return res.status(503).json({ error: 'governance_check_unavailable', retryable: true });
   }
 
   // Set SSE headers with secure CORS
@@ -24105,26 +24519,76 @@ async function chatStreamHandler(req, res) {
     }
   }, 15000);
 
-  // Send initial connected event
-  res.write(`data: ${JSON.stringify({ type: 'connected', query_id })}\n\n`);
+  // QUOXON C5 (events v1.1): every event of the turn gets a `seq` and goes into the
+  // per-turn event log; a durable client (durable:true / X-Quox-Durable) can drop
+  // and reattach with GET /api/v1/conversations/:cid/turns/:tid/events?after=<seq>.
+  const turnSink = require('./lib/durableTurn.js').createTurnSink({
+    res, eventLog: conversationTurnEventLog, turnId: turnIdentity.turnId, conversationId: turnIdentity.conversationId,
+    durable: require('./lib/durableTurn.js').wantsDurable(sp, req),
+  });
 
   // Cleanup on close. quox#547: the abort controller carries the disconnect
   // into the provider tool loop so an abandoned turn stops burning provider
   // tokens and never starts another tool.
+  // R1 #50: on the RESPONSE, not the request (whose 'close' already fired once
+  // express.json consumed the body, so a disconnect was never seen here).
+  // C5: a durable, registered turn DETACHES instead (keeps running; interrupt stops it).
   let aborted = false;
   const clientAbort = new AbortController();
-  req.on('close', () => {
+  require('./lib/streamDisconnect.js').onClientDisconnect(res, () => {
+    clearInterval(pingInterval);
+    if (turnSink.onDisconnect() === 'detached') {
+      console.log(`[SSE] Client detached from durable turn ${turnIdentity.turnId}; the turn keeps running`);
+      return;
+    }
     console.log(`[SSE] Client disconnected for query ${query_id}`);
     aborted = true;
     clientAbort.abort();
-    clearInterval(pingInterval);
   });
 
-  // Helper to send SSE events
-  const send = (data) => {
-    if (!res.writableEnded && !aborted) {
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-    }
+  // Helper to send SSE events. Existing event types pass through unchanged
+  // (plus their `seq`); turnStream adds text.delta, turn.started and turn.finished alongside them.
+  // After a disconnect the sink stops writing frames but keeps logging, so a replay ends honestly.
+  const writeRaw = (data) => turnSink.write(data);
+
+  // Send initial connected event
+  writeRaw({ type: 'connected', query_id });
+  const turnStream = require('./lib/turnStream.js').createTurnStream({
+    turnId: turnIdentity.turnId,
+    conversationId: turnIdentity.conversationId,
+    write: writeRaw,
+  });
+  const send = (data) => turnStream.send(data); // QUOXON-AOCL: late-bound so the done/chunk observer below sees every event
+  // The turn's own success envelope, plus a `trace` event naming it (only if it was really stored).
+  const storeAuditEnvelopeTraced = (envelope) => {
+    const stored = storeAuditEnvelope(envelope);
+    try {
+      const t = require('./lib/conversationTrace.js').traceForStoredEnvelope(stored, { intent: envelope.intent, corr: envelope.corr });
+      if (t) turnStream.trace(t);
+    } catch { /* trace is best-effort */ }
+    return stored;
+  };
+  // Several branches call res.end() directly and return; turn.finished must
+  // precede the close on each of them, so hook the close once here.
+  const resEnd = res.end.bind(res);
+  let turnEntry = null; // set once the authenticated org/user are known (see turn registration)
+  // QUOXON-AOCL: post-stream layers (L5-L10, L8 on the final text) run once when the
+  // turn closes, then ONE aocl.summary event (and an aocl.verdict when L8 flags the
+  // already-delivered text) goes out BEFORE turn.finished. turn.finished and the close
+  // wait for it (bounded), so a direct turnStream.finish() before res.end is deferred.
+  const aoclHook = require('./lib/streamAoclTurn.js').attachStreamAoclClose({ turnStream, aoclTurn: req._aoclTurn || null });
+  let resEnding = false;
+  res.end = (...endArgs) => {
+    if (resEnding) return res;
+    resEnding = true;
+    const closeAll = () => {
+      try { turnStream.finish(); } catch { /* never block close */ }
+      try { conversationTurnRegistry.finish(turnEntry); } catch { /* never block close */ }
+      try { turnSink.finish(); } catch { /* never block close */ }
+      return resEnd(...endArgs);
+    };
+    if (aoclHook.pending()) { aoclHook.close().finally(closeAll); return res; }
+    return closeAll();
   };
 
   try {
@@ -24175,7 +24639,7 @@ async function chatStreamHandler(req, res) {
       routingDecision.reasoning.push(`Session resume enabled: ${validSessionId.slice(0, 8)}...`);
       routingDecision.features.session_resume = true;
     } else if (session_id) {
-      routingDecision.reasoning.push(`Session ID invalid (not UUID): ${session_id.slice(0, 20)}... - starting fresh`);
+      routingDecision.reasoning.push(require('./lib/cliSessionContinuity.js').describeSessionRouting(session_id, isValidUUID).note);
     }
 
     // Log routing decision
@@ -24228,16 +24692,36 @@ async function chatStreamHandler(req, res) {
     const chatSessionHistory = require('./lib/chatSessionHistory.js');
     const streamHistory = (() => {
       const h = chatSessionHistory.hydrateHistory({
-        orgId: streamJwtOrgId, userId: streamJwtUserId, sessionId: session_id, clientHistory: [],
+        orgId: streamJwtOrgId, userId: streamJwtUserId, sessionId: historySessionId, clientHistory: [],
       });
-      if (h.hydrated > 0) console.log(`[Chat] hydrated ${h.hydrated} turn(s) for session ${String(session_id).slice(0, 8)}`);
+      if (h.hydrated > 0) console.log(`[Chat] hydrated ${h.hydrated} turn(s) for session ${String(historySessionId).slice(0, 8)}`);
       return h.history;
     })();
-    const recordStreamTurn = (reply) => {
+    // QUOXON-REVIEW (finding 148f215f2879): approvals the user resolved for THIS conversation since
+    // the last stored reply (e.g. a hat switch rejected between turns) reach the model as an
+    // authoritative note, so it never calls a decided approval "still waiting". A failed inbox read
+    // is logged and adds nothing; it is never reported to the model as "nothing changed".
+    if (streamHistory.length > 0 && streamJwtOrgId && historySessionId) {
       try {
-        if (!streamJwtOrgId || !session_id || !reply) return;
+        const oobMod = require('./lib/outOfBandApprovals.js');
+        const oob = await oobMod.buildOutOfBandApprovalNote({
+          orgId: streamJwtOrgId,
+          conversationId: historySessionId,
+          sinceMs: chatSessionHistory.lastTurnAt({ orgId: streamJwtOrgId, userId: streamJwtUserId, sessionId: historySessionId }),
+          fetchItems: oobMod.internalInboxFetcher({ authBase: AUTH_SERVICE_URL, serviceKey: process.env.INTERNAL_SERVICE_KEY || '' }),
+        });
+        if (oob.error) console.warn(`[Chat] out-of-band approvals unavailable (note skipped): ${oob.error}`);
+        if (oob.note) parsedContext = oobMod.withOutOfBandNote(parsedContext, oob.note);
+      } catch (oobErr) {
+        console.warn(`[Chat] out-of-band approvals failed (note skipped): ${oobErr && oobErr.message}`);
+      }
+    }
+    const recordStreamTurn = (reply, activity) => {
+      try {
+        if (!streamJwtOrgId || !historySessionId || !reply) return;
         if (platformSettingsStore.getEffectiveFlag(voltDb, streamJwtOrgId, 'DISABLE_TRANSCRIPT_STORAGE').on) return;
-        chatSessionHistory.recordExchange({ orgId: streamJwtOrgId, userId: streamJwtUserId, sessionId: session_id, prompt: decodedPrompt, reply });
+        const steers = (turnEntry && turnEntry.appliedSteers) || [];
+        chatSessionHistory.recordExchange({ orgId: streamJwtOrgId, userId: streamJwtUserId, sessionId: historySessionId, prompt: steers.length ? decodedPrompt + steers.map((t) => `\n\n[steer] ${t}`).join('') : decodedPrompt, reply, turnId: turnIdentity.turnId, agentId: assistant || 'cipher', provider: effectiveProvider, model: effectiveModel, ...(activity ? { activity } : {}) });
       } catch (histErr) {
         console.warn(`[Chat] history record skipped (non-fatal): ${histErr && histErr.message}`);
       }
@@ -24268,9 +24752,17 @@ async function chatStreamHandler(req, res) {
         providerKeys,
       });
       collectorPlan = resolved.plan;
+      // CLI-QUOX B3: an explicit `ollama` request (not in the static model catalogue, so the
+      // shared resolver would swap it for the system default) keeps the policy's say.
+      collectorPlan = require('./lib/ollamaProvider.js').applyOllamaSelection(collectorPlan, { requestedProvider: streamRequestedProvider, requestedModel: streamRequestedModel });
+      // CLI-QUOX B5: an explicit OpenAI-compatible preset (openrouter, huggingface, groq, together,
+      // lmstudio, vllm, custom), or a policy lane naming one, runs as openai_compatible + preset.
+      collectorPlan = require('./lib/openaiCompatProvider.js').applyCompatSelection(collectorPlan, { requestedProvider: streamRequestedProvider, requestedModel: streamRequestedModel });
+      // QUOXON-MODEL: models are discovered live, so an explicit claude-* / gpt-* request is kept, not reset to the catalogue default.
+      collectorPlan = require('./lib/modelDiscovery.js').applyDiscoveredSelection(collectorPlan, { requestedProvider: streamRequestedProvider, requestedModel: streamRequestedModel });
     } catch (planErr) {
       console.warn(`[SSE] Policy resolution failed for ${assistant || 'quox'}, defaulting to anthropic: ${planErr.message}`);
-      collectorPlan = { provider: 'anthropic', model: streamRequestedModel || 'claude-sonnet-4-6', credentialConstraints: { allowOAuth: true } };
+      collectorPlan = { provider: 'anthropic', model: streamRequestedModel || 'claude-sonnet-5-5', credentialConstraints: { allowOAuth: true } };
     }
 
     // LLM-CHOICE Phase 1 parity: a lane with allow_oauth=false must never
@@ -24280,8 +24772,87 @@ async function chatStreamHandler(req, res) {
       cliOAuthToken = '';
     }
 
+    // CLI-QUOX B3: an ollama plan resolves its connection (the org's default `ollama` vault
+    // credential, the egress rule, the model) before turn.started, so turn.started names the
+    // model and host that will actually run. Any failure is an honest error, never a fallback.
+    let ollamaTurn = null;
+    if (collectorPlan.provider === 'ollama') {
+      ollamaTurn = await require('./lib/ollamaProvider.js').prepareOllamaTurn(
+        { orgId: streamOrgId, requestedModel: collectorPlan.model },
+        { resolveCredentials, resolveCredentialById },
+      );
+      if (!ollamaTurn.ok) {
+        send({ type: 'error', error: ollamaTurn.message, provider: 'ollama', reason: ollamaTurn.error });
+        clearInterval(pingInterval);
+        if (!res.writableEnded) res.end();
+        return;
+      }
+      collectorPlan = { ...collectorPlan, model: ollamaTurn.model };
+    }
+
+    // CLI-QUOX B5: an openai_compatible plan resolves its preset's connection (the org's default
+    // vault credential of that preset's type, the egress rule, the model) before turn.started.
+    // Any failure is an honest error naming the preset, never a fallback to another provider.
+    let compatTurn = null;
+    if (collectorPlan.provider === 'openai_compatible') {
+      compatTurn = await require('./lib/openaiCompatProvider.js').prepareCompatTurn(
+        { orgId: streamOrgId, preset: collectorPlan.preset, requestedModel: collectorPlan.model },
+        { resolveCredentials, resolveCredentialById },
+      );
+      if (!compatTurn.ok) {
+        send({ type: 'error', error: compatTurn.message, provider: collectorPlan.preset || 'openai_compatible', reason: compatTurn.error });
+        clearInterval(pingInterval);
+        if (!res.writableEnded) res.end();
+        return;
+      }
+      collectorPlan = { ...collectorPlan, model: compatTurn.model };
+    }
+
     const effectiveProvider = collectorPlan.provider || 'anthropic';
-    const effectiveModel = collectorPlan.model || 'claude-sonnet-4-6';
+    let effectiveModel = collectorPlan.model || 'claude-sonnet-5-5';
+    // QUOXON-MODEL: a Claude family alias (opus, sonnet, ...) on the API path becomes the newest discovered id of that family;
+    // the subscription path passes the alias to the CLI, which resolves it itself.
+    if (effectiveProvider === 'anthropic' && anthropicApiKey) effectiveModel = await require('./lib/modelDiscovery.js').resolveClaudeAlias(effectiveModel, { orgId: streamOrgId, apiKey: anthropicApiKey });
+
+    // Register the running turn (org + user from the verified claim) so
+    // /api/v1/conversations/:cid/turns/:tid/{interrupt,steer} can find it. No
+    // authenticated org/user (service callers) means nothing to scope control by.
+    if (streamJwtOrgId && streamJwtUserId) {
+      try {
+        turnEntry = conversationTurnRegistry.register({
+          orgId: streamJwtOrgId, userId: streamJwtUserId,
+          conversationId: turnIdentity.conversationId, turnId: turnIdentity.turnId,
+        });
+      } catch (regErr) {
+        send({ type: 'error', error: regErr.message === 'turn_in_use' ? 'This turn_id is already running.' : regErr.message === 'turn_id_reused' ? 'turn_id_reused: this turn_id already ran.' : regErr.message === 'turn_capacity' ? 'Too many active turns; try again shortly.' : 'Could not register turn.' });
+        clearInterval(pingInterval);
+        if (!res.writableEnded) res.end();
+        return;
+      }
+    }
+    if (turnEntry) { turnEntry.aoclCtx = req._aoclCtx || null; turnEntry.corr = corrFor(validSessionId || query_id); turnSink.bind(turnEntry); }
+    // hat: the stream route resolves no QuoxHat for the turn today (null, not guessed).
+    // B5: a preset reports its own name (openrouter, groq, ...) and the host it was called at.
+    // QUOXON-PARITY: `auth` says which Claude path runs ('api_key' = the governed Anthropic API
+    // loop, 'subscription' = the Claude CLI on the server's subscription login), and on the
+    // subscription path the model is the one the CLI is told to run (claudeCliDispatcher passes
+    // --model), not an unpassed label default.
+    const anthropicAuth = effectiveProvider === 'anthropic' ? (anthropicApiKey ? 'api_key' : (cliOAuthToken ? 'subscription' : null)) : null;
+    const startedModel = anthropicAuth === 'subscription'
+      ? require('./lib/claudeCliDispatcher.js').resolveCliModel({ orgId: streamJwtOrgId || null, requestedModel: collectorPlan.model || null })
+      : effectiveModel;
+    turnStream.started({ agent: assistant || 'cipher', provider: effectiveProvider, model: startedModel, hat: null, ...(anthropicAuth ? { auth: anthropicAuth } : {}), ...(ollamaTurn ? { endpoint: ollamaTurn.host } : {}), ...(compatTurn ? { provider: compatTurn.preset, endpoint: compatTurn.host } : {}) });
+    // QUOXON-PROOF (quox#822): the same facts, keyed by this org + conversation, so the
+    // llm_status tool answers "which model is this turn on" from the turn, never a guess.
+    require('./lib/turnModelContext.js').recordTurnModel({
+      orgId: streamJwtOrgId || streamOrgId || null, conversationId: historySessionId,
+      agent: assistant || 'cipher', provider: compatTurn ? compatTurn.preset : effectiveProvider, model: startedModel,
+      endpoint: compatTurn ? compatTurn.host : (ollamaTurn ? ollamaTurn.host : null), auth: anthropicAuth,
+    });
+    // The pre-LLM AOCL layers ran before the stream opened (L0-L4, lib/streamAoclTurn.js);
+    // these per-layer traces (L1, L3) are kept for existing clients. The whole turn's
+    // 11 layers arrive as ONE aocl.summary event just before turn.finished.
+    for (const t of require('./lib/conversationTrace.js').aoclPreLlmTraces(req._aoclCtx)) turnStream.trace(t);
 
     const startTime = Date.now();
 
@@ -24296,9 +24867,172 @@ async function chatStreamHandler(req, res) {
     // Claude CLI branch, where calls run through `quox tool exec` (Tools API +
     // QuoxHat authz). The OpenAI stream loop still sends no tools.
     const streamAgentCtx = await require('./lib/streamAgentContext.js').resolveStreamAgentContext(
-      { agent: assistant || 'cipher', orgId: streamJwtOrgId || null, withTools: effectiveProvider === 'anthropic' && !anthropicApiKey && !!cliOAuthToken },
-      { getAssistantPrompt, getToolsWithConnectors },
+      { agent: assistant || 'cipher', orgId: streamJwtOrgId || null, withTools: (effectiveProvider === 'anthropic' && !anthropicApiKey && !!cliOAuthToken), },
+      { getAssistantPrompt, getToolsWithConnectors: async (a, o) => {
+        const meta = {};
+        const t = Date.now();
+        try { return await getToolsWithConnectors(a, o, { meta }); } finally {
+          _turnTiming.connector_tools_ms = Date.now() - t;
+          _turnTiming.connector_cache = meta.cache || 'error';
+        }
+      } },
     );
+    // CLI-QUOX B1/B2: ONE governed stream turn for every provider loop (OpenAI, Anthropic
+    // API key). The caller resolves the tool set and runs its provider loop in runLoop;
+    // this owns the turn: direct-request mark, steer support, VOLT run, text.delta /
+    // approval hooks, history with tool activity, done / interrupted / cancelled / error
+    // frames, the stored exchange and the envelopes. runLoop gets { govHooks, govHistory,
+    // toolVoltRunId, loopSignal, loopControl }.
+    // D3: per-turn tool offer + prompt profile for the API loops (lib/turnToolSelection.js).
+    const streamPromptProfile = (provider) => require('./lib/streamAgentContext.js').resolvePromptProfile(sp.prompt_profile, provider);
+    const buildStreamToolOffer = ({ provider, pool, history }) => require('./lib/turnToolSelection.js').buildStreamToolOffer({ provider, pool, history, message: decodedPrompt, agent: assistant || 'cipher', trace: turnStream.trace, turnId: turnIdentity.turnId, profile: streamPromptProfile(provider) });
+    const runGovernedStreamTurn = async ({ provider, pathLabel, streamConvId, runLoop, normalizeUsage, mapError }) => {
+      const { createToolEventBridge } = require('./lib/conversationToolEvents.js');
+      const dashboardOrigin = process.env.QUOX_PUBLIC_URL
+        || (req.headers.host ? `${String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim()}://${String(req.headers['x-forwarded-host'] || req.headers.host).split(',')[0].trim()}` : '');
+      if (streamHumanLogin && streamJwtUserId && streamJwtOrgId) {
+        require('./lib/directRequestRegistry.js').markDirectRequest(streamConvId, { userId: streamJwtUserId, orgId: streamJwtOrgId });
+      }
+      if (turnEntry) turnEntry.supportsSteer = true;
+      const toolVoltRunId = voltEmitter.startRun(streamConvId, { org_id: streamJwtOrgId, user_id: streamJwtUserId, agent_id: assistant || 'cipher', path: pathLabel });
+      // CLI-QUOX B1: model text streams as text.delta per provider fragment; approvals
+      // resolved during the turn stream approval.resolved + the result (R1 #30).
+      const govHooks = require('./lib/openaiStreamTurn.js').createGovernedStreamHooks({
+        turnStream,
+        bridge: createToolEventBridge({ emit: turnStream.emit, trace: turnStream.trace, corr: turnIdentity.explicit ? turnIdentity.turnId : streamConvId, dashboardOrigin }),
+        orgId: streamJwtOrgId || null,
+      });
+      // The legacy chunk: written raw once text already streamed (a mirror would repeat
+      // the whole answer as another text.delta); otherwise sent and mirrored once.
+      let govMirrored = 0;
+      const govSendChunk = (t) => {
+        if (!t) return;
+        if (govHooks.deltaCount() > 0) writeRaw({ type: 'chunk', content: t });
+        else { send({ type: 'chunk', content: t }); govMirrored = 1; }
+      };
+      const govDeltaCount = () => govHooks.deltaCount() + govMirrored;
+      // G0 port: previous turns' text AND their tool activity (bounded), not text alone.
+      const govHistory = chatSessionHistory.hydrateHistory({
+        orgId: streamJwtOrgId, userId: streamJwtUserId, sessionId: historySessionId, clientHistory: [], includeActivity: true,
+      }).history;
+      try {
+        const govResult = await runLoop({
+          govHooks, govHistory, toolVoltRunId,
+          loopSignal: turnEntry ? AbortSignal.any([clientAbort.signal, turnEntry.signal]) : clientAbort.signal,
+          // interrupt/steer: checked at model and tool-dispatch boundaries only.
+          loopControl: {
+            shouldStop: () => (aborted ? 'client_disconnect' : (turnEntry && turnEntry.interrupted ? 'interrupted' : null)),
+            drainSteer: () => (turnEntry ? conversationTurnRegistry.drainSteer(turnEntry) : []),
+            hasSteer: () => (turnEntry ? conversationTurnRegistry.hasSteer(turnEntry) : false),
+            drainNotes: govHooks.drainNotes,
+          },
+        });
+        voltEmitter.completeRun(toolVoltRunId);
+        // R1 #36: every round's text (intermediate answers included), as streamed.
+        let toolText = govResult.fullText || govResult.content || '';
+        // Real provider tokens summed over the rounds (QUOX-MODEL for OpenAI, B2 for Anthropic);
+        // the caller's normalizeUsage shapes them (OpenAI: cost only from an exact pricing row).
+        const govUsage = typeof normalizeUsage === 'function' ? normalizeUsage(govResult.usage) : (govResult.usage || null);
+        if (govUsage) turnStream.setUsage(govUsage);
+        if (govResult.stopped) {
+          const stoppedElapsed = Date.now() - startTime;
+          if (govResult.stopped === 'interrupted') {
+            turnStream.markInterrupted();
+            govSendChunk(toolText);
+            send({ type: 'done', full_response: toolText, session_id: validSessionId || turnIdentity.conversationId, cost_usd: (govUsage && govUsage.cost_usd) || 0, ...(govUsage ? { usage: govUsage } : {}), agent_used: assistant || agentLower, elapsed_ms: stoppedElapsed, chunk_count: toolText ? 1 : 0, delta_count: govDeltaCount(), interrupted: true, tools_used: govResult.toolsUsed, routing: { ...routingDecision, completed_at: new Date().toISOString(), elapsed_ms: stoppedElapsed } });
+          }
+          storeAuditEnvelope({
+            type: 'event', from: `agent.${assistant || 'unknown'}`, to: 'audit.system',
+            intent: govResult.stopped === 'interrupted' ? 'quox.chat.stream_interrupted' : 'quox.chat.stream_cancelled',
+            corr: corrFor(validSessionId || query_id || `STREAM_${Date.now()}`),
+            payload: { agent: assistant, path: pathLabel, elapsed_ms: stoppedElapsed, provider, model: effectiveModel, reason: govResult.stopped, tools_used: govResult.toolsUsed, delta_count: govDeltaCount() }
+          });
+          govHooks.close();
+          clearInterval(pingInterval);
+          if (!res.writableEnded) res.end();
+          return;
+        }
+        // #817 / #818: the answer is checked against what tools actually returned this turn
+        // (plus the user's words, context and history). Invented commands, unverified ids,
+        // counts and ages are named in a note the reader sees; nothing is silently kept.
+        let groundingFlags = null;
+        try {
+          const histText = (Array.isArray(govHistory) ? govHistory : []).map((m) => (m && typeof m.content === 'string' ? m.content : JSON.stringify((m && m.content) || ''))).join('\n');
+          const groundingEvidence = [govHooks.evidenceText(), decodedPrompt, parsedContext.quox_context || '', parsedContext.memory_context || '', histText].join('\n');
+          const gr = require('./lib/answerGrounding.js').checkAnswerGrounding({ answer: toolText, evidence: groundingEvidence });
+          if (gr.note) {
+            groundingFlags = { commands: gr.flags.commands.map((c) => c.mention), ids: gr.flags.ids, quantities: gr.flags.quantities };
+            if (govHooks.deltaCount() > 0) govHooks.onTextDelta(gr.note);
+            toolText += gr.note;
+            try { turnStream.trace({ protocol: 'volt', label: 'grounding: unverified claims flagged', ref: null, detail: JSON.stringify(groundingFlags).slice(0, 500) }); } catch { /* telemetry only */ }
+            console.log(`[Grounding] turn=${turnIdentity.turnId || '-'} agent=${assistant || '-'} provider=${provider} flags=${JSON.stringify(groundingFlags).slice(0, 300)}`);
+          }
+        } catch (gErr) {
+          console.warn(`[Grounding] check failed, answer unchanged: ${gErr && gErr.message}`);
+        }
+        govSendChunk(toolText);
+        const toolElapsed = Date.now() - startTime;
+        send({
+          type: 'done',
+          full_response: toolText,
+          session_id: validSessionId || turnIdentity.conversationId,
+          cost_usd: (govUsage && govUsage.cost_usd) || 0,
+          agent_used: assistant || agentLower,
+          elapsed_ms: toolElapsed,
+          chunk_count: toolText ? 1 : 0,
+          delta_count: govDeltaCount(),
+          tools_used: govResult.toolsUsed,
+          ...(govUsage ? { usage: govUsage } : {}),
+          routing: { ...routingDecision, completed_at: new Date().toISOString(), elapsed_ms: toolElapsed },
+        });
+        recordStreamTurn(toolText, govHooks.activitySummary());
+        storeAuditEnvelopeTraced({
+          type: 'event',
+          from: `agent.${assistant || 'unknown'}`,
+          to: 'audit.system',
+          intent: 'quox.chat.stream_success',
+          corr: corrFor(validSessionId || query_id || `STREAM_${Date.now()}`),
+          payload: { agent: assistant, path: pathLabel, elapsed_ms: toolElapsed, response_length: toolText.length, provider, model: effectiveModel, tools_used: govResult.toolsUsed, streamed: govHooks.deltaCount() > 0, delta_count: govDeltaCount(), ...(groundingFlags ? { grounding_flags: groundingFlags } : {}) }
+        });
+      } catch (toolLoopErr) {
+        if (toolLoopErr && (toolLoopErr.name === 'AbortError' || toolLoopErr.code === 'client_aborted') && (aborted || (turnEntry && turnEntry.interrupted))) {
+          // The in-flight provider call was cancelled by disconnect or interrupt: not a failure.
+          voltEmitter.completeRun(toolVoltRunId);
+          if (!aborted) {
+            turnStream.markInterrupted();
+            const abortElapsed = Date.now() - startTime;
+            send({ type: 'done', full_response: govHooks.streamedText(), session_id: validSessionId || turnIdentity.conversationId, cost_usd: 0, agent_used: assistant || agentLower, elapsed_ms: abortElapsed, chunk_count: 0, delta_count: govDeltaCount(), interrupted: true, routing: { ...routingDecision, completed_at: new Date().toISOString(), elapsed_ms: abortElapsed } });
+          }
+          storeAuditEnvelope({
+            type: 'event', from: `agent.${assistant || 'unknown'}`, to: 'audit.system',
+            intent: aborted ? 'quox.chat.stream_cancelled' : 'quox.chat.stream_interrupted',
+            corr: corrFor(validSessionId || query_id || `STREAM_${Date.now()}`),
+            payload: { agent: assistant, path: pathLabel, provider, model: effectiveModel, reason: aborted ? 'client_disconnect' : 'interrupted', delta_count: govDeltaCount() }
+          });
+          govHooks.close();
+          clearInterval(pingInterval);
+          if (!res.writableEnded) res.end();
+          return;
+        }
+        voltEmitter.failRun(toolVoltRunId, toolLoopErr);
+        console.error(`[SSE] ${provider} governed tool loop error for ${query_id}:`, toolLoopErr.message);
+        const loopErrText = (typeof mapError === 'function' && mapError(toolLoopErr)) || sanitizeErrorForUser(toolLoopErr.message);
+        send({ type: 'error', error: loopErrText });
+        storeAuditEnvelope({
+          type: 'error',
+          from: `agent.${assistant || 'unknown'}`,
+          to: 'audit.system',
+          intent: 'quox.chat.stream_error',
+          corr: corrFor(query_id || `ERR_${Date.now()}`),
+          payload: { error: loopErrText, query_id, path: pathLabel }
+        });
+      }
+      govHooks.close();
+      clearInterval(pingInterval);
+      if (!res.writableEnded) res.end();
+      return;
+    };
+
     if (effectiveProvider !== 'anthropic') {
       send({
         type: 'thinking',
@@ -24323,33 +25057,110 @@ async function chatStreamHandler(req, res) {
           return;
         }
 
+        // CLI-QUOXON Q2 (gh #793): when the agent has tools for this turn, run the SAME
+        // governed loop POST /chat uses for OpenAI (executeOpenAICompatibleToolLoop ->
+        // executeTool: RBAC, QuoxHat membership gate, GOV-4 policy, approval gate), and
+        // surface tool.* / approval.requested on the stream. The tool set is resolved
+        // exactly as /chat resolves it (hat manifest, fail-closed, provider cap).
+        // No tools for this turn: the original streaming loop below, unchanged.
+        const streamConvId = session_id || turnIdentity.conversationId;
+        // v1 note: governed tools are OPT-IN (explicit turn_id and tools !== false). Without it
+        // this branch is the original tool-free streaming path, byte for byte.
+        const governedToolsOptIn = require('./lib/turnStream.js').wantsGovernedTools(sp, turnIdentity);
+        // Third-party model: per-org opt-in consent, same check as POST /chat, BEFORE any
+        // prompt or tool output is sent. No consent = error event, nothing sent.
+        // Scoped to the opt-in path only: the non-opt-in stream path is unchanged from origin/main.
+        const consentGate = governedToolsOptIn ? await require('./lib/streamConsentGate.js').checkStreamConsent(
+          { provider: 'openai', userId: streamJwtUserId || null, orgId: streamJwtOrgId || null, accessToken: streamUserAccessToken },
+          { verifyAIConsent },
+        ) : { ok: true };
+        if (!consentGate.ok) {
+          send(consentGate.event);
+          clearInterval(pingInterval);
+          if (!res.writableEnded) res.end();
+          return;
+        }
+        const streamToolSet = governedToolsOptIn ? await require('./lib/streamToolSet.js').resolveStreamToolSet({
+          agent: assistant || 'cipher', orgId: streamJwtOrgId || null, userId: streamJwtUserId || null,
+          conversationId: streamConvId, prompt: decodedPrompt, provider: 'openai', providerKeys, offerBounded: true, // QUOXON-PARITY: the D3 offer bounds the model's view; the pool is the grant
+        }, {
+          getToolsWithConnectors, resolveHatForTurn, buildTurnManifest, buildFailClosedManifest,
+          applySmartToolCap, checkManifestCompat: require('./lib/providerCompat').checkManifestCompat,
+          storeAuditEnvelope, searchToolsFn: toolIndexSearchTools, embedText: quoxchatRoutes.embedText,
+        }) : { tools: [], hatManifest: null };
+        // The prompt follows the RESOLVED tool set: no tools means the "do not claim actions" note.
+        const openaiSystemPrompt = governedToolsOptIn
+          ? require('./lib/streamAgentContext.js').applyToolHonesty(nonAnthropicSystemPrompt, streamToolSet.tools.length)
+          : nonAnthropicSystemPrompt;
+        if (streamToolSet.tools.length > 0) {
+          await runGovernedStreamTurn({
+            provider: 'openai', pathLabel: 'stream_openai_tools', streamConvId,
+            // QUOX-MODEL: real provider tokens (all rounds); cost only from an exact pricing row.
+            normalizeUsage: (u) => require('./lib/openaiTurnUsage.js').openaiTurnUsage(u, effectiveModel || 'gpt-5.4'),
+            runLoop: ({ govHooks, govHistory, toolVoltRunId, loopSignal, loopControl }) => executeOpenAICompatibleToolLoop(req, {
+              apiUrl: 'https://api.openai.com/v1/chat/completions',
+              headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+              model: effectiveModel || 'gpt-5.4',
+              systemPrompt: require('./lib/streamAgentContext.js').buildTurnSystemPrompt({ agent: assistant || 'cipher', fullPrompt: nonAnthropicSystemPrompt, profile: streamPromptProfile('openai'), toolCount: streamToolSet.tools.length }),
+              toolOffer: buildStreamToolOffer({ provider: 'openai', pool: streamToolSet.tools, history: govHistory }),
+              userMessage: nonAnthropicUserMsg,
+              selected_agent: assistant || 'cipher',
+              session_id: streamConvId,
+              effectiveSessionId: streamConvId,
+              agentTools: streamToolSet.tools,
+              providerLabel: 'OpenAI',
+              userId: streamJwtUserId || undefined,
+              orgId: streamJwtOrgId || undefined,
+              userAccessToken: streamUserAccessToken,
+              memory_context: parsedContext.memory_context || '',
+              quox_context: parsedContext.quox_context || '',
+              conversation_history: govHistory,
+              voltRunId: toolVoltRunId,
+              hatManifest: streamToolSet.hatManifest || undefined,
+              evidenceCorrId: turnIdentity.explicit ? turnIdentity.turnId : undefined,
+              onEvent: govHooks.onEvent,
+              onTextDelta: govHooks.onTextDelta,
+              signal: loopSignal,
+              control: loopControl,
+            }, openaiToolLoopDeps()),
+          });
+          return;
+        }
+
         let openaiChunkCount = 0;
+        let openaiPartialText = '';
         const onOpenAIStream = (ev) => {
           if (ev?.type === 'text' && ev.delta) {
             send({ type: 'chunk', content: ev.delta });
+            openaiPartialText += ev.delta;
             openaiChunkCount++;
           }
         };
+        // Interrupt aborts the provider stream like a disconnect would (no tool can be in flight here).
+        const openaiLoopSignal = turnEntry ? AbortSignal.any([clientAbort.signal, turnEntry.signal]) : clientAbort.signal;
 
         try {
           const loopResult = await quoxchatRoutes.runOpenAIToolLoop({
             apiKey: openaiKey,
             model: effectiveModel || 'gpt-5.4',
-            systemPrompt: nonAnthropicSystemPrompt,
+            systemPrompt: openaiSystemPrompt,
             messages: [...streamHistory, { role: 'user', content: nonAnthropicUserMsg }],
-            tools: [],
+            tools: [], // no governed tools this turn (see streamToolSet above)
             widget: null,
             context: {},
             onStream: onOpenAIStream,
-            signal: clientAbort.signal,
+            signal: openaiLoopSignal,
           });
 
           const openaiElapsed = Date.now() - startTime;
+          const openaiUsage = require('./lib/openaiTurnUsage.js').openaiTurnUsage(loopResult, effectiveModel || 'gpt-5.4');
+          turnStream.setUsage(openaiUsage);
           send({
             type: 'done',
             full_response: loopResult.text,
-            session_id: validSessionId || 'stream-' + Date.now(),
-            cost_usd: 0,
+            session_id: validSessionId || turnIdentity.conversationId,
+            cost_usd: openaiUsage.cost_usd || 0,
+            usage: openaiUsage,
             agent_used: assistant || agentLower,
             elapsed_ms: openaiElapsed,
             chunk_count: openaiChunkCount,
@@ -24363,12 +25174,12 @@ async function chatStreamHandler(req, res) {
           recordStreamTurn(loopResult.text);
           console.log(`[SSE] OpenAI stream complete for ${query_id}: ${openaiChunkCount} chunks in ${openaiElapsed}ms`);
 
-          storeAuditEnvelope({
+          storeAuditEnvelopeTraced({
             type: 'event',
             from: `agent.${assistant || 'unknown'}`,
             to: 'audit.system',
             intent: 'quox.chat.stream_success',
-            corr: validSessionId || query_id || `STREAM_${Date.now()}`,
+            corr: corrFor(validSessionId || query_id || `STREAM_${Date.now()}`),
             payload: { agent: assistant, path: 'stream_openai', elapsed_ms: openaiElapsed, chunk_count: openaiChunkCount, response_length: loopResult.text.length, provider: 'openai', model: effectiveModel }
           });
         } catch (openaiErr) {
@@ -24376,7 +25187,17 @@ async function chatStreamHandler(req, res) {
           // That is a cancellation, not a failure — no error frame (nobody is
           // listening), and the envelope records the termination so an AEE
           // query on the correlation id proves what the server did.
-          if (clientAbort.signal.aborted && (openaiErr.name === 'AbortError' || openaiErr.code === 'client_aborted')) {
+          if (turnEntry && turnEntry.interrupted && !clientAbort.signal.aborted && (openaiErr.name === 'AbortError' || openaiErr.code === 'client_aborted')) {
+            // User interrupt (not a failure): partial text stands, status interrupted.
+            turnStream.markInterrupted();
+            const intElapsed = Date.now() - startTime;
+            send({ type: 'done', full_response: openaiPartialText, session_id: validSessionId || turnIdentity.conversationId, cost_usd: 0, agent_used: assistant || agentLower, elapsed_ms: intElapsed, chunk_count: openaiChunkCount, interrupted: true, routing: { ...routingDecision, completed_at: new Date().toISOString(), elapsed_ms: intElapsed } });
+            storeAuditEnvelope({
+              type: 'event', from: `agent.${assistant || 'unknown'}`, to: 'audit.system',
+              intent: 'quox.chat.stream_interrupted', corr: corrFor(validSessionId || query_id || `STREAM_${Date.now()}`),
+              payload: { agent: assistant, path: 'stream_openai', elapsed_ms: intElapsed, chunk_count: openaiChunkCount, provider: 'openai', model: effectiveModel, reason: 'interrupted' }
+            });
+          } else if (clientAbort.signal.aborted && (openaiErr.name === 'AbortError' || openaiErr.code === 'client_aborted')) {
             const cancelElapsed = Date.now() - startTime;
             console.log(`[SSE] OpenAI stream cancelled by client disconnect for ${query_id} after ${cancelElapsed}ms, ${openaiChunkCount} chunks delivered`);
             storeAuditEnvelope({
@@ -24384,7 +25205,7 @@ async function chatStreamHandler(req, res) {
               from: `agent.${assistant || 'unknown'}`,
               to: 'audit.system',
               intent: 'quox.chat.stream_cancelled',
-              corr: validSessionId || query_id || `STREAM_${Date.now()}`,
+              corr: corrFor(validSessionId || query_id || `STREAM_${Date.now()}`),
               payload: { agent: assistant, path: 'stream_openai', elapsed_ms: cancelElapsed, chunk_count: openaiChunkCount, provider: 'openai', model: effectiveModel, reason: 'client_disconnect' }
             });
           } else {
@@ -24395,7 +25216,7 @@ async function chatStreamHandler(req, res) {
               from: `agent.${assistant || 'unknown'}`,
               to: 'audit.system',
               intent: 'quox.chat.stream_error',
-              corr: query_id || `ERR_${Date.now()}`,
+              corr: corrFor(query_id || `ERR_${Date.now()}`),
               payload: { error: sanitizeErrorForUser(openaiErr.message), query_id, path: 'stream_openai' }
             });
           }
@@ -24403,6 +25224,145 @@ async function chatStreamHandler(req, res) {
 
         clearInterval(pingInterval);
         if (!res.writableEnded) res.end();
+        return;
+      }
+
+      // CLI-QUOX B3: Ollama runs the SAME governed turn and loop as OpenAI (B1), against the
+      // org's own Ollama base URL, with no key. Tools ride along on the opt-in path, capped for
+      // small local context windows; a model that refuses tools gets one dim note and ONE retry
+      // without them. Self-hosted (the operator's own model server), so the third-party consent
+      // gate does not apply, same as provider 'local'.
+      if (effectiveProvider === 'ollama') {
+        const ollamaLib = require('./lib/ollamaProvider.js');
+        const streamConvId = session_id || turnIdentity.conversationId;
+        const governedToolsOptIn = require('./lib/turnStream.js').wantsGovernedTools(sp, turnIdentity);
+        const ollamaToolSet = governedToolsOptIn ? await require('./lib/streamToolSet.js').resolveStreamToolSet({
+          agent: assistant || 'cipher', orgId: streamJwtOrgId || null, userId: streamJwtUserId || null,
+          conversationId: streamConvId, prompt: decodedPrompt, provider: 'ollama', providerKeys, toolCap: ollamaLib.OLLAMA_TOOL_CAP, offerBounded: true,
+        }, {
+          getToolsWithConnectors, resolveHatForTurn, buildTurnManifest, buildFailClosedManifest,
+          applySmartToolCap, checkManifestCompat: require('./lib/providerCompat').checkManifestCompat,
+          storeAuditEnvelope, searchToolsFn: toolIndexSearchTools, embedText: quoxchatRoutes.embedText,
+        }) : { tools: [], hatManifest: null };
+        const ollamaProfile = streamPromptProfile('ollama');
+        const ollamaModelTurn = ollamaTurn.modelTurn || null;
+        const ollamaPromptFor = (n) => (governedToolsOptIn
+          ? require('./lib/streamAgentContext.js').buildTurnSystemPrompt({ agent: assistant || 'cipher', fullPrompt: nonAnthropicSystemPrompt, profile: ollamaProfile, toolCount: n })
+          : (ollamaProfile === 'compact' ? (require('./lib/entityAssistantLoader.js').getAssistantPromptCompact(String(assistant || 'cipher').toLowerCase()) || nonAnthropicSystemPrompt) : nonAnthropicSystemPrompt));
+        await runGovernedStreamTurn({
+          provider: 'ollama', pathLabel: ollamaToolSet.tools.length > 0 ? 'stream_ollama_tools' : 'stream_ollama', streamConvId,
+          normalizeUsage: ollamaLib.ollamaTurnUsage,
+          // Z2H-3B: a timed-out local model gets a plain message, not "This operation was aborted".
+          mapError: (e) => (ollamaLib.isOllamaTimeoutError(e) ? ollamaLib.ollamaTimeoutMessage({ model: effectiveModel, host: ollamaTurn.host, timeoutMs: ollamaLib.ollamaTurnTimeoutMs() }) : null),
+          runLoop: ({ govHooks, govHistory, toolVoltRunId, loopSignal, loopControl }) => ollamaLib.runWithToolsFallback(
+            (tools) => executeOpenAICompatibleToolLoop(req, {
+              apiUrl: ollamaTurn.chatUrl,
+              headers: { 'Content-Type': 'application/json' },
+              // QUOXON: per-model options (qwen3 thinking off, keep_alive, gpt-oss effort); lib/modelOptions.js.
+              extraBody: ollamaModelTurn && Object.keys(ollamaModelTurn.body).length ? ollamaModelTurn.body : undefined,
+              onReasoning: (text, meta) => { const ev = require('./lib/modelOptions.js').reasoningStageEvent(text, { agent: assistant || 'CIPHER', round: meta && meta.round }); if (ev) send(ev); },
+              model: effectiveModel,
+              systemPrompt: require('./lib/modelOptions.js').withSystemSuffix(ollamaPromptFor(tools.length), ollamaModelTurn && ollamaModelTurn.systemSuffix),
+              toolOffer: tools.length > 0 ? buildStreamToolOffer({ provider: 'ollama', pool: tools, history: govHistory }) : undefined,
+              userMessage: nonAnthropicUserMsg,
+              selected_agent: assistant || 'cipher',
+              session_id: streamConvId,
+              effectiveSessionId: streamConvId,
+              agentTools: tools,
+              providerLabel: 'Ollama',
+              timeoutMs: ollamaLib.ollamaTurnTimeoutMs(),
+              userId: streamJwtUserId || undefined,
+              orgId: streamJwtOrgId || undefined,
+              userAccessToken: streamUserAccessToken,
+              memory_context: parsedContext.memory_context || '',
+              quox_context: parsedContext.quox_context || '',
+              conversation_history: govHistory,
+              voltRunId: toolVoltRunId,
+              hatManifest: ollamaToolSet.hatManifest || undefined,
+              evidenceCorrId: turnIdentity.explicit ? turnIdentity.turnId : undefined,
+              onEvent: govHooks.onEvent,
+              onTextDelta: govHooks.onTextDelta,
+              signal: loopSignal,
+              control: loopControl,
+            }, { ...openaiToolLoopDeps(), fetchFn: ollamaLib.noRedirectFetch(fetchWithTimeout) }),
+            ollamaModelTurn && ollamaModelTurn.toolsOff ? [] : ollamaToolSet.tools,
+            { model: effectiveModel, onNote: (m) => send({ type: 'thinking', agent: assistant || 'CIPHER', message: m, stage: 'provider_note' }) },
+          ),
+        });
+        return;
+      }
+
+      // CLI-QUOX B5: every OpenAI-compatible preset runs the SAME governed turn and loop as
+      // OpenAI (B1) and Ollama (B3), against the preset's base URL with the org's key.
+      // Hosted presets put a third party in the data path, so the per-org AI data sharing
+      // consent is checked ALWAYS (not only on the tools opt-in path) before anything is sent.
+      // A model that refuses tools gets one dim note and ONE retry without them.
+      if (effectiveProvider === 'openai_compatible') {
+        const compatLib = require('./lib/openaiCompatProvider.js');
+        const streamConvId = session_id || turnIdentity.conversationId;
+        if (compatTurn.hosted) {
+          const compatConsent = await require('./lib/streamConsentGate.js').checkStreamConsent(
+            { provider: compatTurn.consentId, userId: streamJwtUserId || null, orgId: streamJwtOrgId || null, accessToken: streamUserAccessToken },
+            { verifyAIConsent },
+          );
+          if (!compatConsent.ok) {
+            send({ ...compatConsent.event, provider: compatTurn.preset });
+            clearInterval(pingInterval);
+            if (!res.writableEnded) res.end();
+            return;
+          }
+        }
+        const governedToolsOptIn = require('./lib/turnStream.js').wantsGovernedTools(sp, turnIdentity);
+        const compatToolSet = governedToolsOptIn ? await require('./lib/streamToolSet.js').resolveStreamToolSet({
+          agent: assistant || 'cipher', orgId: streamJwtOrgId || null, userId: streamJwtUserId || null,
+          conversationId: streamConvId, prompt: decodedPrompt, provider: 'openai_compatible', providerKeys, toolCap: compatLib.toolCapFor(compatTurn.preset), offerBounded: true,
+        }, {
+          getToolsWithConnectors, resolveHatForTurn, buildTurnManifest, buildFailClosedManifest,
+          applySmartToolCap, checkManifestCompat: require('./lib/providerCompat').checkManifestCompat,
+          storeAuditEnvelope, searchToolsFn: toolIndexSearchTools, embedText: quoxchatRoutes.embedText,
+        }) : { tools: [], hatManifest: null };
+        // D3: same offer/profile rules as Ollama; self-hosted presets (lmstudio, vllm) default to compact.
+        const compatProfile = streamPromptProfile(compatTurn.preset);
+        const compatPromptFor = (n) => (governedToolsOptIn
+          ? require('./lib/streamAgentContext.js').buildTurnSystemPrompt({ agent: assistant || 'cipher', fullPrompt: nonAnthropicSystemPrompt, profile: compatProfile, toolCount: n })
+          : (compatProfile === 'compact' ? (require('./lib/entityAssistantLoader.js').getAssistantPromptCompact(String(assistant || 'cipher').toLowerCase()) || nonAnthropicSystemPrompt) : nonAnthropicSystemPrompt));
+        await runGovernedStreamTurn({
+          provider: compatTurn.preset, pathLabel: compatToolSet.tools.length > 0 ? `stream_${compatTurn.preset}_tools` : `stream_${compatTurn.preset}`, streamConvId,
+          normalizeUsage: compatLib.compatTurnUsage(compatTurn.preset),
+          runLoop: ({ govHooks, govHistory, toolVoltRunId, loopSignal, loopControl }) => compatLib.runWithToolsFallback(
+            (tools) => executeOpenAICompatibleToolLoop(req, {
+              apiUrl: compatTurn.chatUrl,
+              headers: compatTurn.headers,
+              extraBody: compatTurn.extraBody,
+              onReasoning: (text, meta) => { const ev = require('./lib/modelOptions.js').reasoningStageEvent(text, { agent: assistant || 'CIPHER', round: meta && meta.round }); if (ev) send(ev); },
+              model: effectiveModel,
+              // QUOXON: LM Studio qwen3 gets the documented /no_think soft switch (lib/modelOptions.js).
+              systemPrompt: require('./lib/modelOptions.js').withSystemSuffix(compatPromptFor(tools.length), compatTurn.modelTurn && compatTurn.modelTurn.systemSuffix),
+              toolOffer: tools.length > 0 ? buildStreamToolOffer({ provider: compatTurn.preset, pool: tools, history: govHistory }) : undefined,
+              userMessage: nonAnthropicUserMsg,
+              selected_agent: assistant || 'cipher',
+              session_id: streamConvId,
+              effectiveSessionId: streamConvId,
+              agentTools: tools,
+              providerLabel: compatTurn.label,
+              userId: streamJwtUserId || undefined,
+              orgId: streamJwtOrgId || undefined,
+              userAccessToken: streamUserAccessToken,
+              memory_context: parsedContext.memory_context || '',
+              quox_context: parsedContext.quox_context || '',
+              conversation_history: govHistory,
+              voltRunId: toolVoltRunId,
+              hatManifest: compatToolSet.hatManifest || undefined,
+              evidenceCorrId: turnIdentity.explicit ? turnIdentity.turnId : undefined,
+              onEvent: govHooks.onEvent,
+              onTextDelta: govHooks.onTextDelta,
+              signal: loopSignal,
+              control: loopControl,
+            }, { ...openaiToolLoopDeps(), fetchFn: compatLib.noRedirectFetch(fetchWithTimeout) }),
+            compatTurn.modelTurn && compatTurn.modelTurn.toolsOff ? [] : compatToolSet.tools,
+            { model: effectiveModel, preset: compatTurn.preset, onNote: (m) => send({ type: 'thinking', agent: assistant || 'CIPHER', message: m, stage: 'provider_note' }) },
+          ),
+        });
         return;
       }
 
@@ -24420,7 +25380,13 @@ async function chatStreamHandler(req, res) {
     }
 
     if (!anthropicApiKey && !cliOAuthToken) {
-      send({ type: 'error', error: isCliRequest(req) ? CLAUDE_NOT_CONNECTED_MESSAGE.cli : CLAUDE_NOT_CONNECTED_MESSAGE.dashboard });
+      // Z2H-R2B: nobody asked for Claude and nothing is connected: say so provider-neutrally (code no_provider),
+      // never "Claude is not connected". An explicit anthropic request keeps the Claude-specific message.
+      if (streamRequestedProvider !== 'anthropic') {
+        send({ type: 'error', code: 'no_provider', error: NO_PROVIDER_MESSAGE });
+      } else {
+        send({ type: 'error', code: 'anthropic_not_connected', error: isCliRequest(req) ? CLAUDE_NOT_CONNECTED_MESSAGE.cli : CLAUDE_NOT_CONNECTED_MESSAGE.dashboard });
+      }
       clearInterval(pingInterval);
       res.end();
       return;
@@ -24447,34 +25413,130 @@ async function chatStreamHandler(req, res) {
       timezone: typeof sp.timezone === 'string' ? sp.timezone.slice(0, 64) : undefined,
     });
 
-    // GAP-1: no direct Anthropic API key — dispatch through the SAME CLI/MCP
-    // path /chat/claude uses for OAuth users (dispatchClaudeCli, reused as-is
-    // — not reimplemented). The Claude CLI's `--output-format json` mode has
-    // no incremental output to forward, so this path is one-shot: the full
-    // response is emitted as a single SSE `chunk` followed by `done`, rather
-    // than erroring "not configured". True token-level streaming for OAuth
-    // would require a deeper CLI protocol change (out of scope here).
+    // GAP-1: no direct Anthropic API key: dispatch through the SAME CLI/MCP
+    // path /chat/claude uses for OAuth users (dispatchClaudeCli, reused as-is).
+    // Legacy callers get one SSE `chunk` with the full response, then `done`.
+    // CLI-QUOX: a v1 caller (explicit turn_id) on the CLI-tools path also gets
+    // progressive text.delta + tool/approval events from stream-json.
     if (!anthropicApiKey && cliOAuthToken) {
       const { dispatchClaudeCli } = require('./lib/claudeCliDispatcher.js');
       const { spawn } = require('child_process');
       const fsMod = require('fs');
 
-      const effectiveStreamSessionId = validSessionId || session_id || `SESSION_${generateEnvelopeId()}`;
+      const effectiveStreamSessionId = validSessionId || session_id || turnIdentity.conversationId;
       // APPROVAL-SPAM 4/6 on the stream route too (`quox chat` default): a verified
       // human typing here IS the authorization for safe actions this turn asks for.
       if (streamHumanLogin && streamJwtUserId && streamJwtOrgId) {
         require('./lib/directRequestRegistry.js').markDirectRequest(effectiveStreamSessionId, { userId: streamJwtUserId, orgId: streamJwtOrgId });
       }
 
-      const cliResult = await dispatchClaudeCli({
+      // CLI-QUOX (docs/QUOXON_EVENTS_v1.md): progressive text.delta, tool.started/finished and
+      // approval.requested from the CLI's stream-json output. Opt-in exactly like the OpenAI
+      // tool path (explicit turn_id); the dashboard and quox-voice send none and keep the
+      // one-shot chunk/done shape byte for byte. Steer: this path cannot take mid-turn input,
+      // so turnEntry.supportsSteer stays false and the steer route answers 409
+      // steer_unsupported while the turn runs. Interrupt still kills the process.
+      const cliStreamOptIn = turnIdentity.explicit === true;
+      const cliBridge = cliStreamOptIn ? require('./lib/cliStreamJson.js').createCliTurnBridge({
+        emit: turnStream.emit, trace: turnStream.trace, corr: turnIdentity.turnId,
+        dashboardOrigin: process.env.QUOX_PUBLIC_URL
+          || (req.headers.host ? `${String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim()}://${String(req.headers['x-forwarded-host'] || req.headers.host).split(',')[0].trim()}` : ''),
+      }) : null;
+      const { scrubEmDashes: scrubCliEmDashes } = require('./lib/quoxchatVoiceScrub.js');
+
+      // CLI-QUOX continuity (quox client only): one Claude CLI session per
+      // (org, user, conversation, agent), resumed with --resume next turn so the
+      // model keeps its real prior turns (tool calls and results), instead of a
+      // rebuilt Recent Conversation block. Keyed on the VERIFIED JWT org + user.
+      const cliAgentId = assistant || 'quox';
+      const cliContinuityLib = require('./lib/cliSessionContinuity.js');
+      const cliTranscriptsOff = () => {
+        try { return !!(streamJwtOrgId && platformSettingsStore.getEffectiveFlag(voltDb, streamJwtOrgId, 'DISABLE_TRANSCRIPT_STORAGE').on); } catch { return true; }
+      };
+      // D5 resume safety: one turn per (org, user, conversation, agent) may resume and
+      // record the CLI session. A second concurrent turn waits briefly, then runs fresh
+      // with the history block and records nothing (lib/cliConversationLock.js says why).
+      const cliLockKey = { orgId: streamJwtOrgId, userId: streamJwtUserId, conversationId: historySessionId, agentId: cliAgentId };
+      const cliLock = cliStreamOptIn
+        ? await require('./lib/cliConversationLock.js').acquire(cliLockKey)
+        : { acquired: false, reason: 'not_opted_in', release() {} };
+      const cliOwnsContinuity = cliLock.acquired === true;
+      try {
+      let cliContinuityPlan = null;
+      try {
+        cliContinuityPlan = cliStreamOptIn ? cliContinuityLib.planCliContinuity({
+          orgId: streamJwtOrgId,
+          userId: streamJwtUserId,
+          conversationId: historySessionId,
+          agentId: cliAgentId,
+          busy: cliLock.reason === 'busy',
+          isValidUUID,
+          transcriptsDisabled: cliTranscriptsOff(), // DISABLE_TRANSCRIPT_STORAGE: a resumed session IS a transcript
+        }) : null;
+      } catch (planErr) {
+        console.warn(`[SSE] CLI continuity plan skipped (non-fatal): ${planErr && planErr.message}`);
+        cliContinuityPlan = null;
+      }
+      const cliContinuityOpts = cliContinuityPlan && cliContinuityPlan.enabled ? {
+        resumeSessionId: cliContinuityPlan.resumeSessionId,
+        includeHistory: cliContinuityPlan.includeHistory,
+        missedTurns: cliContinuityPlan.missedTurns,
+        onFallback: (why) => send({ type: 'thinking', agent: cliAgentId.toUpperCase(), message: cliContinuityLib.describeFallback(why), stage: 'resume_fallback' }),
+      } : null;
+      if (cliContinuityPlan && cliContinuityPlan.enabled && cliContinuityLib.describeReset(cliContinuityPlan.reason)) {
+        send({ type: 'thinking', agent: cliAgentId.toUpperCase(), message: cliContinuityLib.describeReset(cliContinuityPlan.reason), stage: 'resume_reset' });
+      }
+
+      // QUOXON-PARITY: the same candidate pool (grant -> QuoxHat manifest, no provider pre-cap)
+      // and the same eligibility policy as the API loops (lib/turnToolSelection.js
+      // selectCatalogueTools), reported with the same `tools offered: N of M` trace. This path
+      // lists its tools in the prompt and has no per-round offer, so the catalogue is every
+      // eligible tool: exactly what an API offer reaches through more_tools.
+      let cliCatalogueTools = streamAgentCtx.tools;
+      if (Array.isArray(streamAgentCtx.tools) && streamAgentCtx.tools.length > 0) {
+        try {
+          const cliPool = await require('./lib/streamToolSet.js').resolveStreamToolSet({
+            agent: cliAgentId, orgId: streamJwtOrgId || null, userId: streamJwtUserId || null,
+            conversationId: effectiveStreamSessionId, prompt: decodedPrompt, provider: 'anthropic', providerKeys, offerBounded: true,
+          }, {
+            getToolsWithConnectors, resolveHatForTurn, buildTurnManifest, buildFailClosedManifest,
+            applySmartToolCap, checkManifestCompat: require('./lib/providerCompat').checkManifestCompat,
+            storeAuditEnvelope, searchToolsFn: toolIndexSearchTools, embedText: quoxchatRoutes.embedText,
+          });
+          cliCatalogueTools = require('./lib/turnToolSelection.js').buildCatalogueTools({
+            provider: 'anthropic', pool: cliPool.tools, message: decodedPrompt, agent: cliAgentId,
+            trace: turnStream.trace, turnId: turnIdentity.turnId,
+          });
+        } catch (catErr) {
+          console.warn(`[ToolOffer] catalogue policy failed, the grant list stands (exec stays gated): ${catErr && catErr.message}`);
+        }
+      }
+
+      let cliResult = null;
+      let cliThrown = null;
+      // QUOXON A2 timing: prompt build = turn start to dispatch. The first CLI stream
+      // event and first text are timed from dispatch, so they hold CLI spawn + init +
+      // model time to first token. (cli_spawn_ms itself lives in claudeCliDispatcher.js.)
+      const _tDispatch = Date.now();
+      console.log(`[TurnTiming] turn=${turnIdentity.turnId} agent=${cliAgentId} phase=dispatch prompt_build_ms=${_tDispatch - _turnTiming.t0} connector_tools_ms=${_turnTiming.connector_tools_ms ?? 'n/a'} connector_cache=${_turnTiming.connector_cache || 'n/a'} sys_prompt_chars=${String(systemPrompt || '').length}`);
+      let _firstEventMs = null;
+      let _firstTextMs = null;
+      const _timedOnStreamEvent = cliBridge ? (e) => {
+        if (_firstEventMs === null) _firstEventMs = Date.now() - _tDispatch;
+        if (_firstTextMs === null && e && e.kind === 'text' && e.delta) _firstTextMs = Date.now() - _tDispatch;
+        return cliBridge.onParsed(e);
+      } : null;
+      try {
+      cliResult = await dispatchClaudeCli({
         finalSystemPrompt: systemPrompt,
         persona: '',
         userMessage: userMsg,
         prompt: decodedPrompt,
         session_id,
         effectiveSessionId: effectiveStreamSessionId,
-        selected_agent: assistant || 'quox',
-        agentTools: streamAgentCtx.tools,
+        selected_agent: cliAgentId,
+        agentTools: cliCatalogueTools,
+        model: startedModel, // QUOXON-PARITY: --model, so turn.started names what runs
         cliOAuthToken,
         userAccessToken: streamUserAccessToken,
         jwtOrgId: streamJwtOrgId,
@@ -24487,7 +25549,9 @@ async function chatStreamHandler(req, res) {
         noToolsRequested: false,
         maxDurationMs: null,
         nativeWebSearch: routingDecision.features.web_search === true,
-        clientDisconnected: () => aborted,
+        clientDisconnected: () => aborted || !!(turnEntry && turnEntry.interrupted),
+        onStreamEvent: _timedOnStreamEvent,
+        cliContinuity: cliContinuityOpts,
       }, {
         spawnFn: spawn,
         fetchFn: fetch,
@@ -24521,8 +25585,64 @@ async function chatStreamHandler(req, res) {
         tasksServiceUrl: process.env.TASKS_SERVICE_URL || 'http://tasks:3104',
         mcpEnabled: process.env.MCP_TOOLS_ENABLED === 'true',
       });
+      } catch (e) {
+        // The interrupt kills the CLI (SIGTERM, exit 143) and the dispatcher
+        // rejects; keep it so an interrupt-caused kill is not reported as a crash.
+        cliThrown = e;
+      }
+      console.log(`[TurnTiming] turn=${turnIdentity.turnId} agent=${cliAgentId} phase=cli_done first_stream_event_ms=${_firstEventMs ?? 'n/a'} first_text_ms=${_firstTextMs ?? 'n/a'} cli_total_ms=${Date.now() - _tDispatch} turn_total_ms=${Date.now() - _turnTiming.t0}${cliThrown ? ' thrown=1' : ''}`);
+
+      // D2: tag the CLI session file with its org + user, on every end (an interrupted
+      // turn wrote its file too), so GDPR purge and the TTL prune can find it.
+      require('./lib/chatSessionHistory.js').recordCliSessionFile({
+        orgId: streamJwtOrgId, userId: streamJwtUserId,
+        cliSessionId: (cliResult && cliResult.cliSessionId) || (cliThrown && cliThrown._cliSession && cliThrown._cliSession.cliSessionId) || null,
+      });
 
       const cliElapsed = Date.now() - startTime;
+      const cliEnd = require('./lib/cliEndClassifier.js').classifyCliEnd({ interrupted: !!(turnEntry && turnEntry.interrupted), aborted, thrown: cliThrown, result: cliResult });
+      if (cliBridge) {
+        cliBridge.flush();
+        // Calls the CLI dispatched but never reported back: effect unknown, said per call.
+        if (cliEnd !== 'ok') cliBridge.closeOpen();
+      }
+      const cliDeltaCount = cliBridge ? cliBridge.deltaCount() : 0;
+      // Real tokens and cost from the CLI's result message for turn.finished.usage and
+      // done.usage; null fields when the CLI reported none (never invented).
+      const cliUsage = (cliResult && cliResult.usage) || require('./lib/cliStreamJson.js').cliUsageFrom(null);
+      turnStream.setUsage(cliUsage);
+
+      // D5: an interrupted or crashed turn still appended to its CLI session file;
+      // record what the CLI announced so the next turn's context guard is accurate.
+      const recordCliContinuityAfterFailure = () => {
+        if (!cliContinuityOpts || !cliOwnsContinuity) return;
+        const announced = (cliThrown && cliThrown._cliSession) || null;
+        if (!announced) return;
+        try {
+          cliContinuityLib.recordCliContinuity({ orgId: streamJwtOrgId, userId: streamJwtUserId, conversationId: historySessionId, agentId: cliAgentId, interrupted: announced });
+        } catch (contErr) {
+          console.warn(`[SSE] CLI continuity record (interrupted) skipped (non-fatal): ${contErr && contErr.message}`);
+        }
+      };
+
+      if (cliEnd === 'interrupted') {
+        // The one-shot CLI process was killed on interrupt: whether a tool it had
+        // already dispatched landed is unknown to us, so say interrupted, not failed.
+        recordCliContinuityAfterFailure();
+        turnStream.markInterrupted();
+        turnStream.effectUnknown('Interrupted: the Claude CLI process was stopped. A tool it had already dispatched may have taken effect; verify before retrying.');
+        send({ type: 'done', full_response: '', session_id: turnIdentity.conversationId, cli_session_id: (cliResult && cliResult.cliSessionId) || null, cost_usd: 0, agent_used: assistant || agentLower, elapsed_ms: cliElapsed, chunk_count: 0, ...(cliBridge ? { delta_count: cliDeltaCount } : {}), usage: cliUsage, interrupted: true, routing: { ...routingDecision, completed_at: new Date().toISOString(), elapsed_ms: cliElapsed } });
+        storeAuditEnvelope({
+          type: 'event', from: `agent.${assistant || 'unknown'}`, to: 'audit.system',
+          intent: 'quox.chat.stream_interrupted', corr: corrFor((cliResult && cliResult.cliSessionId) || effectiveStreamSessionId || query_id || `STREAM_${Date.now()}`),
+          payload: { agent: assistant, path: 'stream_oauth_cli', elapsed_ms: cliElapsed, reason: 'interrupted', note: 'process killed; effects of an in-flight tool are unknown', streamed: !!cliBridge, delta_count: cliDeltaCount }
+        });
+        clearInterval(pingInterval);
+        if (!res.writableEnded) res.end();
+        return;
+      }
+
+      if (cliThrown) { recordCliContinuityAfterFailure(); throw cliThrown; }
 
       if (cliResult.outcome !== 'success') {
         send({ type: 'error', error: sanitizeErrorForUser(cliResult.text || 'Claude CLI error') });
@@ -24531,7 +25651,7 @@ async function chatStreamHandler(req, res) {
           from: `agent.${assistant || 'unknown'}`,
           to: 'audit.system',
           intent: 'quox.chat.stream_error',
-          corr: effectiveStreamSessionId || query_id || `ERR_${Date.now()}`,
+          corr: corrFor(effectiveStreamSessionId || query_id || `ERR_${Date.now()}`),
           payload: { error: cliResult.text, query_id, path: 'stream_oauth_cli' }
         });
         clearInterval(pingInterval);
@@ -24539,19 +25659,28 @@ async function chatStreamHandler(req, res) {
         return;
       }
 
-      // One-shot: the CLI dispatcher has no incremental output, so the full
-      // response is sent as a single chunk. The CLI client (cli/lib/commands/
-      // chat.js) treats one large chunk identically to many small ones.
-      send({ type: 'chunk', content: cliResult.text });
+      // House voice: the same em-dash scrub the widget stream applies (deltas were
+      // scrubbed progressively by the bridge).
+      const cliFinalText = scrubCliEmDashes(cliResult.text);
+      // Legacy clients get the full answer as ONE chunk, as before. When the text
+      // already streamed as text.delta, the chunk is written raw: mirroring it would
+      // repeat the whole answer as a second text.delta. Nothing streamed (e.g. a
+      // CLI that sent no text events): the mirrored chunk delivers it to v1 clients.
+      if (cliBridge && cliBridge.streamedChars() > 0) writeRaw({ type: 'chunk', content: cliFinalText });
+      else send({ type: 'chunk', content: cliFinalText });
 
       send({
         type: 'done',
-        full_response: cliResult.text,
-        session_id: cliResult.cliSessionId || effectiveStreamSessionId,
+        full_response: cliFinalText,
+        session_id: turnIdentity.conversationId,
+        cli_session_id: cliResult.cliSessionId || null,
+        ...(cliContinuityOpts ? { cli_resumed: cliResult.resumed === true, ...(cliResult.resumeFallback ? { cli_resume_fallback: cliResult.resumeFallback } : {}) } : {}),
         cost_usd: cliResult.cost_usd || 0,
         agent_used: assistant || agentLower,
         elapsed_ms: cliElapsed,
         chunk_count: 1,
+        ...(cliBridge ? { delta_count: cliDeltaCount } : {}),
+        usage: cliUsage,
         routing: {
           ...routingDecision,
           completed_at: new Date().toISOString(),
@@ -24559,21 +25688,86 @@ async function chatStreamHandler(req, res) {
         }
       });
 
-      recordStreamTurn(cliResult.text);
-      console.log(`[SSE] OAuth/CLI stream complete for ${query_id} in ${cliElapsed}ms (one-shot, path=${cliResult.path})`);
+      recordStreamTurn(cliFinalText);
+      // After the exchange is stored, so last_msg_id covers this turn. Only the lock
+      // owner records: a busy (unlocked) fresh turn never replaces the session.
+      if (cliContinuityOpts && cliOwnsContinuity) {
+        try {
+          cliContinuityLib.recordCliContinuity({ orgId: streamJwtOrgId, userId: streamJwtUserId, conversationId: historySessionId, agentId: cliAgentId, result: cliResult });
+        } catch (contErr) {
+          console.warn(`[SSE] CLI continuity record skipped (non-fatal): ${contErr && contErr.message}`);
+        }
+      }
+      console.log(`[SSE] OAuth/CLI stream complete for ${query_id} in ${cliElapsed}ms (${cliBridge ? `stream-json, ${cliDeltaCount} deltas` : 'one-shot'}, path=${cliResult.path})`);
 
-      storeAuditEnvelope({
+      storeAuditEnvelopeTraced({
         type: 'event',
         from: `agent.${assistant || 'unknown'}`,
         to: 'audit.system',
         intent: 'quox.chat.stream_success',
-        corr: cliResult.cliSessionId || effectiveStreamSessionId || query_id || `STREAM_${Date.now()}`,
-        payload: { agent: assistant, path: 'stream_oauth_cli', elapsed_ms: cliElapsed, chunk_count: 1, response_length: cliResult.text.length }
+        corr: corrFor(cliResult.cliSessionId || effectiveStreamSessionId || query_id || `STREAM_${Date.now()}`),
+        payload: { agent: assistant, path: 'stream_oauth_cli', elapsed_ms: cliElapsed, chunk_count: 1, streamed: !!cliBridge, delta_count: cliDeltaCount, response_length: cliFinalText.length }
       });
 
       clearInterval(pingInterval);
       if (!res.writableEnded) res.end();
       return;
+      } finally {
+        cliLock.release();
+      }
+    }
+
+    // CLI-QUOX B2: governed Anthropic API-key tool loop for opt-in turns (explicit turn_id,
+    // tools not false), with the SAME contract as the B1 OpenAI loop: text.delta per
+    // content delta, tool_use dispatched through the governed executor (RBAC, QuoxHat,
+    // GOV-4, approval gate), approval hold + resolution, steer, interrupt, disconnect,
+    // usage. Not opt-in, or no tools for this turn: the legacy call below, unchanged.
+    // (No consent gate here: Anthropic is the first-party default provider, as on POST /chat.)
+    if (anthropicApiKey && require('./lib/turnStream.js').wantsGovernedTools(sp, turnIdentity)) {
+      const anthStreamConvId = session_id || turnIdentity.conversationId;
+      const anthStreamToolSet = await require('./lib/streamToolSet.js').resolveStreamToolSet({
+        agent: assistant || 'cipher', orgId: streamJwtOrgId || null, userId: streamJwtUserId || null,
+        conversationId: anthStreamConvId, prompt: decodedPrompt, provider: 'anthropic', providerKeys, offerBounded: true,
+      }, {
+        getToolsWithConnectors, resolveHatForTurn, buildTurnManifest, buildFailClosedManifest,
+        applySmartToolCap, checkManifestCompat: require('./lib/providerCompat').checkManifestCompat,
+        storeAuditEnvelope, searchToolsFn: toolIndexSearchTools, embedText: quoxchatRoutes.embedText,
+      });
+      if (anthStreamToolSet.tools.length > 0) {
+        const { executeAnthropicToolLoop } = require('./lib/anthropicToolLoop.js');
+        const anthAuthHeaders = anthropicApiKey.startsWith('sk-ant-oat01-')
+          ? { 'Authorization': `Bearer ${anthropicApiKey}` }
+          : { 'x-api-key': anthropicApiKey };
+        await runGovernedStreamTurn({
+          provider: 'anthropic', pathLabel: 'stream_anthropic_tools', streamConvId: anthStreamConvId,
+          runLoop: ({ govHooks, govHistory, toolVoltRunId, loopSignal, loopControl }) => executeAnthropicToolLoop(req, {
+            headers: { ...anthAuthHeaders, 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' },
+            model: effectiveModel || 'claude-sonnet-5-5',
+            systemPrompt: require('./lib/streamAgentContext.js').buildTurnSystemPrompt({ agent: assistant || 'cipher', fullPrompt: systemPrompt, profile: streamPromptProfile('anthropic'), toolCount: anthStreamToolSet.tools.length }),
+            toolOffer: buildStreamToolOffer({ provider: 'anthropic', pool: anthStreamToolSet.tools, history: govHistory }),
+            userMessage: userMsg,
+            selected_agent: assistant || 'cipher',
+            session_id: anthStreamConvId,
+            effectiveSessionId: anthStreamConvId,
+            agentTools: anthStreamToolSet.tools,
+            providerLabel: 'Anthropic',
+            userId: streamJwtUserId || undefined,
+            orgId: streamJwtOrgId || undefined,
+            userAccessToken: streamUserAccessToken,
+            memory_context: parsedContext.memory_context || '',
+            quox_context: parsedContext.quox_context || '',
+            conversation_history: govHistory,
+            voltRunId: toolVoltRunId,
+            hatManifest: anthStreamToolSet.hatManifest || undefined,
+            evidenceCorrId: turnIdentity.explicit ? turnIdentity.turnId : undefined,
+            onEvent: govHooks.onEvent,
+            onTextDelta: govHooks.onTextDelta,
+            signal: loopSignal,
+            control: loopControl,
+          }, openaiToolLoopDeps()),
+        });
+        return;
+      }
     }
 
     // OAuth tokens use Bearer auth; regular API keys use x-api-key
@@ -24591,7 +25785,7 @@ async function chatStreamHandler(req, res) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: effectiveModel || 'claude-sonnet-4-6',
+        model: effectiveModel || 'claude-sonnet-5-5',
         max_tokens: 4096,
         stream: true,
         system: systemPrompt,
@@ -24614,36 +25808,43 @@ async function chatStreamHandler(req, res) {
     let chunkCount = 0;
     const reader = apiResp.body;
 
-    // Node.js readable stream from fetch
-    let buffer = '';
+    // Node.js readable stream from fetch (Uint8Array chunks: decoded by the parser)
+    const anthropicParser = require('./lib/anthropicSseParser.js').createAnthropicSseParser({
+      onText: (t) => { send({ type: 'chunk', content: t }); },
+    });
     for await (const chunk of reader) {
-      if (aborted) break;
-      buffer += chunk.toString();
+      if (aborted || (turnEntry && turnEntry.interrupted)) break;
+      anthropicParser.push(chunk);
+    }
+    const sseState = anthropicParser.end();
+    fullResponse = sseState.text;
+    chunkCount = sseState.chunkCount;
 
-      // Process complete SSE lines
-      const lines = buffer.split('\n');
-      buffer = lines.pop(); // Keep incomplete line in buffer
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
-        try {
-          const event = JSON.parse(line.slice(6));
-          if (event.type === 'content_block_delta' && event.delta?.text) {
-            fullResponse += event.delta.text;
-            send({ type: 'chunk', content: event.delta.text });
-            chunkCount++;
-          }
-        } catch { /* skip non-JSON lines */ }
-      }
+    // R1 #34: a provider error event or an EOF before message_stop is a failure,
+    // never a completed turn. (An interrupt/disconnect is reported separately below.)
+    if (!aborted && !(turnEntry && turnEntry.interrupted) && (sseState.error || !sseState.sawStop)) {
+      const why = sseState.error ? `Claude API stream error: ${sseState.error}` : 'Claude API stream ended before completion';
+      send({ type: 'error', error: sanitizeErrorForUser(why) });
+      storeAuditEnvelope({
+        type: 'error', from: `agent.${assistant || 'unknown'}`, to: 'audit.system',
+        intent: 'quox.chat.stream_error', corr: corrFor(validSessionId || query_id || `ERR_${Date.now()}`),
+        payload: { error: why, query_id, path: 'stream', chunk_count: chunkCount }
+      });
+      clearInterval(pingInterval);
+      if (!res.writableEnded) res.end();
+      return;
     }
 
     const elapsed = Date.now() - startTime;
+    const anthropicInterrupted = !!(turnEntry && turnEntry.interrupted && !aborted);
+    if (anthropicInterrupted) turnStream.markInterrupted();
 
     // Send completion with metadata
     send({
       type: 'done',
+      ...(anthropicInterrupted ? { interrupted: true } : {}),
       full_response: fullResponse,
-      session_id: validSessionId || 'stream-' + Date.now(),
+      session_id: validSessionId || turnIdentity.conversationId,
       cost_usd: 0,
       agent_used: assistant || agentLower,
       elapsed_ms: elapsed,
@@ -24655,16 +25856,16 @@ async function chatStreamHandler(req, res) {
       }
     });
 
-    recordStreamTurn(fullResponse);
-    console.log(`[SSE] Stream complete for ${query_id}: ${chunkCount} chunks in ${elapsed}ms`);
+    if (!anthropicInterrupted) recordStreamTurn(fullResponse);
+    console.log(`[SSE] Stream ${anthropicInterrupted ? 'interrupted' : 'complete'} for ${query_id}: ${chunkCount} chunks in ${elapsed}ms`);
 
     // CRP-AU-5: Add success audit envelope for streaming chat (was error-only)
-    storeAuditEnvelope({
+    storeAuditEnvelopeTraced({
       type: 'event',
       from: `agent.${assistant || 'unknown'}`,
       to: 'audit.system',
-      intent: 'quox.chat.stream_success',
-      corr: validSessionId || query_id || `STREAM_${Date.now()}`,
+      intent: anthropicInterrupted ? 'quox.chat.stream_interrupted' : 'quox.chat.stream_success',
+      corr: corrFor(validSessionId || query_id || `STREAM_${Date.now()}`),
       payload: { agent: assistant, path: 'stream', elapsed_ms: elapsed, chunk_count: chunkCount, response_length: fullResponse.length }
     });
 
@@ -24675,18 +25876,55 @@ async function chatStreamHandler(req, res) {
       from: `agent.${assistant || 'unknown'}`,
       to: 'audit.system',
       intent: 'quox.chat.stream_error',
-      corr: query_id || `ERR_${Date.now()}`,
+      corr: corrFor(query_id || `ERR_${Date.now()}`),
       payload: { error: sanitizeErrorForUser(err.message), query_id }
     });
     send({ type: 'error', error: sanitizeErrorForUser(err.message) });
   } finally {
     clearInterval(pingInterval);
+    // turn.finished BEFORE the response is closed, on every exit path.
+    turnStream.finish();
     if (!res.writableEnded) {
       res.end();
     }
   }
 }
 app.post('/chat/stream', chatStreamPostBody, chatStreamHandler);
+
+// CLI-QUOX B5: OpenAI-compatible presets. Probe a URL preset (lmstudio, vllm, custom; human org
+// admin; GET <base>/models without a key; stores nothing) and list the saved connection's models
+// (any org member; the key stays server side). Egress rule: lib/openaiCompatProvider.js header.
+{
+  const compatRoutes = require('./lib/openaiCompatProvider.js');
+  app.post('/api/v1/providers/compat/:preset/probe', compatRoutes.createProbeHandler({ requireHumanAdmin }));
+  app.get('/api/v1/providers/compat/:preset/models', compatRoutes.createModelsHandler({
+    resolveOrgId: resolveRequestOrgId,
+    deps: { resolveCredentials, resolveCredentialById },
+  }));
+}
+
+// QUOXON-MODEL: live model lists for OpenAI and the Claude API (1 h server-side cache, ?refresh=1).
+{
+  const discovery = require('./lib/modelDiscovery.js');
+  app.get('/api/v1/providers/:provider(openai|anthropic)/models', discovery.createModelsHandler({
+    resolveOrgId: resolveRequestOrgId,
+    getKey: async (orgId, provider) => (provider === 'openai'
+      ? (await getProviderKeys(orgId)).openai_api_key
+      : ((await getClaudeKeys(orgId)).anthropic_api_key || process.env.ANTHROPIC_API_KEY)),
+  }));
+}
+
+// CLI-QUOX B3: Ollama connection probe (human org admin; GET <url>/api/tags, stores nothing)
+// and the saved connection's installed models (any org member). Egress rule and its
+// trade-off: lib/ollamaProvider.js header.
+{
+  const ollamaRoutes = require('./lib/ollamaProvider.js');
+  app.post('/api/v1/providers/ollama/probe', ollamaRoutes.createProbeHandler({ requireHumanAdmin }));
+  app.get('/api/v1/providers/ollama/models', ollamaRoutes.createModelsHandler({
+    resolveOrgId: resolveRequestOrgId,
+    deps: { resolveCredentials, resolveCredentialById },
+  }));
+}
 
 /**
  * Receive thinking/progress updates
@@ -24863,9 +26101,11 @@ The streaming infrastructure is working correctly! Real responses are served via
  * Chat status endpoint — pre-flight check for frontend
  * Returns whether at least one chat-capable backend is configured and which method is active
  */
-app.get('/chat/status', async (req, res) => {
-  try {
-    const requestOrgId = resolveRequestOrgId(req);
+// QUOXON-PROOF (quox#822): the status body as a function, shared by GET /chat/status and
+// the llm_status agent tool (in-process, so a busy event loop cannot time the tool out
+// on a loopback hop). Throws on failure; the route keeps its own error body.
+async function buildChatStatus(requestOrgId) {
+  {
     const claudeKeys = await getClaudeKeys(requestOrgId);
     const providerKeys = await getProviderKeys(requestOrgId);
     const terminalCapability = await getTerminalCapabilityStatus();
@@ -24937,7 +26177,7 @@ app.get('/chat/status', async (req, res) => {
       || getProviderCooldown('anthropic', 'oauth_cli')
       || getProviderCooldown('anthropic', 'api_key');
     const degraded = !!(ready && anthropicCooldown && hasOpenAIKey);
-    res.json({
+    return {
       ready,
       auth_method,
       settings_path: '/settings',
@@ -24967,7 +26207,24 @@ app.get('/chat/status', async (req, res) => {
       capabilities: {
         terminal_oauth: terminalCapability,
       },
-    });
+    };
+  }
+}
+
+// QUOXON-PROOF (quox#822): llm_status reads status in-process, and Ollama only when the
+// tool asks (its config read is an audited vault lookup, too costly for every status poll).
+// Only non-secret fields leave: connected, host and default model.
+require('./lib/quoxonProofReadTools.js').configureProofReads({
+  chatStatus: (orgId) => buildChatStatus(orgId),
+  ollamaStatus: async (orgId) => {
+    const cfg = await require('./lib/ollamaProvider.js').resolveOllamaConfig(orgId, { resolveCredentials, resolveCredentialById });
+    return cfg.ok ? { connected: true, host: cfg.host, default_model: cfg.defaultModel } : { connected: cfg.error === 'not_connected' ? false : null, error: cfg.error };
+  },
+});
+
+app.get('/chat/status', async (req, res) => {
+  try {
+    res.json(await buildChatStatus(resolveRequestOrgId(req)));
   } catch (err) {
     console.error('[Chat Status] Error checking auth:', err.message);
     res.json({
@@ -25054,6 +26311,7 @@ function logToolRetrievalBaseline(entry) {
  * Both paths preserve: system prompt, agent identity, self-awareness,
  * mirror context, memory context, and voice persona.
  */
+const { applyPluginAgentTurn, applyPluginPrincipalTurn } = require('./lib/pluginAgentTurn');
 async function handleCollectorChat(req, res) {
   // QUOXHAT D1.5: CommanderQ is the orchestrator's voice display-name. Canonicalise
   // it to 'quox' before anything reads selected_agent, so the whole turn (manifest
@@ -25061,6 +26319,11 @@ async function handleCollectorChat(req, res) {
   // Without this the model SAW the tools (D1.4) but each tool EXECUTION 400'd
   // "unknown agent: CommanderQ" at the memory / brain / inbox backends.
   if (req.body && req.body.selected_agent) req.body.selected_agent = aliasAgentId(req.body.selected_agent);
+  // Community plugin agent turn: forced to no-agent identity + no tools (lib/pluginAgentTurn.js).
+  // SEC-PLUGIN-TRUST C1: a qplg_ plugin principal is ALWAYS a plain LLM completion:
+  // neutral agent, no tools, no delegation, whatever the body says.
+  applyPluginPrincipalTurn(req);
+  const pluginAgentTurn = applyPluginAgentTurn(req.body);
   const {
     prompt,
     system_prompt,
@@ -25215,6 +26478,12 @@ async function handleCollectorChat(req, res) {
     jwtOrgId = req.body.org_id;
     jwtUserId = req.body.user_id;
     console.log(`[Chat] Service-key auth: org=${jwtOrgId}, user=${jwtUserId}${testStubActive ? ' (TEST_LLM_STUB bypass)' : internalDelegation ? ' (internal delegation)' : ''}`);
+  } else if (req.pluginAuth) {
+    // SEC-PLUGIN-TRUST C1: a plugin backend acts as the org (and user) of the
+    // verified on-behalf-of ticket, nothing else. The body org_id/user_id and any
+    // cookie/bearer are ignored; serviceAuth stays false (no god mode).
+    jwtOrgId = req.pluginAuth.orgId;
+    jwtUserId = req.pluginAuth.userId || '';
   } else if (userAccessToken) {
     const decoded = verifyToken(userAccessToken);
     if (decoded.valid) {
@@ -25326,7 +26595,7 @@ async function handleCollectorChat(req, res) {
     });
     if (hydration.hydrated > 0) {
       conversation_history = hydration.history;
-      console.log(`[Chat] hydrated ${hydration.hydrated} turn(s) for session ${String(session_id).slice(0, 8)}`);
+      console.log(`[Chat] hydrated ${hydration.hydrated} turn(s) for session ${String(historySessionId).slice(0, 8)}`);
     }
   }
 
@@ -25483,7 +26752,9 @@ async function handleCollectorChat(req, res) {
       if (res.statusCode >= 400 || !body || body.success === false || typeof body.result !== 'string' || !body.result) return;
       if (!jwtOrgId || typeof prompt !== 'string') return;
       if (platformSettingsStore.getEffectiveFlag(voltDb, jwtOrgId, 'DISABLE_TRANSCRIPT_STORAGE').on) return;
-      chatSessionHistory.recordExchange({ orgId: jwtOrgId, userId: jwtUserId, sessionId: session_id || effectiveSessionId, prompt, reply: body.result });
+      const exec = (body.execution && typeof body.execution === 'object') ? body.execution : {};
+      chatSessionHistory.recordExchange({ orgId: jwtOrgId, userId: jwtUserId, sessionId: session_id || effectiveSessionId, prompt, reply: body.result, agentId: selected_agent || null,
+        provider: exec.provider || (typeof body.provider === 'string' ? body.provider : null), model: exec.model || (typeof body.model === 'string' ? body.model : null) });
     } catch (histErr) {
       console.warn(`[Chat] history record skipped (non-fatal): ${histErr && histErr.message}`);
     }
@@ -25652,7 +26923,11 @@ async function handleCollectorChat(req, res) {
     // l6ShapeRewriter.js, chatMemoryPreflight.js, claudeCliDispatcher.js's MCP
     // `## Context`, claudeMessagesDispatcher.js, and the dispatch branches
     // below). Degrades gracefully — either half failing never blocks chat.
-    try {
+    // Plugin turns (community persona or qplg_ plugin principal) never get the
+    // user's server-side memory/self-knowledge: the plugin or its untrusted
+    // persona would read it back (SEC-PLUGIN-TRUST C1).
+    const { skipServerContext } = require('./lib/pluginAgentTurn');
+    if (!skipServerContext(req.body)) try {
       const { assembleServerContext } = require('./lib/serverContextAssembler.js');
       const { applyMemoryImplant } = require('./lib/memoryImplant.js');
       const { applySelfKnowledgeImplant } = require('./lib/quoxSelfKnowledgeImplant.js');
@@ -25838,7 +27113,7 @@ Always identify yourself as QuoxCORE or QUOX.`;
         finalSystemPrompt = entityPrompt;
         console.log(`[Chat] Loaded entity prompt for '${selected_agent}' (no caller system_prompt)`);
       }
-    } else if (!AGENT_TOOLS[selected_agent.toLowerCase()] && selected_agent.toLowerCase() !== 'quox') {
+    } else if (!pluginAgentTurn && !AGENT_TOOLS[selected_agent.toLowerCase()] && selected_agent.toLowerCase() !== 'quox') {
       // Fallback for DB-defined custom agents not in entity JSON
       try {
         const authBase = process.env.AUTH_SERVICE_URL || 'http://quox-auth:3101';
@@ -25973,7 +27248,7 @@ Always identify yourself as QuoxCORE or QUOX.`;
       ? resolveLocalSource(req.body?.local_source_id || req.body?.source_id, req.body, jwtOrgId || req.body?.org_id)
       : null;
 
-    const { plan: collectorPlan, policyPayload, policyContext } = await resolveCollectorPolicyPlan({
+    const { plan: resolvedCollectorPlan, policyPayload, policyContext } = await resolveCollectorPolicyPlan({
       orgId: jwtOrgId || req.body?.org_id,
       userAccessToken,
       selectedAgent: selected_agent,
@@ -25990,6 +27265,9 @@ Always identify yourself as QuoxCORE or QUOX.`;
       providerKeys,
       localSource,
     });
+    // Z2H-R4: as on /chat/stream, an explicit `provider: "ollama"` survives the shared resolver (which does
+    // not know ollama and would swap in the default); the policy still wins when it blocked the override.
+    const collectorPlan = require('./lib/ollamaProvider.js').applyOllamaSelection(resolvedCollectorPlan, { requestedProvider, requestedModel });
 
     // LLM-CHOICE Phase 1: no_oauth policy flag. When the resolved plan
     // disallows OAuth/CLI credentials, treat cliOAuthToken as absent for the
@@ -26194,6 +27472,35 @@ Always identify yourself as QuoxCORE or QUOX.`;
           userAccessToken,
           memory_context: sanitizationResult.sanitized.memory_context,
           quox_context: sanitizationResult.sanitized.quox_context,
+        });
+      }
+
+      // Z2H-R4: /chat/claude (every delegate_to_agent hop) had no ollama branch and fell back to Anthropic,
+      // so on an Ollama-only install every specialist delegation failed. Resolve the org's Ollama connection
+      // exactly like /chat/stream does, fail honestly, else run the governed OpenAI-compatible loop on it.
+      if (effectiveProvider === 'ollama') {
+        const ollamaLib = require('./lib/ollamaProvider.js');
+        const ot = await ollamaLib.prepareOllamaTurn(
+          { orgId: jwtOrgId || req.body?.org_id || null, requestedModel: effectiveModel && effectiveModel !== 'default' ? effectiveModel : null },
+          { resolveCredentials, resolveCredentialById },
+        );
+        if (!ot.ok) {
+          return res.json({ success: false, result: ot.message, error: ot.error, agent_used: selected_agent, can_continue: false });
+        }
+        return await handleLocalInferenceChat(req, res, {
+          source: ollamaLib.localSourceFromOllamaTurn(ot),
+          model: ot.model,
+          systemPrompt: directProviderSystemPrompt,
+          userMessage,
+          session_id,
+          selected_agent,
+          agentTools,
+          userId,
+          orgId: jwtOrgId || req.body?.org_id || null,
+          userAccessToken,
+          memory_context: sanitizationResult.sanitized.memory_context,
+          quox_context: sanitizationResult.sanitized.quox_context,
+          conversation_history: sanitizationResult.sanitized.conversation_history,
         });
       }
 
@@ -26433,6 +27740,8 @@ Always identify yourself as QuoxCORE or QUOX.`;
           aoclCtx: _cliCtx,
           nativeWebSearch,
         }, cliDeps);
+        // D2: tag the CLI session file with its org + user (GDPR purge, TTL prune).
+        require('./lib/chatSessionHistory.js').recordCliSessionFile({ orgId: jwtOrgId || req.body?.org_id, userId: jwtUserId || req.body?.user_id, cliSessionId: r && r.cliSessionId });
         // LLM-FAILOVER P1: pass outcome through so the failover walk can
         // recognise structured CLI failures (outcome: 'cli_error') that the
         // dispatcher reports as a result instead of a throw.
@@ -26811,8 +28120,8 @@ Always identify yourself as QuoxCORE or QUOX.`;
 //   - X-Service-Key header (Telegram webhook, QuoxMCP, fleet agents)
 //   - Authorization: Bearer <jwt>
 //   - access_token cookie (browser)
-app.post('/chat', adaptiveChatLimiter, requireServiceOrUserAuth(), handleCollectorChat);
-app.post('/chat/claude', adaptiveChatLimiter, requireServiceOrUserAuth(), handleCollectorChat);
+app.post('/chat', adaptiveChatLimiter, requireServiceOrUserAuth({ acceptPluginCredential: true }), handleCollectorChat);
+app.post('/chat/claude', adaptiveChatLimiter, requireServiceOrUserAuth({ acceptPluginCredential: true }), handleCollectorChat);
 
 // Qluster Phase 5b — POST /api/v1/qluster/delegate. An external Qluster
 // controller tasks THIS box's agent, but the prompt runs through the box's OWN
@@ -27600,6 +28909,8 @@ async function handleClaudeCliWithTools(req, res, opts) {
       mcpEnabled: process.env.MCP_TOOLS_ENABLED === 'true',
     },
   );
+  // D2: tag the CLI session file with its org + user (GDPR purge, TTL prune).
+  require('./lib/chatSessionHistory.js').recordCliSessionFile({ orgId: opts.jwtOrgId || req.body?.org_id, userId: opts.jwtUserId || req.body?.user_id, cliSessionId: result && result.cliSessionId });
 
   const selectedAgent = opts.selected_agent;
 
@@ -29994,7 +31305,7 @@ app.post('/api/v1/grafana/test', requireServiceOrUserAuth(), async (req, res) =>
 // plane while the client page gate looked authoritative. Same middleware
 // contract as the lens/discord-pro/github mounts (402 LICENSE_REQUIRED,
 // pure INTERNAL_SERVICE_KEY calls bypass, fail closed).
-app.get('/api/v1/bastion/config', requireServiceOrUserAuth(), requirePluginEntitlement('bastion-fleet'), (req, res) => {
+app.get('/api/v1/bastion/config', requireServiceOrUserAuth(), requireFleetAllowance('bastion-fleet'), (req, res) => {
   const configured = !!process.env.BASTION_API_TOKEN;
   if (!configured) {
     return res.json({ success: false, error: 'BASTION_API_TOKEN not configured on server' });
@@ -30080,7 +31391,7 @@ function bastionToolScope(toolId) {
 const BASTION_PROXY_PREFIX = '/api/v1/bastion/proxy';
 
 // LL-7 D3: entitlement-gated (see /api/v1/bastion/config note above).
-app.all(`${BASTION_PROXY_PREFIX}/*`, requireServiceOrUserAuth(), requirePluginEntitlement('bastion-fleet'), async (req, res) => {
+app.all(`${BASTION_PROXY_PREFIX}/*`, requireServiceOrUserAuth(), requireFleetAllowance('bastion-fleet'), async (req, res) => {
   const bastionUrl = process.env.BASTION_URL;
   const bastionToken = process.env.BASTION_API_TOKEN;
   if (!bastionUrl || !bastionToken) {
@@ -30575,62 +31886,27 @@ app.all('/api/v1/plugins/:pluginId/*', requireServiceOrUserAuth(), async (req, r
   await proxyToPlugin(req, res, pluginId);
 });
 
-/**
- * POST /api/v1/admin/plugins/:pluginId/backend — Register a plugin backend
- * Admin-only. Body: { url, healthPath?, rateLimit? }
- */
-app.post('/api/v1/admin/plugins/:pluginId/backend', requireServiceOrUserAuth(), (req, res) => {
-  if (!requireAdminRole(req, res)) return;
-  try {
-    const { pluginId } = req.params;
-    registerPluginBackend(pluginId, req.body);
-    auditOp('ops.plugin.backend.registered', { plugin_id: req.params.pluginId, url: req.body.url });
-
-    // QN-C: Notify RepoBrain to index plugin code (non-blocking, non-fatal)
-    if (process.env.REPOBRAIN_URL) {
-      fetch(`${process.env.REPOBRAIN_URL}/api/targets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          target_id: `plugin-${pluginId}`,
-          source_type: 'local_path',
-          source_config: { path: '/source/quox-dashboard' },
-          description: `Plugin: ${pluginId}`,
-        }),
-      }).then(() => console.log(`[Nucleus] Indexed plugin ${pluginId}`))
-        .catch(e => console.log(`[Nucleus] Could not index plugin ${pluginId}:`, e.message));
-    }
-
-    res.json({ success: true, pluginId });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-/**
- * POST /api/v1/admin/plugins/:pluginId/backend/ensure — RES.5 (plan/19).
- * One-call install glue: start the plugin's backend CONTAINER via powers-host
- * from its manifest.backend, then register the resulting container URL with the
- * gateway. Idempotent (safe to call on every activate). Body:
- * { image, port?, healthPath? }.
- */
-app.post('/api/v1/admin/plugins/:pluginId/backend/ensure', requireServiceOrUserAuth(), async (req, res) => {
-  if (!requireAdminRole(req, res)) return;
-  const { pluginId } = req.params;
-  const { image, port, healthPath } = req.body || {};
-  if (!image) return res.status(400).json({ error: 'manifest.backend.image required' });
-  try {
-    const started = await pluginBackendLifecycle.startPluginBackend(pluginId, { image, port, healthPath });
-    registerPluginBackend(pluginId, { url: started.url, healthPath, port });
-
-    // SPATIAL-W4: tool registrations live in memory and die with the
-    // collector; ensure fires on every plugin activation, so it is the
-    // natural re-registration point. Backends that expose agent tools
-    // self-describe at GET /tools.json — absence is fine (404/timeout is
-    // a backend without tools, never an ensure failure).
+// FND_01M4SZ7NNV4NZ57ZM6J34NZ57Z: these three routes touch INSTANCE-WIDE state
+// (process-wide PLUGIN_BACKENDS, global tool maps, containers). register/delete
+// require an instance admin; ensure derives image/port/healthPath from the
+// caller's own org install and ignores the request body. See lib/pluginBackendAdmin.js.
+const _pluginBackendHandlers = createPluginBackendHandlers({
+  isHumanAdmin,
+  requireAdminRole,
+  getPluginBackend,
+  registerPluginBackend,
+  unregisterPluginBackend,
+  unregisterPluginTools: (pluginId) => unregisterPluginTools(pluginId, TOOL_DEFS, AGENT_TOOLS),
+  registerPluginTools: (pluginId, tools) => registerPluginTools(pluginId, tools, TOOL_DEFS, AGENT_TOOLS),
+  lifecycle: pluginBackendLifecycle,
+  auditOp,
+  // SPATIAL-W4: tool registrations live in memory and die with the collector;
+  // ensure fires on every activation, so it is the re-registration point.
+  // Absence of /tools.json is a backend without tools, never an ensure failure.
+  loadTools: async (pluginId, url) => {
     let toolsRegistered = 0;
     try {
-      const toolsRes = await fetch(`${started.url}/tools.json`, { signal: AbortSignal.timeout(5000) });
+      const toolsRes = await fetch(`${url}/tools.json`, { signal: AbortSignal.timeout(5000) });
       if (toolsRes.ok) {
         const toolsBody = await toolsRes.json().catch(() => null);
         if (toolsBody && Array.isArray(toolsBody.tools) && toolsBody.tools.length) {
@@ -30640,40 +31916,45 @@ app.post('/api/v1/admin/plugins/:pluginId/backend/ensure', requireServiceOrUserA
         }
       }
     } catch (toolErr) {
-      console.log(`[PluginGateway] ${pluginId} exposes no tools.json (${toolErr.message}) — skipping tool registration`);
+      console.log(`[PluginGateway] ${pluginId} exposes no tools.json (${toolErr.message}), skipping tool registration`);
     }
-
-    auditOp('ops.plugin.backend.ensured', { plugin_id: pluginId, url: started.url, healthy: started.healthy });
-    res.json({ success: true, url: started.url, healthy: started.healthy !== false, toolsRegistered });
-  } catch (err) {
-    console.error(`[PluginGateway] ensure ${pluginId} failed:`, err.message);
-    res.status(502).json({ error: 'backend_start_failed', detail: err.message });
-  }
-});
-
-/**
- * DELETE /api/v1/admin/plugins/:pluginId/backend — Unregister a plugin backend
- */
-app.delete('/api/v1/admin/plugins/:pluginId/backend', requireServiceOrUserAuth(), (req, res) => {
-  if (!requireAdminRole(req, res)) return;
-  const { pluginId } = req.params;
-  unregisterPluginBackend(pluginId);
-  unregisterPluginTools(pluginId, TOOL_DEFS, AGENT_TOOLS);
-  // RES.5: also stop the backend container (keep its data volume unless the
-  // caller asked to purge). Best-effort — unregister already succeeded.
-  pluginBackendLifecycle.stopPluginBackend(pluginId, { removeData: req.query.deleteData === 'true' })
-    .catch(err => console.warn(`[PluginGateway] backend stop for ${pluginId} failed:`, err.message));
-  auditOp('ops.plugin.backend.unregistered', { plugin_id: req.params.pluginId });
-
-  // QN-C: Remove plugin from RepoBrain index (non-blocking, non-fatal)
-  if (process.env.REPOBRAIN_URL) {
+    return toolsRegistered;
+  },
+  // QN-C: RepoBrain index notifications (non-blocking, non-fatal)
+  onRegistered: (pluginId) => {
+    if (!process.env.REPOBRAIN_URL) return;
+    fetch(`${process.env.REPOBRAIN_URL}/api/targets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_id: `plugin-${pluginId}`,
+        source_type: 'local_path',
+        source_config: { path: '/source/quox-dashboard' },
+        description: `Plugin: ${pluginId}`,
+      }),
+    }).then(() => console.log(`[Nucleus] Indexed plugin ${pluginId}`))
+      .catch(e => console.log(`[Nucleus] Could not index plugin ${pluginId}:`, e.message));
+  },
+  onUnregistered: (pluginId) => {
+    if (!process.env.REPOBRAIN_URL) return;
     fetch(`${process.env.REPOBRAIN_URL}/api/targets/plugin-${pluginId}`, { method: 'DELETE' })
       .then(() => console.log(`[Nucleus] Removed plugin ${pluginId} from index`))
       .catch(e => console.log(`[Nucleus] Could not remove plugin ${pluginId}:`, e.message));
-  }
-
-  res.json({ success: true });
+  },
 });
+
+/** POST /api/v1/admin/plugins/:pluginId/backend: register a backend. Instance admin only. */
+app.post('/api/v1/admin/plugins/:pluginId/backend', requireServiceOrUserAuth(), _pluginBackendHandlers.register);
+
+/**
+ * POST /api/v1/admin/plugins/:pluginId/backend/ensure (RES.5, plan/19).
+ * Start the plugin's backend container from the CALLER'S ORG install manifest
+ * and register it. The body is ignored for image/port/healthPath. Idempotent.
+ */
+app.post('/api/v1/admin/plugins/:pluginId/backend/ensure', requireServiceOrUserAuth(), _pluginBackendHandlers.ensure);
+
+/** DELETE /api/v1/admin/plugins/:pluginId/backend: unregister + stop. Instance admin only. */
+app.delete('/api/v1/admin/plugins/:pluginId/backend', requireServiceOrUserAuth(), _pluginBackendHandlers.remove);
 
 /**
  * GET /api/v1/admin/plugins/backends — List all registered plugin backends + health
@@ -30743,19 +32024,7 @@ app.post('/api/v1/ward/witness', toolLimiter, requireServiceOrUserAuth(), async 
   }
 });
 
-app.post('/api/v1/admin/plugins/:pluginId/tools', requireServiceOrUserAuth(), (req, res) => {
-  if (!requireAdminRole(req, res)) return;
-  try {
-    const { pluginId } = req.params;
-    const { tools } = req.body;
-    if (!Array.isArray(tools)) return res.status(400).json({ error: 'tools must be an array' });
-    const result = registerPluginTools(pluginId, tools, TOOL_DEFS, AGENT_TOOLS);
-    auditOp('ops.plugin.tools.registered', { plugin_id: req.params.pluginId, tool_count: (req.body.tools || []).length });
-    res.json({ success: true, ...result });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
+app.post('/api/v1/admin/plugins/:pluginId/tools', requireServiceOrUserAuth(), _pluginBackendHandlers.tools);
 
 /**
  * GET /api/v1/admin/plugins/:pluginId/health — Health check a specific plugin backend
@@ -31156,6 +32425,7 @@ app.post('/connectors/:connectorId/activate', requireServiceOrUserAuth(), async 
     if (result.error) {
       return res.status(400).json({ success: false, error: result.error });
     }
+    invalidateAvailableToolsCache(orgId);
     auditOp('ops.connector.activated', { connector_id: req.params.connectorId });
     res.json({
       success: true,
@@ -32080,6 +33350,30 @@ server.listen(PORT, '0.0.0.0', () => {
     isFeedEnabledFn: (orgId) => platformSettingsStore.getEffectiveFlag(voltDb, orgId, 'QUOXFEED_ENABLED').on,
     isOauthSourcesEnabledFn: (orgId) => platformSettingsStore.getEffectiveFlag(voltDb, orgId, 'QUOXFEED_OAUTH_SOURCES_ENABLED').on,
   });
+
+  // ApprovalsQ (QVOICE-OUTBOUND #521 P2): stale-approval phone escalation.
+  // Inert unless QUOX_APPROVALSQ_WATCHER is truthy (no timers are created).
+  // It never resolves an approval; it only asks the voice bridge to phone a
+  // human. The bridge is reached via QUOX_TELEPHONY_BRIDGE_URL, which must be
+  // reachable FROM THIS CONTAINER (host loopback :3112 is not our loopback).
+  if (approvalsqStore && pluginStorageStatements) {
+    const approvalsqAdapters = approvalsqWatcher.createDefaultAdapters();
+    const approvalsqOrgs = voltDb.prepare('SELECT DISTINCT org_id FROM plugin_storage WHERE plugin_id = ? AND key = ?');
+    approvalsqWatcher.startApprovalsqWatcher({
+      store: approvalsqStore,
+      listOrgIdsFn: () => approvalsqOrgs.all(approvalsqWatcher.POLICY_PLUGIN_ID, approvalsqWatcher.POLICY_KEY).map((r) => r.org_id),
+      readPolicy: async (orgId) => {
+        const row = pluginStorageStatements.get.get(approvalsqWatcher.POLICY_PLUGIN_ID, orgId, approvalsqWatcher.POLICY_KEY);
+        if (!row) return normalizeApprovalsqPolicy(null);
+        try { return normalizeApprovalsqPolicy(JSON.parse(row.value)); } catch { return normalizeApprovalsqPolicy(null); }
+      },
+      fetchOpenApprovals: approvalsqAdapters.fetchOpenApprovals,
+      fetchApprovalById: approvalsqAdapters.fetchApprovalById,
+      placeApprovalCall: approvalsqAdapters.placeApprovalCall,
+      // URL the BRIDGE (on the host) uses to report the call outcome back.
+      callbackBase: process.env.QUOX_APPROVALSQ_CALLBACK_BASE || `http://127.0.0.1:${process.env.COLLECTOR_PORT || 9848}`,
+    });
+  }
 
   // X-PLUGIN P4: inbound X (Twitter) @mention poller — dark unless
   // X_INBOUND_POLL_ENABLED=1 and X_INBOUND_POLL_ORGS lists orgs (see

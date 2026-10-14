@@ -15,6 +15,8 @@ function isNonHumanClaims(c) {
   if (!c || typeof c !== 'object') return false;
   if (c.agent_id || c.agentId) return true;
   if (c.actor_type === 'agent' || c.actorType === 'agent') return true;
+  // SEC-PLUGIN-TRUST C1: a plugin backend acting on behalf of an org is never a human.
+  if (c.actor_type === 'plugin' || c.actorType === 'plugin') return true;
   if (c.agent_ops === true || c.agent_ops === 1 || c.agentOps === true) return true;
   if (c.attach_lease_id || c.attachLeaseId) return true;
   return false;

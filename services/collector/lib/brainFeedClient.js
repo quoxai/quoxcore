@@ -19,6 +19,19 @@
 
 'use strict';
 
+const { AsyncLocalStorage } = require('async_hooks');
+const feedWatermark = require('./feedWatermark.js');
+
+const MAX_DOC_REJECTIONS = 3;
+const skipStore = new AsyncLocalStorage();
+
+/**
+ * Runs fn with a collector array: any document pushDocuments gives up on (rejected
+ * MAX_DOC_REJECTIONS times in a row) is appended as {relPath, reason, attempts},
+ * so the scheduler can show it in the feed's last_status.
+ */
+function collectSkips(sink, fn) { return skipStore.run(sink, fn); }
+
 const BASE_URL = (process.env.QUOXBRAIN_URL || 'http://quoxbrain:3106').replace(/\/$/, '');
 const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
 
@@ -143,7 +156,7 @@ async function ensurePushVault(orgId, name, { scope = 'org', userId, fetchImpl =
  * @param {{userId?: string, fetchImpl?: Function, deleteAbsent?: boolean}} [opts] deleteAbsent: ONLY for a complete snapshot; honoured only when it fits one call
  * @returns {Promise<{added:number, updated:number, skipped:number, chunks:number, error?:string}>}
  */
-async function pushDocuments(orgId, vaultId, documents, { userId, fetchImpl = fetch, deleteAbsent = false, signal } = {}) {
+async function pushDocuments(orgId, vaultId, documents, { userId, fetchImpl = fetch, deleteAbsent = false, signal, dbPath } = {}) {
   const totals = { added: 0, updated: 0, skipped: 0, chunks: 0 };
   if (!vaultId) {
     console.error(`[BrainFeedClient] org=${orgId}: pushDocuments called with no vaultId — skipping`);
@@ -153,6 +166,8 @@ async function pushDocuments(orgId, vaultId, documents, { userId, fetchImpl = fe
 
   const batches = splitIntoBatches(documents);
   const errors = [];
+  const rejectedRelPaths = [];
+  const skippedPoison = [];
 
   // deleteAbsent is evaluated by the server PER CALL against that call's own
   // documents, so it is only safe when the whole snapshot travels in ONE
@@ -179,6 +194,34 @@ async function pushDocuments(orgId, vaultId, documents, { userId, fetchImpl = fe
         continue;
       }
       const result = await readJsonOrNull(res);
+      // R03: a 2xx with no usable counts is not proof the documents landed.
+      if (!result || typeof result !== 'object' || (typeof result.added !== 'number' && typeof result.updated !== 'number')) {
+        const message = 'malformed response from brain (missing added/updated counts)';
+        console.error(`[BrainFeedClient] org=${orgId}: POST /vaults/${vaultId}/documents ${message}`);
+        errors.push(message);
+        continue;
+      }
+      // R02: per-document rejections ride on a 200. Never treat them as success.
+      const rejections = Array.isArray(result.rejected) ? result.rejected : [];
+      const rejectedIdx = new Set();
+      for (const rj of rejections) {
+        const relPath = (Number.isInteger(rj?.index) && batch[rj.index]?.relPath) || rj?.relPath || null;
+        if (Number.isInteger(rj?.index)) rejectedIdx.add(rj.index);
+        if (!relPath) { errors.push(`rejected document (unknown relPath): ${rj?.reason || 'unknown'}`); continue; }
+        const reason = rj?.reason || 'unknown';
+        const attempts = feedWatermark.bumpRejection(orgId, vaultId, relPath, reason, { dbPath });
+        if (attempts >= MAX_DOC_REJECTIONS) {
+          const skip = { relPath, reason, attempts };
+          skippedPoison.push(skip);
+          skipStore.getStore()?.push(skip);
+          console.error(`[BrainFeedClient] org=${orgId}: skipping ${relPath} after ${attempts} consecutive rejections (${reason})`);
+        } else {
+          rejectedRelPaths.push(relPath);
+          errors.push(`rejected ${relPath}: ${reason}`);
+        }
+      }
+      const accepted = batch.filter((_, i) => !rejectedIdx.has(i)).map((d) => d.relPath).filter(Boolean);
+      feedWatermark.clearRejections(orgId, vaultId, accepted, { dbPath });
       totals.added += result?.added || 0;
       totals.updated += result?.updated || 0;
       totals.skipped += result?.skipped || 0;
@@ -190,6 +233,8 @@ async function pushDocuments(orgId, vaultId, documents, { userId, fetchImpl = fe
   }
 
   const out = errors.length > 0 ? { ...totals, error: errors.join('; ') } : totals;
+  if (rejectedRelPaths.length) out.rejected = rejectedRelPaths;
+  if (skippedPoison.length) out.skippedPoison = skippedPoison;
   // BRAIN2-W5 025: tell the caller a requested deleteAbsent was NOT applied
   // (split snapshot) so it can reconcile deletions itself (tombstones).
   if (deleteAbsent && !sendDeleteAbsent) out.deleteAbsentApplied = false;
@@ -285,4 +330,4 @@ async function listVaultRelPaths(orgId, vaultId, { userId, fetchImpl = fetch, si
   }
 }
 
-module.exports = { ensurePushVault, pushDocuments, pushDeletions, getPushVaultNoteTotals, listVaultRelPaths };
+module.exports = { collectSkips, MAX_DOC_REJECTIONS, ensurePushVault, pushDocuments, pushDeletions, getPushVaultNoteTotals, listVaultRelPaths };

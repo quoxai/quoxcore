@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { mergeStyleConfig, parseExistingStyleConfig } from './styleTabUtils';
 import './StyleTab.css';
+import { diffEmbedConfig } from './embedConfigPatch'
 
 const PRESETS = [
   { value: 'auto',  label: 'Auto (system)', desc: 'Follows the visitor’s prefers-color-scheme.' },
@@ -66,7 +67,7 @@ const CSS_HINT = `/* Advanced: leave blank unless you write CSS. Theme + accent 
 /* --qx-conf-{high|med|low}-bg, --qx-conf-{high|med|low}-fg                         */
 `;
 
-export default function StyleTab({ widget, orgId, authFetch }) {
+export default function StyleTab({ widget, orgId, authFetch, onWidgetChange }) {
   const seed = useMemo(() => parseExistingStyleConfig(widget), [widget]);
   const [theme, setTheme] = useState(seed.theme);
   const [accent, setAccent] = useState(seed.accent_color || '#a855f7');
@@ -102,12 +103,13 @@ export default function StyleTab({ widget, orgId, authFetch }) {
       const resp = await authFetch(`/api/orgs/${orgId}/widgets/${widget.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ embed_config_json: JSON.stringify(merged) }),
+        body: JSON.stringify({ embed_config_json: JSON.stringify(diffEmbedConfig(baseCfg, merged)) }),
       });
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
         throw new Error(body.error || `Save failed (${resp.status})`);
       }
+      try { const d = await resp.json(); if (d?.widget && onWidgetChange) onWidgetChange(d.widget) } catch {}
       setSavedAt(Date.now());
       // Reload the preview iframe so the visitor-facing changes appear.
       try { if (iframeRef.current) iframeRef.current.src = iframeRef.current.src; } catch {}

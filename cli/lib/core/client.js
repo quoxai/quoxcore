@@ -91,6 +91,19 @@ export function callerContextHeaders(config, env = process.env, detectDeps = {})
   return headers;
 }
 
+/**
+ * The --debug "Body:" line. A sensitive request prints no body; otherwise top-level secret keys and
+ * any nested `credentials` object are masked (a top-level-only denylist printed vault create keys).
+ */
+export function debugBody(body, sensitive = false) {
+  if (sensitive) return '[redacted: sensitive request]';
+  const sanitized = { ...body };
+  for (const key of ['password', 'token', 'access_token', 'refresh_token', 'secret', 'api_key', 'mfa_code', 'credentials']) {
+    if (sanitized[key]) sanitized[key] = '***';
+  }
+  return JSON.stringify(sanitized);
+}
+
 export function createClient(config, auth) {
   let refreshing = null;
   // After a failed refresh, back off instead of latching off forever. The
@@ -114,6 +127,7 @@ export function createClient(config, auth) {
       retries = MAX_RETRIES,
       noAuth = false,
       noActAs = false,
+      sensitive = false,
     } = options;
 
     const baseUrl = config.getServiceUrl(service);
@@ -158,12 +172,12 @@ export function createClient(config, auth) {
     // ~/.config/quox/config.json, so whatever profile another process logged in
     // last leaks in as a stored token and wins. When that token drifts to an
     // identity the collector rejects, the daemon goes dark (2026-09-04: the
-    // bridge 400'd for hours on the dev-host-01 resident JWT). The force flag is
+    // bridge 400'd for hours on a resident JWT). The force flag is
     // opt-in, so the #404 interactive-dev-box case is untouched.
     let usingServiceKey = false;
     // quox#772: opt-in acting identity (--as / QUOX_AS). Replaces the bearer
     // with the agent's attach token; throws (no request sent) if not attached.
-    const acting = !noAuth && !noActAs ? await resolveActing() : { name: null };
+    const acting = !noAuth && !noActAs ? await resolveActing({ explicitProfile: Boolean(config._explicitProfile) }) : { name: null };
     const actingAs = acting.name;
     if (actingAs) {
       const heartbeat = {
@@ -199,11 +213,7 @@ export function createClient(config, auth) {
     if (isDebug) {
       console.error(`-> ${method} ${url.toString()}`);
       if (body && !(body instanceof FormData)) {
-        const sanitized = { ...body };
-        for (const key of ['password', 'token', 'access_token', 'refresh_token', 'secret', 'api_key', 'mfa_code']) {
-          if (sanitized[key]) sanitized[key] = '***';
-        }
-        console.error(`   Body: ${JSON.stringify(sanitized).slice(0, 200)}`);
+        console.error(`   Body: ${debugBody(body, sensitive).slice(0, 200)}`);
       }
     }
 
@@ -408,6 +418,7 @@ export function createClient(config, auth) {
    * @param {object} [options.body] - JSON body; switches the request to POST
    * @param {object} [options.headers] - extra headers
    * @param {AbortSignal} [options.signal] - external abort signal (e.g. Ctrl+C)
+   * @param {boolean} [options.untilClose] - keep reading past done/error until the server closes (quoxon: turn.finished arrives after done)
    */
   async function* stream(path, options = {}) {
     const {
@@ -416,6 +427,7 @@ export function createClient(config, auth) {
       body: streamBody,
       headers: extraHeaders = {},
       signal: externalSignal,
+      untilClose = false,
     } = options;
 
     const baseUrl = config.getServiceUrl(service);
@@ -437,7 +449,7 @@ export function createClient(config, auth) {
     // Same precedence as request() above, including the QUOX_FORCE_SERVICE_KEY
     // override for daemons that own their key and must not borrow the shared
     // config's stored session.
-    const streamActingR = await resolveActing();
+    const streamActingR = await resolveActing({ explicitProfile: Boolean(config._explicitProfile) });
     const streamActing = streamActingR.name;
     const streamTokens = auth.getTokens();
     let streamServiceKey = null;
@@ -526,12 +538,14 @@ export function createClient(config, auth) {
 
           yield event;
 
-          if (event.type === 'done' || event.type === 'error') {
+          if (!untilClose && (event.type === 'done' || event.type === 'error')) {
             return;
           }
         }
       }
     } finally {
+      // cancel first so the HTTP body is torn down, not just unlocked
+      try { reader.cancel().catch(() => {}); } catch { /* already closed */ }
       try { reader.releaseLock(); } catch { /* already released */ }
     }
   }

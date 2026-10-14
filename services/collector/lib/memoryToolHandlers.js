@@ -243,8 +243,24 @@ async function memorySearch(params, context) {
     results = await fetchResults(ownUrl, memoryAuthHeaders({ token, orgId, userId }));
   }
 
+  // Z2H-3c: a small model searched type "observation" for a fact saved as a "preference", got nothing, and
+  // invented a memory. A typed miss retries untyped (the type is the model's guess), and an empty result
+  // says plainly that nothing matched.
+  let note;
+  const typed = type_filter && type_filter !== 'all';
+  if (results.length === 0 && typed && !cortexHolder) {
+    const untyped = new URL(ownUrl.toString());
+    untyped.searchParams.delete('type');
+    results = await fetchResults(untyped, memoryAuthHeaders({ token, orgId, userId }));
+    if (results.length) note = `No "${type_filter}" memories matched, so these are from all types.`;
+  }
+  if (results.length === 0) {
+    note = `Nothing saved matched "${query}". Tell the user you have nothing saved about that; do not invent or guess a memory.`;
+  }
+
   const searchResult = {
     success: true,
+    ...(note ? { note } : {}),
     count: results.length,
     results: results.map(m => ({
       id: m.id,

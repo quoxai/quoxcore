@@ -245,8 +245,12 @@ export function registerAuthCommands(program, ctx) {
         org: orgDisplay,
         role: authData.org_role || 'n/a',
         mfa: data.user?.mfa_enabled ? 'enabled' : 'disabled',
+        // Z2H-3c: expires_at is the ACCESS token. With a refresh token the sign-in outlives it, so do not
+        // present it as the session ending (a fresh owner read "expires in 60m" right after logging in).
         session: authData.expires_at
-          ? `expires in ${Math.max(0, Math.round((authData.expires_at - Date.now()) / 60000))}m`
+          ? (authData.refresh_token
+            ? `active, auto-renews (token refresh in ${Math.max(0, Math.round((authData.expires_at - Date.now()) / 60000))}m)`
+            : `expires in ${Math.max(0, Math.round((authData.expires_at - Date.now()) / 60000))}m`)
           : 'unknown',
         profile: config.getActiveProfileName(),
       };

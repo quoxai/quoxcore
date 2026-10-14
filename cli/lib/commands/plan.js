@@ -2,7 +2,7 @@
  * QuoxPlan commands: roadmaps, streams, phases, plans, timeline
  * (STREAM_QUOXPLAN_PLAN.md, quoxcli parity gate P3b).
  *
- * Mirrors the standalone `quoxplan` CLI's verbs (/opt/quoxcore/quoxplan/cli)
+ * Mirrors the standalone `quoxplan` CLI's verbs (quoxplan/cli)
  * one-for-one, but through the collector's governed proxy
  * (services/collector/server.js: /api/v1/quoxplan/* -> QuoxPlan server,
  * port 3107) instead of hitting the QuoxPlan server directly — same auth,

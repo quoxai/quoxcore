@@ -47,13 +47,19 @@ const QUOXCHAT_MCP_TOOLS = {
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID to list widgets for.' },
+        org_id: { type: 'string', description: 'Optional. Defaults to your current organisation; another organisation is refused.' },
       },
-      required: ['org_id'],
+      required: [],
     },
-    execute: async (input) => {
-      const org_id = input?.org_id;
-      if (!org_id) return { success: false, error: 'org_id is required' };
+    execute: async (input, ctx) => {
+      // QUOXON-REVIEW: the caller's org comes from the turn (ctx.orgId); a model-chosen org
+      // that is not the caller's is refused (this call runs with the service key).
+      const callerOrg = ctx && ctx.orgId ? String(ctx.orgId) : null;
+      if (callerOrg && input?.org_id && String(input.org_id) !== callerOrg) {
+        return { success: false, error: 'widgets can only be listed for your current organisation' };
+      }
+      const org_id = callerOrg || input?.org_id;
+      if (!org_id) return { success: false, error: 'org_id is required (no organisation on this session)' };
       try {
         const { ok, status, data } = await _authFetch(`/api/internal/orgs/${encodeURIComponent(org_id)}/widgets`);
         if (!ok) return { success: false, error: data?.error || `auth_${status}` };

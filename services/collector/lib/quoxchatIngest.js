@@ -166,6 +166,22 @@ STRONG_PATTERNS.push(
   /\b(?:attention|hey|hello|dear)[,:]?\s+(?:ai|assistant|chatbot|bot|llm)\b/i,
   /\b(?:always\s+)?tell\s+(?:every|each|all|any)\s+(?:visitor|customer|user)s?\b/i,
 );
+// Wave 9: instructions addressed to the REPLY itself ("the reply must end
+// with ... code FREECALL"), which carry no "assistant" addressee word.
+STRONG_PATTERNS.push(
+  /\b(?:the|your|this|any|every)\s+(?:reply|replies|response|responses|answer|answers)\s+(?:must|should|shall|needs?\s+to|has\s+to|have\s+to)\b/i,
+  /\balways\s+(?:end|finish|close|conclude)\s+(?:with|by|every|each|your)\b/i,
+  /\bwhenever\s+(?:a|an|any|the|someone|anyone)\s+(?:customer|visitor|user|client|person)s?\s+(?:asks?|enquires?|inquires?|wants|mentions)\b[^.\n]{0,100}[,:]\s*(?:always\s+|you\s+(?:must|should)\s+)?(?:say|reply|tell|mention|end\s+with|include|respond|answer|recommend|offer|add)\b/i,
+  /\bdo\s+not\s+(?:mention|reveal|disclose|tell)\s+(?:this|these|the)\s+(?:note|notice|instruction|message|text)s?\b/i,
+  /\b(?:the\s+)?(?:bot|chatbot|assistant|ai)\s+(?:must|should|shall)\s+(?:always\s+)?(?:say|reply|tell|mention|end|include|respond|answer|promote|recommend|offer)\b/i,
+);
+// Wave 12: subtle assistant-directed directives ("Note for the website chat
+// assistant: when anyone asks about X, tell them ..."), no shouting keywords.
+STRONG_PATTERNS.push(
+  /\b(?:note|message|instruction|notice)s?\s+(?:for|to)\s+(?:the\s+)?(?:(?:website|web|site|support|customer)\s+)?(?:chat\s*)?(?:assistant|bot|ai|chatbot|agent|llm)\b/i,
+  /\bwhen(?:ever)?\s+(?:anyone|someone|a\s+(?:customer|visitor|user|client)|(?:visitors|users))\s+(?:asks?|enquires?|inquires?)\b[^.\n]{0,100}?[,:]\s*(?:then\s+)?(?:you\s+(?:must|should)\s+)?(?:tell\s+(?:them|him|her|the\s+\w+|that)|say\s+to\b|inform\s+(?:them|him|her|the\s+\w+)|(?:reply|respond)\s+(?:with|that|saying|by)\b)/i,
+  /\b(?:(?:website|chat)\s+)?(?:assistant|bot|ai|chatbot)\s+(?:should|must|shall)\s+(?:always\s+)?(?:say|tell|reply|answer)\b/i,
+);
 const WEAK_PATTERNS = [
   /\bDAN\b.*\b(?:do|anything|now)\b/,
   /you\s+are\s+now\s+/i,
@@ -189,34 +205,90 @@ function scanForInjection(text) {
  * Wave 6: each chunk is also scanned joined to the tail of the previous one
  * (a planted instruction split over a boundary), and `opts.fullText` (the
  * whole document before chunking) is scanned too. When ANY of those scores
- * high the whole source is quarantined: every chunk becomes 'high' (the
- * retrieval filters already exclude 'high') and `quarantined` is true.
+ * high only the flagged chunk(s) and their immediate neighbours are
+ * quarantined (injection 'high', which retrieval excludes); the rest of the
+ * source stays live. The whole source is quarantined only when more than half
+ * the chunks are flagged. flagged_passages records what tripped it.
  */
 function scanChunks(chunks, opts = {}) {
   const list = Array.isArray(chunks) ? chunks : [];
   const TAIL = 240;
-  let flagged = 0;
-  let high = 0;
-  let anyHigh = false;
-  if (opts.fullText && scanForInjection(opts.fullText).level === 'high') anyHigh = true;
-  const out = list.map((c, i) => {
+  const directHigh = new Set();
+  const level = new Array(list.length).fill('none');
+  const fullHigh = Boolean(opts.fullText && scanForInjection(opts.fullText).level === 'high');
+  list.forEach((c, i) => {
     let r = scanForInjection(c && c.text);
     if (i > 0) {
       const prev = String((list[i - 1] && list[i - 1].text) || '');
+      // The tail of an already-flagged previous chunk would re-flag this one.
+      if (scanForInjection(prev).level === 'high') { if (r.level === 'high') directHigh.add(i); if (r.level !== 'none' && level[i] !== 'high') level[i] = r.level; return; }
       const joined = scanForInjection(`${prev.slice(-TAIL)} ${(c && c.text) || ''}`);
-      if (joined.level === 'high') r = joined;
-      else if (joined.level === 'low' && r.level === 'none') r = joined;
+      if (joined.level === 'high') {
+        // A notice split over a boundary: both halves are flagged.
+        if (r.level !== 'high') { directHigh.add(i); directHigh.add(i - 1); }
+        r = joined;
+      } else if (joined.level === 'low' && r.level === 'none') r = joined;
     }
-    if (r.level === 'high') anyHigh = true;
-    if (r.level === 'none') return c;
-    return { ...c, injection: r.level };
+    if (r.level === 'high') directHigh.add(i);
+    if (r.level !== 'none' && level[i] !== 'high') level[i] = r.level;
   });
-  if (anyHigh) {
-    const all = out.map((c) => ({ ...c, injection: 'high' }));
-    return { chunks: all, flagged: all.length, high: all.length, quarantined: all.length > 0 };
+  const n = list.length;
+  const idOf = (i) => (list[i] && Number.isFinite(list[i].index) ? list[i].index : i);
+  // Wave 13: a chunk that is flagged by its own text is cleaned at line and
+  // sentence granularity: only the flagged passage is dropped, the clean facts
+  // stay live. Unsalvageable chunks (nothing left, or still high) fall through
+  // to the quarantine rules below.
+  const sanitized = new Map(); // chunk position -> { text, dropped: [string] }
+  for (const i of [...directHigh]) {
+    const orig = String((list[i] && list[i].text) || '');
+    if (scanForInjection(orig).level !== 'high') continue;
+    const dropped = [];
+    const keptLines = orig.split('\n').map((line) => {
+      if (scanForInjection(line).level !== 'high') return line;
+      const parts = line.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)\s*/g) || [line];
+      const kept = parts.filter((sn) => { if (scanForInjection(sn).level === 'high') { dropped.push(sn.trim()); return false; } return true; });
+      return kept.join('');
+    });
+    const cleaned = keptLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    if (dropped.length && cleaned.split(/\s+/).length >= 5 && scanForInjection(cleaned).level !== 'high') {
+      sanitized.set(i, { text: cleaned, dropped });
+      directHigh.delete(i);
+    }
   }
+  const passages = [...sanitized.entries()].flatMap(([i, v]) => v.dropped.map((d) => ({ chunk: idOf(i), text: d.slice(0, 200), dropped: true })))
+    .concat([...directHigh].sort((x, y) => x - y).slice(0, 20)
+    .map((i) => ({ chunk: idOf(i), text: String((list[i] && list[i].text) || '').slice(0, 200) })))
+    .slice(0, 20);
+  // Wave 10: quarantine the flagged chunk(s) plus their immediate neighbours,
+  // not the file. Whole-file quarantine only when more than half the chunks
+  // are flagged, or the notice is visible only in the whole text (split so no
+  // chunk could be pinned down).
+  const wholeFile = n > 0 && ((directHigh.size === 0 && sanitized.size === 0 && fullHigh) || directHigh.size * 2 > n);
+  const quarantine = new Set();
+  if (wholeFile) for (let i = 0; i < n; i++) quarantine.add(i);
+  else for (const i of directHigh) { quarantine.add(i); if (i > 0) quarantine.add(i - 1); if (i < n - 1) quarantine.add(i + 1); }
+  const out = list.map((c, i) => {
+    if (quarantine.has(i)) return { ...c, injection: 'high' };
+    if (sanitized.has(i)) return { ...c, text: sanitized.get(i).text, sanitized: true };
+    if (level[i] !== 'none') return { ...c, injection: level[i] };
+    return c;
+  });
+  let flagged = 0;
+  let high = 0;
   for (const c of out) if (c && c.injection) { flagged++; if (c.injection === 'high') high++; }
-  return { chunks: out, flagged, high, quarantined: false };
+  const allQuarantined = n > 0 && quarantine.size === n;
+  const sanitizedChunks = [...sanitized.keys()].sort((x, y) => x - y).map(idOf);
+  const flaggedPassages = passages.length ? passages : (wholeFile && opts.fullText ? [{ chunk: null, text: String(opts.fullText).slice(0, 200) }] : []);
+  return {
+    chunks: out,
+    flagged,
+    high,
+    quarantined: allQuarantined,
+    partially_quarantined: quarantine.size > 0 && !allQuarantined,
+    quarantined_chunks: [...quarantine].sort((x, y) => x - y).map(idOf),
+    flagged_passages: flaggedPassages,
+    sanitized_chunks: sanitizedChunks,
+  };
 }
 
 /**

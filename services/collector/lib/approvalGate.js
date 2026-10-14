@@ -394,7 +394,11 @@ const AGENT_GATED_TOOLS = {
 // never contingent on an org having configured a matching GOV-4 policy.
 // quox#590-shape bypass is pinned directly in
 // test/calendarqApprovalMediation.test.js.
-const AGENT_ALWAYS_PROPOSE_TOOLS = new Set(['loop_halt', 'slot_assign', 'bob_dispatch_build', 'email_send', 'send_notification', 'remote_ssh', 'ssh_exec', 'db_query', 'alerts_manage', 'backup_run', 'keeper_backup_create', 'deploy_template', 'gemini_generate', 'perplexity_research', 'system_admin', 'proxmox_vm_action', 'calendar_event_create', 'contacts_dial', 'contacts_send', 'contacts_context', 'contacts_dial_batch', 'contacts_send_batch', 'brain_garden_apply']);
+const AGENT_ALWAYS_PROPOSE_TOOLS = new Set(['loop_halt', 'slot_assign', 'bob_dispatch_build', 'email_send', 'send_notification', 'remote_ssh', 'ssh_exec', 'db_query', 'alerts_manage', 'backup_run', 'keeper_backup_create', 'deploy_template', 'gemini_generate', 'perplexity_research', 'system_admin', 'proxmox_vm_action', 'calendar_event_create', 'contacts_dial', 'contacts_send', 'contacts_context', 'contacts_dial_batch', 'contacts_send_batch', 'brain_garden_apply',
+  // QUOXON-ASK lane J: a quox CLI write run for the caller. Deliberately NOT in
+  // DIRECT_REQUEST_OK_TOOLS: any CLI write files a card naming the exact command line,
+  // even when the human asked (owner spec 2026-10-14). See lib/quoxCliTools.js.
+  'quox_cli_write']);
 
 // AQ-9D P3 approval mode: NotesQ write tools are agent-gated ONLY when the org's
 // NOTESQ_AGENT_EDIT_POLICY is 'propose'. lib/notesqTools.js resolves that setting
@@ -571,6 +575,12 @@ function buildAgentGateProposal(toolName, input, ctx) {
     return { targetId: String(c.targetId || toolName), reason: String(c.reason || ''), title: String(c.title || `${toolName} proposed`), bodyMd: c.bodyMd };
   }
   const agentLabel = (ctx.agentId || 'agent').toUpperCase();
+
+  // QUOXON-ASK lane J: the exact command line, what the leaf does and who it runs as,
+  // planned by the same code that executes it (lib/quoxCliTools.js planCall).
+  if (toolName === 'quox_cli_write') {
+    return require('./quoxCliTools.js').describeProposal(input, ctx);
+  }
 
   // contacts_dial / contacts_send (CONTACTSQ P1): name the person (display name looked up
   // org-scoped), the channel and the purpose. NEVER a number or address: the agent has
@@ -1874,6 +1884,9 @@ async function createApprovalRequest(toolName, input, pendingApproval, orgId = n
           type: 'native_tool_approval',
           toolName,
           action: input.action,
+          // QUOXON-REVIEW: the approval id rides on the card so a client that
+          // approves it can poll GET /api/v1/approvals/:id/result.
+          approval_id: approval.id,
           ...(pendingApproval?.targetId ? { targetId: pendingApproval.targetId } : {}),
           // BLAST-RADIUS-P1: the same computed summary attached to
           // request.metadata.reach above, mirrored here so the inbox card
@@ -1954,6 +1967,30 @@ async function createApprovalRequest(toolName, input, pendingApproval, orgId = n
  * @param {string} [orgId] - Org context the approval gate is operating under
  * @returns {Promise<{ status: string, approved: boolean, denied: boolean, pending: boolean, approval: object }>}
  */
+/**
+ * QUOXON-ASK lane J: the approval status of a caller-session tool (toolApprovalStore
+ * CALLER_SESSION_RESUME_TOOLS) from its local row, or null for every other tool (which
+ * keeps asking QuoxFlow). Only a human approval recorded by the inbox resume reads as
+ * approved; past the approval max age it reads as expired.
+ */
+function callerSessionApprovalStatus(approvalId, toolName) {
+  if (!toolApprovalStore.CALLER_SESSION_RESUME_TOOLS || !toolApprovalStore.CALLER_SESSION_RESUME_TOOLS.has(toolName)) return null;
+  const row = toolApprovalStore.getByApprovalId(approvalId);
+  if (!row || row.tool_name !== toolName) return { status: 'unknown', approved: false, denied: false, pending: false, expired: false, approval: {} };
+  const { APPROVAL_MAX_AGE_MS } = require('./approvalTtl.js');
+  const expired = row.created_at && (Date.now() - Number(row.created_at)) > APPROVAL_MAX_AGE_MS;
+  const approved = row.status === 'pending' && !!row.caller_approved_at && !expired;
+  const status = expired ? 'expired' : approved ? 'approved' : row.status === 'pending' ? 'pending' : row.status;
+  return {
+    status,
+    approved,
+    denied: row.status === 'denied',
+    pending: status === 'pending',
+    expired: !!expired,
+    approval: { response: { approver: row.caller_approved_by || null } },
+  };
+}
+
 async function getApprovalStatus(approvalId, orgId = null) {
   const approval = await quoxflowFetch(`/approvals/${approvalId}`, {}, orgId);
 
@@ -2011,8 +2048,16 @@ async function withApprovalGate(toolName, input, executeAction, ctx = {}) {
 
   // Check if there's a pending approval ID in the input (re-invocation after approval)
   if (input._approvalId) {
+    // quox#791: an approval the resume executor already ran (or is running, or
+    // that was denied/expired) answers from the stored row: never "still
+    // pending", never a second execution. Org/tool/agent scoped (else 404).
+    const stored791 = require('./approvalResult.js').storedApprovalOutcome(input._approvalId, toolName, ctx);
+    if (stored791) return stored791;
     try {
-      const status = await getApprovalStatus(input._approvalId, ctx.orgId);
+      // QUOXON-ASK lane J: a caller-session tool's approval was recorded locally by the
+      // inbox resume (QuoxFlow is never told), so the local record answers for it. Every
+      // check below (fingerprint, tool/org binding, single-use claim) still applies.
+      const status = callerSessionApprovalStatus(input._approvalId, toolName) || await getApprovalStatus(input._approvalId, ctx.orgId);
 
       if (status.approved) {
         // SEC: QuoxFlow only confirms the approval id's STATUS ('approved'),

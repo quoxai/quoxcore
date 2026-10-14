@@ -5,7 +5,9 @@
  * { query: string, candidates: [{id, text}] } (max RERANK_MAX_CANDIDATES,
  * text truncated to RERANK_MAX_TEXT chars). Returns 200 { order: [ids], model }
  * where order lists ONLY the passages that actually answer the query, most
- * relevant first. An empty order means nothing answers (abstention signal).
+ * relevant first. An empty order means nothing answers (abstention signal) and carries
+ * verdict:'none'; malformed output (no array, or only invalid labels) is a 502.
+ * A single candidate is still judged by the model (it is also the none gate).
  *
  * W12 D: `complete` is wired by server.js to lib/rerankCompletion.js, a direct
  * OpenAI chat completions call (no agent prompt or pipeline). No OpenAI key
@@ -40,7 +42,7 @@ const DATED_RULE = 'Passages may show a date. When passages disagree about the s
  * Extracts the first JSON array in `text` and returns the valid, unique labels
  * (1..n) in model order. Returns null when no JSON array can be found.
  */
-function parseAnswerIds(text, n) {
+function parseAnswerIds(text, n, info) {
   if (typeof text !== 'string') return null;
   let arr = null;
   for (let i = text.indexOf('['); i !== -1 && !arr; i = text.indexOf('[', i + 1)) {
@@ -52,6 +54,7 @@ function parseAnswerIds(text, n) {
     }
   }
   if (!arr) return null;
+  if (info) info.rawLength = arr.length;
   const seen = new Set();
   const out = [];
   for (const raw of arr) {
@@ -89,7 +92,6 @@ function createRerankHandler({ complete, getOrgId, getModelHint, hardCapMs = RER
       }
       ids.add(c.id);
     }
-    if (candidates.length === 1) return res.json({ order: [candidates[0].id], model: null });
 
     const prompt = `Query: ${query.slice(0, 500)}\n\n` + candidates
       .map((c, i) => `[${i + 1}] ${c.text.slice(0, RERANK_MAX_TEXT)}`)
@@ -106,12 +108,20 @@ function createRerankHandler({ complete, getOrgId, getModelHint, hardCapMs = RER
       if (err && err.code === 'rerank_provider_unavailable') return res.status(502).json({ error: 'rerank_provider_unavailable' });
       return res.status(502).json({ error: 'rerank_completion_failed' });
     }
-    const labels = parseAnswerIds(out?.text, candidates.length);
+    const info = {};
+    const labels = parseAnswerIds(out?.text, candidates.length, info);
     if (!labels) {
       console.error('[internal/rerank] unparseable completion (no JSON array)');
       return res.status(502).json({ error: 'rerank_unparseable' });
     }
-    res.json({ order: labels.map((i) => candidates[i - 1].id), model: out.model || null });
+    // A non-empty array whose labels are all invalid is malformed output, not
+    // an abstention. Only an explicit [] is the model saying none answer.
+    if (labels.length === 0 && info.rawLength > 0) {
+      console.error('[internal/rerank] completion listed only invalid labels');
+      return res.status(502).json({ error: 'rerank_invalid_order' });
+    }
+    const order = labels.map((i) => candidates[i - 1].id);
+    res.json({ order, model: out.model || null, ...(order.length === 0 ? { verdict: 'none' } : {}) });
   };
 }
 

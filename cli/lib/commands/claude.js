@@ -5,10 +5,16 @@
  */
 import * as gs from '../core/governedSession.js';
 import { validateName, PROGRAMS } from '../core/governedSession.js';
+import { runClaudeLs } from '../core/claudeLs.js';
 import { gatherReport } from '../core/liveSessionsReport.js';
 import { resolveEndpoint } from '../api/endpoints.js';
 import { formatOutput } from '../core/output.js';
 import { resolveOrgId } from './helpers.js';
+import { hostname as osHostname } from 'node:os';
+import { runSessionsOverview } from '../core/sessionsOverview.js';
+import {
+  buildBeat, probeTmux, runHeartbeatLoop, pidLock, fileLogger, DEFAULT_INTERVAL_S,
+} from '../core/sessionHeartbeat.js';
 
 export {
   validateName, autoName, planLaunch, parseSessions, renderIntro, runKill, runLs, runAttach,
@@ -181,6 +187,7 @@ quox's own flags (consumed here, not passed to claude):
   --as <agent>    start already attached to a Quox agent (quox agent attach <agent> at session start)
   --slot <name>   start already holding a dev slot (talk to it from Discord)
   --no-tmux       run claude directly, without tmux
+Subcommand: quox claude ls [--json] lists running quox-* tmux sessions.
 Claude's own --agent is untouched and passes through to claude.`)
     .helpOption(false)
     .allowUnknownOption()
@@ -190,6 +197,11 @@ Claude's own --agent is untouched and passes through to claude.`)
       const i = raw.indexOf('claude', 2);
       const rest = i >= 0 ? raw.slice(i + 1) : [];
       if (wantsWrapperHelp(rest)) { console.log(CLAUDE_WRAPPER_HELP); process.exitCode = 0; return; }
+      // `quox claude ls [--json]` lists sessions instead of launching claude.
+      if (rest[0] === 'ls' && rest.slice(1).every((a) => a === '--json')) {
+        process.exitCode = runClaudeLs({ json: rest.includes('--json') }, over);
+        return;
+      }
       const parsed = parseClaudeArgs(rest);
       process.exitCode = runClaude(parsed, over);
     });
@@ -239,7 +251,54 @@ Claude's own --agent is untouched and passes through to claude.`)
       }
       process.exitCode = runRun(parseRunArgs(rest), over);
     });
-  const sessions = program.command('sessions').description('Manage Quox tmux sessions (ls, attach, kill)');
+  const orgOrNull = (auth) => { try { return resolveOrgId(auth, program) || null; } catch { return null; } };
+  // Bare `quox sessions`: the org-wide live index (QUOXON J2). Subcommands keep working.
+  const sessions = program.command('sessions')
+    .description('Everything live in your org, grouped by agent (bare); ls, attach, kill, report manage tmux sessions')
+    .option('--json', 'print the raw index as JSON')
+    .option('--watch', 'refresh every 2 s until Ctrl-C')
+    .option('--all', 'show every conversation (default: the 5 most recent plus any working or waiting)')
+    .action(async (o) => {
+      const so = (over && over.sessionsOverview) || {};
+      const fetchIndex = so.fetchIndex || (async () => {
+        const { client, auth } = ctx;
+        auth.requireAuth();
+        const ep = resolveEndpoint('v1.sessions.index');
+        const org = orgOrNull(auth);
+        return client.get(ep.path, { service: ep.service, retries: 0, ...(org ? { query: { org_id: org } } : {}) });
+      });
+      const json = !!o.json || program.opts().output === 'json';
+      process.exitCode = await runSessionsOverview({ json, watch: !!o.watch, all: !!o.all }, { ...so, fetchIndex });
+    });
+  sessions.command('heartbeat <tmuxSession>', { hidden: true })
+    .description('Heartbeat one wrapped tmux session to the org session index (started by quox claude)')
+    .option('--loop', 'keep beating until the tmux session ends')
+    .option('--backend <program>', 'claude, codex, gemini, ...')
+    .option('--agent <agent>', 'agent the session started attached to (--as)')
+    .option('--slot <slot>', 'slot the session started holding (--slot)')
+    .action(async (name, o) => {
+      const { client, auth } = ctx;
+      auth.requireAuth();
+      const org = orgOrNull(auth);
+      const host = osHostname();
+      const hb = resolveEndpoint('v1.sessions.heartbeat');
+      const en = resolveEndpoint('v1.sessions.end');
+      const withOrg = (b) => (org ? { ...b, org_id: org } : b);
+      const post = (session) => client.post(hb.path, { service: hb.service, retries: 0, body: withOrg({ host, session }) });
+      const end = () => client.post(en.path, { service: en.service, retries: 0, body: withOrg({ host, name }) });
+      if (!o.loop) {
+        const p = probeTmux(name);
+        if (!p) { process.stderr.write(`No tmux session named ${name}.\n`); process.exitCode = 1; return; }
+        const r = await post(buildBeat({ probe: p, backend: o.backend, agent: o.agent, slot: o.slot }));
+        process.stdout.write(`Registered ${name} (expires after ${r && r.expires_after_s ? r.expires_after_s : 3 * DEFAULT_INTERVAL_S}s without a beat).\n`);
+        return;
+      }
+      const r = await runHeartbeatLoop({
+        tmuxName: name, backend: o.backend || null, agent: o.agent || null, slot: o.slot || null,
+        post, end, log: fileLogger(name), lock: pidLock(name),
+      });
+      process.exitCode = r.exit === 'retired' ? 1 : 0;
+    });
   sessions.command('help').description('Show how governed sessions work (also Ctrl-b then h)')
     .option('--wait', 'wait for a key before exiting (used by the popup)')
     .action((o) => {
@@ -248,7 +307,9 @@ Claude's own --agent is untouched and passes through to claude.`)
   sessions.command('ls').description('List Quox sessions (--all: the org-wide live register)')
     .option('--all', 'list the org-wide register of live sessions from the collector')
     .action(async (o) => {
-      if (!o.all) {
+      // The bare overview also has --all, and commander hands `sessions ls --all` to the parent;
+      // either spelling means the org-wide register here.
+      if (!o.all && !sessions.opts().all) {
         process.exitCode = gs.runLs(over);
         return;
       }

@@ -128,14 +128,22 @@ function mountWardRoutes(router) {
     }
   });
 
-  // GET /ward/entries?chain=...&limit=50&offset=0&source_kind=AEE
+  // GET /ward/entries?chain=...&limit=50&before_seq=N&source_kind=AEE
+  // quox#807: the production chain holds millions of rows. With no chain the
+  // old query was `SELECT * ... ORDER BY seq DESC` over ALL chains (full scan +
+  // temp B-tree sort, seq is only indexed per chain) plus an unbounded
+  // COUNT(*), which timed out at 30s. Now: default to the production chain
+  // (idx_ward_entries_chain), keyset pagination via before_seq (OFFSET still
+  // honoured for old callers), limit+1 probe for has_more, and COUNT(*) only on
+  // explicit count=1.
   router.get('/ward/entries', async (req, res) => {
     try {
       const ward = await getWard();
       const db = ward.getDb();
-      const chainId = req.query.chain;
-      const limit = Math.min(parseInt(req.query.limit) || 50, 500);
-      const offset = parseInt(req.query.offset) || 0;
+      const chainId = req.query.chain || process.env.WARD_CHAIN_ID || 'ward:org/quox/env/production';
+      const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 500);
+      const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+      const beforeSeq = parseInt(req.query.before_seq);
       const sourceKind = req.query.source_kind;
       // AEE-ORG-1 (tenant isolation): a JWT user sees only their own org's
       // entries (plus untagged legacy rows); a trusted service caller (no user
@@ -145,26 +153,25 @@ function mountWardRoutes(router) {
       // identity is trusted — a client-supplied org_id is never honoured.
       const orgId = req.user?.org_id || req.user?.orgId || null;
 
-      let sql = 'SELECT * FROM ward_entries';
-      const params = [];
-      const where = [];
-
-      if (chainId) { where.push('chain_id = ?'); params.push(chainId); }
+      const where = ['chain_id = ?'];
+      const params = [chainId];
+      if (Number.isFinite(beforeSeq)) { where.push('seq < ?'); params.push(beforeSeq); }
       if (sourceKind) { where.push('source_kind = ?'); params.push(sourceKind); }
       if (orgId) { where.push('(org_id = ? OR org_id IS NULL)'); params.push(orgId); }
+      const whereSql = ' WHERE ' + where.join(' AND ');
 
-      if (where.length > 0) sql += ' WHERE ' + where.join(' AND ');
-      sql += ' ORDER BY seq DESC LIMIT ? OFFSET ?';
-      params.push(limit, offset);
+      const rows = db.prepare(
+        'SELECT * FROM ward_entries' + whereSql + ' ORDER BY seq DESC LIMIT ? OFFSET ?'
+      ).all(...params, limit + 1, offset);
+      const has_more = rows.length > limit;
+      const entries = has_more ? rows.slice(0, limit) : rows;
+      const next_before_seq = has_more && entries.length ? entries[entries.length - 1].seq : null;
 
-      const entries = db.prepare(sql).all(...params);
-
-      // Total count for pagination
-      let countSql = 'SELECT COUNT(*) as total FROM ward_entries';
-      if (where.length > 0) countSql += ' WHERE ' + where.join(' AND ');
-      const total = db.prepare(countSql).get(...params.slice(0, where.length)).total;
-
-      res.json({ ok: true, entries, total, limit, offset });
+      const body = { ok: true, entries, limit, offset, chain: chainId, has_more, next_before_seq };
+      if (req.query.count === '1' || req.query.count === 'true') {
+        body.total = db.prepare('SELECT COUNT(*) as total FROM ward_entries' + whereSql).get(...params).total;
+      }
+      res.json(body);
     } catch (err) {
       res.status(500).json({ ok: false, error: err.message });
     }

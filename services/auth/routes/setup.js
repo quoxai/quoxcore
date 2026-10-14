@@ -529,7 +529,7 @@ router.post('/dev-login', authLimiter, async (req, res) => {
  *
  * @returns {{ valid: boolean, errors: string[] }}
  */
-function validateInstanceBasics({ appBaseUrl, publicUrl, collectorPublicUrl, corsOrigins, cookieSecure, matrixServerName }) {
+export function validateInstanceBasics({ appBaseUrl, publicUrl, collectorPublicUrl, corsOrigins, cookieSecure, matrixServerName }) {
     const errors = [];
 
     for (const [field, value] of [

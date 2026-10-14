@@ -145,6 +145,22 @@ function extractVisitorIdentity(message) {
 }
 
 /**
+ * Wave 10 #7: a short message that is the visitor handing over contact
+ * details (an email, maybe a name), not asking anything. Such a message gets
+ * a deterministic confirmation once it is stored and the team was notified.
+ */
+function isIdentityOnlyMessage(message, ident) {
+  if (!ident || !ident.email) return false;
+  const t = typeof message === 'string' ? message.trim() : '';
+  return t.length > 0 && t.length <= 160 && !/\?/.test(t);
+}
+
+/** Visitor-facing confirmation (only used when the team inbox was notified). */
+function emailCapturedAck(email) {
+  return `Thanks, I've saved your email address (${email}) on this conversation and passed it to the team. They will reply to you there.`;
+}
+
+/**
  * The name a VISITOR sees on an operator reply. The stored sender_name can be
  * an internal identity (a Matrix profile such as "Resident (dev-host-01)", a
  * localpart "human.moo", an mxid, or a host name); those leak infrastructure
@@ -168,6 +184,8 @@ module.exports = {
   visitorSafeOperatorName,
   NEUTRAL_OPERATOR_NAME,
   extractVisitorIdentity,
+  isIdentityOnlyMessage,
+  emailCapturedAck,
   markHandedOff,
   getHandedOff,
   clearHandedOff,

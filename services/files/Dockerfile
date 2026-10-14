@@ -5,6 +5,7 @@
 # tags). Roll deliberately: update tag AND digest together; no auto-roller
 # yet, so a bump is a reviewed commit, which is the point.
 FROM node:20-alpine@sha256:afdf98210b07b586eb71fa22ba2e432e058e4cd1304d31ed60888755b8c865fb
+ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Create app directory
 WORKDIR /app

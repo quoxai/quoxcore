@@ -4,6 +4,7 @@
 # Use cases: API calls, web scraping, file processing
 
 FROM python:3.12-slim
+ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

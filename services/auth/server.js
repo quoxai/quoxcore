@@ -47,6 +47,7 @@ import { RESOLVED_VERSION } from './lib/resolveVersion.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
+import loginLinkRoutes from './routes/loginLink.js';
 import orgsRoutes from './routes/orgs.js';
 import customRolesRoutes from './routes/customRoles.js';
 import membersRoutes from './routes/members.js';
@@ -150,6 +151,7 @@ import teamAssistantsRoutes from './routes/teamAssistants.js';
 import identityInternalRouter from './routes/identity.js';
 // MCPB-HARDEN-2B: per-user MCP token issuance + collector validation
 import mcpTokensRoutes, { internalRouter as mcpTokensInternalRouter } from './routes/mcp-tokens.js';
+import { internalRouter as pluginCredentialsInternalRouter } from './routes/plugin-credentials.js';
 // #453 phase 15: resident agent identity (Ed25519 keypair-derived, zero human minting)
 import { internalRouter as residentIdentityInternalRouter, publicRouter as residentIdentityPublicRouter } from './routes/resident-identity.js';
 // MATRIX-P4a: Matrix (Synapse) JWT SSO token bridge
@@ -622,6 +624,7 @@ app.use('/api/internal', fileObjectsInternalRouter);
 app.use('/api/internal', teamAssistantsRoutes);
 app.use('/api/internal', identityInternalRouter);
 app.use('/api/internal/mcp/tokens', mcpTokensInternalRouter);
+app.use('/api/internal/plugin-credentials', pluginCredentialsInternalRouter); // SEC-PLUGIN-TRUST C1
 app.use('/api/internal/resident-identities', residentIdentityInternalRouter); // #453 phase 15
 // POWERS-P2.C-fix-3: tool-definitions snapshot for collector boot-reseed
 app.use('/api/internal', (await import('./routes/internal-tool-definitions.js')).default);
@@ -705,6 +708,9 @@ app.use('/api', reviewsRoutes);
 app.use('/api', marketplaceRoutes);
 
 // Mount routes
+// QUOXON-C2c: one-time dashboard sign-in link (CLI first-run finish). Before the
+// /api/auth router so its own guards apply; authLimiter at mount time.
+app.use('/api/auth/login-link', authLimiter, loginLinkRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/auth/tokens/mcp', mcpTokensRoutes);  // MCPB-HARDEN-2B: per-user MCP token management
 app.use('/api/auth/resident', residentIdentityPublicRouter);  // #453 phase 15: resident agent challenge/response login
@@ -795,6 +801,7 @@ app.use('/api/mfa', mfaRoutes);
 // order here is about clarity, not about one protecting the other. See the
 // guard-layer header in routes/admin-backups.js.
 app.use('/api/admin/backups', (await import('./routes/admin-backups.js')).default);
+app.use('/api/admin/instance', (await import('./routes/admin-instance.js')).default);
 app.use('/api/admin', adminRoutes);
 // SET-IA Phase 5b: unified provider key view. Auth handled inside.
 app.use('/api/keys', keysRoutes);

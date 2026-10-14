@@ -100,6 +100,44 @@ export function registerQuoxseoCommands(program, ctx) {
       } catch (err) { annotate(err); }
     });
 
+  s.command('remove-site <site>')
+    .description('Remove a registered site and its warehouse data for this org (governed, witnessed). <site> is an origin or property id')
+    .option('-y, --yes', 'skip the confirmation prompt')
+    .action(async (site, opts) => {
+      try {
+        const list = await get(client, 'quoxseo.sites');
+        const props = list.properties || [];
+        const norm = (v) => String(v).trim().replace(/\/+$/, '').toLowerCase();
+        const target = props.find((p) => String(p.id) === String(site).trim() || norm(p.origin) === norm(site));
+        if (!target) {
+          throw new Error(`Site not found: ${site} is not registered for this org. List them with: quox seo sites`);
+        }
+        const warn = `This permanently removes ${target.origin} (#${target.id}) from this org and deletes its crawl, GSC and GA4 warehouse data. This cannot be undone.`;
+        if (!opts.yes && program.opts().yes !== true) {
+          if (!process.stdin.isTTY) {
+            throw new Error(`${warn} Confirmation needed; re-run with --yes in a non-interactive shell: quox seo remove-site ${target.origin} --yes`);
+          }
+          console.log(warn);
+          const { confirmDestructive } = await import('../core/confirm.js');
+          const ok = await confirmDestructive(program, {}, `Remove ${target.origin}?`);
+          if (!ok) { console.log('Aborted. Nothing was removed.'); return; }
+        }
+        const ep = resolveEndpoint('quoxseo.sites.remove', { id: target.id });
+        let data;
+        try {
+          data = await client.delete(ep.path, { service: ep.service });
+        } catch (err) {
+          const code = err?.status ?? err?.statusCode ?? err?.response?.status;
+          if (code === 404 || code === 405 || /\b(404|405)\b|not found|read.only/i.test(err?.message || '')) {
+            err.message = `${err.message}\nThis install's QuoxSEO service does not support site removal (no DELETE route), or the site no longer exists. Nothing was removed.`;
+          }
+          throw err;
+        }
+        if (jsonOut(data)) return;
+        console.log(`removed #${target.id}  ${target.origin}`);
+      } catch (err) { annotate(err); }
+    });
+
   s.command('urls')
     .description('Warehouse rows for the latest crawl')
     .option('--filter <f>', 'orphans | noindex | errors | no-gsc | discovered')

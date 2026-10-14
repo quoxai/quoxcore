@@ -6,6 +6,7 @@
  * quox plugin secrets list|set|reveal|delete
  * quox plugin assign list|add|remove
  * quox plugin trusted-keys list|add|remove
+ * quox plugin revocations list|add|remove
  *
  * Backend: services/auth/routes/plugins.js, mounted org-scoped at
  * `/api/orgs/:orgId/...` (server.js). Install/update/uninstall and all
@@ -535,5 +536,60 @@ export function registerPluginCommands(program, ctx) {
       }
       await client.delete(ep.path, reqOpts);
       printSuccess('Trusted key removed.');
+    });
+
+  // ── plugin revocations (SDK-TEAM W5) ────────────────────────────────────────
+
+  const revocations = plugin
+    .command('revocations')
+    .description('Revoke a plugin signer key or one bundle digest for this org (admin only). A revoked plugin cannot be installed and stops loading on the next page load.');
+
+  revocations
+    .command('list')
+    .description('List revocations')
+    .action(async () => {
+      auth.requireAuth();
+      const orgId = resolveOrgId(auth, program);
+      const ep = resolveEndpoint('plugins.revocations.list', { orgId });
+      const result = await client.get(ep.path, { service: ep.service });
+      const rows = result.revocations || result || [];
+      formatOutput({
+        columns: ['id', 'kind', 'value', 'reason', 'revoked_by', 'revoked_at'],
+        headers: ['ID', 'Kind', 'Value', 'Reason', 'Revoked By', 'Revoked'],
+        rows,
+      }, { format: program.opts().output, emptyMessage: 'No revocations.' });
+    });
+
+  revocations
+    .command('add')
+    .description('Revoke a signer key or a bundle digest')
+    .option('--signer-key <hex>', 'raw Ed25519 public key (64 hex), as in signature.json public_key_hex')
+    .option('--bundle-digest <hex>', 'sha256 of plugin.esm.js (64 hex), as shown by quox plugin list')
+    .option('--reason <text>', 'why (kept in the audit trail)')
+    .action(async (options) => {
+      auth.requireAuth();
+      if (!!options.signerKey === !!options.bundleDigest) {
+        throw new Error('Specify exactly one of --signer-key or --bundle-digest.');
+      }
+      const orgId = resolveOrgId(auth, program);
+      const body = options.signerKey
+        ? { kind: 'signer_key', value: options.signerKey, reason: options.reason }
+        : { kind: 'bundle_digest', value: options.bundleDigest, reason: options.reason };
+      const ep = resolveEndpoint('plugins.revocations.create', { orgId });
+      const result = await client.post(ep.path, { service: ep.service, body });
+      printSuccess('Revoked.');
+      formatDetail(result.revocation || result, { format: program.opts().output });
+    });
+
+  revocations
+    .command('remove')
+    .description('Lift a revocation')
+    .argument('<revocationId>', 'revocation ID')
+    .action(async (revocationId) => {
+      auth.requireAuth();
+      const orgId = resolveOrgId(auth, program);
+      const ep = resolveEndpoint('plugins.revocations.delete', { orgId, revocationId });
+      await client.delete(ep.path, { service: ep.service });
+      printSuccess('Revocation lifted.');
     });
 }

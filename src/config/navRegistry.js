@@ -207,6 +207,8 @@ const CORE_NAV_SECTIONS = [
         items: [
             { path: '/assistants', label: 'Assistants', icon: 'users' },
             { path: '/agents', label: 'Agents', icon: 'bot', shortcut: '5' },
+            // QUOXON J3: every live session (tmux, conversations, slots, work), by agent.
+            { path: '/sessions', label: 'Sessions', icon: 'terminal', badge: 'NEW' },
             { path: '/teams-overview', label: 'Agentic Teams', icon: 'network', minRole: 'builder' },
             { path: '/agents/stream', label: 'Agent Stream', icon: 'activity' },
             // Family Tree (/agents/family-tree) removed from the sidebar 2026-09-21:

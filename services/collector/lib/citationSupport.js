@@ -8,6 +8,7 @@
 const STOP = new Set(('a an and are as at be been but by can could did do does for from had has have he her his how i if in into is it its may might more most no not of on or our she should so some such than that the their them then there these they this those to was we were what when where which who will with would you your yes also just about after before over under up out per via each any all both too very').split(/\s+/));
 
 const MIN_MATCHED = 2;     // at least this many claim words must be found in the passage
+const WINDOW_CHARS = 1200; // matches citationEntailment MAX_CHARS
 const MIN_RATIO = 0.5;     // and at least this share of the claim's content words
 
 function stem(w) {
@@ -122,11 +123,107 @@ function oppositeWords(claim, sentence) {
     (hasAny(c, b) && !hasAny(c, a) && hasAny(t, a) && !hasAny(t, b)))
 }
 
+// Common-noun role reversal ("the client encrypts the server" vs "the server
+// encrypts the client"): a pivot word shared by both, with one shared word
+// before it in the claim and after it in the sentence, and another the
+// opposite way. Skipped for passives.
+function seqOf(text) {
+  const out = [];
+  const cleaned = String(text || '').replace(/\[[^[\]]{1,200}\]/g, ' ').toLowerCase();
+  for (const t of cleaned.match(/[a-z0-9]+/g) || []) {
+    if (STOP.has(t) || (t.length < 3 && !/^\d+$/.test(t))) continue;
+    const w = stem(t);
+    if (!out.includes(w)) out.push(w);
+  }
+  return out;
+}
+function wordRolesSwapped(claim, sentence) {
+  if (PASSIVE.test(claim) || PASSIVE.test(sentence)) return false;
+  const a = seqOf(claim), b = seqOf(sentence);
+  const shared = a.filter((w) => b.includes(w));
+  if (shared.length < 3) return false;
+  for (const v of shared) {
+    const ai = a.indexOf(v), bi = b.indexOf(v);
+    for (const x of shared) {
+      for (const y of shared) {
+        if (x === v || y === v || x === y) continue;
+        if (a.indexOf(x) < ai && a.indexOf(y) > ai && b.indexOf(x) > bi && b.indexOf(y) < bi) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// A condition clause: the words after a condition keyword up to punctuation.
+const CONDITION_CLAUSE_RE = /\b(?:only|unless|except|if|until|provided that|as long as|so long as|subject to|before|when|once|after)\b([^,;.!?\n]*)/gi;
+function conditionWordsOf(text) {
+  const t = String(text || '').replace(/\[[^[\]]{1,200}\]/g, ' ');
+  const out = new Set();
+  let any = false;
+  for (const m of t.matchAll(CONDITION_CLAUSE_RE)) {
+    any = true;
+    for (const w of contentWords(m[1])) out.add(w);
+  }
+  return any ? out : null;
+}
+/** True when the claim's condition clause has content words absent from every condition clause of the sentence. */
+function conditionMismatched(claim, sentence) {
+  const c = conditionWordsOf(claim), s = conditionWordsOf(sentence);
+  if (!c || !s || c.size === 0) return false;
+  return [...c].some((w) => !s.has(w));
+}
+
 const CONDITION_RE = /\b(only|unless|except|excluding|if|until|provided that|subject to|as long as|so long as)\b/gi;
 function conditionsOf(text) {
   const out = new Set();
   for (const m of String(text || '').matchAll(CONDITION_RE)) out.add(m[1].toLowerCase());
   return out;
+}
+
+// Audit fix: the stopword list above strips before/after and all/some/none/most,
+// which let "finished before" pass for "finished after" and "All" for "Some".
+// These two checks read the RAW tokens of the aligned sentence, so the
+// stopword set (and every unrelated score) is untouched.
+const TEMPORAL_RE = /\b(before|prior to|until|earlier than|after|following|since|later than)\b([^,;.!?\n]*)/gi;
+const TEMPORAL_DIR = { before: 'B', 'prior to': 'B', until: 'B', 'earlier than': 'B', after: 'A', following: 'A', since: 'A', 'later than': 'A' };
+function temporalMarkers(text) {
+  const t = String(text || '').replace(/\[[^[\]]{1,200}\]/g, ' ');
+  const out = [];
+  for (const m of t.matchAll(TEMPORAL_RE)) {
+    out.push({ dir: TEMPORAL_DIR[m[1].toLowerCase()], anchors: contentWords(m[2]) });
+  }
+  return out;
+}
+/** True when claim and sentence relate the same anchor with opposite order words and never agree. */
+function temporalOrderFlipped(claim, sentence) {
+  const c = temporalMarkers(claim), s = temporalMarkers(sentence);
+  if (!c.length || !s.length) return false;
+  const shares = (a, b) => [...a].some((w) => b.has(w));
+  return c.some((cm) => {
+    const rel = s.filter((sm) => shares(cm.anchors, sm.anchors));
+    return rel.length > 0 && rel.every((sm) => sm.dir !== cm.dir);
+  });
+}
+
+const QUANT_CLASSES = {
+  universal: ['all', 'every', 'each', 'always', 'everyone', 'everything', 'everybody'],
+  majority: ['most', 'mostly', 'usually', 'generally', 'typically'],
+  partial: ['some', 'several', 'many', 'few', 'sometimes', 'often', 'occasionally', 'certain'],
+  none: ['none', 'no', 'never', 'nobody', 'nothing'],
+};
+const QUANT_OF = new Map();
+for (const [k, ws] of Object.entries(QUANT_CLASSES)) for (const w of ws) QUANT_OF.set(w, k);
+function quantifierClasses(text) {
+  const t = String(text || '').replace(/\[[^[\]]{1,200}\]/g, ' ').toLowerCase();
+  const out = new Set();
+  for (const tok of t.match(/[a-z]+/g) || []) if (QUANT_OF.has(tok)) out.add(QUANT_OF.get(tok));
+  return out;
+}
+/** True when both sides carry a quantifier and the scope classes do not overlap. */
+function quantifierMismatched(claim, sentence) {
+  const c = quantifierClasses(claim), s = quantifierClasses(sentence);
+  if (!c.size || !s.size) return false;
+  return ![...c].some((k) => s.has(k));
 }
 
 function rawLexical(claim, passage) {
@@ -161,6 +258,18 @@ function lexicalSupport(claim, passage) {
     if (isNegated(claim) !== isNegated(best.sent) || numClash || rolesReversed(claim, best.sent) || oppositeWords(claim, best.sent)) {
       return { ...base, supported: false, contradicted: true };
     }
+    if (temporalOrderFlipped(claim, best.sent)) {
+      return { ...base, supported: false, contradicted: true, reason: 'temporal_order' };
+    }
+    if (quantifierMismatched(claim, best.sent)) {
+      return { ...base, supported: false, contradicted: false, reason: 'quantifier' };
+    }
+    if (wordRolesSwapped(claim, best.sent)) {
+      return { ...base, supported: false, contradicted: true, roleReversed: true };
+    }
+    if (conditionMismatched(claim, best.sent)) {
+      return { ...base, supported: false, contradicted: false, conditionMismatch: true };
+    }
     // Codex cycle 5 F3: the source limits the statement ("only with manager
     // approval", "unless...", "except...") and the claim drops that limit. The
     // passage does not support the unconditional version.
@@ -178,11 +287,39 @@ function lexicalSupport(claim, passage) {
 }
 
 /**
+ * Sentence-level alignment over the FULL passage: pick the sentence that best
+ * matches the claim, then widen to its neighbours until maxChars. Used to feed
+ * the (length-limited) entailment check the evidence, not the passage head.
+ */
+function bestWindow(claim, passage, maxChars) {
+  const text = String(passage || '');
+  if (text.length <= maxChars) return text;
+  const sents = splitSentences(text);
+  let bi = 0, best = null;
+  sents.forEach((sent, i) => {
+    const r = rawLexical(claim, sent);
+    if (!best || r.matched > best.matched || (r.matched === best.matched && r.ratio > best.ratio)) { best = r; bi = i; }
+  });
+  let lo = bi, hi = bi;
+  let out = sents[bi].slice(0, maxChars);
+  for (;;) {
+    let grew = false;
+    if (hi + 1 < sents.length && out.length + 1 + sents[hi + 1].length <= maxChars) { hi += 1; out = `${out} ${sents[hi]}`; grew = true; }
+    if (lo > 0 && out.length + 1 + sents[lo - 1].length <= maxChars) { lo -= 1; out = `${sents[lo]} ${out}`; grew = true; }
+    if (!grew) break;
+  }
+  return out;
+}
+
+/**
  * Support for one handle-cited ref. Returns null when it cannot be checked
  * (no handle, or the retrieval kept no passage text).
  */
 function checkRefSupport(ref, finalText) {
   if (!ref || !ref.handle) return null;
+  // The registered passage text was evicted (per-session budget): say so, do
+  // not fall back to the snippet and report a false "unsupported".
+  if (ref.passageEvicted) return { supported: null, contradicted: false, unchecked: 'evicted' };
   // BRAIN2-W4 A: prefer the passage the agent could see over the truncated snippet.
   const body = ref.passage || ref.snippet;
   if (!body) return null;
@@ -201,7 +338,8 @@ function checkRefSupport(ref, finalText) {
   // sentence under a valid handle makes the citation unsupported.
   // BRAIN2-W10 E 7: a contradicting sentence is reported distinctly.
   const contradicted = results.some((r) => r.contradicted);
-  return { supported: results.every((r) => r.supported), contradicted, claims, passage };
+  const joined = claims.join(' ');
+  return { supported: results.every((r) => r.supported), contradicted, claims, passage: bestWindow(joined, passage, WINDOW_CHARS) };
 }
 
 // BRAIN2-W7 E 115: a sentence that carries a handle only to say it was NOT used.

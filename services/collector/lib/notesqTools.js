@@ -324,14 +324,14 @@ const NOTESQ_TOOLS = {
   notesq_restore: {
     name: 'notesq_restore',
     description: 'Restore a note to an earlier revision NOW (writes a new revision, so it is itself undoable). Use notesq_history to find the rev.',
-    input_schema: { type: 'object', properties: { id: { type: 'string' }, rev: { type: 'number' } }, required: ['id', 'rev'] },
+    input_schema: { type: 'object', properties: { id: { type: 'string' }, rev: { type: 'number' }, base_hash: { type: 'string', description: 'The base_hash notesq_read returned; if the note changed since, nothing is written (conflict).' } }, required: ['id', 'rev'] },
     execute: async (input, ctx) => {
-      const { id, rev } = input || {};
+      const { id, rev, base_hash } = input || {};
       if (!validId(id)) return { success: false, error: 'id is required' };
       if (!Number.isInteger(rev) || rev < 1) return { success: false, error: 'rev must be a positive integer' };
       const res = await call(ctx, {
         method: 'POST', path: `/notesq/notes/${encodeURIComponent(id)}/restore`, intent: 'quox.notes.restore', noteId: id, authored: true,
-        body: { rev },
+        body: { rev, ...(typeof base_hash === 'string' && base_hash ? { expected_hash: base_hash } : {}) },
       });
       if (res.status !== 200) return failure(res);
       const n = res.json.note || {};
@@ -341,12 +341,13 @@ const NOTESQ_TOOLS = {
 
   notesq_delete: {
     name: 'notesq_delete',
-    description: 'Delete a note NOW (soft: revisions are retained). Only its author or an admin may delete; the server enforces that. Ask the user to confirm before calling.',
-    input_schema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    description: 'Delete a note NOW (soft: revisions are retained). Only its author or an admin may delete; the server enforces that. Ask the user to confirm before calling, and pass base_hash from notesq_read so a note edited in the meantime is not deleted.',
+    input_schema: { type: 'object', properties: { id: { type: 'string' }, base_hash: { type: 'string', description: 'The base_hash notesq_read returned; if the note changed since, nothing is deleted (conflict).' } }, required: ['id'] },
     execute: async (input, ctx) => {
       const id = input && input.id;
       if (!validId(id)) return { success: false, error: 'id is required' };
-      const res = await call(ctx, { method: 'DELETE', path: `/notesq/notes/${encodeURIComponent(id)}`, intent: 'quox.notes.delete', noteId: id });
+      const baseHash = typeof input.base_hash === 'string' && input.base_hash ? input.base_hash : null;
+      const res = await call(ctx, { method: 'DELETE', path: `/notesq/notes/${encodeURIComponent(id)}`, intent: 'quox.notes.delete', noteId: id, ...(baseHash ? { query: { expected_hash: baseHash } } : {}) });
       if (res.status !== 200) return failure(res);
       return { success: true, executed: true, id, result: 'DONE: note deleted. Its revisions are retained.' };
     },

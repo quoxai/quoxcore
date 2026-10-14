@@ -22,6 +22,8 @@ export default defineConfig({
     // treats anything matching .env as a credentials file, correctly.)
     setupFiles: ['./test/setup-quox-env.js'],
     globals: false,
-    testTimeout: 10000,
+    // Timing-driven UI tests poll the frame (see test/quoxon/r2helpers.js waitForFrame); this is the
+    // ceiling for a slow real render on a loaded box (load 30-60), not an expected duration.
+    testTimeout: 30000,
   }
 });

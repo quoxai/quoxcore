@@ -102,6 +102,22 @@ function formatMessageTime(value) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** Epoch ms for a created_at that may be SQLite 'YYYY-MM-DD HH:MM:SS' (UTC) or ISO. */
+function messageEpoch(value) {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const raw = String(value);
+  const t = Date.parse(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?$/.test(raw) ? `${raw.replace(' ', 'T')}Z` : raw);
+  return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
+}
+
+/** Strictly chronological by created_at; ties keep arrival order. */
+export function sortByCreatedAt(messages) {
+  return messages
+    .map((m, i) => ({ m, i, t: messageEpoch(m.created_at) }))
+    .sort((a, b) => (a.t - b.t) || (a.i - b.i))
+    .map((x) => x.m);
+}
+
 export function registerQuoxchatCommands(program, ctx) {
   const { client, auth } = ctx;
 
@@ -162,11 +178,12 @@ export function registerQuoxchatCommands(program, ctx) {
     .argument('<widgetId>', 'widget ID')
     .option('--status <status>', 'filter by conversation status (active, handed_off, closed)')
     .option('--waiting', 'show only conversations waiting on a human reply')
+    .option('--include-test', 'also list simulation (sim_*) and test conversations')
     .action(async (widgetId, options) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
 
-      const query = {};
+      const query = options.includeTest ? {} : { exclude_test: '1' };
       if (options.status) query.status = options.status;
 
       const ep = resolveEndpoint('quoxchat.conversations.list', { orgId, widgetId });
@@ -192,7 +209,8 @@ export function registerQuoxchatCommands(program, ctx) {
     .description('Print a conversation transcript in chronological order')
     .argument('<widgetId>', 'widget ID')
     .argument('<conversationId>', 'conversation ID')
-    .action(async (widgetId, conversationId) => {
+    .option('--full', 'do not truncate long messages in table output (JSON output is never truncated)')
+    .action(async (widgetId, conversationId, cmdOpts = {}) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
 
@@ -207,7 +225,7 @@ export function registerQuoxchatCommands(program, ctx) {
 
       const msgEp = resolveEndpoint('quoxchat.conversations.messages.list', { orgId, widgetId, conversationId });
       const data = await client.get(msgEp.path, { service: msgEp.service });
-      const messages = data.messages || data || [];
+      const messages = sortByCreatedAt(data.messages || data || []);
 
       formatOutput({
         columns: ['created_at', 'from', 'content'],
@@ -219,7 +237,7 @@ export function registerQuoxchatCommands(program, ctx) {
           from: m.role === 'user' ? visitorName : m.role === 'operator' ? (m.sender_name || 'Operator') : 'AI assistant',
           content: m.content || '',
         })),
-      }, { format: program.opts().output, emptyMessage: 'No messages in this conversation yet.' });
+      }, { format: program.opts().output, full: cmdOpts.full === true, emptyMessage: 'No messages in this conversation yet.' });
     });
 
   quoxchat

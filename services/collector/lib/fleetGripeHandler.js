@@ -33,12 +33,14 @@ const REPO_KEYWORD_TABLE = [
   { repo: 'quoxai/quoxwebsite', keywords: ['website', 'pricing', 'landing', 'blog', 'seo'] },
   { repo: 'quoxai/quox', keywords: ['dashboard', 'sidebar', 'panel', 'plugin', 'agent', 'memory', 'glass', 'cogcore', 'wiremap', 'opsdeck', 'mission control'] },
   { repo: 'quoxai/quoxflow', keywords: ['flow', 'workflow', 'cron', 'executor', 'schedule', 'quoxflow'] },
-  { repo: 'quoxai/quoxmcp', keywords: ['mcp', 'oauth', 'tool-call'] },
   { repo: 'quoxai/quoxterminal', keywords: ['terminal', 'tauri', 'desktop'] },
-  { repo: 'quoxai/quox-plugin-sdk', keywords: ['sdk', 'plugin-sdk', 'marketplace'] },
+  // QUOXON-PRIVACY: no public repo (quox-plugin-sdk, quoxmcp etc.) is ever selected by
+  // keyword. Public repos are reachable only by explicit target + confirm.
   { repo: 'quoxai/quoxbastion', keywords: ['bastion', 'ssh', 'fleet', 'vm'] },
 ];
 const DEFAULT_REPO = 'quoxai/quox';
+
+const { REPO_ALLOWLIST, scrubHits, normalizeRepo, evaluateGripeFiling } = require('./gripeRepoPolicy');
 
 // ── Label detection (verbatim from gripe.json's "Step 1: Parse", item 2) ──
 // Order matters: earlier entries win on overlap (e.g. "bug" beats "should"),
@@ -62,9 +64,17 @@ const TITLE_MAX_LEN = 80;
 const INLINE_REPO_RE = /\b(?:repo|reponame):(\S+)/i;
 const INLINE_LABEL_RE = /\blabel:(\S+)/i;
 
+const _kwCache = new Map();
+function wordBounded(kw) {
+  if (!_kwCache.has(kw)) {
+    _kwCache.set(kw, new RegExp(`(?<![a-z0-9])${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z0-9])`));
+  }
+  return _kwCache.get(kw);
+}
+
 function detectRepo(lowerText) {
   for (const entry of REPO_KEYWORD_TABLE) {
-    if (entry.keywords.some((kw) => lowerText.includes(kw))) {
+    if (entry.keywords.some((kw) => wordBounded(kw).test(lowerText))) {
       return { repo: entry.repo, defaulted: false };
     }
   }
@@ -109,12 +119,15 @@ function parseFleetGripe(complaintText, { hostId = 'unknown', repoOverride, labe
   const inlineLabelMatch = complaintText.match(INLINE_LABEL_RE);
 
   let repo, repoDefaulted;
+  let explicitTarget = false;
   if (repoOverride) {
-    repo = repoOverride;
+    repo = normalizeRepo(repoOverride);
     repoDefaulted = false;
+    explicitTarget = true;
   } else if (inlineRepoMatch) {
-    repo = inlineRepoMatch[1];
+    repo = normalizeRepo(inlineRepoMatch[1]);
     repoDefaulted = false;
+    explicitTarget = true;
   } else {
     ({ repo, defaulted: repoDefaulted } = detectRepo(lowerClean));
   }
@@ -132,6 +145,8 @@ function parseFleetGripe(complaintText, { hostId = 'unknown', repoOverride, labe
 
   return {
     repo,
+    explicitTarget,
+    visibility: REPO_ALLOWLIST[repo] || null,
     label,
     title: buildTitle(cleanText),
     body: buildBody(complaintText.trim(), hostId, repoDefaulted),
@@ -209,6 +224,15 @@ function createFleetGripeFileIssueHandler(deps = {}) {
       labelOverride: typeof body.label === 'string' ? body.label.trim() : undefined,
     });
 
+    // QUOXON-PRIVACY gate: allowlist, public confirmation, public scrub.
+    const gate = evaluateGripeFiling({
+      repo: parsed.repo, title: parsed.title, body: parsed.body,
+      humanConfirmedPublic: body.confirm_public === true && parsed.explicitTarget, strict: true,
+    });
+    if (!gate.ok) {
+      return res.status(400).json({ success: false, error: gate.error, message: gate.message, ...(gate.patterns ? { patterns: gate.patterns } : {}) });
+    }
+
     const input = {
       repo: parsed.repo,
       title: parsed.title,
@@ -226,6 +250,7 @@ function createFleetGripeFileIssueHandler(deps = {}) {
       agentId: 'gripe-fleet',
       orgId,
       corr: `FLEETGRIPE_${hostId}_${Date.now()}`,
+      humanConfirmedPublic: gate.visibility === 'public',
     };
 
     let result;
@@ -265,6 +290,8 @@ function createFleetGripeFileIssueHandler(deps = {}) {
 
 module.exports = {
   REPO_KEYWORD_TABLE,
+  REPO_ALLOWLIST,
+  scrubHits,
   LABEL_KEYWORD_TABLE,
   DEFAULT_REPO,
   DEFAULT_LABEL,

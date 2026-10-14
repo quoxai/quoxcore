@@ -64,6 +64,16 @@ function buildTwitterOAuth1Header(creds, url, method = 'GET') {
     return `OAuth ${header}`;
 }
 
+// CLI-QUOX B5: an OpenAI-compatible server root from an operator-entered URL: trailing slashes
+// and a pasted /chat/completions or /models suffix dropped; a bare origin is served at /v1.
+function openAiCompatRoot(raw) {
+    let u;
+    try { u = new URL(String(raw || '').trim()); } catch { return String(raw || '').replace(/\/+$/, ''); }
+    let p = u.pathname.replace(/\/+$/, '').replace(/\/(chat\/completions|models)$/i, '').replace(/\/+$/, '');
+    if (!p) p = '/v1';
+    return `${u.origin}${p}`;
+}
+
 export const INTEGRATION_TYPES = {
     // VAULT-INTEG P3: added first so WARD's sink credential resolver
     // (services/ward/lib/sinkCredentials.js) has a real integration_type to
@@ -6878,16 +6888,87 @@ export const INTEGRATION_TYPES = {
     ollama: {
         id: 'ollama',
         name: 'Ollama',
+        // CLI-QUOX B3: self-hosted by nature (a model server on the operator's LAN), so it uses
+        // the existing VAULT-INTEG LAN-target rule: RFC1918 base_url passes ONLY when the
+        // operator enables the instance gate `allow_lan_integration_targets` (default off);
+        // loopback and link-local stay blocked. The collector separately requires the exact
+        // origin in allow_private_origin before calling it (lib/ollamaProvider.js).
+        lanAllowed: true,
         description: 'Local LLM server',
         color: '#000000',
         category: 'ai',
         fields: [
-            { key: 'base_url', label: 'Ollama URL', type: 'url', required: true, default: 'http://localhost:11434', placeholder: 'http://localhost:11434' }
+            { key: 'base_url', label: 'Ollama URL', type: 'url', required: true, default: 'http://localhost:11434', placeholder: 'http://localhost:11434' },
+            // CLI-QUOX B3 (chat provider `ollama`): optional default model for chat, and the
+            // explicit private-address allowance the collector requires before calling a LAN
+            // host (must equal the origin of base_url; loopback/link-local stay blocked).
+            { key: 'default_model', label: 'Default chat model', type: 'text', required: false, placeholder: 'qwen2.5:7b' },
+            { key: 'allow_private_origin', label: 'Allow this private address (origin)', type: 'text', required: false, placeholder: 'http://<lan-ip>:11434' }
         ],
         testEndpoint: (creds) => `${creds.base_url.replace(/\/$/, '')}/api/tags`,
         testMethod: 'GET',
         testHeaders: () => ({}),
         docs: 'https://github.com/ollama/ollama/blob/main/docs/api.md'
+    },
+    // CLI-QUOX B5: OpenAI-compatible chat presets (collector lib/openaiCompatProvider.js).
+    // LM Studio and vLLM are self-hosted by nature, so they use the same LAN-target rule as Ollama:
+    // an RFC1918/CGNAT base_url is accepted ONLY with the instance gate allow_lan_integration_targets
+    // on (default off), and the collector additionally requires the exact origin in
+    // allow_private_origin; loopback and link-local stay blocked. The base_url is the server's
+    // OpenAI-compatible root (http://<host>:1234 or .../v1; a bare origin is served at /v1).
+    lmstudio: {
+        id: 'lmstudio',
+        name: 'LM Studio',
+        lanAllowed: true,
+        description: 'Local model server (OpenAI-compatible)',
+        color: '#4F46E5',
+        category: 'ai',
+        fields: [
+            { key: 'base_url', label: 'LM Studio server URL', type: 'url', required: true, placeholder: 'http://<lan-ip>:1234' },
+            { key: 'default_model', label: 'Default chat model', type: 'text', required: false, placeholder: 'qwen2.5-7b-instruct' },
+            { key: 'allow_private_origin', label: 'Allow this private address (origin)', type: 'text', required: false, placeholder: 'http://<lan-ip>:1234' }
+        ],
+        testEndpoint: (creds) => `${openAiCompatRoot(creds.base_url)}/models`,
+        testMethod: 'GET',
+        testHeaders: () => ({}),
+        docs: 'https://lmstudio.ai/docs/app/api/endpoints/openai'
+    },
+    vllm: {
+        id: 'vllm',
+        name: 'vLLM',
+        lanAllowed: true,
+        description: 'Self-hosted inference server (OpenAI-compatible)',
+        color: '#30A2FF',
+        category: 'ai',
+        fields: [
+            { key: 'base_url', label: 'vLLM server URL', type: 'url', required: true, placeholder: 'http://<lan-ip>:8000' },
+            { key: 'api_key', label: 'API key (if started with --api-key)', type: 'password', required: false, placeholder: 'optional' },
+            { key: 'default_model', label: 'Default chat model', type: 'text', required: false, placeholder: 'meta-llama/Llama-3.1-8B-Instruct' },
+            { key: 'allow_private_origin', label: 'Allow this private address (origin)', type: 'text', required: false, placeholder: 'http://<lan-ip>:8000' }
+        ],
+        testEndpoint: (creds) => `${openAiCompatRoot(creds.base_url)}/models`,
+        testMethod: 'GET',
+        testHeaders: (creds) => (creds.api_key ? { 'Authorization': `Bearer ${creds.api_key}` } : {}),
+        docs: 'https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html'
+    },
+    // CLI-QUOX B5 "custom": any PUBLIC https OpenAI-compatible endpoint, optional key. Not
+    // lanAllowed (a server on your own network is what lmstudio/vllm are for); the collector
+    // refuses http:// and any non-public address for it at call time.
+    openai_compatible: {
+        id: 'openai_compatible',
+        name: 'OpenAI-compatible endpoint',
+        description: 'Any OpenAI-compatible chat API over https',
+        color: '#64748B',
+        category: 'ai',
+        fields: [
+            { key: 'base_url', label: 'Base URL (https)', type: 'url', required: true, placeholder: 'https://llm.example.com/v1' },
+            { key: 'api_key', label: 'API key', type: 'password', required: false, placeholder: 'optional' },
+            { key: 'default_model', label: 'Default chat model', type: 'text', required: false, placeholder: 'model id' }
+        ],
+        testEndpoint: (creds) => `${openAiCompatRoot(creds.base_url)}/models`,
+        testMethod: 'GET',
+        testHeaders: (creds) => (creds.api_key ? { 'Authorization': `Bearer ${creds.api_key}` } : {}),
+        docs: 'https://platform.openai.com/docs/api-reference/chat'
     },
     langsmith: {
         id: 'langsmith',

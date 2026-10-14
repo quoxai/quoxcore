@@ -10,9 +10,12 @@
  *   className                    pass-through.
  *   animated (bool)              soft float + glow. Default false.
  *   style                        inline style override.
+ *   stops    (string[3])         gradient stop colours. Default sky, indigo, violet.
  */
 
-export default function QHorn({ size = 14, className = '', animated = false, style, ...rest }) {
+const DEFAULT_STOPS = ['#38bdf8', '#6366f1', '#a855f7'];
+
+export default function QHorn({ size = 14, className = '', animated = false, style, stops = DEFAULT_STOPS, ...rest }) {
   const id = `qh-${Math.random().toString(36).slice(2, 8)}`;
   return (
     <svg
@@ -36,9 +39,9 @@ export default function QHorn({ size = 14, className = '', animated = false, sty
     >
       <defs>
         <linearGradient id={id} x1="0" y1="0" x2="620" y2="0" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#38bdf8" />
-          <stop offset="55%"  stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#a855f7" />
+          <stop offset="0%"   stopColor={stops[0]} />
+          <stop offset="55%"  stopColor={stops[1]} />
+          <stop offset="100%" stopColor={stops[2]} />
         </linearGradient>
       </defs>
       {/* Horns */}

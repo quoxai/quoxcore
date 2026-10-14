@@ -101,6 +101,24 @@ export const plugins = {
     path: ({ orgId, pluginId, name }) => `/api/orgs/${orgId}/plugins/${pluginId}/secrets/${name}`,
     tags: ['live-write'],
   },
+  'plugins.revocations.create': {
+    method: 'POST',
+    service: 'auth',
+    path: ({ orgId }) => `/api/orgs/${orgId}/plugin-revocations`,
+    tags: ['live-write'],
+  },
+  'plugins.revocations.delete': {
+    method: 'DELETE',
+    service: 'auth',
+    path: ({ orgId, revocationId }) => `/api/orgs/${orgId}/plugin-revocations/${revocationId}`,
+    tags: ['live-write'],
+  },
+  'plugins.revocations.list': {
+    method: 'GET',
+    service: 'auth',
+    path: ({ orgId }) => `/api/orgs/${orgId}/plugin-revocations`,
+    tags: ['live-safe'],
+  },
   'plugins.trusted-keys.create': {
     method: 'POST',
     service: 'auth',

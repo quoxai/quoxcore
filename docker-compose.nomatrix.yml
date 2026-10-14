@@ -1,0 +1,29 @@
+# ===========================================================================
+# No-Matrix override (quox#801): a fresh machine that has only Docker.
+# ===========================================================================
+# The base docker-compose.yml attaches dashboard and auth to the EXTERNAL
+# network `quox-matrix_default`, which is created by the separate quox-matrix
+# compose project. Without that project the network does not exist and
+# `docker compose up -d` refuses to create any container.
+#
+# This override drops the attachment, so the core starts with Matrix absent.
+# The dashboard's /matrix/ location then answers 503 (nginx.conf resolves the
+# Synapse host per request, so it no longer needs to exist at boot).
+#
+# scripts/setup.sh adds this file to COMPOSE_FILE in .env automatically when
+# the network is not found. Hosts that DO run the Matrix stack (the dev box)
+# do not use this file and are unchanged. If you install Matrix later, remove
+# this file from COMPOSE_FILE in .env and run `docker compose up -d`.
+#
+# Requires Docker Compose >= 2.24 (`!override` / `!reset`), same as
+# docker-compose.public.yml.
+services:
+  dashboard:
+    networks: !override
+      - quox-network
+  auth:
+    networks: !override
+      - quox-network
+
+networks:
+  quox-matrix-net: !reset null

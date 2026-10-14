@@ -29,7 +29,7 @@ import { resolveEndpoint } from '../api/endpoints.js';
 import { resolveOrgId } from './helpers.js';
 import { loadResidentProfile, expandHome, deriveSupervisorEnv } from '../core/residentAuth.js';
 import { createInitialPumpState, runPumpOnce } from '../core/residentPump.js';
-import { createInitialAlarmState, runWardenPass } from '../core/residentAlarm.js';
+import { createInitialAlarmState, runWardenPass, sendAlarm } from '../core/residentAlarm.js';
 import {
   DEFAULT_SETTINGS,
   DEFAULT_IDLE_RECHECK_SECONDS,
@@ -80,7 +80,7 @@ export function defaultAlarmStatePath() {
 
 // #619: which `quox` binary to bake into the Restart=always unit's ExecStart.
 // Baking process.argv[1] (the CLI doing the install) is the trap: if that CLI
-// lives in a MUTABLE tree — the shared /opt/quoxcore that
+// lives in a MUTABLE tree — the shared quox-dashboard checkout that
 // sessions branch-switch, or a per-session …-wt-<name> worktree — then a
 // later checkout/reset silently changes or removes the deployed supervisor
 // code under the running unit. A resident crash-looped to StartLimit and sat
@@ -344,7 +344,17 @@ export function registerDevSupervisorCommands(dev, ctx) {
         await client.post(ep.path, { service: ep.service, body: { ...fields, slot_name: slotName, org_id: orgId } });
       };
 
+      // GRIPE-797: one owner alert per auth-expiry episode, same transport
+      // order as the warden alarm (tg-send.sh first, slot say fallback).
+      const alertOwner = async (text) => {
+        const script = ctx.tgSendScriptPath || join(homedir(), '.claude', 'skills', 'telegram-owner', 'tg-send.sh');
+        await sendAlarm({
+          tgSend: async (session, t) => { await (ctx.execFileAsync || promisify(execFile))('bash', [script, session, t]); },
+          postSlotNotice: postReply, text, sessionName: `SUPERVISOR-${hostId}`, log,
+        });
+      };
       const commonPollArgs = {
+        alertOwner,
         hostId,
         slot: slotName,
         selfIdentity,

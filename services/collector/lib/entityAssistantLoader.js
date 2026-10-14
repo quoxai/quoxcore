@@ -133,6 +133,33 @@ async function getAssistantPrompt(agentId) {
 }
 
 /**
+ * D3 `compact` prompt profile (Ollama default; opt-in elsewhere): for small/local models.
+ * Keeps, verbatim: the identity paragraph (first paragraph of systemPromptAdditions),
+ * tone, the always/never rules (safety and role lines) and the house voice. Drops the
+ * persona file and any further systemPromptAdditions paragraphs (long procedure prose:
+ * e.g. forge's heartbeat recipe). Policy that the server enforces (RBAC, QuoxHat,
+ * approvals) is not restated: it holds whatever the prompt says.
+ * @returns {string|null}
+ */
+function getAssistantPromptCompact(agentId) {
+  const data = getAssistant(agentId);
+  if (!data) return null;
+  const parts = [];
+  const additions = data.context?.systemPromptAdditions;
+  if (typeof additions === 'string' && additions.trim()) {
+    parts.push(additions.trim().split(/\n\s*\n/)[0].trim());
+  }
+  const personality = data.identity?.personality;
+  if (personality?.tone) parts.push(`\nTone: ${personality.tone}`);
+  const always = data.rules?.always;
+  if (Array.isArray(always) && always.length > 0) parts.push(`\nAlways:\n${always.map(r => `- ${r}`).join('\n')}`);
+  const never = data.rules?.never;
+  if (Array.isArray(never) && never.length > 0) parts.push(`\nNever:\n${never.map(r => `- ${r}`).join('\n')}`);
+  parts.push(HOUSE_VOICE);
+  return parts.join('\n');
+}
+
+/**
  * List all loaded assistant IDs.
  * @returns {string[]}
  */
@@ -144,6 +171,7 @@ module.exports = {
   loadAssistants,
   getAssistant,
   getAssistantPrompt,
+  getAssistantPromptCompact,
   listAssistants,
   HOUSE_VOICE,  // QuoxIdentity custom-attach fix Part A: reused by the collector's
                 // custom (DB) assistant kit fallback (agentAttachKit.js) so a

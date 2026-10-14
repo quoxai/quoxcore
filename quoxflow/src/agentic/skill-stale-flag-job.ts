@@ -20,6 +20,7 @@
  */
 
 import type { Pool } from 'pg';
+import { SYSTEM_SCOPE } from '../api/middleware/org-scope.js';
 import type { QuoxSkillsStore } from '../store/quox-skills-store.js';
 import type { ScoreboardRow } from '../store/skill-scoreboard.js';
 
@@ -74,7 +75,7 @@ export async function runStaleFlagJob(opts: StaleFlagJobOptions): Promise<StaleF
   });
   const doList = opts.listScoreboard ?? (async (p: Pool) => {
     const { listSkillScoreboard } = await import('../store/skill-scoreboard.js');
-    return listSkillScoreboard(p);
+    return listSkillScoreboard(p, SYSTEM_SCOPE); // trusted system job: all orgs (quoxflow#8)
   });
 
   // Optionally refresh the materialised view first

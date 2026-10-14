@@ -73,6 +73,7 @@ import { agentRegistry } from '../config/agentRegistry';
 import { assistants } from '../config/assistants';
 import { registerPluginKeywords, unregisterPluginKeywords } from '../services/agentDelegator';
 import { getHostAuthContext } from './hostAuthContext';
+import { registerFramePluginAgent } from './pluginAgentRegistration';
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -95,6 +96,34 @@ let hostInitialised = false;
 // bounce the user to home. The catch-all in App.jsx waits on this flag (and the
 // 'quox-plugins-loaded' event) before redirecting a /plugins/* path.
 let pluginsHydrated = false;
+
+// QC-W13: what the boot hydration actually learned about entitlement, so a
+// premium route stub can tell "org does not own this" (paywall) from "the
+// answer has not arrived / failed" (spinner / error + Retry). Never paywall on
+// an unknown answer.
+//   listStatus: 'idle' (never ran) | 'no-org' | 'ok' | 'error'
+//   pendingActivations: enabled plugin ids whose bundle activation has not settled
+//   failedActivations: enabled plugin ids whose activation threw
+let listStatus = 'idle';
+const pendingActivations = new Set();
+const failedActivations = new Set();
+
+function emitHydrationState() {
+    try { window.dispatchEvent(new CustomEvent('quox-plugins-state')); } catch { /* non-browser env */ }
+}
+
+/**
+ * Entitlement/activation answer for one plugin id:
+ * 'loading' | 'error' | 'entitled-pending' | 'not-entitled'.
+ */
+export function getPluginEntitlementState(pluginId) {
+    if (listStatus === 'idle' || listStatus === 'no-org') return 'loading';
+    if (listStatus === 'error') return 'error';
+    if (failedActivations.has(pluginId)) return 'error';
+    if (pendingActivations.has(pluginId)) return 'entitled-pending';
+    if (installedList.some(p => p.pluginId === pluginId && p.enabled)) return 'entitled-pending';
+    return 'not-entitled';
+}
 
 /** True once loadInstalledPlugins() has settled (success or failure). */
 export function arePluginsHydrated() {
@@ -1006,6 +1035,9 @@ async function activateViaFrame(pluginId, manifest, bundleCode, cssCode) {
         // Org/user are resolved HOST-SIDE from the auth state the parent owns; the
         // plugin can never assert a different org (T7 at the RPC boundary).
         getAuthContext: () => getHostAuthContext(),
+        // The admin-approved declarations from the installed manifest are the
+        // boundary (FND_01M4SVA495ZMJ0K3BZM6ZMJ0K3); the mediator fails closed.
+        permissions: manifest && manifest.permissions,
     });
 
     let frame;
@@ -1030,15 +1062,8 @@ async function activateViaFrame(pluginId, manifest, bundleCode, cssCode) {
     // Agent identity from the manifest (parity with the script path, which also reads
     // manifest.agentDefinition). An isolated plugin's agent still runs its tools through
     // the collector's governed choke — the isolation is about the browser runtime.
-    if (manifest.agentDefinition) {
-        const agentDef = manifest.agentDefinition;
-        const agentId = agentDef.id || pluginId;
-        agentRegistry.agents[agentId] = { ...agentDef, ownership: { source: 'plugin', plugin: pluginId } };
-        if (!agentRegistry.hierarchy.pluginAgents.includes(agentId)) agentRegistry.hierarchy.pluginAgents.push(agentId);
-        if (agentRegistry.agents.quox && !agentRegistry.agents.quox.canDelegateTo.includes(agentId)) {
-            agentRegistry.agents.quox.canDelegateTo.push(agentId);
-        }
-    }
+    // Community persona is untrusted: no quox delegation, never replaces an existing agent id.
+    registerFramePluginAgent(agentRegistry, pluginId, manifest, { official: false });
 
     console.log(`[PluginHost] ${pluginId} activated ISOLATED (frame host) — ${(surfaces.routes || []).length} route(s)`);
     return { success: true };
@@ -1284,8 +1309,14 @@ export async function loadInstalledPlugins() {
     const orgId = getActiveOrgId();
     if (!orgId) {
         installedList = [];
+        listStatus = 'no-org';
+        emitHydrationState();
         return;
     }
+    listStatus = 'idle';
+    pendingActivations.clear();
+    failedActivations.clear();
+    emitHydrationState();
 
     // PD-2: one-shot migration of any pre-PD-1 IndexedDB-only installs.
     // Idempotent — already-migrated records are tagged with `migrated_at`.
@@ -1303,6 +1334,8 @@ export async function loadInstalledPlugins() {
         // resurrecting stale browser state.
         console.warn('[PluginHost] Could not hydrate from server:', err.message);
         installedList = [];
+        listStatus = 'error';
+        emitHydrationState();
         return;
     }
 
@@ -1334,6 +1367,9 @@ export async function loadInstalledPlugins() {
     }));
 
     const enabled = installedList.filter(p => p.enabled);
+    enabled.forEach(p => pendingActivations.add(p.pluginId));
+    listStatus = 'ok';
+    emitHydrationState();
     if (enabled.length === 0) return;
 
     console.log(`[PluginHost] Hydrating ${enabled.length} third-party plugin(s) from server...`);
@@ -1352,8 +1388,13 @@ export async function loadInstalledPlugins() {
     await Promise.allSettled(enabled.map(async (entry) => {
         try {
             await ensureCachedAndActivate(orgId, entry, byId.get(entry.pluginId));
+            pendingActivations.delete(entry.pluginId);
+            emitHydrationState();
         } catch (err) {
             console.error(`[PluginHost] Failed to load ${entry.pluginId}:`, err);
+            pendingActivations.delete(entry.pluginId);
+            failedActivations.add(entry.pluginId);
+            emitHydrationState();
             // Self-heal: a load/activation failure often means the cached bytes
             // are stale or corrupt (e.g. a bundle from a superseded build that
             // predates a host contract change). Evict the cache entry so the
@@ -1557,6 +1598,16 @@ async function ensureCachedAndActivate(orgId, listEntry, serverRow) {
  */
 export function getInstalledPlugins() {
     return installedList.slice();
+}
+
+/**
+ * The installed manifest of a loaded plugin (null when not loaded). Used by
+ * PluginFrameView to decide whether the host renders an agent dock.
+ * @param {string} pluginId
+ * @returns {Object|null}
+ */
+export function getLoadedPluginManifest(pluginId) {
+    return loadedPlugins.get(pluginId)?.manifest || null;
 }
 
 /**

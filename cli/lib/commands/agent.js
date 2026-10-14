@@ -5,6 +5,7 @@
 import { formatOutput, formatDetail, printSuccess } from '../core/output.js';
 import { resolveOrgId } from './helpers.js';
 import { resolveEndpoint } from '../api/endpoints.js';
+import { loadBundledAssistantsRoster } from '../core/agentAlias.js';
 import { registerAgentAttachCommands } from './agentAttach.js';
 
 export function registerAgentCommands(program, ctx) {
@@ -16,27 +17,86 @@ export function registerAgentCommands(program, ctx) {
 
   agent
     .command('list')
-    .description('List agents')
-    .option('--status <status>', 'filter by status')
+    .description('List registered specialist agents and the org\'s own agents')
+    .option('--status <status>', 'filter by status (org agents only)')
     .option('--level <level>', 'filter by level (0-4)')
+    .option('--source <source>', 'registry | org | all', 'all')
+    .option('--plugin <id>', 'only agents that require this plugin')
+    .option('--search <text>', 'substring match on id, name or description')
     .action(async (options) => {
       auth.requireAuth();
-      const orgId = resolveOrgId(auth, program);
-      const query = {};
-      if (options.status) query.status = options.status;
-      if (options.level) query.level = options.level;
-      // fleet #392: tool_count is only computed when includeTools=true, which
-      // was never sent; and rows carry a `domains` ARRAY, not a `domain`.
-      query.includeTools = 'true';
-      const data = await client.get(resolveEndpoint('agents.list', { orgId }).path, { service: resolveEndpoint('agents.list', { orgId }).service, query });
+      const source = String(options.source || 'all').toLowerCase();
+      if (!['registry', 'org', 'all'].includes(source)) {
+        throw new Error(`--source must be registry, org or all (got "${options.source}")`);
+      }
+      const notes = [];
+
+      // Registered specialists (server roster; bundled roster if the server lacks the route).
+      let registry = [];
+      if (source !== 'org') {
+        try {
+          const ep = resolveEndpoint('v1.agents.registry');
+          const data = await client.get(ep.path, { service: ep.service });
+          if (!Array.isArray(data?.agents)) throw new Error('unexpected response');
+          registry = data.agents.map(r => ({ ...r, source: 'registry' }));
+        } catch (err) {
+          notes.push(`note: server registry unavailable (${err.message}); showing the bundled roster, which may be out of date.`);
+          registry = loadBundledAssistantsRoster().map(r => ({
+            agent_id: r.id, name: r.name || r.id, level: null, requires_plugin: null, tool_count: null, source: 'registry',
+          }));
+        }
+      }
+
+      // The org's own agent rows.
+      let orgRows = [];
+      if (source !== 'registry') {
+        try {
+          const orgId = resolveOrgId(auth, program);
+          const query = { includeTools: 'true' };
+          if (options.status) query.status = options.status;
+          if (options.level) query.level = options.level;
+          const ep = resolveEndpoint('agents.list', { orgId });
+          const data = await client.get(ep.path, { service: ep.service, query });
+          orgRows = (data.agents || data || []).map(r => ({ ...r, source: 'org' }));
+        } catch (err) {
+          if (source === 'org') throw err;
+          notes.push(`note: org agents unavailable (${err.message}); showing registered specialists only.`);
+        }
+      }
+
+      // Merge by agent_id: org row wins for status, registry supplies plugin/description.
+      const merged = new Map();
+      for (const r of registry) merged.set(r.agent_id, r);
+      for (const o of orgRows) {
+        const key = o.agent_id || o.id;
+        const reg = merged.get(key);
+        merged.set(key, reg
+          ? { ...reg, ...o, requires_plugin: reg.requires_plugin, description: reg.description ?? o.description, tool_count: o.tool_count ?? reg.tool_count, source: 'org+registry' }
+          : o);
+      }
+
+      let all = [...merged.values()];
+      if (options.level !== undefined) all = all.filter(r => String(r.level) === String(options.level));
+      if (options.status) all = all.filter(r => r.status === options.status);
+      if (options.plugin) all = all.filter(r => r.requires_plugin === options.plugin);
+      if (options.search) {
+        const q = options.search.toLowerCase();
+        all = all.filter(r => [r.agent_id, r.name, r.description].some(v => String(v ?? '').toLowerCase().includes(q)));
+      }
+      all.sort((x, y) => String(x.agent_id).localeCompare(String(y.agent_id)));
+
+      for (const n of notes) console.error(n);
+      const dash = (v) => (v === null || v === undefined || v === '' ? '-' : v);
       formatOutput({
-        columns: ['id', 'agent_id', 'name', 'level', 'status', 'domains', 'tool_count'],
-        headers: ['ID', 'Agent ID', 'Name', 'Level', 'Status', 'Domains', 'Tools'],
-        rows: (data.agents || data || []).map(a => ({
-          ...a,
-          domains: Array.isArray(a.domains) ? a.domains.join(', ') : (a.domains ?? '-'),
+        columns: ['agent_id', 'name', 'source', 'level', 'state', 'tool_count'],
+        headers: ['Agent ID', 'Name', 'Source', 'Level', 'Status/Plugin', 'Tools'],
+        rows: all.map(r => ({
+          ...r,
+          level: dash(r.level),
+          state: r.status ? r.status : (r.requires_plugin ? `plugin:${r.requires_plugin}` : '-'),
+          tool_count: dash(r.tool_count),
         })),
-      }, { format: program.opts().output });
+      }, { format: program.opts().output, raw: all, emptyMessage: 'No agents match.' });
     });
 
   agent

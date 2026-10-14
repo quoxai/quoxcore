@@ -13,12 +13,12 @@ function getPowersHostUrl() {
   return process.env.POWERS_HOST_URL || 'http://powers-host:9849';
 }
 
-async function startPluginBackend(pluginId, { image, port, healthPath, env } = {}) {
+async function startPluginBackend(pluginId, { image, port, healthPath, env, official, community } = {}) {
   const url = `${getPowersHostUrl()}/internal/plugin-backend/${encodeURIComponent(pluginId)}/start`;
   const resp = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image, port, healthPath, env }),
+    body: JSON.stringify({ image, port, healthPath, env, official: official === true, community: community === true }),
     signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
   });
   const body = await resp.json().catch(() => ({}));

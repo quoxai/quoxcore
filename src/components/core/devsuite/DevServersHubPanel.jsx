@@ -338,7 +338,7 @@ const DevServerCard = memo(function DevServerCard({ server, packStatus, syncing,
               is provisioned, OR a human has ever configured its supervisor
               (updated_at set). The OR exists because the registry's
               resident_state can read null on a host whose resident is alive
-              (quox#469 item 3, dev-host-01 live case). */}
+              (quox#469 item 3, dev-box live case). */}
           {(resident_state === 'provisioned' || supervisorStatus?.updated_at) && (
             <Link
               to={`/quoxperticus/${encodeURIComponent(host_id)}`}

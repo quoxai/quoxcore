@@ -6,6 +6,7 @@
 # Install dependencies and build the React app
 # ============================================
 FROM node:20-alpine@sha256:afdf98210b07b586eb71fa22ba2e432e058e4cd1304d31ed60888755b8c865fb AS builder
+ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install build tools (may be needed for optional native modules)
 RUN apk add --no-cache python3 make g++
@@ -40,6 +41,7 @@ RUN NODE_OPTIONS=--max-old-space-size=4096 npm run build
 # Serve with nginx + HTTPS
 # ============================================
 FROM nginx:alpine@sha256:62ff2089abf5a9ed33bd232895bef5e22f7bb4b200675cec49a5ebc48e3d4ac8 AS production
+ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install curl for healthcheck and openssl for self-signed cert fallback
 RUN apk add --no-cache curl openssl

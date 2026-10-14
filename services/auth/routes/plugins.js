@@ -48,6 +48,14 @@ import {
     listTrustedKeys,
     deleteTrustedKey,
     verifyPluginSignature,
+    v1ManifestExcess,
+    addRevocation,
+    listRevocations,
+    getRevocation,
+    deleteRevocation,
+    revocationFor,
+    installRevocation,
+    REVOCATION_KINDS,
 } from '../utils/plugins.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireOrgMembership, requireOrgRole } from '../middleware/org.js';
@@ -162,26 +170,74 @@ const adminChain  = [ensureAuthedOrg, requireAuthedOrg, requireOrgRole('admin')]
 // 403 and emitted the plugin.signature_invalid audit row.
 // ──────────────────────────────────────────────────────────────────────
 
-function enforceSignaturePolicy(req, res, { pluginId, bundleSha256, signature }) {
+function enforceSignaturePolicy(req, res, { pluginId, bundleSha256, cssSha256 = null, manifest = null, signature }) {
     const trustedCount = db(req).prepare(
         `SELECT COUNT(*) AS n FROM org_trusted_keys WHERE org_id = ?`
     ).get(req.org.id).n;
-    if (trustedCount === 0) return true;
+    if (trustedCount === 0) return { binding: 'not_enforced' };
 
-    const verdict = verifyPluginSignature(db(req), req.org.id, { bundleSha256, signature });
-    if (verdict.valid) return true;
+    const verdict = verifyPluginSignature(db(req), req.org.id, { bundleSha256, cssSha256, manifest, signature });
+    if (!verdict.valid) {
+        emitAudit(req, 'plugin.signature_invalid', pluginId, {
+            plugin_id: pluginId,
+            reason: verdict.reason,
+        });
+        res.status(403).json({
+            error: 'signature_invalid',
+            reason: verdict.reason,
+            message: 'org has trusted_keys configured; signed installs only',
+        });
+        return false;
+    }
 
-    emitAudit(req, 'plugin.signature_invalid', pluginId, {
-        plugin_id: pluginId,
-        reason: verdict.reason,
-    });
-    res.status(403).json({
-        error: 'signature_invalid',
-        reason: verdict.reason,
-        message: 'org has trusted_keys configured; signed installs only',
-    });
+    // SDK-TEAM W5: a v1 signature (quox-plugin-vite 0.2.0) binds the bundle
+    // bytes only. Anyone holding a v1-signed bundle could re-pair it with a
+    // manifest that asks for network, memory, aee or a backend and the
+    // signature would still verify. So a v1 signature may only carry the
+    // privileges of a self-contained UI plugin (sidebar, storage,
+    // notifications). Anything more needs a v2 signature, which binds the
+    // manifest. 0.2.0 plugins that stay within that allowance keep working.
+    if (verdict.binding === 'v1_manifest_unbound') {
+        const excess = v1ManifestExcess(manifest);
+        if (excess.length) {
+            emitAudit(req, 'plugin.signature_invalid', pluginId, {
+                plugin_id: pluginId,
+                reason: 'manifest_unbound_permissions',
+                excess,
+            });
+            res.status(403).json({
+                error: 'signature_invalid',
+                reason: 'manifest_unbound_permissions',
+                excess,
+                message: 'a v1 signature does not bind the manifest, so it may only request sidebar, storage and notifications; re-sign with quox-plugin-vite >= 0.3.0 (signature v2)',
+            });
+            return false;
+        }
+    }
+    return { binding: verdict.binding };
+}
+
+// SDK-TEAM W5: revocation is checked on every door that writes bundle bytes,
+// BEFORE the trust policy, and applies whether or not the org has trusted keys.
+function enforceNotRevoked(req, res, { pluginId, bundleSha256, signature }) {
+    const pub = signature && typeof signature === 'object' ? signature.public_key_hex : null;
+    const r = revocationFor(db(req), req.org.id, { bundleSha256, publicKeyHex: pub });
+    if (!r.revoked) return true;
+    emitAudit(req, 'plugin.revoked_refused', pluginId, { plugin_id: pluginId, kind: r.kind, revocation_id: r.id || null });
+    res.status(403).json({ error: 'revoked', kind: r.kind, message: 'this plugin bundle or its signer key is revoked for this org' });
     return false;
 }
+
+function refuseIfInstallRevoked(req, res, pluginId) {
+    const row = getInstall(db(req), req.org.id, pluginId);
+    if (!row) return true;
+    const r = installRevocation(db(req), req.org.id, row);
+    if (!r.revoked) return true;
+    res.status(403).json({ error: 'revoked', kind: r.kind });
+    return false;
+}
+
+const sha256OrNull = (buf) => (buf && buf.length ? sha256OfBuf(buf) : null);
 
 // ──────────────────────────────────────────────────────────────────────
 // List
@@ -209,6 +265,9 @@ router.get('/orgs/:orgId/plugins', ...memberChain, (req, res) => {
         installed_by: row.installed_by,
         installed_at: row.installed_at,
         upgraded_at: row.upgraded_at,
+        // SDK-TEAM W5: still listed so an admin can see and uninstall it, but
+        // flagged; /me/plugins (what the runtime activates from) drops it.
+        revoked: installRevocation(db(req), req.org.id, row).revoked,
     }));
     res.json({ plugins: installs });
 });
@@ -240,6 +299,7 @@ router.get('/orgs/:orgId/plugins/:pluginId', ...memberChain, (req, res) => {
             installed_by: row.installed_by,
             installed_at: row.installed_at,
             upgraded_at: row.upgraded_at,
+            revoked: installRevocation(db(req), req.org.id, row).revoked,
         },
     });
 });
@@ -285,6 +345,7 @@ function requirePluginEntitlement(req, res, next) {
 router.get('/orgs/:orgId/plugins/:pluginId/bundle', ...memberChain, (req, res) => {
     lazyEnsure(req);
     if (!requireBundleEntitlement(req, res)) return;
+    if (!refuseIfInstallRevoked(req, res, req.params.pluginId)) return;
     const row = getBundle(db(req), req.org.id, req.params.pluginId);
     if (!row || !row.bundle_blob) return res.status(404).json({ error: 'not_found' });
     res.set('Content-Type', 'application/javascript');
@@ -305,6 +366,7 @@ router.get('/orgs/:orgId/plugins/:pluginId/bundle', ...memberChain, (req, res) =
 router.get('/orgs/:orgId/plugins/:pluginId/css', ...memberChain, (req, res) => {
     lazyEnsure(req);
     if (!requireBundleEntitlement(req, res)) return;
+    if (!refuseIfInstallRevoked(req, res, req.params.pluginId)) return;
     const row = getBundle(db(req), req.org.id, req.params.pluginId);
     if (!row || !row.css_blob) return res.status(404).json({ error: 'not_found' });
     res.set('Content-Type', 'text/css');
@@ -351,11 +413,15 @@ router.post('/orgs/:orgId/plugins', ...adminChain, installBodyParser, (req, res)
     // PD-8: signature policy. If the org has any trusted keys configured, we
     // require a valid signature. If none configured, unsigned installs are
     // accepted for back-compat. Shared with upgrade + migrate (LL-6b).
-    if (!enforceSignaturePolicy(req, res, {
+    if (!enforceNotRevoked(req, res, { pluginId: manifest.id, bundleSha256: sha256OfBuf(bundleBuf), signature })) return;
+    const policy = enforceSignaturePolicy(req, res, {
         pluginId: manifest.id,
         bundleSha256: sha256OfBuf(bundleBuf),
+        cssSha256: sha256OrNull(cssBuf),
+        manifest,
         signature,
-    })) return;
+    });
+    if (!policy) return;
 
     try {
         const install = createInstall(db(req), req.org.id, {
@@ -371,6 +437,7 @@ router.post('/orgs/:orgId/plugins', ...adminChain, installBodyParser, (req, res)
             plugin_id: install.plugin_id,
             version: install.version,
             bundle_sha256: install.bundle_sha256,
+            signature_binding: policy.binding,
         });
         // PD-7: default visibility = all org members. Admin can replace this
         // with explicit user/team rows via /assignments.
@@ -454,9 +521,12 @@ router.post('/orgs/:orgId/plugins/migrate', ...adminChain, installBodyParser, (r
     // LL-6b: migrate is a genuine FIRST install (createInstall below), so it
     // answers to the same PD-8 policy as POST /plugins. Checked only on the
     // insert path — the no-op branches above write nothing.
+    if (!enforceNotRevoked(req, res, { pluginId: manifest.id, bundleSha256: sha256OfBuf(bundleBuf), signature })) return;
     if (!enforceSignaturePolicy(req, res, {
         pluginId: manifest.id,
         bundleSha256: sha256OfBuf(bundleBuf),
+        cssSha256: sha256OrNull(cssBuf),
+        manifest,
         signature,
     })) return;
 
@@ -547,9 +617,12 @@ router.patch('/orgs/:orgId/plugins/:pluginId', ...adminChain, installBodyParser,
         // browser runs, so it MUST clear the same PD-8 bar as the first
         // install. Checked BEFORE upgradeInstall() so a refused upgrade
         // cannot have already overwritten the good bundle.
+        if (!enforceNotRevoked(req, res, { pluginId: req.params.pluginId, bundleSha256: sha256OfBuf(bundleBuf), signature: body.signature })) return;
         if (!enforceSignaturePolicy(req, res, {
             pluginId: req.params.pluginId,
             bundleSha256: sha256OfBuf(bundleBuf),
+            cssSha256: sha256OrNull(cssBuf),
+            manifest,
             signature: body.signature,
         })) return;
 
@@ -817,7 +890,10 @@ router.get('/orgs/:orgId/me/plugins', ...memberChain, (req, res) => {
     // version shipped, so the bundle/css no-cache headers alone can't help. All
     // three (list + bundle + css) must revalidate for updates to reach clients.
     res.set('Cache-Control', 'no-cache, must-revalidate');
-    res.json({ plugins: rows.map(hydrate) });
+    // SDK-TEAM W5: a revoked install is not advertised, so the client's
+    // unlisted-cache sweep purges its bytes and it stops activating.
+    const live = rows.filter((r) => !installRevocation(db(req), req.org.id, r).revoked);
+    res.json({ plugins: live.map(hydrate) });
 });
 
 // ──────────────────────────────────────────────────────────────────────
@@ -876,6 +952,43 @@ router.delete('/orgs/:orgId/trusted-keys/:keyId', ...adminChain, (req, res) => {
         });
         return res.status(200).json({ ok: true, signature_policy: 'unsigned_accepted' });
     }
+    res.status(204).end();
+});
+
+// ──────────────────────────────────────────────────────────────────────
+
+// ──────────────────────────────────────────────────────────────────────
+// SDK-TEAM W5: org-scoped revocation (admin)
+// ──────────────────────────────────────────────────────────────────────
+
+router.get('/orgs/:orgId/plugin-revocations', ...adminChain, (req, res) => {
+    lazyEnsure(req);
+    res.json({ revocations: listRevocations(db(req), req.org.id) });
+});
+
+router.post('/orgs/:orgId/plugin-revocations', ...adminChain, dataBodyParser, (req, res) => {
+    lazyEnsure(req);
+    const { kind, value, reason } = req.body || {};
+    if (!REVOCATION_KINDS.has(kind)) {
+        return res.status(400).json({ error: 'invalid_input', message: 'kind must be signer_key or bundle_digest' });
+    }
+    try {
+        const row = addRevocation(db(req), req.org.id, { kind, value, reason, revokedBy: req.user.id });
+        emitAudit(req, 'plugin.revocation_added', row.id, { kind: row.kind, value: row.value, reason: row.reason });
+        res.status(201).json({ revocation: row });
+    } catch (err) {
+        const msg = String(err?.message || err);
+        if (/UNIQUE/i.test(msg)) return res.status(409).json({ error: 'duplicate', message: 'already revoked' });
+        res.status(400).json({ error: 'invalid_input', message: msg });
+    }
+});
+
+router.delete('/orgs/:orgId/plugin-revocations/:revocationId', ...adminChain, (req, res) => {
+    lazyEnsure(req);
+    const row = getRevocation(db(req), req.org.id, req.params.revocationId);
+    if (!row) return res.status(404).json({ error: 'not_found' });
+    deleteRevocation(db(req), req.org.id, row.id);
+    emitAudit(req, 'plugin.revocation_removed', row.id, { kind: row.kind, value: row.value });
     res.status(204).end();
 });
 

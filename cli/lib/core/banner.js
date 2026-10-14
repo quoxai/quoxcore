@@ -79,6 +79,42 @@ export function qArt(col) {
   return out;
 }
 
+/**
+ * One frame of the intro sweep: the Q is revealed left to right with a bright
+ * leading edge; progress >= 1 returns exactly qArt(col). Always the same
+ * number of rows and columns, so the live region never changes height.
+ */
+export function qArtFrame(progress, col) {
+  if (progress >= 1 || !col) return qArt(col);
+  const cols = Q_BITMAP[0].length;
+  const head = progress * (cols + 3) - 1.5;
+  const px = (x, on) => (on && x <= head ? 1 : 0);
+  const glow = (x, t) => {
+    const d = head - x; // 0 at the leading edge, grows behind it
+    const k = d < 3 ? 1 - d / 3 : 0;
+    const [a, b] = GRAD;
+    const base = a.map((v, j) => v + (b[j] - v) * t);
+    const c = base.map(v => Math.round(v + (255 - v) * 0.7 * k));
+    return `\x1b[38;2;${c[0]};${c[1]};${c[2]}m`;
+  };
+  const out = [];
+  for (let y = 0; y < Q_BITMAP.length; y += 2) {
+    const top = Q_BITMAP[y];
+    const bot = Q_BITMAP[y + 1] || ' '.repeat(cols);
+    let line = '';
+    for (let x = 0; x < cols; x++) {
+      const t = x / (cols - 1);
+      const hasTop = px(x, top[x] === '#');
+      const hasBot = px(x, bot[x] === '#');
+      if (!hasTop && !hasBot) line += ' ';
+      else if (hasTop && hasBot) line += `${glow(x, t)}${gradBg(t)}▀${R}`;
+      else line += `${glow(x, t)}${hasTop ? '▀' : '▄'}${R}`;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
 export function printBanner(version, { loggedIn = true } = {}) {
   const col = colorOn();
   const art = qArt(col);

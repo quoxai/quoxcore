@@ -89,6 +89,12 @@ function ensure(db) {
   // idempotently (SQLite throws "duplicate column name" if it already exists).
   try { db.exec('ALTER TABLE tool_approvals ADD COLUMN conversation_id TEXT'); }
   catch (e) { if (!/duplicate column name/i.test(e.message)) throw e; }
+  // QUOXON-ASK lane J: a caller-session tool's human approval, recorded while the row
+  // stays pending until the caller's own turn runs it (see CALLER_SESSION_RESUME_TOOLS).
+  for (const col of ['caller_approved_by TEXT', 'caller_approved_at INTEGER']) {
+    try { db.exec(`ALTER TABLE tool_approvals ADD COLUMN ${col}`); }
+    catch (e) { if (!/duplicate column name/i.test(e.message)) throw e; }
+  }
   _db = db;
 }
 
@@ -200,6 +206,25 @@ function expirePending(approval_id) {
   return info.changes === 1;
 }
 
+/**
+ * QUOXON-ASK lane J: tools whose approved execution must run in the requesting user's
+ * own session (their bearer). The async resume records the human approval here and
+ * leaves the row pending; withApprovalGate's poll branch honours it on the caller's
+ * next turn, then claims the row single-use as for any approval.
+ */
+const CALLER_SESSION_RESUME_TOOLS = new Set(['quox_cli_write']);
+
+/** Record a human approval on a still-pending caller-session row. -> true when recorded. */
+function markCallerApproved(approval_id, approver) {
+  const db = requireDb();
+  const info = db.prepare(`
+    UPDATE tool_approvals
+    SET caller_approved_by = ?, caller_approved_at = ?, updated_at = ?
+    WHERE approval_id = ? AND status = 'pending'
+  `).run(approver ? String(approver) : 'approver', Date.now(), Date.now(), approval_id);
+  return info.changes === 1;
+}
+
 function getByApprovalId(approval_id) {
   if (!_db) return null;
   return _db.prepare('SELECT * FROM tool_approvals WHERE approval_id = ?').get(approval_id) || null;
@@ -238,6 +263,28 @@ function claimForResume(approval_id) {
   const row = getByApprovalId(approval_id);
   require('./lucid/emit.js').approvalEvent(row, 'resuming');
   return row;
+}
+
+/**
+ * Fleet standing grants (2026-10-13): a call a standing grant covers runs
+ * without a human click, but it still lands here so approvals history shows
+ * every use. Inserted straight into `resuming` (NEVER `pending`: a pending row
+ * raises an owner ask in LUCID), then finalize() records the outcome. The
+ * resume token is random and never returned, so the row cannot be resumed.
+ */
+function recordStandingGrantUse({ approval_id, org_id, agent_id, user_id, tool_name, input_json, conversation_id }) {
+  if (!approval_id) throw new Error('recordStandingGrantUse requires approval_id');
+  const db = requireDb();
+  const t = Date.now();
+  db.prepare(`
+    INSERT INTO tool_approvals
+      (approval_id, org_id, agent_id, user_id, tool_name, input_json, resume_token, conversation_id, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'resuming', ?, ?)
+  `).run(
+    approval_id, org_id || null, agent_id || null, user_id || null, tool_name, input_json || null,
+    require('crypto').randomBytes(32).toString('hex'), conversation_id || null, t, t
+  );
+  return getByApprovalId(approval_id);
 }
 
 /**
@@ -291,6 +338,8 @@ function listRecentByOrg(org_id, { toolPrefix = '', limit = 50 } = {}) {
 }
 
 module.exports = {
+  CALLER_SESSION_RESUME_TOOLS,
+  markCallerApproved,
   listCloseRetries,
   setExpiryCloseState,
   listExpirable,
@@ -299,6 +348,7 @@ module.exports = {
   findPendingDuplicate,
   ensure,
   putPending,
+  recordStandingGrantUse,
   getByApprovalId,
   verifyToken,
   claimForResume,

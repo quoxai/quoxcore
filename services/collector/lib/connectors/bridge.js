@@ -231,8 +231,21 @@ async function resolveConnectorCredentials(orgId, connectorId, opts = {}) {
     }
 
     const data = await resp.json()
-    const providerData = data?.providers?.[connector.credentialType]
+    return await _credentialsFromProviderData(orgId, connectorId, connector, data?.providers?.[connector.credentialType], repo)
+  } catch (err) {
+    return { error: `Credential resolution failed for ${connectorId}: ${err.message}` }
+  }
+}
 
+/**
+ * Turn one provider entry from /internal/resolve into a connector's credential
+ * set (field aliasing, passthrough fields, the resolve-by-id fallback for
+ * multi-field connectors). Shared by the single-connector path above and the
+ * batched getAvailableTools rebuild below, so both hand an agent exactly the
+ * same credentials.
+ */
+async function _credentialsFromProviderData(orgId, connectorId, connector, providerData, repo = null) {
+  try {
     if (!providerData) {
       return { error: `No ${connectorId} credentials found in vault` }
     }
@@ -420,6 +433,21 @@ async function activateConnector(orgId, connectorId, opts = {}) {
  */
 async function executeConnectorTool(orgId, connectorId, toolName, input, context = {}) {
   const startTime = Date.now()
+
+  // QUOXON-PRIVACY: repo gate for issue filing at THE shared choke, so the
+  // GRIPE agent, the github proxy and fleet hosts all hit one rule. Public
+  // quoxai repos need context.humanConfirmedPublic, set only by server-side
+  // human paths; model-supplied tool input (incl. confirm_public) never counts.
+  if (connectorId === 'github' && toolName === 'create_issue' && input && typeof input.repo === 'string') {
+    const gate = require('../gripeRepoPolicy').evaluateGripeFiling({
+      repo: input.repo, title: input.title, body: input.body,
+      humanConfirmedPublic: context && context.humanConfirmedPublic === true,
+    })
+    if (!gate.ok) {
+      console.warn(`[ConnectorBridge] gripe repo gate blocked ${input.repo}: ${gate.error}`)
+      return { success: false, error: gate.error, message: gate.message, ...(gate.patterns ? { patterns: gate.patterns } : {}), duration_ms: Date.now() - startTime }
+    }
+  }
 
   // QUOXTRUST T9/D4 (finding 5.1) — GOV-4 org governance/safety policy, enforced
   // FIRST at THE shared connector choke so it covers every caller (agent
@@ -702,19 +730,88 @@ async function executeConnectorTool(orgId, connectorId, toolName, input, context
  * Get all available connector tools for an org.
  * Checks which connectors have credentials in the vault and returns
  * their tool definitions. Used for dynamic tool registration.
+ *
+ * QUOXON A2 (latency): this is on every chat turn for agents with connector
+ * families, often several times per turn. It used to POST /internal/resolve
+ * once PER REGISTERED CONNECTOR (222 sequential round trips, 1.7 to 3.2 s per
+ * call). Now:
+ *   - one batched resolve call per rebuild (the endpoint takes a providers list)
+ *   - a per-org cache with a short TTL, keyed strictly by orgId
+ *   - single-flight per org, so concurrent turns share one rebuild
+ *   - explicit invalidation: deactivateConnector, the internal invalidate route
+ *     (auth calls it whenever its credential resolver cache is cleared, i.e. on
+ *     every vault credential write), or invalidateAvailableToolsCache()
+ *   - failure accounting (Loop & Restart Hygiene): a failed rebuild is counted
+ *     and logged, serves the last good value for at most STALE_MAX_MS, backs
+ *     off before retrying, and with nothing good to serve it THROWS. An empty
+ *     list here would read as "this org has no connectors", which is a lie
+ *     when the vault is down.
+ *
+ * @param {string} orgId
+ * @param {{ meta?: object }} [opts] meta, when given, is filled with
+ *   { cache: 'hit'|'miss'|'shared'|'stale', ms } for the per-turn timing log.
  */
-async function getAvailableTools(orgId) {
+const TOOLS_CACHE_TTL_MS = 60_000
+const TOOLS_CACHE_STALE_MAX_MS = 10 * 60_000
+const TOOLS_REBUILD_BACKOFF_BASE_MS = 5_000
+const TOOLS_REBUILD_BACKOFF_MAX_MS = 60_000
+const TOOLS_BYID_CONCURRENCY = 8
+
+// orgKey -> { tools, builtAt, failures, nextRetryAt, lastError }
+const _toolsCache = new Map()
+// orgKey -> Promise (single-flight)
+const _toolsInflight = new Map()
+// orgKey -> generation; bumped by invalidation so an overtaken rebuild is not stored
+const _toolsGen = new Map()
+let _toolsGenAll = 0
+const _toolsStats = { hits: 0, misses: 0, shared: 0, rebuilds: 0, rebuildFailures: 0, staleServed: 0, invalidations: 0 }
+
+function _orgKey(orgId) {
+  return String(orgId || 'default')
+}
+
+function _genOf(key) {
+  return `${_toolsGenAll}:${_toolsGen.get(key) || 0}`
+}
+
+async function _rebuildAvailableTools(orgId) {
+  const entries = Object.entries(CONNECTOR_REGISTRY)
+  const providers = [...new Set(entries.map(([, c]) => c.credentialType).filter(Boolean))]
+
+  const resp = await fetch(`${AUTH_BASE_URL}/api/setup/internal/resolve`, {
+    method: 'POST',
+    headers: buildInternalServiceHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ org_id: orgId || 'default', providers }),
+    signal: AbortSignal.timeout(10_000),
+  })
+  // An error body is not data: a non-2xx is a failed rebuild, not "no connectors".
+  if (!resp.ok) throw new Error(`vault resolve returned ${resp.status}`)
+  const data = await resp.json()
+  const providerMap = (data && typeof data.providers === 'object' && data.providers) || {}
+
+  // Per-connector extraction. Only connectors that need the resolve-by-id
+  // fallback make a further call, so this is bounded and normally zero.
+  const results = new Array(entries.length)
+  let next = 0
+  async function worker() {
+    while (next < entries.length) {
+      const i = next++
+      const [connectorId, connector] = entries[i]
+      const providerData = providerMap[connector.credentialType]
+      if (!providerData) continue
+      results[i] = await _credentialsFromProviderData(orgId, connectorId, connector, providerData)
+    }
+  }
+  await Promise.all(Array.from({ length: TOOLS_BYID_CONCURRENCY }, worker))
+
   const tools = []
-
-  for (const [connectorId, connector] of Object.entries(CONNECTOR_REGISTRY)) {
+  for (let i = 0; i < entries.length; i++) {
+    const resolved = results[i]
+    if (!resolved || resolved.error) continue // No credentials -> skip
+    const [connectorId, connector] = entries[i]
     try {
-      const resolved = await resolveConnectorCredentials(orgId, connectorId)
-      if (resolved.error) continue // No credentials → skip
-
       const mod = loadConnectorModule(connectorId)
-      const connectorTools = mod.getTools(resolved.credentials)
-
-      for (const tool of connectorTools) {
+      for (const tool of mod.getTools(resolved.credentials)) {
         tools.push({
           name: `${connectorId}_${tool.name}`,
           description: `[${connector.name}] ${tool.description}`,
@@ -725,12 +822,109 @@ async function getAvailableTools(orgId) {
         })
       }
     } catch (err) {
-      // Connector not available — skip silently
-      continue
+      // A broken module must not hide the others, but it must not be silent either.
+      console.warn(`[ConnectorBridge] tools for ${connectorId} unavailable (org=${orgId}): ${err.message}`)
     }
   }
-
   return tools
+}
+
+async function getAvailableTools(orgId, opts = {}) {
+  const t0 = Date.now()
+  const meta = opts && typeof opts.meta === 'object' && opts.meta ? opts.meta : {}
+  const key = _orgKey(orgId)
+  const now = Date.now()
+  const entry = _toolsCache.get(key)
+
+  if (entry && entry.tools && now - entry.builtAt < TOOLS_CACHE_TTL_MS) {
+    _toolsStats.hits++
+    meta.cache = 'hit'
+    meta.ms = Date.now() - t0
+    return entry.tools.slice()
+  }
+
+  // Backing off after a failed rebuild: serve the bounded stale value, or the error.
+  if (entry && entry.nextRetryAt && now < entry.nextRetryAt) {
+    if (entry.tools && now - entry.builtAt < TOOLS_CACHE_STALE_MAX_MS) {
+      _toolsStats.staleServed++
+      meta.cache = 'stale'
+      meta.ms = Date.now() - t0
+      return entry.tools.slice()
+    }
+    throw new Error(`connector tools unavailable for org=${key}: ${entry.lastError || 'rebuild failed'}`)
+  }
+
+  if (_toolsInflight.has(key)) {
+    _toolsStats.shared++
+    const tools = await _toolsInflight.get(key)
+    meta.cache = 'shared'
+    meta.ms = Date.now() - t0
+    return tools.slice()
+  }
+
+  _toolsStats.misses++
+  const gen = _genOf(key)
+  const p = (async () => {
+    _toolsStats.rebuilds++
+    try {
+      const tools = await _rebuildAvailableTools(orgId)
+      if (_genOf(key) === gen) {
+        _toolsCache.set(key, { tools, builtAt: Date.now(), failures: 0, nextRetryAt: 0, lastError: null })
+      }
+      return tools
+    } catch (err) {
+      _toolsStats.rebuildFailures++
+      const prev = _toolsCache.get(key)
+      const failures = (prev?.failures || 0) + 1
+      const backoff = Math.min(TOOLS_REBUILD_BACKOFF_BASE_MS * 2 ** (failures - 1), TOOLS_REBUILD_BACKOFF_MAX_MS)
+      const keep = prev?.tools && _genOf(key) === gen && Date.now() - prev.builtAt < TOOLS_CACHE_STALE_MAX_MS
+      _toolsCache.set(key, {
+        tools: keep ? prev.tools : null,
+        builtAt: keep ? prev.builtAt : 0,
+        failures,
+        nextRetryAt: Date.now() + backoff,
+        lastError: err.message,
+      })
+      if (keep) {
+        _toolsStats.staleServed++
+        console.warn(`[ConnectorBridge] tools rebuild failed for org=${key} (failure ${failures}, retry in ${backoff}ms): ${err.message}; serving last good list (${prev.tools.length} tools, age ${Date.now() - prev.builtAt}ms)`)
+        return prev.tools
+      }
+      console.warn(`[ConnectorBridge] tools rebuild failed for org=${key} (failure ${failures}, retry in ${backoff}ms): ${err.message}; no good list to serve`)
+      throw new Error(`connector tools unavailable for org=${key}: ${err.message}`)
+    } finally {
+      _toolsInflight.delete(key)
+    }
+  })()
+  _toolsInflight.set(key, p)
+  const tools = await p
+  meta.cache = 'miss'
+  meta.ms = Date.now() - t0
+  return tools.slice()
+}
+
+/**
+ * Drop the cached connector tool list for one org, or for every org when
+ * orgId is omitted. A rebuild already in flight is not stored.
+ */
+function invalidateAvailableToolsCache(orgId) {
+  _toolsStats.invalidations++
+  if (orgId === undefined || orgId === null || orgId === '') {
+    _toolsGenAll++
+    _toolsCache.clear()
+    return
+  }
+  const key = _orgKey(orgId)
+  _toolsGen.set(key, (_toolsGen.get(key) || 0) + 1)
+  _toolsCache.delete(key)
+}
+
+function _resetAvailableToolsCache() {
+  _toolsCache.clear()
+  _toolsInflight.clear()
+  _toolsGen.clear()
+  _toolsGenAll = 0
+  for (const k of Object.keys(_toolsStats)) _toolsStats[k] = 0
 }
 
 /**
@@ -738,6 +932,7 @@ async function getAvailableTools(orgId) {
  */
 function deactivateConnector(orgId, connectorId) {
   pool.removeInstance(orgId, connectorId)
+  invalidateAvailableToolsCache(orgId)
   console.log(`[ConnectorBridge] Deactivated ${connectorId} for org=${orgId}`)
 }
 
@@ -749,6 +944,7 @@ function getBridgeStatus() {
     registeredConnectors: Object.keys(CONNECTOR_REGISTRY).length,
     loadedModules: _modules.size,
     pool: pool.getPoolStatus(),
+    toolsCache: { ..._toolsStats, orgs: _toolsCache.size, inflight: _toolsInflight.size, ttlMs: TOOLS_CACHE_TTL_MS },
   }
 }
 
@@ -774,6 +970,7 @@ function initBridge({ voltRecord, ledgerDb, auditEnvelope } = {}) {
  */
 function shutdownBridge() {
   pool.clearAll()
+  _resetAvailableToolsCache()
   _modules.clear()
   console.log('[ConnectorBridge] Shutdown complete')
 }
@@ -783,6 +980,8 @@ module.exports = {
   deactivateConnector,
   executeConnectorTool,
   getAvailableTools,
+  invalidateAvailableToolsCache,
+  _resetAvailableToolsCache,
   getBridgeStatus,
   initBridge,
   shutdownBridge,

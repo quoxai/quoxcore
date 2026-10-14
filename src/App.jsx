@@ -187,6 +187,7 @@ const AgentFamilyTreeView = lazy(() => import('./pages/views/AgentFamilyTreeView
 const AgentDetailView = lazy(() => import('./pages/views/AgentDetailView'))
 const VulcanView = lazy(() => import('./pages/views/VulcanView'))
 const GripeView = lazy(() => import('./pages/views/GripeView'))
+const SessionsView = lazy(() => import('./pages/views/SessionsView'))
 const AgentStreamPage = lazy(() => import('./pages/views/AgentStreamPage'))
 const TestLabView = lazy(() => import('./pages/views/TestLabView'))
 const TriggersView = lazy(() => import('./pages/views/TriggersView'))
@@ -409,7 +410,7 @@ const MarketplaceDetailView = lazy(() => import('./pages/views/marketplace/Marke
 // Build core route table from view imports (moved from static <Route> declarations)
 const CORE_ROUTES = buildCoreRoutes({
     HomeView, DashboardView, SOCView, LucidView, NOCView, InfraView,
-    AgentsView, AgentStreamPage, AgentFamilyTreeView, AgentDetailView, VulcanView, GripeView,
+    AgentsView, AgentStreamPage, AgentFamilyTreeView, AgentDetailView, VulcanView, GripeView, SessionsView,
     ActivityView, ArchivistView, SettingsView, FeedbackView,
     VaultDashboardView, VaultBrowseView, VaultCredentialsView, VaultFoldersView,
     VaultLeasesView, VaultActivityView,

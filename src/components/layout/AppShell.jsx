@@ -13,6 +13,7 @@
  * - Protected route handling
  */
 
+import { BREADCRUMB_LEAF_EVENT, applyBreadcrumbLeaf } from './breadcrumbLeaf';
 import { nextRouteRenderKey } from '../../lib/routeRenderKey';
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment, lazy, Suspense } from 'react';
 import { Outlet, Navigate, useLocation, useNavigate, NavLink, Link } from 'react-router-dom';
@@ -1116,6 +1117,14 @@ function Breadcrumbs({ location, actions }) {
         return () => window.removeEventListener('quox-dashboard-tab', onTab);
     }, []);
 
+    // Detail pages publish a human label for their own path (widget name, not ULID).
+    const [leaf, setLeaf] = useState(null);
+    useEffect(() => {
+        const onLeaf = (e) => setLeaf(e.detail || null);
+        window.addEventListener(BREADCRUMB_LEAF_EVENT, onLeaf);
+        return () => window.removeEventListener(BREADCRUMB_LEAF_EVENT, onLeaf);
+    }, []);
+
     // Routes that are scoped to the current org — show org name in breadcrumb
     const ORG_SCOPED_ROUTES = ['/inbox', '/teams-overview', '/agentic-teams', '/opsdeck'];
 
@@ -1217,7 +1226,7 @@ function Breadcrumbs({ location, actions }) {
             if (path === '/dashboard' && dashTab) {
                 crumbs.push({ label: dashTab, path: null });
             }
-            return crumbs;
+            return applyBreadcrumbLeaf(crumbs, path, leaf);
         }
 
         // Fallback for paths not in getNavSections()
@@ -1229,7 +1238,7 @@ function Breadcrumbs({ location, actions }) {
         });
 
         return crumbs;
-    }, [location.pathname, currentOrg?.name, navVersion, dashTab]);
+    }, [location.pathname, currentOrg?.name, navVersion, dashTab, leaf]);
 
     // At home, show just the page name
     if (location.pathname === '/') {

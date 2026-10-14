@@ -108,6 +108,8 @@ function situationFor(orgId, { since, viewer, surface, advance }) {
   const now = Date.now();
   // The collector answering IS the HITL feed being alive.
   journal.append({ org_id: orgId, kind: 'heartbeat', source: { surface: 'collector', feed: 'hitl' }, ts: now });
+  // quox#827: the approvals SET comes from the one server-side function; refresh it in the background (gap-limited).
+  try { require('./approvalsSync.js').kick(orgId); } catch (e) { console.error('[LUCID] approvals refresh not started:', e && e.message); }
   const sinceSeq = resolveSince(orgId, since, viewer, surface, now);
   const key = !advance ? `${journal.generation()}|${orgId}|${viewer}|${surface}|${sinceSeq}|${journal.latestSeq(orgId)}|${journal.listLessons ? journal.listLessons(orgId).length : 0}` : null;
   if (key) {

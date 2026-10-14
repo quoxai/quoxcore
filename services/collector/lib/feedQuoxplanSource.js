@@ -277,6 +277,7 @@ async function ingestQuoxplan(orgId, opts = {}, deps = {}) {
   const liveStreamIds = new Set(streams.map((st) => st?.id).filter(Boolean));
 
   // Most recently updated first, so active streams reach the brain first.
+  if (streams.length > maxStreams) result.truncated = `${streams.length - maxStreams} least-recently-updated stream(s) beyond maxStreams=${maxStreams} not read`;
   streams = [...streams].sort((a, b) => String(b?.updated_at || '').localeCompare(String(a?.updated_at || ''))).slice(0, maxStreams);
   result.streamsSeen = streams.length;
 

@@ -140,6 +140,25 @@ function buildPublicSources(chunks, { siteLinks, titleFn, limit = 3 } = {}) {
  * knowledge items supported a reply, so lexical overlap is the evidence.
  * Order (retrieval rank) is preserved; an answer with no support cites nothing.
  */
+// Words too generic to show a chunk supports an answer on their own.
+const GENERIC_CITE_WORDS = new Set(['service', 'servic', 'customer', 'support', 'inform', 'information', 'contact', 'team', 'offer', 'price', 'cost', 'call', 'help', 'hour', 'open', 'year', 'month', 'week', 'day', 'time', 'includ', 'include', 'available', 'avail', 'pleas', 'please', 'visit', 'work', 'provid', 'provide', 'quot', 'detail', 'question', 'enquiri', 'enquiry', 'compani', 'company', 'busi', 'business', 'need', 'make', 'also', 'anyth', 'check', 'confirm', 'appoint', 'book']);
+const SUPERSEDED_NAME_RE = /(?:^|[^a-z])(old|archive|archived|replaced|superseded|deprecated|outdated|legacy)(?:[^a-z]|$)/i;
+const CITE_MIN_SCORE = 0.35;
+
+function isSupersededSuggested(c) {
+  return Boolean(c && (c.superseded === true || SUPERSEDED_NAME_RE.test(`${c.source || ''} ${c.title || ''} ${c.section || ''}`)));
+}
+
+/**
+ * Chunks that actually support the reply: keep a chunk only when it scores at
+ * least 0.35, shares at least two content words (or a figure) with the answer
+ * and at least one of those is DISTINCTIVE (not a generic word) or a figure,
+ * then collapse duplicates by source. A superseded-suggested source (OLD,
+ * archive, replaced, superseded in its name, or flagged) is dropped whenever a
+ * current source also supports the answer. The claim verifier does not record
+ * which knowledge items supported a reply, so lexical overlap is the evidence.
+ * Order (retrieval rank) is preserved; an answer with no support cites nothing.
+ */
 function selectCitedChunks(chunks, answer, { limit = 3 } = {}) {
   const { tokenize } = require('./quoxchatLexical');
   const ans = new Set(tokenize(answer));
@@ -147,20 +166,26 @@ function selectCitedChunks(chunks, answer, { limit = 3 } = {}) {
   const seen = new Set();
   const out = [];
   for (const c of Array.isArray(chunks) ? chunks : []) {
+    if (typeof (c && c.score) === 'number' && c.score < CITE_MIN_SCORE) continue;
     const toks = new Set(tokenize(`${c && c.text ? c.text : ''} ${c && c.answer ? c.answer : ''}`));
     let shared = 0;
     let numeric = false;
-    for (const t of toks) if (ans.has(t)) { shared++; if (/\d/.test(t)) numeric = true; }
-    if (shared < 2 && !numeric) continue;
+    let distinctive = false;
+    for (const t of toks) {
+      if (!ans.has(t)) continue;
+      shared++;
+      if (/\d/.test(t)) { numeric = true; distinctive = true; } else if (!GENERIC_CITE_WORDS.has(t)) distinctive = true;
+    }
+    if ((shared < 2 && !numeric) || !distinctive) continue;
     // Q&A pairs share one source label but are distinct facts: key them by question.
     const q = /^Q:\s*([^\n]+)/.exec(c && c.text ? c.text : '');
     const key = (q ? `q:${q[1]}` : String((c && (c.source || c.source_url)) || (c && c.text) || '')).toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(c);
-    if (out.length >= limit) break;
   }
-  return out;
+  const current = out.filter((c) => !isSupersededSuggested(c));
+  return (current.length > 0 ? current : out).slice(0, limit);
 }
 
 module.exports = { selectCitedChunks, buildPublicSources, SITE_ORIGIN, parseImports, buildRouteIndex, resolveSourceUrl, firstWebsiteSourceFile, loadRouteIndex, extractFaqSources, isPublicRoute };

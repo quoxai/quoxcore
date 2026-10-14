@@ -442,10 +442,13 @@ function AgentGroundingStat({ citations }) {
                 <div
                     style={{ fontSize: 12, color: 'var(--m-text-tertiary)', fontVariantNumeric: 'tabular-nums' }}
                     data-testid="brain2-usage-grounding-support"
-                    title="A citation is supported when the cited passage agrees with the sentence that cites it (a lexical check, not proof). Citing a note alone is not grounding."
+                    title="Supported means a model checked that the cited passage entails the sentence. Overlap means the source shares the sentence's words but was not checked for meaning. Citing a note alone is not grounding."
                 >
                     supported when checked · week: {(week.supportedAnswers || 0).toLocaleString()} of {(week.supportMeasured || 0).toLocaleString()}
                     {' · '}all time: {(total.supportedAnswers || 0).toLocaleString()} of {(total.supportMeasured || 0).toLocaleString()}
+                    <br />
+                    overlap only (words match, not checked for meaning) · week: {(week.overlapAnswers || 0).toLocaleString()}
+                    {' · '}all time: {(total.overlapAnswers || 0).toLocaleString()}
                 </div>
             )}
             <div style={{ fontSize: 12, color: 'var(--m-text-tertiary)' }} data-testid="brain2-usage-last-grounded">

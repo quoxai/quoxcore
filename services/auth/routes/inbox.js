@@ -23,6 +23,7 @@ import { emitApprovalVoltWitness } from '../jobs/volt-witness-reaper.js';
 import { isDenyAction, isApproveAction } from '../lib/inboxResponseClassifier.js';
 import { dispatchApprovalCallback } from '../lib/approvalCallback.js';
 import { requireHumanDecider } from '../utils/principal.js';
+import { openApprovals, visibilityClause as sharedVisibility } from '../lib/openApprovals.js';
 import { isDisposableTestInstance, getTestApproverLeaseUntil } from '../lib/quoxperticusInstance.js';
 
 // VAULT-P5.I (F4) — default lease duration granted when a credential lease
@@ -86,14 +87,20 @@ internalRouter.post('/orgs/:orgId/inbox', async (req, res) => {
         }
 
         // Server-side dedup: skip if identical title+kind was created in last 30 min
+        // QC-BRUTALOOP-W13: items that carry a conversation_id dedup per
+        // conversation only. Otherwise two different visitors' handoffs with the
+        // same generic title ("Live chat handoff requested") within 30 minutes
+        // collapsed into the first one and the second never reached the inbox.
+        const dedupConv = (payload && typeof payload.conversation_id === 'string' && payload.conversation_id) ? payload.conversation_id : null;
         const dedup = prepare(`
             SELECT id, created_at FROM inbox_items
             WHERE org_id = ? AND title = ? AND kind = ?
               AND status IN ('open', 'in_progress', 'waiting')
               AND created_at > datetime('now', '-30 minutes')
               AND deleted_at IS NULL
+              AND (? IS NULL OR json_extract(payload_json, '$.conversation_id') = ?)
             ORDER BY created_at DESC LIMIT 1
-        `).get(orgId, title, kind);
+        `).get(orgId, title, kind, dedupConv, dedupConv);
 
         if (dedup) {
             return res.status(200).json({
@@ -265,6 +272,19 @@ internalRouter.get('/orgs/:orgId/inbox/items', async (req, res) => {
     } catch (error) {
         console.error('[Inbox/Internal] Error listing inbox items:', error);
         res.status(500).json({ error: 'Failed to list inbox items' });
+    }
+});
+
+/**
+ * GET /api/internal/orgs/:orgId/approvals/open
+ * Org-wide open approvals for service callers (LUCID). Service-key auth (router-wide).
+ */
+internalRouter.get('/orgs/:orgId/approvals/open', (req, res) => {
+    try {
+        res.json(openApprovals({ orgId: req.params.orgId, isOrgAdmin: true }));
+    } catch (error) {
+        console.error('[Inbox/Internal] Error listing open approvals:', error);
+        res.status(500).json({ error: 'Failed to list open approvals' });
     }
 });
 
@@ -2064,20 +2084,11 @@ router.get('/orgs/:orgId/inbox', requireOrgMembership, async (req, res) => {
             // status defaults to active via the shared status block below.
         } else if (!isOrgAdmin) {
             // Regular members: only items in personal inbox OR assigned to them
-            // OR filed by them (quox#638 — the filer of an x_post/HERALD card
-            // sees the card it created; visibility only, mirrors
-            // userCanAccessItem's created_by clause).
-            conditions.push(`(
-                ii.inbox_id = ?
-                OR ii.created_by = ?
-                OR EXISTS (
-                    SELECT 1 FROM inbox_item_assignees iia
-                    WHERE iia.inbox_item_id = ii.id
-                    AND iia.assignee_type = 'user'
-                    AND iia.assignee_id = ?
-                )
-            )`);
-            params.push(personalInboxId, userId, userId);
+            // OR filed by them (quox#638). One shared definition (lib/openApprovals.js)
+            // so the list, stats and openApprovals() cannot drift (quox#827).
+            const vis = sharedVisibility({ isOrgAdmin: false, personalInboxId, userId });
+            conditions.push(vis.sql.replace(/^AND /, ''));
+            params.push(...vis.params);
         }
         // Org owners/admins see all org items (no additional filter)
 
@@ -2200,6 +2211,25 @@ router.get('/orgs/:orgId/inbox', requireOrgMembership, async (req, res) => {
 });
 
 /**
+ * GET /orgs/:orgId/approvals/open
+ * The approvals this user can act on right now (quox#827): the same function that backs
+ * stats.pending_approvals, the CLI and LUCID. -> { approvals:[{id,source,title,privileged,
+ * conversationId?,createdAt,status,approvalId,item}], count, failed_sources }
+ */
+router.get('/orgs/:orgId/approvals/open', requireOrgMembership, async (req, res) => {
+    try {
+        const { orgId } = req.params;
+        const userId = req.user.id;
+        const personalInboxId = ensurePersonalInbox(orgId, userId);
+        const isOrgAdmin = !!(req.orgMembership && ['owner', 'admin'].includes(req.orgMembership.role));
+        res.json(openApprovals({ orgId, userId, isOrgAdmin, personalInboxId }));
+    } catch (error) {
+        console.error('Error listing open approvals:', error);
+        res.status(500).json({ error: 'Failed to list open approvals' });
+    }
+});
+
+/**
  * GET /orgs/:orgId/inbox/stats
  * Get inbox statistics for the user
  */
@@ -2307,15 +2337,8 @@ router.get('/orgs/:orgId/inbox/stats', requireOrgMembership, async (req, res) =>
         // distinctly from total unread, because an approval is a call to action
         // (something is blocked on the human), not just an unread notification.
         // Same visibility scope as the counts above (admins see the whole org).
-        const pendingApprovals = prepare(`
-            SELECT COUNT(*) as count
-            FROM inbox_items ii
-            WHERE ii.org_id = ?
-            AND ii.deleted_at IS NULL
-            AND ii.kind = 'approval'
-            AND ii.status IN ('open', 'in_progress', 'waiting')
-            ${visibilityClause.sql}
-        `).get(orgId, ...visibilityClause.params);
+        // quox#827: the SET and COUNT of approvals this user can act on come from the one shared function.
+        const pendingApprovals = { count: openApprovals({ orgId, userId, isOrgAdmin, personalInboxId }).count };
 
         // Active items grouped by kind — lets the folder sidebar show accurate,
         // server-sourced counts per type folder regardless of which folder's

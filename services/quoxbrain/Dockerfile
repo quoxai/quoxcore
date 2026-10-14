@@ -3,6 +3,7 @@
 # tags). Roll deliberately: update tag AND digest together; no auto-roller
 # yet, so a bump is a reviewed commit, which is the point.
 FROM node:20-slim@sha256:3d0f05455dea2c82e2f76e7e2543964c30f6b7d673fc1a83286736d44fe4c41c
+ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install build dependencies for better-sqlite3
 RUN apt-get update && apt-get install -y \

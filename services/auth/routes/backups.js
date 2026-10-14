@@ -46,7 +46,7 @@ router.use(requireAuth);
 // Configuration
 const BACKUP_ROOT = process.env.BACKUP_ROOT || '/opt/quoxcore/backups';
 import { tryLaunchDetachedBackup, isBackupContainerRunning } from '../lib/backupDetach.js';
-import { classifyBackupExit, parseSkippedRequired, degradedMessage, isBackupComplete } from '../lib/backupStatus.js';
+import { classifyBackupExit, parseSkippedRequired, degradedMessage, isBackupComplete, emptyArchiveMessage, hasArchive } from '../lib/backupStatus.js';
 const BACKUP_SCRIPT = process.env.BACKUP_SCRIPT || '/app/project/scripts/backup-quox.sh';
 
 // DEFCON levels for operations
@@ -1259,19 +1259,24 @@ async function runBackupProcess(backupId, orgId, backupType, components, operato
 async function finalizeBackupRun({ backupId, orgId, operator, operatorId, startTime }, code, stdout, stderr) {
     const duration = Date.now() - startTime;
 
-    const exitClass = classifyBackupExit(code);
+    let exitClass = classifyBackupExit(code);
+    // Find the created archive
+    const archiveMatch = String(stdout || '').match(/Created archive: ([^\s]+\.tar\.gz)/);
+    const archivePath = archiveMatch ? archiveMatch[1] : null;
+    let archiveSize = 0;
+    if (archivePath && existsSync(archivePath)) {
+        archiveSize = (await fs.stat(archivePath)).size;
+    }
+    // QUOXON-PROOF (quox#823): no archive (lock skip, or 0 bytes) backed nothing up,
+    // whatever the exit code. It is a failed backup, never 'completed'.
+    let emptyRunMessage = null;
+    if (exitClass !== 'failed' && !hasArchive(archiveSize)) {
+        emptyRunMessage = emptyArchiveMessage(code, stdout, stderr);
+        exitClass = 'failed';
+    }
     if (exitClass === 'completed' || exitClass === 'degraded') {
         const isDegraded = exitClass === 'degraded';
         const skippedRequired = isDegraded ? parseSkippedRequired(stdout) : [];
-        // Find the created archive
-        const archiveMatch = stdout.match(/Created archive: ([^\s]+\.tar\.gz)/);
-        const archivePath = archiveMatch ? archiveMatch[1] : null;
-
-        let archiveSize = 0;
-        if (archivePath && existsSync(archivePath)) {
-            const stats = await fs.stat(archivePath);
-            archiveSize = stats.size;
-        }
 
         // Generate manifest
         const manifest = await generateManifest(archivePath);
@@ -1354,7 +1359,7 @@ async function finalizeBackupRun({ backupId, orgId, operator, operatorId, startT
             UPDATE backups
             SET status = 'failed', error_message = ?, duration_ms = ?, completed_at = datetime('now'), updated_at = datetime('now')
             WHERE id = ?
-        `).run(stderr || `Exit code ${code}`, duration, backupId);
+        `).run(emptyRunMessage || stderr || `Exit code ${code}`, duration, backupId);
 
         logBackupAudit({
             orgId,
@@ -1365,7 +1370,7 @@ async function finalizeBackupRun({ backupId, orgId, operator, operatorId, startT
             operatorId,
             result: 'failed',
             durationMs: duration,
-            metadata: { error: stderr, exitCode: code }
+            metadata: { error: emptyRunMessage || stderr, exitCode: code }
         });
         createAuditEvent({
             orgId,
@@ -1379,7 +1384,7 @@ async function finalizeBackupRun({ backupId, orgId, operator, operatorId, startT
         });
 
         createBackupNotification(orgId, backupId, false, {
-            error: stderr || `Exit code ${code}`
+            error: emptyRunMessage || stderr || `Exit code ${code}`
         });
     }
 }
@@ -2457,7 +2462,7 @@ router.get('/orgs/:orgId/backup-status', requireOrgMembership, async (req, res) 
         const lastSuccess = prepare(`
             SELECT id, name, backup_type, archive_size_bytes, completed_at, duration_ms
             FROM backups
-            WHERE org_id = ? AND status IN ('completed', 'verified')
+            WHERE org_id = ? AND status IN ('completed', 'verified') AND COALESCE(archive_size_bytes, 0) > 0
             ORDER BY completed_at DESC LIMIT 1
         `).get(orgId);
 
@@ -2491,7 +2496,7 @@ router.get('/orgs/:orgId/backup-status', requireOrgMembership, async (req, res) 
                 COUNT(*) as count,
                 COALESCE(SUM(archive_size_bytes), 0) as totalBytes
             FROM backups
-            WHERE org_id = ? AND status IN ('completed', 'verified')
+            WHERE org_id = ? AND status IN ('completed', 'verified') AND COALESCE(archive_size_bytes, 0) > 0
         `).get(orgId);
 
         // Schedule stats

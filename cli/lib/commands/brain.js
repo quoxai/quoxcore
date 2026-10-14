@@ -51,6 +51,18 @@ export function titleOverlap(a, b) {
   for (const w of x) if (y.has(w)) hit++;
   return hit / Math.min(x.size, y.size);
 }
+const NEGATIVE_WORDS = new Set(['disable', 'disabled', 'disabling', 'off', 'deny', 'denied', 'block', 'blocked', 'stop', 'stopped', 'remove', 'removed', 'drop', 'dropped', 'abandon', 'abandoned', 'reject', 'rejected', 'exclude', 'excluded', 'not', 'never', 'no', 'dont', 'cannot', 'cant', 'wont', 'without', 'revoke', 'revoked']);
+/** Odd count of negating words = negative polarity ("not", "stop", "disable", "reject", ...). */
+function negativeParity(t) {
+  const toks = String(t || '').toLowerCase().replace(/['\u2019]/g, '').split(/[^a-z0-9]+/).filter(Boolean);
+  let n = 0;
+  for (const w of toks) if (NEGATIVE_WORDS.has(w)) n++;
+  return n % 2;
+}
+/** True when two decision titles read as opposites (enable/disable, on/off, stop X, no longer X...). */
+export function oppositePolarity(a, b) {
+  return negativeParity(a) !== negativeParity(b);
+}
 export const DECIDE_DUPE_THRESHOLD = 0.6;
 export const DISTILL_CAP = 50;
 
@@ -300,7 +312,7 @@ export function registerBrainCommands(program, ctx) {
       if (!['private', 'org'].includes(options.scope)) throw new QuoxError('--scope must be private or org.', 2);
       const prov = decisionProvenance();
       const title = `Decision: ${what}`.slice(0, 200);
-      const markdown = decisionMarkdown({ what, why: options.why, rejected: options.rejected, prov });
+      let markdown = decisionMarkdown({ what, why: options.why, rejected: options.rejected, prov });
       const tags = ['decision', ...String(options.tags || '').split(',').map((t) => t.trim()).filter(Boolean)];
       const json = program.opts().output === 'json';
       if (options.dryRun) {
@@ -311,7 +323,15 @@ export function registerBrainCommands(program, ctx) {
       const sp = resolveEndpoint('brain.search.list');
       const found = await client.post(sp.path, { service: sp.service, body: { query: what, limit: 5 } });
       const insufficient = found.insufficient === true || found.relevance?.insufficient === true;
-      const dupe = insufficient ? null : (found.results || []).find((r) => titleOverlap(what, String(r.title || '').replace(/^Decision:\s*/i, '')) >= DECIDE_DUPE_THRESHOLD);
+      const bare = (r) => String(r.title || '').replace(/^Decision:\s*/i, '');
+      const matches = insufficient ? [] : (found.results || []).filter((r) => titleOverlap(what, bare(r)) >= DECIDE_DUPE_THRESHOLD);
+      // An opposite-polarity match is a reversal of the earlier decision, never a duplicate of it.
+      const dupe = matches.find((r) => !oppositePolarity(what, bare(r)));
+      const reversed = dupe ? null : matches[0];
+      if (reversed) {
+        const ref = reversed.noteId || reversed.title;
+        if (ref) markdown = decisionMarkdown({ what, why: options.why, rejected: options.rejected, prov: { ...prov, supersedes: ref } });
+      }
       if (dupe && !options.force) {
         if (json) console.log(JSON.stringify({ saved: false, reason: 'existing_match', match: { noteId: dupe.noteId, title: dupe.title, kind: dupe.kind } }, null, 2));
         else {
@@ -324,9 +344,10 @@ export function registerBrainCommands(program, ctx) {
       }
       const ep = resolveEndpoint('brain.capture.create');
       const data = await client.post(ep.path, { service: ep.service, body: { title, text: markdown.replace(/^# .*\n\n/, ''), tags, scope: options.scope === 'org' ? 'org' : 'user' } });
-      if (json) { console.log(JSON.stringify(data, null, 2)); return; }
+      if (json) { console.log(JSON.stringify(reversed ? { ...data, reverses: { noteId: reversed.noteId, title: reversed.title } } : data, null, 2)); return; }
       const verb = data.status === 'created' ? 'saved' : data.status === 'unchanged' ? 'already saved' : 'updated';
       console.log(glyphLine('brain2', 'decide', { result: `${verb} · note ${String(data.noteId || '?').slice(0, 8)}` }));
+      if (reversed) console.log(`  reverses ${reversed.title || 'untitled'}  (note ${reversed.noteId || '?'})`);
     });
 
   brain
@@ -443,14 +464,14 @@ export function registerBrainCommands(program, ctx) {
         formatDetail(data, { format });
         return;
       }
-      const verdict = (r) => (r.contradicted ? 'contradicted' : r.supported === true ? 'supported' : r.supported === false ? 'unsupported' : 'not measured');
+      const verdict = (r) => (r.fabricated || r.support_method === 'fabricated' ? 'fabricated' : r.support_method === 'unchecked' ? 'unchecked' : r.contradicted ? 'contradicted' : r.supported === true ? 'supported' : r.support_method === 'overlap' ? 'overlap' : r.supported === false ? 'unsupported' : 'not measured');
       formatOutput({
         columns: ['session', 'handle', 'note', 'span', 'rev', 'verdict', 'at'],
         headers: ['Session', 'Handle', 'Note', 'Span', 'Rev', 'Verdict', 'At'],
         rows: (data.records || []).map((r) => ({
           session: r.session || '-',
           handle: r.handle || '-',
-          note: r.note_id,
+          note: r.note_id || '-',
           span: r.char_start != null && r.char_end != null ? `${r.char_start}-${r.char_end}` : '-',
           rev: r.note_hash ? String(r.note_hash).slice(0, 8) : '-',
           verdict: verdict(r),
@@ -509,7 +530,8 @@ export function registerBrainCommands(program, ctx) {
               { metric: 'answers after brain search', week: cw.answers ?? 0, total: ct.answers ?? 0 },
               { metric: 'answers citing a note', week: `${cw.grounded ?? 0} (${pct(cw.grounded ?? 0, cw.answers ?? 0)})`, total: `${ct.grounded ?? 0} (${pct(ct.grounded ?? 0, ct.answers ?? 0)})` },
               ...((cw.supportMeasured ?? 0) + (ct.supportMeasured ?? 0) > 0
-                ? [{ metric: 'answers with supported citations (lexical)', week: `${cw.supportedAnswers ?? 0} (${pct(cw.supportedAnswers ?? 0, cw.supportMeasured ?? 0)})`, total: `${ct.supportedAnswers ?? 0} (${pct(ct.supportedAnswers ?? 0, ct.supportMeasured ?? 0)})` }]
+                ? [{ metric: 'answers with supported citations (entailment)', week: `${cw.supportedAnswers ?? 0} (${pct(cw.supportedAnswers ?? 0, cw.supportMeasured ?? 0)})`, total: `${ct.supportedAnswers ?? 0} (${pct(ct.supportedAnswers ?? 0, ct.supportMeasured ?? 0)})` },
+                   { metric: 'answers with overlap only (not checked for meaning)', week: `${cw.overlapAnswers ?? 0}`, total: `${ct.overlapAnswers ?? 0}` }]
                 : []),
               { metric: 'notes cited / retrieved', week: `${cw.citedNotes ?? 0}/${cw.retrievedNotes ?? 0}`, total: `${ct.citedNotes ?? 0}/${ct.retrievedNotes ?? 0}` },
             ],
@@ -602,11 +624,22 @@ export function registerBrainCommands(program, ctx) {
     .description('Delete a note (recorded as a revision, restorable in NotesQ). Requires --yes.')
     .argument('<noteId>', 'note id')
     .option('--yes', 'confirm deletion')
+    .option('--expected-hash <hash>', "the note's content_hash you read (see `quox brain read`); a stale value is a conflict (409) and nothing is deleted")
     .action(async (noteId, options) => {
       auth.requireAuth();
       if (!options.yes) throw new QuoxError(`Refusing to delete ${noteId} without --yes.`, 2);
+      if (!options.expectedHash) throw new QuoxError(`Refusing to delete ${noteId} without --expected-hash (the content_hash from \`quox brain read ${noteId}\`), so a concurrent edit is never deleted.`, 2);
       const ep = resolveEndpoint('notesq.notes.delete', { id: noteId });
-      const data = await client.delete(ep.path, { service: ep.service });
+      let data;
+      try {
+        data = await client.delete(ep.path, { service: ep.service, query: { expected_hash: options.expectedHash } });
+      } catch (e) {
+        if (e instanceof QuoxApiError && e.status === 409) {
+          const h = e.body && (e.body.currentHash || e.body.current_hash);
+          throw new QuoxError(`Conflict (409): note ${noteId} changed since hash ${options.expectedHash} (current_hash ${h || 'unknown'}). Nothing was deleted. Re-run \`quox brain read ${noteId}\` and retry.`, 1);
+        }
+        throw e;
+      }
       if (program.opts().output === 'json') { console.log(JSON.stringify(data, null, 2)); return; }
       printSuccess(`Deleted note ${noteId}.`);
     });
@@ -657,11 +690,13 @@ export function registerBrainCommands(program, ctx) {
     .description('Token-budgeted pack of the most relevant cited passages on a topic (what the Cortex brain_context tool returns)')
     .argument('<query>', 'topic or task')
     .option('--budget <n>', 'approximate token budget (200-4000)', '1200')
+    .option('--since <date>', 'only notes dated on or after this ISO date/datetime (e.g. 2026-10-05)')
+    .option('--until <date>', 'only notes dated on or before this ISO date/datetime (a date alone means the whole day)')
     .action(async (query, options) => {
       auth.requireAuth();
       const tokenBudget = Math.min(Math.max(parseInt(options.budget, 10) || 1200, 200), 4000);
       const ep = resolveEndpoint('brain.context.pack');
-      const data = await client.post(ep.path, { service: ep.service, body: { query, tokenBudget } });
+      const data = await client.post(ep.path, { service: ep.service, body: { query, tokenBudget, ...(options.since ? { since: options.since } : {}), ...(options.until ? { until: options.until } : {}) } });
       if (program.opts().output === 'json') { console.log(JSON.stringify(data, null, 2)); return; }
       const passages = data.passages || [];
       const insufficient = data.insufficient === true || data.relevance?.insufficient === true || passages.length === 0;
@@ -693,7 +728,7 @@ export function registerBrainCommands(program, ctx) {
       if (!data || data.success === false) {
         throw new QuoxError(`brain_check failed: ${(data && (data.error || data.output)) || 'unknown error'}`, 1);
       }
-      const mark = { supported: '✔', contradicted: '✖', unknown: '◐' }[data.verdict] || '';
+      const mark = { supported: '✔', contradicted: '✖', overlap: '◐', unknown: '◐' }[data.verdict] || '';
       console.log(glyphLine('brain2', `check "${claim.slice(0, 40)}"`, { result: `${data.verdict} ${mark}`.trim() }));
       const ev = data.evidence || [];
       for (const e of ev) {
@@ -770,7 +805,16 @@ export function registerBrainCommands(program, ctx) {
         throw new QuoxError(`Conflict: note ${noteId} changed since hash ${options.expectedHash} (current_hash ${current || 'unknown'}). Nothing was restored. Re-run \`quox brain read ${noteId}\` and try again.`, 1);
       }
       const ep = resolveEndpoint('notesq.notes.restore', { id: noteId });
-      const data = await client.post(ep.path, { service: ep.service, body: { rev } });
+      let data;
+      try {
+        data = await client.post(ep.path, { service: ep.service, body: { rev, expected_hash: options.expectedHash } });
+      } catch (e) {
+        if (e instanceof QuoxApiError && e.status === 409) {
+          const h = e.body && (e.body.currentHash || e.body.current_hash);
+          throw new QuoxError(`Conflict (409): note ${noteId} changed since hash ${options.expectedHash} (current_hash ${h || 'unknown'}). Nothing was restored. Re-run \`quox brain read ${noteId}\` and try again.`, 1);
+        }
+        throw e;
+      }
       if (program.opts().output === 'json') { console.log(JSON.stringify(data, null, 2)); return; }
       printSuccess(data.unchanged ? `Note ${noteId} already matches revision ${rev}.` : `Restored note ${noteId} to revision ${rev} (new rev ${data.revision?.rev ?? '?'}).`);
     });

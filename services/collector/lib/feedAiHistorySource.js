@@ -260,6 +260,7 @@ async function ingestAiHistory(orgId, opts = {}, deps = {}) {
   try {
     const { unique, skipped: dedupSkipped } = dedupeConversations(conversations);
     const bounded = unique.slice(0, maxItems);
+    if (unique.length > bounded.length) result.truncated = `${unique.length - bounded.length} of ${unique.length} conversation(s) not imported (maxItems=${maxItems}), re-send them`;
 
     const docs = [];
     let redacted = 0;

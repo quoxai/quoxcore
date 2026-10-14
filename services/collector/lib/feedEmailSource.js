@@ -46,9 +46,12 @@
  * nothing. Not run on dryRun. If the source is disabled the scheduler stops
  * calling us, so disabling does not retract by itself.
  *
- * KNOWN GAPS: (b) A message whose body arrives after its date cursor passed
- * (body_text captured later by the backfill) is ingested with the snippet only.
- * (c) Messages dated older than the cursor (late backfill) are never picked up.
+ * LATE ARRIVALS: inboxq_messages has no updated_at, so the date cursor cannot
+ * see (b) a body captured after the cursor passed, or (c) a message backfilled
+ * with a date older than the cursor. The manifest therefore stores a per-id
+ * body fingerprint (text/html lengths); each tick, live ids at or behind the
+ * cursor that are missing from the manifest or whose fingerprint changed are
+ * re-pushed, at most MAX_REPUSH_PER_TICK (idempotent by content hash).
  */
 
 'use strict';
@@ -64,6 +67,7 @@ const DEFAULT_MAX_MESSAGES = 50;
 const MAX_READ_WINDOW = 200;
 const MAX_BODY_BYTES = 8192;
 const MAX_DELETIONS_PER_TICK = 200;
+const MAX_REPUSH_PER_TICK = 50;
 const EXCLUDED_FOLDER_RE = /(spam|junk|trash|deleted|\bbin\b|draft)/i;
 
 function watermarkKeyForUser(userId) {
@@ -101,24 +105,62 @@ function capBytes(s, max) {
   return Buffer.byteLength(s, 'utf8') > max ? Buffer.from(s, 'utf8').slice(0, max).toString('utf8') : s;
 }
 
+const READ_COLS = `m.id, m.folder, m.zone, m.from_addr, m.from_name, m.subject, m.date_ts,
+           m.snippet, m.body_text, m.body_html, a.email_address AS account_email,
+           length(m.body_text) AS bt_len, length(m.body_html) AS bh_len`;
+
+/** Cheap content fingerprint: changes when a body is captured or extended after the first push. */
+function fingerprint(row) {
+  const bt = row.bt_len ?? (row.body_text == null ? 0 : String(row.body_text).length);
+  const bh = row.bh_len ?? (row.body_html == null ? 0 : String(row.body_html).length);
+  return `t${bt}h${bh}`;
+}
+
 /**
- * Default reader: the oldest MAX_READ_WINDOW eligible messages at or after
- * afterMs, for accounts created by userId in orgId. Org and user bound in SQL.
+ * Default reader: the oldest MAX_READ_WINDOW eligible messages strictly after
+ * the compound (date_ts, id) cursor, for accounts created by userId in orgId.
+ * The cursor is applied IN SQL so pagination is exact for tied timestamps;
+ * excluded folders are filtered in JS, so pages are walked until the window
+ * is full or the table is exhausted. Org and user bound in SQL.
  */
-function readMessages(orgId, userId, { afterMs = null } = {}) {
+function readMessages(orgId, userId, { afterMs = null, afterId = null } = {}) {
   const db = inboxqStore.getDb();
-  return db.prepare(`
-    SELECT m.id, m.folder, m.zone, m.from_addr, m.from_name, m.subject, m.date_ts,
-           m.snippet, m.body_text, m.body_html, a.email_address AS account_email
+  const stmt = db.prepare(`
+    SELECT ${READ_COLS}
     FROM inboxq_messages m
     JOIN inboxq_accounts a ON a.id = m.account_id AND a.org_id = m.org_id
-    WHERE m.org_id = ? AND a.created_by = ? AND m.date_ts IS NOT NULL AND m.date_ts >= ?
+    WHERE m.org_id = ? AND a.created_by = ? AND m.date_ts IS NOT NULL
+      AND (m.date_ts > ? OR (m.date_ts = ? AND m.id > ?))
       AND COALESCE(m.zone, '') != 'screened'
     ORDER BY m.date_ts ASC, m.id ASC
     LIMIT ?
-  `).all(orgId, String(userId), afterMs == null ? 0 : afterMs, MAX_READ_WINDOW * 2)
-    .filter((r) => !EXCLUDED_FOLDER_RE.test(r.folder || ''))
-    .slice(0, MAX_READ_WINDOW);
+  `);
+  const out = [];
+  let ts = afterMs == null ? -1 : afterMs;
+  let id = afterId == null ? '' : String(afterId);
+  const PAGE = MAX_READ_WINDOW * 2;
+  for (;;) {
+    const page = stmt.all(orgId, String(userId), ts, ts, id, PAGE);
+    for (const r of page) if (!EXCLUDED_FOLDER_RE.test(r.folder || '')) out.push(r);
+    if (out.length >= MAX_READ_WINDOW || page.length < PAGE) break;
+    const last = page[page.length - 1];
+    ts = last.date_ts; id = last.id;
+  }
+  return out.slice(0, MAX_READ_WINDOW);
+}
+
+/** Eligible messages by id (same org/user/exclusion filters), for re-push of late changes. */
+function readMessagesByIds(orgId, userId, ids) {
+  if (!ids.length) return [];
+  const rows = inboxqStore.getDb().prepare(`
+    SELECT ${READ_COLS}
+    FROM inboxq_messages m
+    JOIN inboxq_accounts a ON a.id = m.account_id AND a.org_id = m.org_id
+    WHERE m.org_id = ? AND a.created_by = ? AND m.date_ts IS NOT NULL
+      AND COALESCE(m.zone, '') != 'screened'
+      AND m.id IN (${ids.map(() => '?').join(',')})
+  `).all(orgId, String(userId), ...ids);
+  return rows.filter((r) => !EXCLUDED_FOLDER_RE.test(r.folder || ''));
 }
 
 function renderMessageNote(row) {
@@ -155,7 +197,7 @@ function renderMessageNote(row) {
  *          userId?:string, dbPath?:string}} [deps]
  * @returns {Promise<{messagesRead:number, docsPushed:number, skipped:string|null, error:string|null}>}
  */
-async function ingestPush(orgId, opts, deps, pushedIds) {
+async function ingestPush(orgId, opts, deps, pushedIds, ctx = {}) {
   const result = { messagesRead: 0, docsPushed: 0, skipped: null, error: null };
   const config = opts.config || null;
 
@@ -179,12 +221,16 @@ async function ingestPush(orgId, opts, deps, pushedIds) {
   try { storedWatermark = await getWM(orgId); } catch (err) {
     console.error(`[FeedEmailSource] org=${orgId}: watermark read failed, treating as none, ${err.message}`);
   }
+  ctx.watermark = storedWatermark;
 
   let rows = [];
   try {
-    const afterTs = feedWatermark.parseCursor(storedWatermark)?.ts || null;
-    const afterMs = afterTs ? new Date(afterTs).getTime() - 1000 : null;
-    rows = (await readMessagesFn(orgId, userId, { afterMs: Number.isFinite(afterMs) ? afterMs : null })) || [];
+    const cur = feedWatermark.parseCursor(storedWatermark);
+    const afterMs = cur?.ts ? new Date(cur.ts).getTime() : null;
+    rows = (await readMessagesFn(orgId, userId, {
+      afterMs: Number.isFinite(afterMs) ? afterMs : null,
+      afterId: cur?.id ?? null,
+    })) || [];
   } catch (err) {
     result.error = `inboxq read failed, ${err.message}`;
     console.error(`[FeedEmailSource] org=${orgId}: ${result.error}`);
@@ -226,8 +272,9 @@ async function ingestPush(orgId, opts, deps, pushedIds) {
       return result;
     }
     result.docsPushed = docs.length;
-    for (const x of eligible) pushedIds.push(x.id);
+    for (const x of eligible) pushedIds.push({ id: x.id, fp: fingerprint(x.r) });
     if (newWatermark && newWatermark !== storedWatermark) {
+      ctx.watermark = newWatermark;
       try { await setWM(orgId, newWatermark); } catch (err) {
         console.error(`[FeedEmailSource] org=${orgId}: watermark write failed, ${err.message}`);
       }
@@ -239,51 +286,83 @@ async function ingestPush(orgId, opts, deps, pushedIds) {
   return result;
 }
 
-/** Ids of every message currently eligible for the user (same filters as the reader). Throws on read error. */
+/** Every message currently eligible for the user (same filters as the reader): id, ts, fingerprint. Throws on read error. */
 function listLiveIds(orgId, userId) {
   const rows = inboxqStore.getDb().prepare(`
-    SELECT m.id, m.folder
+    SELECT m.id, m.folder, m.date_ts, length(m.body_text) AS bt_len, length(m.body_html) AS bh_len
     FROM inboxq_messages m
     JOIN inboxq_accounts a ON a.id = m.account_id AND a.org_id = m.org_id
     WHERE m.org_id = ? AND a.created_by = ? AND m.date_ts IS NOT NULL AND COALESCE(m.zone, '') != 'screened'
   `).all(orgId, String(userId));
-  return rows.filter((r) => !EXCLUDED_FOLDER_RE.test(r.folder || '')).map((r) => r.id);
+  return rows.filter((r) => !EXCLUDED_FOLDER_RE.test(r.folder || ''))
+    .map((r) => ({ id: r.id, ts: new Date(r.date_ts).toISOString(), fp: fingerprint(r) }));
 }
 
-async function reconcile(orgId, opts, deps, pushedIds, result) {
+async function reconcile(orgId, opts, deps, pushedIds, result, ctx = {}) {
   const tag = `[FeedEmailSource] org=${orgId}`;
-  const { userId, dbPath, fetchImpl, listLiveIdsFn = listLiveIds,
+  const { userId, dbPath, fetchImpl, listLiveIdsFn = listLiveIds, readMessagesByIdsFn = readMessagesByIds,
+    pushDocumentsFn = brainFeedClient.pushDocuments,
     ensurePushVaultFn = brainFeedClient.ensurePushVault,
     pushDeletionsFn = brainFeedClient.pushDeletions } = deps;
   const store = deps.stateStore || ((dbPath || !deps.getWatermarkFn) ? feedSweep.defaultStore(dbPath) : null);
   if (!store) return;
   const key = `${watermarkKeyForUser(userId)}:manifest`;
+  // Manifest: Map id -> content fingerprint (legacy array form = ids with unknown fingerprint).
   let manifest;
   try {
     const raw = await store.get(orgId, key);
-    const parsed = raw ? JSON.parse(raw) : [];
-    manifest = new Set(Array.isArray(parsed) ? parsed : []);
+    const parsed = raw ? JSON.parse(raw) : {};
+    manifest = new Map(Array.isArray(parsed)
+      ? parsed.map((id) => [id, null])
+      : Object.entries(parsed && typeof parsed === 'object' ? parsed : {}));
   } catch (err) {
     console.error(`${tag}: manifest read failed, NOT reconciling deletions, ${err.message}`);
     return;
   }
-  for (const id of pushedIds) manifest.add(id);
+  for (const p of pushedIds) manifest.set(p.id, p.fp);
   const persist = async () => {
-    try { await store.set(orgId, key, JSON.stringify([...manifest])); } catch (err) {
+    try { await store.set(orgId, key, JSON.stringify(Object.fromEntries(manifest))); } catch (err) {
       console.error(`${tag}: manifest write failed, ${err.message}`);
     }
   };
+  let dirty = false;
+  // Late arrivals the date cursor cannot see: a live message at or behind the
+  // cursor that the manifest lacks (older-dated backfill) or whose body
+  // fingerprint changed since the push (body captured late). Bounded per tick;
+  // pushDocuments is content-hash idempotent, so a spurious re-push is harmless.
+  const repush = async (rowsLive) => {
+    const behind = rowsLive.filter((x) => x.ts && manifest.get(x.id) !== x.fp
+      && !(!manifest.has(x.id) && feedWatermark.isAfterCursor(ctx.watermark, x.ts, x.id)))
+      .sort(feedWatermark.compareByTsId).slice(0, MAX_REPUSH_PER_TICK);
+    if (behind.length === 0) return;
+    try {
+      const rows = await readMessagesByIdsFn(orgId, userId, behind.map((x) => x.id));
+      if (rows.length === 0) return;
+      const vaultId = await ensurePushVaultFn(orgId, opts.config?.name || 'InboxQ Email', { scope: 'user', userId, fetchImpl });
+      if (!vaultId) { console.error(`${tag}: late re-push skipped, no vaultId`); return; }
+      const res = await pushDocumentsFn(orgId, vaultId, rows.map((r) => renderMessageNote(r)), { userId, fetchImpl });
+      if (res?.error) { console.error(`${tag}: late re-push failed, ${res.error} (will retry)`); return; }
+      for (const r of rows) manifest.set(r.id, fingerprint(r));
+      result.docsRepushed = (result.docsRepushed || 0) + rows.length;
+      dirty = true;
+    } catch (err) {
+      console.error(`${tag}: late re-push failed, ${err.message} (will retry)`);
+    }
+  };
   let live;
+  let liveRows;
   try {
-    live = new Set(await listLiveIdsFn(orgId, userId));
+    liveRows = (await listLiveIdsFn(orgId, userId)).map((x) => (typeof x === 'string' ? { id: x, ts: null, fp: null } : x));
+    live = new Set(liveRows.map((x) => x.id));
   } catch (err) {
     // A read ERROR is not "mail is gone": retract nothing, keep the manifest.
     console.error(`${tag}: live id read failed, NOT deleting (${err.message})`);
     if (pushedIds.length) await persist();
     return;
   }
-  const gone = [...manifest].filter((id) => !live.has(id)).slice(0, MAX_DELETIONS_PER_TICK);
-  if (gone.length === 0) { if (pushedIds.length) await persist(); return; }
+    await repush(liveRows);
+  const gone = [...manifest.keys()].filter((id) => !live.has(id)).slice(0, MAX_DELETIONS_PER_TICK);
+  if (gone.length === 0) { if (dirty || pushedIds.length) await persist(); return; }
   try {
     const vaultId = await ensurePushVaultFn(orgId, opts.config?.name || 'InboxQ Email', { scope: 'user', userId, fetchImpl });
     const del = vaultId ? await pushDeletionsFn(orgId, vaultId, gone.map((id) => `email/${id}.md`), { userId, fetchImpl }) : { error: 'no vaultId' };
@@ -303,14 +382,16 @@ async function reconcile(orgId, opts, deps, pushedIds, result) {
 
 async function ingestEmail(orgId, opts = {}, deps = {}) {
   const pushedIds = [];
-  const result = await ingestPush(orgId, opts, deps, pushedIds);
+  const ctx = {};
+  const result = await ingestPush(orgId, opts, deps, pushedIds, ctx);
   result.docsDeleted = 0;
+  result.docsRepushed = 0;
   if (result.skipped || opts.dryRun || result.error) return result;
-  await reconcile(orgId, opts, deps, pushedIds, result);
+  await reconcile(orgId, opts, deps, pushedIds, result, ctx);
   return result;
 }
 
 module.exports = {
   ingestEmail, htmlToText, stripQuotedTail, renderMessageNote, watermarkKeyForUser,
-  SOURCE_TYPE, DEFAULT_MAX_MESSAGES, MAX_BODY_BYTES,
+  SOURCE_TYPE, DEFAULT_MAX_MESSAGES, MAX_BODY_BYTES, MAX_REPUSH_PER_TICK,
 };

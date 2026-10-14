@@ -11,6 +11,7 @@
 # tags). Roll deliberately: update tag AND digest together; no auto-roller
 # yet, so a bump is a reviewed commit, which is the point.
 FROM node:20-slim@sha256:3d0f05455dea2c82e2f76e7e2543964c30f6b7d673fc1a83286736d44fe4c41c AS tester
+ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 WORKDIR /app
 
@@ -36,6 +37,7 @@ RUN sh scripts/response-contract-gate.sh "$RESPONSE_CONTRACT_BUILD_GATE"
 # COPY --from=tester forces BuildKit to complete the tester stage first.
 
 FROM node:20-slim@sha256:3d0f05455dea2c82e2f76e7e2543964c30f6b7d673fc1a83286736d44fe4c41c AS runtime
+ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install build tools for native modules (better-sqlite3 requires glibc + build chain)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -65,7 +67,11 @@ RUN npm ci --only=production
 # This allows the collector to proxy Claude CLI calls without n8n sandbox restrictions
 # QUOXTRUST v1.4 T-ART: pin the version (siblings gemini/codex are pinned) so a
 # release image build cannot silently pull an unverified newer dependency.
-RUN npm install -g @anthropic-ai/claude-code@2.1.197
+# Z2H-IMAGES: the Claude CLI subscription path is dev-only and the binary is proprietary, so PUBLIC
+# images are built with INCLUDE_CLAUDE_CLI=false and never contain it. Default true: dev box unchanged.
+# Without it the collector reports claude_cli_missing and the subscription provider as unavailable.
+ARG INCLUDE_CLAUDE_CLI=true
+RUN if [ "$INCLUDE_CLAUDE_CLI" = "true" ]; then npm install -g @anthropic-ai/claude-code@2.1.197; else echo "INCLUDE_CLAUDE_CLI=false: claude CLI not installed"; fi
 
 # Install Gemini CLI globally for the GEMINI agent's gemini_review/analyze/generate tools
 # (services/collector/lib/toolExecutors/geminiCli.js shells out to `gemini`).

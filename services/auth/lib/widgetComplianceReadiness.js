@@ -91,16 +91,15 @@ export function evaluateComplianceReadiness(widget, embedConfig, classification)
     checks.push(NA('baa_acknowledged', 'Not required (no PHI processing).'));
   }
 
-  // 6) Retention — warning when null (org default in use). Not a blocker
-  //    unless the org has no default either, but we don't have visibility
-  //    on that here — surface as a warning.
+  // 6) Retention — warning when null: no org default exists, so nothing is
+  //    pruned automatically. Not a blocker; surfaced as a warning.
   if (typeof widget?.retention_days_override === 'number' && widget.retention_days_override > 0) {
     checks.push(PASS('retention_configured', `Retention set to ${widget.retention_days_override} days.`));
   } else {
     checks.push(FAIL_WARN(
       'retention_configured',
-      'No widget-level retention override set; using org default.',
-      'Optional: set retention_days_override on the Compliance tab if you need a different window.',
+      'No retention period set: conversations are kept until deleted.',
+      `Set a retention period on the Compliance tab: /quoxchat/${widget?.id || ':widgetId'}?tab=compliance`,
     ));
   }
 

@@ -22,6 +22,42 @@
 'use strict';
 
 const DEFAULT_DEADLINE_MS = 90000;   // back-compat with the old fixed abort
+// QUOXON-Z2H: a local model on CPU can need 60-160 s for one turn, so the deadline is provider-aware.
+// Cloud keeps 90 s (QUOX_DELEGATION_DEADLINE_MS overrides). A local turn (ollama, or a self-hosted
+// OpenAI-compatible preset) gets the Ollama turn timeout (QUOX_OLLAMA_TURN_TIMEOUT_MS, default 300 s)
+// plus this margin (QUOX_DELEGATION_LOCAL_MARGIN_MS), so the turn's own timeout fires first.
+const LOCAL_DELEGATION_MARGIN_MS = 30000;
+const LOCAL_PRESETS = new Set(['lmstudio', 'vllm']);
+const envMs = (env, key, min) => {
+  const n = Number(env && env[key]);
+  return Number.isFinite(n) && n >= min ? Math.floor(n) : null;
+};
+
+/** -> { ms, local } for a delegated turn that runs on { provider, preset }. */
+function delegationDeadlineMs({ provider, preset, env = process.env } = {}) {
+  const local = provider === 'ollama' || (provider === 'openai_compatible' && LOCAL_PRESETS.has(String(preset || '').toLowerCase()));
+  if (!local) return { ms: envMs(env, 'QUOX_DELEGATION_DEADLINE_MS', 1000) || DEFAULT_DEADLINE_MS, local: false };
+  const margin = envMs(env, 'QUOX_DELEGATION_LOCAL_MARGIN_MS', 0);
+  return { ms: require('./ollamaProvider.js').ollamaTurnTimeoutMs(env) + (margin == null ? LOCAL_DELEGATION_MARGIN_MS : margin), local: true };
+}
+
+/**
+ * The deadline for delegating to `agentId`, from that agent's resolved provider plan. A plan that
+ * cannot be resolved gives the cloud deadline (the previous behaviour); this never throws.
+ */
+async function resolveDelegateDeadline({ orgId, agentId, env = process.env, resolvePlan } = {}) {
+  try {
+    const resolve = resolvePlan || (async (a) => {
+      const resolved = await require('./llmRoutingPolicy.cjs').resolveCollectorPolicyPlan(a);
+      return require('./openaiCompatProvider.js').applyCompatSelection(resolved && resolved.plan, {});
+    });
+    const plan = await resolve({ orgId, selectedAgent: agentId });
+    return delegationDeadlineMs({ provider: plan && plan.provider, preset: plan && plan.preset, env });
+  } catch (_) {
+    return delegationDeadlineMs({ env });
+  }
+}
+
 const DEGRADE_PATHS = new Set(['cancel', 'reroute', 'degrade']);
 
 /**
@@ -40,6 +76,8 @@ function normalizeContract(input = {}) {
     degrade_path,
     reroute_to: typeof input.reroute_to === 'string' && input.reroute_to ? input.reroute_to : null,
     cost_budget_tokens,
+    target: typeof input.target === 'string' && input.target ? input.target : null,
+    deadline_note: typeof input.deadline_note === 'string' && input.deadline_note ? input.deadline_note : null,
     breaker_key: typeof input.breaker_key === 'string' && input.breaker_key ? input.breaker_key : null,
   };
 }
@@ -96,10 +134,13 @@ class DelegationBreaker {
   stateOf(key) { return { ...this._get(key), open: this.isOpen(key) }; }
 }
 
-function degradedMessage(reason, target, ms) {
+const fmtSecs = (ms) => `${Math.round(ms / 100) / 10} s`;
+
+function degradedMessage(reason, target, ms, note) {
   const who = target ? `${target} ` : '';
   if (reason === 'breaker_open') return `${who}is temporarily unavailable (recent failures); answering without it for now.`;
-  return `Still working — ${who}did not respond within ${ms}ms; continuing without it.`;
+  const why = note ? ` (${note})` : '';
+  return `Still working: ${who || 'the agent '}did not respond within ${fmtSecs(ms)}${why}; continuing without it.`;
 }
 
 /**
@@ -161,17 +202,17 @@ async function runWithContract(contractInput, executeFn, deps = {}) {
     try { controller.abort(); } catch (_) { /* noop */ }
     if (breaker) breaker.recordFailure(c.breaker_key);
     if (c.degrade_path === 'cancel') {
-      return { ok: false, breached: true, action_taken: 'cancelled', degraded: { message: `Delegation cancelled: exceeded ${c.deadline_ms}ms budget.` }, elapsed_ms: elapsed(), ...(breaker && c.breaker_key ? { breaker_state: breaker.stateOf(c.breaker_key) } : {}) };
+      return { ok: false, breached: true, action_taken: 'cancelled', degraded: { message: `Delegation${c.target ? ` to ${c.target}` : ''} cancelled: no answer within ${fmtSecs(c.deadline_ms)}${c.deadline_note ? ` (${c.deadline_note})` : ''}.` }, elapsed_ms: elapsed(), ...(breaker && c.breaker_key ? { breaker_state: breaker.stateOf(c.breaker_key) } : {}) };
     }
     if (c.degrade_path === 'reroute' && c.reroute_to && typeof deps.rerouteFn === 'function') {
       try {
         const r = await deps.rerouteFn(c.reroute_to);
         return { ok: !!(r && r.success !== false), breached: true, action_taken: 'rerouted', rerouted_to: c.reroute_to, result: r, elapsed_ms: elapsed(), ...(breaker && c.breaker_key ? { breaker_state: breaker.stateOf(c.breaker_key) } : {}) };
       } catch (e) {
-        return { ok: false, breached: true, action_taken: 'reroute_failed', degraded: { message: degradedMessage('timeout', c.reroute_to, c.deadline_ms) }, error: e && e.message, elapsed_ms: elapsed() };
+        return { ok: false, breached: true, action_taken: 'reroute_failed', degraded: { message: degradedMessage('timeout', c.target || c.reroute_to, c.deadline_ms, c.deadline_note) }, error: e && e.message, elapsed_ms: elapsed() };
       }
     }
-    return { ok: false, breached: true, action_taken: 'degraded', degraded: { message: degradedMessage('timeout', c.reroute_to, c.deadline_ms) }, elapsed_ms: elapsed(), ...(breaker && c.breaker_key ? { breaker_state: breaker.stateOf(c.breaker_key) } : {}) };
+    return { ok: false, breached: true, action_taken: 'degraded', degraded: { message: degradedMessage('timeout', c.target || c.reroute_to, c.deadline_ms, c.deadline_note) }, elapsed_ms: elapsed(), ...(breaker && c.breaker_key ? { breaker_state: breaker.stateOf(c.breaker_key) } : {}) };
   }
 
   // executeFn threw.
@@ -199,5 +240,8 @@ module.exports = {
   DelegationBreaker,
   runWithContract,
   DEFAULT_DEADLINE_MS,
+  LOCAL_DELEGATION_MARGIN_MS,
+  delegationDeadlineMs,
+  resolveDelegateDeadline,
   DEGRADE_PATHS,
 };

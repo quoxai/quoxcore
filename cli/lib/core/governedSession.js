@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync as realSpawnSync } from 'node:child_process';
 import { qArt, colorOn } from './banner.js';
+import { startHeartbeat as realStartHeartbeat } from './sessionHeartbeat.js';
 
 const NAME_RE = /^[A-Za-z0-9._-]{1,48}$/;
 export const PREFIX = 'quox-';
@@ -215,6 +216,9 @@ function defaults(over = {}) {
     now: () => new Date(),
     color: colorOn(),
     write: (s) => process.stdout.write(s),
+    // QUOXON J1: register + heartbeat each tmux session the wrapper starts. An
+    // injected spawnSync (tests) means no real child unless startHeartbeat is injected too.
+    startHeartbeat: over.spawnSync ? () => {} : realStartHeartbeat,
     ...over,
   };
 }
@@ -298,6 +302,14 @@ export function runGoverned({ program = 'claude', name, args = [], resume = fals
       ensureHelpBinding(d);
       cmd = ['tmux', 'attach-session', '-t', plan.tmuxSession];
     }
+  }
+  if (viaTmux) {
+    try {
+      d.startHeartbeat({
+        tmuxSession: plan.tmuxSession, backend: program === 'run' ? bin : program,
+        agent: (preattach && preattach.agent) || null, slot: (preattach && preattach.slot) || null,
+      });
+    } catch { /* the index is best effort; never block the launch */ }
   }
   const [exe, ...exeArgs] = cmd;
   // Direct run (--no-tmux, or already inside tmux): the env rides the spawn.

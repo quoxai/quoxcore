@@ -45,11 +45,13 @@ function sanitizeOpenAIJsonSchema(schema) {
   return sanitized;
 }
 
+const { encodeToolName } = require('./providerToolNames.js');
+
 function toOpenAIChatTools(tools = []) {
   return tools.map((tool) => ({
     type: 'function',
     function: {
-      name: tool.name,
+      name: encodeToolName(tool.name),
       description: tool.description,
       parameters: sanitizeOpenAIJsonSchema(tool.input_schema),
     }

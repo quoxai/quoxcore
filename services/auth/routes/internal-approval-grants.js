@@ -107,6 +107,37 @@ export function __setEngagementChecker(fn) {
     _checkEngagementAuthorization = typeof fn === 'function' ? fn : defaultCheckEngagementAuthorization;
 }
 
+// Fleet standing grants (owner decision 2026-10-13): an org admin pre-approved a
+// host + anchored command-regex + VMID range until an expiry for ssh_exec. The
+// standing-grant store lives in the collector's aee.db, so this route re-validates
+// THAT grant by an independent keyed callback before signing, exactly like the
+// engagement path above. FAILS CLOSED on anything but an explicit allow.
+async function defaultCheckStandingGrant({ orgId, grantId, host, command, targets }) {
+    const expected = process.env.INTERNAL_SERVICE_KEY;
+    if (!expected) return { allowed: false, reason: 'INTERNAL_SERVICE_KEY not configured' };
+    try {
+        const resp = await fetch(`${COLLECTOR_INTERNAL_URL}/api/internal/fleet-standing-grants/check`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Service-Key': expected },
+            body: JSON.stringify({ org_id: orgId, standing_grant_id: grantId, host, command, targets, tool: 'ssh_exec' }),
+            signal: AbortSignal.timeout(10000),
+        });
+        if (!resp.ok) {
+            const text = await resp.text().catch(() => '');
+            return { allowed: false, reason: `collector standing-grant check returned ${resp.status}: ${text.slice(0, 200)}` };
+        }
+        const data = await resp.json().catch(() => null);
+        return { allowed: !!(data && data.success === true && data.allowed === true), reason: data && data.reason };
+    } catch (err) {
+        return { allowed: false, reason: `collector standing-grant check error: ${err.message}` };
+    }
+}
+
+let _checkStandingGrant = defaultCheckStandingGrant;
+export function __setStandingGrantChecker(fn) {
+    _checkStandingGrant = typeof fn === 'function' ? fn : defaultCheckStandingGrant;
+}
+
 function requireInternalAuth(req, res, next) {
     const expected = process.env.INTERNAL_SERVICE_KEY;
     if (!expected) {
@@ -327,6 +358,50 @@ router.post('/approval-grants/mint-engagement', async (req, res) => {
         header_name: 'X-Bastion-Approval-Grant',
         anchor: 'engagement',
         engagement_id: engagementId,
+    });
+});
+
+// POST /api/internal/approval-grants/mint-standing: a short-TTL grant anchored to a
+// fleet STANDING grant. exec-only. `host` is the grant's host id as the caller named
+// it; `targets` are the resolved bastion host ids the command runs on.
+router.post('/approval-grants/mint-standing', async (req, res) => {
+    const { org_id: orgId, standing_grant_id: grantId, action, host, command, targets, ttl_seconds: ttlSeconds } = req.body || {};
+    if (!orgId || typeof orgId !== 'string') return res.status(400).json({ error: 'bad_request', message: 'org_id is required' });
+    if (!grantId || typeof grantId !== 'string') return res.status(400).json({ error: 'bad_request', message: 'standing_grant_id is required' });
+    if (action !== APPROVAL_GRANT_ACTIONS.EXEC) return res.status(400).json({ error: 'bad_request', message: 'action must be "exec" for standing grants' });
+    if (!host || typeof host !== 'string') return res.status(400).json({ error: 'bad_request', message: 'host is required' });
+    if (typeof command !== 'string' || !command) return res.status(400).json({ error: 'bad_request', message: 'command is required' });
+    if (!Array.isArray(targets) || targets.length !== 1 || typeof targets[0] !== 'string' || !targets[0]) {
+        return res.status(400).json({ error: 'bad_request', message: 'targets must be exactly one host id' });
+    }
+    if (ttlSeconds !== undefined && (!Number.isFinite(Number(ttlSeconds)) || Number(ttlSeconds) > APPROVAL_GRANT_MAX_TTL_SECONDS)) {
+        return res.status(400).json({ error: 'bad_request', message: `ttl_seconds must be a number <= ${APPROVAL_GRANT_MAX_TTL_SECONDS}` });
+    }
+    let authz;
+    try {
+        authz = await _checkStandingGrant({ orgId, grantId, host, command, targets });
+    } catch (err) {
+        return res.status(502).json({ error: 'standing_grant_check_failed', message: err && err.message ? err.message : 'standing grant check threw' });
+    }
+    if (!authz || authz.allowed !== true) {
+        return res.status(409).json({ error: 'not_authorized', message: (authz && authz.reason) ? authz.reason : 'standing grant does not cover this command' });
+    }
+    const db = req.db || getDb();
+    const unsignedGrant = buildUnsignedGrant({ orgId, action, command, targets, ttlSeconds });
+    let signResult;
+    try {
+        signResult = signApprovalGrant(db, orgId, signedBytes(unsignedGrant));
+    } catch (err) {
+        console.error('[internal-approval-grants] standing sign failed:', err.message);
+        return res.status(500).json({ error: 'signing_failed', message: err.message });
+    }
+    const grant = { ...unsignedGrant, signature: signResult.signature };
+    return res.json({
+        grant,
+        grant_base64: Buffer.from(JSON.stringify(grant)).toString('base64'),
+        header_name: 'X-Bastion-Approval-Grant',
+        anchor: 'standing_grant',
+        standing_grant_id: grantId,
     });
 });
 

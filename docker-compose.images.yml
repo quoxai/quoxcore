@@ -1,0 +1,39 @@
+# ===========================================================================
+# Prebuilt-image overlay (Z2H-IMAGES)
+# ===========================================================================
+# Names the published image for every service that docker-compose.yml builds,
+# WITHOUT removing its `build:` block. So both paths work from the same files:
+#
+#   docker compose pull <services>   pulls ghcr.io/quoxai/quoxcore-<service>:<tag>
+#   docker compose build             still builds locally (the fallback)
+#
+# scripts/setup.sh adds this file to COMPOSE_FILE and pulls first; if the pull
+# fails for any reason it builds locally instead. QUOX_IMAGES=build skips the
+# pull. QUOX_IMAGE_TAG is the quoxcore release tag (for example v4.2.0); when
+# unset, compose resolves `latest`.
+#
+# Only the services present in the public docker-compose.yml are listed.
+# Requires Docker Compose >= 2.24, same as docker-compose.public.yml.
+services:
+  dashboard:
+    image: ghcr.io/quoxai/quoxcore-dashboard:${QUOX_IMAGE_TAG:-latest}
+  auth:
+    image: ghcr.io/quoxai/quoxcore-auth:${QUOX_IMAGE_TAG:-latest}
+  files:
+    image: ghcr.io/quoxai/quoxcore-files:${QUOX_IMAGE_TAG:-latest}
+  collector:
+    image: ghcr.io/quoxai/quoxcore-collector:${QUOX_IMAGE_TAG:-latest}
+    build:
+      args:
+        # public installs never contain the proprietary claude CLI, including the local-build fallback
+        INCLUDE_CLAUDE_CLI: "false"
+  tasks:
+    image: ghcr.io/quoxai/quoxcore-tasks:${QUOX_IMAGE_TAG:-latest}
+  orchestrator:
+    image: ghcr.io/quoxai/quoxcore-orchestrator:${QUOX_IMAGE_TAG:-latest}
+  memory:
+    image: ghcr.io/quoxai/quoxcore-memory:${QUOX_IMAGE_TAG:-latest}
+  quoxbrain:
+    image: ghcr.io/quoxai/quoxcore-quoxbrain:${QUOX_IMAGE_TAG:-latest}
+  quoxflow:
+    image: ghcr.io/quoxai/quoxcore-quoxflow:${QUOX_IMAGE_TAG:-latest}

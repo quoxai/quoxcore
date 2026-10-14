@@ -42,7 +42,7 @@
  * @param {(orgId: string, pluginId: string) => Promise<boolean>} deps.isPluginLicensed
  * @returns {(pluginId: string) => Function} express middleware factory
  */
-function createRequirePluginEntitlement({ isPluginLicensed }) {
+function createRequirePluginEntitlement({ isPluginLicensed, licenseVerdict }) {
   if (typeof isPluginLicensed !== 'function') throw new TypeError('isPluginLicensed is required');
 
   return function requirePluginEntitlement(pluginId) {
@@ -57,7 +57,17 @@ function createRequirePluginEntitlement({ isPluginLicensed }) {
         }
         let licensed = false;
         try {
-          licensed = await isPluginLicensed(req.user.org_id, pluginId);
+          if (typeof licenseVerdict === 'function') {
+            // GRIPE-784: still fail closed, but an auth outage (no stale cache)
+            // is "try again", not "you have no licence".
+            const v = await licenseVerdict(req.user.org_id, pluginId);
+            if (v && v.unavailable) {
+              return res.status(503).json({ error: 'LICENSE_CHECK_UNAVAILABLE', plugin: pluginId, retryable: true });
+            }
+            licensed = !!(v && v.licensed);
+          } else {
+            licensed = await isPluginLicensed(req.user.org_id, pluginId);
+          }
         } catch (_) {
           licensed = false; // fail closed
         }

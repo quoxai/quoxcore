@@ -138,12 +138,13 @@ function IdentityBadge({ row }) {
 export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
   const navigate = useNavigate()
   const [conversations, setConversations] = useState([])
+  const [totalConversations, setTotalConversations] = useState(null)
   const [selectedConv, setSelectedConv] = useState(null)
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
   const [msgLoading, setMsgLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [filters, setFilters] = useState({ status: '', rating: '', visitor_id: '', q: '', blocked: false })
+  const [filters, setFilters] = useState({ status: '', rating: '', visitor_id: '', q: '', blocked: false, includeTest: false })
   // QCX-5i: when set, slide in MessageContextPanel for that message id.
   const [contextMessageId, setContextMessageId] = useState(null)
   // QCL-LEARN P1: which assistant message has the "Improve this answer"
@@ -159,6 +160,10 @@ export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
   const [replyDraft, setReplyDraft] = useState('')
   const [replySending, setReplySending] = useState(false)
   const [replyError, setReplyError] = useState(null)
+  // W13: admin erase of a visitor's data (GDPR-style), confirm then DELETE.
+  const [eraseConfirm, setEraseConfirm] = useState(false)
+  const [eraseBusy, setEraseBusy] = useState(false)
+  const [eraseResult, setEraseResult] = useState(null) // { ok, text }
   // P2 "Logs list upgrade": single Export button opens a small CSV/JSON menu.
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
 
@@ -195,6 +200,7 @@ export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
     if (filters.visitor_id) p.set('visitor_id', filters.visitor_id.trim())
     if (filters.q) p.set('q', filters.q.trim())
     if (filters.blocked) p.set('blocked', '1')
+    if (filters.includeTest) p.set('include_test', '1')
     p.set('limit', '100')
     return p.toString()
   }, [filters])
@@ -217,6 +223,7 @@ export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
           new Date(b?.last_message_at || b?.started_at || b?.created_at || 0)
           - new Date(a?.last_message_at || a?.started_at || a?.created_at || 0))
         setConversations(rows)
+        setTotalConversations(Number.isFinite(data?.pagination?.total) ? data.pagination.total : null)
       })
       .catch(err => { if (!cancelled) setError(err.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -264,6 +271,32 @@ export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
   // derives the operator identity server-side from the logged-in dashboard
   // user; optimistic append so the reply shows instantly, the 10s poll then
   // reconciles with the persisted row.
+  const handleEraseVisitor = async () => {
+    const visitorId = selectedConv?.visitor_id
+    if (!visitorId || eraseBusy) return
+    if (!authFetch || !orgId || !widget?.id) return
+    setEraseBusy(true)
+    setEraseResult(null)
+    try {
+      const r = await authFetch(`/api/orgs/${orgId}/widgets/${widget.id}/visitors/${encodeURIComponent(visitorId)}`, { method: 'DELETE' })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.message || data.error || `Erase failed (${r.status})`)
+      const counts = data.counts && typeof data.counts === 'object' ? data.counts : data
+      const parts = Object.entries(counts)
+        .filter(([k, v]) => typeof v === 'number' && k !== 'status')
+        .map(([k, v]) => `${v} ${k.replace(/_/g, ' ')}`)
+      setEraseResult({ ok: true, text: `Visitor data erased${parts.length ? `: ${parts.join(', ')}` : ''}.` })
+      setConversations(cs => cs.filter(c => c.visitor_id !== visitorId))
+      setSelectedConv(null)
+      setMessages([])
+    } catch (err) {
+      setEraseResult({ ok: false, text: err.message })
+    } finally {
+      setEraseBusy(false)
+      setEraseConfirm(false)
+    }
+  }
+
   const handleSendReply = async () => {
     const text = replyDraft.trim()
     if (!text || replySending || !selectedConv?.id) return
@@ -377,7 +410,7 @@ export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
       <div className="qx-flat-panel" style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0, overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>
-            Conversations ({conversations.length})
+            Conversations ({totalConversations ?? conversations.length})
           </span>
           {/* P2 "Logs list upgrade": one Export button opening a CSV/JSON
               menu, instead of two bare-label buttons stripped of context. */}
@@ -432,9 +465,7 @@ export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
               <option value="">All statuses</option>
               <option value="active">Active</option>
               <option value="closed">Closed</option>
-              <option value="resolved">Resolved</option>
               <option value="handed_off">Handed off</option>
-              <option value="abandoned">Abandoned</option>
             </select>
           </div>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -456,6 +487,16 @@ export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
             onChange={e => setFilters(f => ({ ...f, blocked: e.target.checked }))}
           />
           Blocked turns only
+        </label>
+        {/* Wave 10: simulation and admin test traffic is excluded by default (counts and exports). */}
+        <label htmlFor="qc-logs-include-test" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.7)', marginBottom: 4 }}>
+          <input
+            id="qc-logs-include-test"
+            type="checkbox"
+            checked={filters.includeTest}
+            onChange={e => setFilters(f => ({ ...f, includeTest: e.target.checked }))}
+          />
+          Include test traffic
         </label>
         {/* QCX-5k: visitor + free-text search */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 4 }}>
@@ -627,8 +668,30 @@ export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
                 <button onClick={handleExport} style={{ padding: '3px 10px', fontSize: 9, fontWeight: 600, background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.15)', borderRadius: 5, cursor: 'pointer', color: '#38bdf8', fontFamily: 'inherit' }}>
                   Export CSV
                 </button>
+                {selectedConv.visitor_id && (
+                  <button
+                    type="button"
+                    className="glass-btn"
+                    data-testid="erase-visitor-btn"
+                    onClick={() => { setEraseResult(null); setEraseConfirm(true) }}
+                    title="Permanently erase this visitor's conversations, messages and profile"
+                    style={{ padding: '3px 10px', fontSize: 9, fontWeight: 600, cursor: 'pointer', color: '#fca5a5', fontFamily: 'inherit' }}
+                  >
+                    Erase this visitor's data
+                  </button>
+                )}
               </span>
             </div>
+            {eraseConfirm && (
+              <div role="alertdialog" aria-label="Confirm erase visitor data" data-testid="erase-visitor-confirm" style={{ padding: '10px 12px', fontSize: 11, color: '#fff', background: 'rgba(239,68,68,0.14)', borderBottom: '1px solid rgba(239,68,68,0.5)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ flex: 1, minWidth: 160 }}>Permanently erase all data for visitor {selectedConv.visitor_id}? This cannot be undone.</span>
+                <button type="button" className="glass-btn" data-testid="erase-visitor-confirm-yes" disabled={eraseBusy} onClick={handleEraseVisitor} style={{ padding: '4px 12px', fontSize: 11, cursor: 'pointer', color: '#fca5a5' }}>{eraseBusy ? 'Erasing…' : 'Erase'}</button>
+                <button type="button" className="glass-btn" disabled={eraseBusy} onClick={() => setEraseConfirm(false)} style={{ padding: '4px 12px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+              </div>
+            )}
+            {eraseResult && !eraseResult.ok && (
+              <div role="alert" data-testid="erase-visitor-error" style={{ padding: '8px 12px', fontSize: 11, color: '#fca5a5' }}>{eraseResult.text}</div>
+            )}
             <div style={{ flex: 1, padding: 12, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {msgLoading && (
                 <div style={{ padding: 12, color: 'rgba(255,255,255,0.65)', fontSize: 11 }}>Loading messages…</div>
@@ -832,7 +895,9 @@ export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
           </>
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.65)', fontSize: 12 }}>
-            Select a conversation on the left to replay its transcript
+            {eraseResult?.ok
+              ? <span role="status" data-testid="erase-visitor-success" style={{ color: '#30ff90', padding: 12, textAlign: 'center' }}>{eraseResult.text}</span>
+              : 'Select a conversation on the left to replay its transcript'}
           </div>
         )}
       </div>

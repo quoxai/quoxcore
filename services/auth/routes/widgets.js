@@ -5,6 +5,8 @@
  * Each widget has a backing assistant (FK) for personality/LLM config.
  */
 
+import { ensureOrgWidgetEvidenceSigningKey, signWidgetEvidence } from '../lib/widgetEvidenceSigningKey.js';
+import { isDevOnlyDomain } from '../lib/widgetDevDomains.js';
 import { Router } from 'express';
 import crypto from 'crypto';
 import multer from 'multer';
@@ -28,7 +30,8 @@ import { evaluateComplianceReadiness } from '../lib/widgetComplianceReadiness.js
 // non-empty body threw ReferenceError (500), including this feature's own
 // save path. lib/widgetEntitlementGate.js already exported it correctly.
 import { checkPatchEntitlements } from '../lib/widgetEntitlementGate.js';
-import { detectSupersededSignal } from '../lib/knowledgeSupersededSignal.js';
+import { detectSupersededSignal, isStrongSupersededSignal } from '../lib/knowledgeSupersededSignal.js';
+import { hasRoleLevel } from '../utils/policy.js';
 import { checkPrivateEndpointChange } from '../lib/widgetPrivateEndpointGate.js';
 import { seedDefaultWidgetTools, DEFAULT_TOOL_POLICIES } from '../lib/widgetDefaultTools.js';
 // QUOXCHAT-EMAIL P2 — captcha_secret is encrypted at rest. Legacy plaintext
@@ -230,7 +233,7 @@ widgetsInternalRouter.post('/widgets/:widgetId/persist-message', async (req, res
 
     let convId = conversation_id;
     let wasNewConversation = false;
-    const isTestVisitor = typeof visitor_id === 'string' && (visitor_id.startsWith('sim_') || visitor_id === 'knowledge-tab-test');
+    const isTestVisitor = typeof visitor_id === 'string' && (visitor_id.startsWith('sim_') || TEST_VISITOR_IDS.includes(visitor_id));
     const db = getDb();
     db.transaction(() => {
       if (!convId) {
@@ -299,7 +302,7 @@ widgetsInternalRouter.post('/widgets/:widgetId/persist-message', async (req, res
       prepare(`
         UPDATE website_widgets
         SET total_messages = COALESCE(total_messages,0) + 2,
-            total_conversations = (SELECT COUNT(*) FROM widget_conversations WHERE widget_id = ? AND NOT (visitor_id LIKE 'sim\\_%' ESCAPE '\\' OR visitor_id = 'knowledge-tab-test')),
+            total_conversations = (SELECT COUNT(*) FROM widget_conversations WHERE widget_id = ? AND NOT (visitor_id LIKE 'sim\\_%' ESCAPE '\\' OR visitor_id IN ('knowledge-tab-test', 'training_test', 'onboarding'))),
             last_conversation_at = datetime('now')
         WHERE id = ?
       `).run(widget.id, widget.id);
@@ -1294,6 +1297,64 @@ widgetsInternalRouter.get('/widgets/:widgetId/visitors/:visitorId/export', (req,
 });
 
 /**
+ * Shared GDPR erase transaction: removes one visitor's messages, leads,
+ * conversations and visitor-memory row for one widget. Used by the visitor
+ * self-erase route (proof of possession) and the org-admin erase route.
+ * Idempotent: a visitor with no data returns all-zero counts.
+ */
+function eraseVisitorRows(widgetId, visitorId) {
+  let messagesDeleted = 0;
+  let conversationsDeleted = 0;
+  let visitorDeleted = 0;
+  let leadsDeleted = 0;
+
+  const db = getDb();
+  db.transaction(() => {
+    // Step 1 — delete messages first (FK from widget_messages.conversation_id).
+    // Using a sub-select to bound by both widget_id and visitor_id to
+    // prevent any chance of cross-widget collateral.
+    const msgResult = prepare(`
+      DELETE FROM widget_messages
+       WHERE widget_id = ?
+         AND conversation_id IN (
+           SELECT id FROM widget_conversations
+            WHERE widget_id = ? AND visitor_id = ?
+         )
+    `).run(widgetId, widgetId, visitorId);
+    messagesDeleted = msgResult.changes;
+
+    // Step 1b — the visitor's captured leads (personal data) go too, matched
+    // by visitor id or by one of their conversations. Older DBs may lack it.
+    try {
+      leadsDeleted = prepare(`
+        DELETE FROM widget_leads
+         WHERE widget_id = ?
+           AND (visitor_id = ? OR conversation_id IN (
+             SELECT id FROM widget_conversations WHERE widget_id = ? AND visitor_id = ?))
+      `).run(widgetId, visitorId, widgetId, visitorId).changes;
+    } catch { leadsDeleted = 0; }
+
+    // Step 2 — delete the conversations themselves.
+    const convResult = prepare(
+      `DELETE FROM widget_conversations WHERE widget_id = ? AND visitor_id = ?`,
+    ).run(widgetId, visitorId);
+    conversationsDeleted = convResult.changes;
+
+    // Step 3 — drop the visitor memory record.
+    try {
+      const visResult = prepare(
+        `DELETE FROM widget_visitors WHERE widget_id = ? AND visitor_id = ?`,
+      ).run(widgetId, visitorId);
+      visitorDeleted = visResult.changes;
+    } catch {
+      // Older DBs may lack widget_visitors table; treat as zero.
+      visitorDeleted = 0;
+    }
+  })();
+  return { messagesDeleted, conversationsDeleted, visitorDeleted, leadsDeleted };
+}
+
+/**
  * QCX-6b — DELETE /internal/widgets/:widgetId/visitors/:visitorId
  *
  * GDPR Article 17 — right to erasure. Cascades the visitor's data:
@@ -1327,54 +1388,7 @@ widgetsInternalRouter.delete('/widgets/:widgetId/visitors/:visitorId', (req, res
     ).get(proofConv, widget.id, visitorId);
     if (!owned) return res.status(403).json({ error: 'conversation_id owned by this visitor is required' });
 
-    let messagesDeleted = 0;
-    let conversationsDeleted = 0;
-    let visitorDeleted = 0;
-    let leadsDeleted = 0;
-
-    const db = getDb();
-    db.transaction(() => {
-      // Step 1 — delete messages first (FK from widget_messages.conversation_id).
-      // Using a sub-select to bound by both widget_id and visitor_id to
-      // prevent any chance of cross-widget collateral.
-      const msgResult = prepare(`
-        DELETE FROM widget_messages
-         WHERE widget_id = ?
-           AND conversation_id IN (
-             SELECT id FROM widget_conversations
-              WHERE widget_id = ? AND visitor_id = ?
-           )
-      `).run(widget.id, widget.id, visitorId);
-      messagesDeleted = msgResult.changes;
-
-      // Step 1b — the visitor's captured leads (personal data) go too, matched
-      // by visitor id or by one of their conversations. Older DBs may lack it.
-      try {
-        leadsDeleted = prepare(`
-          DELETE FROM widget_leads
-           WHERE widget_id = ?
-             AND (visitor_id = ? OR conversation_id IN (
-               SELECT id FROM widget_conversations WHERE widget_id = ? AND visitor_id = ?))
-        `).run(widget.id, visitorId, widget.id, visitorId).changes;
-      } catch { leadsDeleted = 0; }
-
-      // Step 2 — delete the conversations themselves.
-      const convResult = prepare(
-        `DELETE FROM widget_conversations WHERE widget_id = ? AND visitor_id = ?`,
-      ).run(widget.id, visitorId);
-      conversationsDeleted = convResult.changes;
-
-      // Step 3 — drop the visitor memory record.
-      try {
-        const visResult = prepare(
-          `DELETE FROM widget_visitors WHERE widget_id = ? AND visitor_id = ?`,
-        ).run(widget.id, visitorId);
-        visitorDeleted = visResult.changes;
-      } catch {
-        // Older DBs may lack widget_visitors table; treat as zero.
-        visitorDeleted = 0;
-      }
-    })();
+    const { messagesDeleted, conversationsDeleted, visitorDeleted, leadsDeleted } = eraseVisitorRows(widget.id, visitorId);
 
     createAuditEvent({
       orgId: widget.org_id,
@@ -1485,6 +1499,22 @@ router.get('/orgs/:orgId/widgets/:widgetId', requireOrgMembership, async (req, r
   }
 });
 
+// Wave 12: allowed_domains (array of hostnames) is honoured on create, merged
+// with the single `domain`; localhost is always kept.
+const CREATE_HOST_RE = /^(?:\*\.)?[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::\d{1,5})?$/;
+function resolveCreateDomains(domain, list) {
+  const out = domain ? [domain] : [];
+  if (list !== undefined) {
+    if (!Array.isArray(list)) return { error: 'allowed_domains must be an array of hostnames' };
+    for (const d of list) {
+      const h = typeof d === 'string' ? d.trim().toLowerCase() : '';
+      if (!h || h.length > 253 || !CREATE_HOST_RE.test(h)) return { error: `Invalid domain in allowed_domains: ${String(d).slice(0, 60)}` };
+      out.push(h);
+    }
+  }
+  return { domains: [...new Set(out.filter((d) => d !== 'localhost')), 'localhost'] };
+}
+
 /**
  * POST /orgs/:orgId/widgets
  * Create a new widget (+ backing assistant)
@@ -1496,6 +1526,10 @@ router.post('/orgs/:orgId/widgets', requireOrgMembership, requireQuoxchatEntitle
     const userId = req.user.id;
 
     if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
+
+    const dom = resolveCreateDomains(domain, req.body.allowed_domains);
+    if (dom.error) return res.status(400).json({ error: dom.error });
+    const createDomains = dom.domains;
 
     // QCX-7a — plan-tier quota: enforce widget_count_cap per plan.
     // -1 means unlimited (enterprise); N>0 → 402 with upgrade pointer.
@@ -1541,7 +1575,7 @@ router.post('/orgs/:orgId/widgets', requireOrgMembership, requireQuoxchatEntitle
           shortName: name.slice(0, 2).toUpperCase(),
           role: 'specialist',
           level: 2,
-          widget_config: { greeting: greeting || 'Hi! How can I help?', allowed_domains: domain ? [domain, 'localhost'] : ['localhost'], position: position || 'bottom-right', theme: theme || 'auto' },
+          widget_config: { greeting: greeting || 'Hi! How can I help?', allowed_domains: createDomains, position: position || 'bottom-right', theme: theme || 'auto' },
         }),
         userId
       );
@@ -1562,7 +1596,7 @@ router.post('/orgs/:orgId/widgets', requireOrgMembership, requireQuoxchatEntitle
         VALUES (?, ?, ?, ?, ?, ?, 'embed', ?, ?, 'draft', ?, ?, ?, ?, 0, ?)
       `).run(
         widgetId, assistantId, orgId, name, publicKey,
-        JSON.stringify(domain ? [domain, 'localhost'] : ['localhost']),
+        JSON.stringify(createDomains),
         JSON.stringify({
           greeting: greeting || 'Hi! How can I help?', theme: theme || 'auto', position: position || 'bottom-right',
           // QUOXCHAT-EMAIL D4 — the policy switch ships WITH the tool switch.
@@ -1627,10 +1661,32 @@ function mergeEmbedConfig(stored, patch) {
   return out;
 }
 
+const PATCHABLE_WIDGET_KEYS = new Set([
+  'name', 'allowed_domains', 'allowed_domains_json', 'embed_config', 'embed_config_json', 'status',
+  'business_name', 'monthly_budget_cents', 'budget_action', 'greeting', 'tested_at', 'theme_customised',
+  'first_seen_at', 'system_prompt_override', 'guardrails', 'risk_classification_inputs',
+  'retention_days_override', 'captcha_secret', 'notification_settings_json', 'office_hours_json',
+  'operator_online', 'change_note', 'llm_key_vault_ref',
+]);
+
 router.patch('/orgs/:orgId/widgets/:widgetId', requireOrgMembership, async (req, res) => {
   try {
     const { orgId, widgetId } = req.params;
     const updates = { ...(req.body || {}) };
+
+    // Wave 10: unknown top-level keys are a 400, never a silent 200 no-op.
+    const unknownKeys = Object.keys(updates).filter((k) => !PATCHABLE_WIDGET_KEYS.has(k));
+    if (unknownKeys.length > 0) {
+      return res.status(400).json({ error: `Unknown field(s): ${unknownKeys.join(', ')}`, unknown_fields: unknownKeys });
+    }
+    // Wave 10: embed_config (object) is an alias of embed_config_json.
+    if (updates.embed_config !== undefined) {
+      if (!updates.embed_config || typeof updates.embed_config !== 'object' || Array.isArray(updates.embed_config)) {
+        return res.status(400).json({ error: 'embed_config must be a JSON object' });
+      }
+      if (updates.embed_config_json === undefined) updates.embed_config_json = updates.embed_config;
+      delete updates.embed_config;
+    }
 
     const widget = prepare('SELECT * FROM website_widgets WHERE id = ? AND org_id = ?').get(widgetId, orgId);
     if (!widget) return res.status(404).json({ error: 'Widget not found' });
@@ -1801,7 +1857,25 @@ router.patch('/orgs/:orgId/widgets/:widgetId', requireOrgMembership, async (req,
       }
     }
 
+    // Wave 11: a widget whose only passing claim is dev_only must not keep
+    // serving once a public domain is added. Drop it to draft; Go live must
+    // then pass the real security set.
+    let requiresGoLive = false;
+    if (updates.status === undefined && ['published', 'active'].includes(widget.status)
+      && (Array.isArray(updates.allowed_domains) || updates.allowed_domains_json)) {
+      let newDomains = [];
+      try { newDomains = Array.isArray(updates.allowed_domains) ? updates.allowed_domains : JSON.parse(updates.allowed_domains_json); } catch { newDomains = []; }
+      const hasPublic = Array.isArray(newDomains) && newDomains.some((d) => !isDevOnlyDomain(d));
+      if (hasPublic) {
+        const realClaim = prepare('SELECT 1 AS ok FROM widget_publish_claims WHERE widget_id = ? AND dev_only = 0 AND security_score >= 70 LIMIT 1').get(widgetId);
+        if (!realClaim) {
+          requiresGoLive = true;
+        }
+      }
+    }
+
     prepare(`UPDATE website_widgets SET ${fields.join(', ')} WHERE id = ? AND org_id = ?`).run(...values);
+    if (requiresGoLive) prepare("UPDATE website_widgets SET status = 'draft' WHERE id = ? AND org_id = ?").run(widgetId, orgId);
 
     createAuditEvent({ orgId, actorType: 'user', actorId: req.user.id, action: 'widget.update', targetType: 'widget', targetId: widgetId });
 
@@ -1811,11 +1885,39 @@ router.patch('/orgs/:orgId/widgets/:widgetId', requireOrgMembership, async (req,
         ...updated,
         allowed_domains: JSON.parse(updated.allowed_domains_json || '[]'),
         embed_config: JSON.parse(updated.embed_config_json || '{}'),
-      })
+      }),
+      ...(requiresGoLive ? { requires_go_live: true, message: 'A public domain was added. Run Go live: the security checks must pass before this widget serves again.' } : {}),
     });
   } catch (err) {
     console.error('Error updating widget:', err);
     res.status(500).json({ error: 'Failed to update widget' });
+  }
+});
+
+/**
+ * DELETE /orgs/:orgId/widgets/:widgetId/visitors/:visitorId
+ * Org-admin erasure of one data subject (GDPR Art. 17) for this widget: their
+ * conversations, messages and leads. Admin or owner role required. Idempotent
+ * (second call returns zero counts). Audited as widget.gdpr.erase.
+ */
+router.delete('/orgs/:orgId/widgets/:widgetId/visitors/:visitorId', requireOrgMembership, (req, res) => {
+  try {
+    const { orgId, widgetId, visitorId } = req.params;
+    if (!hasRoleLevel(req.orgMembership?.role, 'admin')) {
+      return res.status(403).json({ error: 'insufficient_role', message: 'Erasing a visitor requires the organisation admin role.' });
+    }
+    const widget = prepare('SELECT id, org_id FROM website_widgets WHERE id = ? AND org_id = ?').get(widgetId, orgId);
+    if (!widget) return res.status(404).json({ error: 'Widget not found' });
+    const r = eraseVisitorRows(widget.id, visitorId);
+    const deleted = { messages: r.messagesDeleted, conversations: r.conversationsDeleted, visitor: r.visitorDeleted, leads: r.leadsDeleted };
+    createAuditEvent({
+      orgId, actorType: 'user', actorId: req.user.id, action: 'widget.gdpr.erase',
+      targetType: 'widget', targetId: widget.id, metadata: { visitor_id: visitorId, via: 'org_admin', deleted },
+    });
+    res.json({ ok: true, deleted, legal_basis: 'GDPR Article 17 — right to erasure' });
+  } catch (err) {
+    console.error('Error erasing visitor data (admin):', err);
+    res.status(500).json({ error: 'Failed to erase visitor data' });
   }
 });
 
@@ -1972,6 +2074,14 @@ router.patch('/orgs/:orgId/widgets/:widgetId/knowledge/sources/:sourceId', requi
       console.error(`[widgets] knowledge source supersede failed widget=${widgetId} source=${sourceId} status=${r.status}`, r.data);
       return res.status(502).json({ error: 'knowledge_supersede_failed', message: 'Could not update the search index. Nothing changed; try again.', status: r.status });
     }
+    // w9: the admin has decided; the stored suggestion no longer applies.
+    try {
+      const cur = prepare('SELECT config_json FROM widget_knowledge_sources WHERE id = ? AND widget_id = ?').get(sourceId, widgetId);
+      const cfg = safeJsonParse(cur?.config_json, {}) || {};
+      if (cfg.suggest_superseded || cfg.auto_superseded) {
+        prepare('UPDATE widget_knowledge_sources SET config_json = ? WHERE id = ? AND widget_id = ?').run(JSON.stringify({ ...cfg, suggest_superseded: false, auto_superseded: false }), sourceId, widgetId);
+      }
+    } catch (e) { console.warn('[widgets] clear superseded suggestion failed (non-fatal):', e?.message); }
     res.json({ success: true, source_id: sourceId, superseded });
   } catch (err) {
     console.error('Error superseding knowledge source:', err);
@@ -2189,6 +2299,29 @@ router.post('/orgs/:orgId/widgets/:widgetId/knowledge/upload', requireOrgMembers
         const sig = detectSupersededSignal({ filename: req.file.originalname, firstLine, existingNames });
         data.suggest_superseded = sig.suggest_superseded;
         if (sig.suggest_superseded) data.superseded_reasons = sig.reasons;
+        // w9: persist the suggestion on the source row so it survives a reload
+        // until the admin decides (the PATCH below clears it).
+        if (sig.suggest_superseded && data.source_id) {
+          const row = prepare('SELECT config_json FROM widget_knowledge_sources WHERE id = ? AND widget_id = ?').get(String(data.source_id), widgetId);
+          if (row) {
+            const merged = { ...(safeJsonParse(row.config_json, {}) || {}), suggest_superseded: true, superseded_reasons: sig.reasons };
+            prepare('UPDATE widget_knowledge_sources SET config_json = ? WHERE id = ? AND widget_id = ?').run(JSON.stringify(merged), String(data.source_id), widgetId);
+            // QC-BRUTALOOP-W13: ALL strong signals together (filename, first line,
+            // older year) default the source to reference-only. Anything less
+            // stays a suggestion. Undo = the normal PATCH superseded:false.
+            if (isStrongSupersededSignal(sig)) {
+              const pr = await forwardToCollectorPatch(`/quoxchat/knowledge/sources/${encodeURIComponent(String(data.source_id))}`, { widget_id: widgetId, superseded: true });
+              if (pr.status >= 200 && pr.status < 300) {
+                const cur = safeJsonParse(prepare('SELECT config_json FROM widget_knowledge_sources WHERE id = ? AND widget_id = ?').get(String(data.source_id), widgetId)?.config_json, {}) || {};
+                prepare('UPDATE widget_knowledge_sources SET config_json = ? WHERE id = ? AND widget_id = ?').run(JSON.stringify({ ...cur, superseded: true, suggest_superseded: false, auto_superseded: true, superseded_reasons: sig.reasons }), String(data.source_id), widgetId);
+                data.superseded = true;
+                data.auto_superseded = true;
+              } else {
+                console.warn(`[widgets] auto reference-only failed widget=${widgetId} source=${data.source_id} status=${pr.status}; left as suggestion`);
+              }
+            }
+          }
+        }
       } catch (e) { console.warn('[widgets] superseded signal failed (non-fatal):', e?.message); }
     }
     if (replacedIds.length > 0 && data && typeof data === 'object') {
@@ -2237,6 +2370,14 @@ function buildConversationFilters(widgetId, query) {
       SELECT 1 FROM widget_messages bm
        WHERE bm.conversation_id = widget_conversations.id AND bm.filtered = 1
     )`);
+  }
+  // w9: the operator desk / CLI / live pill pass exclude_test=1 so simulation
+  // (sim_*) and knowledge-tab test conversations never look like real traffic.
+  // Logs omits it and keeps them (labelled is_test).
+  // Wave 10: excluded BY DEFAULT (lists, totals, exports); include_test=1 opts in.
+  const includeTest = query.include_test === '1' || query.include_test === 'true';
+  if (!includeTest || query.exclude_test === '1' || query.exclude_test === 'true') {
+    where.push(`NOT ${TEST_VISITOR_SQL()}`);
   }
   // QCX-5k — exact visitor_id filter.
   if (typeof query.visitor_id === 'string' && query.visitor_id.length > 0) {
@@ -2701,13 +2842,25 @@ function parseEvidencePeriod(period) {
   return null;
 }
 
+/** GET /orgs/:orgId/evidence-signing-key: public half of the org's evidence signing key. */
+router.get('/orgs/:orgId/evidence-signing-key', requireOrgMembership, (req, res) => {
+  try {
+    const k = ensureOrgWidgetEvidenceSigningKey(getDb(), req.params.orgId);
+    res.json({ algorithm: k.algorithm, key_id: k.key_id, public_key_hex: k.public_key_hex, created_at: k.created_at });
+  } catch (err) {
+    console.error('evidence signing key', err);
+    res.status(500).json({ error: 'Failed to load evidence signing key' });
+  }
+});
+
 router.post('/orgs/:orgId/widgets/:widgetId/evidence-export', requireOrgMembership, async (req, res) => {
   try {
     const { orgId, widgetId } = req.params;
     const userId = req.user.id;
-    const period = parseEvidencePeriod(req.query.period);
+    // Accept the period from the query string or the JSON body.
+    const period = parseEvidencePeriod(req.query.period ?? req.body?.period);
     if (!period) {
-      return res.status(400).json({ error: 'period must be YYYY-Q1..Q4 or YYYY-MM' });
+      return res.status(400).json({ error: 'period (query string or JSON body) must be YYYY-Q1..Q4 or YYYY-MM' });
     }
 
     const widget = prepare(`
@@ -2822,11 +2975,16 @@ router.post('/orgs/:orgId/widgets/:widgetId/evidence-export', requireOrgMembersh
       metadata: { period: period.label, counts: bundle.counts, hash },
     });
 
+    // Wave 11: org-scoped Ed25519 signature over the same canonical bytes,
+    // verifiable offline with only the public key. HMAC kept for compatibility.
+    const ed = signWidgetEvidence(getDb(), orgId, Buffer.from(canonical, 'utf8').toString('hex'));
+
     res.setHeader('X-Bundle-Hash', hash);
     res.setHeader('X-Bundle-Signature', signature);
+    res.setHeader('X-Bundle-Signature-Ed25519', ed.signature);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="evidence-${widgetId}-${period.label}.json"`);
-    return res.send(JSON.stringify({ ...bundle, _verification: { algorithm: 'HMAC-SHA256', canonicalization: 'recursive-sorted-keys-v2', hash, signature } }, null, 2));
+    return res.send(JSON.stringify({ ...bundle, _verification: { algorithm: 'HMAC-SHA256', canonicalization: 'recursive-sorted-keys-v2', hash, signature, ed25519: { algorithm: 'Ed25519', key_id: ed.key_id, public_key_hex: ed.public_key_hex, signature: ed.signature, signed_bytes: 'utf8 of canonicalization over the bundle without _verification' } } }, null, 2));
   } catch (err) {
     console.error('Error exporting evidence:', err);
     res.status(500).json({ error: 'Failed to export evidence' });
@@ -2953,7 +3111,8 @@ router.get('/orgs/:orgId/widgets/:widgetId/conversations.json', requireOrgMember
     const widget = prepare('SELECT id FROM website_widgets WHERE id = ? AND org_id = ?').get(widgetId, orgId);
     if (!widget) return res.status(404).json({ error: 'Widget not found' });
     const { where, params } = buildConversationFilters(widgetId, req.query);
-    const rows = prepare(`SELECT * FROM widget_conversations WHERE ${where} ORDER BY last_message_at DESC LIMIT 5000`).all(...params);
+    const rows = prepare(`SELECT *, ${TEST_VISITOR_SQL()} AS is_test FROM widget_conversations WHERE ${where} ORDER BY last_message_at DESC LIMIT 5000`).all(...params)
+      .map((r) => ({ ...r, is_test: r.is_test === 1 }));
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="widget-${widgetId}-conversations.json"`);
     // w6k: ?transcripts=1 adds every message of each conversation. The default
@@ -2977,14 +3136,14 @@ router.get('/orgs/:orgId/widgets/:widgetId/conversations.csv', requireOrgMembers
     const { where, params } = buildConversationFilters(widgetId, req.query);
     const rows = prepare(`
       SELECT id, visitor_id, visitor_name, visitor_email, status, resolution, message_count, visitor_rating,
-             started_at, last_message_at, resolved_at
+             started_at, last_message_at, resolved_at, ${TEST_VISITOR_SQL()} AS is_test
       FROM widget_conversations WHERE ${where} ORDER BY last_message_at DESC LIMIT 5000
     `).all(...params);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="widget-${widgetId}-conversations.csv"`);
     // visitor_name added (night audit B1): the JSON export always carried
     // it, the CSV silently dropped identified visitors back to raw ids.
-    const header = ['id','visitor_id','visitor_name','visitor_email','status','resolution','message_count','visitor_rating','started_at','last_message_at','resolved_at'];
+    const header = ['id','visitor_id','visitor_name','visitor_email','status','resolution','message_count','visitor_rating','started_at','last_message_at','resolved_at','is_test'];
     const lines = [header.join(',')];
     for (const r of rows) lines.push(header.map(k => csvEscape(r[k])).join(','));
     res.end(lines.join('\r\n'));
@@ -2999,8 +3158,9 @@ router.get('/orgs/:orgId/widgets/:widgetId/conversations.csv', requireOrgMembers
 // 'sim_<scenario>_<nonce>'. They are real conversations (Logs keeps them,
 // labelled is_test) but must not pollute customer-facing analytics. Matching
 // on visitor_id also cleans up rows persisted before this tag existed.
+const TEST_VISITOR_IDS = ['knowledge-tab-test', 'training_test', 'onboarding'];
 const TEST_VISITOR_SQL = (alias = '') =>
-  `(${alias}visitor_id LIKE 'sim\\_%' ESCAPE '\\' OR ${alias}visitor_id = 'knowledge-tab-test')`;
+  `(${alias}visitor_id LIKE 'sim\\_%' ESCAPE '\\' OR ${alias}visitor_id IN ('knowledge-tab-test', 'training_test', 'onboarding'))`;
 const NOT_TEST_CONV_SQL = `NOT ${TEST_VISITOR_SQL()}`;
 // For widget_messages tables (no visitor_id column): exclude by conversation.
 const NOT_TEST_MSG_SQL = (alias = '') =>
@@ -3033,13 +3193,21 @@ function analyticsRange(query, col) {
  *   low_confidence  only weak matches backed the answer
  *   answered        strong knowledge match, nothing stripped or withheld
  */
-function classifyGrounding(ctx) {
+// Wave 13: the answer itself says the documents do not cover the question.
+// That is a knowledge gap whatever retrieval confidence the turn had.
+const KNOWLEDGE_GAP_RE = /\b(?:(?:information|documents?|details?|knowledge|content)(?:\s+(?:provided|available|i have|we have))?\s+(?:does\s*n[o']t|do\s*n[o']t|doesn't|don't|did\s*n[o']t)\s+(?:mention|say|state|cover|include|specify|contain|list)|i\s+(?:do\s*n[o']t|don't|can(?:no|')t)\s+see\b[^.!?\n]{0,120}?\b(?:mentioned|listed|stated|covered|included)\b|(?:not|isn't|aren't)\s+(?:mentioned|listed|covered|stated)\s+in\s+the\s+(?:information|documents?|details))/i;
+function isKnowledgeGapText(text) {
+  return typeof text === 'string' && KNOWLEDGE_GAP_RE.test(text);
+}
+
+function classifyGrounding(ctx, answerText) {
   if (!ctx || ctx.blocked === true) return null;
   const g = ctx.grounding;
   if (!g || typeof g !== 'object') return null;
   if (g.withheld === true) return 'withheld';
   if (g.stripped === true) return 'stripped';
   if (g.confidence === 'none') return 'no_knowledge';
+  if ((g.confidence === 'weak' || g.confidence === 'strong') && isKnowledgeGapText(answerText)) return 'no_knowledge';
   if (g.confidence === 'weak') return 'low_confidence';
   if (g.confidence === 'strong') return 'answered';
   return null;
@@ -3142,7 +3310,7 @@ router.get('/orgs/:orgId/widgets/:widgetId/analytics/summary', requireOrgMembers
 
     const quality = { assessed: 0, answered: 0, low_confidence: 0, no_knowledge: 0, stripped: 0, withheld: 0, unassessed: 0, answered_rate: null };
     for (const row of scanAssistantTurns(widgetId, req.query)) {
-      const verdict = classifyGrounding(safeJsonParse(row.context_json, null));
+      const verdict = classifyGrounding(safeJsonParse(row.context_json, null), row.content);
       if (!verdict) { quality.unassessed += 1; continue; }
       quality.assessed += 1;
       quality[verdict] += 1;
@@ -3203,7 +3371,7 @@ router.get('/orgs/:orgId/widgets/:widgetId/analytics/unanswered', requireOrgMemb
     // unsupported claims is a correct answer and is never listed.
     for (const row of scanAssistantTurns(widgetId, req.query)) {
       const ctx = safeJsonParse(row.context_json, null);
-      const verdict = classifyGrounding(ctx);
+      const verdict = classifyGrounding(ctx, row.content);
       // Wave 7 #2: wrong abstains. A figure-gate correction (corrected:true) or
       // a decline reply while retrieval was strong is a likely wrong abstain
       // the customer must be able to see, not only legitimate no_knowledge.

@@ -334,6 +334,19 @@ const CAPABILITIES = [
   // reports the true env-vs-default source and the Qortex settings panel
   // prefers it. ───
   {
+    key: 'BRAIN_CITATION_ENTAIL_CAP',
+    name: 'Qortex Citation Check: Claims Checked per Answer',
+    description: 'How many cited claims in one answer get the semantic (entailment) support check. Claims beyond this are shown as unchecked, never as unsupported. 1 to 25.',
+    service: 'collector',
+    classification: 'user',
+    type: 'number',
+    default: '12',
+    min: 1,
+    max: 25,
+    group: 'brain2',
+    note: 'Resolved per answer via configResolver.getInstanceSetting in lib/brainCitationTrace.js finalizeEntry; no restart needed.',
+  },
+  {
     key: 'QUOXBRAIN_MIN_COVERAGE',
     name: 'Qortex Abstention: Minimum Term Coverage',
     description: 'Fraction (0 to 1) of a query\'s content words that must appear in the top passages before Qortex answers. Below it, and without a strong semantic match, Qortex abstains instead of returning weak hits.',
@@ -1389,7 +1402,7 @@ const CAPABILITIES = [
     service: 'collector',
     classification: 'user',
     type: 'string',
-    default: 'claude-sonnet-4-6',
+    default: 'sonnet',
     maxLength: 64,
     group: 'ai-models',
     note: 'VAULT-INTEG P17: settable + audited + effective-resolved via configResolver.getSetting(orgId, ...) in lib/claudeCliDispatcher.js dispatchClaudeCli(), resolved once per call (opts.orgId) and reused for every label site in that call.',

@@ -104,6 +104,13 @@ export const ENCRYPTED_STORES = [
         rotate: true,
         note: 'Dev Suite capability-profile signing keys (lib/devCapabilitySigningKey.js), same utils/encryption.js envelope as CSK. Shipped unregistered; caught by the completeness backstop 2026-09-06 (VAULT-INTEG).',
     },
+    {
+        table: 'widget_evidence_signing_keys',
+        column: 'private_key_encrypted',
+        idColumn: 'id',
+        rotate: true,
+        note: 'Wave 11 QuoxChat evidence-bundle Ed25519 signing keys (lib/widgetEvidenceSigningKey.js), same utils/encryption.js envelope as CSK.',
+    },
 ];
 
 /**

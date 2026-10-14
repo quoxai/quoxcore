@@ -112,19 +112,38 @@ function execGitRaw(args, opts = {}) {
  * behind the newest 200. `git log` lists newest first, so the oldest window
  * is `--skip=<count - N>`.
  */
-async function execGit(repoPath, { afterIso = null } = {}) {
+// Which branch to read. A shared checkout is often parked on someone's feature
+// branch, so HEAD would freeze the feed at that branch's history (seen live
+// 2026-10-14: a checkout 2,489 commits behind main). Prefer the repo's main line;
+// an explicit config.ref wins when it is a plain ref name.
+const SAFE_REF_RE = /^[A-Za-z0-9][A-Za-z0-9._\/-]{0,200}$/;
+const DEFAULT_REF_CANDIDATES = ['refs/remotes/origin/HEAD', 'refs/remotes/origin/main', 'refs/remotes/origin/master', 'refs/heads/main', 'refs/heads/master', 'HEAD'];
+
+async function resolveRef(base, ref) {
+  const candidates = [...(typeof ref === 'string' && SAFE_REF_RE.test(ref) && !ref.includes('..') ? [ref] : []), ...DEFAULT_REF_CANDIDATES];
+  for (const c of candidates) {
+    try {
+      const out = await execGitRaw([...base, 'rev-parse', '--verify', '--quiet', `${c}^{commit}`]);
+      if (String(out).trim()) return c;
+    } catch { /* try the next candidate */ }
+  }
+  return 'HEAD';
+}
+
+async function execGit(repoPath, { afterIso = null, ref = null } = {}) {
   const base = ['-c', 'safe.directory=*', '-C', repoPath];
+  const tip = await resolveRef(base, ref);
   const range = ['--no-merges'];
   if (afterIso) {
     const t = new Date(afterIso).getTime();
     if (Number.isFinite(t)) range.push(`--since=${new Date(t - 1000).toISOString()}`);
   }
-  const countOut = await execGitRaw([...base, 'rev-list', '--count', ...range, 'HEAD']);
+  const countOut = await execGitRaw([...base, 'rev-list', '--count', ...range, tip]);
   const total = parseInt(String(countOut).trim(), 10);
   const skip = Number.isFinite(total) && total > MAX_LOG_COMMITS ? total - MAX_LOG_COMMITS : 0;
   return execGitRaw([
     ...base, 'log', '-n', String(MAX_LOG_COMMITS), ...(skip ? ['--skip', String(skip)] : []),
-    ...range, '--name-only', `--format=${GIT_LOG_FORMAT}`,
+    ...range, '--name-only', `--format=${GIT_LOG_FORMAT}`, tip,
   ]);
 }
 
@@ -316,7 +335,7 @@ async function ingestOneRepo(orgId, opts = {}, deps = {}) {
 
   let raw = '';
   try {
-    raw = (await execGitFn(guard.path, { afterIso: feedWatermark.parseCursor(storedWatermark)?.ts || null })) || '';
+    raw = (await execGitFn(guard.path, { afterIso: feedWatermark.parseCursor(storedWatermark)?.ts || null, ref: config.ref || null })) || '';
   } catch (err) {
     result.error = `git log failed, ${err.message}`;
     console.error(`[FeedGitSource] org=${orgId}: ${result.error}`);
@@ -391,6 +410,7 @@ async function ingestOneRepo(orgId, opts = {}, deps = {}) {
 
 module.exports = {
   ingestGitHistory,
+  execGit,
   parseGitLog,
   renderCommitNote,
   watermarkKeyForRepoPath,

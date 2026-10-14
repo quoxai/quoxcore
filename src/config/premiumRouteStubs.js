@@ -604,7 +604,7 @@ const PREMIUM_PLUGIN_STUBS = [
         points: [
             {
                 title: 'Widget Room',
-                body: '7-tab management environment per assistant: Knowledge, Training, Style, Actions, Logs, Analytics, Settings.',
+                body: 'Ten-tab management room per widget: Knowledge, Training, Style, Actions, Simulation, Availability, Logs, Analytics, Settings, Compliance.',
                 icon: 'shield',
             },
             {
@@ -614,7 +614,7 @@ const PREMIUM_PLUGIN_STUBS = [
             },
             {
                 title: '5-Level CSS Control',
-                body: 'Theme presets, CSS variables, ::part() selectors, full stylesheet override, or headless SDK.',
+                body: 'Theme presets, CSS variables, ::part() selectors, or a full stylesheet override. (A headless SDK is planned, not yet published.)',
                 icon: 'shield',
             },
         ],

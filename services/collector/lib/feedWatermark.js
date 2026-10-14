@@ -50,6 +50,15 @@ const SCHEMA = `
     updated_at        TEXT NOT NULL,
     PRIMARY KEY (org_id, source_type)
   );
+  CREATE TABLE IF NOT EXISTS feed_rejections (
+    org_id     TEXT NOT NULL,
+    vault_id   TEXT NOT NULL,
+    rel_path   TEXT NOT NULL,
+    attempts   INTEGER NOT NULL DEFAULT 0,
+    reason     TEXT,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (org_id, vault_id, rel_path)
+  );
 `;
 
 // Connections cached per resolved dbPath — same rationale as
@@ -225,7 +234,9 @@ function isAfterCursor(raw, ts, id) {
   const t = String(ts);
   if (t > c.ts) return true;
   if (t < c.ts) return false;
-  return c.id !== null && String(id ?? '') > c.id;
+  // R01: a legacy plain-ts cursor is (ts, ''): any same-ts item with a
+  // non-empty id is still owed (ties at the boundary must not be lost).
+  return String(id ?? '') > (c.id === null ? '' : c.id);
 }
 
 /** Comparator: ts ascending, then id ascending (stable total order). */
@@ -246,8 +257,44 @@ function compareByTsId(a, b) {
 function nextCursor(processed, remaining = []) {
   if (!processed || processed.length === 0) return null;
   const last = [...processed].sort(compareByTsId)[processed.length - 1];
-  const tiesOwed = remaining.some((r) => String(r.ts) === String(last.ts));
-  return tiesOwed ? `${last.ts}|${last.id ?? ''}` : String(last.ts);
+  // R01: always compound, so a stored plain ts only ever means "legacy" and is
+  // upgraded on the next write. (remaining is kept for call-site compatibility.)
+  void remaining;
+  return `${last.ts}|${last.id ?? ''}`;
+}
+
+/**
+ * R02/R03: durable consecutive-rejection counter per (org, vault, relPath), so
+ * a permanently-bad document can be skipped after N attempts instead of
+ * blocking its feed forever. Returns the new attempt count, or 0 when the
+ * store is unavailable (caller then never skips, it keeps reporting the error).
+ */
+function bumpRejection(orgId, vaultId, relPath, reason, { dbPath } = {}) {
+  const db = resolveDb(dbPath);
+  if (!db) return 0;
+  try {
+    db.prepare(`
+      INSERT INTO feed_rejections (org_id, vault_id, rel_path, attempts, reason, updated_at)
+      VALUES (?, ?, ?, 1, ?, ?)
+      ON CONFLICT(org_id, vault_id, rel_path) DO UPDATE SET attempts = attempts + 1, reason = excluded.reason, updated_at = excluded.updated_at
+    `).run(orgId, vaultId, relPath, String(reason ?? ''), new Date().toISOString());
+    return db.prepare('SELECT attempts FROM feed_rejections WHERE org_id = ? AND vault_id = ? AND rel_path = ?').get(orgId, vaultId, relPath).attempts;
+  } catch (err) {
+    console.error(`[FeedWatermark] org=${orgId}: bumpRejection failed, ${err.message}`);
+    return 0;
+  }
+}
+
+/** Clears the rejection counter for accepted documents. Never throws. */
+function clearRejections(orgId, vaultId, relPaths, { dbPath } = {}) {
+  const db = resolveDb(dbPath);
+  if (!db || !relPaths?.length) return;
+  try {
+    const del = db.prepare('DELETE FROM feed_rejections WHERE org_id = ? AND vault_id = ? AND rel_path = ?');
+    for (const rp of relPaths) del.run(orgId, vaultId, rp);
+  } catch (err) {
+    console.error(`[FeedWatermark] org=${orgId}: clearRejections failed, ${err.message}`);
+  }
 }
 
 /**
@@ -275,6 +322,8 @@ module.exports = {
   isAfterCursor,
   compareByTsId,
   nextCursor,
+  bumpRejection,
+  clearRejections,
   _closeForTest,
   DEFAULT_DB_PATH,
 };

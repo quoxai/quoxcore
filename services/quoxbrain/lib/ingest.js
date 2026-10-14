@@ -293,12 +293,18 @@ function mergeLinks(parsed = [], supplied) {
 }
 
 function suppliedTagsLinksChanged(db, noteId, doc) {
-  const hasTags = Array.isArray(doc.tags) && doc.tags.length > 0
+  const tagsSupplied = Array.isArray(doc.tags)
   const hasLinks = Array.isArray(doc.links) && doc.links.length > 0
-  if (!hasTags && !hasLinks) return false
-  if (hasTags) {
-    const have = new Set(db.prepare('SELECT tag FROM note_tags WHERE note_id = ?').all(noteId).map((r) => r.tag))
-    for (const raw of doc.tags) { const t = typeof raw === 'string' ? raw.trim().replace(/^#/, '') : ''; if (t && !have.has(t)) return true }
+  if (!tagsSupplied && !hasLinks) return false
+  if (tagsSupplied) {
+    const rows = db.prepare('SELECT tag, source FROM note_tags WHERE note_id = ?').all(noteId)
+    const have = new Set(rows.map((r) => r.tag))
+    const supplied = new Set()
+    for (const raw of doc.tags) { const t = typeof raw === 'string' ? raw.trim().replace(/^#/, '') : ''; if (t) supplied.add(t) }
+    // Added: a supplied tag the note does not carry yet.
+    for (const t of supplied) if (!have.has(t)) return true
+    // Removed (R04): a tag a reader previously supplied that is no longer supplied.
+    for (const r of rows) if (r.source === 'reader' && !supplied.has(r.tag)) return true
   }
   if (hasLinks) {
     const have = new Set(db.prepare('SELECT link_type, target_raw FROM note_links WHERE source_note_id = ?').all(noteId).map((r) => `${r.link_type}\u0000${r.target_raw}`))
@@ -312,7 +318,9 @@ function metadataChanged(existing, doc) {
   const differs = (supplied, current) => supplied !== undefined && supplied !== null && supplied !== (current ?? null)
   return differs(doc.title, existing.title) || differs(doc.language, existing.language) || differs(doc.kind, existing.kind) ||
     differs(doc.sourceType, existing.source_type) || differs(doc.occurredAt, existing.occurred_at) ||
-    differs(doc.originStore, existing.origin_store) || differs(doc.originId, existing.origin_id)
+    differs(doc.originStore, existing.origin_store) || differs(doc.originId, existing.origin_id) ||
+    // R04: an explicit null originId CLEARS provenance (undefined stays "no opinion").
+    (doc.originId === null && (existing.origin_id ?? null) !== null)
 }
 
 /**
@@ -506,3 +514,5 @@ export async function ingestDocuments(vault, documents, { deleteAbsent = false, 
 }
 
 export default { indexVault, backfillChunks, ingestDocuments }
+
+export { suppliedTagsLinksChanged, metadataChanged }

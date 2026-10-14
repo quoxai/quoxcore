@@ -65,6 +65,7 @@ const SOURCE_TYPE = 'fleet';
 const VAULT_NAME = 'Fleet';
 
 const DEFAULT_MAX_HOSTS = 20;
+const ROTATION_KEY = '__rotation__';
 const DEFAULT_LOG_LINES = 100;
 // Defense-in-depth cap on the per-host log window we request — the
 // /api/v1/agents/:hostId/logs route itself already clamps to 1000
@@ -151,7 +152,10 @@ async function defaultListHosts(maxHosts, { fetchImpl = fetch, signal } = {}) {
   if (!res.ok) throw new Error(`GET /api/v1/agents failed HTTP ${res.status}`);
   const body = await res.json().catch(() => null);
   const list = Array.isArray(body?.agents) ? body.agents : [];
-  return list.slice(0, maxHosts).map((a) => ({ hostId: a.host_id }));
+  // Return the WHOLE fleet (bounded only by a sanity cap); ingestFleet rotates
+  // a maxHosts-sized window through it so no host is silently never read.
+  void maxHosts;
+  return list.slice(0, 5000).map((a) => ({ hostId: a.host_id }));
 }
 
 /**
@@ -197,7 +201,7 @@ function selectEligibleLines(logLines, storedWatermark) {
  * activity, timestamped by the newest line in the batch, so it never
  * collides with (or overwrites) a prior tick's digest for the same host.
  */
-function renderHostDocument(hostId, eligibleLines) {
+function renderHostDocument(hostId, eligibleLines, stats = {}) {
   const safeHostId = sanitizeHostIdForPath(hostId);
   const newestTs = eligibleLines[eligibleLines.length - 1].tsIso;
   const heading = `# Fleet: ${hostId}`;
@@ -212,6 +216,12 @@ function renderHostDocument(hostId, eligibleLines) {
     if (kept.length > 0 && bytes + renderedBytes > MAX_NOTE_BYTES) break;
     kept.unshift(rendered);
     bytes += renderedBytes;
+  }
+
+  const omitted = eligibleLines.length - kept.length;
+  if (omitted > 0) {
+    stats.omitted = (stats.omitted || 0) + omitted;
+    kept.unshift(`- (${omitted} older line(s) omitted: note size cap)`);
   }
 
   const relPath = `fleet/${safeHostId}/${newestTs.replace(/[:.]/g, '-')}.md`;
@@ -286,9 +296,31 @@ async function ingestFleet(orgId, opts = {}, deps = {}) {
     console.error(`[FeedFleetSource] org=${orgId}: ${result.error}`);
     return result;
   }
-  hosts = hosts.slice(0, maxHosts);
+  // Audit: rotate a maxHosts window through the full, sorted fleet using a
+  // durable cursor (pseudo-host key), instead of re-reading the first N forever.
+  hosts = hosts.filter((h) => h && h.hostId).sort((a, b) => (a.hostId < b.hostId ? -1 : a.hostId > b.hostId ? 1 : 0));
+  const totalHosts = hosts.length;
+  let rotationNext = null;
+  if (totalHosts > maxHosts) {
+    let cursor = null;
+    try { cursor = await getWatermarkFn(orgId, ROTATION_KEY); } catch { /* start from the top */ }
+    let start = cursor ? hosts.findIndex((h) => h.hostId > cursor) : 0;
+    if (start < 0) start = 0;
+    const window = [];
+    for (let i = 0; i < maxHosts; i++) window.push(hosts[(start + i) % totalHosts]);
+    hosts = window;
+    rotationNext = hosts[hosts.length - 1].hostId;
+    result.truncated = `${hosts.length} of ${totalHosts} hosts read this tick (rotating)`;
+  }
+  const advanceRotation = async () => {
+    if (rotationNext === null) return;
+    try { await setWatermarkFn(orgId, ROTATION_KEY, rotationNext); } catch (err) {
+      console.error(`[FeedFleetSource] org=${orgId}: rotation cursor write failed, ${err.message}`);
+    }
+  };
 
   const docs = [];
+  const renderStats = {};
   let lastHostError = null;
   const watermarkAdvances = []; // { hostId, ts } — applied only after a successful push
 
@@ -310,7 +342,7 @@ async function ingestFleet(orgId, opts = {}, deps = {}) {
       const eligible = selectEligibleLines(logLines, storedWatermark);
       if (eligible.length === 0) continue; // no new activity for this host this tick
 
-      docs.push(renderHostDocument(hostId, eligible));
+      docs.push(renderHostDocument(hostId, eligible, renderStats));
       watermarkAdvances.push({ hostId, ts: eligible[eligible.length - 1].tsIso });
     } catch (err) {
       // One host failing (log fetch error, malformed response, etc.) never
@@ -330,7 +362,8 @@ async function ingestFleet(orgId, opts = {}, deps = {}) {
     if (result.hostsRead === 0) result.error = `all ${result.hostsFailed} host(s) failed — last: ${lastHostError}`;
   }
 
-  if (docs.length === 0) return result;
+  if (renderStats.omitted) result.truncated = [result.truncated, `${renderStats.omitted} log line(s) omitted (note size cap)`].filter(Boolean).join('; ');
+  if (docs.length === 0) { if (!result.error) await advanceRotation(); return result; }
 
   if (dryRun) return result; // tallies hostsRead, pushes/advances nothing
 
@@ -350,6 +383,7 @@ async function ingestFleet(orgId, opts = {}, deps = {}) {
     }
 
     result.docsPushed = docs.length;
+    await advanceRotation();
 
     for (const { hostId, ts } of watermarkAdvances) {
       try {

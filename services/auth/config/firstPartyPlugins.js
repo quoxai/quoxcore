@@ -28,6 +28,16 @@
 // .quoxplugin/trusted-key install route + server-side entitlement gate in
 // services/auth/lib/entitlements.js LICENSE_GOVERNED_PLUGINS), it is simply no
 // longer auto-installed+auto-enabled for every org at boot/org-creation.
+/**
+ * Quox bundles shipped in this image that are NOT auto-provisioned (installed
+ * per org through the licensed route, e.g. QuoxTrade above). They are still
+ * Quox's own bytes, so they belong in the official map plugin backends are
+ * gated on (getOfficialBundleShas); provisioning never reads this list.
+ */
+export const OFFICIAL_LICENSED_PLUGINS = [
+    { pluginId: 'star-alignment', dir: 'star-alignment' },
+];
+
 export const FIRST_PARTY_PLUGINS = [
     // LICENSE-LAUNCH LL-7 increment 1 — the loader-contract pilot.
     //

@@ -1752,8 +1752,23 @@
     var reader = resp.body.getReader();
     var decoder = new TextDecoder();
     var buf = '';
+    // Wave 12: no frame at all for this long means the stream is hung (a
+    // collector restart left one open >120s). Reject so the caller shows the
+    // retry state instead of an eternal typing bubble.
+    var idleMs = (typeof window.__qxStreamIdleMs === 'number' && window.__qxStreamIdleMs > 0) ? window.__qxStreamIdleMs : 60000;
     while (true) {
-      var chunk = await reader.read();
+      var idleTimer = null;
+      var chunk = await Promise.race([
+        reader.read(),
+        new Promise(function (_, reject) {
+          idleTimer = setTimeout(function () {
+            try { reader.cancel(); } catch (_) {}
+            var e = new Error('stream idle timeout');
+            e.qxIdle = true;
+            reject(e);
+          }, idleMs);
+        }),
+      ]).finally(function () { clearTimeout(idleTimer); });
       if (chunk.done) break;
       buf += decoder.decode(chunk.value, { stream: true });
       var idx;
@@ -1776,10 +1791,34 @@
     }
   }
 
+  // Wave 9: the visitor-facing failure state for a send that did not go
+  // through. One retry resends the same message; a retry that fails shows the
+  // plain message with no further button.
+  function showSendFailure(text, actionKind, isRetry, userMsg) {
+    var errEl = appendMessage('err', 'Sorry, that did not go through. Please try again.');
+    if (isRetry) return;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'qx-retry';
+    btn.textContent = 'Retry';
+    btn.style.cssText = 'margin-left:8px;cursor:pointer';
+    btn.addEventListener('click', function () {
+      if (sending) return;
+      btn.disabled = true;
+      try { errEl.remove(); } catch (_) {}
+      try { if (userMsg) userMsg.remove(); } catch (_) {}
+      if (history.length && history[history.length - 1].role === 'user' && history[history.length - 1].content === text) history.pop();
+      input.value = text;
+      send(actionKind, true);
+    });
+    errEl.appendChild(document.createTextNode(' '));
+    errEl.appendChild(btn);
+  }
+
   // ─── Send ──────────────────────────────────────────────────────────────
   // actionKind is only a string when a quick-action chip triggered the send
   // (button/keydown handlers pass an Event object here, which is ignored).
-  async function send(actionKind) {
+  async function send(actionKind, isRetry) {
     if (sending) return;
     // QCX-6k — block message send until consent given.
     if (consentRequired && !consentGiven) {
@@ -1856,11 +1895,19 @@
         } else {
           // Read whichever text field the server sent (middleware here use
           // error/message/response inconsistently) before an honest fallback.
+          // Wave 9: a 5xx or a non-JSON body (an nginx 502 page) is never
+          // rendered: friendly text plus one retry that resends the message.
+          var errCt = ((resp.headers && resp.headers.get && resp.headers.get('content-type')) || '').toLowerCase();
           var errBody = null;
-          try { errBody = await resp.json(); } catch (_) { /* body may be empty or non-JSON */ }
+          if (resp.status < 500 && errCt.indexOf('json') !== -1) {
+            try { errBody = await resp.json(); } catch (_) { /* body may be empty or non-JSON */ }
+          }
           var errText = errBody && (errBody.response || errBody.message || errBody.error);
-          appendMessage('err', (typeof errText === 'string' && errText) ||
-            'The assistant hit a temporary problem answering that. Please try again in a moment.');
+          if (typeof errText === 'string' && errText && errText.indexOf('<') === -1 && resp.status < 500) {
+            appendMessage('err', errText);
+          } else {
+            showSendFailure(text, actionKind, isRetry, userMsg);
+          }
         }
         return;
       }
@@ -1931,6 +1978,11 @@
         doneBody = data;
       }
 
+      // Wave 12: a stream that closed without a done or error frame (collector
+      // restart mid-turn) is a failed turn, never a silent empty one.
+      if (!errorBody && !doneBody) {
+        errorBody = { response: 'The connection was interrupted before the answer finished. Please try again, or contact us directly.' };
+      }
       if (errorBody) {
         turnFailed = true;
         emitStatus('error');
@@ -2022,7 +2074,9 @@
       // finished, so any partial text is unverified. It is never kept as the
       // answer and never enters history; show the retry/error state instead.
       try { streamMsg.remove(); } catch (_) {}
-      appendMessage('err', accumulated && accumulated.trim()
+      appendMessage('err', err && err.qxIdle
+        ? 'The assistant took too long to answer. Please try again, or contact us directly.'
+        : accumulated && accumulated.trim()
         ? 'The connection dropped before the answer was checked, so it was not shown. Please try again.'
         : 'Network error. Please try again.');
     } finally {

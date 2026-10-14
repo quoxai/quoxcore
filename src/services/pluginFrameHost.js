@@ -249,7 +249,30 @@ export function buildFrameSrcdoc({ pluginId, channel, bundleCode, cssCode = '' }
  *
  * @returns {{ handle: (method:string, args:object) => Promise<any> }}
  */
-export function createHostMediator({ pluginId, getAuthContext, collectorBase, doFetch } = {}) {
+/**
+ * Which declared manifest permission each community RPC needs
+ * (FND_01M4SVA495ZMJ0K3BZM6ZMJ0K3). The org admin approves a plugin on the
+ * strength of these declarations, so they are enforced here, in the parent,
+ * which the frame cannot bypass (it has no network of its own). navigate and
+ * getUser need none. Names match the official path (pluginApi.js PD-8) and the
+ * SDK's manifest docs.
+ */
+export const COMMUNITY_PERMISSION_FOR_METHOD = Object.freeze({
+    'storage.get': 'storage',
+    'storage.set': 'storage',
+    'storage.remove': 'storage',
+    'storage.keys': 'storage',
+    'storage.getAll': 'storage',
+    fetch: 'network',
+    'memory.save': 'memory',
+    'memory.search': 'memory',
+    'aee.emit': 'aee',
+    notify: 'notifications',
+});
+
+export function createHostMediator({ pluginId, getAuthContext, collectorBase, doFetch, permissions } = {}) {
+    // Fail closed: a community plugin that declares nothing is granted nothing gated.
+    const granted = new Set(Array.isArray(permissions) ? permissions.filter((p) => typeof p === 'string') : []);
     const base = collectorBase || (typeof window !== 'undefined' && window.__quoxCollectorUrl) || '/collector';
     const fetchImpl = doFetch || ((...a) => fetch(...a));
     // F3: the plugin id is spliced into every URL, so it must be a plain slug.
@@ -371,30 +394,16 @@ export function createHostMediator({ pluginId, getAuthContext, collectorBase, do
             const body = await res.text();
             return { status: res.status, ok: res.ok, body };
         },
-        async 'memory.save'({ entry }) {
-            authOrThrow();
-            return json(await fetchImpl(`${base}/api/v1/memory`, {
-                method: 'POST', credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...(entry || {}), source: `plugin:${pluginId}` }),
-            }));
-        },
-        async 'memory.search'({ query, limit }) {
-            authOrThrow();
-            return json(await fetchImpl(`${base}/api/v1/memory/search`, {
-                method: 'POST', credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query, limit: limit || 10, source: `plugin:${pluginId}` }),
-            }));
-        },
-        async 'aee.emit'({ intent, payload }) {
-            authOrThrow();
-            return json(await fetchImpl(`${base}/api/v1/envelopes`, {
-                method: 'POST', credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'event', intent, payload, from: `plugin.${pluginId}` }),
-            }));
-        },
+        // NOT AVAILABLE to community plugins yet. The collector has no plugin
+        // memory or evidence route (/api/v1/memory, /api/v1/memory/search and
+        // /api/v1/envelopes all 404, SDK-TEAM W5a probe 2026-10-13), and the old
+        // handlers parsed that 404 body as a result, so a plugin saw success.
+        // Letting an untrusted plugin write org memory or the evidence chain is
+        // a product decision; until a governed route exists, refuse clearly.
+        // The permission gate above still runs first.
+        async 'memory.save'() { throw new Error('not_available: memory'); },
+        async 'memory.search'() { throw new Error('not_available: memory'); },
+        async 'aee.emit'() { throw new Error('not_available: aee'); },
         async navigate({ path }) {
             // Host dispatches navigation; App-level listener validates against the
             // plugin's declared routes before honouring it.
@@ -420,6 +429,8 @@ export function createHostMediator({ pluginId, getAuthContext, collectorBase, do
         async handle(method, args) {
             const h = handlers[method];
             if (!h) throw new Error(`unknown_method:${method}`);
+            const need = COMMUNITY_PERMISSION_FOR_METHOD[method];
+            if (need && !granted.has(need)) throw new Error(`permission_denied: ${need}`);
             return h(args || {});
         },
     };

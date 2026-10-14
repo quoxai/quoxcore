@@ -37,7 +37,7 @@ const securityScheduledFindings = require('./securityScheduledFindings.js');
 // gitleaks'/trivy's honest target-type gap).
 const BASTION_URL = process.env.BASTION_URL || '';
 const BASTION_TOKEN = process.env.BASTION_API_TOKEN || '';
-const BASTION_UNAVAILABLE_MESSAGE = 'Bastion not configured for this installation. Ask an admin to configure QuoxBastion.';
+const { BASTION_UNAVAILABLE_MESSAGE } = require('./bastionUnavailable');
 
 // Sync-path default. Found live 2026-08-10/11: a real sectest_vuln_scan
 // (nuclei) default-template run genuinely takes longer than this, that's
@@ -80,7 +80,7 @@ async function defaultCallBastion(hostId, command, options = {}) {
     });
     if (!resp.ok) {
       const text = await resp.text();
-      return { success: false, error: `Bastion returned ${resp.status}: ${text}` };
+      return require("./bastionRefusal.js").bastionHttpErrorResult(resp.status, text); // #815: a 403 is a refusal, never an approval card
     }
     const data = await resp.json();
     const r = data.results && data.results[0];

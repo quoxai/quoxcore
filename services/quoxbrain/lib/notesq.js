@@ -366,7 +366,7 @@ export async function updateNote({ orgId, userId, isAdmin = false, id, content, 
 // recoverable remains. Chunks, embeddings, FTS rows, link/tag rows go with the
 // notes row (cascade + triggers) and ANN points via the durable delete outbox in
 // store.deleteNote.
-export async function deleteNote({ orgId, userId, isAdmin = false, id, authorKind, purge = false }) {
+export async function deleteNote({ orgId, userId, isAdmin = false, id, authorKind, purge = false, expectedHash }) {
   validateKind(authorKind)
   const row = visibleNoteRow(orgId, userId, id)
   if (!row) throw new NotesqError(404, 'not_found')
@@ -380,6 +380,13 @@ export async function deleteNote({ orgId, userId, isAdmin = false, id, authorKin
     const db = getDatabase()
     let revision = null
     db.transaction(() => {
+      // expectedHash is checked in the SAME synchronous transaction as the
+      // mutation (re-reading the live row), so no concurrent edit can slip between.
+      if (expectedHash !== undefined && expectedHash !== null && expectedHash !== '') {
+        const live = visibleNoteRow(orgId, userId, id)
+        if (!live) throw new NotesqError(404, 'not_found')
+        if (live.content_hash !== expectedHash) throw new NotesqError(409, 'conflict', { currentHash: live.content_hash, current_hash: live.content_hash })
+      }
       store.deleteNote(id)
       if (purge) { db.prepare('DELETE FROM note_revisions WHERE note_id = ?').run(id); return }
       revision = writeRevision({ vault, noteId: id, relPath: row.rel_path, action: 'delete', content: row.body || '', hash: row.content_hash, userId, kind: authorKind })
@@ -423,7 +430,7 @@ export function getRevision({ orgId, userId, id, rev }) {
   return { rev: row.rev, action: row.action, author_kind: row.author_kind, created_at: row.created_at, markdown: row.content }
 }
 
-export async function restoreRevision({ orgId, userId, isAdmin = false, id, rev, authorKind }) {
+export async function restoreRevision({ orgId, userId, isAdmin = false, id, rev, authorKind, expectedHash }) {
   validateKind(authorKind)
   if (!Number.isInteger(rev) || rev < 1) throw new NotesqError(400, 'invalid_rev')
   const access = revisionAccess(orgId, userId, id)
@@ -434,6 +441,9 @@ export async function restoreRevision({ orgId, userId, isAdmin = false, id, rev,
   return withLock(id, async () => {
     const hash = sha1(target.content)
     const live = visibleNoteRow(orgId, userId, id)
+    if (expectedHash !== undefined && expectedHash !== null && expectedHash !== '' && (!live || live.content_hash !== expectedHash)) {
+      throw new NotesqError(409, 'conflict', { currentHash: live ? live.content_hash : null, current_hash: live ? live.content_hash : null })
+    }
     if (live && live.content_hash === hash) return { note: getNote({ orgId, userId, id }), revision: null, unchanged: true }
     await ingestOne(access.vault, access.relPath, target.content)
     const revision = writeRevision({ vault: access.vault, noteId: id, relPath: access.relPath, action: 'restore', content: target.content, hash, userId, kind: authorKind })

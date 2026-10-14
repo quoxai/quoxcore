@@ -23,6 +23,7 @@ import ToolBuilderModal from './ToolBuilderModal'
 import TestToolModal from './TestToolModal'
 import ConnectorGalleryModal from './ConnectorGalleryModal'
 import EmailNotConnectedNotice from '../../../settings/EmailNotConnectedNotice.jsx'
+import { diffEmbedConfig } from './embedConfigPatch'
 
 const BUILTIN_PRESETS = [
   {
@@ -176,7 +177,7 @@ function StatusPill({ enabled }) {
   )
 }
 
-export default function ActionsTab({ widget, authFetch, orgId }) {
+export default function ActionsTab({ widget, authFetch, orgId, onWidgetChange }) {
   const widgetId = widget?.id
   const [tools, setTools] = useState([])
   const [connectors, setConnectors] = useState([])
@@ -290,9 +291,10 @@ export default function ActionsTab({ widget, authFetch, orgId }) {
       const resp = await authFetch(`/api/orgs/${orgId}/widgets/${widgetId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ embed_config_json: JSON.stringify(nextConfig) }),
+        body: JSON.stringify({ embed_config_json: JSON.stringify(diffEmbedConfig(existingConfig, nextConfig)) }),
       })
       if (resp.ok) {
+        try { const d = await resp.clone().json(); if (d?.widget && onWidgetChange) onWidgetChange(d.widget) } catch {}
         flash(setSafetySaveMsg, { type: 'success', text: 'Tool safety settings saved' })
       } else {
         const err = await resp.json().catch(() => ({}))
@@ -351,7 +353,7 @@ export default function ActionsTab({ widget, authFetch, orgId }) {
           guard: botGuard,
         },
       }
-      const body = { embed_config_json: JSON.stringify(nextConfig) }
+      const body = { embed_config_json: JSON.stringify(diffEmbedConfig(existingConfig, nextConfig)) }
       // Secret is write-only: only sent when the admin actually typed a new
       // value. Never pre-filled, never echoed back by the server.
       if (botSecretInput.trim()) body.captcha_secret = botSecretInput.trim()
@@ -362,6 +364,7 @@ export default function ActionsTab({ widget, authFetch, orgId }) {
       })
       if (resp.ok) {
         const data = await resp.json().catch(() => ({}))
+        if (data?.widget && onWidgetChange) onWidgetChange(data.widget)
         if (botSecretInput.trim()) setBotSecretSet(true)
         if (typeof data?.widget?.captcha_secret_set === 'boolean') setBotSecretSet(data.widget.captcha_secret_set)
         setBotSecretInput('')

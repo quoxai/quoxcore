@@ -188,7 +188,11 @@ export default function SimulationTab({ widget, authFetch, orgId }) {
       setScenarios(prev => prev.map(row => {
         const r = byId.get(row.id)
         if (!r) return row
-        return { ...row, last_score: r.score, last_passed: r.passed, last_run_at: new Date().toISOString() }
+        return {
+          ...row, last_score: r.score, last_passed: r.passed, last_run_at: new Date().toISOString(),
+          last_notes: Array.isArray(r.notes) ? r.notes.join(' | ') : row.last_notes,
+          last_response: (typeof r.response === 'string' ? r.response : r.response?.text) ?? row.last_response,
+        }
       }))
     }
     flash(setInfo, `Ran ${data?.total || 0} scenario${data?.total === 1 ? '' : 's'} · ${data?.passed || 0} passed · score ${data?.security_score ?? 'n/a'}`)
@@ -378,6 +382,12 @@ export default function SimulationTab({ widget, authFetch, orgId }) {
                         <button type="button" onClick={() => deleteScenario(sc)} style={{ padding: '3px 8px', fontSize: 9, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 4, color: '#ef4444', cursor: 'pointer' }}>×</button>
                       )}
                       {sc.is_seed && <span />}
+                      {sc.last_passed === false && (sc.last_response || sc.last_notes) && (
+                        <div data-testid="scenario-failure" style={{ gridColumn: '1 / -1', fontSize: 10, color: 'rgba(255,255,255,0.7)', borderTop: '1px solid rgba(239,68,68,0.2)', paddingTop: 4 }}>
+                          {sc.last_response && <div>Response: &ldquo;{sc.last_response}&rdquo;</div>}
+                          {sc.last_notes && <div style={{ fontFamily: "'JetBrains Mono', monospace", color: '#ef4444' }}>{sc.last_notes}</div>}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

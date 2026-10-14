@@ -42,18 +42,7 @@ const MAX_TOOL_ROUNDS = 5;
 const API_TIMEOUT_MS = 120000;
 const FLEET_TIMEOUT_MS = 5000;
 
-// The Anthropic Messages API accepts ONLY {name, description, input_schema} per
-// tool and hard-rejects any extra field ("tools.0.custom.entity: Extra inputs are
-// not permitted"). agentTools carry Quox metadata (entity, _entity, requiresApproval,
-// category, ...) that the MCP/CLI paths tolerate but this native path must strip.
-// CLI-OVER-MCP-P1: without this, OAuth chat with connector tools 400s → 403 to the
-// client. Allowlist, never denylist: any future metadata field is stripped for free.
-function toAnthropicTool(t) {
-  const out = { name: t.name };
-  if (typeof t.description === 'string' && t.description) out.description = t.description;
-  out.input_schema = t.input_schema || t.inputSchema || { type: 'object', properties: {} };
-  return out;
-}
+const { toAnthropicTool } = require('./anthropicTools.js');
 
 const { ANTHROPIC_WEB_SEARCH_TOOL, appendSearchSources } = require('./nativeWebSearch.js');
 
@@ -148,6 +137,7 @@ async function dispatchClaudeMessages(opts, deps) {
 - Never claim you are in a "sandbox" or that infrastructure is "not accessible" — you ARE connected.
 - After getting tool results, analyse them and provide recommendations.
 - If a tool call fails or times out, that IS diagnostic data — explain what the failure means.
+- Your tool calls run one after another, never at the same time: never say they run in parallel or simultaneously.
 - DO the work. Do NOT write assessment reports or escalation plans. Execute commands and show results.
 - All hosts are accessible via ssh_exec through the SSH bastion${bastionHost ? ` (${bastionHost})` : ''}.`;
     // Add delegation instructions for QUOX

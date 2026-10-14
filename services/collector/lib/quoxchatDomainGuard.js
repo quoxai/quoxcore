@@ -85,30 +85,39 @@ function isOriginAllowed(origin, allowedDomains) {
   return false;
 }
 
-async function fetchAllowedDomains(widgetId) {
-  if (!widgetId || widgetId === 'demo') return [];
-  const now = Date.now();
+// W7/W8: distinguish a definite answer from a transient auth failure. On a
+// timeout or 5xx the last known list is served (stale), and with no cache the
+// caller gets 'unavailable' so it can answer 503 "try again" instead of the
+// permanent-sounding "not available on this website".
+async function fetchAllowedDomainsDetailed(widgetId, { now = Date.now() } = {}) {
+  if (!widgetId || widgetId === 'demo') return { domains: [], state: 'ok' };
   const cached = cache.get(widgetId);
-  if (cached && cached.expiresAt > now) return cached.domains;
+  if (cached && cached.expiresAt > now) return { domains: cached.domains, state: 'ok' };
+  const stale = () => (cached ? { domains: cached.domains, state: 'stale' } : { domains: null, state: 'unavailable' });
 
   const authUrl = process.env.AUTH_SERVICE_URL || 'http://auth:3101';
   const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-  if (!serviceKey) return null; // fail-open — don't break message flow if env not wired
+  if (!serviceKey) return { domains: null, state: 'no_key' }; // fail-open path, unchanged
 
   try {
     const resp = await fetch(`${authUrl}/api/internal/widgets/${encodeURIComponent(widgetId)}/allowed-domains`, {
       headers: { 'x-service-key': serviceKey },
       signal: AbortSignal.timeout(2000),
     });
-    if (resp.status === 404) return null; // widget not found
-    if (!resp.ok) return null;
+    if (resp.status === 404) return { domains: null, state: 'not_found' };
+    if (!resp.ok) return stale();
     const data = await resp.json().catch(() => ({}));
     const domains = Array.isArray(data.allowed_domains) ? data.allowed_domains : [];
     cache.set(widgetId, { domains, expiresAt: now + CACHE_TTL_MS });
-    return domains;
+    return { domains, state: 'ok' };
   } catch {
-    return null;
+    return stale();
   }
+}
+
+async function fetchAllowedDomains(widgetId) {
+  const r = await fetchAllowedDomainsDetailed(widgetId);
+  return r.domains;
 }
 
 function resetCache() { cache.clear(); }
@@ -124,6 +133,7 @@ function enforceDomainGuard(widgetId, origin, allowedDomains, opts = {}) {
 }
 
 module.exports = {
+  fetchAllowedDomainsDetailed,
   isOriginAllowed,
   extractHost,
   isDevOrigin,

@@ -11,8 +11,8 @@
 
 const http = require('http');
 const https = require('https');
-const url = require('url');
 const { isPluginLicensed: defaultIsPluginLicensed } = require('./licenseGate.js');
+const { mintOrgTicket } = require('./pluginOrgTicket.js');
 
 // ── Plugin backend registry ──────────────────────────────────────────────
 
@@ -34,6 +34,71 @@ function pluginGatewaySecret(pluginId) {
 // Rate limit tracking per plugin
 const rateLimits = new Map(); // pluginId → { count, windowStart }
 
+
+// ── Target URL confinement (SEC-PLUGIN-TRUST M4) ──────────────────────────
+
+/**
+ * Parse a registered backend base URL; only http: and https: are allowed.
+ * Throws (fail closed) otherwise.
+ */
+function parseBackendBase(rawUrl) {
+    let base;
+    try {
+        base = new URL(rawUrl);
+    } catch {
+        throw new Error('Plugin backend URL is not a valid URL');
+    }
+    if (base.protocol !== 'http:' && base.protocol !== 'https:') {
+        throw new Error(`Plugin backend URL protocol not allowed: ${base.protocol}`);
+    }
+    return base;
+}
+
+/**
+ * Build the upstream target from the registered base URL plus a confined
+ * path (and optional query). The incoming path can never change protocol,
+ * host or port: it must start with '/', is appended as a pathname (never
+ * resolved as a reference), and the result is re-checked against the base.
+ * @returns {URL}
+ */
+function buildBackendTarget(baseUrl, rawPath) {
+    const base = parseBackendBase(baseUrl);
+    let p = rawPath === undefined || rawPath === null || rawPath === '' ? '/' : String(rawPath);
+    if (p[0] === '?') p = '/' + p;
+    if (p[0] !== '/' && p[0] !== '\\') {
+        throw new Error('Plugin path must start with /');
+    }
+    const q = p.indexOf('?');
+    let pathPart = q === -1 ? p : p.slice(0, q);
+    const query = q === -1 ? '' : p.slice(q);
+    // Collapse leading slashes/backslashes so '//evil' is a path, not an authority.
+    pathPart = '/' + pathPart.replace(/^[\\/]+/, '');
+    const target = new URL(base.href);
+    const basePath = base.pathname.replace(/\/+$/, '');
+    target.pathname = basePath + pathPart;
+    target.search = query;
+    target.hash = '';
+    if (target.protocol !== base.protocol || target.host !== base.host || target.username || target.password) {
+        throw new Error('Plugin path attempted to change the backend target');
+    }
+    return target;
+}
+
+/** TLS verification is on unless an admin opted this backend out explicitly. */
+function tlsOptionsFor(backend, target) {
+    return target.protocol === 'https:' ? { rejectUnauthorized: backend.tlsInsecure !== true } : {};
+}
+
+/** Node request options for a confined target. */
+function requestOptionsFor(backend, target) {
+    return {
+        hostname: target.hostname,
+        port: target.port || undefined,
+        path: target.pathname + target.search,
+        ...tlsOptionsFor(backend, target),
+    };
+}
+
 /**
  * Register a plugin backend.
  * @param {string} pluginId
@@ -43,10 +108,16 @@ function registerPluginBackend(pluginId, config) {
     if (!pluginId || !config?.url) {
         throw new Error('pluginId and config.url are required');
     }
+    parseBackendBase(config.url); // fail closed on non-http(s) / malformed URLs
 
     PLUGIN_BACKENDS.set(pluginId, {
         url: config.url.replace(/\/+$/, ''),
+        // image the container was started from, kept so a later registration
+        // with a different image is detected as a conflict (FND_01M4SZ7NNV4NZ57ZM6J34NZ57Z).
+        image: config.image || null,
         healthPath: config.healthPath || '/health',
+        // Explicit per-backend opt-out of TLS verification (https only); instance-admin set.
+        tlsInsecure: config.tlsInsecure === true,
         // requests per minute PER USER (see checkRateLimit). Data-heavy plugin
         // cockpits (e.g. QuoxTrade fires ~20-30 endpoints on a single load, plus
         // per-asset chart/backtest calls) blew straight through the old global
@@ -185,20 +256,23 @@ async function proxyToPlugin(req, res, pluginId, deps = {}) {
     // Build target URL: strip the proxy prefix, keep the rest
     const proxyPrefix = `/api/v1/plugins/${pluginId}`;
     const targetPath = req.originalUrl.replace(proxyPrefix, '') || '/';
-    const targetUrl = `${backend.url}${targetPath}`;
 
     try {
-        const parsedUrl = url.parse(targetUrl);
-        const isHttps = parsedUrl.protocol === 'https:';
-        const transport = isHttps ? https : http;
+        let target;
+        try {
+            target = buildBackendTarget(backend.url, targetPath);
+        } catch (e) {
+            return res.status(400).json({ error: `Invalid plugin path: ${e.message}` });
+        }
+        const transport = target.protocol === 'https:' ? https : http;
+        const orgTicket = req.user?.org_id
+            ? mintOrgTicket({ pluginId, orgId: req.user.org_id, userId: req.user.id })
+            : null;
 
         const proxyReq = transport.request({
-            hostname: parsedUrl.hostname,
-            port: parsedUrl.port,
-            path: parsedUrl.path,
+            ...requestOptionsFor(backend, target),
             method: req.method,
             timeout: 30000,
-            rejectUnauthorized: false,
             headers: {
                 'Content-Type': req.headers['content-type'] || 'application/json',
                 'Accept': req.headers['accept'] || 'application/json',
@@ -210,6 +284,10 @@ async function proxyToPlugin(req, res, pluginId, deps = {}) {
                 // must never trust a client-declared org — only this header,
                 // derived from the verified token (SPATIAL-W2).
                 ...(req.user?.org_id ? { 'X-Org-Id': req.user.org_id } : {}),
+                // SEC-PLUGIN-TRUST C1: signed on-behalf-of ticket. The backend echoes
+                // it when it calls the host with its qplg_ credential, which is the
+                // only way it can act for this org. Never forwarded from the client.
+                ...(orgTicket ? { 'X-Quox-Org-Ticket': orgTicket } : {}),
                 // AUDIT: prove this request came through the gateway. A plugin
                 // backend that publishes its org port can require this secret
                 // so a direct forged-X-Org-Id caller is rejected. Injected
@@ -272,20 +350,22 @@ async function healthCheckPlugin(pluginId) {
         return { status: 'not_registered' };
     }
 
-    const healthUrl = `${backend.url}${backend.healthPath}`;
+    let target;
+    try {
+        target = buildBackendTarget(backend.url, backend.healthPath);
+    } catch (e) {
+        backend.status = 'unreachable';
+        backend.lastHealthCheck = new Date().toISOString();
+        return { status: 'unreachable', error: e.message };
+    }
     const start = Date.now();
 
     return new Promise((resolve) => {
-        const parsedUrl = url.parse(healthUrl);
-        const isHttps = parsedUrl.protocol === 'https:';
-        const transport = isHttps ? https : http;
+        const transport = target.protocol === 'https:' ? https : http;
 
         const req = transport.get({
-            hostname: parsedUrl.hostname,
-            port: parsedUrl.port,
-            path: parsedUrl.path,
+            ...requestOptionsFor(backend, target),
             timeout: 5000,
-            rejectUnauthorized: false,
         }, (res) => {
             const latency = Date.now() - start;
             let body = '';
@@ -430,17 +510,16 @@ function registerPluginTools(pluginId, tools, TOOL_DEFS, AGENT_TOOLS) {
                 }
                 try {
                     const res = await new Promise((resolve, reject) => {
-                        const parsedUrl = url.parse(`${backend.url}/tools/${tool.name}`);
-                        const transport = parsedUrl.protocol === 'https:' ? https : http;
+                        const target = buildBackendTarget(backend.url, `/tools/${encodeURIComponent(tool.name)}`);
+                        const transport = target.protocol === 'https:' ? https : http;
                         const req = transport.request({
-                            hostname: parsedUrl.hostname,
-                            port: parsedUrl.port,
-                            path: parsedUrl.path,
+                            ...requestOptionsFor(backend, target),
                             method: 'POST',
                             timeout: 30000,
                             headers: {
                                 'Content-Type': 'application/json',
                                 ...(ctx.orgId ? { 'X-Org-Id': ctx.orgId } : {}),
+                                ...(ctx.orgId ? { 'X-Quox-Org-Ticket': mintOrgTicket({ pluginId, orgId: ctx.orgId, userId: ctx.userId }) } : {}),
                                 ...(ctx.userId ? { 'X-User-Id': ctx.userId } : {}),
                                 ...(ctx.agentId ? { 'X-Agent-Id': ctx.agentId } : {}),
                                 ...(pluginGatewaySecret(pluginId) ? { 'X-Gateway-Secret': pluginGatewaySecret(pluginId) } : {}),
@@ -510,4 +589,5 @@ module.exports = {
     registerPluginTools,
     unregisterPluginTools,
     checkRateLimit,
+    buildBackendTarget,
 };

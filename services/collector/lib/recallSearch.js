@@ -238,7 +238,7 @@ async function searchBrainSurface(query, limit, ctx, controller = new AbortContr
       // results under box load (16 of ~70 bench queries in one run). Recall is
       // an agent path where an answer beats a fast miss: allow quoxbrain's
       // agent maximum (MAX_QUERY_EMBED_TIMEOUT_MS) so the semantic leg lands.
-      body: JSON.stringify({ query, limit, includeText: true, kindPriors: RECALL_KIND_PRIORS, embedTimeoutMs: AGENT_EMBED_TIMEOUT_MS, fullNoteMaxChars: FULL_NOTE_MAX_CHARS, fullNoteTopN: 5, rerankTimeoutMs: RECALL_RERANK_BUDGET_MS, ...(opts.expand ? { expand: true } : {}) }),
+      body: JSON.stringify({ query, limit, includeText: true, kindPriors: RECALL_KIND_PRIORS, embedTimeoutMs: AGENT_EMBED_TIMEOUT_MS, fullNoteMaxChars: FULL_NOTE_MAX_CHARS, fullNoteTopN: 5, rerankTimeoutMs: RECALL_RERANK_BUDGET_MS, ...(opts.expand ? { expand: true } : {}), ...(opts.since ? { since: opts.since } : {}), ...(opts.until ? { until: opts.until } : {}) }),
       signal: controller.signal,
     });
   const t0 = Date.now();
@@ -266,9 +266,9 @@ async function searchBrainSurface(query, limit, ctx, controller = new AbortContr
       // never raise confidence) so a paraphrased question still shows the
       // closest note instead of a blank, under a low-confidence answer.
       const weakItems = (data.results || []).slice(0, WEAK_BRAIN_CANDIDATES).map(normalizeBrainItem).map((it) => ({ ...it, weak: true, weight: WEAK_BRAIN_WEIGHT }));
-      return { ok: true, insufficient: true, items: [], weakItems, dense: data.relevance?.dense ?? null };
+      return { ok: true, insufficient: true, items: [], weakItems, dense: data.relevance?.dense ?? null, ...brainEntitiesOf(data) };
     }
-    return { ok: true, items: (data.results || []).map(normalizeBrainItem), dense: data.relevance?.dense ?? null };
+    return { ok: true, items: (data.results || []).map(normalizeBrainItem), dense: data.relevance?.dense ?? null, ...brainEntitiesOf(data) };
   } catch (err) {
     const aborted = err?.name === 'AbortError' || err?.name === 'TimeoutError';
     const detail = err?.cause?.code || err?.code || err?.message || '';
@@ -293,9 +293,9 @@ function brainGraceMs() {
  * so the omission is visible, never silent. With no fast hits, recall waits
  * for the brain's full timeout as before.
  */
-async function searchBrainWithGrace(query, limit, ctx, fastSettled) {
+async function searchBrainWithGrace(query, limit, ctx, fastSettled, dateOpts = {}) {
   const controller = new AbortController();
-  const brainP = searchBrainSurface(query, limit, ctx, controller);
+  const brainP = searchBrainSurface(query, limit, ctx, controller, dateOpts);
   const grace = brainGraceMs();
   const fast = await fastSettled;
   const fastHits = fast.some((r) => r.status === 'fulfilled' && r.value && r.value.ok && r.value.items.length > 0);
@@ -418,8 +418,16 @@ function mentioned(entity, hay) {
   const singular = entity.replace(/(es|s)$/, '');
   return singular.length >= 2 && singular !== entity && hay.includes(singular);
 }
-function entityGrounding(query, merged) {
-  const ents = questionEntities(query);
+// The brain decides the question's named entities with corpus context (its
+// grounding mode); recall uses that list when present so search, context and
+// recall decline the same questions. Absent (older brain) = local rule.
+function brainEntitiesOf(data) {
+  const e = data?.relevance?.entities;
+  return Array.isArray(e) && e.every((x) => typeof x === 'string') ? { entities: e } : {};
+}
+
+function entityGrounding(query, merged, brainEntities = null) {
+  const ents = Array.isArray(brainEntities) ? brainEntities : questionEntities(query);
   if (!ents.length) return null;
   // Salient text only (title + the opening of each top result): with whole
   // notes returned, a name buried deep in a long list ("hashicorp_nomad" in a
@@ -488,7 +496,7 @@ async function expandShortNotes(merged, ctx, brainItems = []) {
 
 function answerConfidence(query, merged, brain) {
   if (!merged.length) return { confidence: 'none', coverage: 0 };
-  const g = entityGrounding(query, merged);
+  const g = entityGrounding(query, merged, brain?.entities);
   if (g && g.found === 0) return { confidence: 'low', coverage: 0, ungrounded: g.entities };
   // A question naming several specific things ("why did we drop PostgreSQL
   // for MongoDB") is not answered by results that mention only half of them.
@@ -513,6 +521,11 @@ async function recallSearch(input, ctx) {
   // Widen the per-surface pool beyond `limit` so dedup has room to collapse
   // duplicates without starving the final ranked set.
   const perSurfaceLimit = Math.min(limit * 3, MAX_LIMIT);
+  // ONE-BRAIN CX2 parity: optional date window, forwarded to the knowledge-brain
+  // leg only (memory and wisdom have no note-date facet).
+  const dateOpts = {};
+  if (typeof input?.since === 'string' && input.since.trim()) dateOpts.since = input.since.trim();
+  if (typeof input?.until === 'string' && input.until.trim()) dateOpts.until = input.until.trim();
 
   // Per-stage timings (ms) ride along on the response so a slow recall can be
   // localised from the outside (CORTEX-BENCH speed work).
@@ -525,7 +538,7 @@ async function recallSearch(input, ctx) {
   ]);
   const [[memorySettled, wisdomSettled], brainSettled] = await Promise.all([
     fastSettled,
-    Promise.allSettled([timed('brain', searchBrainWithGrace(query, perSurfaceLimit, ctx, fastSettled))]).then((a) => a[0]),
+    Promise.allSettled([timed('brain', searchBrainWithGrace(query, perSurfaceLimit, ctx, fastSettled, dateOpts))]).then((a) => a[0]),
   ]);
 
   const settle = (r) => (r.status === 'fulfilled' ? r.value : { ok: false, reason: r.reason?.message || 'unknown_error', items: [] });

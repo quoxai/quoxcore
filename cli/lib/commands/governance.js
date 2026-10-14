@@ -20,7 +20,7 @@
  */
 
 import { formatOutput, formatDetail, printSuccess, printWarning } from '../core/output.js';
-import { resolveOrgId, parseJSON } from './helpers.js';
+import { resolveOrgId, parseJSON, withTimeoutHint } from './helpers.js';
 import { resolveEndpoint } from '../api/endpoints.js';
 
 export function registerGovernanceCommands(program, ctx) {
@@ -396,17 +396,26 @@ export function registerGovernanceCommands(program, ctx) {
     .description('List entries in a WARD chain')
     .option('--chain <chainId>', 'chain ID (default: production chain)')
     .option('--limit <n>', 'max results', '50')
+    .option('--before-seq <n>', 'only entries with seq below this (cursor for the next page)')
     .action(async (options) => {
       auth.requireAuth();
       const query = { limit: options.limit };
       if (options.chain) query.chain = options.chain;
-      const data = await client.get(resolveEndpoint('ward.entries.list').path, { service: resolveEndpoint('ward.entries.list').service, query });
+      if (options.beforeSeq) query.before_seq = options.beforeSeq;
+      const data = await withTimeoutHint(
+        'quox governance ward entries',
+        'Try a smaller --limit, or page with --before-seq <n>; pass --chain to pick a smaller chain.',
+        () => client.get(resolveEndpoint('ward.entries.list').path, { service: resolveEndpoint('ward.entries.list').service, query }),
+      );
       formatOutput({
         // fleet #392: WARD entries carry witnessed_at, not created_at.
         columns: ['seq', 'source_kind', 'chain_id', 'witnessed_at'],
         headers: ['Seq', 'Source', 'Chain', 'Created'],
         rows: data.entries || data,
       }, { format: program.opts().output, emptyMessage: 'No entries found.' });
+      if (data && data.has_more && data.next_before_seq != null && program.opts().output !== 'json' && program.opts().output !== 'quiet') {
+        console.error(`More entries available: --before-seq ${data.next_before_seq}`);
+      }
     });
 
   // POST /ward/verify — non-mutating integrity check, safe to run without --confirm

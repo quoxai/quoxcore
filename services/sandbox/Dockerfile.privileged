@@ -11,6 +11,7 @@
 #   - Use Docker-in-Docker with --privileged only when absolutely necessary and with human approval
 
 FROM ubuntu:24.04
+ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install comprehensive runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

@@ -157,7 +157,7 @@ export default function LiveSupportView() {
     if (!authFetch || !orgId || !widgetId) return
     if (!silent) { setListLoading(true); setListError(null) }
     try {
-      const r = await authFetch(`/api/orgs/${orgId}/widgets/${widgetId}/conversations?limit=100`)
+      const r = await authFetch(`/api/orgs/${orgId}/widgets/${widgetId}/conversations?limit=100&exclude_test=1`)
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const data = await r.json()
       const rows = Array.isArray(data?.items) ? data.items : Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []

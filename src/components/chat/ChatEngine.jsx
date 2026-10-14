@@ -24,6 +24,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { assistants } from '../../config/assistants';
 import { getChief } from '../../config/chiefs';
+import { agentRegistry } from '../../config/agentRegistry';
+import { buildCommunityAgentConfig } from '../../services/pluginAgentRegistration';
 import { loadUserEntities, buildRuntimeAssistantConfig, getRuntimeAssistantConfig } from '../../services/entityRegistry';
 import { getMemoryManager, formatContextForPrompt } from '../../services/memoryManager';
 import { generateLightContext } from '../../services/quoxContext';
@@ -122,6 +124,10 @@ export function ChatEngine({
     const chiefId = agent.startsWith('chief-') ? agent.slice(6) : null;
     const chiefData = chiefId ? getChief(chiefId) : null;
     const isPluginAgent = !!chiefData;
+    // Community (sandboxed) plugin agent registered from its manifest: untrusted persona,
+    // sent to the server as a plugin-agent turn (no tools).
+    const communityAgentConfig = (!isCoreAgent && !isPluginAgent) ? buildCommunityAgentConfig(agentRegistry, agent) : null;
+    const isCommunityAgent = !!communityAgentConfig;
     const coreAssistantConfig = isCoreAgent ? getRuntimeAssistantConfig(agent) : null;
 
     const [scopeAssistantConfig, setScopeAssistantConfig] = useState(null);
@@ -136,7 +142,7 @@ export function ChatEngine({
     // Non-core/non-plugin agents are only "unknown" once the async scope lookup has
     // run and found nothing — otherwise every scope assistant would flash the error
     // banner before its config resolves.
-    const isUnknownAgent = !isCoreAgent && !isPluginAgent && scopeLoadAttempted && !scopeAssistantConfig;
+    const isUnknownAgent = !isCoreAgent && !isPluginAgent && !isCommunityAgent && scopeLoadAttempted && !scopeAssistantConfig;
     // Minimal sentinel so hooks below never crash on null; the error banner
     // renders at the bottom of the component before children() is called.
     const _unknownSentinel = { name: agent, shortName: '?', voice: null, color: { primary: '#ef4444' }, role: 'specialist', level: 2, llm: null, llmPolicy: null };
@@ -155,6 +161,8 @@ export function ChatEngine({
             llm: chiefData.llm,
             llmPolicy: chiefData.llmPolicy,
         }
+        : isCommunityAgent
+        ? communityAgentConfig
         : (scopeAssistantConfig || _unknownSentinel);
     // Detect a registration miss: isCoreAgent but coreAssistantConfig came back null
     const isMissingCoreConfig = isCoreAgent && !coreAssistantConfig;
@@ -193,7 +201,7 @@ export function ChatEngine({
 
     // Load scope/user assistant persona when agent is not core or plugin
     useEffect(() => {
-        if (isCoreAgent || isPluginAgent) {
+        if (isCoreAgent || isPluginAgent || isCommunityAgent) {
             setScopeAssistantConfig(null);
             setScopeLoadAttempted(false);
             return;
@@ -223,7 +231,7 @@ export function ChatEngine({
             setScopeLoadAttempted(true);
         });
         return () => { cancelled = true; };
-    }, [agent, isCoreAgent, isPluginAgent, orgId, authFetch]);
+    }, [agent, isCoreAgent, isPluginAgent, isCommunityAgent, orgId, authFetch]);
 
     // Database persistence (Phase 1)
     const shouldPersist = enablePersistence !== false && authFetch && orgId;
@@ -976,6 +984,7 @@ export function ChatEngine({
                     session_id: sessionId,
                     voice_mode: voiceMode,
                     selected_agent: agent,
+                    ...(isCommunityAgent ? { plugin_agent: true } : {}),
                     quox_context: fullContext,
                     memory_context: wrappedMemoryContext,
                     conversation_history: conversationHistory.length > 0 ? conversationHistory : undefined,
@@ -1268,7 +1277,7 @@ export function ChatEngine({
             }
         }
     }, [
-        agent, sessionId, voiceMode, currentCorr, isProcessing, isMuted,
+        agent, isCommunityAgent, sessionId, voiceMode, currentCorr, isProcessing, isMuted,
         contextBuilder, enableMemory, enableSmartRouter, sessionPrefix,
         dbConversationId, messageService, ensureDbConversation, persistMessage
     ]);

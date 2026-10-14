@@ -140,7 +140,12 @@ export function registerToolCommands(program, ctx) {
     .option('--input <json>', 'alias for --args (tool arguments as a JSON string)')
     .option('--reason <text>', 'why you are running this; shown on the approval card if the call is held for a human')
     .action(async (name, options) => {
-      auth.requireAuth();
+      // QUOXON-IDENTITY: QUOX_AUTH_TOKEN is the collector's per-turn scoped
+      // credential for the model-driven CLI-tools path. When set it is the ONLY
+      // credential: sent as the bearer, never the service key, no stored-session
+      // or refresh fallback, and org/user come from the token (not the body).
+      const turnToken = process.env.QUOX_AUTH_TOKEN || '';
+      if (!turnToken) auth.requireAuth();
       // Prefer whichever was explicitly given; --args carries the '{}' default
       // so it is always defined, hence check --input first.
       const usedInput = options.input !== undefined && (options.args === undefined || options.args === '{}');
@@ -157,8 +162,8 @@ export function registerToolCommands(program, ctx) {
       // derive org from. A human-logged-in caller has req.user and the
       // server derives org from the session instead — --org / QUOX_ORG_ID
       // still wins when set explicitly.
-      const orgId = auth.getOrgId(program.opts().org || process.env.QUOX_ORG_ID);
-      if (!orgId && process.env.QUOX_SERVICE_KEY) {
+      const orgId = turnToken ? null : auth.getOrgId(program.opts().org || process.env.QUOX_ORG_ID);
+      if (!orgId && !turnToken && process.env.QUOX_SERVICE_KEY) {
         throw new Error(
           'QUOX_SERVICE_KEY is set but no org could be resolved. '
           + 'Set QUOX_ORG_ID=<org> for automation callers, or pass --org <id>.'
@@ -173,7 +178,7 @@ export function registerToolCommands(program, ctx) {
       // body.user_id; without them every CLI-tools execution ran against the
       // org default hat and user-less. Interactive humans have neither set.
       if (process.env.QUOX_SESSION_ID) body.session_id = process.env.QUOX_SESSION_ID;
-      if (process.env.QUOX_USER_ID) body.user_id = process.env.QUOX_USER_ID;
+      if (process.env.QUOX_USER_ID && !turnToken) body.user_id = process.env.QUOX_USER_ID;
       // QUOXHAT #657 P-C.2: forward the ACTING AGENT so a specialist's CLI-tools
       // chat turn executes as that specialist, not the orchestrator. Without it
       // the spawned CLI is a service caller with no agent_id, which the
@@ -186,7 +191,13 @@ export function registerToolCommands(program, ctx) {
       if (process.env.QUOX_AGENT_ID) body.agent_id = process.env.QUOX_AGENT_ID;
 
       const ep = resolveEndpoint('v1.tools.execute');
-      const data = await client.post(ep.path, { service: ep.service, body, timeout: 120000 });
+      // noAuth: client.js adds no service key / stored session / refresh retry.
+      const data = await client.post(ep.path, {
+        service: ep.service,
+        body,
+        timeout: 120000,
+        ...(turnToken ? { noAuth: true, noActAs: true, headers: { Authorization: `Bearer ${turnToken}` } } : {}),
+      });
 
       if (program.opts().output === 'json') {
         console.log(JSON.stringify(data, null, 2));

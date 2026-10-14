@@ -108,7 +108,7 @@ When you ask "How's my rack?", Claude literally doesn't know:
    - Execute maintenance tasks
 
    ## Infrastructure Overview
-   - 6 Proxmox nodes (hyp-01-hyp-06)
+   - 6 Proxmox nodes (hyp-01 to hyp-06)
    - 50 total hosts/VMs
    - Monitoring: Prometheus, Grafana, Wazuh
    - Security: Kali, Security Onion

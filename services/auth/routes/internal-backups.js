@@ -242,7 +242,7 @@ router.get('/backups/status', (req, res) => {
     const lastSuccess = db.prepare(`
       SELECT id, name, backup_type, archive_size_bytes, completed_at, duration_ms
       FROM backups
-      WHERE org_id = ? AND status IN ('completed', 'verified')
+      WHERE org_id = ? AND status IN ('completed', 'verified') AND COALESCE(archive_size_bytes, 0) > 0
       ORDER BY completed_at DESC LIMIT 1
     `).get(org_id);
 
@@ -263,7 +263,7 @@ router.get('/backups/status', (req, res) => {
     const totals = db.prepare(`
       SELECT COUNT(*) as count, COALESCE(SUM(archive_size_bytes), 0) as totalBytes
       FROM backups
-      WHERE org_id = ? AND status IN ('completed', 'verified')
+      WHERE org_id = ? AND status IN ('completed', 'verified') AND COALESCE(archive_size_bytes, 0) > 0
     `).get(org_id);
 
     let scheduleStats = null;

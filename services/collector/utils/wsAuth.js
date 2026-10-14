@@ -118,7 +118,20 @@ const VERIFY_CACHE_MS = 30000;
 const VERIFY_CACHE_MAX = 2000;
 const _verifyCache = new Map(); // token -> { payload, until }
 
-function verifyToken(token) {
+function verifyToken(token, opts = {}) {
+  const r = _verifyTokenCore(token);
+  // QUOXON-IDENTITY: audience-restricted tokens (per-turn tools/execute
+  // credential) are valid ONLY where the route opts in via opts.audience.
+  if (r.valid && r.payload && r.payload.aud) {
+    const auds = [].concat(r.payload.aud);
+    if (!opts.audience || !auds.includes(opts.audience)) {
+      return { valid: false, error: 'Invalid audience' };
+    }
+  }
+  return r;
+}
+
+function _verifyTokenCore(token) {
   if (!token) {
     return { valid: false, error: 'No token provided' };
   }

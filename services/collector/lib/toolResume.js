@@ -31,6 +31,10 @@ const { mintInboxItem } = require('./inboxMint.js');
 const { APPROVAL_MAX_AGE_MS } = require('./approvalTtl.js');
 const { emitToolEvidence } = require('./toolEvidence.js');
 
+// Tools whose approved execution must run in the requesting user's own session (their
+// bearer), so the async resume records the approval and leaves the grant for that session.
+const { CALLER_SESSION_RESUME_TOOLS } = toolApprovalStore;
+
 /**
  * Build the in-process resume executor.
  *
@@ -60,6 +64,27 @@ function createResumeHandler(deps = {}) {
     if (!approvalId) return { ok: false, reason: 'missing_approval_id' };
     if (typeof executeTool !== 'function') {
       return { ok: false, reason: 'resume_not_configured' };
+    }
+
+    // 0) QUOXON-ASK lane J: a caller-session tool runs AS the person who asked (their own
+    //    bearer, which only their live turn carries). This async resume has no bearer, so an
+    //    approve must NOT claim the grant (claiming with no identity would burn it): it is
+    //    left pending for the caller's next turn, which runs it once through
+    //    withApprovalGate's approved path (fingerprint, tool, org and user bound, single
+    //    use). A deny or any non-approve action falls through and finalizes as before.
+    {
+      const APPROVE = new Set(['approve', 'approved', 'accept', 'accepted', 'confirm', 'confirmed']);
+      const peek = toolApprovalStore.getByApprovalId(approvalId);
+      if (peek && CALLER_SESSION_RESUME_TOOLS.has(peek.tool_name) && peek.status === 'pending'
+        && APPROVE.has(String(params.action || '').toLowerCase())) {
+        const ageMs = peek.created_at ? (Date.now() - Number(peek.created_at)) : 0;
+        if (ageMs > APPROVAL_MAX_AGE_MS) {
+          toolApprovalStore.finalize(approvalId, 'expired', JSON.stringify({ reason: 'approval_expired', ageMs, maxAgeMs: APPROVAL_MAX_AGE_MS }));
+          return { ok: true, status: 'expired', ageMs, maxAgeMs: APPROVAL_MAX_AGE_MS };
+        }
+        toolApprovalStore.markCallerApproved(approvalId, params.approver || null);
+        return { ok: true, status: 'awaiting_caller', tool: peek.tool_name };
+      }
     }
 
     // 1) IDEMPOTENCY LOCK — must be the first thing we do. A duplicate/
@@ -330,6 +355,7 @@ function createResumeEndpoint(deps = {}) {
 }
 
 module.exports = {
+  CALLER_SESSION_RESUME_TOOLS,
   createResumeHandler,
   createResumeEndpoint,
 };

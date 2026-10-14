@@ -41,6 +41,8 @@ export function buildCoreRoutes(views) {
         // VULCAN #780: Gripe page, files a one-liner as a GitHub issue via the
         // governed POST /github/issues. Free plugin; ungated route.
         { path: '/gripe', element: views.GripeView },
+        // QUOXON J3: index of every live session in the org (GET /api/v1/sessions).
+        { path: '/sessions', element: views.SessionsView },
         { path: '/activity', element: views.ActivityView },
         // LICENSE-LAUNCH LL-7 increment 3h: the /files row is deliberately GONE.
         // FilesView now ships only in the signed files bundle (plugins-src/files/),

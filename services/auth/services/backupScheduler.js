@@ -18,7 +18,7 @@ import { ulid, createAuditEvent } from '../utils/helpers.js';
 import { emitItemCreated, emitStatsUpdate } from '../utils/inboxEvents.js';
 import { spawn } from 'child_process';
 import { tryLaunchDetachedBackup } from '../lib/backupDetach.js';
-import { classifyBackupExit, parseSkippedRequired, degradedMessage } from '../lib/backupStatus.js';
+import { classifyBackupExit, parseSkippedRequired, degradedMessage, emptyArchiveMessage, hasArchive } from '../lib/backupStatus.js';
 import * as fs from 'fs/promises';
 import { existsSync } from 'fs';
 import { createHash } from 'crypto';
@@ -342,22 +342,29 @@ export async function runScheduledBackup(schedule) {
  */
 export async function finalizeScheduledRun({ schedule, backupId, backupName, startTime }, code, stdout, stderr) {
     const duration = Date.now() - startTime;
-    const exitClass = classifyBackupExit(code);
+    let exitClass = classifyBackupExit(code);
+    let archiveSize = 0;
+
+    // Find the created archive
+    const archiveMatch = String(stdout || '').match(/Created archive: ([^\s]+\.tar\.gz)/);
+    const archivePath = archiveMatch ? archiveMatch[1] : null;
+    if (archivePath && existsSync(archivePath)) {
+        archiveSize = (await fs.stat(archivePath)).size;
+    }
+    // QUOXON-PROOF (quox#823): no archive (lock skip, or 0 bytes) backed nothing up.
+    let emptyRunMessage = null;
+    if (exitClass !== 'failed' && !hasArchive(archiveSize)) {
+        emptyRunMessage = emptyArchiveMessage(code, stdout, stderr);
+        exitClass = 'failed';
+    }
     let status = exitClass === 'failed' ? 'failed' : 'completed';
     const isDegraded = exitClass === 'degraded';
     const skippedRequired = isDegraded ? parseSkippedRequired(stdout) : [];
-    let archiveSize = 0;
 
     if (exitClass !== 'failed') {
 
-        // Find the created archive
-        const archiveMatch = stdout.match(/Created archive: ([^\s]+\.tar\.gz)/);
-        const archivePath = archiveMatch ? archiveMatch[1] : null;
-
         let manifestJson = null;
         if (archivePath && existsSync(archivePath)) {
-            const stats = await fs.stat(archivePath);
-            archiveSize = stats.size;
 
             // Generate manifest
             try {
@@ -388,9 +395,9 @@ export async function finalizeScheduledRun({ schedule, backupId, backupName, sta
             UPDATE backups
             SET status = 'failed', error_message = ?, duration_ms = ?, completed_at = datetime('now'), updated_at = datetime('now')
             WHERE id = ?
-        `).run(stderr || `Exit code ${code}`, duration, backupId);
+        `).run(emptyRunMessage || stderr || `Exit code ${code}`, duration, backupId);
 
-        console.error(`[BackupScheduler] Backup failed: ${backupName} — ${stderr || `exit ${code}`}`);
+        console.error(`[BackupScheduler] Backup failed: ${backupName} — ${emptyRunMessage || stderr || `exit ${code}`}`);
     }
 
     // Update schedule with results (next_run_at was already claimed
@@ -436,7 +443,7 @@ export async function finalizeScheduledRun({ schedule, backupId, backupName, sta
         sizeBytes: status === 'completed' ? (archiveSize || 0) : 0,
         durationMs: duration,
         degraded: isDegraded,
-        error: isDegraded ? degradedMessage(skippedRequired) : (status === 'failed' ? (stderr || `Exit code ${code}`) : null)
+        error: isDegraded ? degradedMessage(skippedRequired) : (status === 'failed' ? (emptyRunMessage || stderr || `Exit code ${code}`) : null)
     });
 
     // Enforce retention after successful backup

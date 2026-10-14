@@ -19,9 +19,12 @@ const OPENAI_TOOL_CAP = 128;
 // @param {string|null} provider  effective provider ('anthropic' | 'openai' | ...)
 // @param {number} [cap=128]  the OpenAI tool limit
 // @returns {{ tools: Array, truncated: boolean, cap: number }}
-function applyOpenAiToolCap(agentTools, provider, cap = OPENAI_TOOL_CAP) {
+function applyOpenAiToolCap(agentTools, provider, explicitCap) {
   const tools = Array.isArray(agentTools) ? agentTools : [];
-  const truncated = provider === 'openai' && tools.length > cap;
+  const cap = explicitCap ?? OPENAI_TOOL_CAP;
+  // CLI-QUOX B3: ollama is capped only when the caller passes its own (smaller) cap.
+  // CLI-QUOX B5: openai_compatible likewise (the caller passes its preset's cap).
+  const truncated = (provider === 'openai' || ((provider === 'ollama' || provider === 'openai_compatible') && explicitCap != null)) && tools.length > cap;
   return {
     tools: truncated ? tools.slice(0, cap) : tools,
     truncated,

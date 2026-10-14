@@ -10,7 +10,7 @@
 
 const BASTION_URL = process.env.BASTION_URL || '';
 const BASTION_TOKEN = process.env.BASTION_API_TOKEN || '';
-const BASTION_UNAVAILABLE_MESSAGE = 'Bastion not configured for this installation. Ask an admin to configure QuoxBastion.';
+const { BASTION_UNAVAILABLE_MESSAGE } = require('./bastionUnavailable');
 const QUOXFLOW_URL = process.env.QUOXFLOW_URL || 'http://quoxflow:3200';
 
 // Native tool executors (Phase 3.2 — replace n8n webhooks with direct execution)
@@ -457,6 +457,20 @@ let _emailSimpleParserOverride = null;
 function __setImapFlowForTesting(cls) { _emailImapFlowOverride = cls; }
 function __setSimpleParserForTesting(fn) { _emailSimpleParserOverride = fn; }
 
+// quox#813: InboxQ keeps its mailbox accounts (each pointing at an
+// email_account vault credential) in its own store, so a vault agent
+// assignment / org default may not exist even though a mailbox is connected
+// and polling. email_read reads that store only to NAME the credential in its
+// error (never to use it unassigned). Returns the org's accounts or [].
+let _inboxqAccountsLookupOverride = null;
+function __setInboxqAccountsLookupForTesting(fn) { _inboxqAccountsLookupOverride = fn; }
+function lookupInboxqAccounts(orgId) {
+  try {
+    if (_inboxqAccountsLookupOverride) return _inboxqAccountsLookupOverride(orgId) || [];
+    return require('./inboxq/store.js').listAccounts(orgId) || [];
+  } catch { return []; }
+}
+
 // VAULT-AUDIT P3.D3 — email_send (SMTP mailbox tool)
 const { sendMail } = require('./toolExecutors/emailSend');
 
@@ -646,7 +660,7 @@ async function callBastion(hostId, command, grant) {
 
     if (!resp.ok) {
       const text = await resp.text();
-      return { success: false, error: `Bastion returned ${resp.status}: ${text}` };
+      return require("./bastionRefusal.js").bastionHttpErrorResult(resp.status, text); // #815: a 403 is a refusal, never an approval card
     }
 
     const data = await resp.json();
@@ -686,6 +700,54 @@ async function callBastion(hostId, command, grant) {
  * never executes ungranted). Non-approved calls never reach here —
  * withApprovalGate holds them for approval first.
  */
+/**
+ * Run a gated ssh_exec under a fleet standing grant (lib/fleetStandingGrants.js).
+ * Records the use as a tool_approvals row (status resuming -> approved|error) and an
+ * AEE envelope BEFORE dispatch, mints a standing-grant-anchored bastion grant (fail
+ * closed), then runs the exact command.
+ */
+async function _runUnderStandingGrant(grant, input, ctx, bse) {
+  const fsg = require('./fleetStandingGrants.js');
+  const store = require('./toolApprovalStore.js');
+  const approvalId = `SG_${require('crypto').randomBytes(8).toString('hex')}`;
+  const inputJson = JSON.stringify({
+    command: input.command,
+    host: input.host,
+    ...(typeof input.reason === 'string' && input.reason ? { reason: input.reason } : {}),
+    _standing_grant: grant.grant_id,
+  });
+  try {
+    store.recordStandingGrantUse({
+      approval_id: approvalId, org_id: ctx.orgId, agent_id: ctx.agentId, user_id: ctx.userId,
+      tool_name: 'ssh_exec', input_json: inputJson, conversation_id: ctx.conversationId,
+    });
+  } catch (e) {
+    // No history row = no visible audit: do not run unaudited, fall back to a human.
+    console.warn('[ApprovalGate] standing grant use could not be recorded, refusing:', e && e.message);
+    return { success: false, error: `standing grant ${grant.grant_id} covers this call but its use could not be recorded; refusing to run unaudited` };
+  }
+  fsg.recordUse(ctx.orgId, grant.grant_id, { approvalId, command: input.command, userId: ctx.userId, agentId: ctx.agentId, host: input.host });
+  console.log(`[ApprovalGate] fleet standing grant ${grant.grant_id} covers ssh_exec on ${input.host} (org ${ctx.orgId}, use ${approvalId})`);
+  if (typeof ctx._markDispatched === 'function') ctx._markDispatched();
+  const mintFn = async (_ctx, { command, targets }) => {
+    const g = await bse.mintStandingGrant({ orgId: ctx.orgId, grantId: grant.grant_id, host: input.host, command, targets });
+    if (!g) {
+      const err = new Error(`approval grant mint failed for standing grant ${grant.grant_id} (targets: ${JSON.stringify(targets)}); refusing to execute without an X-Bastion-Approval-Grant`);
+      err.code = 'grant_mint_failed';
+      throw err;
+    }
+    return g;
+  };
+  let result;
+  try {
+    result = await makeGrantAwareCallBastion(ctx, callBastion, mintFn)(input.host, input.command);
+  } catch (e) {
+    result = { success: false, error: e && e.message ? e.message : String(e) };
+  }
+  try { store.finalize(approvalId, result && result.success === false ? 'error' : 'approved', JSON.stringify(result)); } catch { /* history best effort after dispatch */ }
+  return { ...(result && typeof result === 'object' ? result : { result }), _standingGrant: { grant_id: grant.grant_id, approval_id: approvalId } };
+}
+
 function makeGrantAwareCallBastion(ctx, baseCallBastion, mintFn) {
   return async (host, command) => {
     const resolvedHost = await resolveHostId(host);
@@ -1186,6 +1248,28 @@ const TOOL_DEFS = {
       if (_isReadCmd(input.command)) {
         if (typeof ctx._markDispatched === 'function') ctx._markDispatched();
         return await _runExec();
+      }
+      // Fleet standing grant (owner decision 2026-10-13): an org admin pre-approved this
+      // exact host + anchored command shape + VMID range until an expiry. Org comes from the
+      // trusted ctx only, never input. A resume (_approvalId) never takes this path. The
+      // bastion grant is minted against the standing grant (auth re-validates it by keyed
+      // callback) and fails CLOSED. Every use is an `approved` tool_approvals row + an AEE
+      // envelope, so it is visible in approvals history. No grant -> the HITL gate below.
+      if (!input._approvalId && ctx.orgId) {
+        let _sg = null;
+        try {
+          _sg = require('./fleetStandingGrants.js').coversCall({ orgId: ctx.orgId, tool: 'ssh_exec', host: input.host, command: input.command });
+        } catch (e) { console.warn('[ApprovalGate] fleet standing grant lookup failed (falling back to HITL):', e && e.message); }
+        // An org store policy (deny / require_approval) always wins over a standing grant:
+        // if one matches, or the policy store errors, fall through to the normal gate.
+        if (_sg) {
+          let _policyClear = false;
+          try {
+            const _sp = await checkStorePolicies('ssh_exec', { command: input.command, host: input.host }, ctx);
+            _policyClear = !(_sp && _sp.effect);
+          } catch (e) { _policyClear = false; }
+          if (_policyClear) return await _runUnderStandingGrant(_sg, input, ctx, _bse);
+        }
       }
       const _gateInput = {
         command: input.command,
@@ -2184,6 +2268,13 @@ Actions:
     }
   },
 
+  // QUOXON: core read-only clock (server clock + Intl, no network, no org data). Models
+  // guess DST badly ("what time is it in Panama?" on Ollama, 2026-10-12); this answers it.
+  time_now: {
+    ...require('./timeNow.js').TIME_NOW_TOOL,
+    execute: async (input) => require('./timeNow.js').timeNow(input || {}),
+  },
+
   // TRIAGE-Q core-job reader (tooling audit 2026-09-21): triage-q had the WRITE
   // side (approve_request/deny_request/create_inbox_item) but no way to READ the
   // HITL queue it exists to triage. This wires the read side to the auth inbox
@@ -2813,7 +2904,7 @@ Actions:
 
   org_directory: {
     name: 'org_directory',
-    description: 'Return the ENTIRE scope tree the CURRENT authenticated user can see: organizations they belong to, each with its divisions, departments, teams, and team member rosters (name + role only, capped per team with a truncated flag; use the accompanying counts to answer numerically without needing the full roster). Read-only. Every organization the user belongs to is expanded, not just one. Never returns an organization the calling user is not an active member of, or another org\'s data via org_id — scoping is enforced server-side by the user\'s own bearer token on every underlying fetch.',
+    description: 'Who am I, and my orgs: returns `you` (the calling user: user_id, name, email, active org and their role in it; answer who-am-I from this, never from team rosters) plus the ENTIRE scope tree the CURRENT authenticated user can see: organizations they belong to, each with its divisions, departments, teams, and team member rosters (name + role only, capped per team with a truncated flag; use the accompanying counts to answer numerically without needing the full roster). Read-only. Every organization the user belongs to is expanded, not just one. Never returns an organization the calling user is not an active member of, or another org\'s data via org_id — scoping is enforced server-side by the user\'s own bearer token on every underlying fetch.',
     input_schema: {
       type: 'object',
       properties: {
@@ -2994,7 +3085,26 @@ Actions:
           }
         }));
 
-        return { success: true, organizations: orgTrees };
+        // QUOXON-PROOF (quox#821): say who the CALLER is. Without this the model
+        // guessed from team rosters and named the org owner for a resident.
+        // The caller's own /auth/me (same bearer); context ids if it fails.
+        let me = null;
+        try {
+          const meRes = await fetch(`${AUTH_BASE_URL}/auth/me`, { headers, signal: AbortSignal.timeout(8000) });
+          if (meRes.ok) me = (await meRes.json())?.user || null;
+        } catch { /* fall back to context below */ }
+        const activeOrgId = me?.org?.id || me?.org_id || ctx?.orgId || null;
+        const activeOrg = organizations.find(o => o.id === activeOrgId) || null;
+        const you = {
+          user_id: me?.id || ctx?.userId || null,
+          name: me?.display_name || null,
+          email: me?.email || null,
+          active_org_id: activeOrgId,
+          active_org_name: me?.org?.name || activeOrg?.name || null,
+          active_org_role: me?.org?.role || activeOrg?.role || null,
+        };
+
+        return { success: true, you, organizations: orgTrees };
       } catch (err) {
         return { success: false, error: `Failed to fetch org directory: ${err.message}` };
       }
@@ -3973,7 +4083,7 @@ Actions:
         },
         deadline_ms: {
           type: 'number',
-          description: 'Optional latency budget in ms for this delegation (default 90000). If the specialist does not answer in time, the degrade_path applies. For time-sensitive turns (e.g. voice), set a short budget like 4000.'
+          description: 'Optional latency budget in ms for this delegation (default 90000 on cloud models; a local Ollama or LM Studio/vLLM agent gets the Ollama turn timeout plus 30 s). If the specialist does not answer in time, the degrade_path applies. For time-sensitive turns (e.g. voice), set a short budget like 4000.'
         },
         degrade_path: {
           type: 'string',
@@ -4053,27 +4163,8 @@ Actions:
         });
       } catch { /* context is best-effort */ }
 
-      const buildBody = (agentId) => JSON.stringify({
-        prompt: input.task,
-        selected_agent: agentId,
-        system_prompt: input.context ? `Context from QUOX: ${input.context}` : undefined,
-        _delegation_depth: depth,
-        // COMMANDERQ P7 (#3996): propagate the delegator's tenant context into the
-        // specialist's turn. Without this the nested /chat/claude ran as '__default__'
-        // and every org-scoped tool (fleet, bastion, vault, memory) was unreachable —
-        // "delegate everything" produced context-blind specialists that could see no
-        // org data. org_id/user_id are the delegator's already-verified pair (ctx is
-        // server-set from the outer tool-call boundary); _internal_delegation exempts
-        // this system hop from the redundant per-hop user-membership re-verify.
-        org_id: ctx.orgId || undefined,
-        user_id: ctx.userId || undefined,
-        _internal_delegation: true,
-        memory_context: ctx.memory_context || undefined,
-        quox_context: ctx.quox_context || undefined,
-        conversation_history: ctx.conversation_history || undefined,
-        session_id: ctx.session_id || undefined,
-        voice_mode: ctx.voice_mode || 'hal'
-      });
+      // COMMANDERQ P7 tenant context + Z2H-R4 provider inheritance: see lib/delegationBody.js
+      const buildBody = (agentId) => require('./delegationBody.js').buildDelegationBody(input, ctx, agentId, depth);
 
       const callAgent = async (agentId, signal) => {
         const resp = await localApiFetch(`/chat/claude`, {
@@ -4082,25 +4173,30 @@ Actions:
           body: buildBody(agentId),
           signal
         }, { assertOk: false });
-        const result = await resp.json();
-        return {
-          success: result.success,
-          response: result.result || result.error || 'No response',
-          tools_used: result.tools_used || [],
-          tokensUsed: result.tokensUsed || result.tokens_used || undefined,
-          // QUOXHAT MISSION D2 — carry the specialist's pending approval up. The
-          // sub-turn's /chat response now emits needs_approval on every path; the
-          // orchestrator must re-surface it (see the returns below) or an
-          // on-the-fly phone approval for a DELEGATED action can never be detected.
-          needs_approval: result.needs_approval || null,
-        };
+        let result = {};
+        try { result = await resp.json(); } catch (_) { result = {}; }
+        // QUOXON-REVIEW: a failed specialist (500 {error:'internal_error'}, no
+        // success field) must surface as a failed tool, not a green "ok".
+        // needs_approval is still carried (QUOXHAT MISSION D2): the orchestrator
+        // re-surfaces a delegated action's pending approval from it.
+        return require('./delegateResult').normalizeDelegateResponse(resp, result);
       };
 
-      const rerouteMs = Number(input.deadline_ms) > 0 ? Number(input.deadline_ms) : 90000;
+      // QUOXON-Z2H: unless the caller set a budget, size the deadline to the provider the target
+      // agent runs on (a local Ollama turn on CPU takes 60-160 s; cloud keeps 90 s).
+      const callerDeadline = Number(input.deadline_ms) > 0 ? Number(input.deadline_ms) : null;
+      let deadlineMs = callerDeadline;
+      let deadlineNote = null;
+      if (!callerDeadline) {
+        const dl = await require('./delegationContract.js').resolveDelegateDeadline({ orgId: ctx.orgId, agentId: input.agent_id });
+        deadlineMs = dl.ms;
+        if (dl.local) deadlineNote = 'a local model on CPU can be slow; raise QUOX_OLLAMA_TURN_TIMEOUT_MS or use a smaller model';
+      }
+      const rerouteMs = deadlineMs;
       // COMMANDERQ P6: run the delegation under a latency contract (deadline +
       // degrade path + breaker) instead of the old fixed 90s abort with no fallback.
       const outcome = await runWithContract(
-        { deadline_ms: input.deadline_ms, degrade_path: input.degrade_path, reroute_to: input.reroute_to, breaker_key: `agent:${input.agent_id}` },
+        { deadline_ms: deadlineMs, degrade_path: input.degrade_path, reroute_to: input.reroute_to, target: input.agent_id, deadline_note: deadlineNote, breaker_key: `agent:${input.agent_id}` },
         (signal) => callAgent(input.agent_id, signal),
         { breaker: _delegationBreaker, rerouteFn: (target) => callAgent(target, AbortSignal.timeout(rerouteMs)) }
       );
@@ -4139,7 +4235,7 @@ Actions:
 
       if (outcome.action_taken === 'completed' || outcome.action_taken === 'completed_over_budget') {
         const r = outcome.result || {};
-        return { success: r.success, agent: input.agent_id, response: r.response, tools_used: r.tools_used || [], delegation, ...pendingApprovalResultFields(r.needs_approval) };
+        return { success: r.success, ...(r.error ? { error: `Delegation to ${input.agent_id} failed: ${r.error}` } : {}), agent: input.agent_id, response: r.response, tools_used: r.tools_used || [], delegation, ...pendingApprovalResultFields(r.needs_approval) };
       }
       if (outcome.action_taken === 'rerouted' || outcome.action_taken === 'rerouted_breaker_open') {
         const r = outcome.result || {};
@@ -4236,7 +4332,7 @@ Actions:
 
   hat_propose_switch: {
     name: 'hat_propose_switch',
-    description: 'Propose switching this conversation to a different hat (mode) — e.g. "Shall I put my security hat on?". The proposal goes to the HITL inbox for a human decision; you NEVER switch yourself. Use hat_catalogue first to see available hats. The human applies the switch from the Mirror or Settings; privileged hats (e.g. NSOC) always require explicit human confirmation.',
+    description: 'Propose switching this conversation to a different hat (mode) — e.g. "Shall I put my security hat on?". The proposal goes to the HITL inbox for a human decision; you NEVER switch yourself. Use hat_catalogue first to see available hats. The approval card appears right in the terminal the user is typing in (and in the dashboard inbox); approving it applies the switch. Privileged hats (e.g. NSOC) always require explicit human confirmation.',
     input_schema: {
       type: 'object',
       properties: {
@@ -4280,11 +4376,17 @@ Actions:
           headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'X-Service-Key': serviceKey } : {}) },
           body: JSON.stringify({
             title: `Hat switch proposed: ${cat.active?.name || 'current'} → ${target.name}${privileged ? ' (privileged)' : ''}`,
-            body_md: `Agent **${ctx?.agentId || 'quox'}** proposes switching this conversation to the **${target.name}** hat.\n\n**Reason:** ${input.reason}\n\n**Target purpose:** ${target.purpose}\n${privileged ? '\n⚠ This is a PRIVILEGED hat: confirm deliberately.\n' : ''}\nApply from the Mirror (Hats card) or Settings → Execution Policy → QuoxHat Modes. Conversation: \`${convId || 'n/a'}\`.`,
+            body_md: `Agent **${ctx?.agentId || 'quox'}** proposes switching this conversation to the **${target.name}** hat.\n\n**Reason:** ${input.reason}\n\n**Target purpose:** ${target.purpose}\n${privileged ? '\n⚠ This is a PRIVILEGED hat: confirm deliberately.\n' : ''}\nApprove or deny here, in the terminal, or in the dashboard. Conversation: \`${convId || 'n/a'}\`.`,
             kind: 'approval',
             priority: privileged ? 'high' : 'normal',
             aee_correlation_id: convId,
             payload: {
+              // Describable card for the CLI and dashboard: tool + target + risk, so it gets a normal approve/deny.
+              approval_context: {
+                method: { tool: 'hat.switch', target: `${cat.active?.name || 'current'} → ${target.name}${privileged ? ' (privileged)' : ''}` },
+                risk: privileged ? 'high' : 'medium',
+                on_behalf_of: { ...(ctx?.userId ? { user_id: ctx.userId } : {}), conversation_id: convId },
+              },
               source: 'agent',
               source_agent: ctx?.agentId || 'quox',
               type: 'quoxhat_switch_proposal',
@@ -4302,7 +4404,7 @@ Actions:
           item_id: data.id || data.item_id,
           proposed: input.hat,
           privileged,
-          note: 'Proposal filed to the HITL inbox. A human applies the switch (Mirror or Settings); do not assume the new hat until the next turn shows it active.',
+          note: 'Proposal filed. The approval card appears right here in the terminal (and in the dashboard inbox); tell them to approve it there. Approving applies the switch; do not assume the new hat until the next turn shows it active.',
         };
       } catch (err) {
         return { success: false, error: `proposal failed: ${err.message}` };
@@ -4427,7 +4529,11 @@ Actions:
         if (input.edition) params.set('edition', input.edition);
         if (input.agentId) params.set('agentId', input.agentId);
         if (input.tag) params.set('tag', input.tag);
-        params.set('limit', String(limit));
+        // #818: QuoxFlow's list returns no total, and the page length used to be reported
+        // as the total ("five skills in total" when the library held 63). Fetch the whole
+        // filtered library (bounded) and page it here, so `total` is the real size.
+        const SKILLS_TOTAL_CAP = 500;
+        params.set('limit', String(SKILLS_TOTAL_CAP));
         if (ctx?.orgId) params.set('orgId', ctx.orgId);
 
         const serviceKey = process.env.INTERNAL_SERVICE_KEY || '';
@@ -4447,7 +4553,8 @@ Actions:
         }
 
         const body = await res.json();
-        const rawSkills = body.data || body.skills || [];
+        const allSkills = body.data || body.skills || [];
+        const rawSkills = allSkills.slice(0, limit);
         const skills = rawSkills.map(s => ({
           id: s.id,
           name: s.name,
@@ -4470,10 +4577,15 @@ Actions:
           });
         }
 
+        const total = body.meta?.total ?? allSkills.length;
         return {
           success: true,
           count: skills.length,
-          total: body.meta?.total ?? skills.length,
+          total,
+          // false only when the library is larger than the fetch cap: then total is a floor.
+          total_exact: body.meta?.total != null || allSkills.length < SKILLS_TOTAL_CAP,
+          has_more: total > skills.length,
+          ...(total > skills.length ? { note: `Showing ${skills.length} of ${total} skills; this is a page, not the whole library.` } : {}),
           skills
         };
       } catch (err) {
@@ -6719,7 +6831,21 @@ Actions:
       const unseenOnly = !!input.unseen_only;
 
       if (!credentialId || !orgId) {
-        return { success: false, error: 'credential_resolve_failed' };
+        if (!orgId) {
+          return { success: false, error: 'credential_resolve_failed', detail: 'No org_id available for email_read.' };
+        }
+        // quox#813: InboxQ keeps connected mailboxes in its own store, each
+        // pointing at an email_account vault credential. That credential is
+        // NOT used here without a vault assignment or org default (that would
+        // make every email_read agent able to read the mailbox); instead the
+        // error names the credential and the exact command that grants it.
+        const accts = lookupInboxqAccounts(orgId).filter((a) => a && a.credentialId);
+        const pick = accts.find((a) => a.pollEnabled !== false) || accts[0];
+        const agent = ctx.agentId || ctx.agent_id || '<agent-id>';
+        const detail = pick
+          ? `No email_account credential is assigned to agent ${agent} and the org has no default. A connected InboxQ mailbox uses vault credential ${pick.credentialId}. Fix: \`quox vault assign --agent ${agent} --credential ${pick.credentialId} --tool-type email_account\` (this agent only) or \`quox vault set-default ${pick.credentialId}\` (org default).`
+          : 'No email_account credential found: none was given, none is assigned to this agent or set as the org default, and no InboxQ mailbox is connected. Fix: connect a mailbox (`quox mail accounts`), or create one with `quox vault create --type email_account ... --set-default`.';
+        return { success: false, error: 'credential_resolve_failed', detail };
       }
 
       // Resolve the vault credential server-side (same internal endpoint the
@@ -8125,7 +8251,7 @@ Actions:
       type: 'object',
       properties: {
         question: { type: 'string', description: 'Natural language question about the codebase' },
-        target: { type: 'string', description: 'Repo to search. Default: quox-dashboard. Options: quoxflow, quoxbastion, quoxagent, quoxmcp, quoxterminal, quox-website, aee, aocl, volt, ward, quox-plugin-sdk' },
+        target: { type: 'string', description: 'Exact repo name to search. Default: quox-dashboard. Options: quox-dashboard, quoxflow, quoxbastion, quoxagent, quoxmcp, quoxterminal, quox-website, aee, aocl, volt, ward, quox-plugin-sdk' },
         max_snippets: { type: 'number', description: 'Max results to return (default: 4)' }
       },
       required: ['question']
@@ -8333,7 +8459,7 @@ Actions:
   // a second brain_save copy.
   brain_update: {
     name: 'brain_update',
-    description: 'Correct one of the user\'s own private knowledge-brain notes in place (use instead of saving a duplicate). Pass the noteId from a search/read result and the FULL corrected markdown text. You MUST read the note first with quoxbrain_read and pass the \'revision\' it returned as expectedHash; without it the edit is refused, and if the note changed since you read it you get a conflict and must re-read. Shared org notes are refused. A revision is recorded and restorable in NotesQ.',
+    description: 'Correct one of the user\'s own private knowledge-brain notes, or a team note in the user\'s own org, in place (use instead of saving a duplicate). Pass the noteId from a search/read result and the FULL corrected markdown text. You MUST read the note first with quoxbrain_read and pass the \'revision\' it returned as expectedHash; without it the edit is refused, and if the note changed since you read it you get a conflict and must re-read. A revision is recorded and restorable in NotesQ.',
     input_schema: {
       type: 'object',
       properties: {
@@ -8434,7 +8560,9 @@ Actions:
       type: 'object',
       properties: {
         query: { type: 'string', description: 'The topic or task to gather context for' },
-        tokenBudget: { type: 'number', description: 'Approximate token budget for the pack (default 1200, min 200, max 4000)' }
+        tokenBudget: { type: 'number', description: 'Approximate token budget for the pack (default 1200, min 200, max 4000)' },
+        since: { type: 'string', description: 'ONLY when the user gives a time window. ISO date or datetime (2026-10-05 or 2026-10-05T09:00:00Z); notes dated on or after it. Omit otherwise.' },
+        until: { type: 'string', description: 'ONLY when the user gives a time window. ISO date or datetime; notes dated on or before it (a date alone means the whole day). Omit otherwise.' }
       },
       required: ['query']
     },
@@ -8443,7 +8571,7 @@ Actions:
 
   brain_check: {
     name: 'brain_check',
-    description: 'Check whether the knowledge brain supports, contradicts or says nothing about a claim before stating it as fact (for example "we decided X" or "the price is Y"). Returns a verdict of supported, contradicted or unknown with the sources. Lexical support is a heuristic, not proof: read the cited note before relying on it. Read-only. Access is enforced by the server.',
+    description: 'Check whether the knowledge brain supports, contradicts or says nothing about a claim before stating it as fact (for example "we decided X" or "the price is Y"). Returns a verdict of supported (a model checked the meaning), overlap (the source shares the claim\'s words; not checked for meaning), contradicted or unknown with the sources. Read the cited note before relying on it. Read-only. Access is enforced by the server.',
     input_schema: {
       type: 'object',
       properties: {
@@ -8486,7 +8614,7 @@ Actions:
 
   brain_restore: {
     name: 'brain_restore',
-    description: 'Restore one of the user\'s own private knowledge-brain notes to an earlier revision, when they ask to undo an edit. Find the revision with brain_history first. You MUST read the note with quoxbrain_read and pass its current \'revision\' as expectedHash; a stale value is a conflict and nothing is restored (re-read and redo). Shared org notes are refused. The restore is itself recorded as a revision.',
+    description: 'Restore one of the user\'s own private notes, or a team note in the user\'s own org, to an earlier revision, when they ask to undo an edit. Find the revision with brain_history first. You MUST read the note with quoxbrain_read and pass its current \'revision\' as expectedHash; a stale value is a conflict and nothing is restored (re-read and redo). The restore is itself recorded as a revision.',
     input_schema: {
       type: 'object',
       properties: {
@@ -8516,7 +8644,9 @@ Actions:
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Natural language question to recall across memory, the knowledge brain and execution wisdom.' },
-        limit: { type: 'number', description: 'Max deduped results to return (default: 8, max: 30).' }
+        limit: { type: 'number', description: 'Max deduped results to return (default: 8, max: 30).' },
+        since: { type: 'string', description: 'ONLY when the user gives a time window. ISO date or datetime; knowledge-brain notes dated on or after it (memory and wisdom are not date-filtered). Omit otherwise.' },
+        until: { type: 'string', description: 'ONLY when the user gives a time window. ISO date or datetime; knowledge-brain notes dated on or before it (a date alone means the whole day). Omit otherwise.' }
       },
       required: ['query']
     },
@@ -10405,7 +10535,8 @@ const GOVERNANCE_TOOLS = ['hat_catalogue', 'hat_load_bundle', 'hat_propose_switc
 // CommanderQ-floor ask (voice session, 2026-10-02). NOTE: current-roadmap reads
 // are quoxplan PLUGIN tools (not in this static TOOL_DEFS floor); the native
 // roadmap_* tools read the RETIRED archive, so roadmap is deliberately NOT here.
-const TIER0_READ_TOOLS = ['inbox_pending', 'memory_search', 'quoxbrain_search'];
+//   - time_now          : the server clock (no org data, no network), QUOXON 2026-10-12.
+const TIER0_READ_TOOLS = ['inbox_pending', 'memory_search', 'quoxbrain_search', 'time_now'];
 
 // QUOXHAT MISSION D1.4 — CommanderQ IS the orchestrator (quox) under its
 // voice/display name (the dashboard defines it as "QUOX (CommanderQ)"). The sync
@@ -10460,6 +10591,22 @@ const AGENT_TOOLS = {
   quox: [
     // QUOXHAT P4 — progressive-disclosure tools (catalogue + bundle load)
     'hat_catalogue', 'hat_load_bundle', 'hat_propose_switch',
+    // QUOXON-REACH lane G: what the CLI reads for vault, notes, calendar, files, plugins,
+    // spend, identity and install, the orchestrator reads too. All read-only and org-scoped
+    // from the turn; notesq_* and calendar_* stay licence-gated per tool (TOOL_REQUIRES_PLUGIN).
+    // Writes (vault_test, notesq_create, plugin_enable, settings_set...) stay off quox.
+    'vault_list', 'vault_types',
+    'notesq_search', 'notesq_list', 'notesq_read',
+    'calendar_layers_list', 'calendar_agenda', 'calendar_coverage_status', 'calendar_event_get',
+    'list_files', 'search_files', 'read_file',
+    'plugin_list', 'spend_status', 'identity_status', 'install_status', 'license_status',
+    // QUOXON-ASK lane J: any real CLI leaf, as the caller. quox_cli runs reads;
+    // quox_cli_write runs writes only after an approval card (lib/quoxCliTools.js).
+    'quox_cli', 'quox_cli_write',
+    // QUOXON-PROOF lane I (quox#822-#825): what this turn runs on and provider health,
+    // the routing policy, the live backup record, live sessions and the prompt library.
+    // Read-only, org from the turn, caller bearer. See lib/quoxonProofReadTools.js.
+    'llm_status', 'llm_policy', 'backup_overview', 'live_sessions', 'prompt_list', 'prompt_read',
     // LUCID: background situational awareness, read-only (what needs the owner, per-item detail).
     'lucid_situation', 'lucid_item',
     'delegate_to_agent', 'orchestrate_objective', 'get_objective_results', 'save_as_workflow',
@@ -10482,6 +10629,8 @@ const AGENT_TOOLS = {
     'execute_workflow', 'list_executions', 'get_execution',
     'activate_workflow', 'deactivate_workflow', 'list_schedules',
     'list_approvals', 'approve_request', 'deny_request',
+    // Read-only public page reader (assertSafeEgressHost on every hop, untrusted-content notice); D3 offers it when the user's message holds a URL.
+    'web_read',
     'query_envelopes', 'get_envelope_chain', 'list_evidence', 'validate_workflow',
     'import_n8n_workflow', 'deploy_template',
     // X-PLUGIN P2: the quox x CLI executes as the orchestrator; the x_*
@@ -10552,6 +10701,15 @@ const AGENT_TOOLS = {
     // ONE-BRAIN Phase A2 (QuoxPlan #493) — unified recall across memory,
     // brain and execution wisdom.
     'recall',
+    // QUOXON-PARITY lane E1 (#809, #810, #811): what the CLI reads, the orchestrator
+    // reads. All read-only and org-scoped from the turn; the inbox_* and quoxseo_*
+    // reads stay licence-gated per tool (TOOL_REQUIRES_PLUGIN), so an org without the
+    // plugin gets an honest refusal, not data.
+    'ward_verify', 'ward_status', 'standing_grants_list', 'safety_status', 'memory_history',
+    // #818: what a peer agent can do comes from the registry, not the model's guess.
+    'agent_directory',
+    'quoxseo_summary', 'quoxseo_issues', 'quoxseo_changes', 'quoxseo_urls',
+    'inbox_accounts', 'inbox_zones', 'inbox_search', 'inbox_report_latest',
   ],
 
   // Network specialist
@@ -10666,6 +10824,24 @@ const AGENT_TOOLS = {
     'notesq_create', 'notesq_update', 'notesq_tag', 'notesq_restore', 'notesq_delete',
     ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS,
   ],
+
+  // QUOXON-ADV (2026-10-13): plugin/core agents whose JSON declares tools but had no entry here
+  // resolved to the custom-agent floor, so on every provider they answered "no tools are connected".
+  // Each list is the agent's own declared tools (calendar-q.json, gitq.json). calendar_* stay gated
+  // by TOOL_REQUIRES_PLUGIN 'calendar-q'; gitq stays gated by AGENT_REQUIRES_PLUGIN 'github'.
+  'calendar-q': [
+    'calendar_agenda', 'calendar_coverage_status', 'calendar_event_get', 'calendar_layers_list', 'calendar_changes',
+    'calendar_overlay', 'calendar_clashes', 'calendar_schedules_overview', 'calendar_prep', 'calendar_brief_input',
+    'calendar_followup_propose', 'calendar_event_propose', 'calendar_event_create', 'calendar_reconcile',
+    ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS,
+  ],
+  gitq: [
+    'vault_types', 'vault_list', 'vault_test', 'vault_connect_guide', 'codebase_query',
+    ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS,
+  ],
+  // SESHA, liaison to live sessions: read-only session views on the chat path (slot_say stays out:
+  // speaking into a session is the voice worker's governed path, not a chat side effect).
+  sesha: ['slot_list', 'slot_read', 'loop_sessions', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
 
   // CONTACTSQ: the contacts assistant. Every contacts_* tool (masked cards
   // only; dial/send are approval-gated at the governed boundary). ContactsQ is
@@ -11079,6 +11255,7 @@ const AGENT_TOOLS = {
 // ============================================================================
 const CONNECTOR_FAMILIES = {
   forge: ['github'],
+  gitq: ['github'], // QUOXON-ADV: github_list_repos et al are connector tools, resolved per family
   gripe: ['github'],
   // DEVSUITE-HUB Phase 4 — BOB files gripes about the dev suite the same
   // way GRIPE does: same connector family, same github_create_issue tool,
@@ -12346,11 +12523,25 @@ async function executeTool(toolName, input, ctx = {}) {
           ? `forbidden by hat '${ctx.hatManifest.hatKey}' mode (${ctx.hatManifest.authzMode || 'restrictive'})`
           : `outside hat '${ctx.hatManifest.hatKey}' authorization`;
       console.warn(`[QUOXHAT] tool '${toolName}' denied (P-B authz): ${reason} — hat '${ctx.hatManifest.hatKey}' rev ${ctx.hatManifest.revision}, agent=${ctx.agentId || '?'}, org=${ctx.orgId || '?'}`);
+      // QUOXON-FW3: name who DOES hold the tool so the delegating model stops
+      // guessing. Informational only; the gate above is unchanged.
+      const heldBy = notGranted === true ? holdersOfTool(toolName, ctx.agentId) : [];
+      // QUOXON-PROOF (quox#819): a name no tool defines (a phantom like host_health_check
+      // or whoami) is not a grant problem. Say it does not exist, so the model stops
+      // retrying it and finds the real tool, instead of reporting a withheld capability.
+      let unknownTool = false;
+      if (notGranted === true && heldBy.length === 0 && !TOOL_DEFS[toolName]) {
+        try { unknownTool = !parseConnectorTool(toolName); } catch { unknownTool = false; }
+      }
       return {
         success: false,
-        error: notGranted === true
-          ? `Tool ${toolName} is not granted to agent ${ctx.agentId || '?'}. Delegate to a specialist that holds it.`
+        error: unknownTool
+          ? `Tool ${toolName} does not exist in Quox (no tool has that name). Do not retry it; find the right tool with more_tools or hat_catalogue, or say plainly that you have no tool for this.`
+          : notGranted === true
+          ? `Tool ${toolName} is not granted to agent ${ctx.agentId || '?'}. ${describeHolders(heldBy)}`
           : `Tool ${toolName} is ${reason}. Switch hats, propose a scope change, or delegate to a specialist.`,
+        ...(notGranted === true ? { heldBy } : {}),
+        ...(unknownTool ? { unknownTool: true } : {}),
         hatDenied: true,
         hatDenyReason: notGranted === true ? 'not_granted' : 'mode_forbidden',
         hat: ctx.hatManifest.hatKey,
@@ -12802,6 +12993,13 @@ Object.assign(TOOL_DEFS, LOOP_TOOLS);
 const { LUCID_TOOLS } = require('./lucid/agentTools');
 Object.assign(TOOL_DEFS, LUCID_TOOLS);
 
+// ===== QUOXON-PARITY lane E1 (#809, #810, #811): read-only parity with the CLI
+// (ward verify/status, standing grants, safety status, memory history), scoped to
+// ctx.orgId. See lib/parityReadTools.js. The WARD service is wired by server.js. =====
+const { PARITY_READ_TOOLS, setParityReadDeps } = require('./parityReadTools');
+Object.assign(TOOL_DEFS, PARITY_READ_TOOLS);
+setParityReadDeps({ getVoltDb: () => _govVoltDb });
+
 // ===== INBOXQ Agent Tools (INBOXQ_AGENT_DESIGN.md §A): every mutating tool
 // terminates in the existing inboxq_proposals + requireHuman resolve path
 // in-process (calls lib/inboxq/api.js's exported _handlers directly, same
@@ -12827,6 +13025,26 @@ Object.assign(TOOL_DEFS, require('./researchTools').createResearchTools({ getToo
 // lib/calendarqTools.js's module doc comment. =====
 const { CALENDARQ_TOOLS } = require('./calendarqTools');
 Object.assign(TOOL_DEFS, CALENDARQ_TOOLS);
+
+// ===== QUOXON-REACH lane G: read-only tools for domains that had a CLI but no agent
+// tool (plugins, spend, identity, install). plugin_list replaces the REGULA 501 stub
+// with the real org plugin registry read. Org from ctx.orgId, the caller's own bearer,
+// never a credential value. See lib/reachReadTools.js. =====
+const { REACH_READ_TOOLS } = require('./reachReadTools');
+Object.assign(TOOL_DEFS, REACH_READ_TOOLS);
+
+// ===== QUOXON-ASK lane J: quox_cli (read leaves) and quox_cli_write (write leaves,
+// approval-gated) run any real quox CLI leaf as the caller: validated against the CLI's
+// own command tree, classed by the leaf policy, caller bearer and org only, capped,
+// redacted and witnessed. See lib/quoxCliTools.js. =====
+const { QUOX_CLI_TOOLS } = require('./quoxCliTools');
+Object.assign(TOOL_DEFS, QUOX_CLI_TOOLS);
+
+// ===== QUOXON-PROOF lane I: llm_status/llm_policy (quox#822), backup_overview (#823),
+// live_sessions (#824), prompt_list/prompt_read (#825). Read-only. See
+// lib/quoxonProofReadTools.js. =====
+const { QUOXON_PROOF_READ_TOOLS } = require('./quoxonProofReadTools');
+Object.assign(TOOL_DEFS, QUOXON_PROOF_READ_TOOLS);
 
 // ===== CONTACTSQ Agent Tools (P0): contacts_resolve + contacts_find, in-process
 // over the shared service lib/contactsq/api.js (the same one the governed HTTP
@@ -12886,8 +13104,13 @@ Object.assign(TOOL_DEFS, SECURITY_ENGAGEMENT_TOOLS);
 // by checkEngagementPolicy before any bastion call. No SECURITY_SCAN_HOST
 // exists tonight, an approved call honestly errors "not configured" rather
 // than faking a scan. See lib/securityCapabilityTools.js. =====
-const { SECURITY_CAPABILITY_TOOLS } = require('./securityCapabilityTools');
-Object.assign(TOOL_DEFS, SECURITY_CAPABILITY_TOOLS);
+const { SECURITY_CAPABILITY_TOOLS, executeSecurityCapabilityTool } = require('./securityCapabilityTools');
+// QUOXON-ADV: the capability defs are schema-only (name/schema/cli/buildInput). Merged bare, every
+// agent call failed with "tool.execute is not a function". Route each through the same
+// engagement-gated runner the REST route uses (policy gate first, then the bastion grant).
+for (const [key, def] of Object.entries(SECURITY_CAPABILITY_TOOLS)) {
+  TOOL_DEFS[key] = { ...def, execute: (input, ctx) => executeSecurityCapabilityTool(key, input, ctx || {}) };
+}
 
 // ===== QUOX-SECURITY Findings Tools (Phase 1, continued): candidate
 // findings + adversarial verification, closes the "no findings storage"
@@ -12967,6 +13190,8 @@ Object.assign(TOOL_DEFS, COMMANDERQ_CALL_TOOLS);
 
 const { loadEntityTools, refreshEntityToolLicenses } = require('./entityToolLoader');
 const { loadAssistants, getAssistantPrompt, getAssistant, listAssistants } = require('./entityAssistantLoader');
+// #818: agent_directory reads the same registry the roster uses (lib/parityReadTools.js).
+setParityReadDeps({ listAgents: () => listAssistants(), getAgent: (id) => getAssistant(id), getAgentTools: (id) => [...(AGENT_TOOLS[canonicalAgentId(id)] || [])] });
 const _fs = require('fs');
 const _entityToolsPathDev = require('path').join(__dirname, '../../../src/config/entities/tools');
 const _entityToolsPathDocker = '/app/entity-tools';
@@ -13073,19 +13298,24 @@ function __setCognitiveImplantsPathForTesting(filePath) {
  * Get Anthropic tool definitions including dynamic connector tools.
  * Merges hardcoded agent tools with connector tools that have vault credentials.
  */
-async function getToolsWithConnectors(agentId, orgId) {
+// opts.meta (optional): filled with the connector tool-list cache state and
+// build time, { cache: 'hit'|'miss'|'shared'|'stale'|'none', ms }, for the
+// per-turn timing log (QUOXON A2). 'none' = this agent has no connector families.
+async function getToolsWithConnectors(agentId, orgId, opts = {}) {
   const coreTools = await getToolsForAgentAsync(agentId);
 
   // AGENT-OVERHAUL-2 FIX 1 — only merge connector tools from families this
   // agent is scoped to (see CONNECTOR_FAMILIES). An agent with no scoped
   // families (the default) gets no connector tools at all.
   const allowedFamilies = getConnectorFamiliesForAgent(agentId);
+  const meta = opts && typeof opts.meta === 'object' && opts.meta ? opts.meta : null;
   if (allowedFamilies.length === 0) {
+    if (meta) { meta.cache = 'none'; meta.ms = 0; }
     return coreTools;
   }
 
   try {
-    const connectorToolDefs = await getConnectorTools(orgId || 'default');
+    const connectorToolDefs = await getConnectorTools(orgId || 'default', meta ? { meta } : undefined);
     let scoped = connectorToolDefs.filter(t => allowedFamilies.includes(t.connector));
     // SEC-AUDIT (2026-08-11) S2 — narrow within the granted family/families
     // when this agent has a CONNECTOR_TOOL_ALLOWLIST entry (e.g. bob/gripe:
@@ -13170,11 +13400,31 @@ function filterToolsByDenylist(tools, denylist) {
   return tools.filter(t => !denylist.includes(t.name));
 }
 
+// QUOXON-FW3: agents whose static grant includes a tool (excluding the caller).
+function holdersOfTool(toolName, callerId) {
+  const me = String(callerId || '').toLowerCase();
+  return Object.keys(AGENT_TOOLS).filter(
+    (a) => a.toLowerCase() !== me && Array.isArray(AGENT_TOOLS[a]) && AGENT_TOOLS[a].includes(toolName),
+  );
+}
+function describeHolders(ids) {
+  if (!ids.length) return 'No agent holds it, so it cannot be delegated; tell the user it is unavailable.';
+  let getAssistant = null;
+  try { ({ getAssistant } = require('./entityAssistantLoader')); } catch { /* names optional */ }
+  const shown = ids.slice(0, 8).map((id) => {
+    let name = null;
+    try { name = getAssistant && getAssistant(id)?.identity?.name; } catch { /* ignore */ }
+    return name && name !== id ? `${id} (${name})` : id;
+  });
+  return `Delegate to: ${shown.join(', ')}${ids.length > 8 ? `, and ${ids.length - 8} more` : ''}.`;
+}
+
 module.exports = {
   brainHolderCtx,
   readResultFields,
   getToolsForAgent,
   getToolsForAgentAsync,
+  resolveHostId, // fleet standing-grant check resolves host the same way ssh_exec does
   makeGrantAwareCallBastion, // QUOXTRUST T4 — exported for unit test
   summarizeToolInputForLog, // QUOXTRUST v1.4 CF1 — exported for the redaction pin
 
@@ -13220,6 +13470,7 @@ module.exports = {
   loadCognitiveImplants,
   __setCognitiveImplantsPathForTesting,
   __setImapFlowForTesting,
+  __setInboxqAccountsLookupForTesting,
   __setSimpleParserForTesting,
   __setNodemailerForTesting,
   setExecutionLedger,

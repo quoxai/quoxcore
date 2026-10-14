@@ -255,6 +255,7 @@ async function quoxbrainSearch(input, ctx) {
       score: r.score,
       charStart: r.charStart,
       charEnd: r.charEnd,
+      noteHash: r.noteHash,
     }));
     registerRetrieval(corrKey, {
       orgId,
@@ -403,7 +404,7 @@ async function quoxbrainRead(input, ctx) {
   const relPath = note.rel_path || note.relPath || '';
   registerRetrieval(corrKey, {
     orgId, userId: ctx?.userId, agentId: ctx?.agentId, status: 'hits', handlePrefix: 'B',
-    refs: [{ noteId: note.id || noteId, title, relPath, passage: typeof note.body === 'string' ? note.body : undefined, charStart: start, charEnd: end }],
+    refs: [{ noteId: note.id || noteId, title, relPath, passage: typeof note.body === 'string' ? note.body : undefined, charStart: start, charEnd: end, noteHash: note.revision }],
   });
   // W10 B: look up by note AND exact span so a second-range read gets its own handle.
   const handle = lookupHandles(corrKey, [{ noteId: note.id || noteId, title, relPath, charStart: start, charEnd: end }], { orgId, userId: ctx?.userId })[0];
@@ -486,6 +487,10 @@ async function brainContext(input, ctx, { fetchImpl = fetch } = {}) {
   if (!ctx?.orgId) return { success: false, error: 'no_org_context', output: 'No organisation context for this call, so the knowledge brain was not queried.' };
   const orgId = ctx.orgId;
   const tokenBudget = clampInt(input?.tokenBudget, 1200, 200, 4000);
+  // ONE-BRAIN CX2 parity with quoxbrain_search: optional date window.
+  const ctxBody = { query, tokenBudget };
+  if (typeof input?.since === 'string' && input.since.trim()) ctxBody.since = input.since.trim();
+  if (typeof input?.until === 'string' && input.until.trim()) ctxBody.until = input.until.trim();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -501,7 +506,7 @@ async function brainContext(input, ctx, { fetchImpl = fetch } = {}) {
           'X-Quox-Source': 'agent',
           ...(ctx.userId ? { 'X-User-Id': ctx.userId } : {}),
         },
-        body: JSON.stringify({ query, tokenBudget }),
+        body: JSON.stringify(ctxBody),
         signal: controller.signal,
       });
       if (!res || !res.ok) {
@@ -520,6 +525,7 @@ async function brainContext(input, ctx, { fetchImpl = fetch } = {}) {
     if (data?.insufficient === true || passages.length === 0) {
       const ungrounded = data?.relevance?.ungrounded;
       const names = Array.isArray(ungrounded) ? ungrounded.filter(Boolean).join(', ') : (typeof ungrounded === 'string' ? ungrounded : '');
+      registerRetrieval(ctx?.corr || ctx?.conversationId || ctx?.session_id, { orgId, userId: ctx.userId, agentId: ctx?.agentId, status: 'empty', refs: [] });
       return {
         success: true,
         insufficient: true,
@@ -531,12 +537,22 @@ async function brainContext(input, ctx, { fetchImpl = fetch } = {}) {
     const lines = [`Context pack: ${passages.length} passage${passages.length !== 1 ? 's' : ''}, ${data.tokensUsed ?? '?'} tokens (budget ${tokenBudget}).`, ''];
     const structured = passages.map((p) => {
       const c = p.citation || {};
-      return { noteId: p.noteId || c.noteId, title: c.title, relPath: c.relPath, charStart: c.charStart, charEnd: c.charEnd, text: p.text, score: p.score };
+      return { noteId: p.noteId || c.noteId, title: c.title, relPath: c.relPath, charStart: c.charStart, charEnd: c.charEnd, text: p.text, score: p.score, noteHash: c.noteHash };
     });
+    // Register exactly like quoxbrain_search: [B1].. handles + durable records.
+    const corrKey = ctx?.corr || ctx?.conversationId || ctx?.session_id;
+    const scopeArg = { orgId, userId: ctx.userId };
+    const refsIn = structured.map((p) => ({
+      noteId: p.noteId, title: p.title, relPath: p.relPath, passage: typeof p.text === 'string' ? p.text : undefined,
+      score: p.score, charStart: p.charStart, charEnd: p.charEnd, noteHash: p.noteHash,
+    }));
+    registerRetrieval(corrKey, { orgId, userId: ctx.userId, agentId: ctx?.agentId, status: 'hits', handlePrefix: 'B', refs: refsIn });
+    const handles = lookupHandles(corrKey, refsIn, scopeArg);
+    if (handles.some(Boolean)) lines.push(BRAIN_CITE_INSTRUCTION, '');
     structured.forEach((p, i) => {
       let text = String(p.text || '').replace(/\s+/g, ' ').trim();
       if (text.length > CONTEXT_PASSAGE_MAX_CHARS) text = `${text.slice(0, CONTEXT_PASSAGE_MAX_CHARS).trimEnd()}...`;
-      lines.push(`${i + 1}. ${p.title || 'Untitled'}`);
+      lines.push(`${i + 1}. ${handles[i] ? `[${handles[i]}] ` : ''}${p.title || 'Untitled'}`);
       lines.push(`   ${text}`);
       const span = Number.isFinite(p.charStart) && Number.isFinite(p.charEnd) ? `, chars ${p.charStart}-${p.charEnd}` : '';
       lines.push(`   (noteId: ${p.noteId || ''}${span})`);
@@ -546,7 +562,7 @@ async function brainContext(input, ctx, { fetchImpl = fetch } = {}) {
     return {
       success: true,
       insufficient: false,
-      passages: structured.map(({ text, score, ...rest }) => rest),
+      passages: structured.map(({ text, score, noteHash, ...rest }, i) => (handles[i] ? { ...rest, handle: handles[i] } : rest)),
       tokensUsed: data.tokensUsed,
       output: lines.join('\n').trim(),
     };
@@ -556,7 +572,7 @@ async function brainContext(input, ctx, { fetchImpl = fetch } = {}) {
 }
 
 const CHECK_MAX_CLAIM_CHARS = 500;
-const CHECK_HEURISTIC_NOTE = 'Lexical support is a word-overlap heuristic, not proof. Read the cited note before relying on it.';
+const CHECK_HEURISTIC_NOTE = 'The source shares the claim\'s words; not checked for meaning. Read the cited note before relying on it.';
 
 /**
  * brain_check (ONE-BRAIN CX4): check a claim against the knowledge brain
@@ -565,8 +581,9 @@ const CHECK_HEURISTIC_NOTE = 'Lexical support is a word-overlap heuristic, not p
  * lexicalSupport (lib/citationSupport.js) and, when the org opted in
  * (BRAIN_RERANK_ENABLED) and the seam is wired, the semantic entailment
  * checker from lib/citationEntailment.js (its own budget and fallback; any
- * failure keeps the lexical verdict). Verdict: contradicted | supported |
- * unknown. A brain that could not be reached is a failure, never "unknown".
+ * failure keeps the lexical verdict). Verdict: contradicted | supported
+ * (semantic entailment only) | overlap (lexical only, not checked for
+ * meaning) | unknown. A brain that could not be reached is a failure, never "unknown".
  */
 async function brainCheck(input, ctx, { fetchImpl = fetch, entailFn } = {}) {
   const claim = typeof input?.claim === 'string' ? input.claim.trim() : '';
@@ -612,11 +629,13 @@ async function brainCheck(input, ctx, { fetchImpl = fetch, entailFn } = {}) {
   const results = Array.isArray(data?.results) ? data.results : [];
   emitBrainSearchAudit(ctx, orgId, claim.length, results.length);
   const insufficient = data?.insufficient === true || data?.relevance?.insufficient === true;
+  const corrKey = ctx?.corr || ctx?.conversationId || ctx?.session_id;
   if (insufficient || results.length === 0) {
+    registerRetrieval(corrKey, { orgId, userId: ctx.userId, agentId: ctx?.agentId, status: 'empty', refs: [] });
     return {
       success: true,
       verdict: 'unknown',
-      method: 'lexical',
+      method: 'overlap',
       evidence: [],
       output: 'Verdict: unknown. Nothing in the knowledge brain supports or refutes this claim, so do not state it as settled fact.',
     };
@@ -630,9 +649,9 @@ async function brainCheck(input, ctx, { fetchImpl = fetch, entailFn } = {}) {
   });
 
   // Optional semantic upgrade, same shape and fallback as brainCitationTrace.
-  let method = 'lexical';
+  let method = 'overlap';
   const entail = typeof entailFn === 'function' ? entailFn : getEntailFn();
-  const verdictOf = items.map((it) => (it.lex.contradicted ? 'contradicted' : it.lex.supported ? 'supported' : 'no_support'));
+  const verdictOf = items.map((it) => (it.lex.contradicted ? 'contradicted' : it.lex.supported ? 'overlap' : 'no_support'));
   if (entail) {
     try {
       const cand = items.map((it, i) => ({ it, i })).filter((c) => c.it.body);
@@ -644,13 +663,23 @@ async function brainCheck(input, ctx, { fetchImpl = fetch, entailFn } = {}) {
           const v = verdicts[k];
           if (!v) return;
           verdictOf[c.i] = v === 'SUPPORTED' ? 'supported' : v === 'CONTRADICTED' ? 'contradicted' : 'no_support';
-          method = 'semantic';
+          method = 'entailment';
         });
       }
     } catch (_) { /* keep lexical */ }
   }
 
+  // Register the evidence exactly like quoxbrain_search so the turn gets
+  // [B1].. handles, a finalized record and durable citation records.
+  const refsIn = items.map((it) => ({
+    noteId: it.r.noteId, title: it.r.title, relPath: it.r.relPath, snippet: it.r.snippet,
+    passage: it.body || undefined, score: it.r.score, charStart: it.r.charStart, charEnd: it.r.charEnd, noteHash: it.r.noteHash,
+  }));
+  registerRetrieval(corrKey, { orgId, userId: ctx.userId, agentId: ctx?.agentId, status: 'hits', handlePrefix: 'B', refs: refsIn });
+  const handles = lookupHandles(corrKey, refsIn, { orgId, userId: ctx.userId });
+
   const evidence = items.map((it, i) => ({
+    ...(handles[i] ? { handle: handles[i] } : {}),
     noteId: it.r.noteId,
     title: it.r.title,
     relPath: it.r.relPath,
@@ -659,16 +688,18 @@ async function brainCheck(input, ctx, { fetchImpl = fetch, entailFn } = {}) {
   }));
   const contradicting = evidence.filter((e) => e.verdict === 'contradicted');
   const supporting = evidence.filter((e) => e.verdict === 'supported');
+  const overlapping = evidence.filter((e) => e.verdict === 'overlap');
   const dropped = evidence.filter((e) => e.conditionDropped);
-  const verdict = contradicting.length ? 'contradicted' : supporting.length ? 'supported' : 'unknown';
-  const names = (list) => list.map((e) => `"${e.title || 'Untitled'}"${e.relPath ? ` (${e.relPath})` : ''}`).join(', ');
+  const verdict = contradicting.length ? 'contradicted' : supporting.length ? 'supported' : overlapping.length ? 'overlap' : 'unknown';
+  const names = (list) => list.map((e) => `${e.handle ? `[${e.handle}] ` : ''}"${e.title || 'Untitled'}"${e.relPath ? ` (${e.relPath})` : ''}`).join(', ');
   const lines = [];
   if (verdict === 'contradicted') lines.push(`Verdict: contradicted. ${contradicting.length} source${contradicting.length !== 1 ? 's' : ''} in the knowledge brain contradict${contradicting.length === 1 ? 's' : ''} this claim: ${names(contradicting)}.`);
   else if (verdict === 'supported') lines.push(`Verdict: supported by ${names(supporting)}.`);
+  else if (verdict === 'overlap') lines.push(`Verdict: overlap. ${names(overlapping)} shares the claim's words; not checked for meaning, so this is not confirmation.`);
   else lines.push('Verdict: unknown. Nothing in the knowledge brain clearly supports or refutes this claim, so do not state it as settled fact.');
   if (verdict === 'contradicted' && supporting.length) lines.push(`Also supported by: ${names(supporting)}.`);
   if (dropped.length) lines.push(`Condition dropped: ${names(dropped)} limit${dropped.length === 1 ? 's' : ''} the statement (for example "only", "unless", "except") and the claim leaves that out, so it is not supported as written.`);
-  lines.push(method === 'semantic' ? 'Method: semantic entailment (opt-in model check).' : `Method: lexical. ${CHECK_HEURISTIC_NOTE}`);
+  lines.push(method === 'entailment' ? 'Method: entailment (opt-in model check).' : `Method: overlap. ${CHECK_HEURISTIC_NOTE}`);
   return { success: true, verdict, method, evidence, output: lines.join('\n') };
 }
 

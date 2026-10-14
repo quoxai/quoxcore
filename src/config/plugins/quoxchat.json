@@ -21,7 +21,7 @@
   "marketingPoints": [
     "Deploy in minutes — one script tag on any website",
     "Train on your docs, PDFs, URLs — answers with source citations",
-    "5 levels of CSS control — from colour picker to headless SDK",
+    "CSS control from a colour picker to a full stylesheet override",
     "BYOK — use Claude, GPT, Gemini, or your own models",
     "White-label — your brand, no Quox branding, ever",
     "$199/year flat — no per-message fees, no conversation limits"
@@ -29,7 +29,7 @@
   "features": {
     "widgetRoom": {
       "name": "Widget Room",
-      "description": "7-tab management environment per assistant: Knowledge, Training, Style, Actions, Logs, Analytics, Settings.",
+      "description": "Ten-tab management room per widget: Knowledge, Training, Style, Actions, Simulation, Availability, Logs, Analytics, Settings, Compliance.",
       "icon": "layout-dashboard",
       "highlight": true
     },
@@ -41,7 +41,7 @@
     },
     "cssControl": {
       "name": "5-Level CSS Control",
-      "description": "Theme presets, CSS variables, ::part() selectors, full stylesheet override, or headless SDK.",
+      "description": "Theme presets, CSS variables, ::part() selectors, or a full stylesheet override. (A headless SDK is planned, not yet published.)",
       "icon": "palette",
       "highlight": true
     },

@@ -153,7 +153,33 @@ function sweepFinalizedExpired(now) {
   }
 }
 
-const PASSAGE_MAX = 2000; // BRAIN2-W4 A: support-check text kept per ref
+const PASSAGE_MAX = 20000; // = toolExecutors/quoxbrain READ_MAX_CHARS: the whole passage the agent could see
+const SESSION_PASSAGE_BUDGET = 200000; // total passage chars kept per session; oldest evicted first
+const DEFAULT_ENTAIL_CAP = 12;
+
+// Oldest-first eviction of registered passage text once a session exceeds its
+// budget. The hash survives, and the ref is flagged so a citation to it is
+// reported 'unchecked: evicted', never 'unsupported'.
+function enforcePassageBudget(entry) {
+  let total = 0;
+  for (const r of entry.refs) if (r.passage) total += r.passage.length;
+  for (const r of entry.refs) {
+    if (total <= SESSION_PASSAGE_BUDGET) break;
+    if (!r.passage) continue;
+    total -= r.passage.length;
+    delete r.passage;
+    r.passageEvicted = true;
+  }
+}
+
+function resolveEntailCap(deps) {
+  if (Number.isInteger(deps && deps.entailCap) && deps.entailCap > 0) return Math.min(deps.entailCap, 25);
+  try {
+    const v = Number(require('./configResolver.js').getInstanceSetting('BRAIN_CITATION_ENTAIL_CAP').value);
+    if (Number.isInteger(v) && v > 0) return Math.min(v, 25);
+  } catch (_) { /* default */ }
+  return DEFAULT_ENTAIL_CAP;
+}
 
 // BRAIN2-W5 116: dedup identity is noteId PLUS span, so two different passages
 // of one note stay two references (each with its own offsets and handle). A ref
@@ -191,6 +217,12 @@ function findCoveringRef(refs, span) {
   return cands.find((r) => ownContains(r, span)) || cands.find((r) => extentContains(r, span)) || null;
 }
 
+function isNewRevision(prior, ref) {
+  if (prior.noteHash && ref.noteHash) return prior.noteHash !== ref.noteHash;
+  if (prior.passageHash && ref.passageHash) return prior.passageHash !== ref.passageHash;
+  return false;
+}
+
 function normalizeRefs(refs) {
   if (!Array.isArray(refs)) return [];
   const out = [];
@@ -205,7 +237,13 @@ function normalizeRefs(refs) {
     // provided them (the pre-existing HITS registration and every test that
     // predates this change never did) — never fabricated as '' / 0.
     if (typeof ref.snippet === 'string' && ref.snippet) out_ref.snippet = ref.snippet;
-    if (typeof ref.passage === 'string' && ref.passage) out_ref.passage = ref.passage.slice(0, PASSAGE_MAX);
+    if (typeof ref.passage === 'string' && ref.passage) {
+      out_ref.passage = ref.passage.slice(0, PASSAGE_MAX);
+      // Pin the cited passage text as retrieved (hash of the full text).
+      out_ref.passageHash = require('crypto').createHash('sha256').update(ref.passage).digest('hex');
+    }
+    // Retrieval-time note revision (content hash). Only when the source provided it.
+    if (typeof ref.noteHash === 'string' && ref.noteHash) out_ref.noteHash = ref.noteHash;
     if (typeof ref.score === 'number' && Number.isFinite(ref.score)) out_ref.score = ref.score;
     // BRAIN2-V3 A3: chunk char offsets so a citation can point at an exact span.
     if (Number.isFinite(ref.charStart) && Number.isFinite(ref.charEnd)) {
@@ -261,9 +299,18 @@ function registerRetrieval(corrKey, { orgId, userId, agentId, refs, status, reas
       entry.expiresAt = now + TTL_MS;
       if (!entry.agentId && agentId) entry.agentId = agentId;
     }
+    // R11: the session status is the UNION of its retrievals. Any retrieval
+    // that had hits keeps the turn at 'hits'; a later empty/unavailable search
+    // must not hide them.
+    if (status === 'hits' || incoming.length > 0) entry.hadHits = true;
     if (hasStatus) {
-      entry.status = status;
-      entry.reason = reason;
+      if (entry.hadHits) {
+        entry.status = 'hits';
+        entry.reason = undefined;
+      } else {
+        entry.status = status;
+        entry.reason = reason;
+      }
     }
 
     const seen = new Set(entry.refs.map(refKey));
@@ -279,11 +326,25 @@ function registerRetrieval(corrKey, { orgId, userId, agentId, refs, status, reas
         if (owner) dedupeKey = refKey(owner);
       }
       if (seen.has(dedupeKey)) {
-        // BRAIN2-W4 A: a later read/search may bring the passage a first registration lacked.
-        if (ref.passage) {
-          const prior = entry.refs.find((r) => refKey(r) === dedupeKey);
-          if (prior && !prior.passage) prior.passage = ref.passage;
+        // R10: the latest revision registered under this key is the live one.
+        let prior = null;
+        for (const r of entry.refs) if (refKey(r) === dedupeKey) prior = r;
+        // An EDITED note (different revision hash, or different passage when
+        // no note hash is known) gets a NEW handle; the old handle stays bound
+        // to the text it was registered with, so answers already written
+        // against it are judged honestly.
+        if (prior && isNewRevision(prior, ref)) {
+          const pfx = (typeof handlePrefix === 'string' && /^[A-Za-z]$/.test(handlePrefix)) ? handlePrefix : (prior.handle ? prior.handle[0] : null);
+          if (pfx) {
+            const n = entry.refs.filter((r) => r.handle && r.handle.startsWith(pfx)).length + 1;
+            ref.handle = `${pfx}${n}`;
+          }
+          entry.refs.push(ref);
+          continue;
         }
+        // BRAIN2-W4 A: a later read/search may bring the passage a first registration lacked.
+        if (prior && ref.passage && !prior.passage && !prior.passageEvicted) { prior.passage = ref.passage; prior.passageHash = ref.passageHash; }
+        if (prior && !prior.noteHash && ref.noteHash) prior.noteHash = ref.noteHash;
         continue;
       }
       seen.add(dedupeKey);
@@ -296,6 +357,7 @@ function registerRetrieval(corrKey, { orgId, userId, agentId, refs, status, reas
       }
       entry.refs.push(ref);
     }
+    enforcePassageBudget(entry);
     return true;
   } catch (_) {
     return false; // tracing must never break a search
@@ -411,7 +473,7 @@ function emitCitedAudit(auditFn, { key, agentId, orgId, retrieved, cited, rate }
   } catch (_) { /* evidence is best-effort, never fatal */ }
 }
 
-async function postCitations(fetchFn, { key, entry, retrieved, cited, supported, citedNoteIds, records }) {
+async function postCitations(fetchFn, { key, entry, retrieved, cited, supported, overlap, citedNoteIds, records, unchecked, fabricated }) {
   try {
     if (typeof fetchFn !== 'function') return;
     const controller = new AbortController();
@@ -432,6 +494,9 @@ async function postCitations(fetchFn, { key, entry, retrieved, cited, supported,
           retrieved_count: retrieved,
           cited_count: cited,
           supported_count: supported,
+          ...(Number.isInteger(overlap) ? { overlap_count: overlap } : {}),
+          ...(Number.isInteger(unchecked) && unchecked > 0 ? { unchecked_count: unchecked } : {}),
+          ...(Number.isInteger(fabricated) && fabricated > 0 ? { fabricated_count: fabricated } : {}),
           cited_note_ids: citedNoteIds,
           ...(Array.isArray(records) && records.length ? { records } : {}),
         }),
@@ -494,6 +559,7 @@ async function finalizeEntry(entry, finalText, deps = {}) {
     let supported = 0;
     const checkByRef = new Map();
     const methodByRef = new Map();
+    const uncheckedByRef = new Map(); // ref -> 'cap' | 'evicted'
     for (const ref of entry.refs) {
       const isCited = isRefCited(ref, haystack);
       citedFlags.push(isCited);
@@ -508,6 +574,7 @@ async function finalizeEntry(entry, finalText, deps = {}) {
         sup = chk ? chk.supported : null;
         if (chk && chk.contradicted) contra = true;
         if (chk) checkByRef.set(ref, chk);
+        if (chk && chk.unchecked) uncheckedByRef.set(ref, chk.unchecked);
       }
       supportFlags.push(sup);
       supportByRef.set(ref, sup);
@@ -520,6 +587,20 @@ async function finalizeEntry(entry, finalText, deps = {}) {
       cited += 1;
       if (ref.noteId) citedNoteIds.push(ref.noteId);
     }
+    // R13: a bracketed handle that was never registered for this turn is a
+    // FABRICATED citation: counted, unsupported, and part of the rate.
+    const fabricatedHandles = [];
+    {
+      const known = new Set(entry.refs.map((r) => (r.handle || '').toLowerCase()).filter(Boolean));
+      const prefixes = new Set(['k', 'b']);
+      for (const h of known) prefixes.add(h[0]);
+      for (const tok of bracketTokens(haystack)) {
+        if (known.has(tok) || !/^[a-z][0-9]+$/.test(tok) || !prefixes.has(tok[0])) continue;
+        const sents = sentencesCiting(haystack, tok);
+        if (sents.length === 0 || sents.some((x) => !isDisavowal(x))) fabricatedHandles.push(tok.toUpperCase());
+      }
+    }
+    const fabricated = fabricatedHandles.length;
     // ONE-BRAIN CX1: opt-in semantic upgrade of the lexical verdict. Any
     // failure, timeout or opt-out leaves the lexical result untouched.
     const entailFn = typeof deps.entailFn === 'function' ? deps.entailFn : _entailFn;
@@ -527,8 +608,11 @@ async function finalizeEntry(entry, finalText, deps = {}) {
       try {
         const cand = entry.refs
           .map((ref, i) => ({ ref, i, chk: checkByRef.get(ref) }))
-          .filter((c) => c.chk && Array.isArray(c.chk.claims) && c.chk.claims.length && c.chk.passage)
-          .slice(0, 5);
+          .filter((c) => c.chk && Array.isArray(c.chk.claims) && c.chk.claims.length && c.chk.passage);
+        // Claims beyond the cap are NOT silently dropped into "unsupported":
+        // they are recorded as unchecked.
+        const entailCap = resolveEntailCap(deps);
+        for (const c of cand.splice(entailCap)) uncheckedByRef.set(c.ref, 'cap');
         const verdicts = cand.length
           ? await entailFn({ orgId: entry.orgId, items: cand.map((c) => ({ claim: c.chk.claims.join(' '), passage: c.chk.passage })) })
           : null;
@@ -536,6 +620,7 @@ async function finalizeEntry(entry, finalText, deps = {}) {
           cand.forEach((c, k) => {
             const v = verdicts[k];
             if (!v) return;
+            if (v === 'UNCHECKED') { uncheckedByRef.set(c.ref, 'budget'); return; }
             const wasSup = supportFlags[c.i] === true;
             const wasContra = contradictedFlags[c.i] === true;
             const nowSup = v === 'SUPPORTED';
@@ -544,7 +629,7 @@ async function finalizeEntry(entry, finalText, deps = {}) {
             supportByRef.set(c.ref, nowSup);
             contradictedFlags[c.i] = nowContra;
             contradictedByRef.set(c.ref, nowContra);
-            methodByRef.set(c.ref, 'semantic');
+            methodByRef.set(c.ref, 'entailment');
             if (wasSup && !nowSup) supported -= 1;
             if (!wasSup && nowSup) supported += 1;
             if (wasContra && !nowContra) contradicted -= 1;
@@ -553,7 +638,38 @@ async function finalizeEntry(entry, finalText, deps = {}) {
         }
       } catch (_) { /* keep lexical */ }
     }
-    const rate = retrieved > 0 ? Math.round((cited / retrieved) * 1000) / 1000 : 0;
+    // Honest labels: a lexical-only pass means the source shares the claim's
+    // words, NOT that it was checked for meaning. Only an entailment pass
+    // counts as supported; a lexical pass is reported as overlap.
+    const overlapFlags = [];
+    const overlapByRef = new Map();
+    let overlap = 0;
+    let unchecked = 0;
+    supported = 0;
+    entry.refs.forEach((ref, i) => {
+      if (uncheckedByRef.has(ref)) {
+        overlapFlags.push(false);
+        supportFlags[i] = null;
+        supportByRef.set(ref, null);
+        unchecked += 1;
+        return;
+      }
+      const entailed = methodByRef.get(ref) === 'entailment';
+      const lexPass = !entailed && supportFlags[i] === true;
+      overlapFlags.push(lexPass);
+      if (lexPass) {
+        overlapByRef.set(ref, true);
+        overlap += 1;
+        supportFlags[i] = false;
+        supportByRef.set(ref, false);
+      } else if (supportFlags[i] === true) {
+        supported += 1;
+      }
+    });
+    // Fabricated citations count against the rate: they are cited claims that
+    // resolve to nothing retrieved.
+    const rateDen = retrieved + fabricated;
+    const rate = rateDen > 0 ? Math.round((cited / rateDen) * 1000) / 1000 : 0;
 
     // BRAIN2-CORTEX P1a: write the finalized status/citations view BEFORE
     // deleting the live entry, so there is never a window where neither map
@@ -573,15 +689,23 @@ async function finalizeEntry(entry, finalText, deps = {}) {
           snippet: ref.snippet,
           score: ref.score,
           handle: ref.handle,
+          noteHash: ref.noteHash,
+          passageHash: ref.passageHash,
           charStart: ref.charStart,
           charEnd: ref.charEnd,
           index: isCited ? citedOrdinal : null,
           cited: isCited,
           supported: supportFlags[i],
           contradicted: contradictedFlags[i],
-          support_method: isCited && typeof supportFlags[i] === 'boolean' ? (methodByRef.get(ref) || 'lexical') : null,
+          overlap: overlapFlags[i] === true,
+          ...(uncheckedByRef.has(ref) ? { unchecked: uncheckedByRef.get(ref) } : {}),
+          support_method: uncheckedByRef.has(ref) ? 'unchecked' : isCited && typeof supportFlags[i] === 'boolean' ? (methodByRef.get(ref) || 'overlap') : null,
         };
       });
+      for (const h of fabricatedHandles) {
+        citedOrdinal += 1;
+        citations.push({ handle: h, index: citedOrdinal, cited: true, supported: false, contradicted: false, overlap: false, fabricated: true, support_method: null });
+      }
       sweepFinalizedExpired(now);
       while (_finalized.size >= MAX_ENTRIES) {
         const oldest = _finalized.keys().next().value;
@@ -596,6 +720,9 @@ async function finalizeEntry(entry, finalText, deps = {}) {
         retrieved,
         cited,
         supported,
+        overlap,
+        unchecked,
+        fabricated,
         contradicted,
         rate,
         orgId: entry.orgId,
@@ -636,15 +763,19 @@ async function finalizeEntry(entry, finalText, deps = {}) {
       const records = entry.refs.filter((r) => r.noteId).map((ref, i) => ({
         handle: ref.handle || undefined,
         note_id: ref.noteId,
+        note_hash: ref.noteHash || undefined,
+        passage_hash: ref.passageHash || undefined,
         char_start: Number.isFinite(ref.charStart) ? ref.charStart : undefined,
         char_end: Number.isFinite(ref.charEnd) ? ref.charEnd : undefined,
         supported: citedByRef.get(ref) && typeof supportByRef.get(ref) === 'boolean' ? supportByRef.get(ref) : null,
         contradicted: contradictedByRef.get(ref) === true,
+        support_method: !citedByRef.get(ref) ? null : uncheckedByRef.has(ref) ? 'unchecked' : methodByRef.get(ref) === 'entailment' ? 'entailment' : overlapByRef.get(ref) ? 'overlap' : null,
       }));
-      await postCitations(fetchFn, { key, entry, retrieved, cited, supported, citedNoteIds, records });
+      for (const h of fabricatedHandles) records.push({ handle: h, support_method: 'fabricated', supported: false, contradicted: false });
+      await postCitations(fetchFn, { key, entry, retrieved, cited, supported, overlap, citedNoteIds, records, unchecked, fabricated });
     }
 
-    return { corr: key, retrieved, cited, supported, contradicted, rate, citedNoteIds };
+    return { corr: key, retrieved, cited, supported, overlap, unchecked, fabricated, contradicted, rate, citedNoteIds };
   } catch (err) {
     console.warn(`[BrainCitation] finalize failed: ${err && err.message}`);
     _entries.delete(sid);

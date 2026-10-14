@@ -283,6 +283,15 @@ async function extractRound(noteText, meta, deps, already) {
       // appears in the note. A missing/unmatched quote DROPS that claim (and is
       // counted); it never fails the note, so it cannot drive retirement.
       if (!claim.evidence || !haystack.includes(normalizeWs(claim.evidence))) { rejectedUnsupported += 1; continue }
+      // A quote that is really in the note is not enough: the claim must not
+      // CONTRADICT it ("Refunds never require approval" citing "Refunds
+      // require approval"). Deterministic check first; the optional LLM check
+      // (same QUOXDREAM_SEMANTIC_DEDUP gate) can only add a rejection.
+      // deps.skipEvidenceRelevance is a TEST-ONLY seam for legacy fixtures that stamp stub evidence.
+      const unrelated = deps.skipEvidenceRelevance ? null : evidenceRelevanceVerdict(claim.content, claim.evidence)
+      if (unrelated) { rejectedUnsupported += 1; console.error(`[QuoxDream] rejected claim with unrelated evidence (${unrelated})`); continue }
+      const verdict = await evidenceContradiction(claim, deps, meta.orgId)
+      if (verdict) { rejectedUnsupported += 1; console.error(`[QuoxDream] rejected claim contradicting its evidence (${verdict})`); continue }
       claims.push(claim)
     }
     // BRAIN2-W5 100: an array with items but none structurally valid is model
@@ -426,6 +435,16 @@ function numericParts(str) {
   return { nums, template }
 }
 
+const EXCLUSIVE_PREDICATE_RE = /\b(uses?|primary|is|are|was|were|equals?|set to|defaults? to|default|costs?|lives? in|located in|stored in|written in|runs? (?:on|at|in)|ships?|deadline|version|ceo|cto|cfo|owner|only|approved by|managed by|hosted (?:in|on))\b/
+// Audit R06: "<X> is the <role>" is functional: a different subject for the same
+// unique role ("Alice is the CEO" vs "Bob is the CEO") is a contradiction.
+function uniqueRoleSwapped(a, b) {
+  const re = /^\s*(.+?)\s+(?:is|was|are|were)\s+(the\s+.+?)\s*[.!]?\s*$/i
+  const ma = re.exec(String(a)), mb = re.exec(String(b))
+  if (!ma || !mb) return false
+  return ma[2].toLowerCase() === mb[2].toLowerCase() && ma[1].toLowerCase() !== mb[1].toLowerCase() && !/\b(not|never|no)\b/i.test(`${a} ${b}`)
+}
+
 export function isValueChange(a, b) {
   if (!normalize(a) || !normalize(b)) return false
   const A = numericParts(a)
@@ -434,6 +453,10 @@ export function isValueChange(a, b) {
     return A.nums.some((n, i) => n !== B.nums[i])
   }
   if (A.nums.length > 0 || B.nums.length > 0) return false
+  // Audit R06: swapping the object of a non-exclusive predicate ("likes tea" ->
+  // "likes coffee") is compatible, not a correction. Only exclusive/functional
+  // predicates (is, equals, default, costs, lives in, ...) make it one.
+  if (!EXCLUSIVE_PREDICATE_RE.test(normalize(a)) || !EXCLUSIVE_PREDICATE_RE.test(normalize(b))) return false
   const wa = String(a).trim().split(/\s+/).map((w) => w.replace(/^[^\w]+|[^\w]+$/g, '')).filter(Boolean)
   const wb = String(b).trim().split(/\s+/).map((w) => w.replace(/^[^\w]+|[^\w]+$/g, '')).filter(Boolean)
   if (wa.length !== wb.length || wa.length < 3) return false
@@ -469,13 +492,107 @@ function clauseReversal(a, b) {
   return false
 }
 
+
+// OUTSIDE AUDIT: meaning differences the older checks missed. "All refunds
+// require approval" vs "Some refunds require approval" is a 5/6 word repeat to
+// Jaccard and passed the evidence check. Deterministic, no I/O.
+const UNIVERSAL_Q = new Set(['all', 'every', 'each', 'always', 'everyone', 'everything', 'invariably'])
+const MAJORITY_Q = new Set(['many', 'most', 'usually', 'often', 'generally', 'typically'])
+const MINORITY_Q = new Set(['some', 'several', 'few', 'sometimes', 'occasionally', 'certain'])
+const QUANT_WORDS = new Set([...UNIVERSAL_Q, ...MAJORITY_Q, ...MINORITY_Q])
+function quantClasses(str) {
+  const out = new Set()
+  for (const t of tokens(str)) {
+    if (UNIVERSAL_Q.has(t)) out.add('U')
+    else if (MAJORITY_Q.has(t)) out.add('M')
+    else if (MINORITY_Q.has(t)) out.add('F')
+  }
+  return out
+}
+function sameSet(x, y) { return x.size === y.size && [...x].every((v) => y.has(v)) }
+function topicSansWords(str, drop) {
+  return new Set([...topicWords(str)].filter((w) => !drop.has(w)))
+}
+function topicOverlap(A, B, min) {
+  if (A.size === 0 || B.size === 0) return false
+  let inter = 0
+  for (const w of A) if (B.has(w)) inter += 1
+  return inter / (A.size + B.size - inter) >= min
+}
+// strict (evidence check): a quantifier added or dropped counts (strengthening /
+// weakening). Non-strict (dedup): both sides must carry one, since an added
+// "all" in a restatement is wording, not a changed belief.
+function quantifierChanged(a, b, strict = false) {
+  const qa = quantClasses(a), qb = quantClasses(b)
+  if (sameSet(qa, qb)) return false
+  if (!strict && (qa.size === 0 || qb.size === 0)) return false
+  return topicOverlap(topicSansWords(a, QUANT_WORDS), topicSansWords(b, QUANT_WORDS), TOPIC_OVERLAP_THRESHOLD)
+}
+
+// Condition clauses: the content after only if / unless / when / after /
+// before / until / once / if. A different clause is a different rule.
+const CONDITION_RE = /\b(only if|only when|unless|if|whenever|when|after|before|until|once)\s+([^,;.]+)/g
+function conditionsOf(str) {
+  const out = new Set()
+  for (const m of normalize(str).matchAll(CONDITION_RE)) {
+    out.add(`${m[1].replace(/^only /, '')} ${m[2].trim().split(/\s+/).filter((w) => !['the', 'a', 'an', 'is', 'are', 'was', 'were'].includes(w)).join(' ')}`)
+  }
+  return out
+}
+function stripConditions(str) { return normalize(str).replace(CONDITION_RE, ' ') }
+function conditionChanged(a, b) {
+  const ca = conditionsOf(a), cb = conditionsOf(b)
+  if (ca.size === 0 && cb.size === 0) return false
+  if (sameSet(ca, cb)) return false
+  const A = topicSansWords(stripConditions(a), QUALIFIER_WORDS)
+  const B = topicSansWords(stripConditions(b), QUALIFIER_WORDS)
+  const [small, big] = A.size <= B.size ? [A, B] : [B, A]
+  if (small.size < 2) return false
+  let inside = 0
+  for (const w of small) if (big.has(w)) inside += 1
+  return inside / small.size >= 0.75
+}
+
+// Explicit dates: months, weekdays, ISO dates, ordinals. Numbers are covered
+// by isValueChange / numberMismatch; this adds the word-shaped ones.
+const MONTH_DAY_RE = /^(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|jun(e)?|jul(y)?|aug(ust)?|sep(t(ember)?)?|oct(ober)?|nov(ember)?|dec(ember)?|mon(day)?|tue(s(day)?)?|wed(nesday)?|thu(r(s(day)?)?)?|fri(day)?|sat(urday)?|sun(day)?)s?$/
+const MONTH_DAY_AMBIGUOUS = new Set(['may', 'mar', 'sun', 'sat', 'dec', 'wed', 'mon', 'jun', 'jan', 'feb', 'apr', 'aug', 'sep', 'sept', 'oct', 'nov', 'jul', 'thu', 'thur', 'thurs', 'tue', 'tues', 'fri'])
+function dateWords(str) {
+  const out = new Set()
+  const raw = String(str || '')
+  for (const m of raw.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)) out.add(m[0])
+  for (const m of raw.matchAll(/\b[A-Za-z]+\b/g)) {
+    const w = m[0].toLowerCase()
+    if (!MONTH_DAY_RE.test(w)) continue
+    // abbreviations and "may" only count when capitalised (not the modal verb)
+    if (MONTH_DAY_AMBIGUOUS.has(w) && !/^[A-Z]/.test(m[0])) continue
+    out.add(w.replace(/s$/, '').slice(0, 3))
+  }
+  return out
+}
+const DATE_DROP = new Set('january february march april may june july august september october november december monday tuesday wednesday thursday friday saturday sunday mondays tuesdays wednesdays thursdays fridays saturdays sundays jan feb mar apr jun jul aug sep sept oct nov dec mon tue tues wed thu thur thurs fri sat sun'.split(' '))
+const MEANING_WORDS = new Set([...QUANT_WORDS, ...DATE_DROP])
+function dateChanged(a, b) {
+  const da = dateWords(a), db = dateWords(b)
+  if (da.size === 0 && db.size === 0) return false
+  if (sameSet(da, db)) return false
+  return topicOverlap(topicSansWords(a, DATE_DROP), topicSansWords(b, DATE_DROP), TOPIC_OVERLAP_THRESHOLD)
+}
+
+/** True when two texts differ in quantifier, condition clause or explicit date. */
+export function meaningDiffers(a, b, strict = false) {
+  return quantifierChanged(a, b, strict) || conditionChanged(a, b) || dateChanged(a, b)
+}
+
 /** True when `a` and `b` are about the same thing but state opposite polarity (or a changed value). */
 export function isContradiction(a, b) {
   if (!normalize(a) || !normalize(b)) return false
   if (isValueChange(a, b)) return true
+  if (uniqueRoleSwapped(a, b)) return true
   if (polarityOf(a) !== polarityOf(b) && sameTopic(a, b)) return true
   if (rolesReversed(a, b)) return true
   if (qualifierChanged(a, b)) return true
+  if (meaningDiffers(a, b)) return true
   return clauseReversal(a, b)
 }
 
@@ -549,6 +666,112 @@ async function llmSaysContradiction(a, b, deps, orgId = null) {
     console.error(`[QuoxDream] contradiction LLM check failed (treating as duplicate): ${err.message}`)
     return false
   }
+}
+
+// CLAIM-vs-EVIDENCE CHECK. Returns a reason string when `claim` contradicts its
+// quoted `evidence`, else null. Uncertain-but-not-contradicted claims pass.
+const UNIT_NUM_RE = /(\d+(?:\.\d+)?)\s*(%|[a-z]+)?/g
+function numberUnits(str) {
+  const out = []
+  for (const m of String(str || '').toLowerCase().replace(/(\d),(\d{3})/g, '$1$2').matchAll(UNIT_NUM_RE)) out.push([m[1], m[2] || ''])
+  return out
+}
+function numberMismatch(claim, evidence) {
+  const c = numberUnits(claim), e = numberUnits(evidence)
+  if (c.length === 0 || e.length === 0) return false
+  for (const [n, unit] of c) {
+    if (!unit || e.some(([en, eu]) => en === n && eu === unit)) continue
+    // same unit in the evidence but never with this number: a changed value
+    if (e.some(([, eu]) => eu === unit)) return true
+  }
+  return false
+}
+function evidenceClauses(evidence) {
+  return String(evidence || '').split(/(?<=[.!?])\s+/).flatMap((sent) => [sent, ...splitClauses(sent)]).filter(Boolean)
+}
+export function claimContradictsEvidence(claim, evidence) {
+  if (!normalize(claim) || !normalize(evidence)) return null
+  if (numberMismatch(claim, evidence)) return 'number differs from evidence'
+  const topic = topicWords(claim)
+  if (topic.size === 0) return null
+  const pol = polarityOf(claim)
+  let opposed = false, agreed = false, differing = false, matching = false
+  for (const cl of evidenceClauses(evidence)) {
+    const t = topicWords(cl)
+    let inside = 0
+    for (const w of topic) if (t.has(w)) inside += 1
+    if (inside / topic.size < 0.75) {
+      // a quantifier / date word is exactly what may differ: judge the subject without them
+      const core = topicSansWords(claim, MEANING_WORDS)
+      const tc = topicSansWords(cl, MEANING_WORDS)
+      let ci = 0
+      for (const w of core) if (tc.has(w)) ci += 1
+      if (core.size === 0 || ci / core.size < 0.75 || !meaningDiffers(claim, cl, true)) continue
+      differing = true
+      continue
+    }
+    if (polarityOf(cl) === pol) agreed = true
+    else opposed = true
+    if (rolesReversed(claim, cl)) return 'roles reversed relative to evidence'
+    if (meaningDiffers(claim, cl, true)) differing = true
+    else matching = true
+  }
+  if (differing && !matching) return 'quantifier, condition or date differs from evidence'
+  if (opposed && !agreed) return 'polarity opposes evidence'
+  return null
+}
+
+// EVIDENCE RELEVANCE (audit R05): a quote that exists and does not contradict
+// the claim can still be irrelevant ("ten million dollars in cash" citing "The
+// office has blue chairs"). Content-word overlap (stemmed, stopwords removed)
+// must reach 50% of the claim's key terms, and every number / mid-sentence
+// capitalised name in the claim must appear in the evidence.
+const RELEVANCE_MIN_OVERLAP = 0.5
+const RELEVANCE_STOPWORDS = new Set(('a an the and or but nor of to in on at by for from with without into onto over under about as is are was were be been being am '
+  + 'it its this that these those there their they them we our us you your he she his her i my has have had having do does did will would shall should may might can could '
+  + 'must not no never also just very than then so such per via within all any each every some more most other only same own too if when while which who whom whose what where why how').split(' '))
+const NUMBER_WORDS = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90, hundred: 100, thousand: 1000, million: 1e6, billion: 1e9 }
+function stemWord(w) {
+  let t = w
+  if (t.length > 4 && t.endsWith('ies')) t = `${t.slice(0, -3)}y`
+  else if (t.length > 4) t = t.replace(/(ing|ed|es|s)$/, '')
+  if (t.length > 4) t = t.replace(/e$/, '')
+  return t
+}
+function relevanceTerms(str) {
+  const out = new Set()
+  for (const raw of String(str || '').toLowerCase().replace(/(\d),(\d{3})/g, '$1$2').split(/[^a-z0-9.]+/)) {
+    const w = raw.replace(/^\.+|\.+$/g, '')
+    if (!w || RELEVANCE_STOPWORDS.has(w)) continue
+    out.add(w in NUMBER_WORDS ? String(NUMBER_WORDS[w]) : stemWord(w))
+  }
+  return out
+}
+/** Returns 'evidence_unrelated' when `evidence` cannot be what supports `claim`, else null. */
+export function evidenceRelevanceVerdict(claim, evidence) {
+  const c = relevanceTerms(claim)
+  if (c.size === 0) return null
+  const e = relevanceTerms(evidence)
+  let hit = 0
+  for (const t of c) if (e.has(t)) hit += 1
+  if (hit / c.size < RELEVANCE_MIN_OVERLAP) return 'evidence_unrelated'
+  const must = []
+  for (const t of c) if (/^\d/.test(t)) must.push(t)
+  const text = String(claim || '')
+  for (const m of text.matchAll(/(?<=[a-z0-9,;:]\s)([A-Z][\w-]{2,})/g)) must.push(stemWord(m[1].toLowerCase()))
+  for (const t of must) if (!e.has(t)) return 'evidence_unrelated'
+  return null
+}
+
+async function evidenceContradiction(claim, deps, orgId) {
+  const det = claimContradictsEvidence(claim.content, claim.evidence)
+  if (det) return det
+  if (!isSemanticDedupEnabled()) return null
+  try {
+    const d = resolveDeps(deps)
+    if (await llmSaysContradiction(claim.content, claim.evidence, d, orgId)) return 'semantic check: contradicts evidence'
+  } catch { /* fail safe: keep the deterministic verdict (accept) */ }
+  return null
 }
 
 // -----------------------------------------------------------------------------
@@ -697,6 +920,43 @@ async function findSemanticDuplicate(orgId, claimContent, candidates, deps) {
 // specific existing memory id.
 // -----------------------------------------------------------------------------
 
+const CORROBORATION_CONFIDENCE_BUMP = 0.02
+const CORROBORATION_CONFIDENCE_CAP = 0.99
+const MAX_CORROBORATING_EVIDENCE = 10
+
+// Audit R07: a duplicate from a NEW source used to be a bare noop and the
+// second source was lost. Append it to the existing belief's metadata via the
+// memory PATCH route (no new row) and nudge confidence. The same source seen
+// again (a held-cursor retry / re-run) stays an idempotent noop.
+async function corroborate(match, claim, sourceNoteId, { fetchImpl, memoryUrl, headers, signal }, extra = {}) {
+  const meta = (match.metadata && typeof match.metadata === 'object') ? match.metadata : {}
+  const known = []
+  for (const sid of [match.source_message_id, ...(Array.isArray(meta.sources) ? meta.sources : [])]) {
+    if (sid && !known.includes(sid)) known.push(sid)
+  }
+  if (!sourceNoteId || known.includes(sourceNoteId)) return { action: 'noop', matchedId: match.id, ...extra }
+  const sources = [...known, sourceNoteId]
+  const evidence = Array.isArray(meta.corroborating_evidence) ? [...meta.corroborating_evidence] : []
+  if (claim.evidence && !evidence.includes(claim.evidence) && evidence.length < MAX_CORROBORATING_EVIDENCE) evidence.push(claim.evidence)
+  const body = {
+    metadata: { ...meta, sources, corroboration_count: sources.length, corroborating_evidence: evidence, last_corroborated_at: new Date().toISOString() }
+  }
+  if (typeof match.confidence === 'number') {
+    body.confidence = Math.min(CORROBORATION_CONFIDENCE_CAP, Math.max(match.confidence, match.confidence + CORROBORATION_CONFIDENCE_BUMP))
+  }
+  const res = await fetchImpl(`${memoryUrl}/api/memory/${encodeURIComponent(match.id)}`, {
+    method: 'PATCH',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: signal()
+  })
+  if (!res.ok) {
+    const bodyText = await res.text().catch(() => '')
+    return { action: 'error', error: `corroborate HTTP ${res.status}${bodyText ? `: ${bodyText.slice(0, 200)}` : ''}` }
+  }
+  return { action: 'corroborated', matchedId: match.id, sources: sources.length, ...extra }
+}
+
 /**
  * @param {string} orgId
  * @param {string|null} ownerUserId
@@ -745,7 +1005,7 @@ export async function writeBelief(orgId, ownerUserId, claim, sourceNoteId, deps 
     if (!contradicted) {
       const match = results.find((m) => isNearDuplicate(claim.content, m.content))
       if (match) {
-        return { action: 'noop', matchedId: match.id }
+        return corroborate(match, claim, sourceNoteId, { fetchImpl, memoryUrl, headers, signal })
       }
     }
 
@@ -776,14 +1036,14 @@ export async function writeBelief(orgId, ownerUserId, claim, sourceNoteId, deps 
       const semanticMatch = semanticPool.length > 0 ? await findSemanticDuplicate(orgId, claim.content, semanticPool, resolved) : null
       if (semanticMatch) {
         const other = semanticPool.find((m) => m.id === semanticMatch.id)
-        if (other && polarityOf(claim.content) !== polarityOf(other.content)) {
+        if (other && (polarityOf(claim.content) !== polarityOf(other.content) || meaningDiffers(claim.content, other.content))) {
           contradicted = other
           contradictionVia = 'semantic'
         } else if (other && await llmSaysContradiction(claim.content, other.content, resolved, orgId)) {
           contradicted = other
           contradictionVia = 'llm'
         } else {
-          return { action: 'noop', matchedId: semanticMatch.id, via: 'semantic' }
+          return corroborate(other || semanticMatch, claim, sourceNoteId, { fetchImpl, memoryUrl, headers, signal }, { via: 'semantic' })
         }
       }
     }
@@ -991,7 +1251,7 @@ export async function consolidateSlice(orgId, { scope, ownerUserId = null, dryRu
           }
           if (result.action === 'add') beliefsWritten += 1
           else if (result.action === 'supersede') { beliefsWritten += 1; beliefsSuperseded += 1 }
-          else if (result.action === 'noop') beliefsDeduped += 1
+          else if (result.action === 'noop' || result.action === 'corroborated') beliefsDeduped += 1
           else {
             // Memory search/create/consolidate failure: says nothing about the
             // note, so it is an infra failure (never toward retirement). Hold

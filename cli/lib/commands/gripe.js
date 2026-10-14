@@ -33,104 +33,129 @@ export function registerGripeCommands(program, { client, auth }) {
     .argument('<complaint...>', 'the gripe, e.g. "sidebar tooltip clips on resize"')
     .option('--repo <owner/name>', 'target repo (GRIPE defaults sensibly when omitted)')
     .option('--label <label>', 'issue label, e.g. bug, idea, fleet')
+    .option('--public', 'confirm filing to a PUBLIC repo (asks y/N; refused if text has internal hostnames/paths)')
     .option('--yes', 'skip the confirmation step and let GRIPE file it directly')
     .action(async (complaintParts, options) => {
       auth.requireAuth();
       const complaint = complaintParts.join(' ').trim();
       if (!complaint) throw new Error('say what is wrong: quox gripe "the thing that is broken"');
 
-      // GRIPE's whole discipline is speed: it does not investigate, it files.
-      // So the prompt states everything up front rather than inviting a
-      // back-and-forth the terminal is a bad place for.
-      const parts = [`File this gripe: ${complaint}`];
-      if (options.repo) parts.push(`Repo: ${options.repo}.`);
-      if (options.label) parts.push(`Label: ${options.label}.`);
-      if (options.yes) parts.push('File it now without asking me to confirm.');
-      else parts.push('Confirm the repo, label and title with me before filing.');
-
-      printEvent(glyphLine('quox', 'filing gripe via GRIPE'));
-
-      const ep = resolveEndpoint('chat.claude');
-      const body = { prompt: parts.join(' '), selected_agent: 'gripe' };
-      // The collector tracks which tools ran PER caller-supplied session_id;
-      // sending none meant tools_used always came back [] and classification
-      // fell back to parsing prose (DEVSUITE-GRIPE phase 5). One id per run.
-      body.session_id = `GRIPE_CLI_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       const orgId = resolveOrgId(auth, program);
-      if (orgId) body.org_id = orgId;
-
-      const data = await client.post(ep.path, { service: ep.service, body, timeout: 120000 });
-      const response = data.result || data.response || data.text || '';
+      if (options.public) {
+        // QUOXON-PRIVACY: public repos only via the deterministic path with a
+        // human y/N; the GRIPE agent can never confirm a public filing.
+        if (!options.repo) throw new Error('--public needs an explicit --repo <name>');
+        const r = await fileDeterministically({ client, complaint, options, orgId, confirmPublic: promptConfirmPublic });
+        if (!r.filed) process.exitCode = 1;
+        return;
+      }
+      printEvent(glyphLine('quox', 'filing gripe via GRIPE'));
+      const data = await askGripe({ client, complaint, repo: options.repo, label: options.label, yes: !!options.yes, orgId });
 
       if (program.opts().output === 'json') {
         formatDetail(data, { format: 'json' });
         return;
       }
 
-      // tools_used is the collector's own record of which tools ran. Passing it
-      // is what stops the outcome from depending on how the agent phrased its
-      // reply. Absent (older collector), classification falls back to prose.
-      const toolsUsed = Array.isArray(data.tools_used) ? data.tools_used : null;
-      const outcome = classifyGripeResponse(response, { assumedYes: !!options.yes, toolsUsed });
-
-      // quox#668: with --yes, a non-filing agent run is followed by the
-      // deterministic file. Printing the agent's prose first ("no tool, cannot
-      // file") right above "issue created" contradicted the real outcome. In
-      // that case the agent's reply is superseded, so say so instead of
-      // echoing a claim the next lines disprove.
-      const deterministicNext = !!options.yes
-        && ['no-connector', 'awaiting-confirm', 'not-filed'].some((k) => outcome.kind === k || outcome.hint === k);
+      const r = await settleGripe({ client, data, complaint, options, orgId });
       console.log('');
-      if (deterministicNext) {
-        printInfo('GRIPE agent did not file this itself; its reply is superseded by the direct filing below.');
-      } else {
-        console.log(response || '(no response)');
-      }
+      if (r.superseded) printInfo(SUPERSEDED_MESSAGE);
+      else console.log(r.response || '(no response)');
       console.log('');
-
-      if (outcome.kind === 'filed') {
-        printEvent(events.created('quox', 'issue', outcome.url));
-      } else if (outcome.kind === 'filed-unknown') {
-        printWarning(
-          'GRIPE called github_create_issue but no issue link came back. Check the repo before re-running: '
-          + 'the issue may exist, and a re-run would file it twice.'
-        );
-      } else if (outcome.hint === 'no-connector' || outcome.kind === 'no-connector') {
-        // quox#621: "no connector" from the AGENT is not proof the org lacks
-        // one. The agent's tool-resolution can transiently fail (the gripe
-        // filed on an immediate retry, same org) or the github_create_issue
-        // tool may not be wired to this agent (#581) — while a healthy github
-        // credential sits in the vault. The deterministic path resolves that
-        // credential server-side over a DIFFERENT route (the /github/issues
-        // proxy, not the agent tool), so with --yes we try it before believing
-        // the agent: if a connector really exists this files it (turning a
-        // silent-loss-then-retry into a first-try success); only if the vault
-        // path ALSO cannot file is the connector genuinely missing, and only
-        // then do we send the user to Settings.
-        if (options.yes) {
-          const det = await fileDeterministically({ client, complaint, options, orgId });
-          if (!det?.filed) printWarning(NO_CONNECTOR_MESSAGE);
-        } else {
-          printWarning(NO_CONNECTOR_MESSAGE);
-        }
-      } else if (outcome.hint === 'auth-unavailable' || outcome.kind === 'auth-unavailable') {
-        printWarning(AUTH_UNAVAILABLE_MESSAGE);
-      } else if (outcome.hint === 'awaiting-confirm' || outcome.kind === 'awaiting-confirm') {
-        if (options.yes) {
-          await fileDeterministically({ client, complaint, options, orgId });
-        } else {
-          printInfo('GRIPE is asking you to confirm. Re-run with --yes to file it directly.');
-        }
-      } else if (outcome.kind === 'not-filed') {
-        if (options.yes) {
-          await fileDeterministically({ client, complaint, options, orgId });
-        } else {
-          printWarning('Not filed: github_create_issue was never called on this run.');
-        }
-      } else {
-        printWarning('No issue URL came back, so treat this as NOT filed until you can see the issue.');
+      for (const n of r.notes) {
+        if (n.kind === 'created') printEvent(events.created('quox', 'issue', n.url));
+        else if (n.kind === 'info') printInfo(n.text);
+        else printWarning(n.text);
       }
     });
+}
+
+const SUPERSEDED_MESSAGE = 'GRIPE agent did not file this itself; its reply is superseded by the direct filing below.';
+
+/**
+ * Ask the GRIPE agent to file `complaint` over the governed chat route. -> the raw chat response.
+ * Shared by `quox gripe` and the quox client's /gripe, so there is one filing path.
+ */
+export async function askGripe({ client, complaint, repo, label, yes = false, orgId = null }) {
+  // GRIPE's whole discipline is speed: it does not investigate, it files.
+  // So the prompt states everything up front rather than inviting a
+  // back-and-forth the terminal is a bad place for.
+  const parts = [`File this gripe: ${complaint}`];
+  if (repo) parts.push(`Repo: ${repo}.`);
+  if (label) parts.push(`Label: ${label}.`);
+  if (yes) parts.push('File it now without asking me to confirm.');
+  else parts.push('Confirm the repo, label and title with me before filing.');
+  const ep = resolveEndpoint('chat.claude');
+  const body = { prompt: parts.join(' '), selected_agent: 'gripe' };
+  // The collector tracks which tools ran PER caller-supplied session_id;
+  // sending none meant tools_used always came back [] and classification
+  // fell back to parsing prose (DEVSUITE-GRIPE phase 5). One id per run.
+  body.session_id = `GRIPE_CLI_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  if (orgId) body.org_id = orgId;
+  return client.post(ep.path, { service: ep.service, body, timeout: 120000 });
+}
+
+/**
+ * Decide the outcome of a GRIPE run and, with yes, run the deterministic file when the agent did not.
+ * -> { response, outcome, superseded, url, notes: [{ kind: 'created', url } | { kind: 'info'|'warn', text }] }.
+ * Prints nothing: the caller renders the notes (console for `quox gripe`, history lines for /gripe).
+ */
+export async function settleGripe({ client, data, complaint, options = {}, orgId = null }) {
+  const response = data?.result || data?.response || data?.text || '';
+  const yes = !!options.yes;
+  // tools_used is the collector's own record of which tools ran. Passing it
+  // is what stops the outcome from depending on how the agent phrased its
+  // reply. Absent (older collector), classification falls back to prose.
+  const toolsUsed = Array.isArray(data?.tools_used) ? data.tools_used : null;
+  const outcome = classifyGripeResponse(response, { assumedYes: yes, toolsUsed });
+  // quox#668: with --yes, a non-filing agent run is followed by the
+  // deterministic file. Printing the agent's prose first ("no tool, cannot
+  // file") right above "issue created" contradicted the real outcome. In
+  // that case the agent's reply is superseded, so say so instead of
+  // echoing a claim the next lines disprove.
+  const superseded = yes && ['no-connector', 'awaiting-confirm', 'not-filed'].some((k) => outcome.kind === k || outcome.hint === k);
+  const notes = [];
+  let url = null;
+  const det = async () => {
+    const r = await fileDeterministically({ client, complaint, options, orgId, quiet: true });
+    notes.push(...r.notes); if (r.url) url = r.url;
+    return r;
+  };
+  if (outcome.kind === 'filed') {
+    url = outcome.url; notes.push({ kind: 'created', url });
+  } else if (outcome.kind === 'filed-unknown') {
+    notes.push({ kind: 'warn', text: 'GRIPE called github_create_issue but no issue link came back. Check the repo before re-running: '
+      + 'the issue may exist, and a re-run would file it twice.' });
+  } else if (outcome.hint === 'no-connector' || outcome.kind === 'no-connector') {
+    // quox#621: "no connector" from the AGENT is not proof the org lacks
+    // one. The agent's tool-resolution can transiently fail (the gripe
+    // filed on an immediate retry, same org) or the github_create_issue
+    // tool may not be wired to this agent (#581), while a healthy github
+    // credential sits in the vault. The deterministic path resolves that
+    // credential server-side over a DIFFERENT route (the /github/issues
+    // proxy, not the agent tool), so with --yes we try it before believing
+    // the agent: if a connector really exists this files it (turning a
+    // silent-loss-then-retry into a first-try success); only if the vault
+    // path ALSO cannot file is the connector genuinely missing, and only
+    // then do we send the user to Settings.
+    if (yes) {
+      const r = await det();
+      if (!r.filed) notes.push({ kind: 'warn', text: NO_CONNECTOR_MESSAGE });
+    } else {
+      notes.push({ kind: 'warn', text: NO_CONNECTOR_MESSAGE });
+    }
+  } else if (outcome.hint === 'auth-unavailable' || outcome.kind === 'auth-unavailable') {
+    notes.push({ kind: 'warn', text: AUTH_UNAVAILABLE_MESSAGE });
+  } else if (outcome.hint === 'awaiting-confirm' || outcome.kind === 'awaiting-confirm') {
+    if (yes) await det();
+    else notes.push({ kind: 'info', text: 'GRIPE is asking you to confirm. Re-run with --yes to file it directly.' });
+  } else if (outcome.kind === 'not-filed') {
+    if (yes) await det();
+    else notes.push({ kind: 'warn', text: 'Not filed: github_create_issue was never called on this run.' });
+  } else {
+    notes.push({ kind: 'warn', text: 'No issue URL came back, so treat this as NOT filed until you can see the issue.' });
+  }
+  return { response, outcome, superseded, url, notes };
 }
 
 // quox#478: --yes must GUARANTEE a headless file, not merely ask the model
@@ -146,9 +171,26 @@ export function registerGripeCommands(program, { client, auth }) {
 // also cannot file. Still NOT auto-run after auth-unavailable (a 403/429/503
 // is a platform outage the proxy would hit too; retrying shortly is the fix).
 // Returns { filed, url?, error? } so the caller can decide the message.
-export async function fileDeterministically({ client, complaint, options, orgId }) {
+async function promptConfirmPublic(repo) {
+  if (!process.stdin.isTTY) return false;
+  const { createInterface } = await import('node:readline/promises');
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const a = await rl.question(`${repo} is PUBLIC. This issue will be world-readable. File it? [y/N] `);
+    return /^y(es)?$/i.test(a.trim());
+  } finally { rl.close(); }
+}
+
+export async function fileDeterministically({ client, complaint, options, orgId, quiet = false, confirmPublic = null }) {
+  const notes = [];
+  const say = (n) => { notes.push(n); if (quiet) return; if (n.kind === 'created') printEvent(events.created('quox', 'issue', n.url)); else if (n.kind === 'info') printInfo(n.text); else printWarning(n.text); };
   const repoArg = options.repo || 'quoxai/quox';
   const [owner, repo] = repoArg.includes('/') ? repoArg.split('/', 2) : ['quoxai', repoArg];
+  let confirmed = false;
+  if (options.public) {
+    confirmed = typeof confirmPublic === 'function' ? !!(await confirmPublic(`${owner}/${repo}`)) : false;
+    if (!confirmed) { say({ kind: 'warn', text: 'Not filed: public filing was not confirmed.' }); return { filed: false, notes }; }
+  }
   const firstLine = complaint.split('\n')[0];
   const title = firstLine.length > 80 ? `${firstLine.slice(0, 77)}...` : firstLine;
   const ep = resolveEndpoint('github.issue.create');
@@ -162,19 +204,20 @@ export async function fileDeterministically({ client, complaint, options, orgId 
         body: `## Gripe\n${complaint}\n\n## Context\n- Filed deterministically by \`quox gripe --yes\` (the GRIPE agent run did not file; quox#478 guarantee path)\n- Priority: minor / off-task observation\n\n## Suggested Action\nInvestigate and fix if confirmed.`,
         labels: [options.label || 'fleet/qa'],
         ...(orgId ? { org_id: orgId } : {}),
+        ...(confirmed ? { confirm_public: true } : {}),
       },
     });
     const url = data?.issue?.html_url || data?.issue?.url || null;
     if (url) {
-      printEvent(events.created('quox', 'issue', url));
-      printInfo('Filed via the deterministic path (the GRIPE agent run did not file; --yes now guarantees the file).');
-      return { filed: true, url };
+      say({ kind: 'created', url });
+      say({ kind: 'info', text: 'Filed via the deterministic path (the GRIPE agent run did not file; --yes now guarantees the file).' });
+      return { filed: true, url, notes };
     }
-    printWarning('Deterministic file returned no issue URL; treat as NOT filed until you can see the issue.');
-    return { filed: false };
+    say({ kind: 'warn', text: 'Deterministic file returned no issue URL; treat as NOT filed until you can see the issue.' });
+    return { filed: false, notes };
   } catch (err) {
-    printWarning(`Not filed: the GRIPE run did not file and the deterministic fallback failed too (${err.message}).`);
-    return { filed: false, error: err.message };
+    say({ kind: 'warn', text: `Not filed: the GRIPE run did not file and the deterministic fallback failed too (${err.message}).` });
+    return { filed: false, error: err.message, notes };
   }
 }
 

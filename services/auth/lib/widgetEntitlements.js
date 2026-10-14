@@ -39,7 +39,7 @@ const ENTITLEMENTS = {
   standard: {
     widget_count_cap: -1,
     conversations_per_month_cap: -1,
-    knowledge_mb_cap: 100,
+    knowledge_mb_cap: 1000, // 1 GB decimal; collector KNOWLEDGE_STORAGE_LIMITS_BYTES enforces (pinned by test)
     tool_calls_per_day_cap: 500,
     simulation_runs_cap: 100,
     tools_enabled: true,
@@ -57,7 +57,7 @@ const ENTITLEMENTS = {
   pro: {
     widget_count_cap: -1,
     conversations_per_month_cap: -1,
-    knowledge_mb_cap: 500,
+    knowledge_mb_cap: 5000, // 5 GB decimal; collector KNOWLEDGE_STORAGE_LIMITS_BYTES enforces (pinned by test)
     tool_calls_per_day_cap: 5000,
     simulation_runs_cap: 1000,
     tools_enabled: true,

@@ -12,7 +12,24 @@ const TIMEOUT_MS = 10000
 /**
  * codebase_query — search the indexed codebase via RepoBrain
  */
-async function codebaseQuery(input) {
+/**
+ * QUOXON-ADV: RepoBrain's "Unknown targets: x. Available: a, b, c" 400 -> the real names.
+ * Closest = case-insensitive exact, else the one repo whose hyphen-words contain the guess
+ * ("dashboard" -> "quox-dashboard"). Ambiguous or no match -> null (never guess between two).
+ */
+function parseUnknownTarget(body) {
+  const m = /Unknown targets?:[^.]*\.\s*Available:\s*([^"}\n]+)/i.exec(body || '')
+  return m ? m[1].split(',').map(x => x.trim()).filter(Boolean) : null
+}
+function closestTarget(guess, available) {
+  const g = String(guess || '').toLowerCase()
+  const exact = available.filter(a => a.toLowerCase() === g)
+  if (exact.length) return exact[0]
+  const word = available.filter(a => a.toLowerCase().split(/[-_]/).includes(g))
+  return word.length === 1 ? word[0] : null
+}
+
+async function codebaseQuery(input, _retried = false) {
   const question = input.question
   const target = input.target || 'quox-dashboard'
   const maxSnippets = Math.min(parseInt(input.max_snippets) || 4, 10)
@@ -39,6 +56,12 @@ async function codebaseQuery(input) {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => '')
+      const available = res.status === 400 ? parseUnknownTarget(errText) : null
+      if (available) {
+        const near = !_retried && closestTarget(target, available)
+        if (near && near !== target) return codebaseQuery({ ...input, target: near }, true)
+        return { success: false, error: `Unknown codebase target "${target}". Available targets: ${available.join(', ')}` }
+      }
       return {
         success: false,
         error: `RepoBrain returned ${res.status}: ${errText.substring(0, 200)}`,

@@ -12,7 +12,7 @@ import { assertDatabaseConfigured, assertReplayOnlyStoreDurable } from './server
 import { runMigrationsFromEnv } from './migrations/run-migrations.js';
 import { createApp } from './api/index.js';
 import type { SkillScoreboardReader } from './api/routes/quox-skills.js';
-import { listSkillScoreboard, readSkillScoreboard } from './store/skill-scoreboard.js';
+import { listSkillScoreboard, readSkillScoreboard, type ScoreboardOrgScope } from './store/skill-scoreboard.js';
 import { SYSTEM_SCOPE } from './api/middleware/org-scope.js';
 import { envelopes, Intents } from './core/envelope.js';
 import { createWorkflowStore, createInMemoryWorkflowStore } from './api/stores/workflow-store.js';
@@ -903,7 +903,7 @@ async function main() {
     ? (() => {
         const pool = new PgPool({ connectionString: dbUrl });
         return {
-          readAll: () => listSkillScoreboard(pool),
+          readAll: (scope: ScoreboardOrgScope) => listSkillScoreboard(pool, scope),
           readOne: (skillId: string, orgId?: string) => readSkillScoreboard(pool, skillId, orgId ?? SYSTEM_SCOPE),
         };
       })()
@@ -940,7 +940,7 @@ async function main() {
     evidenceStore,
     envelopeStore,
     scoreboard: skillScoreboardReader
-      ? { list: () => skillScoreboardReader.readAll() }
+      ? { list: () => skillScoreboardReader.readAll(SYSTEM_SCOPE) } // trusted system job: all orgs
       : undefined,
   });
 

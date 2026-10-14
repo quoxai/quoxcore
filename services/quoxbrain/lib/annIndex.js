@@ -128,15 +128,32 @@ async function listCollections(force = false) {
   return knownCollections
 }
 
+// Collections created before occurred_ts existed get its index once per process
+// (Qdrant index PUT is idempotent). Best effort: a failure only means the date
+// range runs unindexed, never a failed write.
+const occurredIndexEnsured = new Set()
+async function ensureOccurredIndex(name) {
+  if (occurredIndexEnsured.has(name)) return
+  occurredIndexEnsured.add(name)
+  try {
+    await getClient().request('PUT', `/collections/${name}/index`, { field_name: 'occurred_ts', field_schema: 'integer' })
+  } catch (err) {
+    console.warn(`[ann] occurred_ts index on ${name} not created: ${err.message}`)
+  }
+}
+
 async function ensureCollection(model, dim) {
   const name = collectionName(model)
-  if (knownCollections.has(name)) return name
+  if (knownCollections.has(name)) { await ensureOccurredIndex(name); return name }
   await listCollections(true)
+  if (knownCollections.has(name)) await ensureOccurredIndex(name)
   if (!knownCollections.has(name)) {
     await getClient().request('PUT', `/collections/${name}`, { vectors: { size: dim, distance: 'Cosine' } })
     for (const key of ['chunk_id', ...PAYLOAD_KEYS]) {
       await getClient().request('PUT', `/collections/${name}/index`, { field_name: key, field_schema: 'keyword' })
     }
+    await getClient().request('PUT', `/collections/${name}/index`, { field_name: 'occurred_ts', field_schema: 'integer' })
+    occurredIndexEnsured.add(name)
     knownCollections.add(name)
   }
   return name
@@ -262,7 +279,7 @@ function matchAny(key, values) {
 }
 
 /** Builds the qdrant filter: the scopeClause visibility union plus facets. */
-export function buildFilter({ orgId, userId = null, scope = null, vaultIds, kinds, sourceTypes, scopes } = {}) {
+export function buildFilter({ orgId, userId = null, scope = null, vaultIds, kinds, sourceTypes, scopes, excludeKinds, excludeVaultIds, since, until } = {}) {
   const visibility = [
     { must: [{ key: 'scope', match: { value: 'org' } }, { key: 'org_id', match: { value: orgId } }] },
     { key: 'scope', match: { value: 'shared' } }
@@ -274,7 +291,24 @@ export function buildFilter({ orgId, userId = null, scope = null, vaultIds, kind
   if (Array.isArray(kinds) && kinds.length) must.push(matchAny('kind', kinds))
   if (Array.isArray(sourceTypes) && sourceTypes.length) must.push(matchAny('source_type', sourceTypes))
   if (Array.isArray(scopes) && scopes.length) must.push(matchAny('scope', scopes))
-  return { must }
+  // Date facet: range on occurred_ts (epoch seconds of COALESCE(occurred_at, updated_at)).
+  // Points written before this payload existed have no occurred_ts, so they
+  // are admitted by is_empty and judged by the SQL post-filter in the caller
+  // (which is why search() also widens its limit when a date facet is set).
+  const sinceTs = since ? Date.parse(since) / 1000 : NaN
+  const untilTs = until ? Date.parse(until) / 1000 : NaN
+  if (Number.isFinite(sinceTs) || Number.isFinite(untilTs)) {
+    const range = {}
+    if (Number.isFinite(sinceTs)) range.gte = sinceTs
+    if (Number.isFinite(untilTs)) range.lte = untilTs
+    must.push({ should: [{ key: 'occurred_ts', range }, { is_empty: { key: 'occurred_ts' } }] })
+  }
+  const filter = { must }
+  const mustNot = []
+  if (Array.isArray(excludeVaultIds) && excludeVaultIds.length) mustNot.push(matchAny('vault_id', excludeVaultIds))
+  if (Array.isArray(excludeKinds) && excludeKinds.length) mustNot.push(matchAny('kind', excludeKinds))
+  if (mustNot.length) filter.must_not = mustNot
+  return filter
 }
 
 /**
@@ -282,6 +316,9 @@ export function buildFilter({ orgId, userId = null, scope = null, vaultIds, kind
  * collection yields []. Throws AnnError when qdrant fails.
  */
 export async function search({ model, vector, limit = 30, ...filterOpts }) {
+  // Widen for date facets: legacy points without occurred_ts pass the filter and
+  // may be dropped by the caller's post-filter, so ask for more candidates.
+  if (filterOpts.since || filterOpts.until) limit = Math.min(limit * 2, 400)
   const name = collectionName(model)
   const cols = await listCollections()
   if (!cols.has(name)) { noteOk(); return [] }
@@ -299,7 +336,8 @@ export async function search({ model, vector, limit = 30, ...filterOpts }) {
 const ROW_SQL = `
   SELECT ce.rowid AS rid, ce.chunk_id AS chunkId, ce.model AS model, ce.vector AS vector,
          nc.org_id AS org_id, nc.scope AS scope, nc.owner_user_id AS owner_user_id, nc.vault_id AS vault_id,
-         n.kind AS kind, n.source_type AS source_type
+         n.kind AS kind, n.source_type AS source_type,
+         CAST(strftime('%s', COALESCE(n.occurred_at, n.updated_at)) AS INTEGER) AS occurred_ts
   FROM chunk_embeddings ce
   JOIN note_chunks nc ON nc.id = ce.chunk_id
   JOIN notes n ON n.id = nc.note_id`
@@ -309,6 +347,7 @@ function toPoint(r) {
   const vector = new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength))
   const payload = {}
   for (const k of PAYLOAD_KEYS) payload[k] = r[k] ?? ''
+  if (Number.isFinite(r.occurred_ts)) payload.occurred_ts = r.occurred_ts
   return { chunkId: r.chunkId, model: r.model, vector, payload }
 }
 

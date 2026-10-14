@@ -28,7 +28,9 @@ router.use(authenticate());
 const CURRENT_CONSENT_VERSION = '1.0';
 
 // Third-party AI providers that require consent
-const THIRD_PARTY_PROVIDERS = ['openai', 'anthropic', 'perplexity', 'gemini', 'google'];
+// CLI-QUOX B5: plus the hosted OpenAI-compatible presets (openai_compatible = a custom hosted
+// endpoint). Keep in step with collector lib/consentVerification.js.
+const THIRD_PARTY_PROVIDERS = ['openai', 'anthropic', 'perplexity', 'gemini', 'google', 'openrouter', 'huggingface', 'groq', 'together', 'openai_compatible'];
 
 function safeParseConsentProviderJson(value) {
     try {

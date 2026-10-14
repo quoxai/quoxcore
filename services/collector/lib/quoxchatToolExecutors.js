@@ -114,6 +114,8 @@ async function leadCapture({ widget, input, context }) {
         // never tell the visitor the team was told when it was not.
         message: data.notified === false
           ? `Your details are saved${_leadRef(data.id) ? ` (reference ${_leadRef(data.id)})` : ''} and the team will see them in their records, but I could not alert anyone right away, so a reply may take a little longer.`
+          : data.alerts_configured === false
+            ? `Thanks, your details are saved${_leadRef(data.id) ? ` (reference ${_leadRef(data.id)})` : ''}. The team will see them on their desk and get in touch when they pick them up.`
           : data.duplicate
             ? 'Thanks, we already have your details and will be in touch.'
             : `Thanks! We\'ve got your details${_leadRef(data.id) ? ` (reference ${_leadRef(data.id)})` : ''} and will be in touch shortly.`,
@@ -130,15 +132,38 @@ async function leadCapture({ widget, input, context }) {
 // note it feeds into downstream.
 const HANDOFF_SUMMARY_MAX_LEN = 500;
 
+const EMAIL_IN_TEXT_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/;
+// Wave 8: an address the visitor typed in this or a recent message.
+function emailFromVisitorMessages(msgs) {
+  for (const m of [...(Array.isArray(msgs) ? msgs : [])].reverse()) {
+    const hit = typeof m === 'string' ? m.match(EMAIL_IN_TEXT_RE) : null;
+    if (hit) return hit[0];
+  }
+  return null;
+}
+// Wave 8: the model must not make up who the visitor is. Names come from
+// identified_name only, so a name the summary attaches to the visitor is dropped.
+function scrubInventedName(summary, identifiedName) {
+  if (!summary) return summary;
+  const known = String(identifiedName || '').trim().toLowerCase();
+  const NAME = "[A-Z][a-z'-]+(?:\\s+[A-Z][a-z'-]+){0,2}";
+  return summary
+    .replace(new RegExp(`\\b(?:visitor|customer|client|user)?\\s*name\\s*(?:is|:)\\s*(${NAME})\\.?\\s*`, 'gi'), (m, n) => (known && n.toLowerCase() === known ? m : ''))
+    .replace(new RegExp(`\\b(Visitor|Customer|Client|User)\\s+(${NAME})(?=\\s+(?:is|was|has|wants|asked|asks|would|needs|called|enquired|inquired|said)\\b)`, 'g'), (m, role, n) => (known && n.toLowerCase() === known ? m : `The ${role}`))
+    .replace(/\s{2,}/g, ' ').trim();
+}
+
 async function humanHandoff({ widget, input, context }) {
   if (!context?.conversation_id) {
     // Codex enum 2 #30: never confirm a handoff that has no durable
     // conversation to attach to. No handoff API has run at this point.
     return { ok: false, error: 'no_conversation', message: "I couldn't hand you over to the team just now because your conversation hasn't been saved yet. Please try again in a moment." };
   }
-  const summary = typeof input?.summary === 'string' && input.summary.trim()
+  const rawSummary = typeof input?.summary === 'string' && input.summary.trim()
     ? input.summary.trim().slice(0, HANDOFF_SUMMARY_MAX_LEN)
     : null;
+  const summary = scrubInventedName(rawSummary, typeof context?.identified_name === 'string' ? context.identified_name : '') || null;
+  const typedEmail = emailFromVisitorMessages(context?.visitorMessages);
   try {
     const resp = await authInternalCall(
       `/api/internal/widgets/${encodeURIComponent(widget.id)}/conversations/${encodeURIComponent(context.conversation_id)}/handoff`,
@@ -151,7 +176,7 @@ async function humanHandoff({ widget, input, context }) {
           // handoff so auth can stamp the conversation + personalise the
           // HITL inbox title even when widget_visitors hasn't synced yet.
           visitor_name: (typeof context?.identified_name === 'string' && context.identified_name) || null,
-          visitor_email: (typeof context?.identified_email === 'string' && context.identified_email) || null,
+          visitor_email: (typeof context?.identified_email === 'string' && context.identified_email) || typedEmail || null,
         },
       }
     );
@@ -160,8 +185,15 @@ async function humanHandoff({ widget, input, context }) {
     // Wave 6 D9: never promise a pickup "shortly" when nobody is online.
     const av = context?.availability;
     const nobodyOnline = !!av && (av.human_available === false || av.operator_online === false);
-    const knownEmail = typeof context?.identified_email === 'string' && context.identified_email ? context.identified_email : null;
-    const offlineMsg = `No one is online right now, so I've passed this to the team and ${knownEmail ? `they will get back to you by email at ${knownEmail}` : 'they will get back to you once they are in. Please leave your email address so they can reach you'}.`;
+    const knownEmail = (typeof context?.identified_email === 'string' && context.identified_email) || typedEmail || null;
+    // Wave 12: with no alert channel configured nobody is pinged, so never
+    // promise email contact; the team sees it on their desk and replies when
+    // they pick it up.
+    const noAlerts = data.alerts_configured === false;
+    // QC-BRUTALOOP-W13: no email reply loop exists for widget conversations, so the
+    // desk message promises only "reply here" and that the visitor can come back.
+    const deskMsg = "I've passed this to the team. They will see your message on their desk and reply here in this chat when they pick it up. You can leave this page open or come back to it later.";
+    const offlineMsg = noAlerts ? `No one is online right now. ${deskMsg}` : `No one is online right now, so I've passed this to the team and ${knownEmail ? `they will get back to you by email at ${knownEmail}` : 'they will get back to you once they are in. Please leave your email address so they can reach you'}.`;
     return {
       ok: true,
       result: {
@@ -169,7 +201,7 @@ async function humanHandoff({ widget, input, context }) {
         notified: data.notified !== false,
         priority: data.priority || 'normal',
         message: data.notified === false
-          ? `I've saved your request for a person in the team's conversation records, but I could not alert anyone right away. ${knownEmail ? `They will reply by email at ${knownEmail} when they see it.` : 'Please leave your email address so they can reach you.'}`
+          ? (noAlerts ? `I've saved your request in the team's conversation records. They will see it on their desk and reply here in this chat when they pick it up. You can leave this page open or come back to it later.` : `I've saved your request for a person in the team's conversation records, but I could not alert anyone right away. ${knownEmail ? `They will reply by email at ${knownEmail} when they see it.` : 'Please leave your email address so they can reach you.'}`)
           : nobodyOnline
           ? (summary ? `${offlineMsg} Summary I passed on: ${summary}` : offlineMsg)
           : summary
@@ -1510,8 +1542,44 @@ async function incrementActionUsage(widgetId, visitorId, sideEffecting) {
 
 const DEFAULT_QUOTA_EXHAUSTED_MESSAGE = 'This account has used its monthly allowance of AI-assisted actions. The allowance resets next month, or grows with additional services.';
 
+const DRY_RUN_MESSAGES = {
+  human_handoff: 'Handing you over to a human, one of our team will pick up shortly.',
+  lead_capture: "Thanks, I've passed your details to the team and they will be in touch.",
+  leave_message: "Thanks, I've passed your message to the team.",
+  book_appointment: "I've requested that appointment and the team will confirm it.",
+  book_demo: "I've requested that demo and the team will confirm it.",
+  schedule_demo: "I've requested that demo and the team will confirm it.",
+  create_ticket: "I've opened a ticket and the team will follow up.",
+  email_transcript: "I've emailed you a copy of this conversation.",
+};
+
+// Wave 9: simulation runs (Go live self-test) must never fire real side
+// effects. redirect_url and send_resource are pure relays so they run normally.
+function isDryRunTool(tool) {
+  if (!tool) return false;
+  if (tool.tool_type === 'connector') return isSideEffectingTool(tool);
+  if (tool.tool_type === 'builtin') {
+    const kind = String(tool.builtin_kind || tool.name || '');
+    return isSideEffectingTool(tool) || Object.hasOwn(DRY_RUN_MESSAGES, kind);
+  }
+  return false;
+}
+
 async function executeTool({ widget, tool, input, context }) {
   if (!widget || !tool) return { ok: false, error: 'invalid_invocation' };
+
+  if (context?.simulation === true && isDryRunTool(tool)) {
+    const kind = String(tool.builtin_kind || tool.name || '');
+    return {
+      ok: true,
+      result: {
+        dry_run: true,
+        ...(kind === 'human_handoff' ? { handed_off: true, notified: true, priority: input?.priority || 'normal' } : {}),
+        message: DRY_RUN_MESSAGES[kind] || 'Done, the team has been notified.',
+      },
+      dry_run: true,
+    };
+  }
 
   // QUOXTRUST D4 (complete mediation) — the org GOV-4 governance/safety policy is
   // the SHARED boundary every effect path crosses; the native executeTool choke and
@@ -1542,6 +1610,19 @@ async function executeTool({ widget, tool, input, context }) {
       console.warn(`[quoxchat] org governance check errored for side-effecting tool ${tool?.name || tool?.builtin_kind}; failing closed:`, govErr?.message);
       return { ok: false, error: 'policy_unavailable', message: 'this action could not be authorized right now; please try again shortly' };
     }
+  }
+
+  // QC-BRUTALOOP-W13 — plan-level tool_calls_per_day cap (entitlements). Counts
+  // EVERY tool call per widget per UTC day (in-process, same store as the
+  // side-effect cap). The route injects the plan value as
+  // tool_policies.plan_tool_calls_per_day_cap; absent/<=0 means not enforced.
+  const planToolCap = widget.tool_policies?.plan_tool_calls_per_day_cap;
+  if (Number.isFinite(planToolCap) && planToolCap > 0) {
+    const planKey = `${widget.id}:plan_tool_calls`;
+    if (dailyCapStore.peek(planKey) >= planToolCap) {
+      return { ok: false, error: 'rate_limited', message: `this widget has reached its daily tool-call limit (${planToolCap}); please try again tomorrow` };
+    }
+    dailyCapStore.increment(planKey);
   }
 
   // QCX-6j / QCL-SECURITY P1-5 — policy gate. widget.tool_policies (if

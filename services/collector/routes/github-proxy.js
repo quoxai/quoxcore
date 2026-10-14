@@ -557,6 +557,9 @@ router.post('/issues', async (req, res) => {
     }, {
       agentId: 'github-proxy',
       orgId,
+      // QUOXON-PRIVACY: set only by an authenticated human caller (CLI
+      // `quox gripe --public` after a y/N confirm).
+      humanConfirmedPublic: req.body.confirm_public === true,
       corr: `GHPROXY_ISSUE_${req.user?.id || 'anon'}_${Date.now()}`,
     });
     if (result.success !== true) {

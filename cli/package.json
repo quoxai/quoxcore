@@ -1,11 +1,11 @@
 {
   "name": "quoxcli",
-  "version": "0.1.0",
-  "description": "CLI for QuoxCORE platform — manage agents, workflows, memory, fleet, and more from the terminal",
+  "version": "0.3.0",
+  "description": "Quox: the conversational front door to your self-hosted AI agent control plane",
   "type": "module",
   "bin": {
     "quox": "./bin/quox.js",
-    "quoxcli": "./bin/quox.js"
+    "quoxon": "./bin/quoxon.js"
   },
   "scripts": {
     "start": "node bin/quox.js",
@@ -19,33 +19,56 @@
     "chalk": "^5.4.1",
     "cli-table3": "^0.6.5",
     "commander": "^13.1.0",
-    "figlet": "^1.8.0",
+    "esbuild": "^0.27.3",
     "fullscreen-ink": "^0.1.0",
     "ink": "^6.0.0",
     "inquirer": "^12.4.0",
     "js-yaml": "^4.3.0",
     "jszip": "^3.10.1",
+    "marked": "^15.0.12",
     "ora": "^8.1.1",
-    "react": "^19.0.0",
-    "tsx": "^4.21.0",
-    "ws": "^8.18.0"
+    "react": "^19.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
-    "esbuild": "^0.27.3",
     "ink-testing-library": "^4.0.0",
     "vitest": "^3.0.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20"
   },
   "keywords": [
     "quox",
     "quoxcore",
+    "quoxon",
     "cli",
+    "terminal",
+    "ai-agents",
     "agents",
-    "fleet",
-    "orchestration"
+    "governance",
+    "self-hosted",
+    "mcp"
   ],
-  "license": "UNLICENSED"
+  "license": "SEE LICENSE IN LICENSE",
+  "files": [
+    "bin/",
+    "lib/",
+    "!lib/**/*.test.js",
+    "!lib/**/*.test.jsx",
+    "!lib/**/__tests__/",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/quoxai/quoxcore.git",
+    "directory": "cli"
+  },
+  "homepage": "https://cli.quox.ai",
+  "bugs": {
+    "url": "https://github.com/quoxai/quoxcore/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

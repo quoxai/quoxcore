@@ -98,6 +98,14 @@ function listWords(xs, joiner = 'and') {
   return a.length <= 1 ? a.join('') : `${a.slice(0, -1).join(', ')} ${joiner} ${a[a.length - 1]}`;
 }
 
+// A title is human text. A raw filesystem path (a systemd Description that is a script path, a cwd) is
+// reduced to its basename; the full path stays in the detail layers. (gripe quox#812)
+const PATH_TOKEN = /(^|[\s("'])(~?\/[^\s/"')]+(?:\/[^\s/"')]+)+)/g;
+function looksLikePath(s) { return /^\s*~?\/[^\s/]+\/\S+\s*$/.test(String(s || '')); }
+function humanTitle(s) {
+  return String(s || '').replace(PATH_TOKEN, (_m, pre, p) => pre + p.slice(p.lastIndexOf('/') + 1));
+}
+
 function clip(s, n) {
   if (!s) return '';
   const t = String(s).replace(/\s+/g, ' ').trim();
@@ -244,7 +252,8 @@ const DERIVE = {
     const unit = s.subject.replace(/^unit:(user\/)?/, '');
     const user = s.subject.startsWith('unit:user/');
     const friendly = def.friendly[unit] || {};
-    const label = friendly.name || st.description || unit;
+    const desc = looksLikePath(st.description) ? '' : st.description;
+    const label = friendly.name || desc || unit.replace(/\.service$/, '');
     return {
       unit, user, ctl: user ? 'systemctl --user' : 'sudo systemctl', key: unit.replace(/\.service$/, ''),
       host: st.host || 'this box', usernote: user ? ' (your user services)' : '',
@@ -478,6 +487,7 @@ function buildItem(s, opts = {}) {
   if (typeof legacy.title === 'string' && legacy.title.trim()) { L0 = clip(legacy.title, 300); prov.L0 = 'feed'; }
   if (typeof layers.L0 === 'string' && layers.L0.trim()) { L0 = clip(layers.L0, 300); prov.L0 = 'feed'; }
   for (const l of ls) if (l.field === 'L0' && typeof l.value === 'string' && l.value.trim()) { L0 = clip(l.value, 300); prov.L0 = 'lesson'; applied.add(l.id); }
+  L0 = humanTitle(L0);
   ctx.L0 = L0;
 
   // L1

@@ -16,7 +16,10 @@ export const MODEL_CATALOG = {
         name: 'Anthropic (Claude)',
         vaultType: 'anthropic',
         models: [
-            { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', tier: 'smart', contextWindow: 200000, default: true },
+            { id: 'claude-fable-5-1', name: 'Claude Fable 5.1', tier: 'frontier', contextWindow: 200000 },
+            { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', tier: 'frontier', contextWindow: 200000 },
+            { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5', tier: 'smart', contextWindow: 200000, default: true },
+            { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6 (legacy)', tier: 'smart', contextWindow: 200000 },
             { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', tier: 'frontier', contextWindow: 200000 },
             { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', tier: 'fast', contextWindow: 200000 },
             { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', tier: 'smart', contextWindow: 200000 },

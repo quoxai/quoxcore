@@ -106,7 +106,9 @@ function setupSSE(req) {
     jwtOrgId,
     jwtUserId,
     serviceAuth,
-    sessionId: q.session_id || q.query_id,
+    // CLI-QUOXON Q2: an explicit, validated turn_id is the corr for this turn's
+    // layer envelopes; absent, corr stays session_id || query_id (dashboard unchanged).
+    sessionId: (typeof q.turn_id === 'string' && require('./turnStream.js').TURN_ID_RE.test(q.turn_id) ? q.turn_id : null) || q.session_id || q.query_id,
     selectedAgent: q.assistant || 'quox',
     prompt: typeof q.prompt === 'string' ? (req?._streamParams ? q.prompt : decodeURIComponent(q.prompt)) : '',
     provider: null,

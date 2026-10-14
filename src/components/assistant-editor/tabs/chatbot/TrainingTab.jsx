@@ -17,7 +17,7 @@ import { getConfidenceBadge, formatSourceAttribution } from '../../../../widget/
 // unbounded growth of the request body.
 const TEACH_CONTEXT_TURNS = 12
 
-export default function TrainingTab({ widget, authFetch, orgId, correctedBy }) {
+export default function TrainingTab({ widget, authFetch, orgId, correctedBy, onWidgetChange }) {
   const persona = widget?.persona || JSON.parse(widget?.persona_json || '{}')
   // QUOXCHAT-BRUTALOOP w5 D3: the widget row (system_prompt_override +
   // guardrails_json) is what the message path reads; fall back to the
@@ -188,6 +188,7 @@ export default function TrainingTab({ widget, authFetch, orgId, correctedBy }) {
         const d = await wResp.json().catch(() => ({}))
         throw new Error(`Save failed (${wResp.status}${d.error ? `: ${d.error}` : ''}). Nothing was applied to the live widget.`)
       }
+      try { const d = await wResp.clone().json(); if (d?.widget && onWidgetChange) onWidgetChange(d.widget) } catch {}
       // Keep the backing assistant persona in step (editor display copy).
       const assistantId = widget.assistant_id
       if (assistantId) {

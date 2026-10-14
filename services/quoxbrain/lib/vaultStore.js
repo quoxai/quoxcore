@@ -705,6 +705,26 @@ export function buildOrMatchQuery(query) {
 }
 
 /**
+ * Grounding-mode sampler: up to `limit` chunk texts in the same scope a search
+ * uses that contain any of the spellings (case-insensitive FTS). [] = the term
+ * never occurs. Errors propagate.
+ */
+export function sampleTermChunks(org_id, user_id, variants, limit = 30) {
+  const db = getDatabase()
+  const terms = (variants || []).map((v) => String(v).trim()).filter(Boolean)
+  if (!terms.length) return []
+  const match = terms.map((t) => `"${t.replace(/"/g, '""')}"`).join(' OR ')
+  const scoped = scopeClause(org_id, user_id, { alias: 'nc' })
+  return db.prepare(`
+    SELECT nc.text AS text
+    FROM note_chunks_fts
+    JOIN note_chunks nc ON nc.rowid = note_chunks_fts.rowid
+    WHERE note_chunks_fts MATCH ? AND ${scoped.sql}
+    LIMIT ?
+  `).all(match, ...scoped.params, Math.min(Math.max(Number(limit) || 30, 1), 100)).map((r) => r.text)
+}
+
+/**
  * Date-window facet (ONE-BRAIN CX2): note date = COALESCE(occurred_at,
  * updated_at), compared as instants via julianday so mixed ISO formats and
  * ms/Z suffixes compare correctly. Shared by searchChunks (sparse leg) and
@@ -1310,6 +1330,43 @@ export function listEmbeddedOrgIds() {
 }
 
 /**
+ * Facet pushdown for the dense (SQLite) legs: resolve the facet predicates to
+ * the set of chunk ids that satisfy them (same predicates as searchChunks /
+ * filterChunkIdsByFacets, plus excludeKinds / excludeVaultIds) so the top-k is
+ * computed WITHIN the faceted set instead of globally then post-filtered.
+ * Returns null when no facet is active (unfaceted path unchanged).
+ */
+function resolveDenseFacetAllowSet(org_id, user_id, filters) {
+  if (!filters) return null
+  const { vaultIds, kinds, sources, scopes, languages, since, until, excludeKinds, excludeVaultIds } = filters
+  const arr = (a) => Array.isArray(a) && a.length > 0
+  if (!(arr(vaultIds) || arr(kinds) || arr(sources) || arr(scopes) || arr(languages) || since || until || arr(excludeKinds) || arr(excludeVaultIds))) return null
+  const db = getDatabase()
+  const scoped = scopeClause(org_id, user_id, { alias: 'nc' })
+  const conditions = [scoped.sql]
+  const params = [...scoped.params]
+  let effectiveVaultIds = vaultIds
+  if (arr(sources)) {
+    const ph = sources.map(() => '?').join(',')
+    const resolved = db.prepare(`SELECT id FROM vaults WHERE id IN (${ph}) OR name IN (${ph})`).all(...sources, ...sources).map((r) => r.id)
+    effectiveVaultIds = arr(vaultIds) ? vaultIds.filter((id) => resolved.includes(id)) : resolved
+    if (effectiveVaultIds.length === 0) return new Set()
+  }
+  const inList = (col, vals, not = false) => { conditions.push(`${col} ${not ? 'NOT IN' : 'IN'} (${vals.map(() => '?').join(',')})`); params.push(...vals) }
+  if (arr(effectiveVaultIds)) inList('nc.vault_id', effectiveVaultIds)
+  if (arr(excludeVaultIds)) inList('nc.vault_id', excludeVaultIds, true)
+  if (arr(kinds)) inList('n.kind', kinds)
+  if (arr(excludeKinds)) inList('COALESCE(n.kind, \'\')', excludeKinds, true)
+  if (arr(scopes)) inList('nc.scope', scopes)
+  if (arr(languages)) inList('nc.language', languages)
+  const dated = noteDateConditions(since, until)
+  conditions.push(...dated.conditions)
+  params.push(...dated.params)
+  const rows = db.prepare(`SELECT nc.id AS id FROM note_chunks nc JOIN notes n ON n.id = nc.note_id WHERE ${conditions.join(' AND ')}`).raw().all(...params)
+  return new Set(rows.map((r) => r[0]))
+}
+
+/**
  * Cosine-ranked dense (semantic) search over chunk_embeddings, the P4
  * counterpart to searchChunks' BM25 leg. Stored vectors are unit-normalised at
  * load, so scoring is a dot product with the normalised query (cosine
@@ -1320,27 +1377,31 @@ export function listEmbeddedOrgIds() {
  * @param {{scope?:string, ownerUserId?:string|null, limit?:number}} [opts]
  * @returns {Array<{chunkId:string, score:number}>} ranked desc, bounded to `limit`.
  */
-export function denseSearchChunks(org_id, queryVector, { scope, ownerUserId = null, limit = 30, model = null } = {}) {
+export function denseSearchChunks(org_id, queryVector, { scope, ownerUserId = null, limit = 30, model = null, filters = null } = {}) {
   if (!Array.isArray(queryVector) || queryVector.length === 0) return []
   const clampedLimit = Math.min(Math.max(Number(limit) || 30, 1), 200)
 
   const vectors = loadDenseVectors(org_id, model)
   if (vectors.length === 0 || vectors.stride === 0) return []
 
-  const top = scoreTopK(vectors, queryVector, { scope, ownerUserId, limit: clampedLimit })
+  const allow = resolveDenseFacetAllowSet(org_id, ownerUserId, filters)
+  if (allow && allow.size === 0) return setCoverage([], { status: 'complete', fraction: 1 })
+  const top = scoreTopK(vectors, queryVector, { scope, ownerUserId, limit: clampedLimit, allow })
   if (!vectors.truncated) { setCoverage(top, { status: 'complete', fraction: 1 }); return top }
-  return scanDenseTail(org_id, model, vectors, queryVector, top, { scope, ownerUserId, limit: clampedLimit })
+  return scanDenseTail(org_id, model, vectors, queryVector, top, { scope, ownerUserId, limit: clampedLimit, allow })
 }
 
 /** Same result as denseSearchChunks but yields the event loop between tail pages (production path). */
-async function denseSearchChunksPaged(org_id, queryVector, { scope, ownerUserId = null, limit = 30, model = null } = {}) {
+async function denseSearchChunksPaged(org_id, queryVector, { scope, ownerUserId = null, limit = 30, model = null, filters = null } = {}) {
   if (!Array.isArray(queryVector) || queryVector.length === 0) return []
   const clampedLimit = Math.min(Math.max(Number(limit) || 30, 1), 200)
   const vectors = loadDenseVectors(org_id, model)
   if (vectors.length === 0 || vectors.stride === 0) return []
-  const top = scoreTopK(vectors, queryVector, { scope, ownerUserId, limit: clampedLimit })
+  const allow = resolveDenseFacetAllowSet(org_id, ownerUserId, filters)
+  if (allow && allow.size === 0) return setCoverage([], { status: 'complete', fraction: 1 })
+  const top = scoreTopK(vectors, queryVector, { scope, ownerUserId, limit: clampedLimit, allow })
   if (!vectors.truncated) { setCoverage(top, { status: 'complete', fraction: 1 }); return top }
-  return scanDenseTailAsync(org_id, model, vectors, queryVector, top, { scope, ownerUserId, limit: clampedLimit })
+  return scanDenseTailAsync(org_id, model, vectors, queryVector, top, { scope, ownerUserId, limit: clampedLimit, allow })
 }
 
 // Non-enumerable so the result stays a plain array for deepStrictEqual callers.
@@ -1388,7 +1449,7 @@ function countCacheEligible(vectors, scope, ownerUserId) {
  * time budget; a budget hit is reported as denseCoverage.status 'partial' with
  * the scanned fraction (never silent).
  */
-function* scanDenseTailGen(org_id, model, vectors, queryVector, top, { scope, ownerUserId, limit }) {
+function* scanDenseTailGen(org_id, model, vectors, queryVector, top, { scope, ownerUserId, limit, allow = null }) {
   const budgetMs = envNonNeg('QUOXBRAIN_DENSE_TAIL_BUDGET_MS', DENSE_TAIL_BUDGET_MS_DEFAULT)
   const pageSize = Math.max(1, Math.floor(envNonNeg('QUOXBRAIN_DENSE_TAIL_PAGE', DENSE_TAIL_PAGE_DEFAULT)))
   const db = getDatabase()
@@ -1401,7 +1462,7 @@ function* scanDenseTailGen(org_id, model, vectors, queryVector, top, { scope, ow
   let complete = true
   for (const { page, scannedRows, last } of denseTailPages(db, org_id, model, { scope, ownerUserId, skipIds: vectors._idSet, pageSize })) {
     if (page) {
-      merged = merged.concat(scoreTopK(page, queryVector, { scope, ownerUserId, limit }))
+      merged = merged.concat(scoreTopK(page, queryVector, { scope, ownerUserId, limit, allow }))
       merged.sort((a, b) => b.score - a.score)
       if (merged.length > limit) merged.length = limit
     }
@@ -1447,7 +1508,7 @@ export async function denseSearchChunksAsync(org_id, queryVector, opts = {}) {
       // 073: no qdrant collection for this model yet (index being enabled or
       // rebuilt) is not "no results": the SQLite vectors are the source of truth,
       // so answer from the packed scan instead of returning an empty dense leg.
-      if (!(await ann.hasCollection(model))) return denseSearchChunksPaged(org_id, queryVector, { scope, ownerUserId, limit, model })
+      if (!(await ann.hasCollection(model))) return denseSearchChunksPaged(org_id, queryVector, { scope, ownerUserId, limit, model, filters })
       let vaultIds = filters?.vaultIds
       if (Array.isArray(filters?.sources) && filters.sources.length > 0) {
         const db = getDatabase()
@@ -1457,15 +1518,15 @@ export async function denseSearchChunksAsync(org_id, queryVector, opts = {}) {
         if (vaultIds.length === 0) return []
       }
       const clamped = Math.min(Math.max(Number(limit) || 30, 1), 200)
-      return await ann.search({ model, vector: queryVector, limit: clamped, orgId: org_id, userId: ownerUserId, scope, vaultIds, kinds: filters?.kinds, scopes: filters?.scopes })
+      return await ann.search({ model, vector: queryVector, limit: clamped, orgId: org_id, userId: ownerUserId, scope, vaultIds, kinds: filters?.kinds, scopes: filters?.scopes, excludeKinds: filters?.excludeKinds, excludeVaultIds: filters?.excludeVaultIds, since: filters?.since, until: filters?.until })
     } catch (err) {
       ann.noteFailure(err, 'search')
     }
   }
-  return denseSearchChunksPaged(org_id, queryVector, { scope, ownerUserId, limit, model })
+  return denseSearchChunksPaged(org_id, queryVector, { scope, ownerUserId, limit, model, filters })
 }
 
-function scoreTopK(vectors, queryVector, { scope, ownerUserId, limit: clampedLimit }) {
+function scoreTopK(vectors, queryVector, { scope, ownerUserId, limit: clampedLimit, allow = null }) {
   const q = normalizeVector(queryVector)
   const { mat, stride, length: n, chunkIds, ownerUserIds, scopeCodes, userCode, scopeIdx } = vectors
   let wantCode = -1
@@ -1483,6 +1544,7 @@ function scoreTopK(vectors, queryVector, { scope, ownerUserId, limit: clampedLim
     const code = scopeCodes[r]
     if (wantCode !== -1 && code !== wantCode) continue
     if (code === userCode && ownerUserIds[r] !== ownerUserId) continue
+    if (allow && !allow.has(chunkIds[r])) continue
     const base = r * stride
     // 4-way unrolled with independent accumulators (breaks the add dependency chain)
     let d0 = 0, d1 = 0, d2 = 0, d3 = 0
@@ -2759,17 +2821,19 @@ export function getUsage(orgId) {
  */
 export function recordCitationEvent({
   org_id, user_id = null, agent_id = null, corr = null,
-  retrieved_count, cited_count, supported_count = null, cited_note_ids = []
+  retrieved_count, cited_count, supported_count = null, overlap_count = null, fabricated_count = null, cited_note_ids = []
 }) {
   try {
     const db = getDatabase()
     db.prepare(`
-      INSERT INTO citation_events (id, org_id, user_id, agent_id, corr, retrieved_count, cited_count, supported_count, cited_note_ids, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO citation_events (id, org_id, user_id, agent_id, corr, retrieved_count, cited_count, supported_count, overlap_count, fabricated_count, cited_note_ids, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       ulid(), org_id, user_id, agent_id, corr,
       retrieved_count, cited_count,
       Number.isInteger(supported_count) ? supported_count : null,
+      Number.isInteger(overlap_count) ? overlap_count : null,
+      Number.isInteger(fabricated_count) ? fabricated_count : null,
       JSON.stringify(Array.isArray(cited_note_ids) ? cited_note_ids : []),
       now()
     )
@@ -2780,7 +2844,22 @@ export function recordCitationEvent({
   }
 }
 
-const triBool = (v) => (v === true || v === 1 ? 1 : v === false || v === 0 ? 0 : null)
+/** Retrieval-time revision pin: {noteId: content_hash} for the org's notes. Never throws. */
+export function getNoteContentHashes(orgId, noteIds = []) {
+  const out = {}
+  try {
+    const ids = [...new Set((noteIds || []).filter(i => typeof i === 'string' && i))].slice(0, 200)
+    if (!ids.length) return out
+    const db = getDatabase()
+    const rows = db.prepare(`SELECT id, content_hash FROM notes WHERE org_id = ? AND id IN (${ids.map(() => '?').join(',')})`).all(orgId, ...ids)
+    for (const r of rows) if (r.content_hash) out[r.id] = r.content_hash
+  } catch (err) {
+    console.warn('[Brain] note hash pin lookup failed (non-fatal):', err.message)
+  }
+  return out
+}
+
+const triBool =(v) => (v === true || v === 1 ? 1 : v === false || v === 0 ? 0 : null)
 const spanInt = (v) => (Number.isInteger(v) && v >= 0 ? v : null)
 
 /**
@@ -2795,21 +2874,24 @@ export function recordCitationRecords({ org_id, user_id = null, session = null, 
     if (!org_id || !Array.isArray(records)) return 0
     const db = getDatabase()
     const ins = db.prepare(`
-      INSERT INTO citation_records (id, org_id, user_id, session, handle, note_id, char_start, char_end, note_hash, supported, contradicted, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO citation_records (id, org_id, user_id, session, handle, note_id, char_start, char_end, note_hash, passage_hash, supported, contradicted, support_method, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const hashOf = db.prepare('SELECT content_hash FROM notes WHERE id = ? AND org_id = ?')
     let n = 0
     const ts = now()
     for (const r of records.slice(0, 200)) {
-      if (!r || typeof r.note_id !== 'string' || !r.note_id) continue
+      const fab = !!r && r.support_method === 'fabricated'
+      if (!r || (!fab && (typeof r.note_id !== 'string' || !r.note_id))) continue
       let hash = typeof r.note_hash === 'string' && r.note_hash ? r.note_hash : null
-      if (!hash) hash = hashOf.get(r.note_id, org_id)?.content_hash ?? null
+      if (!hash && !fab) hash = hashOf.get(r.note_id, org_id)?.content_hash ?? null
       ins.run(
         ulid(), org_id, user_id, session,
         typeof r.handle === 'string' ? r.handle.slice(0, 16) : null,
-        r.note_id, spanInt(r.char_start), spanInt(r.char_end), hash,
-        triBool(r.supported), triBool(r.contradicted), ts
+        fab ? '' : r.note_id, spanInt(r.char_start), spanInt(r.char_end), hash,
+        typeof r.passage_hash === 'string' && r.passage_hash ? r.passage_hash.slice(0, 128) : null,
+        triBool(r.supported), triBool(r.contradicted),
+        r.support_method === 'entailment' || r.support_method === 'overlap' || r.support_method === 'unchecked' || r.support_method === 'fabricated' ? r.support_method : null, ts
       )
       n++
     }
@@ -2829,10 +2911,23 @@ export function listCitationRecords(orgId, { userId = null, session = null, limi
   const args = [orgId]
   if (userId) { where.push('user_id = ?'); args.push(userId) }
   if (session) { where.push('session = ?'); args.push(session) }
-  const rows = db.prepare(`SELECT session, handle, note_id, char_start, char_end, note_hash, supported, contradicted, created_at
-    FROM citation_records WHERE ${where.join(' AND ')} ORDER BY created_at DESC, rowid DESC LIMIT ?`).all(...args, cap)
+  const rows = db.prepare(`SELECT r.session, r.handle, r.note_id, r.char_start, r.char_end, r.note_hash, r.passage_hash, r.supported, r.contradicted, r.support_method, r.created_at,
+      n.content_hash AS current_hash
+    FROM citation_records r LEFT JOIN notes n ON n.id = r.note_id AND n.org_id = r.org_id
+    WHERE ${where.map(w => 'r.' + w).join(' AND ')} ORDER BY r.created_at DESC, r.rowid DESC LIMIT ?`).all(...args, cap)
   const tri = (v) => (v === null || v === undefined ? null : v === 1)
-  return rows.map(r => ({ ...r, supported: tri(r.supported), contradicted: tri(r.contradicted) }))
+  return rows.map(({ current_hash, ...r }) => {
+    // Pinned at retrieval time: never silently re-read against the new text.
+    if (r.support_method === 'fabricated') return { ...r, supported: false, contradicted: tri(r.contradicted), note_changed: null, note_status: 'fabricated' }
+    const changed = r.note_hash ? (current_hash == null || current_hash !== r.note_hash) : null
+    return {
+      ...r,
+      supported: tri(r.supported),
+      contradicted: tri(r.contradicted),
+      note_changed: changed,
+      note_status: changed === true ? 'note changed since cited' : changed === false ? 'current' : 'unpinned'
+    }
+  })
 }
 
 // -----------------------------------------------------------------------------
@@ -2918,7 +3013,11 @@ function getCitations(orgId, db = getDatabase()) {
         SUM(cited_count)                                AS citedNotes,
         SUM(CASE WHEN supported_count IS NOT NULL THEN 1 ELSE 0 END) AS supportMeasured,
         SUM(CASE WHEN supported_count > 0 THEN 1 ELSE 0 END)         AS supportedAnswers,
-        SUM(COALESCE(supported_count, 0))               AS supportedNotes
+        SUM(COALESCE(supported_count, 0))               AS supportedNotes,
+        SUM(CASE WHEN overlap_count > 0 THEN 1 ELSE 0 END)           AS overlapAnswers,
+        SUM(COALESCE(overlap_count, 0))                 AS overlapNotes,
+        SUM(CASE WHEN fabricated_count > 0 THEN 1 ELSE 0 END)        AS fabricatedAnswers,
+        SUM(COALESCE(fabricated_count, 0))              AS fabricatedCitations
       FROM citation_events
       WHERE org_id = ? ${sinceClause}
     `).get(orgId)
@@ -2938,7 +3037,14 @@ function getCitations(orgId, db = getDatabase()) {
       // check ran on (older collectors leave it NULL).
       supportMeasured: row?.supportMeasured || 0,
       supportedAnswers: row?.supportedAnswers || 0,
-      supportedNotes: row?.supportedNotes || 0
+      supportedNotes: row?.supportedNotes || 0,
+      // Lexical-only passes: the source shares the claim's words, not checked
+      // for meaning. Never counted in supportedAnswers.
+      overlapAnswers: row?.overlapAnswers || 0,
+      overlapNotes: row?.overlapNotes || 0,
+      // Cited handles that were never retrieved for the turn.
+      fabricatedAnswers: row?.fabricatedAnswers || 0,
+      fabricatedCitations: row?.fabricatedCitations || 0
     }
   }
 
@@ -2966,6 +3072,20 @@ function getCitations(orgId, db = getDatabase()) {
  * separately from the (possibly truncated) id list — the id list is capped
  * at `limit` for payload size, the count never is.
  */
+/**
+ * QUOXON E5: decision notes (tag `decision`, what `quox brain decide` writes) created at or after
+ * sinceIso, newest first, scoped exactly like getRecentNotes. -> { count, items: [{ id, title, created_at }] }
+ */
+export function getDecisionsSince(orgId, userId, { sinceIso, limit = 50 } = {}) {
+  const db = getDatabase()
+  const scoped = scopeClause(orgId, userId, { alias: 'nc' })
+  const where = `${scoped.sql} AND nc.created_at >= ? AND EXISTS (SELECT 1 FROM note_tags t WHERE t.note_id = nc.id AND lower(t.tag) = 'decision')`
+  const items = db.prepare(`SELECT nc.id, nc.title, nc.created_at FROM notes nc WHERE ${where} ORDER BY nc.created_at DESC LIMIT ?`)
+    .all(...scoped.params, sinceIso, Math.max(1, Math.min(200, Number(limit) || 50)))
+  const countRow = db.prepare(`SELECT COUNT(*) AS c FROM notes nc WHERE ${where}`).get(...scoped.params, sinceIso)
+  return { count: countRow?.c || 0, items }
+}
+
 export function getRecentNotes(orgId, userId, { sinceIso, limit = 150 } = {}) {
   const db = getDatabase()
   const scoped = scopeClause(orgId, userId, { alias: 'nc' })
@@ -3086,6 +3206,6 @@ export default {
   getDreamCoverage,
   recordUsageEvent, cleanupOldUsageEvents, getUsage,
   recordCitationEvent, cleanupOldCitationEvents,
-  getRecentNotes, getDreamActivity, getRecentlyEmbeddedChunkCount
+  getRecentNotes, getDreamActivity, getRecentlyEmbeddedChunkCount, getDecisionsSince
 }
 export function _denseCacheKeysForTest() { return [...denseVectorCache.keys()] }

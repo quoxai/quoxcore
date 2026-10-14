@@ -18,6 +18,7 @@ import { ulid, getPagination, formatPaginatedResponse } from '../utils/helpers.j
 import { listTemplates, getTemplate } from '../lib/widgetConnectorGallery.js';
 import { denyIfNotPro } from '../lib/widgetTierGate.js';
 import { mergeIdentifiedAttrs } from '../lib/widgetVisitorMemory.js';
+import { alertsConfigured } from '../lib/widgetAlertsWarning.js';
 // PRO-2: transcript email send + witness.
 import { sendEmail } from '../utils/emailService.js';
 import { logAudit } from '../utils/audit.js';
@@ -239,7 +240,7 @@ widgetConnectorsInternalRouter.post('/widgets/:widgetId/leads', async (req, res)
     const { widgetId } = req.params;
     const { visitor_id, conversation_id, name, email, phone, company, notes, metadata } = req.body || {};
     // CW-SEC-1: accept either internal id or public_key.
-    const widget = prepare('SELECT id, org_id FROM website_widgets WHERE id = ? OR public_key = ?').get(widgetId, widgetId);
+    const widget = prepare('SELECT id, org_id, notification_settings_json FROM website_widgets WHERE id = ? OR public_key = ?').get(widgetId, widgetId);
     if (!widget) return res.status(404).json({ error: 'Widget not found' });
     if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'valid email required' });
@@ -285,7 +286,7 @@ widgetConnectorsInternalRouter.post('/widgets/:widgetId/leads', async (req, res)
       if (!notified) {
         try { prepare('UPDATE widget_leads SET notification_failed = 1 WHERE id = ?').run(id); } catch (e) { console.error('[widget-connectors] failed to flag lead notification_failed:', e?.message || e); }
       }
-      res.status(201).json({ success: true, id, duplicate: false, notified });
+      res.status(201).json({ success: true, id, duplicate: false, notified, alerts_configured: alertsConfigured(widget.notification_settings_json) });
     } catch (err) {
       if (String(err.message || '').includes('UNIQUE')) {
         // Same email + conversation, return the existing row rather than erroring the LLM.
@@ -409,7 +410,7 @@ widgetConnectorsInternalRouter.post('/widgets/:widgetId/conversations/:conversat
     const { widgetId, conversationId } = req.params;
     const { reason, priority, visitor_name: hintName, visitor_email: hintEmail, summary } = req.body || {};
     // CW-SEC-1: accept either internal id or public_key.
-    const widget = prepare('SELECT id, org_id FROM website_widgets WHERE id = ? OR public_key = ?').get(widgetId, widgetId);
+    const widget = prepare('SELECT id, org_id, notification_settings_json FROM website_widgets WHERE id = ? OR public_key = ?').get(widgetId, widgetId);
     if (!widget) return res.status(404).json({ error: 'Widget not found' });
     const conv = prepare('SELECT id, status, visitor_id, visitor_name, visitor_email FROM widget_conversations WHERE id = ? AND widget_id = ?').get(conversationId, widget.id);
     if (!conv) return res.status(404).json({ error: 'Conversation not found' });
@@ -513,7 +514,7 @@ widgetConnectorsInternalRouter.post('/widgets/:widgetId/conversations/:conversat
     if (!notified) {
       try { prepare('UPDATE widget_conversations SET notification_failed = 1 WHERE id = ?').run(conversationId); } catch (e) { console.error('[widget-connectors] failed to flag handoff notification_failed:', e?.message || e); }
     }
-    res.json({ success: true, priority: resolvedPriority, notified });
+    res.json({ success: true, priority: resolvedPriority, notified, alerts_configured: alertsConfigured(widget.notification_settings_json) });
   } catch (err) {
     console.error('Error marking handoff:', err);
     res.status(500).json({ error: 'Failed to mark handoff' });
@@ -1169,6 +1170,7 @@ router.post('/orgs/:orgId/widgets/:widgetId/connectors', requireOrgMembership, (
 
 router.patch('/orgs/:orgId/widgets/:widgetId/connectors/:connectorId', requireOrgMembership, (req, res) => {
   try {
+    if (denyIfNotPro(req, res, 'connector_framework_enabled')) return;
     const { orgId, widgetId, connectorId } = req.params;
     if (!loadWidget(orgId, widgetId)) return res.status(404).json({ error: 'Widget not found' });
     const existing = prepare('SELECT * FROM widget_connectors WHERE id = ? AND widget_id = ?').get(connectorId, widgetId);
@@ -1310,6 +1312,7 @@ router.patch('/orgs/:orgId/widgets/:widgetId/tools/:toolId', requireOrgMembershi
     if (!loadWidget(orgId, widgetId)) return res.status(404).json({ error: 'Widget not found' });
     const existing = prepare('SELECT * FROM widget_tools WHERE id = ? AND widget_id = ?').get(toolId, widgetId);
     if (!existing) return res.status(404).json({ error: 'Tool not found' });
+    if (existing.tool_type !== 'builtin' && denyIfNotPro(req, res, 'connector_framework_enabled')) return;
 
     const { description, parameters, config, status, rate_limit_per_session } = req.body || {};
     const updates = [];
@@ -1377,6 +1380,7 @@ router.post('/orgs/:orgId/widgets/:widgetId/tools/:toolId/test-run', requireOrgM
 
     const toolRow = prepare('SELECT * FROM widget_tools WHERE id = ? AND widget_id = ?').get(toolId, widgetId);
     if (!toolRow) return res.status(404).json({ error: 'Tool not found' });
+    if (toolRow.tool_type !== 'builtin' && denyIfNotPro(req, res, 'connector_framework_enabled')) return;
     const tool = rowToTool(toolRow);
 
     // Hydrate connector row so the executor has the same shape it gets

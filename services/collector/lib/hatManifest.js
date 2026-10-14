@@ -88,7 +88,7 @@ const GOVERNANCE_TOOLS = ['hat_catalogue', 'hat_load_bundle', 'hat_propose_switc
 // applies — authz never fabricates a Tier-0 tool the agent does not hold.
 // Deliberately NOT added to buildFailClosedManifest: a resolve FAILURE denies
 // everything, Tier-0 included — fail-closed stays absolute (context is unknown).
-const TIER0_READ_TOOLS = ['inbox_pending', 'memory_search', 'quoxbrain_search'];
+const TIER0_READ_TOOLS = ['inbox_pending', 'memory_search', 'quoxbrain_search', 'time_now'];
 
 function _cacheKey(orgId, userId, conversationId, agent) {
   return `${orgId}::${userId || ''}::${conversationId || ''}::${agent || ''}`;

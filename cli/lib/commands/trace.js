@@ -20,7 +20,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { formatOutput, formatDetail, printSuccess, printWarning, printInfo } from '../core/output.js';
-import { parseJSON } from './helpers.js';
+import { parseJSON, withTimeoutHint } from './helpers.js';
 import { resolveEndpoint } from '../api/endpoints.js';
 
 /** Flatten the nested `actor` object into a display string for table rows. */
@@ -71,10 +71,14 @@ export function registerTraceCommands(program, ctx) {
       if (options.denied) query.has_denial = 'true';
       if (options.hitl) query.has_hitl = 'true';
 
-      const data = await client.get(resolveEndpoint('traces.list').path, {
-        service: resolveEndpoint('traces.list').service,
-        query,
-      });
+      const data = await withTimeoutHint(
+        'quox trace list',
+        'Try a smaller --limit or a narrower window (--after <iso>, --before <iso>).',
+        () => client.get(resolveEndpoint('traces.list').path, {
+          service: resolveEndpoint('traces.list').service,
+          query,
+        }),
+      );
       const traces = (data.traces || data || []).map(normalizeTraceSummary);
 
       formatOutput({
@@ -83,8 +87,9 @@ export function registerTraceCommands(program, ctx) {
         rows: traces,
       }, { format: program.opts().output, emptyMessage: 'No traces found.' });
 
-      if (program.opts().output !== 'json' && program.opts().output !== 'quiet' && typeof data.total === 'number') {
-        printInfo(`Showing ${traces.length} of ${data.total} trace(s).`);
+      if (program.opts().output !== 'json' && program.opts().output !== 'quiet') {
+        if (typeof data.total === 'number') printInfo(`Showing ${traces.length} of ${data.total} trace(s).`);
+        else if (data.has_more) printInfo(`Showing ${traces.length} trace(s); more available (--offset ${Number(options.offset || 0) + Number(options.limit || 30)}).`);
       }
     });
 

@@ -38,7 +38,7 @@ const { isSafeShellArg } = require('./shellSafe.js');
 
 async function callBastion(hostId, command) {
   if (!BASTION_URL || !BASTION_TOKEN) {
-    return { success: false, error: 'Bastion not configured for this installation. Ask an admin to configure QuoxBastion.' };
+    return { success: false, error: require('./bastionUnavailable').BASTION_UNAVAILABLE_MESSAGE };
   }
   try {
     const resp = await fetch(`${BASTION_URL}/api/v1/exec`, {
@@ -49,7 +49,7 @@ async function callBastion(hostId, command) {
     });
     if (!resp.ok) {
       const text = await resp.text();
-      return { success: false, error: `Bastion returned ${resp.status}: ${text}` };
+      return require("./bastionRefusal.js").bastionHttpErrorResult(resp.status, text); // #815: a 403 is a refusal, never an approval card
     }
     const data = await resp.json();
     const r = data.results && data.results[0];

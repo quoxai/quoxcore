@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from 'react'
 import useQuoxVoiceSession from './useQuoxVoiceSession'
 import SchedulesTab from './SchedulesTab'
+import ApprovalsTab from './ApprovalsTab'
 import './quoxvoice.css'
 
 const VOICES = [
@@ -45,7 +46,7 @@ export default function QuoxVoiceView() {
   return (
     <div className="qx-view quoxvoice-view">
       <div className="qx-tabs qx-tabs--underline" role="tablist">
-        {[['session', 'Session'], ['schedules', 'Schedules']].map(([id, label]) => (
+        {[['session', 'Session'], ['schedules', 'Schedules'], ['approvals', 'Approvals']].map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={tab === id}
             className={`qx-tab${tab === id ? ' qx-tab--active' : ''}`}
             onClick={() => setTab(id)}>
@@ -54,6 +55,7 @@ export default function QuoxVoiceView() {
         ))}
       </div>
       {tab === 'schedules' && <SchedulesTab />}
+      {tab === 'approvals' && <ApprovalsTab />}
       {tab === 'session' && <div className="qx-card quoxvoice-card">
         <div className="quoxvoice-head">
           <h2>Quox Voice</h2>

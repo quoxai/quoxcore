@@ -32,6 +32,7 @@ import AssistantSettings from '../../components/settings/AssistantSettings';
 import DashboardSettings from '../../components/settings/DashboardSettings';
 import ExecutionPolicySettings from '../../components/settings/ExecutionPolicySettings';
 import BackupSettings from '../../components/settings/BackupSettings';
+import AppUrlSettings from '../../components/settings/AppUrlSettings';
 // LICENSE-LAUNCH LL-7 local-inference strip: Local Inference is a PREMIUM
 // settings section now. This V1 view keeps the section (the sidebar row, the
 // #local-inference hash, the VALID_SECTIONS entry) and resolves its content
@@ -871,6 +872,8 @@ function SettingsView() {
                 {/* General Settings */}
                 {activeSection === 'general' && (
                     <div>
+                        <AppUrlSettings onNotification={showNotification} />
+
                         <SettingsSection
                             title="Preferences"
                             description="Configure your general application preferences"

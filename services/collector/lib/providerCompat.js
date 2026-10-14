@@ -63,6 +63,22 @@ const PROVIDER_COMPAT = {
     proof: { primary: 'none', fallback: 'n/a' },
     notes: 'Text-only path; any tool-carrying manifest is incompatible.',
   },
+  ollama: {
+    label: 'Ollama (self-hosted, OpenAI-compatible)',
+    toolLoop: true, // CLI-QUOX B3: the B1 governed loop on /chat/stream
+    toolCap: 24, // local context windows are small; lib/ollamaProvider.js OLLAMA_TOOL_CAP
+    quirks: ['tools_unsupported_400_per_model'],
+    proof: { primary: 'unit_tested', fallback: 'n/a' },
+    notes: 'Stub-server tested (streaming, tools, no-tools retry). Not yet driven against a real Ollama. Models without tool support answer once without tools.',
+  },
+  openai_compatible: {
+    label: 'OpenAI-compatible presets (OpenRouter, Hugging Face, Groq, Together, LM Studio, vLLM, custom)',
+    toolLoop: true, // CLI-QUOX B5: the B1 governed loop on /chat/stream
+    toolCap: 64, // lib/openaiCompatProvider.js COMPAT_TOOL_CAP (self-hosted presets pass 24)
+    quirks: ['tools_unsupported_per_model', 'openrouter_404_no_tool_endpoints'],
+    proof: { primary: 'unit_tested', fallback: 'n/a' },
+    notes: 'Stub-server tested (request shape per preset, streaming, tools, no-tools retry, OpenRouter cost). Not yet driven against a real vendor.',
+  },
   local: {
     label: 'Local inference (OpenAI-compatible)',
     toolLoop: false, // chat path sends no tools today

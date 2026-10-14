@@ -19,7 +19,12 @@ function evaluateQuoxseoRequest(method, path) {
   const m = String(method || '').toUpperCase();
   if (m === 'GET') return { allowed: true, mutation: false };
   const isSiteRegistration = m === 'POST' && /\/quoxseo\/sites\/?$/.test(String(path || ''));
-  return { allowed: isSiteRegistration, mutation: isSiteRegistration };
+  if (isSiteRegistration) return { allowed: true, mutation: true };
+  // Symmetric removal (quoxwebsite#63): DELETE /quoxseo/sites/<numeric id> only.
+  if (m === 'DELETE' && /\/quoxseo\/sites\/\d+\/?$/.test(String(path || ''))) {
+    return { allowed: true, mutation: true, intent: 'quox.seo.site_remove' };
+  }
+  return { allowed: false, mutation: false };
 }
 
 module.exports = { evaluateQuoxseoRequest };

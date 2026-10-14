@@ -40,6 +40,7 @@
 'use strict';
 
 const feedWatermark = require('./feedWatermark.js');
+const brainFeedClient = require('./brainFeedClient.js');
 const { ingestConversations } = require('./feedConversationSource.js');
 const { ingestTranscripts } = require('./feedTranscriptSource.js');
 const { ingestFolder } = require('./feedFolderSource.js');
@@ -386,12 +387,14 @@ async function runFeedTick(orgIds, sourceIngesters, {
       // BRAIN2-W12 B3: a private source with no stored owner (legacy row) must not
       // run silently or fall back to an org vault; surface it in last_status.
       const ownerless = sourceScope === 'user' && !sourceOwner;
+      const poisonSkips = [];
       const ingesterPromise = ownerless
         ? Promise.resolve({ skipped: 'private source has no owner, reconnect it' })
         : Promise.resolve()
           .then(() => {
             const cap = maxItemsBySource[sourceType] ?? maxItems;
-            return ingester(orgId, { maxConversations: cap, maxItems: cap, config: sourceConfig, scope: sourceScope, signal: controller.signal }, sourceDeps);
+            // R02/R03: collect documents the brain client gave up on (poison) for last_status.
+            return brainFeedClient.collectSkips(poisonSkips, () => ingester(orgId, { maxConversations: cap, maxItems: cap, config: sourceConfig, scope: sourceScope, signal: controller.signal }, sourceDeps));
           });
       ingesterPromise.catch(() => {}).finally(() => cooldownState.inFlight.delete(cooldownKey));
       cooldownState.inFlight.add(cooldownKey);
@@ -430,7 +433,7 @@ async function runFeedTick(orgIds, sourceIngesters, {
         // org, ...) read nothing, so it must not stamp a successful sync.
         const skippedReason = !error && !result?.error && result?.skipped ? String(result.skipped) : null;
         const fields = {
-          last_status: error ? `error: ${error.message}` : (result?.error ? `error: ${result.error}` : (skippedReason ? `skipped: ${skippedReason}` : (result?.oversize ? `ok (${result.oversize} oversize file(s) omitted)` : 'ok'))),
+          last_status: error ? `error: ${error.message}` : (result?.error ? `error: ${result.error}` : (skippedReason ? `skipped: ${skippedReason}` : (result?.oversize ? `ok (${result.oversize} oversize file(s) omitted)` : 'ok') + (result?.deletionBlocked ? `, deletions held: ${result.deletionBlocked}` : '') + (result?.truncated ? `, truncated: ${result.truncated}` : '') + (poisonSkips.length ? `, skipped ${poisonSkips.length} rejected doc(s): ${poisonSkips.slice(0, 3).map((x) => `${x.relPath} (${x.reason})`).join('; ')}` : ''))),
           last_count: result?.docsPushed || 0,
         };
         if (!skippedReason) fields.last_sync = new Date().toISOString();

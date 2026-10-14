@@ -17,6 +17,32 @@ export const admin = {
     path: () => '/api/admin/agent-identities',
     tags: ['admin-write'],
   },
+  // Instance basics after setup (app URL etc). Served by services/auth/routes/admin-instance.js.
+  'admin.instance.basics.get': {
+    method: 'GET',
+    service: 'auth',
+    path: () => '/api/admin/instance/basics',
+    tags: ['live-safe'],
+  },
+  'admin.instance.basics.set': {
+    method: 'PUT',
+    service: 'auth',
+    path: () => '/api/admin/instance/basics',
+    tags: ['admin-write'],
+  },
+  // LAN integration targets gate (allow_lan_integration_targets). Served by services/auth/routes/admin-instance.js.
+  'admin.instance.lan_targets.get': {
+    method: 'GET',
+    service: 'auth',
+    path: () => '/api/admin/instance/lan-targets',
+    tags: ['live-safe'],
+  },
+  'admin.instance.lan_targets.set': {
+    method: 'PUT',
+    service: 'auth',
+    path: () => '/api/admin/instance/lan-targets',
+    tags: ['admin-write'],
+  },
   'admin.config.update': {
     method: 'PATCH',
     service: 'auth',

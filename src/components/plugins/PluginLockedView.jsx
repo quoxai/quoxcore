@@ -13,7 +13,9 @@
  * repo UI rules. No bespoke stylesheet.
  */
 
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getPluginEntitlementState, loadInstalledPlugins } from '../../services/thirdPartyPluginHost'
 
 // ── Icons ─────────────────────────────────────────────────────────────────
 
@@ -177,13 +179,46 @@ export default function PluginLockedView({
  * @param {{stub: object, pluginsHydrated: boolean}} props
  */
 export function PremiumRouteStub({ stub, pluginsHydrated }) {
-    if (!pluginsHydrated) {
+    // QC-W13: hydration settling is not an entitlement answer. Ask the host
+    // what it actually learned: paywall only on a positive "not entitled".
+    const [, bump] = useState(0)
+    const [retrying, setRetrying] = useState(false)
+    useEffect(() => {
+        const h = () => bump(n => n + 1)
+        window.addEventListener('quox-plugins-state', h)
+        window.addEventListener('quox-plugins-loaded', h)
+        return () => {
+            window.removeEventListener('quox-plugins-state', h)
+            window.removeEventListener('quox-plugins-loaded', h)
+        }
+    }, [])
+    const state = pluginsHydrated ? getPluginEntitlementState(stub?.pluginId) : 'loading'
+    if (state === 'error') {
+        return (
+            <div role="alert" className="qx-view" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 40, color: '#fff' }}>
+                <span>Could not confirm your {stub?.name || 'plugin'} entitlement. This is a loading problem, not a missing licence.</span>
+                <button
+                    type="button"
+                    className="glass-btn"
+                    disabled={retrying}
+                    onClick={() => {
+                        setRetrying(true)
+                        loadInstalledPlugins().catch(() => {}).finally(() => setRetrying(false))
+                    }}
+                    style={{ padding: '6px 16px', cursor: 'pointer' }}
+                >
+                    {retrying ? 'Retrying…' : 'Retry'}
+                </button>
+            </div>
+        )
+    }
+    if (state === 'loading' || state === 'entitled-pending') {
         return (
             <div
                 role="status"
                 aria-live="polite"
                 className="qx-view"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, color: 'rgba(255,255,255,0.55)' }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, color: '#fff' }}
             >
                 Loading {stub?.name || 'plugin'}…
             </div>

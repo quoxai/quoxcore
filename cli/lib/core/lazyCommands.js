@@ -95,7 +95,10 @@ async function fullLoad(program, ctx, registrars, baseUrl, key) {
  * @param {string} baseUrl import.meta.url of the caller
  */
 export async function registerCommandGroups(program, ctx, registrars, argv, baseUrl) {
-  const commandsDir = join(dirname(fileURLToPath(baseUrl)), '..', 'lib', 'commands');
+  // The directory the registrar modules live in, resolved from the registrar paths
+  // themselves (the list moved to lib/core/commandRegistrars.js, so baseUrl is no
+  // longer bin/quox.js and a fixed '../lib/commands' would miss).
+  const commandsDir = registrars.length ? dirname(fileURLToPath(new URL(registrars[0][0], baseUrl))) : join(dirname(fileURLToPath(baseUrl)), '..', 'lib', 'commands');
   const key = process.env.QUOX_CLI_EAGER === '1' ? null : mapKey(registrars, commandsDir);
   const token = commandToken(argv);
   if (key && token && !FULL_LOAD_TOKENS.has(token)) {

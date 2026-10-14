@@ -5,7 +5,8 @@
  */
 
 const NAME_RE = /(?:^|[^a-z0-9])(old|archive|archived|superseded|replaced|obsolete|outdated|deprecated|legacy|previous)(?:[^a-z0-9]|$)/i;
-const LINE_RE = /\b(superseded|replaced by|no longer (?:valid|current|in use|applies)|out of date|outdated|obsolete|archived?|deprecated|for reference only)\b/i;
+const LINE_RE = /\b(superseded|replaced by|no longer (?:valid|current|in use|applies)|out of date|outdated|obsolete|archived?|deprecated|for reference only|ended|expired|finished|discontinued|no longer (?:available|offered|running|on offer)|ran (?:from )?[^.]{0,40}?\bto\b|ran (?:until|through))\b/i;
+const PAST_END_RE = /\b(?:valid (?:until|through|to)|ends?|ended|expires?|until|through)\b[^0-9]{0,20}(20\d{2})/i;
 const YEAR_RE = /(?:^|[^0-9])(20\d{2})(?:[^0-9]|$)/g;
 
 function years(name) {
@@ -22,10 +23,20 @@ export function detectSupersededSignal({ filename, firstLine = '', existingNames
   const base = String(filename || '').replace(/\.[a-z0-9]{1,5}$/i, '');
   if (NAME_RE.test(base)) reasons.push('filename');
   if (firstLine && LINE_RE.test(String(firstLine).slice(0, 300))) reasons.push('first_line');
+  if (firstLine) {
+    const pe = PAST_END_RE.exec(String(firstLine).slice(0, 300));
+    if (pe && Number(pe[1]) < new Date().getFullYear() && !reasons.includes('first_line')) reasons.push('first_line');
+  }
   const mine = years(base);
   if (mine.length > 0) {
     const others = (existingNames || []).flatMap(n => years(String(n).replace(/\.[a-z0-9]{1,5}$/i, '')));
     if (others.length > 0 && Math.max(...mine) < Math.max(...others)) reasons.push('older_year');
   }
   return { suggest_superseded: reasons.length > 0, reasons };
+}
+
+/** True only when filename, first-line and older-year signals ALL fired. */
+export function isStrongSupersededSignal(sig) {
+  const r = sig && Array.isArray(sig.reasons) ? sig.reasons : [];
+  return r.includes('filename') && r.includes('first_line') && r.includes('older_year');
 }

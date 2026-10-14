@@ -14,8 +14,8 @@
  * the view from the dashboard source tree) and that the result is signed with
  * a Quox publisher key.
  *
- * quox-plugin-vite is not published to npm yet, so it is resolved from the
- * sibling quox-plugin-sdk checkout. It is a BUILD-TIME tool for this one
+ * quox-plugin-vite is resolved from node_modules when installed (npm, from
+ * 0.2.0) and otherwise from the sibling quox-plugin-sdk checkout. It is a BUILD-TIME tool for this one
  * script and deliberately not a package.json dependency: adding a file: dep
  * would break `npm ci` inside the dashboard Docker build, which has no sibling
  * checkout in its context.
@@ -375,7 +375,11 @@ export default defineConfig({
         // specifiers first; both are 'pre', and Vite orders equal-enforce
         // plugins by declaration.
         sharedHostContexts(),
-        quoxPluginVite({ pluginId, devHost: false }),
+        // qxCss: false. First-party bundles run IN-PARENT, where the host's own
+        // qx stylesheet is already loaded; quox-plugin-vite >= 0.2.0 otherwise
+        // prepends the full vendored qx css (~210 KB) for community plugins,
+        // which run in a frame with no host CSS. Older versions ignore it.
+        quoxPluginVite({ pluginId, devHost: false, qxCss: false }),
         react(),
         firstPartyEntryOverride(),
     ],

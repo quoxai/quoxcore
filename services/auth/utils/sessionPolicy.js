@@ -22,6 +22,14 @@ export const DEFAULT_SESSION_POLICY = Object.freeze({
 // idleTimeoutSec (or is explicitly disabled via idleTimeoutSec: 0).
 export const REMEMBER_ME_MAX_SESSION_SEC = 30 * 24 * 60 * 60; // 30 days
 
+// CLI session class: sign-ins from the quox CLI / TUI (login body `client: 'cli'`, stored in sessions.client)
+// last much longer than browser sessions. These replace the DEFAULT idle / absolute limits for CLI sessions
+// only; an explicit admin value (org policy row or instance_config, including 0 = disabled) always wins.
+export const CLI_SESSION_IDLE_SEC = 30 * 24 * 60 * 60; // 30 days idle
+export const CLI_SESSION_MAX_SEC  = 30 * 24 * 60 * 60; // 30 days absolute
+export const SESSION_CLIENT_CLI = 'cli';
+export const SESSION_CLIENT_WEB = 'web';
+
 // Caps applied to instance-level admin-configured values (in minutes).
 // Defence in depth: even if the admin config row holds a value outside
 // these bounds (manual SQL edit, schema drift), getSessionPolicy clamps
@@ -77,6 +85,49 @@ export function getInstanceSessionPolicy(db) {
         // instance-wide fallback always allows remember-me; orgs opt out
         // via setSessionPolicy.
         rememberMeEnabled: DEFAULT_SESSION_POLICY.rememberMeEnabled,
+    };
+}
+
+/**
+ * Which limits did an admin set explicitly? { idle, max } booleans. An org policy row counts as explicit for
+ * both; otherwise an instance_config key present (even 0) is explicit for its dimension. Used so the CLI class
+ * only replaces DEFAULTS, never an admin's choice.
+ */
+export function getExplicitSessionOverrides(db, orgId) {
+    try {
+        if (orgId && db.prepare(`SELECT 1 FROM session_policies WHERE org_id = ?`).get(orgId)) return { idle: true, max: true };
+    } catch { /* table absent: fall through to instance */ }
+    return {
+        idle: isAdminInstanceValue(db, INSTANCE_CONFIG_KEYS.idleMinutes, SEEDED_INSTANCE_MINUTES.idle),
+        max:  isAdminInstanceValue(db, INSTANCE_CONFIG_KEYS.maxMinutes, SEEDED_INSTANCE_MINUTES.max),
+    };
+}
+
+// Z2H-R4: migrations/000-baseline.sql seeds these rows on every install (updated_by NULL) so the admin
+// PUT /admin/config/:key has a row to update. A seeded default is not an admin choice: it must not stop
+// CLI sessions getting their longer class defaults (a fresh owner was signed out after 36 minutes).
+export const SEEDED_INSTANCE_MINUTES = Object.freeze({ idle: 30, max: 720 });
+
+/** True when an instance session value was set by an admin (updated_by) or differs from the seeded default. */
+function isAdminInstanceValue(db, key, seeded) {
+    const n = readInstanceMinutes(db, key);
+    if (n === null) return false;
+    if (n !== seeded) return true;
+    try {
+        return Boolean(db.prepare(`SELECT updated_by FROM instance_config WHERE key = ?`).get(key)?.updated_by);
+    } catch {
+        return false; // no updated_by column (legacy / fixture schema): the seeded value is a default
+    }
+}
+
+/** The effective policy for a session of the given client class. Web (or unknown) = the policy unchanged. */
+export function applyClientClass(db, policy, orgId, client) {
+    if (client !== SESSION_CLIENT_CLI) return policy;
+    const ex = getExplicitSessionOverrides(db, orgId);
+    return {
+        ...policy,
+        idleTimeoutSec: ex.idle ? policy.idleTimeoutSec : CLI_SESSION_IDLE_SEC,
+        maxSessionSec:  ex.max  ? policy.maxSessionSec  : CLI_SESSION_MAX_SEC,
     };
 }
 

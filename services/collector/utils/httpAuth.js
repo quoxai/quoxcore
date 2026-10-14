@@ -9,6 +9,7 @@
 
 const { timingSafeEqual, createHash } = require('crypto');
 const { verifyToken, extractToken } = require('./wsAuth');
+const { verifyOrgTicket } = require('../lib/pluginOrgTicket');
 
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://auth:3101';
 
@@ -246,6 +247,94 @@ function createSecureContext(req, context = {}) {
   };
 }
 
+// SEC-PLUGIN-TRUST C1: qplg_* per-plugin credential validation. Positive
+// results cached briefly (revocation takes effect within the TTL); negatives
+// and errors are never cached and always fail closed.
+const _pluginCredCache = new Map();
+const _PLUGIN_CRED_TTL_MS = 30_000;
+
+async function _validatePluginCredential(token) {
+  const cacheKey = createHash('sha256').update(token).digest('hex');
+  const cached = _pluginCredCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) return cached;
+  const svcKey = process.env.INTERNAL_SERVICE_KEY || '';
+  if (!svcKey) return { valid: false, reason: 'service_not_configured' };
+  try {
+    const resp = await fetch(`${AUTH_SERVICE_URL}/api/internal/plugin-credentials/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-service-key': svcKey },
+      body: JSON.stringify({ token }),
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!resp.ok) return { valid: false, reason: `http_${resp.status}` };
+    const data = await resp.json();
+    if (data.valid && typeof data.plugin_id === 'string' && data.plugin_id) {
+      const entry = { valid: true, plugin_id: data.plugin_id, expires: Date.now() + _PLUGIN_CRED_TTL_MS };
+      _pluginCredCache.set(cacheKey, entry);
+      return entry;
+    }
+    return { valid: false, reason: data.reason || 'unknown' };
+  } catch (e) {
+    return { valid: false, reason: 'validation_unavailable' };
+  }
+}
+
+function __clearPluginCredentialCache() { _pluginCredCache.clear(); }
+
+/**
+ * Authenticate a qplg_ plugin credential + on-behalf-of org ticket. Returns
+ * { ok:true } after populating req.user / req.pluginAuth, or
+ * { ok:false, status, error }. NEVER sets req.service, never sets a role.
+ */
+async function _authenticatePluginCaller(req, token, { allowTicketless = false } = {}) {
+  const cred = await _validatePluginCredential(token);
+  if (!cred.valid) return { ok: false, status: 401, error: 'invalid_plugin_credential' };
+  // Background evidence (a plugin's own schedulers, no user request, so no
+  // ticket): only where the route allows it (AEE store/sync), and only when NO
+  // ticket header is presented at all. It is instance-scoped: no tenant org,
+  // no user, whatever the body or envelope claims. A presented-but-bad ticket
+  // is always refused below, never degraded to this path.
+  const rawTicket = req.headers['x-quox-org-ticket'];
+  if (allowTicketless && (rawTicket === undefined || rawTicket === '')) {
+    req.user = {
+      id: null,
+      org_id: null,
+      orgId: null,
+      dashboardRole: null,
+      agent_id: null,
+      actor_type: 'plugin',
+      plugin_id: cred.plugin_id,
+    };
+    req.pluginAuth = { pluginId: cred.plugin_id, orgId: null, userId: null, ticketless: true };
+    if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
+      delete req.body.org_id;
+      delete req.body.user_id;
+    }
+    return { ok: true };
+  }
+  const t = verifyOrgTicket(rawTicket);
+  if (!t.ok) return { ok: false, status: 401, error: t.reason };
+  if (t.claims.p !== cred.plugin_id) return { ok: false, status: 403, error: 'ticket_plugin_mismatch' };
+  req.user = {
+    id: t.claims.u || null,
+    org_id: t.claims.o,
+    orgId: t.claims.o,
+    dashboardRole: null,
+    agent_id: null,
+    actor_type: 'plugin',
+    plugin_id: cred.plugin_id,
+  };
+  req.pluginAuth = { pluginId: cred.plugin_id, orgId: t.claims.o, userId: t.claims.u || null };
+  // Pin any body-supplied identity to the ticket so handlers that still read
+  // req.body.org_id / user_id directly (chat has several fallbacks) cannot be
+  // steered to another tenant.
+  if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
+    req.body.org_id = t.claims.o;
+    if (t.claims.u) req.body.user_id = t.claims.u; else delete req.body.user_id;
+  }
+  return { ok: true };
+}
+
 /**
  * Dual auth middleware — accepts either user JWT or service key.
  * Used for endpoints called by both QuoxMCP (service key) and browser (JWT).
@@ -255,9 +344,23 @@ function createSecureContext(req, context = {}) {
  *
  * @returns {function} Express middleware
  */
-function requireServiceOrUserAuth() {
+function requireServiceOrUserAuth(options = {}) {
+  const { acceptAudience, acceptPluginCredential = false, allowTicketlessPlugin = false } = options;
   return async (req, res, next) => {
     const serviceKey = req.headers['x-service-key'];
+
+    // SEC-PLUGIN-TRUST C1: qplg_* is a per-plugin credential. It is accepted
+    // ONLY where a route opts in (acceptPluginCredential: the plugin LLM chat
+    // seam and /aee/store|sync). Everywhere else it is refused outright and can
+    // never fall through to the service-key or JWT paths.
+    if (typeof serviceKey === 'string' && serviceKey.startsWith('qplg_')) {
+      if (!acceptPluginCredential) {
+        return res.status(401).json({ error: 'plugin_credential_not_accepted' });
+      }
+      const r = await _authenticatePluginCaller(req, serviceKey, { allowTicketless: allowTicketlessPlugin });
+      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      return next();
+    }
 
     // Priority 1: qmcp_* token path (NEW — must be checked before INTERNAL_SERVICE_KEY)
     if (serviceKey && serviceKey.startsWith('qmcp_')) {
@@ -308,7 +411,7 @@ function requireServiceOrUserAuth() {
     }
 
     if (token) {
-      const result = verifyToken(token);
+      const result = verifyToken(token, { audience: acceptAudience });
       if (result.valid) {
         // C3 (isolated): see requireAuth() above — surface role as
         // `dashboardRole` for the bastion proxy only, NOT as `req.user.role`
@@ -346,6 +449,8 @@ function requireServiceOrUserAuth() {
           // QUOXIDENTITY F2b: see requireAuth() above for the same field.
           holder_user_id: result.payload.holder_user_id || null,
           exp: result.payload.exp || null,
+          // QUOXON-IDENTITY: per-turn tools/execute credential claims.
+          ...(result.payload.aud ? { aud: result.payload.aud, turn_id: result.payload.turn_id || null, conversation_id: result.payload.conversation_id || null } : {}),
           // QUOXIDENTITY P9: see requireAuth() above.
           ...(result.payload.splinter ? { splinter: result.payload.splinter } : {})
         };
@@ -417,7 +522,7 @@ function isAeeAuthEnforced() {
  *                      (identical behavior to pre-gate code).
  */
 function requireAeeAuth() {
-  const inner = requireServiceOrUserAuth();
+  const inner = requireServiceOrUserAuth({ acceptPluginCredential: true, allowTicketlessPlugin: true });
 
   return async (req, res, next) => {
     const enforce = isAeeAuthEnforced();
@@ -435,6 +540,13 @@ function requireAeeAuth() {
     if (calledNext) {
       req.aeeAuthenticated = true;
       return next();
+    }
+
+    // SEC-PLUGIN-TRUST C1: a presented qplg_ credential that fails is ALWAYS
+    // refused, independent of the AEE log-only posture (that posture exists for
+    // legacy anonymous callers, which a plugin never was).
+    if (typeof req.headers['x-service-key'] === 'string' && req.headers['x-service-key'].startsWith('qplg_')) {
+      return res.status(rejectedStatus || 401).json(rejectedBody || { error: 'invalid_plugin_credential' });
     }
 
     req.aeeAuthenticated = false;
@@ -466,6 +578,9 @@ function requireAeeAuth() {
  * same flag as the auth rejection so log-only mode never mutates data.
  */
 function deriveAeeFrom(req, bodyFrom) {
+  // SEC-PLUGIN-TRUST C1: a plugin backend is always stamped plugin.<id> from the
+  // validated credential, never from the body.
+  if (req.pluginAuth) return `plugin.${req.pluginAuth.pluginId}`;
   // P0b (DEC-2/DEC-3): label by derived actor_type so an AGENT acting as a user
   // (qmcp_ token / agent-scoped JWT) is evidenced as `agent.<id>`, not forged as
   // `human.<id>`. traceAssembler.js already classifies actors by this prefix.
@@ -571,6 +686,7 @@ module.exports = {
   isAeeAuthEnforced,
   requireAeeAuth,
   deriveAeeFrom,
+  __clearPluginCredentialCache,
   isAdminUser,
   requireAdminRole,
   requireHumanAdmin,

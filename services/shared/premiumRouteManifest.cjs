@@ -450,6 +450,9 @@ const ROUTES_NOT_LICENCE_GOVERNED = [
   { key: 'GET /orgs/:orgId/trusted-keys', why: 'Org signing-key administration. Governs WHO may publish plugins here, not which plugins this org may run.' },
   { key: 'POST /orgs/:orgId/trusted-keys', why: 'As above.' },
   { key: 'DELETE /orgs/:orgId/trusted-keys/:keyId', why: 'As above.' },
+  { key: 'GET /orgs/:orgId/plugin-revocations', why: 'Org plugin revocation administration (SDK-TEAM W5). A security control that only ever REMOVES the ability to run code; gating it behind a licence would stop a lapsed org from revoking a leaked key.' },
+  { key: 'POST /orgs/:orgId/plugin-revocations', why: 'As above.' },
+  { key: 'DELETE /orgs/:orgId/plugin-revocations/:revocationId', why: 'As above.' },
 ];
 
 // ── Catalogue-family completeness (guard B) ─────────────────────────────────

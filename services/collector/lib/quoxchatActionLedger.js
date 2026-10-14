@@ -200,7 +200,22 @@ function ledgerConfirmationReply(message, ledger) {
   return `${what}${ref}.${time} The team will be in touch.`;
 }
 
+/**
+ * Wave 10 #4: the ledger's successful actions as plain lines, for the claim
+ * verifier's ACTIONS list. A reply that repeats an earlier completed action
+ * with its reference is supported by the server record, not unsupported.
+ */
+function ledgerActionTexts(ledger) {
+  return normaliseLedger(ledger).filter((e) => e.ok).map((e) => {
+    const bits = [`Earlier in this conversation: ${LABELS[actionClass(e.name)]}`];
+    if (e.reference) bits.push(`reference ${e.reference}`);
+    if (e.preferred_time) bits.push(`preferred time "${e.preferred_time}"`);
+    return bits.join(', ');
+  });
+}
+
 module.exports = {
+  ledgerActionTexts,
   ledgerConfirmationReply,
   actionClass,
   summariseOutcome,

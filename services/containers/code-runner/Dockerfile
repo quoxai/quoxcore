@@ -2,6 +2,7 @@
 # Isolated environment for executing untrusted code
 
 FROM python:3.11-slim
+ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install common tools
 RUN apt-get update && apt-get install -y --no-install-recommends \

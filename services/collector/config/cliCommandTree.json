@@ -1,0 +1,885 @@
+{
+  "generated_by": "cli/scripts/export-command-tree.mjs",
+  "commands": {
+    "account": [
+      "password"
+    ],
+    "admin": [
+      "agent-identity",
+      "config",
+      "email",
+      "enforcement",
+      "key",
+      "logs",
+      "retention",
+      "service",
+      "stats"
+    ],
+    "aee": [
+      "conversations",
+      "get",
+      "query",
+      "stats",
+      "store"
+    ],
+    "agent": [
+      "activate",
+      "attach",
+      "attach-heartbeat",
+      "attach-status",
+      "bind-slot",
+      "create",
+      "deactivate",
+      "delete",
+      "detach",
+      "exec",
+      "get",
+      "grant-attach",
+      "grant-attach-all",
+      "list",
+      "list-grants",
+      "revoke-attach",
+      "revoke-attach-all",
+      "tool",
+      "unbind-slot",
+      "update"
+    ],
+    "approvals": [
+      "grants",
+      "result"
+    ],
+    "assistant": [
+      "create",
+      "delete",
+      "deploy",
+      "fork",
+      "get",
+      "list",
+      "update"
+    ],
+    "aware": [
+      "ack",
+      "area",
+      "ask",
+      "blind",
+      "deck",
+      "do",
+      "feeds",
+      "forget",
+      "herald",
+      "journal",
+      "lessons",
+      "replay",
+      "since",
+      "since-last",
+      "sitrep",
+      "subjects",
+      "teach",
+      "told",
+      "why"
+    ],
+    "awareness": [
+      "list",
+      "post",
+      "remove",
+      "summary"
+    ],
+    "backup": [
+      "create",
+      "delete",
+      "get",
+      "list",
+      "restore",
+      "schedule",
+      "server",
+      "verify"
+    ],
+    "brain": [
+      "add",
+      "brief",
+      "check",
+      "citations",
+      "context",
+      "decide",
+      "delete",
+      "distill",
+      "eval",
+      "export",
+      "history",
+      "judge",
+      "judgements",
+      "neighbors",
+      "neighbours",
+      "note",
+      "read",
+      "related",
+      "restore",
+      "search",
+      "source",
+      "sources",
+      "status",
+      "subscribe",
+      "subscriptions",
+      "suggest",
+      "unsubscribe",
+      "update",
+      "usage",
+      "vaults",
+      "why"
+    ],
+    "budget": [
+      "create",
+      "delete",
+      "get",
+      "list",
+      "update",
+      "usage"
+    ],
+    "build": [
+      "dispatch",
+      "history",
+      "latest",
+      "status",
+      "targets"
+    ],
+    "calendar": [
+      "agenda",
+      "coverage",
+      "layers",
+      "propose",
+      "receipts",
+      "reconcile",
+      "status",
+      "sync"
+    ],
+    "capabilities": [],
+    "chat": [],
+    "chat-status": [],
+    "claude": [],
+    "codex": [],
+    "completion": [],
+    "config": [
+      "get",
+      "profile",
+      "set"
+    ],
+    "consent": [
+      "grant",
+      "history",
+      "list"
+    ],
+    "contacts": [
+      "add",
+      "add-id",
+      "archive",
+      "brief",
+      "call",
+      "certificate",
+      "compliance",
+      "dsar",
+      "duplicates",
+      "edit",
+      "erase",
+      "facts",
+      "find",
+      "focus",
+      "grant",
+      "handoff",
+      "handoffs",
+      "import",
+      "leases",
+      "list",
+      "merge",
+      "notice-sent",
+      "processing-record",
+      "reindex",
+      "resolve",
+      "retention",
+      "rewrap",
+      "search",
+      "selftest",
+      "settings",
+      "show",
+      "strict-names",
+      "suppress",
+      "suppressed",
+      "sync",
+      "unblock",
+      "unmerge"
+    ],
+    "conversation": [
+      "get",
+      "list",
+      "search",
+      "stats"
+    ],
+    "dashboard": [],
+    "department": [
+      "create",
+      "delete",
+      "list",
+      "update"
+    ],
+    "dev": [
+      "doctor",
+      "enable",
+      "resident",
+      "sessions",
+      "skills",
+      "supervisor"
+    ],
+    "discord": [],
+    "doctor": [],
+    "domain": [
+      "add",
+      "list",
+      "remove",
+      "verify"
+    ],
+    "done": [
+      "bar",
+      "board",
+      "check",
+      "checklist",
+      "fetch",
+      "history",
+      "packs"
+    ],
+    "engagement": [
+      "add-target",
+      "check-policy",
+      "create",
+      "discover-ports",
+      "findings",
+      "issue",
+      "job",
+      "jobs",
+      "list",
+      "propose",
+      "regrade-finding",
+      "report",
+      "report-finding",
+      "resolve-finding",
+      "scan",
+      "scan-async",
+      "schedule",
+      "set-gripe-target",
+      "show",
+      "sync-issues",
+      "tools",
+      "verify-finding",
+      "verify-target"
+    ],
+    "entity": [
+      "create",
+      "delete",
+      "get",
+      "list",
+      "relate",
+      "search",
+      "unrelate"
+    ],
+    "facebook": [
+      "insights",
+      "lead-forms",
+      "leads",
+      "pages",
+      "post",
+      "posts"
+    ],
+    "file": [
+      "delete",
+      "download",
+      "list",
+      "stats",
+      "upload"
+    ],
+    "fleet": [
+      "agents",
+      "codex-provision",
+      "exec",
+      "gpu",
+      "health",
+      "host-update",
+      "hosts",
+      "rehome-agent",
+      "status",
+      "summary",
+      "tools",
+      "watch"
+    ],
+    "gemini": [],
+    "governance": [
+      "approval",
+      "cert",
+      "certify",
+      "evidence",
+      "policy",
+      "template",
+      "traces",
+      "ward"
+    ],
+    "gripe": [],
+    "hat": [
+      "list",
+      "reset",
+      "show"
+    ],
+    "health": [],
+    "inbox": [
+      "get",
+      "list",
+      "respond",
+      "show",
+      "stats"
+    ],
+    "instagram": [
+      "accounts",
+      "comments",
+      "insights",
+      "media",
+      "publish",
+      "quota",
+      "reply"
+    ],
+    "integration": [
+      "create",
+      "delete",
+      "get",
+      "list",
+      "test",
+      "update"
+    ],
+    "inventory": [],
+    "invites": [
+      "accept",
+      "list"
+    ],
+    "licence": [
+      "catalog-sign",
+      "catalogue-sign",
+      "refresh",
+      "reissue",
+      "seats",
+      "status",
+      "website-login",
+      "website-logout"
+    ],
+    "license": [
+      "catalog-sign",
+      "catalogue-sign",
+      "refresh",
+      "reissue",
+      "seats",
+      "status",
+      "website-login",
+      "website-logout"
+    ],
+    "linkedin": [
+      "comment",
+      "org",
+      "post",
+      "posts"
+    ],
+    "llm": [
+      "status"
+    ],
+    "llm-policy": [
+      "get",
+      "set",
+      "test"
+    ],
+    "login": [],
+    "logout": [],
+    "lucid": [
+      "ack",
+      "area",
+      "ask",
+      "blind",
+      "deck",
+      "do",
+      "feeds",
+      "forget",
+      "herald",
+      "journal",
+      "lessons",
+      "replay",
+      "since",
+      "since-last",
+      "sitrep",
+      "subjects",
+      "teach",
+      "told",
+      "why"
+    ],
+    "mail": [
+      "accounts",
+      "connect",
+      "disconnect",
+      "import",
+      "list",
+      "moves",
+      "proposals",
+      "propose",
+      "report",
+      "resolve",
+      "sync",
+      "undo",
+      "watch",
+      "zones"
+    ],
+    "memory": [
+      "create",
+      "delete",
+      "export",
+      "forget",
+      "get",
+      "history",
+      "list",
+      "reinstate",
+      "search",
+      "stats",
+      "timeline",
+      "update"
+    ],
+    "mfa": [
+      "backup-codes",
+      "disable",
+      "setup",
+      "verify"
+    ],
+    "mon": [
+      "agh-chain",
+      "config",
+      "docker",
+      "metrics",
+      "wazuh"
+    ],
+    "monitoring": [
+      "health",
+      "incidents"
+    ],
+    "motion": [],
+    "notes": [
+      "actions",
+      "append",
+      "attach",
+      "attachments",
+      "batch",
+      "batch-undo",
+      "download",
+      "duplicate",
+      "edit",
+      "export",
+      "facets",
+      "from-email",
+      "health",
+      "history",
+      "import",
+      "import-status",
+      "ls",
+      "new",
+      "promote",
+      "propose-skill",
+      "related",
+      "restore",
+      "rm",
+      "schedule",
+      "scorecard",
+      "search",
+      "settings",
+      "show",
+      "split",
+      "suggest",
+      "tag",
+      "templates"
+    ],
+    "notification": [
+      "channels"
+    ],
+    "nucleus": [
+      "query"
+    ],
+    "objective": [
+      "approve",
+      "approve-checkpoint",
+      "checkpoints",
+      "create",
+      "deny-checkpoint",
+      "get",
+      "halt",
+      "list",
+      "start"
+    ],
+    "onboard": [],
+    "open": [],
+    "org": [
+      "audit",
+      "create",
+      "delete",
+      "divisions",
+      "get",
+      "list",
+      "members",
+      "switch",
+      "update"
+    ],
+    "plan": [
+      "add",
+      "completed",
+      "focus",
+      "list",
+      "move",
+      "note",
+      "phase",
+      "plan",
+      "rename",
+      "roadmap",
+      "roadmaps",
+      "show",
+      "stats",
+      "status",
+      "timeline",
+      "update"
+    ],
+    "plugin": [
+      "assign",
+      "data",
+      "doctor",
+      "get",
+      "install",
+      "licence",
+      "license",
+      "list",
+      "mine",
+      "revocations",
+      "secrets",
+      "trusted-keys",
+      "uninstall",
+      "update"
+    ],
+    "policy": [
+      "arm",
+      "compile",
+      "list"
+    ],
+    "powers": [
+      "archive",
+      "config",
+      "delete",
+      "deploy",
+      "deploy-repo",
+      "detect",
+      "finalize",
+      "restore",
+      "status",
+      "update"
+    ],
+    "prompt": [
+      "create",
+      "delete",
+      "export",
+      "get",
+      "import",
+      "list",
+      "restore",
+      "update",
+      "versions"
+    ],
+    "qlarity": [
+      "allowlist",
+      "close",
+      "console",
+      "eval",
+      "health",
+      "inspectors",
+      "login",
+      "network",
+      "origins",
+      "read",
+      "screenshot",
+      "sessions"
+    ],
+    "quoxbox": [
+      "approve",
+      "deny",
+      "mode",
+      "run",
+      "status",
+      "task",
+      "tasks",
+      "workflows"
+    ],
+    "quoxchat": [
+      "availability",
+      "conversations",
+      "reply",
+      "transcript",
+      "widgets"
+    ],
+    "reach": [
+      "agent",
+      "unused"
+    ],
+    "role": [
+      "agent",
+      "capability",
+      "create",
+      "delete",
+      "get",
+      "list",
+      "tool"
+    ],
+    "run": [
+      "cancel",
+      "create",
+      "get",
+      "list",
+      "resume"
+    ],
+    "safety": [
+      "defcon",
+      "estop",
+      "gate",
+      "history",
+      "release",
+      "status"
+    ],
+    "scim": [
+      "tokens"
+    ],
+    "scope": [
+      "list"
+    ],
+    "security": [
+      "ip-allowlist",
+      "mfa",
+      "session-policy"
+    ],
+    "seo": [
+      "add-site",
+      "backlinks",
+      "changes",
+      "coverage",
+      "crawls",
+      "gaps",
+      "health",
+      "keywords",
+      "remove-site",
+      "report",
+      "sites",
+      "status",
+      "trends",
+      "url",
+      "urls",
+      "verify"
+    ],
+    "server": [
+      "config",
+      "diag",
+      "doctor",
+      "rollback",
+      "status",
+      "uninstall",
+      "update"
+    ],
+    "service": [
+      "health"
+    ],
+    "sessions": [
+      "attach",
+      "kill",
+      "ls",
+      "report"
+    ],
+    "settings": [
+      "get",
+      "history",
+      "list",
+      "set"
+    ],
+    "setup": [
+      "admin",
+      "config",
+      "license",
+      "status"
+    ],
+    "signup": [],
+    "sitrep": [],
+    "skills": [
+      "disclosures",
+      "from-execution",
+      "library",
+      "list",
+      "promote-draft",
+      "protect",
+      "protections",
+      "review",
+      "rollback-to-version",
+      "run",
+      "sealed",
+      "show"
+    ],
+    "slot": [
+      "assign",
+      "bridge",
+      "checkout",
+      "claim",
+      "control",
+      "create",
+      "heartbeat",
+      "list",
+      "peek",
+      "prune",
+      "read",
+      "release",
+      "retire",
+      "say",
+      "wait"
+    ],
+    "sso": [
+      "providers"
+    ],
+    "status": [],
+    "tag": [
+      "create",
+      "delete",
+      "list",
+      "update"
+    ],
+    "team": [
+      "create",
+      "delete",
+      "get",
+      "list",
+      "members",
+      "provision-room",
+      "update"
+    ],
+    "tg": [
+      "bind-owner",
+      "leases",
+      "setup",
+      "status",
+      "webhook-info"
+    ],
+    "tiktok": [
+      "draft",
+      "profile",
+      "publish",
+      "stats",
+      "status",
+      "videos"
+    ],
+    "tips": [],
+    "tool": [
+      "catalog",
+      "create",
+      "delete",
+      "exec",
+      "get",
+      "install",
+      "list",
+      "publish",
+      "update"
+    ],
+    "trace": [
+      "compare",
+      "comparison",
+      "correlation",
+      "get",
+      "list",
+      "replay",
+      "simulate"
+    ],
+    "trigger": [
+      "events",
+      "schedules",
+      "webhooks",
+      "workflow-activate",
+      "workflow-deactivate"
+    ],
+    "tui": [],
+    "vault": [
+      "activity",
+      "assign",
+      "assignments",
+      "create",
+      "cross-org",
+      "delete",
+      "expiring",
+      "folder",
+      "get",
+      "health",
+      "lease",
+      "list",
+      "migrate",
+      "repos",
+      "rotate",
+      "scan",
+      "set-default",
+      "stats",
+      "test",
+      "test-all",
+      "test-new",
+      "types",
+      "unassign",
+      "update"
+    ],
+    "voice": [
+      "calls",
+      "identities",
+      "insights",
+      "numbers"
+    ],
+    "volt": [
+      "accept",
+      "acceptance",
+      "export",
+      "fetch",
+      "inspect",
+      "summary",
+      "verify"
+    ],
+    "watch": [
+      "fleet",
+      "services"
+    ],
+    "webhook": [
+      "create",
+      "delete",
+      "list",
+      "rotate"
+    ],
+    "whoami": [],
+    "workflow": [
+      "apply",
+      "create",
+      "delete",
+      "get",
+      "import-n8n",
+      "import-objective",
+      "list",
+      "publish",
+      "run",
+      "steps",
+      "update",
+      "validate"
+    ],
+    "wrap": [],
+    "x": [
+      "delete",
+      "like",
+      "media",
+      "media-root",
+      "mentions",
+      "post",
+      "read",
+      "repost",
+      "search",
+      "status",
+      "thread",
+      "timeline"
+    ]
+  }
+}

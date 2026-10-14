@@ -28,7 +28,7 @@ import { persistTestEvals } from '../../agentic/skill-test-evals.js';
 import type { ToolsmithAdapter } from '../../agentic/toolsmith-adapter.js';
 import { EnvelopeStore } from '../../store/envelope-store.js';
 import { envelopes, Intents, EnvelopeFactory } from '../../core/envelope.js';
-import type { ScoreboardRow } from '../../store/skill-scoreboard.js';
+import type { ScoreboardRow, ScoreboardOrgScope } from '../../store/skill-scoreboard.js';
 import { createSkillFirewall } from '../../security/skill_firewall.js';
 import type { SkillFirewall, SkillInput } from '../../security/skill_firewall.js';
 import type { SkillFirewallLogStore } from '../../store/skill-firewall-log-store.js';
@@ -51,7 +51,8 @@ const _aoclFactory = new EnvelopeFactory('agent.qskl-routes');
  */
 export interface SkillScoreboardReader {
   readOne(skillId: string, orgId?: string): Promise<ScoreboardRow | null>;
-  readAll(): Promise<ScoreboardRow[]>;
+  /** quoxflow#8: org-scoped like readOne; pass SYSTEM_SCOPE only for trusted cross-org jobs. */
+  readAll(scope: ScoreboardOrgScope): Promise<ScoreboardRow[]>;
 }
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
@@ -274,7 +275,8 @@ export function createQuoxSkillsRoutes(deps: {
     if (!deps.scoreboardReader) {
       return failure(c, 'SCOREBOARD_NOT_CONFIGURED', 'Scoreboard reader not wired. Requires a live database connection.', 503);
     }
-    const rows = await deps.scoreboardReader.readAll();
+    // quoxflow#8: was unscoped (every org's scoreboards to any caller). Scope to the caller's org.
+    const rows = await deps.scoreboardReader.readAll(requireOrgScope(c));
     // Normalise numeric fields from PG numeric type (returned as strings) to JS numbers
     const normalised = rows.map(normaliseScoreboardRow);
     return success(c, normalised);

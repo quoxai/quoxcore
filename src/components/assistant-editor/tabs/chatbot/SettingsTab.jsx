@@ -9,6 +9,7 @@ import { defaultEndpoint, generateEmbedCode, generateWebComponentCode, buildComp
 import { validateDomain } from '../../../../widget/widgetSecurity'
 import { keySourceLabel } from './planGateMessage'
 import WidgetDangerZone from './WidgetDangerZone'
+import { diffEmbedConfig } from './embedConfigPatch'
 
 const PRO_INPUT = { padding: '5px 8px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 5, color: '#fff', fontSize: 11, fontFamily: 'inherit', boxSizing: 'border-box' }
 
@@ -190,7 +191,7 @@ export default function SettingsTab({ widget, authFetch, orgId, onWidgetChange, 
       nextConfig.grounding = { ...(nextConfig.grounding || {}), verify_claims: verifyClaims, stream_mode: liveStream ? 'live' : 'verified' }
       const patch = {
         allowed_domains_json: JSON.stringify(domains),
-        embed_config_json: JSON.stringify(nextConfig),
+        embed_config_json: JSON.stringify(diffEmbedConfig(config, nextConfig)),
       }
       // Budget fields are only sent when the operator changed them.
       const dollars = parseFloat(budgetDollars)
@@ -203,6 +204,7 @@ export default function SettingsTab({ widget, authFetch, orgId, onWidgetChange, 
         body: JSON.stringify(patch),
       })
       if (resp.ok) {
+        try { const d = await resp.json(); if (d?.widget && onWidgetChange) onWidgetChange(d.widget) } catch {}
         setSaveMsg({ type: 'success', text: 'Settings saved' })
       } else {
         const err = await resp.json().catch(() => ({}))

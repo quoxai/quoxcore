@@ -17,6 +17,7 @@
 import { ulid } from './helpers.js';
 import { createHash, createPublicKey, verify as cryptoVerify } from 'crypto';
 import { encrypt, decrypt } from './encryption.js';
+import { FORMAT_V2, canonicalJson, filesMap, v2Payload, v2Message } from './pluginSignatureV2.js';
 
 export function ensurePluginsSchema(db) {
     db.exec(`
@@ -69,6 +70,22 @@ export function ensurePluginsSchema(db) {
             UNIQUE(org_id, public_key_hex)
         );
         CREATE INDEX IF NOT EXISTS idx_org_trusted_keys_org ON org_trusted_keys(org_id);
+    `);
+
+    // SDK-TEAM W5: org-scoped revocation of a signer key or one bundle digest.
+    // Mirrors migrations/123-plugin-revocations.sql (both idempotent).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS plugin_revocations (
+            id          TEXT PRIMARY KEY,
+            org_id      TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+            kind        TEXT NOT NULL CHECK (kind IN ('signer_key', 'bundle_digest')),
+            value       TEXT NOT NULL,               -- lowercase 64-hex: raw Ed25519 pubkey or bundle sha256
+            reason      TEXT,
+            revoked_by  TEXT NOT NULL,
+            revoked_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(org_id, kind, value)
+        );
+        CREATE INDEX IF NOT EXISTS idx_plugin_revocations_org ON plugin_revocations(org_id);
     `);
 
     // PD-7: admin-controlled assignment — gates which users see each install.
@@ -502,29 +519,90 @@ export function deleteTrustedKey(db, orgId, keyId) {
     return db.prepare(`DELETE FROM org_trusted_keys WHERE org_id = ? AND id = ?`).run(orgId, keyId);
 }
 
+const ED25519_DER_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+
+function ed25519Verify(pubHex, message, sigHex) {
+    const pubKey = createPublicKey({
+        key: Buffer.concat([ED25519_DER_PREFIX, Buffer.from(pubHex, 'hex')]),
+        format: 'der',
+        type: 'spki',
+    });
+    return cryptoVerify(null, message, pubKey, Buffer.from(sigHex, 'hex'));
+}
+
+const HEX64 = /^[0-9a-f]{64}$/;
+const HEX128 = /^[0-9a-f]{128}$/;
+
 /**
  * Verify a plugin signature against the org's trusted keys.
  *
- * @returns {{ valid: boolean, reason: string, matchedKeyId?: string }}
- *   - valid:false reason='unsigned'              — no signature payload at all
- *   - valid:false reason='invalid_structure'     — signature missing required fields
- *   - valid:false reason='digest_mismatch'       — signature.digest != bundleSha256
- *   - valid:false reason='no_matching_key'       — signature.public_key_hex not in trusted set
- *   - valid:false reason='bad_signature'         — Ed25519 verify returned false
- *   - valid:true                                  — verified against matchedKeyId
+ * Two formats (SDK-TEAM W5, 2026-10-13):
+ *   v2 (quox-plugin-vite >= 0.3.0): `signature_v2` over canonicalJson of
+ *      { files, format, manifest_sha256, plugin_id, plugin_version }; binds the
+ *      manifest, the bundle and the css (see pluginSignatureV2.js). The host
+ *      RECOMPUTES every bound value from what was posted and verifies against
+ *      that, never against the claims inside the signature object.
+ *   v1 (0.2.0): `signature` over the 32 raw bytes of the bundle sha256. Binds
+ *      the bundle only; returned with binding 'v1_manifest_unbound' so the
+ *      caller can apply its v1 manifest policy.
+ * A v2 signature object also carries the v1 fields so pre-v2 hosts keep
+ * installing it; a v2-aware host ignores them when v2 is present.
  *
- * Policy is the caller's choice — this function only computes the verdict.
+ * @returns {{ valid: boolean, reason?: string, matchedKeyId?: string, binding?: 'v2'|'v1_manifest_unbound' }}
+ *   reasons: unsigned, invalid_structure, manifest_required, digest_mismatch,
+ *   manifest_mismatch, files_mismatch, no_matching_key, bad_signature, verify_error
+ *
+ * Policy is the caller's choice; this function only computes the verdict.
  */
-export function verifyPluginSignature(db, orgId, { bundleSha256, signature }) {
+export function verifyPluginSignature(db, orgId, { bundleSha256, cssSha256 = null, manifest = null, signature }) {
     if (!signature || typeof signature !== 'object') {
         return { valid: false, reason: 'unsigned' };
     }
+    const isV2 = 'format' in signature || 'signature_v2' in signature;
+    if (isV2) return verifyV2(db, orgId, { bundleSha256, cssSha256, manifest, signature });
+
     const { algorithm, digest, signature: sigHex, public_key_hex } = signature;
     if (algorithm !== 'Ed25519' || !digest || !sigHex || !public_key_hex) {
         return { valid: false, reason: 'invalid_structure' };
     }
     if (digest !== bundleSha256) {
         return { valid: false, reason: 'digest_mismatch' };
+    }
+    const pubHex = String(public_key_hex).toLowerCase();
+    const trustedRow = db.prepare(
+        `SELECT id FROM org_trusted_keys WHERE org_id = ? AND public_key_hex = ?`
+    ).get(orgId, pubHex);
+    if (!trustedRow) {
+        return { valid: false, reason: 'no_matching_key' };
+    }
+    try {
+        return ed25519Verify(pubHex, Buffer.from(digest, 'hex'), sigHex)
+            ? { valid: true, matchedKeyId: trustedRow.id, binding: 'v1_manifest_unbound' }
+            : { valid: false, reason: 'bad_signature' };
+    } catch (err) {
+        return { valid: false, reason: 'verify_error', error: err.message };
+    }
+}
+
+function verifyV2(db, orgId, { bundleSha256, cssSha256, manifest, signature }) {
+    const { algorithm, format, signature_v2: sigHex, public_key_hex } = signature;
+    if (algorithm !== 'Ed25519' || format !== FORMAT_V2 || typeof sigHex !== 'string' || !HEX128.test(sigHex)
+        || typeof public_key_hex !== 'string' || !HEX64.test(public_key_hex.toLowerCase())) {
+        return { valid: false, reason: 'invalid_structure' };
+    }
+    if (!manifest || typeof manifest !== 'object') {
+        return { valid: false, reason: 'manifest_required' };
+    }
+    if (!bundleSha256) return { valid: false, reason: 'digest_mismatch' };
+
+    // Recompute everything the signature binds from the posted bytes.
+    const payload = v2Payload({ manifest, bundleSha256, cssSha256 });
+    if (signature.plugin_id !== payload.plugin_id || signature.plugin_version !== payload.plugin_version
+        || signature.manifest_sha256 !== payload.manifest_sha256) {
+        return { valid: false, reason: 'manifest_mismatch' };
+    }
+    if (canonicalJson(signature.files ?? null) !== canonicalJson(filesMap(bundleSha256, cssSha256))) {
+        return { valid: false, reason: 'files_mismatch' };
     }
     const pubHex = public_key_hex.toLowerCase();
     const trustedRow = db.prepare(
@@ -533,28 +611,100 @@ export function verifyPluginSignature(db, orgId, { bundleSha256, signature }) {
     if (!trustedRow) {
         return { valid: false, reason: 'no_matching_key' };
     }
-
     try {
-        // Ed25519 raw 32-byte public key → SPKI DER wrapper for crypto.createPublicKey.
-        // The DER prefix below is the constant header for Ed25519 SubjectPublicKeyInfo.
-        const ED25519_DER_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
-        const pubKey = createPublicKey({
-            key: Buffer.concat([ED25519_DER_PREFIX, Buffer.from(pubHex, 'hex')]),
-            format: 'der',
-            type: 'spki',
-        });
-        const ok = cryptoVerify(
-            null, // Ed25519 doesn't take a digest algorithm
-            Buffer.from(digest, 'hex'),
-            pubKey,
-            Buffer.from(sigHex, 'hex'),
-        );
-        return ok
-            ? { valid: true, matchedKeyId: trustedRow.id }
+        return ed25519Verify(pubHex, v2Message(payload), sigHex)
+            ? { valid: true, matchedKeyId: trustedRow.id, binding: 'v2' }
             : { valid: false, reason: 'bad_signature' };
     } catch (err) {
         return { valid: false, reason: 'verify_error', error: err.message };
     }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// SDK-TEAM W5: v1 manifest policy
+//
+// A v1 signature vouches for the bundle bytes and nothing else, so in an org
+// that requires signatures it must not be able to carry privileges that live
+// in the manifest. A v1-signed plugin may ask only for what a sandboxed UI
+// plugin needs with no reach beyond its own storage: sidebar, storage,
+// notifications. network (fetch through the host), memory, aee and a backend
+// image are refused until the author re-signs with v2.
+// ──────────────────────────────────────────────────────────────────────
+
+export const V1_ALLOWED_PERMISSIONS = new Set(['sidebar', 'storage', 'notifications']);
+
+/** @returns {string[]} what a v1-signed manifest asks for beyond the v1 allowance (empty = ok) */
+export function v1ManifestExcess(manifest) {
+    const excess = [];
+    const perms = manifest?.permissions;
+    if (perms !== undefined && perms !== null && !Array.isArray(perms)) excess.push('permissions:not_an_array');
+    if (Array.isArray(perms)) {
+        for (const p of perms) if (!V1_ALLOWED_PERMISSIONS.has(p)) excess.push(`permission:${p}`);
+    }
+    if (manifest && manifest.backend) excess.push('backend');
+    return excess;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// SDK-TEAM W5: org-scoped revocation
+// ──────────────────────────────────────────────────────────────────────
+
+export const REVOCATION_KINDS = new Set(['signer_key', 'bundle_digest']);
+
+export function addRevocation(db, orgId, { kind, value, reason = null, revokedBy }) {
+    if (!REVOCATION_KINDS.has(kind)) throw new Error('kind must be signer_key or bundle_digest');
+    const v = String(value || '').toLowerCase();
+    if (!HEX64.test(v)) throw new Error('value must be 64 hex characters');
+    if (!revokedBy) throw new Error('revokedBy required');
+    const id = ulid();
+    db.prepare(`
+        INSERT INTO plugin_revocations (id, org_id, kind, value, reason, revoked_by)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, orgId, kind, v, reason ? String(reason).slice(0, 500) : null, revokedBy);
+    return db.prepare(`SELECT * FROM plugin_revocations WHERE id = ?`).get(id);
+}
+
+export function listRevocations(db, orgId) {
+    return db.prepare(`SELECT * FROM plugin_revocations WHERE org_id = ? ORDER BY revoked_at DESC`).all(orgId);
+}
+
+export function getRevocation(db, orgId, id) {
+    return db.prepare(`SELECT * FROM plugin_revocations WHERE org_id = ? AND id = ?`).get(orgId, id);
+}
+
+export function deleteRevocation(db, orgId, id) {
+    return db.prepare(`DELETE FROM plugin_revocations WHERE org_id = ? AND id = ?`).run(orgId, id);
+}
+
+/**
+ * Is this bundle (or its signer) revoked for the org? Fails CLOSED: any error
+ * reading the store is reported as revoked, so a broken lookup can never
+ * serve bytes an admin tried to stop.
+ *
+ * @returns {{ revoked: false } | { revoked: true, kind: string, id?: string, reason?: string|null }}
+ */
+export function revocationFor(db, orgId, { bundleSha256, publicKeyHex }) {
+    try {
+        const stmt = db.prepare(`SELECT id, kind, reason FROM plugin_revocations WHERE org_id = ? AND kind = ? AND value = ?`);
+        if (bundleSha256) {
+            const r = stmt.get(orgId, 'bundle_digest', String(bundleSha256).toLowerCase());
+            if (r) return { revoked: true, kind: r.kind, id: r.id, reason: r.reason };
+        }
+        if (publicKeyHex) {
+            const r = stmt.get(orgId, 'signer_key', String(publicKeyHex).toLowerCase());
+            if (r) return { revoked: true, kind: r.kind, id: r.id, reason: r.reason };
+        }
+        return { revoked: false };
+    } catch (err) {
+        return { revoked: true, kind: 'revocation_check_failed', reason: err.message };
+    }
+}
+
+/** Revocation check for a stored install row (signature_json parsed for the signer key). */
+export function installRevocation(db, orgId, row) {
+    let pub = null;
+    try { pub = row?.signature_json ? JSON.parse(row.signature_json)?.public_key_hex || null : null; } catch { pub = null; }
+    return revocationFor(db, orgId, { bundleSha256: row?.bundle_sha256, publicKeyHex: pub });
 }
 
 export function listVisiblePluginIds(db, orgId, userId, { teamIds = null } = {}) {

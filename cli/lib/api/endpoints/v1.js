@@ -5,6 +5,15 @@
  */
 
 export const v1 = {
+  // QUOXON E1: what this Quox can do for the caller's org (installed |
+  // requires_setup | unavailable | planned), from real health, licence,
+  // install and provider signals. Org comes from the token.
+  'v1.capabilities': {
+    method: 'GET',
+    service: 'collector',
+    path: () => `/api/v1/capabilities`,
+    tags: ['live-safe'],
+  },
   'v1.settings.list': {
     method: 'GET',
     service: 'collector',
@@ -287,10 +296,43 @@ export const v1 = {
     path: () => `/api/v1/tools/execute`,
     tags: ['live-write'],
   },
+  // quox#791: stored outcome of an approved gated tool call.
+  'v1.approvals.result': {
+    method: 'GET',
+    service: 'collector',
+    path: ({ id }) => `/api/v1/approvals/${encodeURIComponent(id)}/result`,
+    tags: ['live-safe'],
+  },
+  // Fleet standing grants (2026-10-13): org-admin pre-approved ssh_exec lanes.
+  'v1.approvals.grants.list': {
+    method: 'GET',
+    service: 'collector',
+    path: () => `/api/v1/approvals/grants`,
+    tags: ['live-safe'],
+  },
+  'v1.approvals.grants.create': {
+    method: 'POST',
+    service: 'collector',
+    path: () => `/api/v1/approvals/grants`,
+    tags: ['live-write'],
+  },
+  'v1.approvals.grants.revoke': {
+    method: 'POST',
+    service: 'collector',
+    path: ({ id }) => `/api/v1/approvals/grants/${encodeURIComponent(id)}/revoke`,
+    tags: ['live-write'],
+  },
   'v1.tools.list': {
     method: 'GET',
     service: 'collector',
     path: () => `/api/v1/tools/list`,
+    tags: ['live-safe'],
+  },
+  // QUOXON-REACH: registered specialist roster (entity JSONs), used by `quox agent list`.
+  'v1.agents.registry': {
+    method: 'GET',
+    service: 'collector',
+    path: () => `/api/v1/agent-registry`,
     tags: ['live-safe'],
   },
   // DEVSUITE-GRIPE-P7 / quox#567 (CLI half): agent-to-tool permission
@@ -321,6 +363,25 @@ export const v1 = {
     service: 'collector',
     path: () => `/api/v1/live-sessions`,
     tags: ['live-safe'],
+  },
+  // QUOXON J1: one org-scoped index of live sessions + the wrapper heartbeat.
+  'v1.sessions.index': {
+    method: 'GET',
+    service: 'collector',
+    path: () => `/api/v1/sessions`,
+    tags: ['live-safe'],
+  },
+  'v1.sessions.heartbeat': {
+    method: 'POST',
+    service: 'collector',
+    path: () => `/api/v1/sessions/heartbeat`,
+    tags: [],
+  },
+  'v1.sessions.end': {
+    method: 'POST',
+    service: 'collector',
+    path: () => `/api/v1/sessions/end`,
+    tags: [],
   },
   'v1.slots.list': {
     method: 'GET',

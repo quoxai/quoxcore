@@ -142,6 +142,22 @@ function createInboxqScheduler(deps = {}) {
         heartbeat(org, accounts.length > 0 && acctFailed === accounts.length
           ? { error: `all ${accounts.length} mailbox${accounts.length === 1 ? '' : 'es'} failed to sync` } : {});
       }
+      // quox#813: polling mailboxes in an org whose background sync is OFF were
+      // never synced and never beat, so LUCID could only say "never heard".
+      // Say what is actually wrong (failing, not silent), once per default interval.
+      try {
+        const offOrgs = typeof store.listSyncOffOrgsWithMailboxes === 'function' ? store.listSyncOffOrgsWithMailboxes() : [];
+        for (const o of offOrgs) {
+          const key = `off:${o.orgId}`;
+          if (now() - (lastRun.get(key) || 0) < 15 * 60 * 1000) continue;
+          lastRun.set(key, now());
+          heartbeat({ orgId: o.orgId, syncIntervalMin: 15 }, {
+            error: `background sync is off: ${o.mailboxes} mailbox${o.mailboxes === 1 ? '' : 'es'} connected but never synced in the background. Turn on Background sync in InboxQ settings (PUT /api/v1/inboxq/settings {"syncEnabled":true}); \`quox mail sync <accountId>\` syncs once by hand.`,
+          });
+        }
+      } catch (e) {
+        log(`[inboxq] scheduler: sync-off scan failed: ${e?.message || e}`);
+      }
       return { orgs: orgs.length, synced, failed };
     } finally {
       ticking = false;

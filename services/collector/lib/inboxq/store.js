@@ -525,6 +525,15 @@ function listSyncEnabledOrgs() {
     .map((r) => ({ orgId: r.org_id, syncIntervalMin: r.sync_interval_min, llmBudgetPerTick: r.llm_budget_per_tick }));
 }
 
+/** quox#813: orgs with polling mailboxes but background sync off -> [{ orgId, mailboxes }]. */
+function listSyncOffOrgsWithMailboxes() {
+  const db = getDb();
+  return db.prepare(`SELECT a.org_id AS org_id, COUNT(*) AS n FROM inboxq_accounts a
+    LEFT JOIN inboxq_settings s ON s.org_id = a.org_id
+    WHERE a.poll_enabled = 1 AND COALESCE(s.sync_enabled, 0) = 0
+    GROUP BY a.org_id`).all().map((r) => ({ orgId: r.org_id, mailboxes: r.n }));
+}
+
 function getDb() {
   if (_db) return _db;
   _dbPath = process.env.INBOXQ_DB_PATH || '/var/lib/quox/inboxq.db';
@@ -2290,6 +2299,7 @@ module.exports = {
   getSettings,
   setSettings,
   listSyncEnabledOrgs,
+  listSyncOffOrgsWithMailboxes,
   AVAILABLE_CLASSIFIER_MODELS,
   // sender reputation (the learning layer)
   bumpReputation,

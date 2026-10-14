@@ -23,7 +23,7 @@ import { computeRelevance, rerankVetoHolds } from './lib/relevance.js'
 import { getEmbeddingProviderCached, composeEmbeddingsStatus, getEmbeddingCoverageCached } from './lib/embeddingStatus.js'
 import { describeEffectiveConfig } from './lib/effectiveConfig.js'
 import { resolveDreamLlmAllowed, resolveEmbedExclusions, describeEgress, resolveRelevanceThresholds, resolveQueryEmbedTimeout, resolveRerankEnabledDetailed, resolveExpandEnabledDetailed } from './lib/brainConfig.js'
-import { groundingForTop } from './lib/entityGrounding.js'
+import { groundingForTop, modeEntities, normalizeGroundingMode, DEFAULT_GROUNDING_MODE } from './lib/entityGrounding.js'
 import { maybeRerank, RERANK_TOP_N, RERANK_TOP_N_EXPANDED } from './lib/rerank.js'
 import { resolveExpansion } from './lib/expand.js'
 import { guaranteedNoteIds, perResultExplain, explainTarget, hasActiveFacets } from './lib/explain.js'
@@ -498,8 +498,16 @@ app.put('/notesq/notes/:id', authenticate, notesqGate, notesqHandler(async (req,
   res.status(200).json(out)
 }))
 
+// Optimistic-concurrency token for destructive writes: body.expected_hash,
+// ?expected_hash=, or If-Match. Checked by the service inside the mutation's
+// own lock/transaction (409 {error:'conflict', currentHash}, nothing changed).
+const expectedHashOf = (req) => {
+  const v = req.body?.expected_hash ?? req.query?.expected_hash ?? String(req.headers['if-match'] || '').replace(/^W\//, '').replace(/^"|"$/g, '')
+  return typeof v === 'string' && v ? v : undefined
+}
+
 app.delete('/notesq/notes/:id', authenticate, notesqGate, notesqHandler(async (req, res) => {
-  const out = await notesq.deleteNote({ ...nid(req), isAdmin: req.notesqAdmin, id: req.params.id, authorKind: req.headers['x-author-kind'], purge: req.query.purge === 'true' })
+  const out = await notesq.deleteNote({ ...nid(req), isAdmin: req.notesqAdmin, id: req.params.id, authorKind: req.headers['x-author-kind'], purge: req.query.purge === 'true', expectedHash: expectedHashOf(req) })
   res.json(out)
 }))
 
@@ -516,7 +524,7 @@ app.get('/notesq/notes/:id/revisions/:rev', authenticate, notesqGate, notesqHand
 }))
 
 app.post('/notesq/notes/:id/restore', authenticate, notesqGate, notesqHandler(async (req, res) => {
-  const out = await notesq.restoreRevision({ ...nid(req), isAdmin: req.notesqAdmin, id: req.params.id, rev: req.body?.rev, authorKind: req.body?.author_kind })
+  const out = await notesq.restoreRevision({ ...nid(req), isAdmin: req.notesqAdmin, id: req.params.id, rev: req.body?.rev, authorKind: req.body?.author_kind, expectedHash: expectedHashOf(req) })
   res.json(out)
 }))
 
@@ -896,17 +904,22 @@ app.post('/brain/search', authenticate, orgBudgetMiddleware, async (req, res) =>
     // codename) that none of the top results' salient text mentions is not
     // answered by them (lib/entityGrounding.js). Hits stay, flagged. Salient =
     // title, path, matched passage and the note's first 1200 chars.
+    // Opt-in grounding mode: instance-authority callers only (measurement).
+    const groundingModeReq = isInstanceAuthority(req) ? normalizeGroundingMode(req.body?.groundingMode) : DEFAULT_GROUNDING_MODE
+    const modeEnts = groundingModeReq !== 'legacy' ? modeEntities(query, groundingModeReq, (t, v, l) => store.sampleTermChunks(req.org_id, req.user_id, v, l), `${req.org_id}\u0000${req.user_id || ''}`) : null
     let groundingOut = { entities: [], missing: [], ungrounded: false, evaluated: false }
     if (!relevanceOut.insufficient && results.length) {
       const top = results.slice(0, 3)
       const passages = new Map(store.getChunkDetails(req.org_id, req.user_id, top.map((r) => r.chunkId).filter(Boolean)).map((d) => [d.chunkId, d.text]))
       const g = groundingForTop(query, top, {
+        ...(modeEnts ? { entities: modeEnts } : {}),
         passageOf: (r) => passages.get(r.chunkId) || r.snippet || '',
         headOf: (r) => { const n = r.noteId ? store.getNote(req.org_id, req.user_id, r.noteId) : null; return typeof n?.body === 'string' ? n.body.slice(0, 1200) : '' },
       })
       groundingOut = { entities: g.entities, missing: g.missing, ungrounded: g.ungrounded, evaluated: true }
       if (g.ungrounded) relevanceOut = { ...relevanceOut, insufficient: true, ungrounded: g.missing }
     }
+    if (modeEnts) relevanceOut = { ...relevanceOut, groundingMode: groundingModeReq, entities: modeEnts }
     // BRAIN2-W4 A: opt-in chunk text (capped) so a citation support check sees
     // the passage the agent saw, not the truncated FTS highlight. Off by default
     // so the dashboard payload is unchanged.
@@ -972,6 +985,9 @@ app.post('/brain/search', authenticate, orgBudgetMiddleware, async (req, res) =>
         })
       }
     }
+    // Pin the retrieved revision so citation records attest to THIS version.
+    const pinHashes = store.getNoteContentHashes(req.org_id, results.map((r) => r.noteId))
+    for (const r of results) if (r && pinHashes[r.noteId]) r.noteHash = pinHashes[r.noteId]
     res.json({ stageMs, results, retrieval, ...(expandSink.status ? { expand: expandSink.status } : {}), ...(rerank ? { rerank } : {}), ...(rr.rerankVerdict ? { rerankVerdict: rr.rerankVerdict } : {}), ...(degradedSink.degraded && retrieval === 'fts' ? { degraded: degradedSink.degraded } : {}), relevance: relevanceOut, insufficient: relevanceOut.insufficient, ...(retrieval !== 'fts' && store.denseWindowTruncated(req.org_id) ? { denseWindowTruncated: true } : {}), ...(denseCoverage?.status === 'partial' ? { denseCoverage } : {}), tookMs: Date.now() - start, ...(explain ? { explain } : {}) })
   } catch (error) {
     console.error('[Brain] Search error:', error)
@@ -1014,13 +1030,19 @@ app.post('/brain/context', authenticate, orgBudgetMiddleware, async (req, res) =
     if (typeof query !== 'string' || !query.trim()) {
       return res.status(400).json({ error: 'query is required' })
     }
+    const dateWindow = parseDateWindow(req.body?.since, req.body?.until)
+    if (dateWindow.error) return res.status(400).json({ error: dateWindow.error })
 
     // assembleContext is async as of P4-WP2 (docs/STREAM_QUOXBRAIN_SECONDBRAIN_LENS.md
     // §P4) — it awaits the embedding seam ONLY when QUOXBRAIN_HYBRID_ENABLED='true';
     // otherwise it resolves synchronously-equivalent, same as before.
-    const result = await assembleContext(req.org_id, req.user_id, { query, tokenBudget: Number(tokenBudget) || 800, vaultIds, kinds, minScore: Number(minScore) || 0, sources, scopes, languages, queryEmbedTimeoutMs: embedTimeoutOf(req), rerank: rerankOverride })
+    const result = await assembleContext(req.org_id, req.user_id, { query, tokenBudget: Number(tokenBudget) || 800, vaultIds, kinds, minScore: Number(minScore) || 0, sources, scopes, languages, ...dateWindow.filters, queryEmbedTimeoutMs: embedTimeoutOf(req), rerank: rerankOverride, groundingMode: isInstanceAuthority(req) ? req.body?.groundingMode : undefined })
     store.recordUsageEvent({ org_id: req.org_id, user_id: req.user_id || null, surface: 'context', source: usageSource(req) })
     if (result.retrieval === 'hybrid' && store.denseWindowTruncated(req.org_id)) result.denseWindowTruncated = true
+    if (Array.isArray(result.passages)) {
+      const pinHashes = store.getNoteContentHashes(req.org_id, result.passages.map((p) => p.noteId))
+      for (const p of result.passages) if (p?.citation && pinHashes[p.noteId]) p.citation.noteHash = pinHashes[p.noteId]
+    }
     res.json(result)
   } catch (error) {
     console.error('[Brain] Context assembly error:', error)
@@ -1179,6 +1201,20 @@ app.get('/brain/dream/status', authenticate, (req, res) => {
 // a caller can't request an unbounded or degenerate-tiny scan. Org/user scope
 // comes from req.org_id/req.user_id (resolved by authenticate), same as
 // every other route here — never a query-param override.
+// QUOXON E5: decisions recorded since a time (notes tagged `decision`), for the collector's /api/v1/away.
+app.get('/brain/decisions', authenticate, (req, res) => {
+  const since = typeof req.query.since === 'string' ? req.query.since.trim() : ''
+  const t = Date.parse(since)
+  if (!since || !Number.isFinite(t)) return res.status(400).json({ error: 'since must be an ISO time' })
+  try {
+    const r = store.getDecisionsSince(req.org_id, req.user_id, { sinceIso: new Date(t).toISOString(), limit: req.query.limit })
+    res.json({ since: new Date(t).toISOString(), count: r.count, decisions: r.items })
+  } catch (err) {
+    console.error('[brain/decisions]', err.message)
+    res.status(500).json({ error: 'decisions read failed' })
+  }
+})
+
 app.get('/brain/activity', authenticate, (req, res) => {
   const parsedWindow = parseInt(req.query.window, 10)
   const windowSeconds = Math.min(3600, Math.max(30, Number.isFinite(parsedWindow) ? parsedWindow : 300))
@@ -1240,7 +1276,7 @@ app.post('/brain/citations', authenticate, (req, res) => {
   // A JWT user could otherwise inflate their org's grounding rate.
   if (!req.service) return res.status(403).json({ error: 'citations_require_service_key' })
   try {
-    const { corr = null, agent_id = null, retrieved_count, cited_count, supported_count = null, cited_note_ids = [], records = [] } = req.body || {}
+    const { corr = null, agent_id = null, retrieved_count, cited_count, supported_count = null, overlap_count = null, fabricated_count = null, cited_note_ids = [], records = [] } = req.body || {}
 
     const isCount = (v) => Number.isInteger(v) && v >= 0
     if (!isCount(retrieved_count) || !isCount(cited_count)) {
@@ -1254,6 +1290,14 @@ app.post('/brain/citations', authenticate, (req, res) => {
       if (!isCount(supported_count)) return res.status(400).json({ error: 'supported_count must be a non-negative integer' })
       if (supported_count > cited_count) return res.status(400).json({ error: 'supported_count cannot exceed cited_count' })
     }
+    if (overlap_count !== null && overlap_count !== undefined) {
+      if (!isCount(overlap_count)) return res.status(400).json({ error: 'overlap_count must be a non-negative integer' })
+      if (overlap_count + (supported_count ?? 0) > cited_count) return res.status(400).json({ error: 'overlap_count plus supported_count cannot exceed cited_count' })
+    }
+
+    if (fabricated_count !== null && fabricated_count !== undefined && !isCount(fabricated_count)) {
+      return res.status(400).json({ error: 'fabricated_count must be a non-negative integer' })
+    }
 
     store.recordCitationEvent({
       org_id: req.org_id,
@@ -1263,6 +1307,8 @@ app.post('/brain/citations', authenticate, (req, res) => {
       retrieved_count,
       cited_count,
       supported_count: supported_count ?? null,
+      overlap_count: overlap_count ?? null,
+      fabricated_count: fabricated_count ?? null,
       cited_note_ids: Array.isArray(cited_note_ids) ? cited_note_ids : []
     })
 

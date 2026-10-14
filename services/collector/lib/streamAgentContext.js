@@ -37,4 +37,41 @@ async function resolveStreamAgentContext({ agent, orgId, withTools = false }, { 
   return { systemPrompt, tools };
 }
 
-module.exports = { resolveStreamAgentContext, genericPrompt, NO_TOOLS_NOTE };
+/** Opt-in governed tool turns: the honesty note must follow the RESOLVED tool set. */
+function applyToolHonesty(prompt, toolCount) {
+  const p = String(prompt || '');
+  if (toolCount > 0) return p.endsWith(NO_TOOLS_NOTE) ? p.slice(0, -NO_TOOLS_NOTE.length) : p;
+  return p.endsWith(NO_TOOLS_NOTE) ? p : p + NO_TOOLS_NOTE;
+}
+
+/** D3: 'compact' | 'full'. Ollama (small local context) defaults to compact; /model can opt in. */
+const PROMPT_PROFILES = new Set(['compact', 'full']);
+function resolvePromptProfile(requested, provider) {
+  const r = typeof requested === 'string' ? requested.trim().toLowerCase() : '';
+  if (PROMPT_PROFILES.has(r)) return r;
+  return require('./turnToolSelection.js').isSmallLocalProvider(provider) ? 'compact' : 'full';
+}
+
+/**
+ * D3: the system prompt for one governed API turn. compact swaps in the entity's compact
+ * prompt (falls back to the full one when there is none); the honesty note follows the
+ * RESOLVED tool count; a tool turn adds the state-change rule and the more_tools hint.
+ */
+function buildTurnSystemPrompt({ agent, fullPrompt, profile = 'full', toolCount = 0, getCompactPrompt }) {
+  let base = String(fullPrompt || '');
+  if (profile === 'compact') {
+    let compact = null;
+    try {
+      compact = typeof getCompactPrompt === 'function'
+        ? getCompactPrompt(String(agent || '').toLowerCase())
+        : require('./entityAssistantLoader.js').getAssistantPromptCompact(String(agent || '').toLowerCase());
+    } catch { compact = null; }
+    if (typeof compact === 'string' && compact.trim()) base = compact;
+  }
+  const p = applyToolHonesty(base, toolCount);
+  if (toolCount <= 0) return p;
+  const { STATE_CHANGE_RULE, CLAIM_RULES } = require('./turnToolSelection.js');
+  return `${p}\n\n## Tools this turn\n- ${STATE_CHANGE_RULE}\n- Only the tools listed are offered. If none fits, call more_tools with what you need before saying you cannot.\n${CLAIM_RULES.map((r) => `- ${r}`).join('\n')}`;
+}
+
+module.exports = { resolvePromptProfile, buildTurnSystemPrompt, applyToolHonesty, resolveStreamAgentContext, genericPrompt, NO_TOOLS_NOTE };

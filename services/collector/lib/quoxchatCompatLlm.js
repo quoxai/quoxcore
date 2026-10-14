@@ -45,6 +45,10 @@ function ipv4Hard(p) {
   const [a, b] = p;
   if (a === 0) return true;
   if (a === 169 && b === 254) return true;
+  // 100.100.100.0/24 inside CGNAT: Alibaba Cloud metadata (100.100.100.200)
+  // and Tailscale service addresses (100.100.100.100). Never a model server,
+  // so an allow-listed CGNAT/tailnet origin can never reach it (2026-10-12).
+  if (a === 100 && b === 100 && p[2] === 100) return true;
   if (a >= 224) return true;
   return false;
 }

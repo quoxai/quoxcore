@@ -356,3 +356,12 @@ Owner: "the best looking plugin we have made... carry it forward to the other pl
 | `.qx-seg--tint` + `.qx-tint--{sky,violet,teal,amber,fuchsia,green}` + `.qx-tint__btn` | Tinted tool group: a toolbar split into `.qx-seg` groups, one hue per group, bold glyphs, active button lit in its hue. |
 | `.qx-pane-rail` + `__icon` / `__label` / `__count` | A collapsed pane as a slim clickable glass strip in its own grid column, label reads like a book spine. Never `display:none` a pane. |
 | `TextSizeControl` / `useTextSize(key)` (`src/components/ui/TextSizeControl.jsx`) + `.qx-textsize` | A-, %, A+ text size, remembered per device under the surface's own key (`src/lib/textZoom.js`). Set the zoom as `--qx-text-zoom` on the `.qx-slate`. |
+
+## Sessions overview (QUOXON J3, /sessions)
+
+| Class | Purpose |
+|---|---|
+| `.qx-qstate` + `--resting` / `--working` / `--waiting` / `--failing` | The perpetual Q status glyph: wraps `<QHorn stops={...}>`; colour and motion carry state (CLI palette: resting dim sky breathing, working sky to violet flow, waiting amber pulse, failing red). Reduced motion stops the animation. |
+| `.qx-session-list` + `.qx-session-row` (`__main`, `__name`, `__meta`, `__cell`, `__cell--host`, `__cell--age`, `__attach`, `--failing`) | One live session per row: glyph, name + badges, host, age, attach hint + copy. Container query stacks it below 720px. |
+| `.qx-session-agent` (`__swatch`, `__name`) | Agent group heading with a colour swatch (set `color` inline to the agent colour). |
+| `.qx-session-tiles` | Five-up stat tile grid (three-up under 640px). |

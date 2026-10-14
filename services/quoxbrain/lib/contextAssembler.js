@@ -50,7 +50,7 @@ import { embedQueryCached, embedTextsDetailed } from './embeddingClient.js'
 import { getSetting } from './configResolver.js'
 import { computeRelevance, rerankVetoHolds } from './relevance.js'
 import { maybeRerank } from './rerank.js'
-import { groundingForTop } from './entityGrounding.js'
+import { groundingForTop, modeEntities, normalizeGroundingMode } from './entityGrounding.js'
 import { resolveRelevanceThresholds, resolveQueryEmbedTimeout, resolveEmbedExclusions, excludedVaultIds } from './brainConfig.js'
 
 // -----------------------------------------------------------------------------
@@ -393,8 +393,12 @@ export async function tryHybridFusion(org_id, user_id, query, sparsePool, limit,
     const denseFetch = Math.min(Math.max(limit * 6, faceted ? limit * 4 : limit), 200)
     const liveModel = models?.[0] || (reqModel ? majority : null)
     // One dense leg for one query vector: facet filter, vault exclusion, per-note quota, trim.
+    // Push vault exclusions down too so excluded vaults cannot eat top-k slots.
+    const denseFilters = deps.excludedVaultIdSet && deps.excludedVaultIdSet.size > 0
+      ? { ...(filters || {}), excludeVaultIds: [...deps.excludedVaultIdSet] }
+      : filters
     const runDenseLeg = async (vec) => {
-      let dr = await denseSearchChunksFn(org_id, vec, { ownerUserId: user_id, limit: denseFetch, model: liveModel, filters })
+      let dr = await denseSearchChunksFn(org_id, vec, { ownerUserId: user_id, limit: denseFetch, model: liveModel, filters: denseFilters })
       const coverage = dr?.denseCoverage ?? null // W13 B: survives the facet/quota filters below
       if (faceted && Array.isArray(dr) && dr.length > 0) {
         const allowed = filterByFacetsFn(org_id, user_id, dr.map((d) => d.chunkId), filters)
@@ -572,14 +576,14 @@ function uCurveOrder(sortedDesc) {
  *   real store.js/embeddingClient.js implementations.
  * @returns {Promise<{passages:Array, tokensUsed:number, assembly:{candidates:number, afterThreshold:number, afterDedup:number}}>}
  */
-export async function assembleContext(org_id, user_id, { query, tokenBudget = 800, vaultIds, kinds, minScore = 0, sources, scopes, languages, queryEmbedTimeoutMs, ordering = 'score', maxPerNote = 3, rerank: rerankOverride } = {}, deps = {}) {
+export async function assembleContext(org_id, user_id, { query, tokenBudget = 800, vaultIds, kinds, minScore = 0, sources, scopes, languages, since, until, queryEmbedTimeoutMs, ordering = 'score', maxPerNote = 3, rerank: rerankOverride, groundingMode } = {}, deps = {}) {
   const searchChunksFn = deps.searchChunks || store.searchChunks
   const getChunkDetailsFn = deps.getChunkDetails || store.getChunkDetails
 
   // Generous candidate pool so threshold/dedup/packing have something real
   // to work with even for a tight budget.
   const candidateLimit = Math.max(50, Math.ceil(tokenBudget / 50))
-  const rawCandidates = searchChunksWithQuota(searchChunksFn, org_id, user_id, { query, vaultIds, kinds, sources, scopes, languages }, candidateLimit)
+  const rawCandidates = searchChunksWithQuota(searchChunksFn, org_id, user_id, { query, vaultIds, kinds, sources, scopes, languages, ...(since ? { since } : {}), ...(until ? { until } : {}) }, candidateLimit)
 
   // P4-WP2 hybrid fusion (feature-flagged, best-effort) — swaps the FTS-only
   // pool for a dense+sparse RRF-fused one when usable; on ANY failure (flag
@@ -597,11 +601,17 @@ export async function assembleContext(org_id, user_id, { query, tokenBudget = 80
   const orgCfg = deps.orgConfig || await resolveOrgRetrievalConfig(org_id, { ...deps, user_id })
   if (await isHybridEnabled(org_id, deps) && typeof query === 'string' && query.trim()) {
     const fused = await tryHybridFusion(org_id, user_id, query, rawCandidates, candidateLimit,
-      { ...deps, degradedSink, orgQueryEmbedTimeoutMs: orgCfg.orgQueryEmbedTimeoutMs, excludedVaultIdSet: orgCfg.excludedVaultIdSet, queryEmbedTimeoutMs, filters: { vaultIds, kinds, sources, scopes, languages } })
+      { ...deps, degradedSink, orgQueryEmbedTimeoutMs: orgCfg.orgQueryEmbedTimeoutMs, excludedVaultIdSet: orgCfg.excludedVaultIdSet, queryEmbedTimeoutMs, filters: { vaultIds, kinds, sources, scopes, languages, since, until } })
     if (fused) { pool = fused; denseTop = fused.denseTop ?? null; embedSpace = fused.embedSpace ?? null; denseCoverage = fused.denseCoverage ?? null; retrievalMode = 'hybrid' }
   }
 
-  const citableCandidates = filterCitable(pool, { context: 'brain/context candidates' })
+  let citableCandidates = filterCitable(pool, { context: 'brain/context candidates' })
+  // Date window final post-filter (both legs already narrow; this guarantees an
+  // out-of-window note never survives, whichever leg or stub produced it).
+  if ((since || until) && citableCandidates.length) {
+    const passIds = (deps.filterChunkIdsByFacets || store.filterChunkIdsByFacets)(org_id, user_id, citableCandidates.map((c) => c.chunkId), { since, until })
+    citableCandidates = citableCandidates.filter((c) => passIds.has(c.chunkId))
+  }
 
   // char_start/char_end/token_count/raw text are not part of searchChunks'
   // frozen response shape — fetched via the small companion lookup instead
@@ -652,14 +662,18 @@ export async function assembleContext(org_id, user_id, { query, tokenBudget = 80
   const rerankFlag = rr.rerank ? { rerank: rr.rerank } : {}
   // Codex cycle 6: the same named-thing check /brain/search applies
   // (lib/entityGrounding.js), so an off-topic question never reaches a prompt.
+  const gMode = normalizeGroundingMode(groundingMode)
+  const sampleFn = deps.sampleTermChunks || (deps.searchChunks ? null : (t, v, l) => store.sampleTermChunks(org_id, user_id, v, l))
+  const modeEnts = gMode !== 'legacy' ? modeEntities(query, gMode, sampleFn, `${org_id}\u0000${user_id || ''}`) : null
   const grounding = groundingForTop(query, rr.ranked, {
+    ...(modeEnts ? { entities: modeEnts } : {}),
     passageOf: (c) => c.text,
     headOf: (c) => { const n = c.noteId ? (deps.getNote || store.getNote)(org_id, user_id, c.noteId) : null; return typeof n?.body === 'string' ? n.body.slice(0, 1200) : '' },
   })
   if (grounding.ungrounded) {
     return {
       passages: [], tokensUsed: 0, insufficient: true,
-      relevance: { ...relevance, insufficient: true, ungrounded: grounding.missing }, retrieval: retrievalMode, embedSpace,
+      relevance: { ...relevance, insufficient: true, ungrounded: grounding.missing, ...(modeEnts ? { groundingMode: gMode, entities: modeEnts } : {}) }, retrieval: retrievalMode, embedSpace,
       ...(degradedSink.degraded && retrievalMode === 'fts' ? { degraded: degradedSink.degraded } : {}),
       ...rerankFlag,
       assembly: { candidates: pool.length, afterThreshold: 0, afterDedup: 0 }

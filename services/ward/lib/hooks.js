@@ -358,8 +358,14 @@ export function wardHookAOCL(envelope) {
   try {
     const intent = envelope.intent || '';
     // Only witness completed layer decisions, not starts
-    if (!intent.startsWith('aocl.layer.') && !intent.startsWith('aocl.run.')) return null;
     if (intent === 'aocl.layer.start' || intent === 'aocl.run.start') return null;
+    // BUG 9 (quoxflow#9): other aocl.* intents (e.g. aocl.verify.passed) are
+    // not layer decisions but ARE stored AEE envelopes; they were silently
+    // dropped here, so `ward verify --envelope` said SOURCE_NOT_FOUND. Witness
+    // them as AEE (keyed by envelope id) like every sibling envelope.
+    if (!intent.startsWith('aocl.layer.') && !intent.startsWith('aocl.run.')) {
+      return wardHookAEE(envelope);
+    }
 
     const decisionId = envelope.id;
     if (!decisionId) return null;

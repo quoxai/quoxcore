@@ -83,14 +83,14 @@ export function hasExplicitProfile(argv, env = process.env) {
  * session's sole attach (implicit default), else the profile identity.
  * @returns {{name: string|null, source: 'flag'|'env'|'self'|'profile'|'default'|null}}
  */
-export async function resolveActing({ argv = process.argv.slice(2), env = process.env, resolveAttach } = {}) {
+export async function resolveActing({ argv = process.argv.slice(2), env = process.env, resolveAttach, explicitProfile = false } = {}) {
   const explicit = actingAsName(env);
   if (explicit) {
     const source = env.QUOX_AS_FLAG === '1' ? 'flag' : 'env';
     if (explicit.toLowerCase() === 'self') return { name: null, source: 'self', via: source };
     return { name: explicit, source };
   }
-  if (hasExplicitProfile(argv, env)) return { name: null, source: 'profile' };
+  if (explicitProfile || hasExplicitProfile(argv, env)) return { name: null, source: 'profile' };
   if (isDefaultExempt(argv)) return { name: null, source: null };
   const mine = resolveAttach ? resolveAttach() : (await import('../commands/agentAttach.js')).resolveMyAttach();
   if (mine?.agentId) return { name: mine.agentId, source: 'default' };

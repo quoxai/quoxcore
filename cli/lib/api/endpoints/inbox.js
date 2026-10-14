@@ -17,6 +17,13 @@ export const inbox = {
     path: ({ orgId }) => `/api/orgs/${orgId}/inbox`,
     tags: ['live-safe'],
   },
+  // quox#827: the ONE server-side set of open approvals this user can act on (also backs stats.pending_approvals and LUCID).
+  'approvals.open': {
+    method: 'GET',
+    service: 'auth',
+    path: ({ orgId }) => `/api/orgs/${orgId}/approvals/open`,
+    tags: ['live-safe'],
+  },
   'inbox.respond': {
     method: 'POST',
     service: 'auth',

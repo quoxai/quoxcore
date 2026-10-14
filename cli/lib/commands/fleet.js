@@ -511,6 +511,9 @@ export function registerFleetCommands(program, ctx) {
         if (data.result) console.log(data.result);
         else console.log(JSON.stringify(data, null, 2));
       }
+      // quox#791: a held call prints how to read the output once approved.
+      const heldId = data && data.pending && (data.approvalId || (data._approval && data._approval.id));
+      if (heldId) console.error(`after approval run: quox approvals result ${heldId}`);
     });
 
   fleet

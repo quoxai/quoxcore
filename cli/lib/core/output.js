@@ -12,7 +12,7 @@ import Table from 'cli-table3';
  * Format and print tabular data
  *
  * @param {Object} result - { columns, headers, rows } or array of objects
- * @param {Object} options - { format, title, emptyMessage }
+ * @param {Object} options - { format, title, emptyMessage, full } (full: no 60-char cell truncation in table mode)
  */
 export function formatOutput(result, options = {}) {
   const format = options.format || getOutputFormat();
@@ -168,7 +168,7 @@ function formatTable(rows, columns, headers, options) {
   });
 
   for (const row of rows) {
-    table.push(columns.map(col => formatValue(row[col])));
+    table.push(columns.map(col => formatValue(row[col], options.full === true)));
   }
 
   console.log(table.toString());
@@ -202,7 +202,7 @@ function csvEscape(value) {
   return str;
 }
 
-function formatValue(value) {
+function formatValue(value, full = false) {
   if (value == null) return chalk.dim('-');
   if (typeof value === 'boolean') return value ? chalk.green('yes') : chalk.dim('no');
 
@@ -221,7 +221,7 @@ function formatValue(value) {
   }
 
   // Truncate long values in table mode
-  if (str.length > 60) return str.slice(0, 57) + '...';
+  if (!full && str.length > 60) return str.slice(0, 57) + '...';
 
   return str;
 }

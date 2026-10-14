@@ -59,6 +59,37 @@ async function slotCall(method, path, { orgId, body } = {}) {
   return json;
 }
 
+// QUOXON-PROOF (quox#824): slot_list reads the slot store IN-PROCESS when the collector
+// has registered it (server.js, configureSlotStore). The loopback HTTP hop it replaced
+// queued behind every busy turn on the same event loop, so about 7 concurrent chat turns
+// tripped the 15s abort ("Slots service unreachable", 23s and 64s) although the route's
+// own work is a few indexed sqlite reads. The licence gate the route applies is kept.
+// Unconfigured (a test or another process) it falls back to the HTTP route.
+let inProcessStore = null;
+function configureSlotStore(store) {
+  inProcessStore = store && typeof store.listSlots === 'function' && typeof store.isLicensed === 'function' ? store : null;
+}
+
+async function listSlotsForOrg(orgId) {
+  if (!orgId) {
+    throw new Error('org_context_required: slot tools need an authenticated org context.');
+  }
+  if (!inProcessStore) {
+    const data = await slotCall('GET', '/api/v1/slots', { orgId });
+    return Array.isArray(data && data.slots) ? data.slots : [];
+  }
+  let licensed;
+  try {
+    licensed = await inProcessStore.isLicensed(orgId);
+  } catch (err) {
+    throw new Error(`QuoxSlots licence check unavailable (${err.message}); retry shortly.`);
+  }
+  if (!licensed) throw new Error('QuoxSlots is not licensed for this organisation.');
+  const slots = inProcessStore.listSlots({ orgId });
+  if (!Array.isArray(slots)) throw new Error('unexpected response from the slot store');
+  return slots;
+}
+
 const SLOT_TOOLS = {
 
   slot_list: {
@@ -67,8 +98,7 @@ const SLOT_TOOLS = {
     input_schema: { type: 'object', properties: {}, required: [] },
     execute: async (_input, ctx) => {
       try {
-        const data = await slotCall('GET', '/api/v1/slots', { orgId: ctx && ctx.orgId });
-        const slots = Array.isArray(data && data.slots) ? data.slots : [];
+        const slots = await listSlotsForOrg(ctx && ctx.orgId);
         return {
           success: true,
           count: slots.length,
@@ -194,6 +224,7 @@ function executeSlotTool(name, input, ctx) {
 
 module.exports = {
   SLOT_TOOLS,
+  configureSlotStore,
   getSlotToolDefinitions,
   executeSlotTool,
 };

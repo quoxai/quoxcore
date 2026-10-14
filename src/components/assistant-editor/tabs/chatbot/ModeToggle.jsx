@@ -12,7 +12,7 @@ export default function ModeToggle({ mode, onChange, completion }) {
   const pct = completion?.percent ?? 0
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      {mode !== 'wizard' && (
+      {mode !== 'wizard' && !(completion?.published && completion?.requiredDone) && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 200 }} title="Setup completion across name, knowledge, training, style, testing and deployment">
           <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
             <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #a855f7, #38bdf8)', transition: 'width 0.4s ease' }} />

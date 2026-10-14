@@ -28,6 +28,8 @@
  */
 
 import { Router } from 'express';
+import { getOfficialBundleShas } from '../utils/firstPartyProvision.js';
+import { communityBackendEligibility } from '../utils/communityBackend.js';
 import { getDb } from '../db/index.js';
 import { safeCompare } from '../utils/crypto.js';
 import { applyAvailableToolsDrift } from '../lib/powersAvailableToolsDrift.js';
@@ -193,30 +195,65 @@ router.get('/tool-definitions/snapshot', (req, res) => {
  */
 router.get('/plugins/backends', (req, res) => {
   const db = req.db || getDb();
+  // Optional filters (FND_01M4SZ7NNV4NZ57ZM6J34NZ57Z): one org's own install of one plugin.
+  const orgId = typeof req.query.orgId === 'string' && req.query.orgId ? req.query.orgId : null;
+  const pluginId = typeof req.query.pluginId === 'string' && req.query.pluginId ? req.query.pluginId : null;
   let rows;
+  const officialShas = req.firstPartyShas || getOfficialBundleShas();
   try {
-    rows = db.prepare(`SELECT plugin_id, manifest_json FROM plugin_installs WHERE is_enabled = 1`).all();
+    // Only installs whose manifest mentions a backend can yield an entry. The
+    // LIKE prefilter keeps the scan off the ~all rows that carry no backend (and
+    // their CSS blobs); the JSON is still parsed and checked below.
+    const where = ['is_enabled = 1', `manifest_json LIKE '%"backend"%'`];
+    const params = [];
+    if (orgId) { where.push('org_id = ?'); params.push(orgId); }
+    if (pluginId) { where.push('plugin_id = ?'); params.push(pluginId); }
+    const cols = new Set(db.prepare('PRAGMA table_info(plugin_installs)').all().map((c) => c.name));
+    const col = (name) => (cols.has(name) ? name : `NULL AS ${name}`);
+    rows = db.prepare(`SELECT org_id, plugin_id, manifest_json, ${col('bundle_sha256')}, ${col('signature_json')}, ${col('css_blob')} FROM plugin_installs WHERE ${where.join(' AND ')}`).all(...params);
   } catch (err) {
     // plugin_installs absent on a minimal schema — nothing to reseed.
     return res.json({ ok: true, count: 0, backends: [] });
   }
-  const seen = new Set();
-  const backends = [];
+  // Group by plugin_id. Distinct images across installs => conflict (no first-wins).
+  const byPlugin = new Map();
   for (const r of rows) {
-    if (seen.has(r.plugin_id)) continue;
     let manifest;
     try { manifest = JSON.parse(r.manifest_json); } catch { continue; }
     const b = manifest && manifest.backend;
     if (!b || !b.image) continue;
-    seen.add(r.plugin_id);
-    backends.push({
-      pluginId: r.plugin_id,
-      image: b.image,
-      port: b.port ?? null,
-      healthPath: b.healthPath || '/health',
-    });
+    // SEC-PLUGIN-TRUST C1: official iff the stored bytes hash equals the bundle
+    // shipped in this image AND the install declares the shipped backend image.
+    // An official entry's backend spec always comes from the SHIPPED manifest:
+    // official bytes are public, so the install row's manifest is tenant input.
+    const shipped = officialShas.get(r.plugin_id);
+    const official = !!(shipped && shipped.backend && r.bundle_sha256
+      && shipped.sha === r.bundle_sha256 && shipped.backend.image === b.image);
+    const spec = official ? shipped.backend : { image: b.image, port: b.port ?? null, healthPath: b.healthPath || '/health' };
+    // SEC-PLUGIN-TRUST P5: a non-official install may run its backend only when
+    // its v2 signature, trust, revocation and digest pin all check out
+    // (utils/communityBackend.js). The flag is per install; the instance-wide
+    // entry is eligible only if EVERY install of that plugin id is.
+    const elig = official ? null : communityBackendEligibility(db, r);
+    const entry = { pluginId: r.plugin_id, ...spec, official, community: !official && elig.eligible === true };
+    if (elig && !elig.eligible) entry.community_reason = elig.reason;
+    const cur = byPlugin.get(r.plugin_id);
+    if (!cur) byPlugin.set(r.plugin_id, entry);
+    else if (!cur.conflict && cur.image !== entry.image) {
+      byPlugin.set(r.plugin_id, { pluginId: r.plugin_id, conflict: true, official: false, community: false });
+    } else if (!cur.conflict) {
+      if (!entry.official) cur.official = false;
+      if (!entry.community) {
+        cur.community = false;
+        if (entry.community_reason && !cur.community_reason) cur.community_reason = entry.community_reason;
+      }
+      // Mixed official + community installs of one id: neither path may claim it.
+      if (cur.official === false && cur.community === true && (entry.official || entry.community === false)) cur.community = false;
+    }
   }
-  console.log(`[plugins/backends] Returning ${backends.length} plugin backend(s) for collector reseed`);
+  const backends = [...byPlugin.values()];
+  const conflicts = backends.filter((b) => b.conflict).length;
+  console.log(`[plugins/backends] Returning ${backends.length} plugin backend(s) (${conflicts} conflicted)`);
   return res.json({ ok: true, count: backends.length, backends });
 });
 

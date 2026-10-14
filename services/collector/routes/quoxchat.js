@@ -20,7 +20,8 @@ const { pickAgent, getPersona, DEFAULT_PERSONA_ID } = require('../lib/quoxchatDe
 const { sanitiseProactiveRules } = require('../lib/quoxchatProactive');
 const { buildOverrideSystemPrompt, buildDefaultCustomerPrompt, isQuoxPersonaWidget, applyHandoffRule, buildGuardrailsBlock } = require('../lib/quoxchatPersonas');
 const ingestLib = require('../lib/quoxchatIngest');
-const { prepareKnowledge, buildAllowedUrls, enforceLinks, findUnsupportedFigures, buildGroundingRules, stripUnsupportedSentences, stripUnsupportedNegatives, redactDroppingFragments, stripKnowledgeLabels, buildRetrievalQuery, confineBrowserContext, createSentenceGate, bestNextStep, modelIdentityReply, extractCaveats } = require('../lib/quoxchatGrounding');
+const { INJECTION_PATTERNS, makeCanary, canaryPreamble, canaryLeaked, requestedBareToken, isBareTokenReply, leaksSystemRules, REFUSAL: INJECTION_REFUSAL } = require('../lib/quoxchatInjectionGuard');
+const { enrichVisitorPremises, prepareKnowledge, buildAllowedUrls, enforceLinks, findUnsupportedFigures, figuresStillRemoved, buildGroundingRules, stripUnsupportedSentences, stripUnsupportedNegatives, redactDroppingFragments, stripKnowledgeLabels, buildRetrievalQuery, mergeCarriedChunks, stripBookingOffers, findBookingRoute, carryForwardLimit, applyTimeWindowGuard, applyOpenNowGuard, hasBookingTool, NO_BOOKING_RULE, confineBrowserContext, createSentenceGate, bestNextStep, modelIdentityReply, extractCaveats, asksForTranscript, strippedLeavesNonAnswer, declineText, TRANSCRIPT_WITHHELD_REPLY } = require('../lib/quoxchatGrounding');
 const quoxchatLexical = require('../lib/quoxchatLexical');
 const { invalidateLexicalOnSuccess } = require('../lib/quoxchatLexicalInvalidate');
 const lexicalInvalidate = invalidateLexicalOnSuccess((wid) => qdrantCollectionForWidget(wid));
@@ -28,22 +29,26 @@ const { buildPublicSources, selectCitedChunks } = require('../lib/quoxchatSource
 const { fetchServerHistory, buildHistory } = require('../lib/quoxchatHistory');
 const { modelHandoffAllowed, gateModelHandoff } = require('../lib/quoxchatHandoffIntent');
 const { failoverOrder, mayFailOver, isRetryableProviderError, createProviderCooldowns, providerUnavailableReply } = require('../lib/quoxchatProviderFailover');
+const { searchWithRetry, shouldReportRetrievalFailure, RETRIEVAL_FAILED_REPLY } = require('../lib/quoxchatRetrievalGuard');
+const { planStay, spanningProducts } = require('../lib/quoxchatSeasonStay');
+const { dateWindowPremises, applyDateWindowGuard } = require('../lib/quoxchatDateWindow');
 const { verifyClaims, stripClaimSentences, pickVerifierModel, verifierOutageAction } = require('../lib/quoxchatClaimVerifier');
 const { parseCompatConfig, assertCompatEgress, looksLikeToolsRejection, PROVIDER_ID: COMPAT_PROVIDER, SELF_HOSTED_LABEL } = require('../lib/quoxchatCompatLlm');
 const requestDeadline = require('../lib/quoxchatDeadline');
 const { decideBudget, estimateAnswerCostMicro } = require('../lib/quoxchatBudget');
 const { resolveKeySource } = require('../lib/quoxchatKeySource');
 const handoffState = require('../lib/quoxchatHandoffState');
-const { ledgerConfirmationReply, summariseOutcome, buildActionLedgerBlock, enforceActionHonesty, TRANSCRIPT_UNAVAILABLE_NOTE, buildDemoToolHint } = require('../lib/quoxchatActionLedger');
+const { ledgerActionTexts, ledgerConfirmationReply, summariseOutcome, buildActionLedgerBlock, enforceActionHonesty, TRANSCRIPT_UNAVAILABLE_NOTE, buildDemoToolHint } = require('../lib/quoxchatActionLedger');
 const DEADLINE_FALLBACK_TEXT = "Sorry, that took longer than I expected. Please try again in a moment, or ask to speak with the team.";
 const providerCooldowns = createProviderCooldowns({ ms: 60000 });
 let _groundingFaultForTest = false; // test seam: prove the gate fails closed
 const { sanitiseToolResult, sanitiseString, redactPublicText } = require('../lib/quoxchatResultSanitiser');
 const { defaultStore: sessionStore } = require('../lib/quoxchatSessionStore');
-const { fetchAllowedDomains, enforceDomainGuard, extractHost, isDevOrigin } = require('../lib/quoxchatDomainGuard');
+const { fetchAllowedDomains, fetchAllowedDomainsDetailed, enforceDomainGuard, extractHost, isDevOrigin } = require('../lib/quoxchatDomainGuard');
 // LICENSE-ENFORCE LE-3f: entitlement gate on the public /message data plane.
 const { isPluginLicensed: isPluginLicensedForOrg, licenseVerdict } = require('../lib/licenseGate');
 const { validateOutboundUrlResolved, fetchWithRedirectValidation } = require('../lib/channels/baseDriver');
+const { widgetTimezone, correctWeekdays, applyAllergyGuard, applyEmergencyGuard } = require('../lib/quoxchatSafety');
 const { createStreamRedactor } = require('../lib/quoxchatStreamRedactor');
 const { scrubEmDashes } = require('../lib/quoxchatVoiceScrub');
 const { defaultStore: dailyCapStore } = require('../lib/quoxchatDailyCapStore');
@@ -1153,10 +1158,45 @@ function _resetCaptchaFallbackRateLimit() {
 // Dependencies injected from server.js
 let _getProviderKeys, _getClaudeKeys, _storeAuditEnvelope, _voltEmitter;
 
+// QC-BRUTALOOP-W13: the visitor turn's provider-key resolution. A transient
+// auth/vault blip (or the 10s negative cache after one) used to surface as
+// "offline due to a configuration issue" for a single turn. Retry once after a
+// short backoff with the negative cache dropped, and fall back to the last good
+// resolution for a short TTL so a blip never reaches the visitor.
+const LAST_GOOD_KEYS_TTL_MS = 5 * 60 * 1000;
+const KEY_RETRY_BACKOFF_MS = 250;
+const _lastGoodProviderKeys = new Map();
+function _hasLlmKey(k) {
+  return Boolean(k?.openai_api_key || k?.anthropic_api_key || k?.gemini_api_key
+    || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY);
+}
+async function _getProviderKeysResilient(orgId) {
+  const cacheKey = orgId || 'default';
+  let keys = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try { keys = await _getProviderKeys(orgId); } catch (e) { console.warn('[QuoxChat] provider key resolve failed:', e?.message); keys = null; }
+    if (_hasLlmKey(keys)) {
+      _lastGoodProviderKeys.set(cacheKey, { at: Date.now(), keys });
+      return keys;
+    }
+    if (attempt === 0) {
+      try { require('../lib/providerKeys').invalidate(orgId); } catch { /* best effort */ }
+      await new Promise((r) => setTimeout(r, KEY_RETRY_BACKOFF_MS));
+    }
+  }
+  const good = _lastGoodProviderKeys.get(cacheKey);
+  if (good && (Date.now() - good.at) < LAST_GOOD_KEYS_TTL_MS) {
+    console.warn(`[QuoxChat] provider key resolution empty for org ${orgId || 'default'}; serving last good resolution`);
+    return good.keys;
+  }
+  return keys;
+}
+
 function init({ getProviderKeys, getClaudeKeys, storeAuditEnvelope, resolveCredentialById, voltEmitter }) {
   // Fresh dependencies, fresh caches (production calls init once at boot;
   // test suites call it per test, so cached widget orgs never leak).
   _widgetOrgCache.clear();
+  _lastGoodProviderKeys.clear();
   _getProviderKeys = getProviderKeys;
   _getClaudeKeys = getClaudeKeys;
   _storeAuditEnvelope = storeAuditEnvelope;
@@ -1552,13 +1592,25 @@ router.get('/widget.js', (req, res) => {
   }
 });
 
+// Wave 9: a simulation run (Go live self-test) must never fire real side
+// effects. Honoured only with the valid service key; a public visitor sending
+// simulation:true or a sim_ visitor_id is treated as a normal visitor.
+function isSimulationRequest(req) {
+  const key = process.env.INTERNAL_SERVICE_KEY;
+  if (!key || req.headers['x-service-key'] !== key) return false;
+  const b = req.body || {};
+  return b.simulation === true || (typeof b.visitor_id === 'string' && b.visitor_id.startsWith('sim_'));
+}
+
 // w5h: who may talk to a DRAFT widget (see the /message gate).
 function draftServingAllowed(req) {
   if (process.env.QUOXCHAT_SERVE_DRAFT_PUBLIC === '1') return true;
   const key = process.env.INTERNAL_SERVICE_KEY;
   if (key && req.headers['x-service-key'] === key) return true;
   const host = extractHost(req.headers.origin || req.headers.referer || null);
-  if (host && isDevOrigin(host)) return true;
+  // Wave 11 defect 16: Origin is forgeable, so a dev origin alone never serves
+  // a draft. Only a non-production collector with the explicit dev flag does.
+  if (host && isDevOrigin(host) && process.env.NODE_ENV !== 'production' && process.env.QUOXCHAT_DEV_DRAFT_ORIGINS === '1') return true;
   const preview = String(process.env.QUOXCHAT_PREVIEW_ORIGINS || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
   if (host && preview.some((p) => p === host || p === host.split(':')[0])) return true;
   return false;
@@ -1578,7 +1630,13 @@ async function domainGuard(req, res, next) {
     const widgetId = req.body?.widget_id;
     if (!widgetId || widgetId === 'demo') return next();
     const origin = req.headers.origin || req.headers.referer || null;
-    const allowed = await fetchAllowedDomains(widgetId);
+    const lookup = await fetchAllowedDomainsDetailed(widgetId);
+    if (lookup.state === 'unavailable') {
+      console.warn(`[QuoxChat] domain guard: auth unreachable and no cached domains for widget=${widgetId}; 503`);
+      res.setHeader('Retry-After', '5');
+      return res.status(503).json({ error: 'verification_unavailable', message: 'We could not verify this chat right now. Please try again in a moment.' });
+    }
+    const allowed = lookup.domains;
     // W5 defect 10: /message (and its stream) must carry an Origin/Referer;
     // internal service-key calls are exempt.
     const isMessagePath = req.path === '/message';
@@ -1867,6 +1925,7 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
     allowed: () => streamGround.allowed,
     support: () => streamGround.support.concat(streamGround.toolTexts || []),
     visitor: () => streamGround.visitor,
+    clock: () => ({ now: new Date(), tz: streamGround.tz || 'UTC' }),
   }) : null;
   // VERIFIED STREAMING (wave 4): when the claim verifier runs for the turn the
   // model's tokens are HELD, not forwarded. The verifier only judges the whole
@@ -2028,6 +2087,45 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
             visitorId: visitor_id,
             text: message,
           }).then((id) => !!id, (e) => { console.warn('[QuoxChat] handoff relay failed (non-fatal):', e?.message); return false; });
+          // Wave 10 #7: a name/email typed after a handoff (the bot asked
+          // "please leave your email") belongs on the conversation whichever
+          // handoff branch handles the turn, so the operator sees who is
+          // waiting (probe 84, wave 10 opus 4: visitor_email stayed null).
+          // Stored BEFORE the reply so the confirmation below is true.
+          let handoffIdentity = { name: null, email: null };
+          let handoffIdentityStored = false;
+          try {
+            handoffIdentity = handoffState.extractVisitorIdentity(message);
+            if (handoffIdentity.name || handoffIdentity.email) {
+              const stored = await matrixRelay.setConversationVisitorIdentity(handoffConv.conversation_id, {
+                widgetId: widget_id, visitorId: visitor_id, name: handoffIdentity.name, email: handoffIdentity.email,
+              });
+              handoffIdentityStored = Boolean(stored) && stored.success !== false;
+            }
+          } catch (identErr) { console.warn('[QuoxChat] handoff identity capture failed (non-fatal):', identErr?.message); }
+          if (!chipAction && handoffIdentityStored && handoffState.isIdentityOnlyMessage(message, handoffIdentity)) {
+            // Confirm only when the team inbox was actually notified. The
+            // relay is checked first so a failed notify falls through to the
+            // normal path without the visitor message being persisted twice.
+            let relayDelivered = false;
+            try {
+              let t;
+              relayDelivered = await Promise.race([handoffRelayPromise, new Promise((resolve) => { t = setTimeout(() => resolve(false), HANDOFF_RELAY_TIMEOUT_MS); })]);
+              clearTimeout(t);
+            } catch { relayDelivered = false; }
+            const st = relayDelivered ? await settleHandoffState(handoffConv.conversation_id, message, handoffRelayPromise) : { saved: false, delivered: false };
+            if (st.saved && st.delivered) {
+              return respondOk({
+                success: true,
+                handed_off: true,
+                operator_joined: !!handoffConv.operator_joined_at,
+                response: handoffState.emailCapturedAck(handoffIdentity.email),
+                conversation_id: handoffConv.conversation_id,
+                handoff_state: handoffStateLabel(st),
+                visitor_email_saved: true,
+              });
+            }
+          }
           if (chipAction && chipAction !== 'human_handoff') {
             // leave_message / book_appointment / schedule_demo while handed
             // off: skip the early return so the CHIP-ACTION branch executes
@@ -2072,17 +2170,6 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
             // skips the active-only lookup), so no separate persist here.
             handedOffConversationId = handoffConv.conversation_id;
             handoffAwaitingPickup = true;
-            // w5h: a name/email typed while waiting belongs on the
-            // conversation so the operator sees who is waiting (probe 84:
-            // visitor_name stayed null). Best effort, never blocks the reply.
-            try {
-              const ident = handoffState.extractVisitorIdentity(message);
-              if (ident.name || ident.email) {
-                matrixRelay.setConversationVisitorIdentity(handoffConv.conversation_id, {
-                  widgetId: widget_id, visitorId: visitor_id, name: ident.name, email: ident.email,
-                }).catch((e) => console.warn('[QuoxChat] pending-handoff identity capture failed (non-fatal):', e?.message));
-              }
-            } catch { /* non-fatal */ }
           } else {
             const st = await settleHandoffState(handoffConv.conversation_id, message, handoffRelayPromise);
             return respondOk({
@@ -2107,14 +2194,7 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
     }
 
     // Injection detection
-    const injectionPatterns = [
-      /ignore\s+(all\s+)?previous\s+instructions/i,
-      /\bDAN\b.*\b(do|anything|now)\b/i,
-      /reveal\s+(your|the)\s+(instructions|prompt|system)/i,
-      /repeat\s+(everything|all)\s+(above|before)/i,
-      /you\s+are\s+now\s+/i,
-      /system\s*prompt/i,
-    ];
+    const injectionPatterns = INJECTION_PATTERNS;
     let injectionScore = 0;
     const injectionFlags = [];
     // Score everything the browser controls, not only the message.
@@ -2312,7 +2392,7 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
     }
 
     // Get LLM API key from vault (org-scoped when the widget's org is known)
-    const providerKeys = await _getProviderKeys(widgetOrgId);
+    const providerKeys = await _getProviderKeysResilient(widgetOrgId);
     const geminiKey = providerKeys?.gemini_api_key || process.env.GEMINI_API_KEY;
     const openaiKey = providerKeys?.openai_api_key || process.env.OPENAI_API_KEY;
     const anthropicKey = providerKeys?.anthropic_api_key || (await _getClaudeKeys())?.anthropic_api_key || process.env.ANTHROPIC_API_KEY;
@@ -2502,7 +2582,48 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
     // An OpenAI-compatible endpoint may legitimately need no key (Ollama).
     if (!apiKey && !useCompat) {
       console.warn('[QuoxChat] No API key available');
-      return respondOk({ success: false, response: "I'm currently offline due to a configuration issue. Please contact us directly for help.", error: 'no_api_key' });
+      // QC-BRUTALOOP-W13: a handed-off visitor must never see a configuration
+      // error; the message goes to the operator exactly as the handed-off path does.
+      if (handedOffConversationId) {
+        const st = await settleHandoffState(handedOffConversationId, message, handoffRelayPromise);
+        return respondOk({
+          success: true,
+          handed_off: true,
+          operator_joined: false,
+          response: handoffStateAck(st, handedOffConversationId, true),
+          conversation_id: handedOffConversationId,
+          handoff_state: handoffStateLabel(st),
+          degraded: 'no_api_key',
+        });
+      }
+      // QC-BRUTALOOP-W13: the failed turn is recorded with an error outcome so it
+      // shows in Logs and the unanswered list (grounding.withheld classifies it
+      // as a held-back reply). Best effort and bounded; the reply is unchanged.
+      const offlineReply = "I'm currently offline due to a configuration issue. Please contact us directly for help.";
+      let failedConvId = null;
+      if (widget_id && widget_id !== 'demo' && process.env.INTERNAL_SERVICE_KEY) {
+        try {
+          const pr = await fetch(`${process.env.AUTH_SERVICE_URL || 'http://auth:3101'}/api/internal/widgets/${encodeURIComponent(widget_id)}/persist-message`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-service-key': process.env.INTERNAL_SERVICE_KEY },
+            body: JSON.stringify({
+              visitor_id: visitor_id || 'anon',
+              conversation_id: null,
+              user_message: message,
+              assistant_message: offlineReply,
+              injection_score: injectionScore || 0,
+              page_url: page_url || null,
+              context: { error_outcome: 'no_api_key', grounding: { withheld: true, error: 'no_api_key' } },
+            }),
+            signal: AbortSignal.timeout(3000),
+          });
+          if (pr.ok) failedConvId = (await pr.json().catch(() => ({}))).conversation_id || null;
+          else console.warn(`[QuoxChat] no_api_key turn persist returned ${pr.status}`);
+        } catch (persistErr) {
+          console.warn('[QuoxChat] no_api_key turn persist failed (non-fatal):', persistErr.message);
+        }
+      }
+      return respondOk({ success: false, response: offlineReply, error: 'no_api_key', ...(failedConvId ? { conversation_id: failedConvId } : {}) });
     }
     console.log(`[QuoxChat] Using ${useCompat ? 'OpenAI-compatible' : useGemini ? 'Gemini' : useOpenAI ? 'OpenAI' : 'Anthropic'} provider (widget_pref=${widgetLlmPref})`);
 
@@ -2522,39 +2643,57 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
     // CW-8.15: per-widget namespace, 'quoxchat_demo' fallback for unknown/demo widgets.
     const qdrantCollection = qdrantCollectionForWidget(widget_id);
 
-    try {
-      const retrievalQuery = buildRetrievalQuery(message, builtHistory.messages);
+    // Dense search for one query string (also used to re-retrieve the previous
+    // turn's knowledge, wave 9). Returns [] on any failure; the failure is logged.
+    // Wave 10 #5: denseSearchOnce THROWS on failure so a retrieval error is
+    // never mistaken for "nothing documented"; denseSearch keeps the old
+    // swallow-and-log contract for the carry-forward query.
+    const denseSearchOnce = async (retrievalQuery) => {
+      // No embedding key at all: RAG is not configured for this widget/org,
+      // which is "no knowledge", not a retrieval outage.
+      if (!(providerKeys?.openai_api_key || process.env.OPENAI_API_KEY || providerKeys?.gemini_api_key || process.env.GEMINI_API_KEY)) return [];
       const embedResult = await embedText(retrievalQuery, providerKeys, { orgId: widgetOrgId });
       const queryVector = embedResult?.vector || [];
-
-      if (queryVector.length > 0) {
-        const qdrantKey = resolveQdrantKey();
-        const searchResp = await fetch(`http://qdrant:6333/collections/${qdrantCollection}/points/search`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'api-key': qdrantKey },
-          body: JSON.stringify({ vector: queryVector, limit: 5, with_payload: true }),
-          signal: AbortSignal.timeout(3000),
-        });
-
-        if (searchResp.ok) {
-          const searchData = await searchResp.json();
-          // W5: chunks flagged high for prompt injection at ingest never reach the prompt or the cited sources.
-          ragChunks = (searchData.result || []).filter(r => r?.payload?.injection_flag !== 'high' && r?.payload?.superseded !== true).map(r => ({
-            text: r.payload?.text || '',
-            source: r.payload?.source || '',
-            section: r.payload?.section || '',
-            score: r.score || 0,
-            pinned: r.payload?.pinned === true,
-            answer: r.payload?.answer || null,
-            source_url: typeof r.payload?.source_url === 'string' ? r.payload.source_url : null,
-            injection: r.payload?.injection_flag || null,
-          }));
-          console.log(`[QuoxChat] RAG: ${ragChunks.length} chunks (top: ${ragChunks[0]?.score?.toFixed(3) || '-'}) at +${Date.now() - startMs}ms`);
-        }
+      if (queryVector.length === 0) throw new Error('embedding_failed');
+      const qdrantKey = resolveQdrantKey();
+      const searchResp = await fetch(`http://qdrant:6333/collections/${qdrantCollection}/points/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'api-key': qdrantKey },
+        body: JSON.stringify({ vector: queryVector, limit: 5, with_payload: true }),
+        signal: AbortSignal.timeout(3000),
+      });
+      // 404: the widget has no collection yet (nothing ingested), which is
+      // "no knowledge", not an outage.
+      if (searchResp.status === 404) return [];
+      if (!searchResp.ok) throw new Error(`qdrant_search_${searchResp.status}`);
+      const searchData = await searchResp.json();
+      // W5: chunks flagged high for prompt injection at ingest never reach the prompt or the cited sources.
+      return (searchData.result || []).filter(r => r?.payload?.injection_flag !== 'high' && r?.payload?.superseded !== true).map(r => ({
+        text: r.payload?.text || '',
+        source: r.payload?.source || '',
+        section: r.payload?.section || '',
+        score: r.score || 0,
+        pinned: r.payload?.pinned === true,
+        answer: r.payload?.answer || null,
+        source_url: typeof r.payload?.source_url === 'string' ? r.payload.source_url : null,
+        injection: r.payload?.injection_flag || null,
+      }));
+    };
+    const denseSearch = async (retrievalQuery) => {
+      try {
+        return await denseSearchOnce(retrievalQuery);
+      } catch (ragErr) {
+        console.warn('[QuoxChat] RAG failed (non-fatal):', ragErr.message);
+        return [];
       }
-    } catch (ragErr) {
-      console.warn('[QuoxChat] RAG failed (non-fatal):', ragErr.message);
-    }
+    };
+    const denseResult = await searchWithRetry(() => denseSearchOnce(buildRetrievalQuery(message, builtHistory.messages)));
+    // Set when dense retrieval failed twice; hybrid below then runs lexical-only.
+    const retrievalError = denseResult.error;
+    let retrievalFailedReplied = false;
+    if (retrievalError) console.warn(`[QuoxChat] RAG dense retrieval failed after ${denseResult.attempts} attempts (${retrievalError}); lexical-only fallback`);
+    ragChunks = denseResult.chunks;
+    console.log(`[QuoxChat] RAG: ${ragChunks.length} chunks (top: ${ragChunks[0]?.score?.toFixed(3) || '-'}) at +${Date.now() - startMs}ms`);
 
     // Hybrid retrieval: BM25 over the widget's payloads fused (RRF) with the
     // dense top-k. Fails open to dense-only; the verdict rides on lexicalVerdict.
@@ -2601,7 +2740,7 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
       ragChunks.length > 0 ? 'ok' : 'warn',
       ragChunks.length > 0 ? `n=${ragChunks.length} top=${ragChunks[0]?.score?.toFixed(2) ?? '-'}` : 'no_chunks_retrieved',
       null,
-      { n_chunks: ragChunks.length, top_score: ragChunks[0]?.score ?? null, collection: qdrantCollection, lexical: lexicalVerdict },
+      { n_chunks: ragChunks.length, top_score: ragChunks[0]?.score ?? null, collection: qdrantCollection, lexical: lexicalVerdict, retrieval_error: retrievalError },
     );
 
     // QUOXCHAT-BRUTALOOP ITER 1: neutral [K1] labels (source ids and file
@@ -2619,6 +2758,22 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
     // Verified streaming is the default; only an explicit 'live' opts out, and
     // only turns the claim verifier will check are held.
     verifiedStream.hold = streaming && groundingCfg.stream_mode !== 'live' && groundingCfg.verify_claims !== false;
+    // Wave 9: carry forward the previous visitor turn's knowledge (cap 3) so a
+    // condition established earlier ("LS22: boiler installs only") stays in
+    // view on a follow-up whose own retrieval misses it. Carried chunks are
+    // capped below the 'strong' score so they never raise confidence.
+    try {
+      const prevUserMsg = (builtHistory.messages || []).filter((m) => m && m.role === 'user' && typeof m.content === 'string' && m.content.trim()).map((m) => m.content.trim()).pop();
+      if (prevUserMsg && prevUserMsg !== String(message || '').trim()) {
+        const prevChunks = (await denseSearch(prevUserMsg.slice(0, 600))).filter((c) => (c.score || 0) >= 0.4).map((c) => ({ ...c, score: Math.min(c.score, 0.5) }));
+        const before = ragChunks.length;
+        ragChunks = mergeCarriedChunks(ragChunks, prevChunks, { cap: 3 });
+        if (ragChunks.length > before) console.log(`[QuoxChat] RAG: carried ${ragChunks.length - before} chunk(s) from the previous turn`);
+      }
+    } catch (carryErr) {
+      console.warn('[QuoxChat] carry-forward failed (non-fatal):', carryErr.message);
+    }
+    const conversationContext = (builtHistory.messages || []).filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string').slice(-5).concat([{ role: 'user', content: String(message || '') }]);
     const knowledge = prepareKnowledge(ragChunks, {
       floor: typeof groundingCfg.floor === 'number' ? groundingCfg.floor : undefined,
       strong: typeof groundingCfg.strong === 'number' ? groundingCfg.strong : undefined,
@@ -2628,7 +2783,23 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
     streamGround.support = knowledge.kept.map((c) => c.text);
     // Figures the visitor typed (this turn or earlier ones) are theirs, not inventions.
     const visitorTexts = [message, ...((builtHistory.messages || []).filter((m) => m && m.role === 'user').map((m) => (typeof m.content === 'string' ? m.content : '')))];
+    // Wave 11: deterministic period conversions of the visitor's money figures
+    // (monthly x 12 / 52) so threshold rules are applied to the right figure.
+    // Wave 13: the visitor's own words only, for the date-window guard (the
+    // computed premises below restate "today" and must not be read as dates).
+    const dateVisitorTexts = [...visitorTexts];
+    // Wave 13: night-by-night season breakdown for a stay over a dated rate change.
+    const stayPlan = planStay(dateVisitorTexts, knowledge.kept.map((c) => c.text), new Date(), widgetTimezone(widgetMeta));
+    const premiseConversions = [
+      ...(stayPlan && stayPlan.fact ? [stayPlan.fact] : []),
+      // Wave 13: day gap between a date the visitor named and each "N days
+      // before" window in KNOWLEDGE, computed in code in the widget timezone.
+      ...dateWindowPremises(dateVisitorTexts, knowledge.kept.map((c) => c.text), new Date(), widgetTimezone(widgetMeta)),
+      ...enrichVisitorPremises(visitorTexts),
+    ].slice(0, 6);
+    visitorTexts.push(...premiseConversions);
     streamGround.visitor = visitorTexts;
+    streamGround.tz = widgetTimezone(widgetMeta);
 
     // QCX-3.1: pick a persona via keyword delegation. COREY is the default
     // chatbot persona when no specialist scores above threshold. Fingerprint
@@ -2711,16 +2882,21 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
     // The exact model is chosen by the smart router further down; the label
     // is substituted once it is known (see QC_MODEL_LABEL below).
     const groundingModelLabel = '{{QC_MODEL_LABEL}}';
-    let systemPrompt = `${personaSystemPrompt}
+    const requestCanary = makeCanary();
+    const groundingRulesText = buildGroundingRules({
+      confidence: knowledge.confidence,
+      premises: premiseConversions,
+      hasSiteLinks: !!widgetSiteLinks,
+      modelLabel: groundingModelLabel,
+      discloseModel: groundingCfg.disclose_model !== false,
+      caveats: extractCaveats(knowledge.kept.map((c) => c.text)),
+      timezone: widgetTimezone(widgetMeta),
+    });
+    const ruleLeakSource = `${personaSystemPrompt}\n${groundingRulesText}`;
+    let systemPrompt = `${canaryPreamble(requestCanary)}${personaSystemPrompt}
 ${pageInfo}${contextInfo}${visitorSummary}${ragContext}${handoffHoldNote}${siteLinksBlock}
 
-${buildGroundingRules({
-  confidence: knowledge.confidence,
-  hasSiteLinks: !!widgetSiteLinks,
-  modelLabel: groundingModelLabel,
-  discloseModel: groundingCfg.disclose_model !== false,
-  caveats: extractCaveats(knowledge.kept.map((c) => c.text)),
-})}`;
+${groundingRulesText}`;
 
     // QCX-3.1: emit delegation envelope so the trace shows which persona
     // was picked + why. Always emitted (even on COREY fallback) for
@@ -2802,6 +2978,17 @@ ${buildGroundingRules({
           usageVerified = true;
           const usage = await usageResp.json().catch(() => null);
           if (usage?.features && usage.features.smart_routing === false) smartRoutingAllowed = false;
+          // QC-BRUTALOOP-W13: plan tool_calls_per_day cap, enforced in executeTool.
+          // Always strip any admin-supplied value first; only the plan sets it.
+          // 0 = tools disabled on that plan (gated elsewhere), -1 = unlimited.
+          if (widgetToolPolicies && 'plan_tool_calls_per_day_cap' in widgetToolPolicies) {
+            const { plan_tool_calls_per_day_cap: _drop, ...rest } = widgetToolPolicies;
+            widgetToolPolicies = rest;
+          }
+          const planToolCap = usage?.caps?.tool_calls_per_day;
+          if (Number.isFinite(planToolCap) && planToolCap > 0) {
+            widgetToolPolicies = { ...(widgetToolPolicies || {}), plan_tool_calls_per_day_cap: planToolCap };
+          }
           budgetDecision = decideBudget(usage?.budget);
           if (budgetDecision.stop) {
             console.warn(`[QuoxChat] widget ${widget_id} monthly LLM budget reached; budget_action=${budgetDecision.action}, not answering`);
@@ -2920,6 +3107,9 @@ ${buildGroundingRules({
     if (widgetTools.some((t) => t && (t.builtin_kind === 'human_handoff' || t.name === 'human_handoff'))) {
       systemPrompt = applyHandoffRule(systemPrompt, true);
     }
+    // Wave 9: no booking tool means no booking questions.
+    const bookingToolActive = hasBookingTool(widgetTools);
+    if (!bookingToolActive) systemPrompt += `\n${NO_BOOKING_RULE}`;
     const systemPromptTemplate = systemPrompt;
     systemPrompt = systemPrompt.split('{{QC_MODEL_LABEL}}').join(`${selectedModel} (${providerLabel})`);
     // The provider/model that actually answered (failover may change them).
@@ -2972,8 +3162,12 @@ ${buildGroundingRules({
       signIdentity: _identitySecret ? (v) => crypto.createHmac('sha256', _identitySecret).update(String(v)).digest('hex') : undefined,
       toolResultTexts,
       visitor_id: visitor_id || 'anon',
+      // Wave 9: dry-run side effects, honoured ONLY for a valid service key.
+      simulation: isSimulationRequest(req),
       page_url: page_url || null,
       conversation_id: ensuredConversationId,
+      // Wave 8: the visitor's current + recent messages, so the handoff never asks for an email they already typed.
+      visitorMessages: [message, ...(Array.isArray(builtHistory) ? builtHistory : []).filter((h) => h && h.role === 'user').map((h) => (typeof h.content === 'string' ? h.content : '')).slice(-4)].filter((m) => typeof m === 'string' && m),
       // Wave 6 D9: lets the handoff confirmation be honest about nobody being online.
       availability: widgetMeta ? evaluateAvailability(widgetMeta) : null,
       // QCL-SECURITY P1-5(d)/(c)
@@ -3131,7 +3325,7 @@ ${buildGroundingRules({
         success: true,
         handed_off: true,
         operator_joined: true,
-        response: handoffStateAck(st, handedOffConversationId),
+        response: handoffStateAck(st, handedOffConversationId, true),
         conversation_id: handedOffConversationId,
         handoff_state: handoffStateLabel(st),
       });
@@ -3195,6 +3389,23 @@ ${buildGroundingRules({
         responseText = identityReply;
         inputTokens = 0;
         outputTokens = 0;
+      } else if (transcriptFilteredOut && asksForTranscript(message)) {
+        // Wave 10 #9: emailing is withheld for this visitor; say that, do
+        // not let the model decline with an unrelated sentence.
+        chipActionHandled = true;
+        deterministicIdentity = true;
+        responseText = TRANSCRIPT_WITHHELD_REPLY;
+        inputTokens = 0;
+        outputTokens = 0;
+      } else if (shouldReportRetrievalFailure({ retrievalError, keptCount: knowledge.kept.length, message })) {
+        // Wave 10 #5: the lookup failed (dense twice, lexical empty). Say so;
+        // never let the model answer "I do not have information".
+        chipActionHandled = true;
+        deterministicIdentity = true;
+        responseText = RETRIEVAL_FAILED_REPLY;
+        inputTokens = 0;
+        outputTokens = 0;
+        retrievalFailedReplied = true;
       }
     }
 
@@ -3374,7 +3585,8 @@ ${buildGroundingRules({
     // (no tools, never when an action ran this turn), then a sentence strip.
     // Wave 1 proved 23+ invented URLs and false-premise prices on both
     // deployments; this is the gate that makes them unable to reach a visitor.
-    let groundingVerdict = { links_removed: [], unsupported_figures: [], corrected: false, stripped: false };
+    let reportedConfidence = knowledge.confidence;
+    let groundingVerdict = { links_removed: [], unsupported_figures: [], corrected: false, stripped: false, retrieval_error: retrievalError || null, ...(retrievalFailedReplied ? { withheld: true } : {}) };
     if (typeof responseText === 'string') responseText = stripKnowledgeLabels(responseText);
     try {
       const actionRan = Array.isArray(toolCalls) && toolCalls.some((tc) => tc && (tc.result_message || tc.needs_input));
@@ -3396,15 +3608,45 @@ ${buildGroundingRules({
           // let 3 invented negatives through).
           const neg = stripUnsupportedNegatives(linked.text, supportTexts, { protectedTexts: (Array.isArray(toolCalls) ? toolCalls : []).map((tc) => tc && tc.result_message).filter((t) => typeof t === 'string' && t.trim()) });
           if (neg.replaced.length > 0) groundingVerdict.negatives_replaced = [...(groundingVerdict.negatives_replaced || []), ...neg.replaced];
-          return { text: neg.text, removed: linked.removed, figures: findUnsupportedFigures(neg.text, supportTexts, { visitorTexts }) };
+          // Wave 8: a weekday stated next to a date is checked against the real
+          // calendar and corrected in place (deterministic, no model call).
+          const wk = correctWeekdays(neg.text, new Date(), widgetTimezone(widgetMeta));
+          if (wk.corrected.length > 0) groundingVerdict.weekday_corrected = [...(groundingVerdict.weekday_corrected || []), ...wk.corrected];
+          // Wave 8: on an allergy turn, safety/absence assertions are removed and
+          // the business's own allergy guidance (or a fixed fallback) is given.
+          let wkText = wk.text;
+          if (!bookingToolActive) {
+            const bk = stripBookingOffers(wkText, { bookingRoute: findBookingRoute(supportTexts), protectedTexts: (Array.isArray(toolCalls) ? toolCalls : []).map((tc) => tc && tc.result_message).filter((t) => typeof t === 'string' && t.trim()) });
+            if (bk !== wkText) groundingVerdict.booking_offer_stripped = true;
+            wkText = bk;
+          }
+          const prevAssistant = [...((builtHistory && builtHistory.messages) || [])].reverse().find((m) => m && m.role === 'assistant');
+          const cf = carryForwardLimit({ answer: wkText, previousAssistant: prevAssistant && typeof prevAssistant.content === 'string' ? prevAssistant.content : '', message });
+          if (cf.carried) { groundingVerdict.limit_carried = true; wkText = cf.text; }
+          const tw = applyTimeWindowGuard(wkText, { question: message, knowledgeTexts: supportTexts });
+          if (tw.applied) { groundingVerdict.time_window_guard = tw.qualifier; wkText = tw.text; }
+          const on = applyOpenNowGuard(wkText, { now: new Date(), tz: widgetTimezone(widgetMeta), knowledgeTexts: supportTexts });
+          if (on.applied) { groundingVerdict.open_now_guard = true; wkText = on.text; }
+          const dw = applyDateWindowGuard(wkText, { visitorTexts: dateVisitorTexts, knowledgeTexts: supportTexts, now: new Date(), tz: widgetTimezone(widgetMeta) });
+          if (dw.applied) { groundingVerdict.date_window_guard = true; groundingVerdict.date_window_contradicted = dw.contradicted; wkText = dw.text; }
+          const al = applyAllergyGuard(wkText, { visitorTexts, knowledgeTexts: supportTexts });
+          if (al.guard) groundingVerdict.allergy_guard = { removed: [...((groundingVerdict.allergy_guard || {}).removed || []), ...al.removed], source: al.source };
+          const em = applyEmergencyGuard(al.text, { visitorTexts, knowledgeTexts: supportTexts });
+          if (em.guard) groundingVerdict.emergency_guard = { number: em.number };
+          const spanBad = spanningProducts(em.text, stayPlan);
+          if (spanBad.length) groundingVerdict.season_span_product = spanBad;
+          return { text: em.text, removed: linked.removed, figures: [...findUnsupportedFigures(em.text, supportTexts, { visitorTexts }), ...spanBad] };
         };
         // Executor confirmations are never stripped, and are the only
         // evidence a "done" claim can rest on. Strips add no apology note;
         // a hollow result becomes a clean decline with a concrete next step.
         const protectedTexts = (Array.isArray(toolCalls) ? toolCalls : [])
           .map((tc) => tc && tc.result_message).filter((t) => typeof t === 'string' && t.trim());
-        const actionTexts = [...(toolLoopContext.toolResultTexts || []), ...protectedTexts];
-        const stripOpts = { protectedTexts, nextStep: bestNextStep({ siteLinks: widgetSiteLinks, texts: supportTexts }) };
+        const actionTexts = [...(toolLoopContext.toolResultTexts || []), ...protectedTexts, ...ledgerActionTexts(actionLedger)];
+        const stripOpts = { protectedTexts, nextStep: bestNextStep({ siteLinks: widgetSiteLinks, texts: supportTexts }), arith: { support: supportTexts, visitor: visitorTexts } };
+        const draftForNonAnswerCheck = responseText;
+        let claimStripped = false; // a claim-phase strip (not a figure strip) happened
+        let claimVerifyFn = null; // set when the claim verifier runs; reused by the wave 10 strip regeneration
         let g = gate(responseText);
         groundingVerdict.links_removed = g.removed;
         if (g.figures.length > 0 && actionRan) {
@@ -3413,7 +3655,7 @@ ${buildGroundingRules({
           groundingVerdict.stripped = true;
         } else if (g.figures.length > 0) {
           groundingVerdict.unsupported_figures = g.figures;
-          const correction = `Your draft reply stated these specifics, which do not appear in KNOWLEDGE: ${g.figures.join(', ')}. Rewrite the reply to the visitor without them. If the visitor asked about them, say plainly that you cannot confirm that detail and offer the next step. Reply with the rewritten answer only.`;
+          const correction = `Your draft reply stated these specifics, which do not appear in KNOWLEDGE: ${g.figures.join(', ')}. Rewrite the reply to the visitor without them.${stayPlan && stayPlan.fact ? ` Fact (computed): ${stayPlan.fact}` : ''} If the visitor asked about them, say plainly that you cannot confirm that detail and offer the next step. Reply with the rewritten answer only.`;
           const loopFn = loopFnFor(activeProvider);
           try {
             const fix = await loopFn({
@@ -3450,6 +3692,8 @@ ${buildGroundingRules({
         // regeneration (never after an action) -> re-verify -> sentence strip.
         // A verifier outage serves the gated answer but RECORDS it.
         // Deterministic chip replies (no model wrote them) are not verified.
+        const figureRegenerated = groundingVerdict.corrected === true;
+        let claimsRemoved = [];
         if (groundingCfg.verify_claims !== false && !chipActionHandled) {
           const vLoop = loopFnFor(activeProvider);
           // Verifier model: complex tier, preferring a different provider
@@ -3497,7 +3741,7 @@ ${buildGroundingRules({
               gateTimings.verify_ms.push(Date.now() - tv);
             }
           };
-          let v = await verifyClaims({ knowledge: supportTexts, answer: g.text, actions: actionTexts, links: widgetSiteLinks || [], premises: visitorTexts, brandNames: [widgetMeta?.business_name, widgetMeta?.name], complete });
+          let v = await verifyClaims({ knowledge: supportTexts, answer: g.text, actions: actionTexts, links: widgetSiteLinks || [], premises: visitorTexts, brandNames: [widgetMeta?.business_name, widgetMeta?.name], conversation: conversationContext, question: message, complete });
           groundingVerdict.claims = { checked: !v.skipped, ok: v.ok, unsupported: v.unsupported, error: v.error || null, verifier: { provider: vPick.provider, model: vPick.model, tier: vPick.tier, cross_family: vPick.cross_family, fell_back: Boolean(vPick.fell_back) } };
           const outage = verifierOutageAction(v, knowledge.confidence);
           groundingVerdict.claims.outage_action = outage;
@@ -3505,7 +3749,9 @@ ${buildGroundingRules({
             g = { ...g, text: "I'm sorry, I couldn't double-check that answer just now. Please try again in a moment, or ask to speak with the team." };
             groundingVerdict.withheld = true;
           }
+          claimVerifyFn = (answer) => verifyClaims({ knowledge: supportTexts, answer, actions: actionTexts, links: widgetSiteLinks || [], premises: visitorTexts, brandNames: [widgetMeta?.business_name, widgetMeta?.name], conversation: conversationContext, question: message, complete });
           if (v.ok && v.unsupported.length > 0) {
+            claimsRemoved = [...v.unsupported];
             let text = g.text;
             if (!actionRan) {
               try {
@@ -3527,23 +3773,76 @@ ${buildGroundingRules({
                   groundingVerdict.corrected = true;
                   inputTokens = (inputTokens || 0) + (fix.inputTokens || 0);
                   outputTokens = (outputTokens || 0) + (fix.outputTokens || 0);
-                  const v2 = await verifyClaims({ knowledge: supportTexts, answer: text, actions: actionTexts, links: widgetSiteLinks || [], premises: visitorTexts, brandNames: [widgetMeta?.business_name, widgetMeta?.name], complete });
+                  const v2 = await verifyClaims({ knowledge: supportTexts, answer: text, actions: actionTexts, links: widgetSiteLinks || [], premises: visitorTexts, brandNames: [widgetMeta?.business_name, widgetMeta?.name], conversation: conversationContext, question: message, complete });
                   groundingVerdict.claims.after_correction = v2.ok ? v2.unsupported : null;
-                  if (v2.ok && v2.unsupported.length > 0) { text = stripClaimSentences(text, v2.unsupported, stripOpts); groundingVerdict.stripped = true; }
+                  if (v2.ok && v2.unsupported.length > 0) { text = stripClaimSentences(text, v2.unsupported, stripOpts); groundingVerdict.stripped = true; claimStripped = true; }
                 } else {
-                  text = stripClaimSentences(text, v.unsupported, stripOpts); groundingVerdict.stripped = true;
+                  text = stripClaimSentences(text, v.unsupported, stripOpts); groundingVerdict.stripped = true; claimStripped = true;
                 }
               } catch (cErr) {
                 console.warn('[QuoxChat] claim correction failed (falling back to strip):', cErr.message);
-                text = stripClaimSentences(text, v.unsupported, stripOpts); groundingVerdict.stripped = true;
+                text = stripClaimSentences(text, v.unsupported, stripOpts); groundingVerdict.stripped = true; claimStripped = true;
               }
             } else {
-              text = stripClaimSentences(text, v.unsupported, stripOpts); groundingVerdict.stripped = true;
+              text = stripClaimSentences(text, v.unsupported, stripOpts); groundingVerdict.stripped = true; claimStripped = true;
             }
             g = { ...g, text };
           }
           if (groundingVerdict.claims) groundingVerdict.claims.timings = gateTimings;
           console.log(`[QuoxChat] claim gate at +${gateTimings.gate_start_ms}ms: verifier ${vPick.provider}/${vPick.model} ${gateTimings.verify_ms.join('+')}ms${gateTimings.regen_ms != null ? `, regen ${gateTimings.regen_ms}ms` : ''}`);
+        }
+        // Wave 10 #3: a strip that removed the sentence which answered the
+        // question must not leave an unrelated remainder as the "answer".
+        const stripHollow = () => g.text === declineText(stripOpts.nextStep)
+          || strippedLeavesNonAnswer({ message, before: draftForNonAnswerCheck, after: g.text });
+        if (groundingVerdict.stripped && !groundingVerdict.withheld && stripHollow()
+          && !actionRan && !figureRegenerated && Date.now() - startMs <= 20000) {
+          // Wave 10 v: the strip left nothing usable. Regenerate ONCE with the
+          // removed claims listed, run the full gate on the result, and only
+          // decline if that is hollow too.
+          const removedList = [...new Set([...(groundingVerdict.unsupported_figures || []), ...claimsRemoved, ...(groundingVerdict.negatives_replaced || []).map((n) => (n && n.sentence) || n)].filter((x) => typeof x === 'string' && x.trim()))];
+          groundingVerdict.regenerated_after_strip = true;
+          try {
+            const fix = await loopFnFor(activeProvider)({
+              apiKey: activeApiKey,
+              model: activeModel,
+              systemPrompt,
+              messages: [...messages, { role: 'assistant', content: draftForNonAnswerCheck }, { role: 'user', content: `Your draft reply was removed because these statements were not supported by KNOWLEDGE and must not be repeated: ${removedList.length ? removedList.map((c) => `"${c}"`).join('; ') : '(the main claim of the draft)'}. Rewrite the reply answering using only what KNOWLEDGE states, quoting the relevant rule, and say plainly what it does not cover. Do not claim any action was completed. Reply with the rewritten answer only.` }],
+              tools: [],
+              widget: { id: widget_id, org_id: widgetOrgId, public_key: null, tool_policies: widgetToolPolicies },
+              context: toolLoopContext,
+              onStream: null,
+            });
+            if (fix && typeof fix.text === 'string' && fix.text.trim()) {
+              inputTokens = (inputTokens || 0) + (fix.inputTokens || 0);
+              outputTokens = (outputTokens || 0) + (fix.outputTokens || 0);
+              const g4 = gate(scrubEmDashes(fix.text));
+              let t4 = g4.figures.length > 0 ? stripUnsupportedSentences(g4.text, g4.figures, stripOpts) : g4.text;
+              if (claimVerifyFn) {
+                const v4 = await claimVerifyFn(t4);
+                if (v4.ok && v4.unsupported.length > 0) t4 = stripClaimSentences(t4, v4.unsupported, stripOpts);
+              }
+              const hollow4 = t4 === declineText(stripOpts.nextStep) || strippedLeavesNonAnswer({ message, before: draftForNonAnswerCheck, after: t4 });
+              if (!hollow4) { g = { ...g4, text: t4 }; groundingVerdict.regen_kept = true; }
+            }
+          } catch (rErr) {
+            console.warn('[QuoxChat] strip regeneration failed (falling back to decline):', rErr.message);
+          }
+        }
+        if (groundingVerdict.stripped && !groundingVerdict.withheld && !groundingVerdict.regen_kept && stripHollow()) {
+          g = { ...g, text: declineText(stripOpts.nextStep) };
+          groundingVerdict.withheld = true;
+          groundingVerdict.stripped_nonanswer = true;
+        }
+        // Wave 12: analytics record the FINAL served text. A figure the gate
+        // removed from an intermediate draft but which the served text carries
+        // (regeneration restored a supported figure) is not a removal.
+        if (groundingVerdict.unsupported_figures.length > 0) {
+          const stillRemoved = figuresStillRemoved(groundingVerdict.unsupported_figures, g.text);
+          if (stillRemoved.length < groundingVerdict.unsupported_figures.length) {
+            groundingVerdict.unsupported_figures = stillRemoved;
+            if (stillRemoved.length === 0 && !claimStripped && !groundingVerdict.withheld && !groundingVerdict.regen_kept) groundingVerdict.stripped = false;
+          }
         }
         responseText = g.text;
       }
@@ -3555,13 +3854,31 @@ ${buildGroundingRules({
       responseText = "I'm sorry, I couldn't double-check that answer just now. Please try again in a moment, or ask to speak with the team.";
       groundingVerdict.gate_error = String(gateErr.message || gateErr).slice(0, 160);
     }
+    // Wave 13: a date-window correction means the draft's own reasoning was
+    // wrong, so the verdict must not read strong / claims ok.
+    if (groundingVerdict.date_window_guard) {
+      reportedConfidence = knowledge.confidence === 'none' ? 'none' : 'weak';
+      if (groundingVerdict.claims) { groundingVerdict.claims.ok = false; groundingVerdict.claims.date_window_contradiction = true; }
+    }
     emitLayer(
       'verification',
       (groundingVerdict.links_removed.length || groundingVerdict.unsupported_figures.length) ? 'warn' : 'ok',
       `grounding: confidence=${knowledge.confidence} links_removed=${groundingVerdict.links_removed.length} figures=${groundingVerdict.unsupported_figures.length}${groundingVerdict.corrected ? ' corrected' : ''}${groundingVerdict.stripped ? ' stripped' : ''}`,
       null,
-      { check: 'grounding', ...groundingVerdict, confidence: knowledge.confidence, top_score: knowledge.top_score, history_source: builtHistory.source, dropped_client_assistant_turns: builtHistory.dropped_assistant || 0 },
+      { check: 'grounding', ...groundingVerdict, confidence: reportedConfidence, top_score: knowledge.top_score, history_source: builtHistory.source, dropped_client_assistant_turns: builtHistory.dropped_assistant || 0 },
     );
+
+    // A visitor must always get text. A tool-only turn (e.g. the model called
+    // human_handoff or asked for input but narrated nothing, and the executor
+    // gave no result_message) used to return response:"" (the QuoxChat go-live
+    // gate saw "empty response" on tool_abuse_mass_handoff).
+    if (typeof responseText !== 'string' || !responseText.trim()) {
+      const handoffOk = Array.isArray(toolCalls) && toolCalls.some((tc) => tc && tc.ok === true && tc.name === 'human_handoff');
+      responseText = handoffOk
+        ? "I've passed your request to our team. Someone will pick this up with you shortly."
+        : "Sorry, I couldn't put together a reply to that. Could you rephrase, or ask to speak with the team?";
+      console.warn(`[QuoxChat] empty reply substituted widget=${widget_id} handoff_ok=${handoffOk}`);
+    }
 
     const durationMs = Date.now() - startMs;
 
@@ -3637,6 +3954,20 @@ ${buildGroundingRules({
     // variable reused by every downstream consumer (final response,
     // persist-message, webhook fan-out), so redacting it here closes all of
     // them at once.
+    // Wave 11: canary leak, bare-token obedience, rule-list leak. Any hit
+    // replaces the whole reply with a refusal and is recorded in the verdict.
+    const outputGuard = { canary_leak: false, bare_token: false, rule_leak: false };
+    {
+      const bareTok = requestedBareToken(message);
+      if (canaryLeaked(responseText, requestCanary)) outputGuard.canary_leak = true;
+      else if (bareTok && isBareTokenReply(responseText, bareTok)) outputGuard.bare_token = true;
+      else if (leaksSystemRules(responseText, ruleLeakSource)) outputGuard.rule_leak = true;
+      if (outputGuard.canary_leak || outputGuard.bare_token || outputGuard.rule_leak) {
+        console.warn(`[QuoxChat] Output guard tripped: ${Object.keys(outputGuard).filter((k) => outputGuard[k]).join(',')}`);
+        responseText = INJECTION_REFUSAL;
+      }
+    }
+    const outputGuardTripped = outputGuard.canary_leak || outputGuard.bare_token || outputGuard.rule_leak;
     const publicRedaction = redactPublicText(responseText);
     const outputFiltered = publicRedaction.changed;
     const matchedCredPatterns = publicRedaction.matched;
@@ -3663,10 +3994,10 @@ ${buildGroundingRules({
     // replaced by [REDACTED] rather than the raw value).
     emitLayer(
       'verification',
-      outputFiltered ? 'warn' : 'ok',
-      outputFiltered ? `credential_pattern_redacted=${matchedCredPatterns.length}` : 'clean',
+      (outputFiltered || outputGuardTripped) ? 'warn' : 'ok',
+      outputGuardTripped ? `output_guard ${Object.keys(outputGuard).filter((k) => outputGuard[k]).join(',')}` : (outputFiltered ? `credential_pattern_redacted=${matchedCredPatterns.length}` : 'clean'),
       null,
-      { filtered: outputFiltered, redacted: outputFiltered, patterns: matchedCredPatterns },
+      { filtered: outputFiltered, redacted: outputFiltered, patterns: matchedCredPatterns, ...outputGuard },
     );
 
     // QCX-2.1: existing MESSAGE envelope kept for back-compat with LogsTab
@@ -3678,7 +4009,7 @@ ${buildGroundingRules({
         visitor_id: visitor_id || 'anon',
         widget_id,
         reply_to: scenarioEnv.id,
-        payload: { message_length: message.length, response_length: responseText.length, input_tokens: inputTokens, output_tokens: outputTokens, duration_ms: durationMs, injection_score: injectionScore, output_filtered: outputFiltered, model: activeModel, tier: routeDecision.tier, route_reason: routeDecision.reason, page_url: page_url || null, tool_call_count: Array.isArray(toolCalls) ? toolCalls.length : 0 },
+        payload: { message_length: message.length, response_length: responseText.length, input_tokens: inputTokens, output_tokens: outputTokens, duration_ms: durationMs, injection_score: injectionScore, output_filtered: outputFiltered, output_guard: outputGuardTripped ? outputGuard : undefined, model: activeModel, tier: routeDecision.tier, route_reason: routeDecision.reason, page_url: page_url || null, tool_call_count: Array.isArray(toolCalls) ? toolCalls.length : 0 },
       }));
     } catch (auditErr) {
       console.warn('[QuoxChat] Audit failed:', auditErr.message);
@@ -3748,7 +4079,8 @@ ${buildGroundingRules({
             // QUOXCHAT-BRUTALOOP D7: per-answer grounding verdict, so the
             // operator can see WHY this answer looks the way it does.
             grounding: {
-              confidence: knowledge.confidence,
+              confidence: reportedConfidence,
+              date_window_guard: groundingVerdict.date_window_guard === true,
               top_score: knowledge.top_score,
               links_removed: groundingVerdict.links_removed,
               unsupported_figures: groundingVerdict.unsupported_figures,
@@ -3760,7 +4092,15 @@ ${buildGroundingRules({
               history_source: builtHistory.source,
               dropped_client_assistant_turns: builtHistory.dropped_assistant || 0,
               claims: groundingVerdict.claims || null,
+              // Wave 8 D7: the gate verdict in plain keys for the operator drill-down.
+              removed_figures: groundingVerdict.unsupported_figures,
+              negative_rewrites: groundingVerdict.negatives_replaced || [],
+              stripped_claims: (groundingVerdict.claims && Array.isArray(groundingVerdict.claims.unsupported) && groundingVerdict.stripped) ? groundingVerdict.claims.unsupported : [],
+              regenerated: groundingVerdict.corrected === true,
               gate_error: groundingVerdict.gate_error || null,
+              stripped_nonanswer: groundingVerdict.stripped_nonanswer === true,
+              regenerated_after_strip: groundingVerdict.regenerated_after_strip === true,
+              retrieval_error: groundingVerdict.retrieval_error || null,
             },
           };
           const persistResp = await fetch(`${authUrl}/api/internal/widgets/${encodeURIComponent(widget_id)}/persist-message`, {
@@ -4548,8 +4888,13 @@ function applyActionReplyDeterminism(responseText, toolCalls) {
   // deployments). Drop narration sentences that restate a send/booking;
   // keep any other content the model added.
   const RESTATE_RE = /\b(has|have) been (sent|passed|forwarded|booked|scheduled|recorded|received|submitted|shared|noted|requested)\b|\b(I'?ve|I have|we'?ve|we have) (sent|passed|forwarded|booked|scheduled|recorded|shared|noted|submitted|requested|got)\b|\b(is|are) (now )?with (the|our) team\b|\bwill (be in touch|get back to you|reach out|contact you|follow up)\b/i;
+  // QC-BRUTALOOP-W13: "your details are saved" / "I've saved ..." restatements
+  // of a data-collection tool, and any sentence that repeats the reference the
+  // confirmation already printed.
+  const RESTATE_SAVED_RE = /\b(has|have) been (saved|stored|captured|logged|added|taken down)\b|\b(your|the) (details|information|info|message|request|enquiry|inquiry|email|contact details|booking|reference) (is|are|was|were) (now |all )?(saved|stored|captured|recorded|logged|noted|received|safe)\b|\b(I'?ve|I have|we'?ve|we have) (saved|stored|captured|logged|added|taken|noted)\b/i;
+  const refTokens = (confirmation.match(/\b[A-Z0-9]{2,}(?:-[A-Z0-9]+)+\b|\b(?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{6,}\b/g) || []);
   const kept = (narrated.match(/[^.!?\n]+[.!?]*\s*/g) || [narrated])
-    .filter((sn) => !RESTATE_RE.test(sn))
+    .filter((sn) => !RESTATE_RE.test(sn) && !RESTATE_SAVED_RE.test(sn) && !refTokens.some((t) => sn.includes(t)))
     // A bare "Thanks!" ack duplicates the confirmation's own ("Thanks! We've got your details").
     .filter((sn) => !(/^\s*(?:thanks|thank\s+you)\b/i.test(confirmation) && /^\s*(?:thanks|thank\s+you)\b[^.!?\n]{0,40}[.!]*\s*$/i.test(sn)))
     .join('')
@@ -5593,7 +5938,7 @@ router.post('/knowledge/upload', requireServiceKey, upload.single('file'), licen
       name: fileName,
       chunk_count: embedded,
       status: embedded > 0 ? 'indexed' : 'error',
-      config: { fileSize, mimeType, textLength: extractedText.length, totalChunks: chunks.length, failed, file_object_id: fileObjectId, injection_flags: injectionScan.flagged, injection_high: injectionScan.high, quarantined: injectionScan.quarantined },
+      config: { fileSize, mimeType, textLength: extractedText.length, totalChunks: chunks.length, failed, file_object_id: fileObjectId, injection_flags: injectionScan.flagged, injection_high: injectionScan.high, quarantined: injectionScan.quarantined, partially_quarantined: injectionScan.partially_quarantined, quarantined_chunks: injectionScan.quarantined_chunks, flagged_passages: injectionScan.flagged_passages },
       error_message: embedded > 0 ? null : 'No chunks embedded — check LLM key or file content',
       file_object_id: fileObjectId,
       size_bytes: fileSize,
@@ -5614,6 +5959,8 @@ router.post('/knowledge/upload', requireServiceKey, upload.single('file'), licen
       injection_flags: injectionScan.flagged,
       injection_high: injectionScan.high,
       quarantined: injectionScan.quarantined,
+      partially_quarantined: injectionScan.partially_quarantined,
+      flagged_passages: injectionScan.flagged_passages,
     });
 
   } catch (err) {
@@ -5758,7 +6105,8 @@ router.post('/knowledge/crawl', requireServiceKey, rateLimit, licenseGuardAdmin,
       } else {
         diagnostic = 'No pages could be fetched';
       }
-      return res.json({ success: true, url, pages: 0, chunks: 0, embedded: 0, message: diagnostic, stats: fetchStats });
+      // Wave 9: a crawl that fetched nothing is a failure, not a success.
+      return res.status(422).json({ success: false, error: diagnostic, url, pages: 0, chunks: 0, embedded: 0, message: diagnostic, stats: fetchStats });
     }
 
     // Storage quota: refuse BEFORE chunking/embedding anything.
@@ -5783,12 +6131,14 @@ router.post('/knowledge/crawl', requireServiceKey, rateLimit, licenseGuardAdmin,
     let totalInjectionFlags = 0;
     let totalInjectionHigh = 0;
     const quarantinedPages = [];
+    const crawlFlaggedPassages = [];
 
     for (const page of pages) {
       // Chunk
       const chunks = ingestLib.chunkText(page.text, { size: 1000, overlap: 200, maxChunks: 101 });
       const pageScan = ingestLib.scanChunks(chunks, { fullText: page.text });
       if (pageScan.quarantined) quarantinedPages.push(page.url);
+      for (const fp of pageScan.flagged_passages) if (crawlFlaggedPassages.length < 20) crawlFlaggedPassages.push({ page: page.url, ...fp });
       pageScan.chunks.forEach((c, i) => { chunks[i] = c; });
       totalInjectionFlags += pageScan.flagged;
       totalInjectionHigh += pageScan.high;
@@ -5839,7 +6189,7 @@ router.post('/knowledge/crawl', requireServiceKey, rateLimit, licenseGuardAdmin,
       name: url,
       chunk_count: totalEmbedded,
       status: totalEmbedded > 0 ? 'indexed' : 'error',
-      config: { conflicts: ingestLib.findFigureConflicts(pages.map((p) => ({ id: p.url, text: p.text }))), depth: maxDepth, pages: pages.length, totalChunks, injection_flags: totalInjectionFlags, injection_high: totalInjectionHigh, quarantined: quarantinedPages.length > 0, quarantined_pages: quarantinedPages.slice(0, 50), pageList: pages.map(p => ({ url: p.url, title: p.title })) },
+      config: { conflicts: ingestLib.findFigureConflicts(pages.map((p) => ({ id: p.url, text: p.text }))), depth: maxDepth, pages: pages.length, totalChunks, injection_flags: totalInjectionFlags, injection_high: totalInjectionHigh, quarantined: quarantinedPages.length > 0, quarantined_pages: quarantinedPages.slice(0, 50), flagged_passages: crawlFlaggedPassages, pageList: pages.map(p => ({ url: p.url, title: p.title })) },
       error_message: totalEmbedded > 0 ? null : 'Crawl returned no indexable content',
       size_bytes: crawlBytes,
     });
@@ -6571,7 +6921,7 @@ router.post('/simulate', requireServiceKey, licenseGuardAdmin, async (req, res) 
   const startedAt = new Date().toISOString();
   const start = Date.now();
   try {
-    const { widget_id, scenarios, scope } = req.body || {};
+    const { widget_id, scenarios, scope, simulation } = req.body || {};
     if (!widget_id || !Array.isArray(scenarios) || scenarios.length === 0) {
       return res.status(400).json({ error: 'widget_id and scenarios[] required' });
     }
@@ -6587,10 +6937,15 @@ router.post('/simulate', requireServiceKey, licenseGuardAdmin, async (req, res) 
         // W5: /message refuses a request with no Origin; the service key is
         // the guard's one exemption for in-process callers.
         headers: { 'Content-Type': 'application/json', 'x-service-key': process.env.INTERNAL_SERVICE_KEY || '' },
-        body: JSON.stringify({ message, widget_id: wid, visitor_id, conversation_history: [] }),
+        body: JSON.stringify({ message, widget_id: wid, visitor_id, conversation_history: [], ...(simulation === true ? { simulation: true } : {}) }),
         signal: AbortSignal.timeout(20000),
       });
       const data = await resp.json().catch(() => ({}));
+      // A non-2xx or success:false with no reply text is an infrastructure
+      // error (rate limit, 5xx), not a bot answer: report it as an error.
+      if ((!resp.ok || data.success === false) && !String(data.response || '').trim()) {
+        return { text: '', error: data.error || `message endpoint returned HTTP ${resp.status}`, sources: [], tool_calls: [], injection_score: 0 };
+      }
       return {
         text: data.response || '',
         sources: data.sources || [],
@@ -6641,6 +6996,7 @@ router.post('/simulate', requireServiceKey, licenseGuardAdmin, async (req, res) 
 module.exports = {
   router,
   init,
+  isSimulationRequest,
   publicSourceTitle,
   classifyReconcilePoints,
   embedText,

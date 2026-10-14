@@ -5028,3 +5028,52 @@ button.qx-avatar:focus-visible { outline: 2px solid var(--m-border-focus, #38bdf
 .qx-kv > .qx-stat-row { display: grid; grid-template-columns: var(--qx-kv-label, 8.5rem) minmax(0, 1fr); align-items: center; gap: 12px; padding: 8px 0; }
 .qx-kv > .qx-stat-row > :first-child { color: rgba(255,255,255,0.75); font-size: 13px; min-width: 0; }
 .qx-kv > .qx-stat-row > :nth-child(2) { justify-self: start; justify-content: flex-start; text-align: left; min-width: 0; }
+
+/* QX-QSTATE (QUOXON J3): the perpetual Q status glyph, colour carries state, one fixed shape.
+   Same palette as the CLI (cli/lib/quoxon/qglyph.js): resting dim sky + slow breathe, working
+   sky -> violet flowing, waiting amber pulse, failing steady red. Wrap a <QHorn stops={...}>. */
+.qx-qstate { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.qx-qstate svg { filter: none !important; }
+.qx-qstate--resting { opacity: 0.75; animation: qx-qstate-breathe 4s ease-in-out infinite; }
+.qx-qstate--working svg { animation: qx-qstate-flow 1.6s linear infinite; }
+.qx-qstate--waiting { animation: qx-qstate-pulse 1.4s ease-in-out infinite; }
+.qx-qstate--failing svg { filter: drop-shadow(0 0 4px rgba(248,113,113,0.55)) !important; }
+@keyframes qx-qstate-breathe { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+@keyframes qx-qstate-flow {
+  0%   { filter: drop-shadow(0 0 3px rgba(56,189,248,0.6)) hue-rotate(0deg); }
+  50%  { filter: drop-shadow(0 0 5px rgba(168,85,247,0.65)) hue-rotate(40deg); }
+  100% { filter: drop-shadow(0 0 3px rgba(56,189,248,0.6)) hue-rotate(0deg); }
+}
+@keyframes qx-qstate-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.8; transform: scale(0.92); } }
+@media (prefers-reduced-motion: reduce) { .qx-qstate, .qx-qstate svg { animation: none !important; } }
+
+/* QX-SESSION-ROW (QUOXON J3): one live session in a list. Glyph | name + meta | right-hand facts.
+   Collapses to a stacked card at narrow widths (container query on .qx-session-list). */
+.qx-session-list { display: flex; flex-direction: column; container: qx-sessions / inline-size; }
+.qx-session-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr);
+  align-items: center; gap: 12px; padding: 10px 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.qx-session-row:last-child { border-bottom: none; }
+.qx-session-row__main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.qx-session-row__name { font-weight: 600; color: var(--m-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qx-session-row__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: rgba(255,255,255,0.75); }
+.qx-session-row__cell { min-width: 0; font-size: 13px; color: rgba(255,255,255,0.85); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qx-session-row__cell--age { font-variant-numeric: tabular-nums; }
+.qx-session-row__attach { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.qx-session-row__attach .qx-code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qx-session-row__attach .qx-btn { flex-shrink: 0; }
+.qx-session-row--failing .qx-session-row__name { color: #fca5a5; }
+@container qx-sessions (max-width: 720px) {
+  .qx-session-row { grid-template-columns: 22px minmax(0, 1fr) auto; row-gap: 6px; }
+  .qx-session-row__cell--host { grid-column: 2; grid-row: 2; }
+  .qx-session-row__cell--age { grid-column: 3; grid-row: 1; text-align: right; }
+  .qx-session-row__attach { grid-column: 2 / span 2; grid-row: 3; }
+}
+.qx-session-agent { display: flex; align-items: center; gap: 10px; margin: 4px 0 6px; }
+.qx-session-agent__swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; box-shadow: 0 0 8px currentColor; background: currentColor; }
+.qx-session-agent__name { font-weight: 700; letter-spacing: 0.02em; }
+.qx-session-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 640px) { .qx-session-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

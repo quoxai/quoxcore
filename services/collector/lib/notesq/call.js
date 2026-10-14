@@ -13,7 +13,7 @@
  */
 
 const LICENCE_ID = 'notesq';
-const QUERY_KEYS = ['scope', 'limit', 'offset', 'q', 'collection', 'tag', 'pinned', 'archived', 'stale_days'];
+const QUERY_KEYS = ['expected_hash', 'scope', 'limit', 'offset', 'q', 'collection', 'tag', 'pinned', 'archived', 'stale_days'];
 
 function createNotesqCall(deps) {
   const need = ['isPluginLicensed', 'audit'];

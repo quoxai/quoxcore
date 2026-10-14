@@ -38,6 +38,7 @@ const { resolveSafeFolderPath } = require('./feedFolderSource.js');
 const brainFeedClient = require('./brainFeedClient.js');
 const { redactSecrets } = require('./feedAiHistorySource.js');
 const { cleanUserText } = require('./transcriptNoise.js');
+const crypto = require('crypto');
 
 const SOURCE_TYPE = 'transcript';
 const VAULT_NAME = 'Dev Sessions';
@@ -46,6 +47,20 @@ const DEFAULT_MAX_SESSIONS = 20;
 // Deletion brake: a live listing under half the manifest, with more than this
 // many manifest entries, is treated as a bad listing, not a mass deletion.
 const BRAKE_MIN_MANIFEST = 3;
+// A large but NON-EMPTY shrink is confirmed, not refused forever: the same
+// shrunken live set must be seen on this many consecutive ticks (the first
+// sighting counts) before its tombstones are applied.
+const SHRINK_CONFIRM_TICKS = 2;
+// Authoritative-root marker. An unmounted/missing bind mount looks like an
+// empty dir (Docker creates one), so "empty" alone never proves "user deleted
+// everything". `.quoxfeed-root` (JSON {createdAt, writer}) in the staging root
+// proves the dir was a real, readable mount. The staging writer SHOULD create
+// it; the ingester also creates it the first time it sees a NON-empty
+// readable dir, so existing installs gain it automatically. Empty + marker +
+// readable is an authoritative empty snapshot (confirmed over
+// SHRINK_CONFIRM_TICKS ticks, tombstoned in bounded batches).
+const ROOT_MARKER = '.quoxfeed-root';
+const MAX_TOMBSTONES_PER_TICK = 200;
 
 // Same caps as transcriptReader.mjs.
 const MAX_TURN_CHARS = 4000;
@@ -393,13 +408,28 @@ async function ingestTranscripts(orgId, opts = {}, deps = {}) {
   // A listing may drive deletions only if the directory exists and was read
   // without error. A missing/unreadable dir must never look like "all deleted".
   let listingComplete = false;
+  let markerPresent = false;
+  let markerPath = null;
   try {
     entries = typeof listFiles === 'function'
       ? (await listFiles(dir, fsImpl)) || []
       : listTranscriptFiles(dir, fsImpl);
     listingComplete = !!fsImpl.existsSync(dir);
+    markerPath = path.join(dir, ROOT_MARKER);
+    try { markerPresent = listingComplete && !!fsImpl.existsSync(markerPath); } catch { markerPresent = false; }
+    if (listingComplete && !markerPresent && entries.length > 0 && !dryRun && typeof fsImpl.writeFileSync === 'function') {
+      // Non-empty readable dir is proof the mount is real: record it.
+      try {
+        fsImpl.writeFileSync(markerPath, JSON.stringify({ createdAt: new Date().toISOString(), writer: 'feedTranscriptSource' }));
+        markerPresent = true;
+        console.log(`[FeedTranscriptSource] org=${orgId}: created ${ROOT_MARKER} in ${dir}`);
+      } catch (err) {
+        console.error(`[FeedTranscriptSource] org=${orgId}: could not create ${ROOT_MARKER} (${err.message}), empty-dir deletions stay held`);
+      }
+    }
   } catch (err) {
     result.error = `list transcript files failed — ${err.message}`;
+    result.deletionBlocked = `deletions held: transcript dir read error (${err.message})`;
     console.error(`[FeedTranscriptSource] org=${orgId}: ${result.error}`);
     return result;
   }
@@ -428,7 +458,16 @@ async function ingestTranscripts(orgId, opts = {}, deps = {}) {
   async function reconcileDeletions(vaultIdHint) {
     const tag = `[FeedTranscriptSource] org=${orgId}`;
     if (!manifestStore) { console.log(`${tag}: no durable state store, deletion reconciliation disabled`); return; }
-    if (!listingComplete) { console.error(`${tag}: listing incomplete (dir ${dir} missing or unreadable), NOT reconciling deletions`); return; }
+    if (!listingComplete) {
+      console.error(`${tag}: listing incomplete (dir ${dir} missing or unreadable), NOT reconciling deletions`);
+      try {
+        const raw = await manifestStore.get(orgId, manifestKey);
+        const m = raw ? JSON.parse(raw) : null;
+        const n = Array.isArray(m) ? m.length : (m && typeof m === 'object' ? Object.keys(m).length : 0);
+        if (n > BRAKE_MIN_MANIFEST) result.deletionBlocked = `transcript dir missing or unreadable (${n} in manifest)`;
+      } catch { /* surfaced by the log above */ }
+      return;
+    }
     let prevRaw = null;
     try { prevRaw = await manifestStore.get(orgId, manifestKey); } catch (err) {
       console.error(`${tag}: manifest read failed, NOT reconciling deletions, ${err.message}`);
@@ -465,13 +504,44 @@ async function ingestTranscripts(orgId, opts = {}, deps = {}) {
     // An empty readable dir is NOT exempt: an unmounted volume looks exactly
     // like that and would wipe every transcript note. The last few sessions
     // (manifest <= BRAKE_MIN_MANIFEST) still delete; a larger drop is refused.
+    const pendingKey = `${SOURCE_TYPE}:pendingShrink`;
     if (prevCount > BRAKE_MIN_MANIFEST && entries.length < prevCount / 2) {
-      result.deletionSkipped = `partial session list (${entries.length} live vs ${prevCount} in manifest)`;
-      console.error(`${tag}: ${result.deletionSkipped}, NOT deleting ${goneIds.length} sessions (manifest kept)`);
-      return;
+      const detail = `${entries.length} live vs ${prevCount} in manifest`;
+      if (entries.length === 0 && !markerPresent) {
+        // Held until the root marker proves the mount is real: an unmounted volume looks exactly like this.
+        result.deletionSkipped = `partial session list (${detail})`;
+        result.deletionBlocked = `deletions held: empty transcript dir without ${ROOT_MARKER} (${detail})`;
+        console.error(`${tag}: ${result.deletionBlocked}, NOT deleting ${goneIds.length} sessions (manifest kept)`);
+        if (!dryRun) { try { await manifestStore.set(orgId, pendingKey, ''); } catch { /* best effort */ } }
+        return;
+      }
+      const fp = crypto.createHash('sha256').update(Object.keys(next).sort().join('\n')).digest('hex');
+      let pending = null;
+      try { pending = JSON.parse((await manifestStore.get(orgId, pendingKey)) || 'null'); } catch { pending = null; }
+      const seen = pending && pending.fp === fp ? (Number(pending.count) || 0) + 1 : 1;
+      if (seen < SHRINK_CONFIRM_TICKS) {
+        if (!dryRun) {
+          try { await manifestStore.set(orgId, pendingKey, JSON.stringify({ fp, count: seen })); } catch (err) {
+            console.error(`${tag}: pendingShrink write failed, ${err.message}`);
+          }
+        }
+        result.deletionSkipped = `partial session list (${detail})`;
+        result.deletionBlocked = `large shrink (${detail}), awaiting confirmation ${seen}/${SHRINK_CONFIRM_TICKS}`;
+        console.error(`${tag}: ${result.deletionBlocked}, NOT deleting ${goneIds.length} sessions yet (manifest kept)`);
+        return;
+      }
+      console.log(`${tag}: shrink (${detail}) confirmed over ${seen} consecutive ticks, applying tombstones`);
+    }
+    // Authoritative empty snapshot: bound the batch; leftovers stay in the
+    // manifest and drain on following ticks.
+    let batchIds = goneIds;
+    let leftover = false;
+    if (entries.length === 0 && goneIds.length > MAX_TOMBSTONES_PER_TICK) {
+      batchIds = goneIds.slice(0, MAX_TOMBSTONES_PER_TICK);
+      leftover = true;
     }
     const relPaths = new Set();
-    for (const id of goneIds) {
+    for (const id of batchIds) {
       relPaths.add(`transcript/${id}.md`);
       for (const rp of prev[id] || []) relPaths.add(rp);
     }
@@ -482,7 +552,7 @@ async function ingestTranscripts(orgId, opts = {}, deps = {}) {
       if (vaultId) {
         const known = await listVaultRelPathsFn(orgId, vaultId, { userId, fetchImpl });
         if (Array.isArray(known)) {
-          for (const id of goneIds) {
+          for (const id of batchIds) {
             const re = new RegExp(`^transcript/${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.part\\d+\\.md$`);
             for (const rp of known) if (re.test(rp)) relPaths.add(rp);
           }
@@ -492,17 +562,26 @@ async function ingestTranscripts(orgId, opts = {}, deps = {}) {
       console.error(`${tag}: vault lookup failed, ${err.message}`);
     }
     if (dryRun) {
-      result.wouldDelete = { sessions: goneIds.length, notes: relPaths.size };
-      console.log(`${tag}: DRY RUN would tombstone ${goneIds.length} vanished sessions (${relPaths.size} notes), nothing sent`);
+      result.wouldDelete = { sessions: batchIds.length, notes: relPaths.size };
+      console.log(`${tag}: DRY RUN would tombstone ${batchIds.length} vanished sessions (${relPaths.size} notes), nothing sent`);
       return;
     }
     if (!vaultId) { console.error(`${tag}: ensurePushVault returned no vaultId, tombstones not sent`); return; }
     const del = await pushDeletionsFn(orgId, vaultId, [...relPaths], { userId, fetchImpl });
     if (del?.error) { console.error(`${tag}: tombstones failed, ${del.error} (manifest kept, will retry)`); return; }
-    result.sessionsDeleted = goneIds.length;
+    result.sessionsDeleted = batchIds.length;
     result.docsDeleted = relPaths.size;
-    console.log(`${tag}: tombstoned ${goneIds.length} vanished sessions (${relPaths.size} notes)`);
+    console.log(`${tag}: tombstoned ${batchIds.length} vanished sessions (${relPaths.size} notes)`);
+    if (leftover) {
+      const kept = Object.fromEntries(Object.entries(prev).filter(([id]) => !batchIds.includes(id)));
+      try { await manifestStore.set(orgId, manifestKey, JSON.stringify(kept)); } catch (err) {
+        console.error(`${tag}: manifest write failed, ${err.message}`);
+      }
+      result.deletionBlocked = `deletions continuing: ${goneIds.length - batchIds.length} sessions remain`;
+      return;
+    }
     await persist();
+    try { await manifestStore.set(orgId, pendingKey, ''); } catch { /* best effort */ }
   }
 
   if (eligible.length === 0) {

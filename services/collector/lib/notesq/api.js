@@ -90,9 +90,21 @@ function registerNotesqRoutes(app, deps) {
   // ?purge=true is forwarded (allowlist, no other query key), human actors only;
   // the brain still enforces author/admin.
   const isPurge = (r) => r.query && r.query.purge === 'true';
+  // Optimistic-concurrency token (query or If-Match); the brain checks it
+  // atomically with the mutation and answers 409 {error:'conflict', currentHash}.
+  const expectedHashOf = (r) => {
+    const v = (r.query && r.query.expected_hash) || String((r.headers && r.headers['if-match']) || '').replace(/^W\//, '').replace(/^"|"$/g, '');
+    return typeof v === 'string' && v ? v : '';
+  };
   app.delete(`${B}/notes/:id`, requireAuth, route({
     method: 'DELETE',
-    path: (r) => `/notesq/notes/${encodeURIComponent(r.params.id)}${isPurge(r) ? '?purge=true' : ''}`,
+    path: (r) => {
+      const qs = new URLSearchParams();
+      if (isPurge(r)) qs.set('purge', 'true');
+      if (expectedHashOf(r)) qs.set('expected_hash', expectedHashOf(r));
+      const q = qs.toString();
+      return `/notesq/notes/${encodeURIComponent(r.params.id)}${q ? `?${q}` : ''}`;
+    },
     intent: (r) => (isPurge(r) ? 'quox.notes.purge' : 'quox.notes.delete'),
     humanOnly: isPurge,
     humanOnlyError: 'purge_requires_human',
@@ -101,7 +113,7 @@ function registerNotesqRoutes(app, deps) {
   app.get(`${B}/notes/:id/revisions/:rev`, requireAuth, route({ method: 'GET', path: (r) => `/notesq/notes/${encodeURIComponent(r.params.id)}/revisions/${encodeURIComponent(r.params.rev)}` }));
   app.post(`${B}/notes/:id/restore`, requireAuth, route({
     method: 'POST', path: (r) => `/notesq/notes/${encodeURIComponent(r.params.id)}/restore`, intent: 'quox.notes.restore',
-    authored: true, body: (r) => ({ rev: r.body?.rev }),
+    authored: true, body: (r) => ({ rev: r.body?.rev, expected_hash: r.body?.expected_hash || expectedHashOf(r) || undefined }),
   }));
   app.post(`${B}/vault`, requireAuth, route({ method: 'POST', path: () => '/notesq/vault', scope: bodyScope, body: (r) => ({ scope: r.body?.scope }) }));
 

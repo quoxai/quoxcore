@@ -40,6 +40,90 @@ async function checkEndpoint(url, path, timeoutMs = 3000) {
   }
 }
 
+/**
+ * Every doctor check, in this process: services, auth token, CLI version. Shared by `quox doctor` and the
+ * conversation's /doctor so the two can never disagree. -> [{ name, status, detail?, latency_ms?, ... }].
+ */
+export async function runDoctorChecks({ config }) {
+  // Check all services in parallel — per-item try/catch so one failure doesn't lose all results
+  const checks = await Promise.all(
+    CHECKS.map(async (check) => {
+      try {
+        const url = check.url || config.getServiceUrl(check.service);
+        let result = await checkEndpoint(url, check.path);
+        // #623: doctor was crying CRITICAL when the configured URL was just
+        // WRONG (stale profile override / wrong scheme+host) while the
+        // service was up on its loopback bind. On a connection failure,
+        // probe http://127.0.0.1:<port> — if THAT answers, the service is
+        // UP and the verdict is "misconfigured URL", not "service down".
+        // Downgrade to a warning that names the reachable bind + the bad
+        // URL, so an operator fixes the config instead of chasing an outage.
+        if (result.status === 'fail' && check.port) {
+          const loopbackUrl = `http://127.0.0.1:${check.port}`;
+          if (url !== loopbackUrl) {
+            const alt = await checkEndpoint(loopbackUrl, check.path);
+            if (alt.status === 'pass') {
+              result = {
+                status: 'warn',
+                latency_ms: alt.latency_ms,
+                detail: `reachable at ${loopbackUrl} but configured URL ${url} failed — profile URL likely stale/wrong (misconfig, not an outage)`,
+              };
+            }
+          }
+        }
+        return {
+          name: check.name,
+          port: check.port,
+          ...result,
+          critical: check.critical || false,
+        };
+      } catch {
+        return {
+          name: check.name,
+          port: check.port,
+          ok: false,
+          status: 'error',
+          ms: 0,
+          critical: check.critical || false,
+        };
+      }
+    })
+  );
+
+  // Check auth token. fleet #479: the CURRENT profile (persisted
+  // default, or a -p/QUOX_PROFILE override) is config._effectiveProfile,
+  // never config._data.activeProfile (that's always the persisted
+  // default now, and would report the wrong profile under an override).
+  const auth = config.getAuth?.() || config._data?.profiles?.[config._effectiveProfile]?.auth;
+  if (auth?.access_token) {
+    const expired = auth.expires_at && Date.now() > auth.expires_at;
+    if (expired) {
+      checks.push({ name: 'Auth token', status: 'warn', detail: 'expired' });
+    } else {
+      const remaining = auth.expires_at ? Math.round((auth.expires_at - Date.now()) / 3600000) : '?';
+      checks.push({ name: 'Auth token', status: 'pass', detail: `valid (expires in ${remaining}h)` });
+    }
+  } else {
+    checks.push({ name: 'Auth token', status: 'warn', detail: 'not logged in' });
+  }
+
+  // #610 Part 3: which build is this, and is it drifted from origin/main?
+  // A silently-stale CLI (the worktree was 32 commits behind and nothing
+  // said so) is a real warning, so a stale drift maps to 'warn' and bumps
+  // the exit code like any other. unknown/skip are informational (pass) —
+  // never fail a health check because we could not compute drift. The
+  // drift count reflects the last fetch (no network fetch here).
+  const cliVersion = resolveCliVersion();
+  const drift = checkCliDrift();
+  checks.push({
+    name: 'CLI version',
+    status: drift.status === 'stale' ? 'warn' : 'pass',
+    detail: `${cliVersion} · ${drift.detail}`,
+  });
+
+  return checks;
+}
+
 export function registerDoctorCommand(program, ctx) {
   const { config, client } = ctx;
 
@@ -50,81 +134,7 @@ export function registerDoctorCommand(program, ctx) {
       const outputFormat = cmd.parent?.opts()?.output || 'table';
       const isJson = outputFormat === 'json' || cmd.parent?.opts()?.json;
 
-      // Check all services in parallel — per-item try/catch so one failure doesn't lose all results
-      const checks = await Promise.all(
-        CHECKS.map(async (check) => {
-          try {
-            const url = check.url || config.getServiceUrl(check.service);
-            let result = await checkEndpoint(url, check.path);
-            // #623: doctor was crying CRITICAL when the configured URL was just
-            // WRONG (stale profile override / wrong scheme+host) while the
-            // service was up on its loopback bind. On a connection failure,
-            // probe http://127.0.0.1:<port> — if THAT answers, the service is
-            // UP and the verdict is "misconfigured URL", not "service down".
-            // Downgrade to a warning that names the reachable bind + the bad
-            // URL, so an operator fixes the config instead of chasing an outage.
-            if (result.status === 'fail' && check.port) {
-              const loopbackUrl = `http://127.0.0.1:${check.port}`;
-              if (url !== loopbackUrl) {
-                const alt = await checkEndpoint(loopbackUrl, check.path);
-                if (alt.status === 'pass') {
-                  result = {
-                    status: 'warn',
-                    latency_ms: alt.latency_ms,
-                    detail: `reachable at ${loopbackUrl} but configured URL ${url} failed — profile URL likely stale/wrong (misconfig, not an outage)`,
-                  };
-                }
-              }
-            }
-            return {
-              name: check.name,
-              port: check.port,
-              ...result,
-              critical: check.critical || false,
-            };
-          } catch {
-            return {
-              name: check.name,
-              port: check.port,
-              ok: false,
-              status: 'error',
-              ms: 0,
-              critical: check.critical || false,
-            };
-          }
-        })
-      );
-
-      // Check auth token. fleet #479: the CURRENT profile (persisted
-      // default, or a -p/QUOX_PROFILE override) is config._effectiveProfile,
-      // never config._data.activeProfile (that's always the persisted
-      // default now, and would report the wrong profile under an override).
-      const auth = config.getAuth?.() || config._data?.profiles?.[config._effectiveProfile]?.auth;
-      if (auth?.access_token) {
-        const expired = auth.expires_at && Date.now() > auth.expires_at;
-        if (expired) {
-          checks.push({ name: 'Auth token', status: 'warn', detail: 'expired' });
-        } else {
-          const remaining = auth.expires_at ? Math.round((auth.expires_at - Date.now()) / 3600000) : '?';
-          checks.push({ name: 'Auth token', status: 'pass', detail: `valid (expires in ${remaining}h)` });
-        }
-      } else {
-        checks.push({ name: 'Auth token', status: 'warn', detail: 'not logged in' });
-      }
-
-      // #610 Part 3: which build is this, and is it drifted from origin/main?
-      // A silently-stale CLI (the worktree was 32 commits behind and nothing
-      // said so) is a real warning, so a stale drift maps to 'warn' and bumps
-      // the exit code like any other. unknown/skip are informational (pass) —
-      // never fail a health check because we could not compute drift. The
-      // drift count reflects the last fetch (no network fetch here).
-      const cliVersion = resolveCliVersion();
-      const drift = checkCliDrift();
-      checks.push({
-        name: 'CLI version',
-        status: drift.status === 'stale' ? 'warn' : 'pass',
-        detail: `${cliVersion} · ${drift.detail}`,
-      });
+      const checks = await runDoctorChecks({ config });
 
       // Summary
       const passed = checks.filter(c => c.status === 'pass').length;

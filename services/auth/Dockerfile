@@ -9,6 +9,7 @@
 # tags). Roll deliberately: update tag AND digest together; no auto-roller
 # yet, so a bump is a reviewed commit, which is the point.
 FROM node:20-slim@sha256:3d0f05455dea2c82e2f76e7e2543964c30f6b7d673fc1a83286736d44fe4c41c AS builder
+ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install build tools for native modules (argon2, better-sqlite3)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -41,6 +42,7 @@ COPY src/config /app/src/config
 # Minimal runtime image
 # ============================================
 FROM node:20-slim@sha256:3d0f05455dea2c82e2f76e7e2543964c30f6b7d673fc1a83286736d44fe4c41c AS production
+ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install runtime dependencies
 # python3 needed for Claude OAuth token exchange (bypasses Cloudflare TLS fingerprinting)

@@ -47,7 +47,12 @@ export async function refreshSkillScoreboard(pool: Pool): Promise<void> {
  * List all rows from skill_scoreboard.
  * Returns an empty array when the view is empty.
  */
-export async function listSkillScoreboard(pool: Pool): Promise<ScoreboardRow[]> {
+export async function listSkillScoreboard(pool: Pool, scope: ScoreboardOrgScope): Promise<ScoreboardRow[]> {
+  // quoxflow#8: org-scoped unless the trusted SYSTEM_SCOPE sentinel is passed explicitly.
+  if (scope !== SYSTEM_SCOPE) {
+    const scoped = await pool.query<ScoreboardRow>('SELECT * FROM skill_scoreboard WHERE org_id = $1', [scope]);
+    return scoped.rows;
+  }
   const result = await pool.query<ScoreboardRow>('SELECT * FROM skill_scoreboard');
   return result.rows;
 }

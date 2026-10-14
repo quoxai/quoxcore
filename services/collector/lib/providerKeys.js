@@ -110,6 +110,12 @@ function clearCache() {
   _providerKeysCache.clear();
 }
 
+// Drop one org's entry (including a parked negative entry) so a caller that
+// just saw an empty round can force a real re-resolve.
+function invalidate(orgId) {
+  _providerKeysCache.delete(orgId || 'default');
+}
+
 // Test-only hooks: inject deps and reset module-level state between cases.
 const _testHooks = {
   setDeps(overrides) {
@@ -124,6 +130,7 @@ const _testHooks = {
 module.exports = {
   getProviderKeys,
   clearCache,
+  invalidate,
   PROVIDER_KEY_FIELDS,
   _testOverrides: _testHooks,
 };

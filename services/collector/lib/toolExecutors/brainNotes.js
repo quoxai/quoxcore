@@ -5,7 +5,8 @@
  * NotesQ note through the existing NotesQ routes (quoxbrain /notesq/notes/:id),
  * which already enforce revisions and optimistic concurrency (base_hash ->
  * 409 conflict). Identity comes only from the tool context, never model input.
- * Only user-scope (private) notes are touched; shared org notes are refused.
+ * update/restore: the caller's own private notes AND org (team) notes of the
+ * caller's own org (same rule as NotesQ canWriteVault). delete: private only.
  * Never throws.
  */
 
@@ -27,7 +28,7 @@ function headersFor(ctx, extra = {}) {
 }
 
 const REVISION_REQUIRED = 'Missing required parameter: expectedHash. Call quoxbrain_read on this note first and pass the "revision" value it returned as expectedHash, so the edit is checked against the version you actually read.';
-const CONFLICT = 'The note changed since it was read (revision conflict). Re-read it with quoxbrain_read and redo the edit on the latest text.';
+const CONFLICT = 'The note changed since it was read (revision conflict). Nothing was changed. Re-read it with quoxbrain_read and retry on the latest version.';
 
 function revisionOf(input) {
   return typeof input?.expectedHash === 'string' ? input.expectedHash.trim() : '';
@@ -56,14 +57,20 @@ async function call(fetchImpl, url, opts) {
 
 const UNCONFIRMED = 'Knowledge brain did not confirm the change (network failure or timeout). It is unconfirmed: it may or may not have been applied, so re-read the note before retrying.';
 
-async function fetchOwnNote(noteId, ctx, fetchImpl) {
+// allowOrg (update/restore only): an org-scope note of the caller's OWN org is
+// editable, mirroring quoxbrain store.canWriteVault (org vault: vault.org_id ===
+// orgId, any member; admin only gates shared vaults). The brain's GET already
+// hides other orgs and other users' private notes (scopeClause) and the PUT /
+// restore re-check canWriteVault server-side. Delete keeps private-only.
+async function fetchOwnNote(noteId, ctx, fetchImpl, { allowOrg = false } = {}) {
   const r = await call(fetchImpl, `${BRAIN_URL}/notesq/notes/${encodeURIComponent(noteId)}`, { method: 'GET', headers: headersFor(ctx) });
   if (r.unavailable) return { fail: { success: false, error: 'knowledge_brain_unavailable', output: 'Knowledge brain unavailable, could not read the note.' } };
   if (r.res.status === 404) return { fail: { success: false, error: 'not_found', output: 'No such note in your own knowledge brain.' } };
   if (!r.res.ok) return { fail: { success: false, error: (r.json && r.json.error) || `http_${r.res.status}`, output: `Knowledge brain refused the read (${(r.json && r.json.error) || r.res.status}).` } };
   const note = r.json && r.json.note;
-  if (!note || note.scope !== 'user') {
-    return { fail: { success: false, error: 'not_own_note', output: 'That note is not one of your own private notes; edit shared notes in NotesQ.' } };
+  const orgOk = allowOrg && note && note.scope === 'org' && (note.org_id === undefined || String(note.org_id) === String(ctx.orgId));
+  if (!note || (note.scope !== 'user' && !orgOk)) {
+    return { fail: { success: false, error: 'not_own_note', output: allowOrg ? 'That note is neither your own private note nor a team note in your org; edit it in NotesQ.' : 'That note is not one of your own private notes; edit shared notes in NotesQ.' } };
   }
   return { note };
 }
@@ -74,7 +81,7 @@ async function brainUpdate(input, ctx, { fetchImpl = fetch } = {}) {
   const text = typeof input?.text === 'string' ? input.text : '';
   if (!text.trim()) return { success: false, error: 'text_required', output: 'Missing required parameter: text (the full corrected note markdown).' };
   const noteId = input.noteId.trim();
-  const got = await fetchOwnNote(noteId, ctx, fetchImpl);
+  const got = await fetchOwnNote(noteId, ctx, fetchImpl, { allowOrg: true });
   if (got.fail) return got.fail;
   const baseHash = revisionOf(input);
   const r = await call(fetchImpl, `${BRAIN_URL}/notesq/notes/${encodeURIComponent(noteId)}`, {
@@ -101,9 +108,10 @@ async function brainDelete(input, ctx, { fetchImpl = fetch } = {}) {
   if (got.note.content_hash !== revisionOf(input)) return { success: false, error: 'conflict', output: CONFLICT };
   const r = await call(fetchImpl, `${BRAIN_URL}/notesq/notes/${encodeURIComponent(noteId)}`, {
     method: 'DELETE',
-    headers: headersFor(ctx, { 'X-Author-Kind': 'agent' }),
+    headers: headersFor(ctx, { 'X-Author-Kind': 'agent', 'If-Match': `"${revisionOf(input)}"` }),
   });
   if (r.unavailable) return { success: false, error: 'knowledge_brain_unavailable', output: UNCONFIRMED };
+  if (r.res.status === 409) return { success: false, error: 'conflict', output: CONFLICT };
   if (!r.res.ok) return { success: false, error: (r.json && r.json.error) || `http_${r.res.status}`, output: `Knowledge brain refused the delete (${(r.json && r.json.error) || r.res.status}).` };
   emitNotes('quox.notes.delete', ctx, noteId, { via: 'brain_delete' });
   return { success: true, output: `Deleted note ${noteId.slice(0, 8)} from the knowledge brain (the delete is recorded as a revision and can be restored in NotesQ).` };
@@ -179,15 +187,15 @@ async function brainRestore(input, ctx, { fetchImpl = fetch } = {}) {
   const rev = Number(input.rev);
   if (!Number.isInteger(rev) || rev < 1) return { success: false, error: 'invalid_rev', output: 'Missing or invalid parameter: rev (a positive whole number from brain_history).' };
   const noteId = input.noteId.trim();
-  const got = await fetchOwnNote(noteId, ctx, fetchImpl);
+  const got = await fetchOwnNote(noteId, ctx, fetchImpl, { allowOrg: true });
   if (got.fail) return got.fail;
-  // The restore route takes no base_hash, so the revision token is checked
-  // here against the live note, exactly as brain_delete does.
+  // Fast-fail pre-check; the authoritative check is the service's own, done
+  // atomically with the mutation (expected_hash / If-Match).
   if (got.note.content_hash !== revisionOf(input)) return { success: false, error: 'conflict', output: CONFLICT };
   const r = await call(fetchImpl, `${BRAIN_URL}/notesq/notes/${encodeURIComponent(noteId)}/restore`, {
     method: 'POST',
     headers: headersFor(ctx),
-    body: JSON.stringify({ rev, author_kind: 'agent' }),
+    body: JSON.stringify({ rev, author_kind: 'agent', expected_hash: revisionOf(input) }),
   });
   if (r.unavailable) return { success: false, error: 'knowledge_brain_unavailable', output: UNCONFIRMED };
   if (r.res.status === 409) return { success: false, error: 'conflict', output: CONFLICT };

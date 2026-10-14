@@ -59,6 +59,7 @@ import { audit } from './audit.js';
 import { auth } from './auth.js';
 import { awareness } from './awareness.js';
 import { lucid } from './lucid.js';
+import { away } from './away.js';
 import { invites } from './invites.js';
 import { backupSchedules } from './backup-schedules.js';
 import { backups } from './backups.js';
@@ -74,6 +75,7 @@ import { divisions } from './divisions.js';
 import { domains } from './domains.js';
 import { engagement } from './engagement.js';
 import { entity } from './entity.js';
+import { engine } from './engine.js';
 import { executions } from './executions.js';
 import { file } from './file.js';
 import { files } from './files.js';
@@ -137,6 +139,7 @@ export const ENDPOINTS = {
   ...auth,
   ...awareness,
   ...lucid,
+  ...away,
   ...invites,
   ...backupSchedules,
   ...backups,
@@ -152,6 +155,7 @@ export const ENDPOINTS = {
   ...domains,
   ...engagement,
   ...entity,
+  ...engine,
   ...executions,
   ...file,
   ...files,

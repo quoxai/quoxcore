@@ -58,6 +58,9 @@ export async function callCollectorRerank(orgId, query, items, deps = {}) {
     const seen = new Set()
     const order = []
     for (const id of data.order) { if (typeof id === 'string' && ids.has(id) && !seen.has(id)) { seen.add(id); order.push(id) } }
+    // An empty result is an abstention only when the collector said so
+    // explicitly (verdict 'none'); otherwise it is malformed output.
+    if (order.length === 0 && data.verdict !== 'none') return { ok: false, reason: 'invalid_order' }
     return { ok: true, order, model: data.model || null }
   } catch (err) {
     console.error(`[QuoxBrain rerank] failed for org=${orgId}: ${err.message}${err.cause?.code ? ` (${err.cause.code})` : ''}`)
@@ -113,7 +116,7 @@ export async function maybeRerank({ orgId, query, ranked, idOf, textOf, loadText
   if (!enabled) return { ranked }
   // Enabled but nothing to do: report 'skipped' so telemetry can tell a measured
   // reranker from one that never ran.
-  if (insufficient || ranked.length < 2) return { ranked, rerank: 'skipped' }
+  if (insufficient || ranked.length < 1) return { ranked, rerank: 'skipped' }
   const head = ranked.slice(0, topN)
   const texts = loadTexts ? await loadTexts(head) : null
   // CORTEX-BENCH: the passage alone often hides what the note IS (a curated

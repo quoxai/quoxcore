@@ -70,7 +70,7 @@ function formatClassifiedAt(value) {
   });
 }
 
-export default function ComplianceTab({ widget, orgId, authFetch }) {
+export default function ComplianceTab({ widget, orgId, authFetch, onWidgetChange }) {
   const seedClassification = useMemo(() => parseClassification(widget), [widget?.risk_classification_json]);
   const seedInputs = seedClassification?.inputs || {};
 
@@ -121,6 +121,7 @@ export default function ComplianceTab({ widget, orgId, authFetch }) {
       }
       const data = await resp.json().catch(() => ({}));
       const updatedWidget = data?.widget;
+      if (updatedWidget && onWidgetChange) onWidgetChange(updatedWidget);
       const newClassification = parseClassification(updatedWidget);
       if (updatedWidget?.risk_tier && newClassification) {
         setClassOverride({ tier: updatedWidget.risk_tier, classification: newClassification });
@@ -142,7 +143,7 @@ export default function ComplianceTab({ widget, orgId, authFetch }) {
     if (trimmed.length > 0) {
       const n = parseInt(trimmed, 10);
       if (!Number.isFinite(n) || n < 0) {
-        setError('Retention must be a non-negative integer (or empty for org default).');
+        setError('Retention must be a non-negative integer (or empty for none).');
         return;
       }
       val = n;
@@ -158,7 +159,8 @@ export default function ComplianceTab({ widget, orgId, authFetch }) {
         const body = await resp.json().catch(() => ({}));
         throw new Error(body.error || `Save failed (${resp.status})`);
       }
-      setStatusMsg(val == null ? 'Retention cleared (using org default).' : `Retention set to ${val} days.`);
+      try { const d = await resp.clone().json(); if (d?.widget && onWidgetChange) onWidgetChange(d.widget); } catch {}
+      setStatusMsg(val == null ? 'Retention cleared (conversations are kept until deleted).' : `Retention set to ${val} days.`);
     } catch (e) {
       setError(e.message || 'Save failed');
     } finally { setSavingRet(false); }
@@ -293,7 +295,7 @@ export default function ComplianceTab({ widget, orgId, authFetch }) {
         <div style={headStyle}>Conversation retention</div>
         <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '0 0 10px' }}>
           Conversations + messages older than this many days are pruned when cleanup runs.
-          Empty = use org default. <code>0</code> = no retention enforced.
+          Empty = no retention period (conversations are kept until deleted). <code>0</code> = no retention enforced.
         </p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>

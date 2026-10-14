@@ -81,7 +81,7 @@ const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 // #572/#623: RFC1918 private-LAN hosts (+ *.local). On a single-box Quox stack
 // the compose services bind 127.0.0.1 and ONLY the edge (:3000) terminates TLS
 // and answers on the LAN address — so a service-port derived from a private-LAN
-// base (e.g. https://192.0.2.126:3000) must point at the reachable loopback
+// base (e.g. https://quox.example.com:3000) must point at the reachable loopback
 // bind, not https://<lan-ip>:PORT (which returns 000/refused, made `quox doctor`
 // cry CRITICAL and broke run/objective/memory/volt). PUBLIC/remote hosts are
 // deliberately NOT matched: they may run a real per-port TLS-terminating
@@ -227,6 +227,9 @@ export function loadConfig(profileOverride) {
     // The profile this invocation is using (persisted default, or the -p /
     // QUOX_PROFILE override for this process only). Never written to _data.
     _effectiveProfile: effectiveProfile,
+    // quox#805: a profile passed explicitly to loadConfig(profile) means "act as
+    // that profile's user", same as -p on the CLI (no implicit attach default).
+    _explicitProfile: Boolean(profileOverride),
 
     getActiveProfile() {
       const name = this._effectiveProfile;
