@@ -14,7 +14,13 @@ import {
 import { PolicyEvaluator } from '../../policy/evaluator.js';
 import { EnvelopeStore } from '../../store/envelope-store.js';
 import { envelopes, Intents } from '../../core/envelope.js';
-import { SYSTEM_SCOPE } from '../middleware/org-scope.js';
+import { SYSTEM_SCOPE, requireCallerOrg, type CallerOrg } from '../middleware/org-scope.js';
+
+// Engagement 2026-10-16: the org is the caller's (requireCallerOrg), never just whatever org_id was sent.
+function orgRefused(c: { json: (b: unknown, s: any) => Response }, who: Exclude<CallerOrg, { orgId: string }>, requestId: string) {
+  const code = who.code === 'org_id_required' ? 'ORG_ID_REQUIRED' : who.code.toUpperCase();
+  return c.json({ success: false, error: { code, message: who.message, requestId } }, who.status);
+}
 
 const app = new Hono<{
   Variables: {
@@ -41,13 +47,9 @@ app.post('/', async (c) => {
     const body = await c.req.json();
 
     // R5.high-1: org_id required on create so every policy is tenant-scoped.
-    const org_id: string | undefined = typeof body?.org_id === 'string' ? body.org_id : undefined;
-    if (!org_id) {
-      return c.json({
-        success: false,
-        error: { code: 'ORG_ID_REQUIRED', message: 'org_id is required in the request body', requestId },
-      }, 400);
-    }
+    const who = requireCallerOrg(c as any, body?.org_id);
+    if (!('orgId' in who)) return orgRefused(c, who, requestId);
+    const org_id = who.orgId;
 
     const policy = CreatePolicySchema.parse(body);
     // Stamp the orgId onto the policy object so the store can filter by tenant.
@@ -104,13 +106,9 @@ app.get('/', async (c) => {
   const requestId = c.get('correlationId');
   const store = c.get('policyStore');
 
-  const org_id = c.req.query('org_id');
-  if (!org_id) {
-    return c.json({
-      success: false,
-      error: { code: 'ORG_ID_REQUIRED', message: 'org_id query parameter is required', requestId },
-    }, 400);
-  }
+  const who = requireCallerOrg(c as any, c.req.query('org_id'));
+  if (!('orgId' in who)) return orgRefused(c, who, requestId);
+  const org_id = who.orgId;
 
   const enabled = c.req.query('enabled');
   const workflowId = c.req.query('workflowId');
@@ -154,13 +152,9 @@ app.get('/:id', async (c) => {
   const store = c.get('policyStore');
   const id = c.req.param('id');
 
-  const org_id = c.req.query('org_id');
-  if (!org_id) {
-    return c.json({
-      success: false,
-      error: { code: 'ORG_ID_REQUIRED', message: 'org_id query parameter is required', requestId },
-    }, 400);
-  }
+  const who = requireCallerOrg(c as any, c.req.query('org_id'));
+  if (!('orgId' in who)) return orgRefused(c, who, requestId);
+  const org_id = who.orgId;
 
   const policy = await store.get(id, SYSTEM_SCOPE);
 
@@ -217,13 +211,9 @@ app.put('/:id', async (c) => {
     const body = await c.req.json();
 
     // Cross-tenant guard: org_id must be in the request body.
-    const org_id: string | undefined = typeof body?.org_id === 'string' ? body.org_id : undefined;
-    if (!org_id) {
-      return c.json({
-        success: false,
-        error: { code: 'ORG_ID_REQUIRED', message: 'org_id is required in the request body', requestId },
-      }, 400);
-    }
+    const who = requireCallerOrg(c as any, body?.org_id);
+    if (!('orgId' in who)) return orgRefused(c, who, requestId);
+    const org_id = who.orgId;
 
     const updates = UpdatePolicySchema.parse(body);
 
@@ -297,12 +287,9 @@ app.delete('/:id', async (c) => {
     const body = await c.req.json().catch(() => ({}));
     org_id = typeof body?.org_id === 'string' ? body.org_id : undefined;
   } catch { /* fall through */ }
-  if (!org_id) {
-    return c.json({
-      success: false,
-      error: { code: 'ORG_ID_REQUIRED', message: 'org_id is required in the request body', requestId },
-    }, 400);
-  }
+  const who = requireCallerOrg(c as any, org_id);
+  if (!('orgId' in who)) return orgRefused(c, who, requestId);
+  org_id = who.orgId;
 
   const existing = await store.get(id, SYSTEM_SCOPE);
   if (existing && existing.orgId && existing.orgId !== org_id) {
@@ -360,13 +347,9 @@ app.post('/:id/test', async (c) => {
     const body = await c.req.json();
 
     // R5.high-1: org_id required to prevent cross-tenant policy testing by id-guessing.
-    const org_id: string | undefined = typeof body?.org_id === 'string' ? body.org_id : undefined;
-    if (!org_id) {
-      return c.json({
-        success: false,
-        error: { code: 'ORG_ID_REQUIRED', message: 'org_id is required in the request body', requestId },
-      }, 400);
-    }
+    const who = requireCallerOrg(c as any, body?.org_id);
+    if (!('orgId' in who)) return orgRefused(c, who, requestId);
+    const org_id = who.orgId;
 
     const testData = TestPolicySchema.parse(body);
 
@@ -439,13 +422,9 @@ app.post('/test', async (c) => {
     const body = await c.req.json();
 
     // R5.high-1: org_id required so inline tests are scoped to the caller's tenant.
-    const org_id: string | undefined = typeof body?.org_id === 'string' ? body.org_id : undefined;
-    if (!org_id) {
-      return c.json({
-        success: false,
-        error: { code: 'ORG_ID_REQUIRED', message: 'org_id is required in the request body', requestId },
-      }, 400);
-    }
+    const who = requireCallerOrg(c as any, body?.org_id);
+    if (!('orgId' in who)) return orgRefused(c, who, requestId);
+    const org_id = who.orgId;
 
     const testData = TestInlinePolicySchema.parse(body);
 

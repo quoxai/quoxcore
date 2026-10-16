@@ -9,7 +9,7 @@ import express from 'express';
 import { getDb } from '../db/index.js';
 import { generateId } from '../utils/crypto.js';
 import { requireAuth } from '../middleware/auth.js';
-import { requireAdmin, requireRole } from '../middleware/authorize.js';
+import { requireAdmin, requireRole, requireOrgScope } from '../middleware/authorize.js';
 import { OrgRoles } from '../utils/policy.js';
 import { logAudit, AuditActions } from '../utils/audit.js';
 import {
@@ -226,7 +226,7 @@ router.get('/admin/retention/logs', requireAuth, requireAdmin(), (req, res) => {
  * Get org retention policy
  * Requires: org admin
  */
-router.get('/orgs/:orgId/retention', requireAuth, requireRole(OrgRoles.ADMIN), (req, res) => {
+router.get('/orgs/:orgId/retention', requireAuth, requireOrgScope(), requireRole(OrgRoles.ADMIN), (req, res) => {
     const { orgId } = req.params;
 
     try {
@@ -250,7 +250,7 @@ router.get('/orgs/:orgId/retention', requireAuth, requireRole(OrgRoles.ADMIN), (
  * Update org retention policy
  * Requires: org admin
  */
-router.put('/orgs/:orgId/retention', requireAuth, requireRole(OrgRoles.ADMIN), (req, res) => {
+router.put('/orgs/:orgId/retention', requireAuth, requireOrgScope(), requireRole(OrgRoles.ADMIN), (req, res) => {
     const { orgId } = req.params;
     const {
         auto_cleanup_enabled,
@@ -365,7 +365,7 @@ router.put('/orgs/:orgId/retention', requireAuth, requireRole(OrgRoles.ADMIN), (
  * Get cleanup statistics for org
  * Requires: org admin
  */
-router.get('/orgs/:orgId/retention/stats', requireAuth, requireRole(OrgRoles.ADMIN), (req, res) => {
+router.get('/orgs/:orgId/retention/stats', requireAuth, requireOrgScope(), requireRole(OrgRoles.ADMIN), (req, res) => {
     const { orgId } = req.params;
 
     try {

@@ -18,6 +18,7 @@
 import { Hono, Context } from 'hono';
 import { AppEnv } from '../types.js';
 import { BudgetStore, BudgetScopeKind } from '../../budget/budget-store.js';
+import { requireCallerOrg } from '../middleware/org-scope.js';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -125,7 +126,7 @@ export function createBudgetsRoutes(config: BudgetsRoutesConfig) {
     }
 
     const {
-      org_id,
+      org_id: claimedOrg,
       scope_kind,
       scope_id,
       period_start,
@@ -138,9 +139,9 @@ export function createBudgetsRoutes(config: BudgetsRoutesConfig) {
       hard_stop,
     } = body as Record<string, unknown>;
 
-    if (!org_id || typeof org_id !== 'string') {
-      return errorResp(c, 400, 'org_id_required', 'org_id is required');
-    }
+    const who = requireCallerOrg(c, claimedOrg);
+    if (!('orgId' in who)) return errorResp(c, who.status, who.code, who.message);
+    const org_id = who.orgId;
     if (!scope_kind || !VALID_SCOPE_KINDS.includes(scope_kind as BudgetScopeKind)) {
       return errorResp(c, 400, 'invalid_scope_kind', `scope_kind must be one of: ${VALID_SCOPE_KINDS.join(', ')}`);
     }
@@ -177,10 +178,9 @@ export function createBudgetsRoutes(config: BudgetsRoutesConfig) {
    * List budgets. org_id is required. Optional filters: scope, scope_id.
    */
   app.get('/', async (c) => {
-    const orgId = c.req.query('org_id');
-    if (!orgId) {
-      return errorResp(c, 400, 'org_id_required', 'org_id query parameter is required');
-    }
+    const who = requireCallerOrg(c, c.req.query('org_id'));
+    if (!('orgId' in who)) return errorResp(c, who.status, who.code, who.message);
+    const orgId = who.orgId;
 
     const scope = c.req.query('scope') as BudgetScopeKind | undefined;
     const scopeId = c.req.query('scope_id');
@@ -228,10 +228,10 @@ export function createBudgetsRoutes(config: BudgetsRoutesConfig) {
       return errorResp(c, 400, 'invalid_body', 'Request body must be JSON');
     }
 
-    const { org_id, ...patch } = body as Record<string, unknown>;
-    if (!org_id || typeof org_id !== 'string') {
-      return errorResp(c, 400, 'org_id_required', 'org_id is required in request body');
-    }
+    const { org_id: claimedOrg, ...patch } = body as Record<string, unknown>;
+    const who = requireCallerOrg(c, claimedOrg);
+    if (!('orgId' in who)) return errorResp(c, who.status, who.code, who.message);
+    const org_id = who.orgId;
 
     const existing = await budgetStore.getBudget(id);
     if (!existing) {
@@ -253,13 +253,15 @@ export function createBudgetsRoutes(config: BudgetsRoutesConfig) {
   app.delete('/:id', async (c) => {
     const id = c.req.param('id');
     const body = await c.req.json().catch(() => null);
-    const orgId = (body as any)?.org_id;
+    const who = requireCallerOrg(c, (body as any)?.org_id);
+    if (!('orgId' in who)) return errorResp(c, who.status, who.code, who.message);
+    const orgId = who.orgId;
 
     const existing = await budgetStore.getBudget(id);
     if (!existing) {
       return errorResp(c, 404, 'not_found', `Budget ${id} not found`);
     }
-    if (!orgId || existing.org_id !== orgId) {
+    if (existing.org_id !== orgId) {
       return errorResp(c, 403, 'forbidden', 'org_id does not match budget owner');
     }
 

@@ -121,6 +121,15 @@ router.get('/catalog', async (req, res) => {
 router.get('/catalog/categories', async (req, res) => {
     try {
         const { org_id } = req.query;
+        // Org-scoped rows are private: a foreign org_id is refused unless the caller is an active member of it.
+        if (org_id && org_id !== req.org?.id) {
+            const member = req.user?.id && prepare(
+                `SELECT 1 FROM org_memberships WHERE org_id = ? AND user_id = ? AND status = 'active'`
+            ).get(org_id, req.user.id);
+            if (!member) {
+                return res.status(403).json({ error: 'cross_org_access', message: 'Cannot access resources from another organization' });
+            }
+        }
         let categories;
         if (org_id) {
             categories = prepare(`

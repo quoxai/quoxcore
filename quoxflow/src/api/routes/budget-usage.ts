@@ -17,6 +17,7 @@ import { Hono, Context } from 'hono';
 import { AppEnv } from '../types.js';
 import { BudgetStore, BudgetScopeKind } from '../../budget/budget-store.js';
 import { computeCostUsdMicro } from '../../budget/model-pricing.js';
+import { requireCallerOrg } from '../middleware/org-scope.js';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -70,7 +71,7 @@ export function createBudgetUsageRoutes(config: BudgetUsageRoutesConfig) {
     }
 
     const {
-      org_id,
+      org_id: claimedOrg,
       scope_kind = 'org',
       scope_id,
       tokens_in = 0,
@@ -83,9 +84,9 @@ export function createBudgetUsageRoutes(config: BudgetUsageRoutesConfig) {
       source_id = '',
     } = body as Record<string, unknown>;
 
-    if (!org_id || typeof org_id !== 'string') {
-      return errorResp(c, 400, 'org_id_required', 'org_id is required');
-    }
+    const who = requireCallerOrg(c, claimedOrg);
+    if (!('orgId' in who)) return errorResp(c, who.status, who.code, who.message);
+    const org_id = who.orgId;
 
     const effectiveScopeId = (scope_id as string) || (org_id as string);
 

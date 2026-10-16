@@ -159,3 +159,31 @@ export function requireOrgScope(c: Context<AppEnv>): string {
   }
   return scope.orgId;
 }
+
+export type CallerOrg = { orgId: string } | { status: 400 | 401 | 403; code: string; message: string };
+
+/**
+ * For routes whose contract carries an org in the body or query (org_id / orgId). A user token is held to its JWT
+ * org: a different claimed org is 403, an omitted one defaults to the JWT org, a token without an org is 401. A
+ * service-key caller acts for X-Org-Id, else the claimed org (403 when both are given and differ). With no auth
+ * context (dev/test only; production's authMiddleware always sets one) the claimed org is used.
+ * Engagement findings 2026-10-16: policies, budgets, budget-usage and session-search trusted the claimed org, so an
+ * org-A user reaching /quoxflow/ through the dashboard proxy could act in org B. Same rule as approval-templates.ts.
+ */
+export function requireCallerOrg(c: Context<AppEnv>, claimed: unknown): CallerOrg {
+  const user = c.get('user') as AppEnv['Variables']['user'] | undefined;
+  const claim = typeof claimed === 'string' && claimed.length > 0 ? claimed : undefined;
+  if (user && user.type !== 'service') {
+    if (!user.org_id) return { status: 401, code: 'org_required', message: 'Missing org_id in JWT' };
+    if (claim && claim !== user.org_id) return { status: 403, code: 'forbidden', message: 'org_id does not match your organisation' };
+    return { orgId: user.org_id };
+  }
+  if (user && user.type === 'service') {
+    const hdr = c.req.header('X-Org-Id') || c.req.header('X-Org-ID');
+    if (hdr && claim && hdr !== claim) return { status: 403, code: 'forbidden', message: 'org_id does not match X-Org-Id' };
+    const org = hdr || claim;
+    return org ? { orgId: org } : { status: 400, code: 'org_id_required', message: 'org_id is required' };
+  }
+  if (process.env.NODE_ENV === 'production') return { status: 401, code: 'unauthenticated', message: 'Authentication required' };
+  return claim ? { orgId: claim } : { status: 400, code: 'org_id_required', message: 'org_id is required' };
+}

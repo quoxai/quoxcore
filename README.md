@@ -7,7 +7,7 @@
 You don't have to trust it. You can check it.
 
 [![Licence](https://img.shields.io/badge/licence-Quox%20Community%20Source%201.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-4.2.1-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-4.2.2-blue.svg)](VERSION)
 
 ![QuoxCORE architecture: identity and access, governance, evidence, orchestration, memory and interfaces on one self-hosted core, built on the AEE, AOCL, VOLT and WARD protocols, with store plugins and your own plugins on top](docs/assets/quoxcore-architecture.png)
 

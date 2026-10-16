@@ -10,8 +10,8 @@
  *   PATCH  /api/approval-templates/:id        — update (org_id in body)
  *   DELETE /api/approval-templates/:id        — delete (org_id in body)
  *
- * All mutating operations require org_id and verify it matches the template's
- * org_id to prevent cross-tenant access (returns 403).
+ * The org comes from the authenticated caller (callerOrg below); a caller-supplied org_id that differs
+ * from it is refused 403. Mutations also verify the template belongs to that org (403).
  */
 
 import { Hono, Context } from 'hono';
@@ -50,6 +50,32 @@ function errorResp(c: Context<AppEnv>, status: number, code: string, message: st
   );
 }
 
+/**
+ * The org this caller may act in. A user's JWT org IS the org: a different claimed org_id (body/query,
+ * caller-controlled) is refused 403, and an omitted one defaults to the JWT org. A service caller names
+ * the org (X-Org-Id, else the claimed org_id). With no auth context (dev/test only; production's
+ * authMiddleware always sets one) the claimed org_id is used as before.
+ * Collector route-coverage review 2026-10-15: org_id used to come only from the body/query, so an org-A
+ * user could read/update/delete org-B templates by naming org-B.
+ */
+function callerOrg(c: Context<AppEnv>, claimed: unknown): { orgId: string } | { status: number; code: string; message: string } {
+  const user = c.get('user') as { type?: string; org_id?: string } | undefined;
+  const claim = typeof claimed === 'string' && claimed.length > 0 ? claimed : undefined;
+  if (user && user.type !== 'service') {
+    if (!user.org_id) return { status: 401, code: 'org_required', message: 'Missing org_id in JWT' };
+    if (claim && claim !== user.org_id) return { status: 403, code: 'forbidden', message: 'org_id does not match your organisation' };
+    return { orgId: user.org_id };
+  }
+  if (user && user.type === 'service') {
+    const hdr = c.req.header('X-Org-Id') || c.req.header('X-Org-ID');
+    if (hdr && claim && hdr !== claim) return { status: 403, code: 'forbidden', message: 'org_id does not match X-Org-Id' };
+    const org = hdr || claim;
+    return org ? { orgId: org } : { status: 400, code: 'org_id_required', message: 'org_id is required' };
+  }
+  if (process.env.NODE_ENV === 'production') return { status: 401, code: 'unauthenticated', message: 'Authentication required' };
+  return claim ? { orgId: claim } : { status: 400, code: 'org_id_required', message: 'org_id is required' };
+}
+
 // ─── Route Factory ────────────────────────────────────────────────────────────
 
 export function createApprovalTemplatesRoutes(config: ApprovalTemplatesRoutesConfig) {
@@ -69,11 +95,10 @@ export function createApprovalTemplatesRoutes(config: ApprovalTemplatesRoutesCon
       return errorResp(c, 400, 'invalid_body', 'Request body must be JSON');
     }
 
-    const { org_id, name, approvers, escalation_chain, timeout_ms, multi_party_threshold } = body as Record<string, unknown>;
-
-    if (!org_id || typeof org_id !== 'string') {
-      return errorResp(c, 400, 'org_id_required', 'org_id is required');
-    }
+    const { org_id: claimedOrg, name, approvers, escalation_chain, timeout_ms, multi_party_threshold } = body as Record<string, unknown>;
+    const who = callerOrg(c, claimedOrg);
+    if (!('orgId' in who)) return errorResp(c, who.status, who.code, who.message);
+    const org_id = who.orgId;
     if (!name || typeof name !== 'string' || name.trim() === '') {
       return errorResp(c, 400, 'name_required', 'name is required');
     }
@@ -100,10 +125,9 @@ export function createApprovalTemplatesRoutes(config: ApprovalTemplatesRoutesCon
   // ── GET /api/approval-templates — list ────────────────────────────────────
 
   app.get('/', async (c) => {
-    const orgId = c.req.query('org_id');
-    if (!orgId) {
-      return errorResp(c, 400, 'org_id_required', 'org_id query parameter is required');
-    }
+    const who = callerOrg(c, c.req.query('org_id'));
+    if (!('orgId' in who)) return errorResp(c, who.status, who.code, who.message);
+    const orgId = who.orgId;
 
     try {
       const templates = await templateStore.list(orgId);
@@ -118,11 +142,9 @@ export function createApprovalTemplatesRoutes(config: ApprovalTemplatesRoutesCon
 
   app.get('/:id', async (c) => {
     const id = c.req.param('id');
-    const orgId = c.req.query('org_id');
-
-    if (!orgId) {
-      return errorResp(c, 400, 'org_id_required', 'org_id query parameter is required');
-    }
+    const who = callerOrg(c, c.req.query('org_id'));
+    if (!('orgId' in who)) return errorResp(c, who.status, who.code, who.message);
+    const orgId = who.orgId;
 
     try {
       const template = await templateStore.get(id, orgId);
@@ -145,10 +167,10 @@ export function createApprovalTemplatesRoutes(config: ApprovalTemplatesRoutesCon
       return errorResp(c, 400, 'invalid_body', 'Request body must be JSON');
     }
 
-    const { org_id, ...updates } = body as Record<string, unknown>;
-    if (!org_id || typeof org_id !== 'string') {
-      return errorResp(c, 400, 'org_id_required', 'org_id is required');
-    }
+    const { org_id: claimedOrg, ...updates } = body as Record<string, unknown>;
+    const who = callerOrg(c, claimedOrg);
+    if (!('orgId' in who)) return errorResp(c, who.status, who.code, who.message);
+    const org_id = who.orgId;
 
     // Verify cross-tenant access — return 403 if template belongs to a different org
     const existing = await templateStore.get(id, org_id);
@@ -180,11 +202,9 @@ export function createApprovalTemplatesRoutes(config: ApprovalTemplatesRoutesCon
   app.delete('/:id', async (c) => {
     const id = c.req.param('id');
     const body = await c.req.json().catch(() => null);
-    const org_id = (body as Record<string, unknown> | null)?.org_id;
-
-    if (!org_id || typeof org_id !== 'string') {
-      return errorResp(c, 400, 'org_id_required', 'org_id is required in request body');
-    }
+    const who = callerOrg(c, (body as Record<string, unknown> | null)?.org_id);
+    if (!('orgId' in who)) return errorResp(c, who.status, who.code, who.message);
+    const org_id = who.orgId;
 
     // Cross-tenant check — verify the template belongs to this org before deleting
     const existing = await templateStore.get(id, org_id);

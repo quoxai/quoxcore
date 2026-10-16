@@ -15,7 +15,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppEnv } from '../types.js';
 import { validateBody } from '../middleware/validation.js';
-import { ApiError, ErrorCodes } from '../middleware/error-handler.js';
+import { requireOrgScope } from '../middleware/org-scope.js';
 import { skillViewHandler } from '../../agentic/skills-actions.js';
 import type { QuoxSkillsStore } from '../../store/quox-skills-store.js';
 import type { QuoxSkillPatchesStore } from '../../store/quox-skill-patches-store.js';
@@ -29,36 +29,11 @@ const SkillViewBodySchema = z.object({
   session_id: z.string().nullable().optional(),
 });
 
-// ─── resolveOrgId (mirrors quox-skills.ts pattern) ────────────────────────────
-
-function resolveOrgId(c: { get: (key: string) => unknown; req: { raw: Request } }): string {
-  const user = c.get('user') as { org_id?: string } | undefined;
-
-  if (user !== undefined) {
-    const orgId = user.org_id;
-    if (!orgId || orgId.length === 0) {
-      console.warn('[agentic-skill-actions] resolveOrgId: user authenticated but no org_id in JWT — 401');
-      throw new ApiError(ErrorCodes.INTERNAL_ERROR, 'Missing org_id in JWT — cannot serve request', 401);
-    }
-    return orgId;
-  }
-
-  if (process.env.NODE_ENV === 'production') {
-    console.warn('[agentic-skill-actions] resolveOrgId: no JWT in production mode — 401');
-    throw new ApiError(ErrorCodes.INTERNAL_ERROR, 'Authentication required — no JWT present', 401);
-  }
-
-  // Dev/test: accept X-Org-ID header from internal service callers
-  const headerOrgId = (c as { req: { raw: Request; header?: (h: string) => string | undefined } }).req.raw.headers.get('X-Org-ID');
-  if (headerOrgId && headerOrgId.length > 0) return headerOrgId;
-
-  // Dev/test last resort: query param
-  const url = new URL(c.req.raw.url);
-  const qOrgId = url.searchParams.get('orgId');
-  if (qOrgId && qOrgId.length > 0) return qOrgId;
-
-  return 'org-default';
-}
+// ─── Org scope ─────────────────────────────────────────────────────────────────
+// Shared requireOrgScope (middleware/org-scope.ts), like quox-skills.ts: a user token's org
+// comes from its JWT, a service-key caller's from X-Org-Id, and a service caller with no
+// org is refused (403). The route's old local copy treated the collector's service
+// principal as a token without an org, so chat skill_view was a 401 every time.
 
 // ─── Route Config ──────────────────────────────────────────────────────────────
 
@@ -85,12 +60,13 @@ export function createAgenticSkillActionsRoutes(config: AgenticSkillActionsConfi
    *
    * Errors:
    *   401 — missing org_id (JWT absent or empty)
+   *   403 — service-key caller without X-Org-Id
    *   400 — invalid body (Zod)
    *   404 — skill not found
    *   422 — REQUIRED_TOOL_MISSING (skill has unmet tool dependencies)
    */
   app.post('/skill-view', validateBody(SkillViewBodySchema), async (c) => {
-    const orgId = resolveOrgId(c);
+    const orgId = requireOrgScope(c);
     const body = c.get('validatedBody') as z.infer<typeof SkillViewBodySchema>;
 
     const result = await skillViewHandler({

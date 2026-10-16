@@ -10,11 +10,11 @@
  *                                       returns: 201 created | 200 already-exists | 422 NOT_READY
  */
 
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { AppEnv } from '../types.js';
 import { z } from 'zod';
 import { validateBody, validateParams, IdParamSchema } from '../middleware/validation.js';
-import { NotFoundError, ErrorCodes, ApiError } from '../middleware/error-handler.js';
+import { NotFoundError, ErrorCodes } from '../middleware/error-handler.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { SkillLibraryStore } from '../../store/skill-library-store.js';
 import { ExecutionHistoryStore } from '../../store/execution-history-store.js';
@@ -83,27 +83,11 @@ function failure(
   );
 }
 
-function resolveOrgId(c: { get: (key: string) => unknown; req: { raw: Request; header: (k: string) => string | undefined } }): string {
-  // JWT is the primary org source when auth middleware is active.
-  const user = c.get('user') as { org_id?: string } | undefined;
-  if (user !== undefined) {
-    // Auth middleware ran — org_id MUST be in the JWT.
-    const orgId = user.org_id || c.req.header('X-Org-ID');
-    if (!orgId || orgId.length === 0) {
-      throw new ApiError(ErrorCodes.INTERNAL_ERROR, 'Missing org_id in JWT — cannot serve request', 401);
-    }
-    return orgId;
-  }
-
-  // Auth middleware did not run. In production, reject without JWT.
-  if (process.env.NODE_ENV === 'production') {
-    throw new ApiError(ErrorCodes.INTERNAL_ERROR, 'Authentication required — no JWT present', 401);
-  }
-
-  // Dev/test only: accept orgId from URL search params or X-Org-ID header.
-  const url = new URL(c.req.raw.url);
-  return url.searchParams.get('orgId') || c.req.header('X-Org-ID') || 'org-default';
-}
+// Org scope: the shared requireOrgScope (middleware/org-scope.ts). The old local resolveOrgId
+// read `user.org_id || X-Org-ID` for any authenticated caller, so a user token without an
+// org could name any org in the header. Now a user token is served only for its JWT org, a
+// service-key caller for its X-Org-Id, and a service caller with no org is refused (403).
+const resolveOrgId = (c: Context<AppEnv>): string => requireOrgScope(c);
 
 export function createSkillsRoutes(deps: {
   skillLibraryStore: SkillLibraryStore;

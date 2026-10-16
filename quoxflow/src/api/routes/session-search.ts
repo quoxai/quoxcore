@@ -19,6 +19,7 @@ import type { AppEnv } from '../types.js';
 import { sessionSearchHandler } from '../../agentic/session-search-actions.js';
 import type { SessionSearchStore } from '../../agentic/session-search-actions.js';
 import { ApiError, ErrorCodes } from '../middleware/error-handler.js';
+import { requireCallerOrg } from '../middleware/org-scope.js';
 
 export interface SessionSearchRouteConfig {
   searchStore: SessionSearchStore;
@@ -31,25 +32,15 @@ export function createSessionSearchRoutes(config: SessionSearchRouteConfig) {
     const rawQuery = c.req.query('query') ?? '';
     const rawLimit = c.req.query('limit');
 
-    // org_id: JWT is the primary source. X-Org-ID header is the secondary source
-    // for internal service callers (collector → quoxflow, validated by X-Service-Key).
-    // The ?orgId query param fallback is intentionally absent — it allowed any
-    // unauthenticated caller to cross org boundaries.
-    // Empty org (no JWT, no header) → 401. No 'default' fallback.
-    const jwtUser = (c.get as any)('user') as { org_id?: string } | undefined;
-    const jwtOrgId = jwtUser?.org_id;
-    const headerOrgId = c.req.header('X-Org-ID');
-
-    // Resolve org — must come from JWT or X-Org-ID header. Never from query params.
-    let orgId: string;
-    if (jwtOrgId && jwtOrgId !== 'default' && jwtOrgId.length > 0) {
-      orgId = jwtOrgId;
-    } else if (headerOrgId && headerOrgId.length > 0) {
-      orgId = headerOrgId;
-    } else {
-      // No valid org source available — reject.
-      throw new ApiError(ErrorCodes.INTERNAL_ERROR, 'Authentication required — org_id missing', 401);
+    // Engagement 2026-10-16: the org is the caller's (requireCallerOrg). A user token searches only its JWT org (no
+    // org claim is 401: it can never pick one with X-Org-ID); a service caller searches its X-Org-Id. The ?orgId
+    // query param stays unread. Only with no auth context (dev/test) is the X-Org-ID header taken as the org.
+    const hasUser = (c.get as any)('user') !== undefined;
+    const who = requireCallerOrg(c as any, hasUser ? undefined : c.req.header('X-Org-ID'));
+    if (!('orgId' in who)) {
+      throw new ApiError(ErrorCodes.INTERNAL_ERROR, who.status === 400 ? 'Authentication required — org_id missing' : who.message, who.status === 400 ? 401 : who.status);
     }
+    const orgId = who.orgId;
 
     const result = await sessionSearchHandler({
       orgId,

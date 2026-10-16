@@ -1184,6 +1184,7 @@ router.delete('/:orgId/divisions/:divisionId', authenticate(), async (req, res) 
 router.get('/:orgId/audit',
     authenticate(),
     requireOrg(),
+    requireOrgScope(), // FND_01M50Y4CMYSWF93DR97MSWF93D: the URL org must be the caller's org
     requireCapability(Capabilities.ORG_VIEW_AUDIT),
     async (req, res) => {
         try {
@@ -1300,6 +1301,7 @@ router.get('/:orgId/audit',
 router.get('/:orgId/audit/actions',
     authenticate(),
     requireOrg(),
+    requireOrgScope(), // FND_01M50Y4CMYSWF93DR97MSWF93D: the URL org must be the caller's org
     requireCapability(Capabilities.ORG_VIEW_AUDIT),
     async (req, res) => {
         try {
@@ -1348,6 +1350,7 @@ router.get('/:orgId/audit/actions',
 router.get('/:orgId/audit/export',
     authenticate(),
     requireOrg(),
+    requireOrgScope(), // FND_01M50Y4CMYSWF93DR97MSWF93D: the URL org must be the caller's org
     requireCapability(Capabilities.ORG_VIEW_AUDIT),
     async (req, res) => {
         try {
@@ -1433,6 +1436,7 @@ router.get('/:orgId/audit/export',
 router.get('/:orgId/audit/signer-key',
     authenticate(),
     requireOrg(),
+    requireOrgScope(), // FND_01M50Y4CMYSWF93DR97MSWF93D: the URL org must be the caller's org
     requireCapability(Capabilities.ORG_VIEW_AUDIT),
     async (req, res) => {
         try {
@@ -1513,6 +1517,7 @@ function extractAppliedFilters(query) {
 router.post('/:orgId/audit',
     authenticate(),
     requireOrg(),
+    requireOrgScope(), // FND_01M50Y4GR4RPAWKZ5QC5RPAWKZ: no writes into another org's audit trail
     async (req, res) => {
         try {
             const { orgId } = req.params;
@@ -1600,7 +1605,7 @@ function safeParseJson(raw) {
  * GET /orgs/:orgId/my-preferences
  * Get current user's preferences for this org
  */
-router.get('/:orgId/my-preferences', authenticate(), requireOrg(), async (req, res) => {
+router.get('/:orgId/my-preferences', authenticate(), requireOrg(), requireOrgScope(), async (req, res) => {
     try {
         const membership = getDb().prepare(
             'SELECT preferences_json FROM org_memberships WHERE org_id = ? AND user_id = ?'
@@ -1621,7 +1626,7 @@ router.get('/:orgId/my-preferences', authenticate(), requireOrg(), async (req, r
  * PATCH /orgs/:orgId/my-preferences
  * Update current user's preferences for this org (merge)
  */
-router.patch('/:orgId/my-preferences', authenticate(), requireOrg(), async (req, res) => {
+router.patch('/:orgId/my-preferences', authenticate(), requireOrg(), requireOrgScope(), async (req, res) => {
     try {
         const { preferences } = req.body;
         if (!preferences || typeof preferences !== 'object') {
@@ -1660,7 +1665,7 @@ router.patch('/:orgId/my-preferences', authenticate(), requireOrg(), async (req,
  * POST /orgs/:orgId/my-preferences-sync
  * Beacon-friendly merge sync for org-scoped preferences (sendBeacon on page unload)
  */
-router.post('/:orgId/my-preferences-sync', authenticate(), requireOrg(), async (req, res) => {
+router.post('/:orgId/my-preferences-sync', authenticate(), requireOrg(), requireOrgScope(), async (req, res) => {
     try {
         const { namespaces } = req.body;
         if (!namespaces || typeof namespaces !== 'object') {
