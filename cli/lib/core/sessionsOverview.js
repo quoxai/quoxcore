@@ -107,6 +107,70 @@ export function overviewLines(index, { now = Date.now(), localHost = null, all =
   return out;
 }
 
+/**
+ * SESSIONS (owner 2026-10-15): the quox conversation client's bare `/sessions`.
+ * Human first: every row leads with the session NAME and WHERE it runs, then
+ * how long it has been up and when it was last active. Ids and attach commands
+ * only appear with `refs` (one dim line under each row). Sections by what the
+ * thing is (terminal sessions, slots, work, chats), newest activity first.
+ * A row with no host says "host unknown"; nothing is guessed.
+ * -> [{ text, tone, state? }]
+ */
+const SECTIONS = [
+  { title: 'Terminal sessions', test: (r) => r.kind === 'tmux' },
+  { title: 'Slots', test: (r) => r.kind === 'slot' },
+  { title: 'Work', test: (r) => r.kind !== 'tmux' && r.kind !== 'slot' && r.kind !== 'conversation' },
+  { title: 'Chats', test: (r) => r.kind === 'conversation' },
+];
+
+function whereLabel(r, localHost) {
+  if (r.kind === 'conversation') return 'on the Quox server';
+  if (!r.host) return 'host unknown';
+  return localHost && r.host === localHost ? `on ${r.host} (this machine)` : `on ${r.host}`;
+}
+
+function sessionName(r) {
+  if (r.kind === 'slot') return r.holder_session || r.name || '(unnamed slot)';
+  return r.name || '(unnamed)';
+}
+
+export function humanSessionLines(index, { now = Date.now(), localHost = null, all = false, refs = false, names = {} } = {}) {
+  const prepared = prepareIndex(index, { all, names });
+  const rows = prepared.groups.flatMap((g) => g.rows).sort((a, b) => timeOf(b) - timeOf(a));
+  const counts = index.counts || {};
+  const ago = (v) => { const t = Date.parse(v); return Number.isFinite(t) ? formatAge((now - t) / 1000) : null; };
+  const out = [
+    { text: stripAnsi(line('quox', 'sessions', { result: `${counts.total || 0} live` })), tone: 'accent' },
+    { text: `${counts.working || 0} working · ${counts.waiting || 0} waiting · ${counts.resting || 0} resting · ${counts.failing || 0} failing`, tone: 'dim' },
+  ];
+  if (!rows.length) out.push({ text: 'No live sessions in this org.', tone: 'dim' });
+  for (const sec of SECTIONS) {
+    const rs = rows.filter(sec.test);
+    if (!rs.length) continue;
+    out.push({ text: `${sec.title} (${rs.length})`, tone: 'accent' });
+    for (const r of rs) {
+      const bits = [whereLabel(r, localHost)];
+      if (r.kind === 'slot' && r.holder_session && r.name && r.name !== r.holder_session) bits.push(`holds slot ${r.name}`);
+      const up = r.started_at ? ago(r.started_at) : null;
+      if (up) bits.push(`up ${up}`);
+      const act = ago(r.last_active);
+      bits.push(act ? `active ${act} ago` : 'no activity recorded');
+      const who = [r.agent ? `agent ${r.agent}` : null, r.kind === 'tmux' && r.slot ? `slot ${r.slot}` : null, r.backend || null].filter(Boolean);
+      if (who.length) bits.push(who.join(', '));
+      if (r.unread) bits.push(`${r.unread} unread`);
+      if (r.turns) bits.push(`${r.turns} turn${r.turns === 1 ? '' : 's'}`);
+      if (r.state_reason && r.state === 'failing') bits.push(r.state_reason);
+      out.push({ text: `  ${GLYPH[r.state] || '?'} ${sessionName(r)}  ${bits.join(' · ')}`, tone: TONE[r.state] || 'dim', state: r.state });
+      if (refs) out.push({ text: `      ${[r.attach_hint || null, r.id ? `id ${r.id}` : null].filter(Boolean).join(' · ')}`, tone: 'dim' });
+    }
+  }
+  if (prepared.hiddenConversations > 0) out.push({ text: `  +${prepared.hiddenConversations} older chats (last 24 h) · /sessions all`, tone: 'dim' });
+  const bad = (index.sources || []).filter((s) => s.state !== 'connected');
+  if (bad.length) out.push({ text: `could not read: ${bad.map((s) => `${s.id} (${s.state}${s.note ? `: ${s.note}` : ''})`).join(' · ')}`, tone: 'dim' });
+  if (!refs && rows.length) out.push({ text: '/sessions refs adds ids and attach commands · /sessions all includes every chat', tone: 'dim' });
+  return out;
+}
+
 export function renderOverview(index, { now = Date.now(), localHost = osHostname(), color = false, all = false, names = {} } = {}) {
   return overviewLines(index, { now, localHost, all, names }).map((l) => {
     if (!color) return l.text;

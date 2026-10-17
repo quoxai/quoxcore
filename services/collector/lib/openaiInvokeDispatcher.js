@@ -47,6 +47,7 @@ function safeParseArgs(raw) {
   try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
 }
 
+const { classifyToolStatus: _classifyToolStatus, approvalFromResult: _approvalFromResult } = require('./conversationToolEvents.js'); // #889
 function serializeToolResultForModel(toolName, toolResult) {
   // A gated tool held for a human is not a failure: say so, with the id, so the model
   // reports "pending approval" instead of an empty tool_error (seen live 2026-10-08).
@@ -153,7 +154,7 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
   // QUOX-MODEL: provider usage summed across every model round (stream_options.include_usage).
   const { addRoundUsage, newUsageAccumulator } = require('./openaiTurnUsage.js');
   const usage = newUsageAccumulator();
-  const stoppedResult = (reason, lastContent) => ({ content: lastContent || '', toolsUsed, data: null, stopped: reason, fullText, usage });
+  const stoppedResult = (reason, lastContent) => ({ content: lastContent || '', toolsUsed, toolOutcomes, data: null, stopped: reason, fullText, usage });
   const emitEvent = (ev) => {
     if (typeof onEvent !== 'function') return;
     try { onEvent(ev); } catch { /* a client-facing event must never break the governed loop */ }
@@ -170,6 +171,7 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
   // QUOXON-ADV: provider-safe names out, registered names back (toolsmith.runScript <-> toolsmith__runScript)
   const decodeToolName = require('./providerToolNames.js').toolNameDecoder(() => (toolOffer ? [...agentTools, ...toolOffer.tools()] : agentTools));
   const toolsUsed = [];
+  const toolOutcomes = []; // #889
   const maxToolRounds = MAX_TOOL_ROUNDS;
   const toolCtx = buildGovernedToolCtx(req, {
     selected_agent, userId, orgId, userAccessToken, memory_context, quox_context,
@@ -308,7 +310,7 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
       // but say so honestly (stopped) rather than reporting an uninterrupted turn.
       const lateStop = stopReason();
       if (lateStop === 'interrupted') {
-        return { content, toolsUsed, data, stopped: lateStop, fullText, usage };
+        return { content, toolsUsed, toolOutcomes, data, stopped: lateStop, fullText, usage };
       }
       // BRAIN2-V2-1: retrieval → answer. Same key this path puts on the tool
       // ctx above (toolCtx.session_id = `session_id || undefined`), so the
@@ -318,7 +320,7 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
         const { finalizeAnswer } = require('./brainCitationTrace.js');
         Promise.resolve(finalizeAnswer(effectiveSessionId || session_id, content)).catch(() => {});
       } catch { /* non-fatal — evidence must never affect the chat path */ }
-      return { content, toolsUsed, data, fullText, usage };
+      return { content, toolsUsed, toolOutcomes, data, fullText, usage };
     }
 
     messages.push({
@@ -352,6 +354,7 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
         deps: { executeTool, voltEmitter, storeAuditEnvelope, emitToolEvidence },
       });
 
+      try { toolOutcomes.push({ tool: toolName, status: _approvalFromResult(toolResult) ? 'denied' : _classifyToolStatus(toolResult) }); } catch { toolOutcomes.push({ tool: toolName, status: (toolResult && toolResult.success === false) ? 'failed' : 'ok' }); }
       messages.push({
         role: 'tool',
         tool_call_id: call.id,

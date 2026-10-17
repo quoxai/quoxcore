@@ -73,4 +73,20 @@ function isSafeHostId(host) {
   return typeof host === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(host);
 }
 
-module.exports = { resolveQuoxagentBinary, sha256OfFile, isSafeHostId };
+/**
+ * Z2H-AGENTINST: where the collector finds deploy/install.sh + bin/quoxagent-*.
+ * A PUBLIC image has no quoxagent checkout mounted; the release build bakes the
+ * signed quoxagent release into bakedRoot instead. Order: explicit env override,
+ * then a host checkout that really holds install.sh (dev box), then the baked
+ * release, else the host path (so the 503 still names the knob to set).
+ * @returns {string}
+ */
+function resolveQuoxAgentRoot({ env = process.env, hostRoot, bakedRoot, exists = fs.existsSync }) {
+  if (env && env.QuoxAgent_ROOT) return env.QuoxAgent_ROOT;
+  const holdsInstaller = (root) => Boolean(root) && exists(path.join(root, 'deploy/install.sh'));
+  if (holdsInstaller(hostRoot)) return hostRoot;
+  if (holdsInstaller(bakedRoot)) return bakedRoot;
+  return hostRoot;
+}
+
+module.exports = { resolveQuoxagentBinary, sha256OfFile, isSafeHostId, resolveQuoxAgentRoot };

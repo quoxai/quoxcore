@@ -38,7 +38,7 @@ import { cmd as mark } from './palette.js';
 import { createLoginController, LoginCard, SIGNED_OUT_LINE, signedOutCard, isSessionDead } from './signin.js';
 import { isConsentError, consentHintLines, consentStatusLines } from './consent.js';
 import { CHOICES, modelLines, selectModel, selectOllamaModel, selectCompatModel, adoptAfterConnect, selectDiscoveredModel, selectSubscriptionModel, modelLabel, fallbackNote, streamFields, normChoice } from './model.js';
-import { overviewLines } from '../core/sessionsOverview.js';
+import { humanSessionLines } from '../core/sessionsOverview.js';
 import { capabilityLines, offerFor, findCapability } from './capabilities.js';
 import { anyProviderConnected, NO_AI_CARD, NO_AI_STATUS, asksAddHost, asksWatchHosts, addHostLines } from './noai.js';
 import { DragonLive, playDragon, dragonActive, resetDragon } from './qmotion.js';
@@ -1103,18 +1103,20 @@ export function App({ slotAgent, notifyMs = 4000, resultPollMs = 3000, resultTim
         SN.current.agent = null; SN.current.slotTarget = null; where.current = { ...where.current, agent: SN.current.baseAgent }; bump(x => x + 1);
         return say('Back to CommanderQ.');
       case '/sessions': {
-        if (arg === 'all') {
-          if (!api.sessionsIndex) return say('The session index is not available in this mode.', 'warn');
+        // SESSIONS (owner 2026-10-15): name and where first; ids only with `refs`.
+        const flags = new Set(String(restArg || '').toLowerCase().split(/\s+/).filter(Boolean));
+        if (api.sessionsIndex) {
           try {
-            for (const l of overviewLines(await api.sessionsIndex(), { localHost: osHostname(), names: loadNames(namesPath) })) say(clip(l.text, cols - 4), l.tone);
-          } catch (e) { dispatch({ type: 'error', text: `sessions all: ${e.status ? `HTTP ${e.status}: ` : ''}${e.message}` }); }
+            const lines = humanSessionLines(await api.sessionsIndex(), { localHost: osHostname(), names: loadNames(namesPath), all: flags.has('all'), refs: flags.has('refs') || flags.has('ids') });
+            for (const l of lines) say(clip(l.text, cols - 4), l.tone);
+          } catch (e) { dispatch({ type: 'error', text: `sessions: ${e.status ? `HTTP ${e.status}: ` : ''}${e.message}` }); }
           return undefined;
         }
         if (!api.conversations) return say('Sessions are not available in this mode.', 'warn');
         try {
           const rows = await api.conversations(); const names = loadNames(namesPath);
           if (!rows.length) return say('No recent conversations.');
-          for (const r of rows) say(`${r.id.slice(0, 12)}  ${clip(names[r.id]?.name || r.title || '(untitled)', Math.max(10, cols - 30))}  ${r.updated_at ? String(r.updated_at).slice(0, 16).replace('T', ' ') : ''}`);
+          for (const r of rows) say(clip(`${names[r.id]?.name || r.title || '(untitled)'}  ${r.updated_at ? `· ${String(r.updated_at).slice(0, 16).replace('T', ' ')}` : ''}${flags.has('refs') ? `  · ${r.id}` : ''}`, cols - 4));
         } catch (e) { dispatch({ type: 'error', text: `sessions: ${e.message}` }); }
         return undefined;
       }

@@ -19,6 +19,8 @@ function normalizeDelegateResponse(resp, result) {
     success: ok,
     response: body.result || body.error || 'No response',
     tools_used: body.tools_used || [],
+    // #889: the specialist's per-call outcomes, so the parent turn can report what actually ran.
+    tool_outcomes: Array.isArray(body.tool_outcomes) ? body.tool_outcomes : undefined,
     tokensUsed: body.tokensUsed || body.tokens_used || undefined,
     needs_approval: body.needs_approval || null,
   };

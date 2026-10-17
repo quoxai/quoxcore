@@ -472,6 +472,24 @@ function capForProvider(provider) {
   return isSmallLocalProvider(provider) ? OLLAMA_CAP : DEFAULT_CAP;
 }
 
+// quox#908 (backported for ee3457cb9's auto-delegate read check, verbatim from 4fc9ac431):
+// actions of otherwise-read tools that change state.
+const TOOL_WRITE_ACTIONS = {
+  grafana_dashboards: ['annotate'],
+  alerts_manage: ['silence'],
+  keeper_schedule_manage: ['create', 'update', 'delete'],
+  brain_garden_apply: ['archive'],
+  continuity: ['commit'],
+  docker_fleet_container_action: ['start', 'stop', 'restart'],
+  proxmox_vm_action: ['start', 'stop', 'reboot', 'shutdown'],
+};
+function isWriteAction(toolName, input) {
+  const writes = TOOL_WRITE_ACTIONS[String(toolName || '')];
+  if (!writes) return false;
+  const a = input && typeof input === 'object' ? String(input.action || '').toLowerCase() : '';
+  return writes.includes(a);
+}
+
 module.exports = {
   MORE_TOOLS_NAME,
   MORE_TOOLS_DEF,
@@ -493,6 +511,8 @@ module.exports = {
   selectCatalogueTools,
   buildCatalogueTools,
   isStateChangingTool,
+  isWriteAction,
+  TOOL_WRITE_ACTIONS,
   hasWriteIntent,
   hasUrlInMessage,
   firstSentence,

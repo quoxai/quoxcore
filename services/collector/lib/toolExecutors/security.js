@@ -3,7 +3,7 @@
  *
  * Native executor for security_audit and ssl_certificates tools.
  * Replaces security-audit.json n8n workflow.
- * Security audit queries the auth service database.
+ * Security audit reads the auth service's org audit API as the caller (quox#1106).
  * SSL certificates check via bastion SSH.
  */
 
@@ -12,63 +12,58 @@ const { isSafeShellArg } = require('../shellSafe.js');
 /**
  * security_audit — query audit_events from auth service
  */
-async function securityAudit(callBastion, input) {
+async function securityAudit(callBastion, input, ctx = {}, deps = {}) { // eslint-disable-line no-unused-vars
   const hours = Math.min(parseInt(input.hours) || 24, 168); // max 7 days
   const limit = Math.min(parseInt(input.limit) || 100, 500);
-  const eventTypes = input.event_types || null;
-  const orgId = input.org_id || null;
-
-  // QUOXTRUST FND_..SHGH (shell-injection): event_types/org_id/db_path are interpolated into a
-  // sqlite3 command sent to the bastion. SQL-escaping (doubling quotes) does NOT neutralise
-  // shell $()/backtick inside the surrounding double quotes, so validate each against a strict
-  // allowlist and REFUSE before building the command. (These are the SHELL guard; the existing
-  // '' -> '' SQL escaping stays for SQL correctness.)
+  const eventTypes = Array.isArray(input.event_types) && input.event_types.length ? input.event_types : null;
+  // trust-c1 MED (FND_01M4Z0E2KP7KRPB6808P7KRPB6): org scope is the CALLER's org, never a client-supplied
+  // one. Only an instance admin may name another org. quox#1106: auth's audit route is per org, so there
+  // is no "all orgs" read any more; an admin with no org named reads their own.
+  const isInstanceAdmin = ctx.isInstanceAdmin === true || ctx.role === 'instance_admin';
+  const orgId = (isInstanceAdmin && input.org_id) || ctx.orgId || null;
+  if (!orgId) {
+    return { success: false, error: 'org_context_required', detail: 'security_audit is scoped to your organization and no org context was resolved; it will not read across orgs.' };
+  }
   if (Array.isArray(eventTypes)) {
     for (const t of eventTypes) {
       if (!isSafeShellArg('eventtype', String(t))) {
-        return { success: false, error: 'invalid_event_type', detail: 'event_types entries must be dotted AEE actions (injection guard)' };
+        return { success: false, error: 'invalid_event_type', detail: 'event_types entries must be dotted AEE actions' };
       }
     }
   }
   if (!isSafeShellArg('orgid', orgId)) {
-    return { success: false, error: 'invalid_org_id', detail: 'org_id contains characters not allowed in a shell argument (injection guard)' };
+    return { success: false, error: 'invalid_org_id', detail: 'org_id contains characters not allowed' };
   }
-  if (!isSafeShellArg('path', input.db_path)) {
-    return { success: false, error: 'invalid_db_path', detail: 'db_path contains characters not allowed in a shell argument (injection guard)' };
+  // quox#1106: read auth's own GET /api/orgs/:orgId/audit AS THE CALLER (their bearer), so auth enforces
+  // membership and ORG_VIEW_AUDIT. Never a service key: it would skip the capability check.
+  if (!ctx.token) {
+    return { success: false, error: 'caller_token_required', detail: 'security_audit reads the audit log as the signed-in caller; no caller token was available on this turn.' };
   }
-
   const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-
-  // Build SQL query
-  let whereClause = `created_at > '${since}'`;
-  if (eventTypes && Array.isArray(eventTypes)) {
-    const types = eventTypes.map(t => `'${t.replace(/'/g, "''")}'`).join(',');
-    whereClause += ` AND action IN (${types})`;
-  }
-  if (orgId) {
-    whereClause += ` AND org_id = '${orgId.replace(/'/g, "''")}'`;
-  }
-
-  // Query auth service database via bastion SSH to auth host
-  const authHost = input.auth_host || 'localhost';
-  const dbPath = input.db_path || '/opt/quoxcore/services/auth/data/auth.db';
-  const cmd = `sqlite3 -json ${dbPath} "SELECT id, action, actor_type, actor_id, target_type, target_id, status, ip_address, created_at, metadata_json FROM audit_events WHERE ${whereClause} ORDER BY created_at DESC LIMIT ${limit}"`;
-
-  const result = await callBastion(authHost, cmd);
-  if (!result.success) {
-    // Honest failure regardless of whether stdout/output is non-empty — a
-    // non-zero exit that still printed partial (even well-formed) output is
-    // still a failure (error-body-as-data bug, the mikrotik lesson).
-    return { success: false, error: 'Failed to query audit database', details: result.error };
-  }
-
-  const raw = result.output || result.stdout || '[]';
-  let events;
+  const q = new URLSearchParams({ from_date: since, limit: String(limit) });
+  if (eventTypes && eventTypes.length === 1) q.set('action', String(eventTypes[0]));
+  const authUrl = deps.authUrl || process.env.AUTH_SERVICE_URL || 'http://auth:3101';
+  const doFetch = deps.fetch || globalThis.fetch;
+  let resp;
   try {
-    events = JSON.parse(raw);
-  } catch {
-    return { success: false, error: 'Failed to parse audit data', raw: raw.substring(0, 500) };
+    resp = await doFetch(`${authUrl}/api/orgs/${encodeURIComponent(orgId)}/audit?${q}`, {
+      headers: { Authorization: `Bearer ${ctx.token}` }, signal: AbortSignal.timeout(15000),
+    });
+  } catch (err) {
+    return { success: false, error: 'Failed to query audit database', details: err.message };
   }
+  // An error body is not data: check the status before reading events.
+  if (resp.status === 401 || resp.status === 403) {
+    return { success: false, error: 'audit_access_denied', status: resp.status, detail: 'The audit log needs the org.view_audit capability (owner, admin or auditor) in this organization.' };
+  }
+  if (!resp.ok) return { success: false, error: 'Failed to query audit database', status: resp.status };
+  let body;
+  try { body = await resp.json(); } catch { return { success: false, error: 'Failed to parse audit data' }; }
+  let events = (Array.isArray(body && body.events) ? body.events : []).map((e) => ({
+    id: e.id, action: e.action, actor_type: e.actor_type, actor_id: e.actor_id, target_type: e.target_type,
+    target_id: e.target_id, status: e.status, ip_address: e.ip_address, created_at: e.created_at, metadata_json: e.metadata_json,
+  }));
+  if (eventTypes && eventTypes.length > 1) events = events.filter((e) => eventTypes.includes(e.action));
 
   // Analyze events
   const byAction = {};
@@ -92,7 +87,7 @@ async function securityAudit(callBastion, input) {
 
   return {
     success: true,
-    query: { hours, since, limit },
+    query: { hours, since, limit, org_id: orgId },
     summary: {
       totalEvents: events.length,
       byAction,

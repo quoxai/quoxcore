@@ -30,7 +30,7 @@ const { readAnthropicMessagesStream } = require('./anthropicMessagesStream.js');
 const { toAnthropicTool } = require('./anthropicTools.js');
 const { serializeToolResultForModel, MAX_TOOL_ROUNDS } = require('./openaiInvokeDispatcher.js');
 const { createLoopControl, createRoundAbort, frameMidAnswerSteer, frameBoundarySteer, buildGovernedToolCtx, dispatchGovernedToolCall, handleOfferGate } = require('./governedToolDispatch.js');
-const { approvalFromResult } = require('./conversationToolEvents.js');
+const { approvalFromResult, classifyToolStatus } = require('./conversationToolEvents.js');
 
 const ANTHROPIC_MESSAGES_URL = 'https://api.anthropic.com/v1/messages';
 const ROUND_SEPARATOR = '\n\n';
@@ -153,7 +153,8 @@ async function executeAnthropicToolLoop(req, opts, deps) {
   };
   const usage = { input_tokens: null, output_tokens: null, cache_read_input_tokens: null, cache_creation_input_tokens: null };
   const toolsUsed = [];
-  const stoppedResult = (reason, lastContent) => ({ content: lastContent || '', toolsUsed, data: null, stopped: reason, fullText, usage });
+  const toolOutcomes = []; // #889: {tool,status} so a delegated specialist's calls surface in the parent turn
+  const stoppedResult = (reason, lastContent) => ({ content: lastContent || '', toolsUsed, toolOutcomes, data: null, stopped: reason, fullText, usage });
   const applySteer = (texts) => {
     appendUserBlocks(messages, texts.map((text) => ({ type: 'text', text: frameBoundarySteer(text) })));
     for (const text of texts) emitEvent({ type: 'steer.applied', text });
@@ -265,14 +266,14 @@ async function executeAnthropicToolLoop(req, opts, deps) {
     if (dispatchable.length === 0 || round === MAX_TOOL_ROUNDS) {
       const lateStop = stopReason();
       if (lateStop === 'interrupted') {
-        return { content, toolsUsed, data: msg, stopped: lateStop, fullText, usage };
+        return { content, toolsUsed, toolOutcomes, data: msg, stopped: lateStop, fullText, usage };
       }
       // BRAIN2-V2-1 parity with the OpenAI loop: retrieval -> answer, not awaited.
       try {
         const { finalizeAnswer } = require('./brainCitationTrace.js');
         Promise.resolve(finalizeAnswer(effectiveSessionId || session_id, content)).catch(() => {});
       } catch { /* non-fatal: evidence must never affect the chat path */ }
-      return { content, toolsUsed, data: msg, fullText, usage };
+      return { content, toolsUsed, toolOutcomes, data: msg, fullText, usage };
     }
 
     messages.push({ role: 'assistant', content: echoAssistantBlocks(msg.content, dispatchable) });
@@ -293,6 +294,7 @@ async function executeAnthropicToolLoop(req, opts, deps) {
         selectedAgent: selected_agent, providerLabel, voltRunId, evidenceCorrId, deps: toolDeps,
       });
       const isError = !approvalFromResult(toolResult) && toolResult && toolResult.success === false;
+      try { toolOutcomes.push({ tool: call.name, status: approvalFromResult(toolResult) ? 'denied' : classifyToolStatus(toolResult) }); } catch { toolOutcomes.push({ tool: call.name, status: isError ? 'failed' : 'ok' }); }
       results.push({
         type: 'tool_result',
         tool_use_id: call.id,

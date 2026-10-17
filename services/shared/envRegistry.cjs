@@ -45,6 +45,13 @@
 
 const ENV_REGISTRY = [
     {
+        name: "QUOXAGENT_RELEASE_BASE_URL",
+        services: ["collector"],
+        classification: "infra",
+        surface: null,
+        note: "Z2H-AGENTINST release-build tool setting (scripts/release/quoxagent/fetch-quoxagent-release.mjs): alternate source (URL or local dir) for the signed quoxagent release assets, used for pre-publish proofs. Signature + pinned hashes are verified regardless. Not read by any running service.",
+    },
+    {
         name: "QUOX_AUTH_TOKEN",
         services: ["collector"],
         classification: "infra",
@@ -1622,6 +1629,27 @@ const ENV_REGISTRY = [
         services: ["auth","collector"],
         classification: "secret",
         surface: null,
+    },
+    {
+        name: "MIKROTIK_TLS_PIN",
+        services: ["collector"],
+        classification: "instance",
+        surface: null,
+        note: "quoxai/quox#1236: SHA-256 pin(s) of the RouterOS router's TLS leaf certificate (or its public key), hex, colons optional, comma separated. Required: with no pin and no MIKROTIK_CA_FILE the collector sends NO request and NO credentials to the router. Read it with `quox router trust --show`, compare out of band, then set it. Never auto-pinned.",
+    },
+    {
+        name: "MIKROTIK_CA_FILE",
+        services: ["collector"],
+        classification: "instance",
+        surface: null,
+        note: "quoxai/quox#1236: path to an operator-provided CA bundle (PEM) used to validate the RouterOS router certificate when no MIKROTIK_TLS_PIN is set. If a pin is also set the pin is authoritative.",
+    },
+    {
+        name: "MIKROTIK_INSECURE_DEV",
+        services: ["collector"],
+        classification: "instance",
+        surface: null,
+        note: "quoxai/quox#1236: DEV ONLY. Set to 1 to allow UNVERIFIED plain http:// to the router (login in clear text); warns on every call. Never the default, never for production.",
     },
     {
         name: "PROXMOX_API_TOKEN",

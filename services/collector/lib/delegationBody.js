@@ -27,4 +27,29 @@ function buildDelegationBody(input, ctx, agentId, depth) {
   });
 }
 
-module.exports = { buildDelegationBody };
+/**
+ * QUOXON-ASK J2 (quox#852): the loopback hop's headers. The caller's own bearer rides along
+ * (a user JWT for this org; never a service key or a Claude CLI turn token), so the
+ * specialist's tools act as the caller instead of with no user identity at all.
+ */
+function buildDelegationHeaders(ctx = {}) {
+  const { isHoldableBearer } = require('./turnBearerStore.js');
+  const headers = { 'Content-Type': 'application/json' };
+  if (ctx.token && ctx.orgId && isHoldableBearer(String(ctx.token), ctx.orgId)) headers.Authorization = `Bearer ${ctx.token}`;
+  return headers;
+}
+
+/**
+ * On the receiving /chat/claude (service-key org+user branch): keep a forwarded bearer only
+ * when it verifies as an ordinary user token for the SAME org and user as the delegation.
+ * Anything else is dropped (''), so a specialist never runs as someone else.
+ */
+function delegatedBearer({ bearer, orgId, userId, verify } = {}) {
+  if (!bearer || !orgId || !userId || typeof verify !== 'function') return '';
+  const r = verify(bearer);
+  if (!r || !r.valid || !r.payload || r.payload.aud) return '';
+  if (String(r.payload.org_id || '') !== String(orgId) || String(r.payload.sub || '') !== String(userId)) return '';
+  return bearer;
+}
+
+module.exports = { buildDelegationBody, buildDelegationHeaders, delegatedBearer };

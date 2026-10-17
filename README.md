@@ -7,7 +7,7 @@
 You don't have to trust it. You can check it.
 
 [![Licence](https://img.shields.io/badge/licence-Quox%20Community%20Source%201.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-4.2.2-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-4.2.3-blue.svg)](VERSION)
 
 ![QuoxCORE architecture: identity and access, governance, evidence, orchestration, memory and interfaces on one self-hosted core, built on the AEE, AOCL, VOLT and WARD protocols, with store plugins and your own plugins on top](docs/assets/quoxcore-architecture.png)
 
@@ -40,6 +40,15 @@ cd quox
 ```
 
 Then open `https://localhost:3000`, create the admin account in the setup wizard, and connect at least one model provider (Anthropic, OpenAI or Google key, or a Claude or Codex sign-in). Until a provider is connected, agents cannot answer.
+
+Setup also installs the `quox` command at `/usr/local/bin/quox` (or `~/.local/bin/quox` when it cannot write there). It runs the CLI that ships inside this install's collector image, so the host needs Docker only, not Node. Your profiles stay in `~/.config/quox`, it trusts this install's own certificate, and the `local` profile already points at `https://localhost:3000`. Pass `--no-cli` to setup to skip it. From the same terminal:
+
+```bash
+quox -p local setup                 # the setup wizard, in the terminal
+quox -p local setup license link    # link this install to your Quox licence
+```
+
+Hosts you enrol (`quox fleet enrol <host>`) download the signed QuoxAgent from this install. Setup verifies that release (Ed25519 signature and pinned SHA-256 hashes) before building, and stops if verification fails. Offline, setup stops and names your options: put the release assets in a directory and set `QUOXAGENT_RELEASE_BASE_URL` to it, or set `QUOX_AGENT_RELEASE=skip` to install without host enrolment.
 
 Verify the install:
 

@@ -12,8 +12,9 @@ import { loadRules, rulesContext } from './rules.js';
 import { createTranscript } from './transcript.js';
 import { parseModelArg } from './model.js';
 import { applySettings } from './slash/settings.js';
-import { headOf, RUNNING_ROOT, execRestart, checkRestart } from './slash/restart.js';
+import { headOf, RUNNING_ROOT, execRestart, restartPlan, checkRestart, restoreTerminal } from './slash/restart.js';
 import { readLastSeen, writeLastSeen } from './away.js';
+import { takeLauncherHandoff, writeRestartHandoff, RESTART_EXIT_CODE } from './launcher.js';
 
 const FLAGS = new Set(['-p', '--profile', '--verbose', '--demo', '--print', '--output', '--conversation', '--turn-id', '--timeout', '--color', '--no-clear', '-n', '--name', '--service-key', '--demo-onboarding', '--autoplay', '--autoplay-exit', '--provider', '--model', '--agent', '--prompt-profile', '--resume', '-h', '--help', '--']);
 const isFlag = (a) => FLAGS.has(a) || /^--(profile|verbose|print|output|conversation|turn-id|timeout|provider|model|agent|prompt-profile|resume)=/.test(a);
@@ -213,7 +214,12 @@ export async function main(argv = process.argv.slice(2)) {
   finally { process.stdout.off('resize', onResize); }
   if (!restart) return;
   // The app preflighted the installed quox before letting go, so a failure here is rare (it changed in between).
-  const r = execRestart({ argv: restart.demo ? ['--demo', '--autoplay'] : argv, conversationId: restart.demo ? null : restart.conversationId, profile: opts.demo ? null : props.profile, name: restart.name || opts.name || null, bin: restart.bin || undefined });
+  const how = { argv: restart.demo ? ['--demo', '--autoplay'] : argv, conversationId: restart.demo ? null : restart.conversationId, profile: opts.demo ? null : props.profile, name: restart.name || opts.name || null, bin: restart.bin || undefined };
+  // QUOXON-RESTART-LEAK: under the launcher this process EXITS and the launcher runs the successor, so exactly one
+  // client stays alive per terminal. Without one (QUOX_NO_LAUNCHER=1) it falls back to waiting on a nested child.
+  const launched = takeLauncherHandoff();
+  if (launched && writeRestartHandoff(launched, restartPlan(how))) { restoreTerminal(); process.exitCode = RESTART_EXIT_CODE; return; }
+  const r = execRestart(how);
   if (r.error) { process.stderr.write(`quox: could not restart (${r.bin}: ${r.error})${restart.conversationId ? `; resume with: quox --resume ${restart.conversationId}` : ''}\n`); process.exitCode = 1; return; }
   process.exitCode = r.code;
 }

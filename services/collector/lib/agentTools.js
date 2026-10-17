@@ -770,6 +770,17 @@ function makeGrantAwareCallBastion(ctx, baseCallBastion, mintFn) {
  * a bare fetch gets a 401 whose JSON body would flow to the LLM as data.
  * `assertOk` (default true) throws on non-2xx so callers fail loud.
  */
+// QUOXON-ASK J2: the collector's own API, by any of its in-cluster or loopback names.
+function isCollectorApiUrl(raw) {
+  let u;
+  try { u = new URL(raw); } catch { return false; }
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  const port = u.port || (u.protocol === 'https:' ? '443' : '80');
+  const collectorPort = String(process.env.COLLECTOR_PORT || process.env.PORT || 9848);
+  if (['collector', 'quox-collector'].includes(host)) return true;
+  return ['localhost', '127.0.0.1', '::1', '0.0.0.0'].includes(host) && port === collectorPort;
+}
+
 async function localApiFetch(path, options = {}, { assertOk = true } = {}) {
   const port = process.env.COLLECTOR_PORT || process.env.PORT || 9848;
   const headers = {
@@ -1889,12 +1900,16 @@ const TOOL_DEFS = {
       },
       required: []
     },
-    execute: async (input) => {
+    execute: async (input, ctx = {}) => {
+      // trust-c1 MED: pass the turn ctx so securityAudit scopes to the caller's org (ctx.orgId);
+      // input.org_id is honored only for an instance admin, ignored otherwise. Without this the
+      // executor read across ALL orgs.
       return await securityAudit(callBastion, {
         hours: input.hours || 6,
         event_types: input.action ? [input.action] : null,
-        limit: input.limit || 100
-      });
+        limit: input.limit || 100,
+        org_id: input.org_id
+      }, ctx);
     }
   },
 
@@ -4065,13 +4080,13 @@ Actions:
 
   delegate_to_agent: {
     name: 'delegate_to_agent',
-    description: 'Delegate a sub-task to a specialist agent (this is your primary role as orchestrator — prefer it over doing domain work yourself). The specialist executes tools and returns results. Delegate by the specialist\'s real id: sentinel (security), cipher (networking), metrics (monitoring), forge (code/devops), scholar (research), prism (analysis), plus atlas, nova, beacon, insight, corey, tester — or any custom agent by its id. Set deadline_ms for time-sensitive turns.',
+    description: 'Delegate a sub-task to a specialist agent (this is your primary role as orchestrator — prefer it over doing domain work yourself). The specialist executes tools and returns results. Delegate by the real id of the agent that holds the tools for the job (your instructions list who holds which tools, from the agent registry; agent_directory lists every agent), or any custom agent by its id. Set deadline_ms for time-sensitive turns.',
     input_schema: {
       type: 'object',
       properties: {
         agent_id: {
           type: 'string',
-          description: 'ID of the specialist agent to delegate to. Core agents: sentinel, cipher, nova, atlas, metrics, beacon, scholar, forge, prism, insight, corey, tester. Custom agents: use their agent_id as configured in the system.'
+          description: 'Registry id of the agent to delegate to: the one that holds the tools for the task. Custom agents: use their agent_id as configured in the system.'
         },
         task: {
           type: 'string',
@@ -4169,7 +4184,8 @@ Actions:
       const callAgent = async (agentId, signal) => {
         const resp = await localApiFetch(`/chat/claude`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          // QUOXON-ASK J2: the caller's bearer rides the loopback hop (see delegationBody.js).
+          headers: require('./delegationBody.js').buildDelegationHeaders(ctx),
           body: buildBody(agentId),
           signal
         }, { assertOk: false });
@@ -4211,7 +4227,9 @@ Actions:
             task_class: normalizeTaskClass(input.task_class),
             chosen_agent: outcome.rerouted_to || input.agent_id,
             candidates: [{ agent: input.agent_id, score: null, reason: String(input.task).slice(0, 120) }],
-            rationale: `Delegated: ${String(input.task).slice(0, 200)}`,
+            rationale: ctx._autoDelegated
+              ? `Auto-delegated read of ${ctx._autoDelegated.tool} (single holder): ${String(input.task).slice(0, 200)}`
+              : `Delegated: ${String(input.task).slice(0, 200)}`,
             latency_budget_ms: rerouteMs,
             outcome: { breached: !!outcome.breached, action_taken: outcome.action_taken, elapsed_ms: outcome.elapsed_ms, cost_breached: !!outcome.cost_breached, rerouted_to: outcome.rerouted_to || null },
           },
@@ -4235,11 +4253,11 @@ Actions:
 
       if (outcome.action_taken === 'completed' || outcome.action_taken === 'completed_over_budget') {
         const r = outcome.result || {};
-        return { success: r.success, ...(r.error ? { error: `Delegation to ${input.agent_id} failed: ${r.error}` } : {}), agent: input.agent_id, response: r.response, tools_used: r.tools_used || [], delegation, ...pendingApprovalResultFields(r.needs_approval) };
+        return { success: r.success, ...(r.error ? { error: `Delegation to ${input.agent_id} failed: ${r.error}` } : {}), agent: input.agent_id, response: r.response, tools_used: r.tools_used || [], ...(Array.isArray(r.tool_outcomes) ? { tool_outcomes: r.tool_outcomes } : {}), delegation, ...pendingApprovalResultFields(r.needs_approval) };
       }
       if (outcome.action_taken === 'rerouted' || outcome.action_taken === 'rerouted_breaker_open') {
         const r = outcome.result || {};
-        return { success: r.success !== false, agent: outcome.rerouted_to, response: r.response || 'Rerouted to a fallback specialist.', tools_used: r.tools_used || [], delegation: { ...delegation, rerouted_from: input.agent_id, rerouted_to: outcome.rerouted_to }, ...pendingApprovalResultFields(r.needs_approval) };
+        return { success: r.success !== false, agent: outcome.rerouted_to, response: r.response || 'Rerouted to a fallback specialist.', tools_used: r.tools_used || [], ...(Array.isArray(r.tool_outcomes) ? { tool_outcomes: r.tool_outcomes } : {}), delegation: { ...delegation, rerouted_from: input.agent_id, rerouted_to: outcome.rerouted_to }, ...pendingApprovalResultFields(r.needs_approval) };
       }
       if (outcome.action_taken === 'execute_error') {
         return { success: false, error: `Delegation to ${input.agent_id} failed: ${outcome.error}`, delegation };
@@ -5699,8 +5717,13 @@ Actions:
         'X-Service-Key': process.env.INTERNAL_SERVICE_KEY || '',
       };
 
+      // Models also ask for "objectives" (seen live on 4.2.2: browser-objective-list, objective-count-completed):
+      // that is the recent_objectives read, not an unknown action.
+      const EI_OBJECTIVE_ALIASES = ['objectives', 'objective', 'list_objectives', 'objective_list', 'my_objectives'];
+      const eiAction = EI_OBJECTIVE_ALIASES.includes(String(input.action || '').toLowerCase()) ? 'recent_objectives' : input.action;
+
       try {
-        switch (input.action) {
+        switch (eiAction) {
           case 'mirror_index': {
             // Build a collector-side mirror from available data sources
             const AUTH_URL = `http://${process.env.AUTH_HOST || 'auth'}:${process.env.AUTH_PORT || '3101'}`;
@@ -5979,6 +6002,11 @@ Actions:
       if (!url) return { success: false, error: 'url is required' };
       // Validate URL format
       try { new URL(url); } catch { return { success: false, error: `Invalid URL: ${url}` }; }
+      // QUOXON-ASK J2 (quox#852): a page fetch can never carry the caller's identity, so the
+      // collector's own API is not browsed (a delegated sentinel did exactly this, unauthenticated).
+      if (isCollectorApiUrl(url)) {
+        return { success: false, refused: true, error: 'browser_navigate does not open the Quox collector API: a page fetch runs without your identity. Use quox_cli or the dedicated tool for that data.' };
+      }
 
       // Attempt to call ScreenCap service /execute endpoint
       const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
@@ -12533,6 +12561,16 @@ async function executeTool(toolName, input, ctx = {}) {
       if (notGranted === true && heldBy.length === 0 && !TOOL_DEFS[toolName]) {
         try { unknownTool = !parseConnectorTool(toolName); } catch { unknownTool = false; }
       }
+      // DELEGATION (HYPERION study): a READ held by exactly one other agent runs as a one-hop
+      // delegation to it (depth 1, reads only, the caller's hat must allow delegate_to_agent, the
+      // hop itself is gated by executeTool). Anything else falls through to the denial text.
+      if (notGranted === true && !unknownTool && heldBy.length === 1) {
+        const hop = await require('./autoDelegate.js').maybeAutoDelegateRead({
+          toolName, input, ctx, heldBy, authz,
+          runDelegate: (dInput, dCtx) => executeTool('delegate_to_agent', dInput, dCtx),
+        });
+        if (hop) return hop;
+      }
       return {
         success: false,
         error: unknownTool
@@ -13434,6 +13472,7 @@ module.exports = {
   getAllAgentToolCatalogs,
   getToolDef,
   executeTool,
+  holdersOfTool, // REL-423: exported for ee3457cb9's tests (main exports it since #976 227077783)
   resolveCredentialForAgent,
   parseConnectorTool,
   invalidateAgentToolCache,

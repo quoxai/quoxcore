@@ -1,0 +1,25 @@
+{
+  "artifact": "quoxagent",
+  "version": "0.1.0-cc19b2a",
+  "commit": "cc19b2a03672fd2a1c0a1c075cbd7e595adf9b4b",
+  "build": {
+    "go_image": "golang:1.23.12@sha256:60deed95d3888cc5e4d9ff8a10c54e5edc008c6ae3fba6187be6fb592e19e8c0",
+    "reproducible": "quoxagent scripts/release-build.sh <commit>"
+  },
+  "release": {
+    "repo": "quoxai/quoxcore",
+    "tag": "quoxagent-0.1.0-cc19b2a"
+  },
+  "signing": {
+    "algorithm": "Ed25519",
+    "keyId": "SXrktTWt+cOYgtw19j3sKSqgMqRI1Q1nedSb4UYHTgQ=",
+    "signs": "SHA256SUMS",
+    "scheme": "Quox artifact signature (scripts/lib/pluginSigning.js scheme)"
+  },
+  "sha256sums": "adc303b2b9f9d63af754d974944d8c9babbc74d193d4ef2bc621131213cb19fa",
+  "files": {
+    "install.sh": "74dc845667e764e158737006962bbc4d10c43935782e26f6f8f2104ead2bbd61",
+    "quoxagent-linux-amd64": "51be351ba85a58a19faf4141f03f3fe7ee0266e4cc589beab6a0d6de9106e273",
+    "quoxagent-linux-arm64": "583198e3c425ee46562a76196e857a76b17755b41d6b8b0a1954cae4faeb8f7a"
+  }
+}

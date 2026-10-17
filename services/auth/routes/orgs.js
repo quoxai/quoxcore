@@ -1206,48 +1206,49 @@ router.get('/:orgId/audit',
             const parsedOffset = parseInt(offset) || 0;
 
             // Build query
-            const conditions = ['org_id = ?'];
+            // #1106: qualified with the audit_events alias; the events query joins users (created_at, status exist there too).
+            const conditions = ['ae.org_id = ?'];
             const params = [orgId];
 
             if (action) {
-                conditions.push('action = ?');
+                conditions.push('ae.action = ?');
                 params.push(action);
             }
 
             if (actor_id) {
-                conditions.push('actor_id = ?');
+                conditions.push('ae.actor_id = ?');
                 params.push(actor_id);
             }
 
             if (target_type) {
-                conditions.push('target_type = ?');
+                conditions.push('ae.target_type = ?');
                 params.push(target_type);
             }
 
             if (target_id) {
-                conditions.push('target_id = ?');
+                conditions.push('ae.target_id = ?');
                 params.push(target_id);
             }
 
             if (from_date) {
-                conditions.push('created_at >= ?');
+                conditions.push('ae.created_at >= ?');
                 params.push(from_date);
             }
 
             if (to_date) {
-                conditions.push('created_at <= ?');
+                conditions.push('ae.created_at <= ?');
                 params.push(to_date);
             }
 
             if (status) {
-                conditions.push('status = ?');
+                conditions.push('ae.status = ?');
                 params.push(status);
             }
 
             const whereClause = conditions.join(' AND ');
 
             // Get total count
-            const countQuery = `SELECT COUNT(*) as total FROM audit_events WHERE ${whereClause}`;
+            const countQuery = `SELECT COUNT(*) as total FROM audit_events ae WHERE ${whereClause}`;
             const countResult = getDb().prepare(countQuery).get(...params);
             const total = countResult?.total || 0;
 
@@ -1357,7 +1358,7 @@ router.get('/:orgId/audit/export',
             const { orgId } = req.params;
             const format = (req.query.format || 'csv').toLowerCase();
 
-            const { whereClause, params } = buildAuditQuery(orgId, req.query);
+            const { whereClause, params } = buildAuditQuery(orgId, req.query, { alias: 'ae.' }); // #1106: the export joins users
 
             const events = getDb().prepare(`
                 SELECT

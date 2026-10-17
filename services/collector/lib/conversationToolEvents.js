@@ -115,12 +115,23 @@ function delegationFields(tool, input) {
   return out;
 }
 
+const NESTED_TOOL_STATUSES = new Set(['ok', 'failed', 'denied', 'effect_unknown']);
 function delegationResultFields(tool, result) {
   if (tool !== 'delegate_to_agent' || !result || typeof result !== 'object') return {};
+  const out = {};
   const t = result.tools_used;
-  if (Array.isArray(t)) return { tools_used: t.length };
-  if (typeof t === 'number') return { tools_used: t };
-  return {};
+  if (Array.isArray(t)) out.tools_used = t.length;
+  else if (typeof t === 'number') out.tools_used = t;
+  // #889: name the specialist's tool calls and how each ended. Without this the turn's evidence
+  // showed only "delegate_to_agent ... tools_used: 4", so nobody (user, grader, proof engine)
+  // could tell WHICH governed tools ran. Status is the tool runner's own classification; an
+  // unrecognised value is reported as 'unknown', never upgraded to ok.
+  if (Array.isArray(result.tool_outcomes) && result.tool_outcomes.length) {
+    out.nested_tools = result.tool_outcomes.slice(0, 25)
+      .filter((o) => o && typeof o.tool === 'string' && o.tool)
+      .map((o) => ({ tool: scrubLine(o.tool, 60), status: NESTED_TOOL_STATUSES.has(o.status) ? o.status : 'unknown' }));
+  }
+  return out;
 }
 
 /** The gate's pending shape -> ids. Returns null when the call was not held. */

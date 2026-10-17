@@ -24,7 +24,7 @@ const TURN_TOKEN_AUDIENCE = 'quox:tools-execute';
 const TURN_TOKEN_MARGIN_SEC = 60;
 const TURN_TOKEN_MAX_TTL_SEC = 3600;
 
-function mintTurnToken({ userId, orgId, conversationId, agentId, ttlMs, secret = process.env.JWT_SECRET } = {}) {
+function mintTurnToken({ userId, orgId, conversationId, agentId, ttlMs, turnId, secret = process.env.JWT_SECRET } = {}) {
   if (!secret) throw new Error('turn token: JWT_SECRET not configured');
   if (!userId || !orgId) throw new Error('turn token: userId and orgId are required');
   const ttlSec = Math.min(
@@ -37,7 +37,9 @@ function mintTurnToken({ userId, orgId, conversationId, agentId, ttlMs, secret =
     type: 'access',
     aud: TURN_TOKEN_AUDIENCE,
     scope: 'tools.execute',
-    turn_id: crypto.randomBytes(8).toString('hex'),
+    // QUOXON-ASK J2: the caller may pin turn_id so the collector can hold the caller's
+    // bearer for this turn (lib/turnBearerStore.js) without it ever reaching the env.
+    turn_id: turnId ? String(turnId) : crypto.randomBytes(8).toString('hex'),
   };
   if (conversationId) claims.conversation_id = String(conversationId);
   if (agentId) claims.agent_id = String(agentId);

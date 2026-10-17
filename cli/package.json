@@ -56,6 +56,8 @@
     "!lib/**/*.test.js",
     "!lib/**/*.test.jsx",
     "!lib/**/__tests__/",
+    "!lib/vendor/",
+    "!lib/core/websiteSession.js",
     "README.md",
     "LICENSE"
   ],

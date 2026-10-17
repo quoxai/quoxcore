@@ -46,7 +46,11 @@ export function addHostLines(base, check = null) {
   }
   return [
     'To add a host, no AI needed. On the machine you want to add, run:',
-    `curl -sSL ${b}/install | sudo bash -s -- --host-id <name>`,
+    // REL-423: never `curl | sudo bash`: that pipe exits 0 when the download fails (TLS error, HTTP error) and runs
+    // whatever partial body arrived. Download to a temp file with curl -f, then run it, so a failure stops loudly.
+    // Two lines (shell continuation) so the TUI, which clips long lines, never cuts the command short.
+    `( f=$(mktemp) && trap 'rm -f "$f"' EXIT && curl -fsSL ${b}/install -o "$f" && \\`,
+    `  sudo bash "$f" --host-id <name> )`,
     'Then check it arrived with: quox fleet hosts'
   ];
 }

@@ -70,7 +70,9 @@ function callerBearerProblem(ctx) {
   try { claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')); } catch { return 'quox_cli needs a signed-in user\'s session token.'; }
   const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
   if (aud.includes('quox:tools-execute')) {
-    return 'quox_cli is not available on the Claude CLI tool path yet: that path carries a token scoped to tool execution, not your session. Use a dedicated tool, or ask on an API-model conversation.';
+    // QUOXON-ASK J2: tools/execute swaps a live turn's token for the caller's held bearer
+    // (lib/turnBearerStore.js). Reaching here means the turn has ended or expired.
+    return 'quox_cli could not run: the conversation turn that asked for it has ended or expired. Ask again.';
   }
   if (claims.org_id && String(claims.org_id) !== String(ctx.orgId)) return 'Your session token is for a different organization than this conversation; quox_cli runs only in the conversation\'s organization.';
   return null;

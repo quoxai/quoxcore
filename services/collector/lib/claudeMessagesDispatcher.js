@@ -145,7 +145,8 @@ async function dispatchClaudeMessages(opts, deps) {
       sysPrompt += `\n\n## Agent Delegation
 You can delegate sub-tasks to specialist agents using delegate_to_agent. Use this when:
 - The query spans multiple domains (e.g., "check security then deploy a fix")
-- A specialist would give better results (WARDEN for security, DAEDALUS for Docker, HYPERION for Proxmox)
+- A specialist holds the tools for the job. Who holds which tools (from the agent registry; delegate by id):
+${require('./delegationRoster.js').renderDelegationRoster()}
 - You need to combine results from multiple agents
 
 Delegation guidelines:

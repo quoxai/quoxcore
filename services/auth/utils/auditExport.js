@@ -24,19 +24,21 @@ function isNonEmpty(v) {
  * Build a safe WHERE clause + params for the audit-export query.
  * Unknown filter keys are ignored. Empty strings are dropped.
  */
-export function buildAuditQuery(orgId, filters = {}) {
-    const conditions = ['org_id = ?'];
+// #1106: `alias` qualifies every column (e.g. 'ae.') for a query that joins users, where created_at and status
+// would otherwise be ambiguous. Default unqualified, as before.
+export function buildAuditQuery(orgId, filters = {}, { alias = '' } = {}) {
+    const conditions = [`${alias}org_id = ?`];
     const params = [orgId];
 
     // Date filters — accept new + legacy names.
     const fromVal = filters.from ?? filters.from_date;
     const toVal   = filters.to   ?? filters.to_date;
     if (isNonEmpty(fromVal)) {
-        conditions.push('created_at >= ?');
+        conditions.push(`${alias}created_at >= ?`);
         params.push(fromVal);
     }
     if (isNonEmpty(toVal)) {
-        conditions.push('created_at <= ?');
+        conditions.push(`${alias}created_at <= ?`);
         params.push(toVal);
     }
 
@@ -44,7 +46,7 @@ export function buildAuditQuery(orgId, filters = {}) {
     for (const [key, column] of Object.entries(ALLOWED_COLUMNS)) {
         const val = filters[key];
         if (isNonEmpty(val)) {
-            conditions.push(`${column} = ?`);
+            conditions.push(`${alias}${column} = ?`);
             params.push(val);
         }
     }

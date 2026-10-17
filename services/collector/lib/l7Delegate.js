@@ -74,6 +74,7 @@ async function runL7(aoclCtx, opts = {}) {
     c5.llmResponse = text;
     c5.toolsUsed = toolsUsed;
     c5.toolExecutions = Array.isArray(r?.toolExecutions) ? r.toolExecutions : [];
+  c5.toolOutcomes = Array.isArray(r?.toolOutcomes) ? r.toolOutcomes : []; // #889
     c5.model = model;
     c5.tokensUsed = tokensUsed;
     c5.dispatchPath = path;

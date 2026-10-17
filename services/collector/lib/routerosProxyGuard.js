@@ -56,6 +56,9 @@ const ALLOWED_ROUTEROS_REQUESTS = [
   { method: 'POST', pattern: /^\/ip\/firewall\/address-list$/ },
   { method: 'GET', pattern: /^\/interface\/wireguard\/peers$/ },
   { method: 'GET', pattern: /^\/ip\/ipsec\/active-peers$/ },
+  // REL-423: read-only neighbour list used by mikrotik.discovery.inventory (31525f04a); the same
+  // GET rule main has carried since NETWATCH 96edfea47. Nothing else from NETWATCH is in 4.2.x.
+  { method: 'GET', pattern: /^\/ip\/neighbor$/ },
 ];
 
 /**

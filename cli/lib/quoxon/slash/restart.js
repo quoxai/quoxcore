@@ -133,16 +133,38 @@ export function restoreTerminal({ stdin = process.stdin, stdout = process.stdout
   try { if (stdout?.isTTY) stdout.write(TERMINAL_RESTORE); } catch { /* closed */ }
 }
 
+// REL-423 (from main, fe50e4000): restartPlan carries these one-shot hand-over vars when a caller passes them.
+// 4.2.x main.js does not pass slot/attach/org/mode, so they stay unset here; the launcher treats QUOX_RESTART_* as one-shots.
+export const RESTART_SLOT_ENV = 'QUOX_RESTART_SLOT';
+export const RESTART_ATTACH_ENV = 'QUOX_RESTART_ATTACH';
+export const RESTART_ORG_ENV = 'QUOX_RESTART_ORG';
+export const RESTART_MODE_ENV = 'QUOX_RESTART_MODE';
+
+/**
+ * What a restart runs: { cmd, args, env }. The installed quox (or this tree), the same arguments with --resume
+ * for this conversation, and the one-shot hand-over env (held slot, attach, org, plan mode) for the successor.
+ */
+export function restartPlan({ argv, conversationId, profile = null, name = null, slot = null, attach = null, org = null, mode = null, env = process.env, bin = findOnPath('quox', env) }) {
+  const args = restartArgs(argv, conversationId, { profile, name });
+  let childEnv = profile && !argv.includes('--demo') ? { ...env, QUOX_PROFILE: profile } : env; // belt and braces: same profile even if -p were lost
+  if (slot) childEnv = { ...childEnv, [RESTART_SLOT_ENV]: slot }; // the held slot rides along; the new client takes it over before this one is gone
+  if (attach) childEnv = { ...childEnv, [RESTART_ATTACH_ENV]: attach }; // so does the attached agent or slot
+  if (org) childEnv = { ...childEnv, [RESTART_ORG_ENV]: org }; // and the window's org (never the profile's file)
+  if (mode === 'plan') childEnv = { ...childEnv, [RESTART_MODE_ENV]: 'plan' }; // and the window's /mode (never the profile)
+  const [cmd, lead] = restartTarget(env, bin);
+  return { cmd, args: [...lead, ...args], env: childEnv };
+}
+
 /**
  * Run the installed quox in this terminal, wait for it, and hand back { code } (its exit code), or
  * { error } when it could not be started (the caller stays in the current client and says so).
+ * Only used when there is no launcher (QUOX_NO_LAUNCHER=1, or no handoff dir): it NESTS the successor under
+ * this process, which stays resident until the successor exits. The launcher path (launcher.js) does not.
  */
-export function execRestart({ argv, conversationId, profile = null, name = null, env = process.env, spawn = spawnSync, bin = findOnPath('quox', env), restore = restoreTerminal }) {
-  const args = restartArgs(argv, conversationId, { profile, name });
-  const childEnv = profile && !argv.includes('--demo') ? { ...env, QUOX_PROFILE: profile } : env; // belt and braces: same profile even if -p were lost
+export function execRestart({ argv, conversationId, profile = null, name = null, slot = null, attach = null, org = null, mode = null, env = process.env, spawn = spawnSync, bin = findOnPath('quox', env), restore = restoreTerminal }) {
+  const plan = restartPlan({ argv, conversationId, profile, name, slot, attach, org, mode, env, bin });
   restore(); // the child owns the terminal now
-  const [cmd, lead] = restartTarget(env, bin);
-  const r = spawn(cmd, [...lead, ...args], { stdio: 'inherit', env: childEnv });
-  if (r.error) return { error: `${r.error.code || 'failed'}: ${r.error.message}`, bin: cmd };
-  return { code: r.status ?? (r.signal ? 128 + (os.constants.signals[r.signal] || 0) : 1), bin: cmd };
+  const r = spawn(plan.cmd, plan.args, { stdio: 'inherit', env: plan.env });
+  if (r.error) return { error: `${r.error.code || 'failed'}: ${r.error.message}`, bin: plan.cmd };
+  return { code: r.status ?? (r.signal ? 128 + (os.constants.signals[r.signal] || 0) : 1), bin: plan.cmd };
 }

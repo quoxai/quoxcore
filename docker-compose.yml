@@ -362,6 +362,10 @@ services:
       - PROMETHEUS_URL=${PROMETHEUS_URL:-}
       - UPTIME_KUMA_URL=${UPTIME_KUMA_URL:-}
       - PROXMOX_URL=${PROXMOX_URL:-}
+      # quoxai/quox#1236: RouterOS identity. No pin and no CA = nothing is sent to the router.
+      - MIKROTIK_TLS_PIN=${MIKROTIK_TLS_PIN:-}
+      - MIKROTIK_CA_FILE=${MIKROTIK_CA_FILE:-}
+      - MIKROTIK_INSECURE_DEV=${MIKROTIK_INSECURE_DEV:-}
       - PROXMOX_API_TOKEN=${PROXMOX_API_TOKEN:-}
       # Wazuh SIEM integration (optional)
       - WAZUH_HOST=${WAZUH_HOST:-}

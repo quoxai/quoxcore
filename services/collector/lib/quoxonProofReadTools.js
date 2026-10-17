@@ -39,11 +39,35 @@ function needOrgAndUser(ctx, tool) {
 async function getJson(url, token) {
   const resp = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(TIMEOUT_MS) });
   const body = await resp.json().catch(() => null);
-  return { ok: resp.ok, status: resp.status, body };
+  return { ok: resp.ok, status: resp.status, body, url };
 }
 
-function httpError(r) {
-  return { success: false, error: (r.body && (r.body.error || r.body.message)) || `HTTP ${r.status}`, status: r.status };
+/**
+ * SESSIONS (2026-10-15, transcript finding HIGH): a bare "authentication_required" let the
+ * model tell the owner to log in again while their login was fine; the refused call was this
+ * tool's own server-side hop. The error names the tool, service, method, path (never the
+ * query, which carries the org id) and status, and says it was a server-side call.
+ */
+function httpError(r, tool) {
+  let endpoint = null;
+  try { endpoint = new URL(r.url).pathname; } catch { /* no url */ }
+  const service = r.url && String(r.url).startsWith(AUTH_BASE_URL) ? 'auth' : 'collector';
+  const code = (r.body && (r.body.error || r.body.message)) || null;
+  const where = `GET ${endpoint || '(unknown path)'} on the ${service === 'auth' ? 'auth service' : 'collector'}`;
+  const out = {
+    success: false,
+    error: `${tool}: ${where} returned HTTP ${r.status}${code ? ` (${code})` : ''}`,
+    status: r.status,
+    service,
+    method: 'GET',
+    endpoint,
+  };
+  if (r.status === 401 || r.status === 403) {
+    out.cause = `Server-side: the ${tool} tool's own call to the ${service === 'auth' ? 'auth service' : 'collector'} was refused. `
+      + 'Report the service, endpoint and status as the failure. Do not tell the user to log in again: '
+      + 'their session reached this tool, so it is not shown to be the cause.';
+  }
+  return out;
 }
 
 function parseList(v) {
@@ -108,7 +132,7 @@ const QUOXON_PROOF_READ_TOOLS = {
         } else {
           if (!ctx.token) return { success: false, error: 'org_context_required', message: 'llm_status needs an authenticated user session.' };
           const r = await getJson(`${COLLECTOR_SELF()}/chat/status`, ctx.token);
-          if (!r.ok) return httpError(r);
+          if (!r.ok) return httpError(r, 'llm_status');
           status = r.body;
         }
         if (!status || typeof status !== 'object') return { success: false, error: 'unexpected response from the chat status check' };
@@ -158,8 +182,11 @@ const QUOXON_PROOF_READ_TOOLS = {
       if (refused) return refused;
       try {
         const r = await getJson(`${AUTH_BASE_URL}/orgs/${encodeURIComponent(ctx.orgId)}/llm-routing-policy`, ctx.token);
-        if (!r.ok) return httpError(r);
-        const b = r.body;
+        if (!r.ok) return httpError(r, 'llm_policy');
+        // The auth route answers { source, policy, record } (getEffectiveLlmRoutingPolicy); read
+        // the policy inside it, still accepting a flat policy body.
+        const raw = r.body;
+        const b = raw && typeof raw === 'object' && raw.policy && typeof raw.policy === 'object' ? raw.policy : raw;
         if (!b || typeof b !== 'object') return { success: false, error: 'unexpected response from the routing policy store' };
         const pick = (x) => (x && typeof x === 'object' ? { provider: x.provider || null, model: x.model || null } : null);
         const caps = b.capabilities && typeof b.capabilities === 'object' ? b.capabilities : {};
@@ -195,7 +222,7 @@ const QUOXON_PROOF_READ_TOOLS = {
           getJson(`${AUTH_BASE_URL}/orgs/${org}/backups?limit=${BACKUP_LIMIT}`, ctx.token),
           getJson(`${AUTH_BASE_URL}/orgs/${org}/backup-schedules`, ctx.token),
         ]);
-        if (!list.ok) return httpError(list);
+        if (!list.ok) return httpError(list, 'backup_overview');
         const rows = list.body && (list.body.items || list.body.backups || list.body.data);
         if (!Array.isArray(rows)) return { success: false, error: 'unexpected response from the backup store' };
         const sorted = [...rows].sort(newestFirst);
@@ -253,7 +280,7 @@ const QUOXON_PROOF_READ_TOOLS = {
       if (refused) return refused;
       try {
         const r = await getJson(`${COLLECTOR_SELF()}/api/v1/sessions?org_id=${encodeURIComponent(ctx.orgId)}`, ctx.token);
-        if (!r.ok) return httpError(r);
+        if (!r.ok) return httpError(r, 'live_sessions');
         const b = r.body;
         if (!b || !Array.isArray(b.groups)) return { success: false, error: 'unexpected response from the sessions index' };
         const want = input && typeof input.agent === 'string' && input.agent.trim() ? input.agent.trim().toLowerCase() : null;
@@ -306,7 +333,7 @@ const QUOXON_PROOF_READ_TOOLS = {
         if (input && typeof input.search === 'string' && input.search.trim()) q.set('q', input.search.trim().slice(0, 200));
         if (input && typeof input.tags === 'string' && input.tags.trim()) q.set('tags', input.tags.trim().slice(0, 200));
         const r = await getJson(`${AUTH_BASE_URL}/prompts?${q}`, ctx.token);
-        if (!r.ok) return httpError(r);
+        if (!r.ok) return httpError(r, 'prompt_list');
         const rows = r.body && r.body.prompts;
         if (!Array.isArray(rows)) return { success: false, error: 'unexpected response from the prompt library' };
         return {
@@ -340,7 +367,7 @@ const QUOXON_PROOF_READ_TOOLS = {
       if (!id) return { success: false, error: 'id is required (find it with prompt_list)' };
       try {
         const r = await getJson(`${AUTH_BASE_URL}/prompts/${encodeURIComponent(id)}?org_id=${encodeURIComponent(ctx.orgId)}`, ctx.token);
-        if (!r.ok) return httpError(r);
+        if (!r.ok) return httpError(r, 'prompt_read');
         const p = r.body && r.body.prompt;
         if (!p) return { success: false, error: 'unexpected response from the prompt library' };
         const body = typeof p.body === 'string' ? p.body : '';

@@ -34,19 +34,10 @@ const { execFile } = require('child_process');
 // Dockerfile copies) from the '0.0.0' fallback that means "unstamped" — so
 // /version can say "this deploy was never stamped" instead of silently
 // implying it is at version zero.
-const { version: RESOLVED_VERSION, source: VERSION_SOURCE } = (() => {
-  if (process.env.QUOXCORE_VERSION) return { version: process.env.QUOXCORE_VERSION, source: 'env:QUOXCORE_VERSION' };
-  try {
-    const v = fs.readFileSync('/app/VERSION', 'utf8').trim();
-    if (v && v !== '0.0.0') return { version: v, source: 'file:/app/VERSION' };
-  } catch { /* file absent — fall through */ }
-  return { version: '0.0.0', source: 'fallback (unstamped — build did not inject a commit)' };
-})();
-// C4: the platform RELEASE (semver, the repo VERSION file the Dockerfile copies to /app/VERSION), separate
-// from the commit above, so `quox` can warn when CLI and server differ in major/minor. null when absent.
-const RESOLVED_RELEASE = (() => {
-  try { const v = fs.readFileSync('/app/VERSION', 'utf8').trim(); return /^\d+\.\d+\.\d+$/.test(v) ? v : null; } catch { return null; }
-})();
+// REL-423: resolution lives in lib/buildVersion.js (env stamp unless it is the Dockerfile's 0.0.0 default,
+// then /app/BUILD_COMMIT written by the public export, then /app/VERSION). RESOLVED_COMMIT is the full SHA.
+const { version: RESOLVED_VERSION, source: VERSION_SOURCE, commit: RESOLVED_COMMIT, release: RESOLVED_RELEASE } =
+  require('./lib/buildVersion.js').resolveBuildVersion();
 
 // STABILITY-AUDITS #1: process-level safety net. Without these, an escaped
 // rejection or a synchronous throw outside an Express handler (timers,
@@ -212,6 +203,7 @@ const { isAllowedWazuhRequest } = require('./lib/wazuhProxyGuard.js');
 const { resolveWazuhConnection, resolveWazuhIndexerConnection } = require('./lib/wazuhCredentials.js');
 const { resolveProxmoxConnection } = require('./lib/proxmoxCredentials.js');
 const { loadRouterosConfig, saveRouterosConfig, removeRouterosConfig } = require('./lib/routerosConfigStore.js');
+const routerosTransport = require('./lib/routerosTransport.js');
 
 // MCPB-HARDEN-1a: validate body-supplied org_id/user_id belongs to the tenant
 // before stamping audit envelopes. Service-key auth alone is not sufficient —
@@ -1526,7 +1518,7 @@ async function handleOpenAIChat(req, res, opts) {
     success: true, result: content + toolSuffix, voice_summary: voiceSummary,
     session_id: session_id || 'openai-' + Date.now(),
     model, provider: 'openai', agent_used: selected_agent,
-    tools_used: loopResult.toolsUsed, can_continue: true
+    tools_used: loopResult.toolsUsed, ...(Array.isArray(loopResult.toolOutcomes)&&loopResult.toolOutcomes.length?{tool_outcomes:loopResult.toolOutcomes}:{}), can_continue: true
   });
 }
 
@@ -1709,7 +1701,7 @@ async function handleGeminiChat(req, res, opts) {
         voice_summary: extractVoiceSummary(loopContent),
         session_id: session_id || 'gemini-' + Date.now(),
         model, provider: 'gemini', agent_used: selected_agent,
-        tools_used: loopResult.toolsUsed, can_continue: true
+        tools_used: loopResult.toolsUsed, ...(Array.isArray(loopResult.toolOutcomes)&&loopResult.toolOutcomes.length?{tool_outcomes:loopResult.toolOutcomes}:{}), can_continue: true
       });
     } catch (err) {
       voltEmitter.failRun(voltRunId, err);
@@ -1984,7 +1976,7 @@ async function handleLocalInferenceChat(req, res, opts) {
       latency_ms: latencyMs,
       tokens_used: tokensUsed,
       agent_used: selected_agent,
-      tools_used: loopResult.toolsUsed, can_continue: true
+      tools_used: loopResult.toolsUsed, ...(Array.isArray(loopResult.toolOutcomes)&&loopResult.toolOutcomes.length?{tool_outcomes:loopResult.toolOutcomes}:{}), can_continue: true
     });
   } catch (err) {
     voltEmitter.failRun(voltRunId, err);
@@ -5775,6 +5767,7 @@ app.get('/version', (req, res) => {
   res.json({
     service: 'quox-collector',
     version: RESOLVED_VERSION,
+    commit: RESOLVED_COMMIT,
     release: RESOLVED_RELEASE,
     stamped: VERSION_SOURCE.startsWith('env') || VERSION_SOURCE.startsWith('file'),
     source: VERSION_SOURCE,
@@ -10524,6 +10517,7 @@ app.post('/api/v1/tools/execute', toolLimiter, requireServiceOrUserAuth({ accept
   // read Org B's vault credentials — the exact class already fixed on the
   // sibling /volt/runs, /volt/stats routes.
   const { resolveCallerOrgId } = require('./lib/toolExecuteOrgScope.js');
+  const { bearerForToolCall } = require('./lib/turnBearerStore.js');
   const ctx = {
     agentId: agentIdResult.agentId,
     session_id: session_id || undefined,
@@ -10532,7 +10526,9 @@ app.post('/api/v1/tools/execute', toolLimiter, requireServiceOrUserAuth({ accept
     // authoritative; body user_id is honoured only for service-key callers.
     userId: (req.user?.id || (isServiceKeyAuth ? user_id : undefined)) || undefined,
     // The caller's own bearer wins over a body-supplied auth_token.
-    token: (req.headers.authorization?.replace('Bearer ', '')) || auth_token || undefined,
+    // QUOXON-ASK J2: for quox_cli on a Claude CLI turn token, the caller's own bearer held
+    // in collector memory for that turn (never in the model's env); else unchanged.
+    token: bearerForToolCall({ toolName: tool_name, user: req.user, headerToken: (req.headers.authorization?.replace('Bearer ', '')) || auth_token || undefined }),
     // QUOXIDENTITY F2b: for attach-lease callers (req.user.attach_lease_id,
     // e.g. agent.seer driven via the attach JWT), the lease holder is the
     // human responsible for the action — surfaced onto req.user in
@@ -10673,7 +10669,7 @@ app.post('/api/v1/tools/execute', toolLimiter, requireServiceOrUserAuth({ accept
     // choke out so evidence is not double-emitted.
     ctx._callerEmitsToolEvidence = true;
     const result = await executeTool(tool_name, input || {}, ctx);
-    trackToolExecution(session_id, tool_name);
+    trackToolExecution(session_id, tool_name, require('./lib/conversationToolEvents.js').classifyToolStatus(result));
     const durationMs = Date.now() - toolStartTime;
     const corrId = resolveCorrelationId(req, req.body);
 
@@ -12296,77 +12292,46 @@ function resolveRouterosOrgId(req) {
 
 /**
  * Perform the actual MikroTik REST API call. Shared by the config test (on
- * save) and the hardened proxy route — both already have a validated,
- * server-sourced {host, port, useSSL, username, password} target by the
- * time this is called.
+ * save) and the hardened proxy route. quoxai/quox#1236: FAIL-CLOSED. The
+ * transport (lib/routerosTransport.js) only speaks HTTPS to an endpoint whose
+ * certificate matches MIKROTIK_TLS_PIN (or validates against MIKROTIK_CA_FILE)
+ * and sends no credentials otherwise. Verification is never switched off.
  */
-function performRouterosRequest({ host, port, useSSL, username, password, path, method, body: reqBody }) {
-  const protocol = useSSL ? https : http;
-  const credentials = Buffer.from(`${username || 'admin'}:${password || ''}`).toString('base64');
-  const url = `${useSSL ? 'https' : 'http'}://${host}:${port}/rest${path}`;
-  const payload = reqBody ? JSON.stringify(reqBody) : null;
-
-  const options = {
-    method: (method || 'GET').toUpperCase(),
-    headers: {
-      'Authorization': `Basic ${credentials}`,
-      'Content-Type': 'application/json',
-      ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {})
-    },
-    timeout: 15000,
-    // MikroTik routers use self-signed certs. Documented exception (same as
-    // the PVE-PROXY monitoring proxy above, which does the same for
-    // Proxmox): the target host is validated by assertRouterosEgressHost()
-    // and sourced only from server-stored config, not attacker input.
-    rejectUnauthorized: false
-  };
-
-  return new Promise((resolve) => {
-    const request = protocol.request(url, options, (response) => {
-      let data = '';
-      response.on('data', chunk => { data += chunk; });
-      response.on('end', () => {
-        const status = response.statusCode;
-
-        let parsed;
-        try { parsed = JSON.parse(data); } catch { parsed = data; }
-
-        if (typeof parsed === 'string' && (parsed.includes('Error 404') || parsed.includes('<title>Error'))) {
-          return resolve({ success: false, error: 'REST API not enabled. Enable www-ssl on your router (RouterOS 7.1+).', code: 'API_NOT_ENABLED', status: 404 });
-        }
-
-        if (status === 401) return resolve({ success: false, error: 'Wrong username or password.', status: 401 });
-        if (status === 403) return resolve({ success: false, error: 'Access denied.', status: 403 });
-        if (status === 404) return resolve({ success: false, error: 'API endpoint not found.', status: 404 });
-        if (status >= 400) return resolve({ success: false, error: `HTTP error ${status}`, status });
-
-        resolve({ success: true, data: parsed, status });
-      });
-    });
-
-    request.on('error', (err) => {
-      const msg = err.message || '';
-      if (msg.includes('ECONNREFUSED')) {
-        return resolve({ success: false, error: "Can't reach router. Check IP address.", code: 'ECONNREFUSED', status: 500 });
-      }
-      if (msg.includes('ETIMEDOUT') || msg.includes('timeout')) {
-        return resolve({ success: false, error: 'Router not responding. Check network.', code: 'ETIMEDOUT', status: 500 });
-      }
-      if (msg.includes('handshake') || msg.includes('certificate') || msg.includes('ssl') || msg.includes('tls')) {
-        return resolve({ success: false, error: "SSL/TLS failed. Try HTTP (port 80) instead.", code: 'CERT_ERROR', status: 500 });
-      }
-      resolve({ success: false, error: msg || 'Connection failed', code: err.code || null, status: 500 });
-    });
-
-    request.on('timeout', () => {
-      request.destroy();
-      resolve({ success: false, error: 'Router not responding (timeout).', code: 'ETIMEDOUT', status: 500 });
-    });
-
-    if (payload) request.write(payload);
-    request.end();
-  });
+function performRouterosRequest(args) {
+  return routerosTransport.performRouterosRequest(args);
 }
+
+/**
+ * GET /api/v1/mikrotik/tls-fingerprint
+ * `quox router trust --show`: the TLS fingerprint the configured router
+ * endpoint presents RIGHT NOW. Handshake only: no credentials and no request
+ * bytes are sent, and nothing is stored (never trust on first use; the
+ * operator compares out of band and sets MIKROTIK_TLS_PIN themselves).
+ */
+app.get('/api/v1/mikrotik/tls-fingerprint', requireServiceOrUserAuth(), async (req, res) => {
+  const orgId = resolveRouterosOrgId(req);
+  const config = loadRouterosConfig(orgId);
+  if (!config) {
+    return res.status(404).json({ success: false, error: 'router_not_configured', detail: 'No RouterOS router is configured for this organization.' });
+  }
+  const egressCheck = await assertRouterosEgressHost(config.host);
+  if (!egressCheck.valid) {
+    return res.status(400).json({ success: false, error: 'router_target_blocked', detail: egressCheck.error });
+  }
+  const port = config.useSSL === false ? 443 : (config.port || 443);
+  const probe = await routerosTransport.probeFingerprint({ host: config.host, port });
+  const policy = routerosTransport.readPolicy();
+  const pinned = probe.ok ? (policy.pins.includes(probe.cert_sha256) || policy.pins.includes(probe.spki_sha256)) : null;
+  if (!probe.ok) return res.status(502).json({ success: false, error: probe.error, code: probe.code, credentials_sent: false });
+  res.json({
+    success: true,
+    credentials_sent: false,
+    ...probe,
+    pin_configured: policy.pins.length > 0,
+    matches_configured_pin: pinned,
+    note: 'Compare this fingerprint with the one shown on the router itself (WinBox/WebFig: System > Certificates) over a channel you trust, then set MIKROTIK_TLS_PIN. Nothing was pinned automatically.',
+  });
+});
 
 /**
  * GET /api/v1/mikrotik/config
@@ -18482,7 +18447,11 @@ app.get('/terminal/shell/my-sessions', requireAuth(), (req, res) => {
   res.json({ sessions: reconnectable });
 });
 
-const QuoxAgent_ROOT = process.env.QuoxAgent_ROOT || '/opt/quoxcore/quoxagent';
+// Z2H-AGENTINST: public images carry the signed quoxagent release baked at
+// /app/quoxagent-release (scripts/release/quoxagent/fetch-quoxagent-release.mjs,
+// run by the release build); the dev box keeps serving its live checkout.
+const { resolveQuoxAgentRoot } = require('./lib/quoxagentBinary.js');
+const QuoxAgent_ROOT = resolveQuoxAgentRoot({ env: process.env, hostRoot: '/opt/quoxcore/quoxagent', bakedRoot: path.join(__dirname, 'quoxagent-release') });
 
 // Install script endpoint
 app.get('/install', (req, res) => {
@@ -25562,6 +25531,7 @@ async function chatStreamHandler(req, res) {
         detectAndExecuteTools,
         executeTool,
         getTrackedTools,
+        getTrackedToolOutcomes,
         clearTrackedTools,
         getToolCache,
         setToolCache,
@@ -26415,7 +26385,7 @@ async function handleCollectorChat(req, res) {
   const cookies = parseCookieHeader(req.headers.cookie);
   const authHeader = req.headers.authorization || '';
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-  const userAccessToken = cookies.access_token || bearerToken;
+  let userAccessToken = cookies.access_token || bearerToken;
 
   // Derive org_id and user_id from JWT (server-side — doesn't depend on frontend)
   let jwtOrgId = '';
@@ -26477,6 +26447,10 @@ async function handleCollectorChat(req, res) {
     }
     jwtOrgId = req.body.org_id;
     jwtUserId = req.body.user_id;
+    // QUOXON-ASK J2 (quox#852): a delegation hop forwards the caller's bearer so the
+    // specialist's tools act as the caller. Keep it only when it is that same org and user.
+    { const { delegatedBearer } = require('./lib/delegationBody.js');
+      userAccessToken = delegatedBearer({ bearer: userAccessToken, orgId: req.body.org_id, userId: req.body.user_id, verify: verifyToken }); }
     console.log(`[Chat] Service-key auth: org=${jwtOrgId}, user=${jwtUserId}${testStubActive ? ' (TEST_LLM_STUB bypass)' : internalDelegation ? ' (internal delegation)' : ''}`);
   } else if (req.pluginAuth) {
     // SEC-PLUGIN-TRUST C1: a plugin backend acts as the org (and user) of the
@@ -26595,7 +26569,7 @@ async function handleCollectorChat(req, res) {
     });
     if (hydration.hydrated > 0) {
       conversation_history = hydration.history;
-      console.log(`[Chat] hydrated ${hydration.hydrated} turn(s) for session ${String(historySessionId).slice(0, 8)}`);
+      console.log(`[Chat] hydrated ${hydration.hydrated} turn(s) for session ${String(session_id).slice(0, 8)}`);
     }
   }
 
@@ -27666,7 +27640,7 @@ Always identify yourself as QuoxCORE or QUOX.`;
         }, messagesDeps);
         // AUDIT-REAL-4b triage: decisionEvidence was dropped here, so
         // stackModeDispatch's c5.decisionEvidence check never saw it.
-        return { text: r.text, tokensUsed: r.tokensUsed, toolsUsed: r.toolsUsed, model: r.model, path: r.path, decisionEvidence: r.decisionEvidence };
+        return { text: r.text, tokensUsed: r.tokensUsed, toolsUsed: r.toolsUsed, toolOutcomes: r.toolOutcomes, model: r.model, path: r.path, decisionEvidence: r.decisionEvidence }; // #889
       };
 
       const cliDeps = {
@@ -27679,6 +27653,7 @@ Always identify yourself as QuoxCORE or QUOX.`;
         detectAndExecuteTools,
         executeTool,
         getTrackedTools,
+        getTrackedToolOutcomes,
         clearTrackedTools,
         getToolCache,
         setToolCache,
@@ -27745,7 +27720,7 @@ Always identify yourself as QuoxCORE or QUOX.`;
         // LLM-FAILOVER P1: pass outcome through so the failover walk can
         // recognise structured CLI failures (outcome: 'cli_error') that the
         // dispatcher reports as a result instead of a throw.
-        return { text: r.text, tokensUsed: r.tokensUsed, toolsUsed: r.toolsUsed, model: r.model, path: r.path, outcome: r.outcome, decisionEvidence: r.decisionEvidence };
+        return { text: r.text, tokensUsed: r.tokensUsed, toolsUsed: r.toolsUsed, toolOutcomes: r.toolOutcomes, model: r.model, path: r.path, outcome: r.outcome, decisionEvidence: r.decisionEvidence }; // #889
       };
 
       // LLM-FAILOVER P1: candidate chain for this governed chat turn
@@ -28763,6 +28738,7 @@ async function handleMessagesApi(req, res, opts) {
       session_id: opts.effectiveSessionId,
       agent_used: opts.selected_agent,
       tools_used: result.toolsUsed,
+      ...(Array.isArray(result.toolOutcomes)&&result.toolOutcomes.length?{tool_outcomes:result.toolOutcomes}:{}), // #889
       can_continue: true,
     });
   }
@@ -28813,6 +28789,7 @@ async function handleMessagesApi(req, res, opts) {
     provider: opts.requestedProvider || 'anthropic',
     agent_used: opts.selected_agent,
     tools_used: result.toolsUsed,
+    ...(Array.isArray(result.toolOutcomes)&&result.toolOutcomes.length?{tool_outcomes:result.toolOutcomes}:{}), // #889
     can_continue: true,
     needs_approval: needsApproval,
     decision_evidence_level: opts.decisionEvidenceLevel && opts.decisionEvidenceLevel !== 'none' ? opts.decisionEvidenceLevel : undefined,
@@ -28885,6 +28862,7 @@ async function handleClaudeCliWithTools(req, res, opts) {
       detectAndExecuteTools,
       executeTool,
       getTrackedTools,
+      getTrackedToolOutcomes, // #889: the delegation path (a specialist turn) is this one
       clearTrackedTools,
       getToolCache,
       setToolCache,
@@ -29006,7 +28984,9 @@ async function handleClaudeCliWithTools(req, res, opts) {
       provider: 'anthropic',
       agent_used: selectedAgent,
       tools_used: result.toolsUsed,
+      ...(Array.isArray(result.toolOutcomes)&&result.toolOutcomes.length?{tool_outcomes:result.toolOutcomes}:{}), // #889
       tools_used_count: result.toolsUsed.length,
+      tool_outcomes: result.toolOutcomes || undefined, // #889
       can_continue: true,
       needs_approval: needsApproval,
     };
@@ -29025,6 +29005,7 @@ async function handleClaudeCliWithTools(req, res, opts) {
     cost_usd: result.cost_usd,
     agent_used: selectedAgent,
     tools_used: result.toolsUsed,
+    tool_outcomes: result.toolOutcomes || undefined, // #889
     can_continue: true,
     needs_approval: needsApproval,
   };
@@ -29125,10 +29106,14 @@ function _upsertMcpSession({ session_id, agent_id, org_id, user_id, host, tool_n
   }
 }
 
-function trackToolExecution(sessionId, toolName) {
+function trackToolExecution(sessionId, toolName, status) {
   if (!sessionId || !toolName) return;
-  const entry = _sessionToolTracker.get(sessionId) || { tools: [], timestamp: Date.now() };
+  const entry = _sessionToolTracker.get(sessionId) || { tools: [], outcomes: [], timestamp: Date.now() };
   entry.tools.push(toolName);
+  // #889: keep each call's outcome too, so a delegated specialist's tool calls can be reported
+  // (with ok / failed / denied) instead of collapsing to a bare count in the parent turn.
+  if (!entry.outcomes) entry.outcomes = [];
+  entry.outcomes.push({ tool: toolName, status: status || 'unknown' });
   entry.timestamp = Date.now();
   _sessionToolTracker.set(sessionId, entry);
   // Evict stale entries
@@ -29149,6 +29134,13 @@ function getTrackedTools(sessionId) {
     return [];
   }
   return entry.tools;
+}
+
+function getTrackedToolOutcomes(sessionId) {
+  if (!sessionId) return [];
+  const entry = _sessionToolTracker.get(sessionId);
+  if (!entry || Date.now() - entry.timestamp > TOOL_CACHE_TTL) return [];
+  return entry.outcomes || [];
 }
 
 function clearTrackedTools(sessionId) {

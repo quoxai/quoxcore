@@ -64,7 +64,8 @@ export function inferTargetType(value) {
 /** curl install command for a host that is not yet a fleet-enrolled dev server. */
 export function buildOnboardInstallCommand(collectorBase, host) {
   const base = String(collectorBase || '').replace(/\/+$/, '');
-  return `curl -sSL ${base}/install | sudo bash -s -- --host-id ${host}`;
+  // REL-423: fail loud, never `curl | sudo bash` (that pipe reports success when the download fails).
+  return `( f=$(mktemp) && trap 'rm -f "$f"' EXIT && curl -fsSL ${base}/install -o "$f" && sudo bash "$f" --host-id ${host} )`;
 }
 
 // ── the wizard ──────────────────────────────────────────────────────────────

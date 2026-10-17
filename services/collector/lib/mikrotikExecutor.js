@@ -129,6 +129,7 @@ function computeHealthScore(resource, sensors) {
 
 module.exports = {
   UNSUPPORTED_TOOLS,
+  _internals: { parseRosDuration, summarizeWgPeer, rangesSize },
 
   async execute(toolId, input, ctx) {
     if (UNSUPPORTED_TOOLS[toolId]) {
@@ -148,31 +149,99 @@ module.exports = {
         const resource = await proxyCall(base, orgId, '/system/resource', 'GET');
         if (!resource.success) return resource;
         const health = await proxyCall(base, orgId, '/system/health', 'GET');
-        const scored = computeHealthScore(resource.data, health.success ? health.data : null);
+        const res = firstRow(resource.data);
+        const sensors = health.success && Array.isArray(health.data) ? health.data : [];
+        const scored = computeHealthScore(res, sensors);
+        const tempItem = sensors.find((h) => h.name === 'temperature' || h.name === 'cpu-temperature');
+        const totalMem = Number(res['total-memory']) || 0;
+        const freeMem = Number(res['free-memory']) || 0;
+        const issues = [];
+        if (!health.success) issues.push(`sensor data unavailable: ${health.error}`);
+        else if (!tempItem) issues.push('this router reports no temperature sensor (virtual CHR and some models have none): temperature is unknown, not 0');
         return {
           success: true,
+          // One flat, labelled read of the four things people ask for. Unknown stays null, never 0.
+          summary: {
+            cpu_load_pct: res['cpu-load'] !== undefined ? Number(res['cpu-load']) : null,
+            cpu_count: Number(res['cpu-count']) || null,
+            memory_total_bytes: totalMem || null,
+            memory_free_bytes: totalMem ? freeMem : null,
+            memory_used_pct: totalMem ? Math.round(((totalMem - freeMem) / totalMem) * 100) : null,
+            temperature_c: tempItem && tempItem.value !== undefined ? Number(tempItem.value) : null,
+            uptime: res.uptime ?? null,
+            uptime_s: parseRosDuration(res.uptime),
+            version: res.version ?? null,
+            board_name: res['board-name'] ?? null,
+            architecture: res['architecture-name'] ?? null,
+          },
           health: { resource: resource.data, sensors: health.success ? health.data : null },
           score: scored.score,
-          issues: health.success ? [] : [`sensor data unavailable: ${health.error}`],
+          issues,
         };
       }
 
       case 'mikrotik.discovery.inventory': {
+        // The configured router as it describes itself (/system/resource: platform, board,
+        // version; never a placeholder), any MikroTik neighbours it sees, and the devices it
+        // knows about (ARP, named by DHCP lease). Its /system/identity name is not on the
+        // read allowlist, so it is not claimed.
+        const resource = await proxyCall(base, orgId, '/system/resource', 'GET');
+        if (!resource.success) return resource;
         const arp = await proxyCall(base, orgId, '/ip/arp', 'GET');
         if (!arp.success) return arp;
-        const devices = (arp.data || []).filter((e) => e.address && e['mac-address']);
+        const leases = await proxyCall(base, orgId, '/ip/dhcp-server/lease', 'GET');
+        const neigh = await proxyCall(base, orgId, '/ip/neighbor', 'GET');
+        const res = firstRow(resource.data);
+        const routers = [{
+          role: 'configured',
+          platform: res.platform ?? null,
+          board_name: res['board-name'] ?? null,
+          version: res.version ?? null,
+          architecture: res['architecture-name'] ?? null,
+          uptime: res.uptime ?? null,
+        }];
+        for (const n of neigh.success && Array.isArray(neigh.data) ? neigh.data : []) {
+          if (!/mikrotik/i.test(String(n.platform || ''))) continue;
+          routers.push({ identity: n.identity ?? null, role: 'neighbor', address: n.address ?? null, mac: n['mac-address'] ?? null, interface: n.interface ?? null, version: n.version ?? null, board_name: n.board ?? null });
+        }
+        const leaseRows = leases.success && Array.isArray(leases.data) ? leases.data : [];
+        const leaseByMac = new Map(leaseRows.filter((l) => l['mac-address']).map((l) => [String(l['mac-address']).toUpperCase(), l]));
+        const seen = new Set();
+        const devices = [];
+        for (const e of Array.isArray(arp.data) ? arp.data : []) {
+          if (!e.address || !e['mac-address']) continue;
+          const lease = leaseByMac.get(String(e['mac-address']).toUpperCase());
+          seen.add(e.address);
+          devices.push({
+            address: e.address,
+            mac: e['mac-address'],
+            interface: e.interface ?? null,
+            host_name: lease?.['host-name'] ?? null,
+            dhcp_status: lease?.status ?? null,
+            seen_in_arp: true,
+          });
+        }
+        for (const l of leaseRows) {
+          if (l.status !== 'bound' || !l.address || seen.has(l.address)) continue;
+          devices.push({ address: l.address, mac: l['mac-address'] ?? null, interface: null, host_name: l['host-name'] ?? null, dhcp_status: l.status, seen_in_arp: false });
+        }
         return {
           success: true,
-          routers: [{ id: input.router_id || 'primary' }],
+          routers,
+          router_count: routers.length,
           devices: input.include_devices === false ? [] : devices,
           total: devices.length,
+          sources: { resource: true, arp: true, dhcp_leases: leases.success, neighbors: neigh.success },
         };
       }
 
       case 'mikrotik.dhcp.leases': {
         const leases = await proxyCall(base, orgId, '/ip/dhcp-server/lease', 'GET');
         if (!leases.success) return leases;
-        return { success: true, leases: leases.data || [], total: (leases.data || []).length };
+        const rows = Array.isArray(leases.data) ? leases.data : [];
+        const byStatus = {};
+        for (const l of rows) byStatus[l.status || 'unknown'] = (byStatus[l.status || 'unknown'] || 0) + 1;
+        return { success: true, leases: rows, total: rows.length, bound: byStatus.bound || 0, by_status: byStatus };
       }
 
       case 'mikrotik.dhcp.reserve': {
@@ -201,25 +270,46 @@ module.exports = {
       }
 
       case 'mikrotik.dhcp.conflict_check': {
+        // RouterOS REST has no duplicate-address-detection endpoint, so this is the
+        // router's own view: one address claimed by more than one MAC across its ARP
+        // table and its DHCP lease table (static or dynamic). The limit is returned too.
         const arp = await proxyCall(base, orgId, '/ip/arp', 'GET');
         if (!arp.success) return arp;
-        const macByIp = {};
+        const leases = await proxyCall(base, orgId, '/ip/dhcp-server/lease', 'GET');
+        const byIp = new Map();
+        const claim = (ip, mac, source) => {
+          if (!ip || !mac) return;
+          const m = String(mac).toUpperCase();
+          if (!byIp.has(ip)) byIp.set(ip, new Map());
+          const macs = byIp.get(ip);
+          if (!macs.has(m)) macs.set(m, new Set());
+          macs.get(m).add(source);
+        };
+        const arpRows = Array.isArray(arp.data) ? arp.data : [];
+        for (const e of arpRows) {
+          if (isTrue(e.invalid)) continue;
+          claim(e.address, e['mac-address'], 'arp');
+        }
+        const leaseRows = leases.success && Array.isArray(leases.data) ? leases.data : [];
+        for (const l of leaseRows) {
+          if (isTrue(l.disabled)) continue;
+          claim(l.address, l['mac-address'], isTrue(l.dynamic) ? 'dhcp_dynamic_lease' : 'dhcp_static_lease');
+        }
         const conflicts = [];
-        for (const entry of arp.data || []) {
-          if (!entry.address) continue;
-          const prevMac = macByIp[entry.address];
-          if (prevMac && prevMac !== entry['mac-address']) {
-            conflicts.push({ address: entry.address, macs: [prevMac, entry['mac-address']] });
-          }
-          macByIp[entry.address] = entry['mac-address'];
+        for (const [address, macs] of byIp) {
+          if (macs.size < 2) continue;
+          conflicts.push({ address, macs: [...macs.keys()], claims: [...macs].map(([mac, src]) => ({ mac, seen_in: [...src] })) });
         }
         return {
           success: true,
           conflicts,
           healthy: conflicts.length === 0,
+          checked: { arp_entries: arpRows.length, dhcp_leases: leaseRows.length, lease_cross_check: leases.success },
           plain_english: conflicts.length === 0
-            ? 'No IP address conflicts found.'
+            ? `No IP address conflicts found in the router's ARP table (${arpRows.length} entries)${leases.success ? ` or DHCP leases (${leaseRows.length})` : ' (DHCP leases could not be read, so only ARP was checked)'}.`
             : `${conflicts.length} address(es) claimed by more than one device.`,
+          limits: 'RouterOS REST exposes no duplicate-address detection: this compares the router\'s ARP and DHCP lease tables, so two devices that never both appear there can be missed.',
+          ...(leases.success ? {} : { issues: [`dhcp leases unavailable: ${leases.error}`] }),
         };
       }
 
@@ -228,18 +318,33 @@ module.exports = {
         if (!pools.success) return pools;
         const leases = await proxyCall(base, orgId, '/ip/dhcp-server/lease', 'GET');
         if (!leases.success) return leases;
-        const leaseAddrs = new Set((leases.data || []).map((l) => l.address).filter(Boolean));
-        const formatted = (pools.data || []).map((pool) => ({
-          id: pool['.id'],
-          name: pool.name,
-          ranges: pool.ranges,
-          used: [...leaseAddrs].filter((ip) => ipInRanges(ip, pool.ranges)).length,
-        }));
+        const leaseRows = Array.isArray(leases.data) ? leases.data : [];
+        const formatted = (Array.isArray(pools.data) ? pools.data : []).map((pool) => {
+          const inPool = leaseRows.filter((l) => l.address && ipInRanges(l.address, pool.ranges));
+          const size = rangesSize(pool.ranges);
+          const used = new Set(inPool.map((l) => l.address)).size;
+          return {
+            id: pool['.id'],
+            name: pool.name,
+            ranges: pool.ranges,
+            size,
+            used,
+            bound: inPool.filter((l) => l.status === 'bound').length,
+            free: Math.max(size - used, 0),
+            used_pct: size ? Math.round((used / size) * 1000) / 10 : null,
+            next_pool: pool['next-pool'] || null,
+          };
+        });
+        const totalSize = formatted.reduce((sum, p) => sum + p.size, 0);
+        const totalUsed = formatted.reduce((sum, p) => sum + p.used, 0);
         return {
           success: true,
           pools: formatted,
-          total_used: formatted.reduce((sum, p) => sum + p.used, 0),
-          total_avail: formatted.length,
+          pool_count: formatted.length,
+          total_size: totalSize,
+          total_used: totalUsed,
+          // Free addresses across all pools (this used to be the pool COUNT, which was wrong).
+          total_avail: Math.max(totalSize - totalUsed, 0),
         };
       }
 
@@ -313,25 +418,48 @@ module.exports = {
       case 'mikrotik.vpn.wireguard_peers': {
         const peers = await proxyCall(base, orgId, '/interface/wireguard/peers', 'GET');
         if (!peers.success) return peers;
-        return { success: true, peers: peers.data || [], total: (peers.data || []).length };
+        // Never hand raw rows on: RouterOS returns private-key / preshared-key here.
+        const list = (Array.isArray(peers.data) ? peers.data : []).map(summarizeWgPeer);
+        return {
+          success: true,
+          peers: list,
+          total: list.length,
+          connected: list.filter((p) => p.connected).length,
+          connected_rule: WG_CONNECTED_RULE,
+        };
       }
 
       case 'mikrotik.vpn.health': {
         const wg = await proxyCall(base, orgId, '/interface/wireguard/peers', 'GET');
         const ipsec = await proxyCall(base, orgId, '/ip/ipsec/active-peers', 'GET');
         if (!wg.success && !ipsec.success) return wg;
-        const wgPeers = wg.success ? wg.data || [] : [];
-        const ipsecPeers = ipsec.success ? ipsec.data || [] : [];
-        const connected = wgPeers.filter((p) => p['last-handshake']).length + ipsecPeers.length;
+        const wgPeers = (wg.success && Array.isArray(wg.data) ? wg.data : []).map(summarizeWgPeer);
+        const ipsecPeers = (ipsec.success && Array.isArray(ipsec.data) ? ipsec.data : []).map((p) => ({
+          id: p['.id'] ?? null,
+          remote_address: p['remote-address'] ?? null,
+          local_address: p['local-address'] ?? null,
+          state: p.state ?? null,
+          uptime: p.uptime ?? null,
+          established: p.state === 'established',
+        }));
+        const up = wgPeers.filter((p) => p.connected).length + ipsecPeers.filter((p) => p.established).length;
         const total = wgPeers.length + ipsecPeers.length;
+        const issues = [
+          ...(wg.success ? [] : [`wireguard peers unavailable: ${wg.error}`]),
+          ...(ipsec.success ? [] : [`ipsec peers unavailable: ${ipsec.error}`]),
+          ...wgPeers.filter((p) => !p.disabled && !p.connected).map((p) => `wireguard peer ${p.name || p.public_key || p.id} has no handshake in the last 3 minutes`),
+        ];
         return {
           success: true,
           health: { wireguard: wgPeers, ipsec: ipsecPeers },
-          score: total === 0 ? null : Math.round((connected / total) * 100),
-          issues: [
-            ...(wg.success ? [] : [`wireguard peers unavailable: ${wg.error}`]),
-            ...(ipsec.success ? [] : [`ipsec peers unavailable: ${ipsec.error}`]),
-          ],
+          tunnels_total: total,
+          tunnels_up: up,
+          score: total === 0 ? null : Math.round((up / total) * 100),
+          issues,
+          connected_rule: WG_CONNECTED_RULE,
+          plain_english: total === 0
+            ? 'No VPN tunnels are configured: 0 WireGuard peers and 0 active IPsec peers.'
+            : `${up} of ${total} VPN tunnel(s) up.`,
         };
       }
 
@@ -340,6 +468,70 @@ module.exports = {
     }
   },
 };
+
+const WG_CONNECTED_RULE = 'a WireGuard peer counts as connected when it is enabled and its last handshake is at most 180 s old (WireGuard re-handshakes every 2 minutes on an active session)';
+
+function isTrue(v) {
+  return v === true || v === 'true';
+}
+
+function firstRow(data) {
+  if (Array.isArray(data)) return data[0] || {};
+  return data && typeof data === 'object' ? data : {};
+}
+
+/** RouterOS duration ("3w2d4h5m6s", "1m23s", "00:01:02") to seconds; null when absent/unparseable. */
+function parseRosDuration(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const str = String(v).trim();
+  const hms = /^(\d+):(\d{2}):(\d{2})$/.exec(str);
+  if (hms) return Number(hms[1]) * 3600 + Number(hms[2]) * 60 + Number(hms[3]);
+  const unit = { w: 604800, d: 86400, h: 3600, m: 60, s: 1, ms: 0.001 };
+  const re = /(\d+(?:\.\d+)?)(ms|w|d|h|m|s)/g;
+  let total = 0;
+  let consumed = '';
+  let match;
+  while ((match = re.exec(str)) !== null) {
+    total += Number(match[1]) * unit[match[2]];
+    consumed += match[0];
+  }
+  if (!consumed || consumed !== str) return null;
+  return Math.floor(total);
+}
+
+/** A WireGuard peer row with its secrets dropped (private-key / preshared-key never leave). */
+function summarizeWgPeer(p) {
+  const hs = parseRosDuration(p['last-handshake']);
+  const disabled = isTrue(p.disabled);
+  const ep = p['current-endpoint-address'] || p['endpoint-address'] || null;
+  const port = p['current-endpoint-port'] || p['endpoint-port'] || null;
+  return {
+    id: p['.id'] ?? null,
+    name: p.name || p.comment || null,
+    interface: p.interface ?? null,
+    endpoint: ep ? (port ? `${ep}:${port}` : ep) : null,
+    allowed_address: p['allowed-address'] ?? null,
+    public_key: p['public-key'] ?? null,
+    disabled,
+    last_handshake: p['last-handshake'] ?? null,
+    last_handshake_s: hs,
+    connected: !disabled && hs !== null && hs <= 180,
+    rx_bytes: Number(p.rx) || 0,
+    tx_bytes: Number(p.tx) || 0,
+  };
+}
+
+/** Number of addresses in a RouterOS range string ("a-b,c,d-e"). */
+function rangesSize(ranges) {
+  if (!ranges) return 0;
+  return String(ranges).split(',').reduce((sum, range) => {
+    const [start, end] = range.split('-').map((x) => x.trim());
+    if (!start) return sum;
+    const a = ipToNumber(start);
+    const b = end ? ipToNumber(end) : a;
+    return sum + (b >= a ? b - a + 1 : 0);
+  }, 0);
+}
 
 // Mirrors the pool-usage helpers already in src/services/routerosClient.js
 // (calculatePoolSize/isIpInPool) — same range-string format ("a.b.c.d-a.b.c.e,...").

@@ -60,6 +60,7 @@ const { promptSections } = require('./promptSections.js'); // D3: section sizes 
 // QUOXON-PARITY (#815, #810, #811): the same claim rules every API path gets (lib/turnToolSelection.js).
 const CLAIM_RULES_MD = require('./turnToolSelection.js').CLAIM_RULES.map((r) => `- ${r}`).join('\n');
 const { applyTurnCredential, pickCliToolsEnv } = require('./turnToken.js'); // QUOXON-IDENTITY
+const { registerTurnBearer, releaseTurnBearer } = require('./turnBearerStore.js'); // QUOXON-ASK J2
 
 // VAULT-INTEG P17: was a bare process.env read frozen at module load — now
 // resolved per-call via configResolver.getSetting(orgId, ...)
@@ -220,6 +221,7 @@ async function dispatchClaudeCli(opts, deps) {
     detectAndExecuteTools,
     executeTool,
     getTrackedTools,
+    getTrackedToolOutcomes,
     clearTrackedTools,
     getToolCache,
     setToolCache,
@@ -417,7 +419,9 @@ ${ctToolCatalogue}`;
 You are on a live VOICE call: every extra hop is dead air the caller hears. For live data or a simple action, CALL YOUR OWN TOOL directly (fleet_status, docker_status, email_read, ssh_exec, memory_search, and the rest, via quox tool exec) and answer from the real result, NEVER from memory. Use delegate_to_agent ONLY for genuinely specialist, multi-step work you cannot do yourself; a single status check, read, or lookup is never worth delegating. One or two tool calls, then answer.${VOICE_BRAIN_RECALL_PROMPT}` : `\n\n## Agent Delegation (your primary role)
 You are the ORCHESTRATOR. For any task in a specialist's domain, DELEGATE it with the delegate_to_agent tool (run via quox tool exec) rather than doing it yourself. Prefer delegation by default; self-serve only for orchestration, synthesis, planning, and simple general queries.
 Use delegate_to_agent with the real agent id:
-- sentinel = security, cipher = networking, metrics = monitoring, forge = code/devops, scholar = research, prism = analysis; also atlas, nova, beacon, insight, corey, tester, or any custom agent id.
+Who holds which tools (from the agent registry; the first named holds the most of them):
+${require('./delegationRoster.js').renderDelegationRoster()}
+- Anything else: any agent or custom agent by its id (agent_directory lists them).
 - Plugin specialists (only when the org has that plugin; if a delegation is refused as not enabled, tell the user plainly): inboxq = email and inbox, calendar-q = calendar and schedule, contactsq = people, contacts and reaching them, notesq = notes ("jot this down", "write that down", find, read or edit a note). Never claim you saved a note yourself: delegate to notesq and report what it returned.
 - People (ContactsQ): a single quick lookup you do YOURSELF: contacts_search finds a person by name (if it says ambiguous, ask the user which one; never guess) and contacts_resolve maps a number or email to a contact. Anything beyond that (calling or messaging someone, channel choice, objections, history, facts, do-not-call) delegate to contactsq. You never see or need the number. Report the tool result exactly: 'queued' or 'pending approval' is not 'called'.
 - The query spans multiple domains (e.g., "check security then deploy a fix") — delegate each leg.
@@ -559,7 +563,10 @@ Agent: ${selected_agent}
     };
     // Per-turn credential for the CALLER (expiry = turn timeout + margin). Also
     // strips any service key inherited from the collector's own env.
+    const ctTurnId = require('crypto').randomBytes(8).toString('hex');
+    const ctTurnTtlMs = (typeof maxDurationMs === 'number' && maxDurationMs > 0) ? maxDurationMs : CLI_TOOLS_TURN_TIMEOUT_MS;
     const cliToolsEnv = applyTurnCredential(cliToolsEnvBase, {
+      turnId: ctTurnId,
       userId: userId || jwtUserId,
       orgId: orgId || jwtOrgId,
       conversationId: ctSessionId,
@@ -595,6 +602,10 @@ Agent: ${selected_agent}
       };
     }
 
+    // QUOXON-ASK J2: quox_cli runs as the caller. The caller's bearer stays in collector
+    // memory for this turn only (keyed by the turn token's turn_id, TTL = turn timeout +
+    // margin), never in the subprocess env; released in finally below.
+    registerTurnBearer({ turnId: ctTurnId, bearer: userAccessToken, userId: userId || jwtUserId, orgId: orgId || jwtOrgId, ttlMs: ctTurnTtlMs + 60000 });
     try {
       const ctCliStart = Date.now();
       // Spawn + parse — same shape as the MCP path's block (timeout,
@@ -765,6 +776,8 @@ Agent: ${selected_agent}
       // Look up by THAT id: the caller's session_id is empty on a new chat, so
       // keying on it reported tools_used: [] for every turn (AQ-9D scorecard).
       const ctToolsUsed = mergeNativeTools(typeof getTrackedTools === 'function' ? getTrackedTools(ctSessionId) : [], ctClaudeResponse, nativeWebSearch);
+      // #889: per-call outcomes (ok/failed/denied), read before the tracker is cleared.
+      const ctToolOutcomes = typeof getTrackedToolOutcomes === 'function' ? [...getTrackedToolOutcomes(ctSessionId)] : [];
       if (typeof clearTrackedTools === 'function') clearTrackedTools(ctSessionId);
       const ctToolExecutions = ctToolsUsed.map((name) => ({ name, args: {}, success: true, result: null }));
 
@@ -874,6 +887,7 @@ Agent: ${selected_agent}
         voiceSummary: ctVoiceSummary,
         tokensUsed: (ctClaudeResponse.usage?.input_tokens || 0) + (ctClaudeResponse.usage?.output_tokens || 0),
         toolsUsed: ctToolsUsed,
+        toolOutcomes: ctToolOutcomes,
         toolExecutions: ctToolExecutions,
         model: ctClaudeResponse.model || (requestedModel || claudeCliDefaultModel),
         cost_usd: ctClaudeResponse.total_cost_usd || 0,
@@ -911,6 +925,8 @@ Agent: ${selected_agent}
         voltEmitter.failRun(ctVoltRunId, ctErr);
       }
       throw ctErr;
+    } finally {
+      releaseTurnBearer(ctTurnId);
     }
   }
 
@@ -1064,7 +1080,9 @@ ${CLAIM_RULES_MD}`;
 You are on a live VOICE call: every extra hop is dead air the caller hears. For live data or a simple action, CALL YOUR OWN TOOL directly (fleet_status, docker_status, email_read, ssh_exec, memory_search, and the rest) and answer from the real result, NEVER from memory. Use delegate_to_agent ONLY for genuinely specialist, multi-step work you cannot do yourself; a single status check, read, or lookup is never worth delegating. One or two tool calls, then answer.${VOICE_BRAIN_RECALL_PROMPT}` : `\n\n## Agent Delegation (your primary role)
 You are the ORCHESTRATOR. For any task in a specialist's domain, DELEGATE it with the delegate_to_agent tool rather than doing it yourself. Prefer delegation by default; self-serve only for orchestration, synthesis, planning, and simple general queries.
 Use delegate_to_agent (NOT any native messaging/subagent tool) with the real agent id:
-- sentinel = security, cipher = networking, metrics = monitoring, forge = code/devops, scholar = research, prism = analysis; also atlas, nova, beacon, insight, corey, tester, or any custom agent id.
+Who holds which tools (from the agent registry; the first named holds the most of them):
+${require('./delegationRoster.js').renderDelegationRoster()}
+- Anything else: any agent or custom agent by its id (agent_directory lists them).
 - Plugin specialists (only when the org has that plugin; if a delegation is refused as not enabled, tell the user plainly): inboxq = email and inbox, calendar-q = calendar and schedule, contactsq = people, contacts and reaching them, notesq = notes ("jot this down", "write that down", find, read or edit a note). Never claim you saved a note yourself: delegate to notesq and report what it returned.
 - People (ContactsQ): a single quick lookup you do YOURSELF: contacts_search finds a person by name (if it says ambiguous, ask the user which one; never guess) and contacts_resolve maps a number or email to a contact. Anything beyond that (calling or messaging someone, channel choice, objections, history, facts, do-not-call) delegate to contactsq. You never see or need the number. Report the tool result exactly: 'queued' or 'pending approval' is not 'called'.
 - The query spans multiple domains (e.g., "check security then deploy a fix") — delegate each leg.
@@ -1310,6 +1328,7 @@ Agent: ${selected_agent}
         : content;
 
       const mcpToolsUsed = mergeNativeTools(typeof getTrackedTools === 'function' ? getTrackedTools(session_id) : [], claudeResponse, nativeWebSearch);
+      const mcpToolOutcomes = typeof getTrackedToolOutcomes === 'function' ? [...getTrackedToolOutcomes(session_id)] : []; // #889
       if (typeof clearTrackedTools === 'function') clearTrackedTools(session_id);
       const mcpToolExecutions = mcpToolsUsed.map((name) => ({ name, args: {}, success: true, result: null }));
 
@@ -1486,6 +1505,7 @@ Agent: ${selected_agent}
         voiceSummary,
         tokensUsed: (claudeResponse.usage?.input_tokens || 0) + (claudeResponse.usage?.output_tokens || 0),
         toolsUsed: mcpToolsUsed,
+        toolOutcomes: mcpToolOutcomes,
         toolExecutions: mcpToolExecutions,
         model: claudeResponse.model || (requestedModel || claudeCliDefaultModel),
         cost_usd: claudeResponse.total_cost_usd || 0,
@@ -1667,7 +1687,8 @@ Agent: ${selected_agent}
 
   sysPrompt += `\n\n## System Capabilities (for reference)
 The system pre-executes these tools before each turn: ${(Array.isArray(agentTools) ? agentTools.map((t) => t.name) : []).join(', ')}.
-Specialist agents available for delegation (delegate to these ids via delegate_to_agent): sentinel (security), cipher (networking), metrics (monitoring), forge (code/devops), scholar (research), prism (analysis), plus atlas, nova, beacon, insight, corey, tester.
+Specialist agents available for delegation (delegate to these ids via delegate_to_agent), from the agent registry:
+${require('./delegationRoster.js').renderDelegationRoster()}
 All ${allHostIds.length} hosts are reachable via SSH bastion.`;
 
   // AUDIT-REAL-4b: Decision Evidence injection — mirrors

@@ -178,6 +178,7 @@ async function tryStackModeDispatch(opts, deps) {
           text: typeof r?.text === 'string' ? r.text : '',
           tokensUsed: typeof r?.tokensUsed === 'number' ? r.tokensUsed : 0,
           toolsUsed: Array.isArray(r?.toolsUsed) ? r.toolsUsed : [],
+          toolOutcomes: Array.isArray(r?.toolOutcomes) ? r.toolOutcomes : [], // #889
           model: r?.model || candidate.model || null,
           path: handlerPath,
           outcome: r?.outcome,
@@ -191,6 +192,7 @@ async function tryStackModeDispatch(opts, deps) {
           text: typeof r?.text === 'string' ? r.text : '',
           tokensUsed: typeof r?.tokensUsed === 'number' ? r.tokensUsed : 0,
           toolsUsed: Array.isArray(r?.toolsUsed) ? r.toolsUsed : [],
+          toolOutcomes: Array.isArray(r?.toolOutcomes) ? r.toolOutcomes : [], // #889
           model: r?.model || candidate.model || null,
           path: 'gemini',
         };
@@ -201,6 +203,7 @@ async function tryStackModeDispatch(opts, deps) {
         text: typeof r?.text === 'string' ? r.text : '',
         tokensUsed: typeof r?.tokensUsed === 'number' ? r.tokensUsed : 0,
         toolsUsed: Array.isArray(r?.toolsUsed) ? r.toolsUsed : [],
+        toolOutcomes: Array.isArray(r?.toolOutcomes) ? r.toolOutcomes : [], // #889
         model: r?.model || candidate.model || null,
         path: 'openai',
       };
@@ -359,6 +362,7 @@ async function tryStackModeDispatch(opts, deps) {
       || (path === 'api' ? 'anthropic' : 'anthropic-cli'),
     agent_used: selected_agent,
     tools_used: toolsUsed,
+    ...(Array.isArray(c5.toolOutcomes) && c5.toolOutcomes.length ? { tool_outcomes: c5.toolOutcomes } : {}), // #889
     can_continue: true,
     needs_approval: needsApproval,
     stack_used: true,

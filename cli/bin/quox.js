@@ -19,6 +19,14 @@ v8.setFlagsFromString('--liftoff-only');
   const { routesToQuoxon } = await import('../lib/quoxon/route.js');
   const qArgv = process.argv.slice(2);
   if (routesToQuoxon(qArgv, process.stdout.isTTY)) {
+    // QUOXON-RESTART-LEAK: the first interactive client on a terminal becomes a tiny launcher (no TUI, no polling)
+    // that runs the client as its child and re-runs it on /restart, so restarts never nest (98 deep, 15 GB, 2026-10-17).
+    const launcher = await import('../lib/quoxon/launcher.js');
+    if (launcher.shouldLaunch({ argv: qArgv })) {
+      const code = await launcher.runLauncher({ argv: qArgv });
+      if (code !== null) process.exit(code); // null: no handoff dir, so run the client in this process as before
+    }
+    launcher.takeLauncherHandoff(); // a launched client: read and drop the handoff var before anything can spawn
     if (!qArgv.some(a => a === '--print' || a.startsWith('--print=') || a === '-h' || a === '--help')) (await import('../lib/quoxon/earlyInput.js')).captureEarlyInput();
     const { main: quoxonMain } = await import('../lib/quoxon/main.js');
     try {

@@ -162,3 +162,6 @@ plugins-src/*/*.quoxplugin
 
 # DoneEngine external verdicts (quox plugin doctor --json --out), generated, never committed
 .quox/
+
+# Z2H-AGENTINST: signed quoxagent release staged by the release build only; never committed
+/services/collector/quoxagent-release/

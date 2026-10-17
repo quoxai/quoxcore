@@ -164,7 +164,9 @@ ENV QUOXCORE_VERSION=${QUOXCORE_VERSION}
 # Canonical VERSION file fallback: if QUOXCORE_VERSION build arg is not passed,
 # the service reads /app/VERSION so it never silently reports 0.0.0.
 # (build context is repo root — compose `context: .`)
-COPY VERSION /app/VERSION
+# REL-423: BUILD_COMMIT (full SHA) is written by the public export, which has no .git; /version reports it.
+# The [T] glob makes it optional, so the private tree (no BUILD_COMMIT) still builds.
+COPY VERSION BUILD_COMMI[T] /app/
 
 # Set HOME for Claude CLI config storage
 ENV HOME=/home/quox

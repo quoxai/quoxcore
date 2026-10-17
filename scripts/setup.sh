@@ -39,10 +39,12 @@ info() { echo -e "${CYAN}[setup]${NC} $1"; }
 # Parse args
 AUTO_YES=false
 RESET=false
+NO_CLI=false
 for arg in "$@"; do
     case $arg in
         --yes|-y) AUTO_YES=true ;;
         --reset)  RESET=true ;;
+        --no-cli) NO_CLI=true ;;
         --help|-h)
             echo "QuoxCORE Setup"
             echo ""
@@ -51,6 +53,7 @@ for arg in "$@"; do
             echo "Options:"
             echo "  --yes, -y    Accept all defaults (non-interactive)"
             echo "  --reset      Wipe all data volumes and start fresh"
+            echo "  --no-cli     Do not install the host quox command (/usr/local/bin/quox)"
             echo "  --help, -h   Show this help"
             exit 0
             ;;
@@ -167,6 +170,24 @@ if [ ${#MISSING_VARS[@]} -gt 0 ]; then
 fi
 log "  .env validated (JWT_SECRET, POSTGRES_PASSWORD, INTERNAL_SERVICE_KEY, DOCKER_GID)"
 echo ""
+
+# REL-423: collector LAN URL (start)
+# GET /install templates COLLECTOR_LAN_URL into install.sh as the address an enrolled host reports to, and
+# `quox fleet enrol` prints it. Unset, the installer named no collector and enrolment pointed hosts at the
+# dashboard's self-signed edge. Default it to this machine's LAN address on the published collector port.
+# An operator's own value is never touched.
+if ! grep -qE '^COLLECTOR_LAN_URL=.+' .env 2>/dev/null; then
+    LAN_IP=$(ip route get 1 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "src") { print $(i + 1); exit }}')
+    CPORT=$(grep -s '^COLLECTOR_PORT=' .env | tail -1 | cut -d= -f2-)
+    if [ -n "$LAN_IP" ]; then
+        sed -i '/^COLLECTOR_LAN_URL=$/d' .env
+        echo "COLLECTOR_LAN_URL=http://${LAN_IP}:${CPORT:-9848}" >> .env
+        log "  COLLECTOR_LAN_URL=http://${LAN_IP}:${CPORT:-9848} (hosts you enrol report here)"
+    else
+        warn "  Could not detect this machine's LAN address: set COLLECTOR_LAN_URL=http://<this-host>:9848 in .env before enrolling hosts"
+    fi
+fi
+# REL-423: collector LAN URL (end)
 
 # ─── Matrix is optional (quox#801) ─────────────────────────
 # docker-compose.yml attaches dashboard + auth to the external network created by the separate
@@ -393,9 +414,18 @@ BUILD_LOG="$LOG_DIR/build-$(date +%Y%m%d-%H%M%S).log"
 # every fresh install reported "Running 0.0.0 · differs from the checkout". A caller-set value wins.
 if [ -z "${QUOXCORE_VERSION:-}" ]; then
     QUOXCORE_VERSION="$(git rev-parse --short HEAD 2>/dev/null || true)"
+    # REL-423: the public release tree has no .git; its export writes BUILD_COMMIT (full SHA) instead.
+    if [ -z "$QUOXCORE_VERSION" ] && [ -f BUILD_COMMIT ] && grep -qxE '[0-9a-f]{40}' BUILD_COMMIT; then
+        QUOXCORE_VERSION="$(cut -c1-9 BUILD_COMMIT)"
+    fi
     [ -n "$QUOXCORE_VERSION" ] && export QUOXCORE_VERSION || unset QUOXCORE_VERSION
 fi
 # Z2H-R4: end stamp
+# REL-423: the quoxagent staging step used by the local build below. Sourced here, outside the build block, and
+# required: setup stops if it is missing.
+# shellcheck source=lib/quoxagent-release.sh
+. "$SCRIPT_DIR/lib/quoxagent-release.sh" || { err "  missing $SCRIPT_DIR/lib/quoxagent-release.sh: re-clone the repository"; exit 1; }
+declare -F stage_quoxagent_release >/dev/null || { err "  quoxagent staging step not loaded"; exit 1; }
 # Z2H-R2: parallel buildx targets on a small box hit transient registry resets (ECONNRESET) on 3 of 4
 # fresh-VM runs. Build one-at-a-time on <=2 cores, and retry (max 3 attempts) ONLY when the log shows
 # a transient network error or a containerd/buildkit restart mid-build (Z2H-R3: unattended-upgrades); any other failure stops at once.
@@ -459,6 +489,11 @@ if [ "$QUOX_IMAGES" = "prebuilt" ]; then
     fi
 fi
 if [ "$PULLED" -ne 1 ]; then
+    # REL-423: a local build stages the signed quoxagent release first (same verifier as the CI images), so this
+    # install serves GET /install and can enrol hosts. Fails closed on a bad signature/hash, loud when offline.
+    # The lib is sourced (hard requirement) before this block; the declare guard only lets the block run in
+    # isolation (setupBuildRetry.test.js extracts it), it never skips staging in a real run.
+    if declare -F stage_quoxagent_release >/dev/null; then stage_quoxagent_release || exit 1; fi
     info "  Building images (this takes a few minutes on first run)..."
 fi
 while :; do
@@ -577,6 +612,16 @@ for service in "${CRITICAL_SERVICES[@]}"; do
     esac
 done
 
+# REL-423: host quox CLI (start)
+# Owner rule (CLI first): a fresh server gets a working `quox` with no Node on the host. The wrapper runs the
+# CLI baked into this stack's collector image; the local profile points at this install. --no-cli skips it.
+# shellcheck source=lib/quox-host-cli.sh
+. "$SCRIPT_DIR/lib/quox-host-cli.sh"
+EDGE_PORT=$(grep -s '^DASHBOARD_PORT=' .env | tail -1 | cut -d= -f2-)
+CLI_FAILED=0
+install_host_cli "$PROJECT_ROOT" "https://localhost:${EDGE_PORT:-3000}" || CLI_FAILED=1
+# REL-423: host quox CLI (end)
+
 # Z2H-3c: final banner (start)
 # The address saved in CORS_ORIGINS is from the FIRST install; a DHCP change makes it stale. Print the
 # current one, and say when it moved (the self-signed certificate still names the old address).
@@ -609,6 +654,11 @@ if [ "${SETUP_RERUN:-0}" = "1" ]; then
 else
     echo "  Complete the Setup Wizard to configure your API keys and create"
     echo "  your first admin account."
+    if [ "$NO_CLI" != true ] && [ "$CLI_FAILED" -eq 0 ]; then
+        echo "  Or from this terminal: quox -p local setup"
+        echo ""
+        echo -e "  Next: ${BOLD}quox -p local setup license link${NC}  (link this install to your Quox licence)"
+    fi
     echo "  Then confirm Web Terminal and Quox CLI health in Verify before"
     echo "  treating the install as fully ready."
 fi
@@ -621,3 +671,7 @@ echo "    docker compose ps               # Service status"
 echo "    docker compose down             # Stop everything"
 echo "    ./scripts/setup.sh --reset      # Factory reset (wipes data)"
 echo ""
+if [ "$CLI_FAILED" -ne 0 ]; then
+    err "The host quox command could not be installed (see above). The platform is up; re-run ./scripts/setup.sh to retry, or --no-cli to skip it."
+    exit 1
+fi
