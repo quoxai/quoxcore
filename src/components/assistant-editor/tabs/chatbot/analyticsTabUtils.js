@@ -166,3 +166,12 @@ export function answerQualityDisplay(q) {
     detail: `${q.answered} of ${q.assessed} answers backed by strong knowledge${parts.length ? ` · ${parts.join(' · ')}` : ''}${q.unassessed ? ` · ${q.unassessed} not scored` : ''}`,
   }
 }
+
+// W16: the corrected-list caption must match what happened to the reply.
+// served_unsupported === true means the claim was served; false means the
+// claim check removed it; undefined means the turn predates the field.
+export function correctedCaption(servedUnsupported) {
+  if (servedUnsupported === true) return 'Served with a claim the check could not confirm'
+  if (servedUnsupported === false) return 'The claim check removed an unsupported claim before the visitor saw the reply'
+  return 'Flagged by the claim check'
+}

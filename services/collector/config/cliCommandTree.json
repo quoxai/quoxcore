@@ -4,6 +4,11 @@
     "account": [
       "password"
     ],
+    "actions": [
+      "get",
+      "list"
+    ],
+    "active": [],
     "admin": [
       "agent-identity",
       "config",
@@ -40,13 +45,21 @@
       "list-grants",
       "revoke-attach",
       "revoke-attach-all",
+      "slot",
       "tool",
       "unbind-slot",
       "update"
     ],
     "approvals": [
       "grants",
-      "result"
+      "result",
+      "walkthrough"
+    ],
+    "aside": [],
+    "ask": [
+      "loosening",
+      "status",
+      "wait"
     ],
     "assistant": [
       "create",
@@ -55,6 +68,8 @@
       "fork",
       "get",
       "list",
+      "publish",
+      "undeploy",
       "update"
     ],
     "aware": [
@@ -172,10 +187,12 @@
       "add",
       "add-id",
       "archive",
+      "best-channel",
       "brief",
       "call",
       "certificate",
       "compliance",
+      "count",
       "dsar",
       "duplicates",
       "edit",
@@ -204,6 +221,7 @@
       "suppress",
       "suppressed",
       "sync",
+      "timeline",
       "unblock",
       "unmerge"
     ],
@@ -228,7 +246,17 @@
       "skills",
       "supervisor"
     ],
-    "discord": [],
+    "discord": [
+      "bind",
+      "bindings",
+      "doctor",
+      "gaps",
+      "health",
+      "instances",
+      "provision",
+      "status",
+      "unbind"
+    ],
     "doctor": [],
     "domain": [
       "add",
@@ -287,16 +315,23 @@
       "post",
       "posts"
     ],
+    "fetch": [
+      "allow"
+    ],
     "file": [
+      "assign",
       "delete",
       "download",
       "list",
+      "quarantine",
       "stats",
       "upload"
     ],
     "fleet": [
       "agents",
       "codex-provision",
+      "enrol",
+      "enroll",
       "exec",
       "gpu",
       "health",
@@ -321,17 +356,26 @@
     ],
     "gripe": [],
     "hat": [
+      "create",
+      "delete",
+      "edit",
       "list",
       "reset",
-      "show"
+      "show",
+      "use"
     ],
     "health": [],
+    "hyperion": [
+      "deck",
+      "status"
+    ],
     "inbox": [
       "get",
       "list",
       "respond",
       "show",
-      "stats"
+      "stats",
+      "walkthrough"
     ],
     "instagram": [
       "accounts",
@@ -429,6 +473,7 @@
       "zones"
     ],
     "memory": [
+      "core",
       "create",
       "delete",
       "export",
@@ -436,10 +481,12 @@
       "get",
       "history",
       "list",
+      "pin",
       "reinstate",
       "search",
       "stats",
       "timeline",
+      "unpin",
       "update"
     ],
     "mfa": [
@@ -447,6 +494,11 @@
       "disable",
       "setup",
       "verify"
+    ],
+    "mind": [
+      "health",
+      "implant",
+      "implants"
     ],
     "mon": [
       "agh-chain",
@@ -503,6 +555,7 @@
     "objective": [
       "approve",
       "approve-checkpoint",
+      "cancel",
       "checkpoints",
       "create",
       "deny-checkpoint",
@@ -510,6 +563,10 @@
       "halt",
       "list",
       "start"
+    ],
+    "offload": [
+      "release",
+      "status"
     ],
     "onboard": [],
     "open": [],
@@ -524,6 +581,7 @@
       "switch",
       "update"
     ],
+    "peek": [],
     "plan": [
       "add",
       "completed",
@@ -536,6 +594,7 @@
       "rename",
       "roadmap",
       "roadmaps",
+      "search",
       "show",
       "stats",
       "status",
@@ -546,6 +605,7 @@
       "assign",
       "data",
       "doctor",
+      "enable",
       "get",
       "install",
       "licence",
@@ -575,6 +635,9 @@
       "status",
       "update"
     ],
+    "presence": [
+      "set"
+    ],
     "prompt": [
       "create",
       "delete",
@@ -585,6 +648,11 @@
       "restore",
       "update",
       "versions"
+    ],
+    "provider": [
+      "connect",
+      "list",
+      "test"
     ],
     "qlarity": [
       "allowlist",
@@ -629,6 +697,29 @@
       "get",
       "list",
       "tool"
+    ],
+    "router": [
+      "conflicts",
+      "free-ip",
+      "health",
+      "inventory",
+      "leases",
+      "pools",
+      "trust",
+      "vpn",
+      "wireguard"
+    ],
+    "rows": [
+      "add",
+      "contract",
+      "edit",
+      "import",
+      "list",
+      "ls",
+      "remove",
+      "rm",
+      "share",
+      "test"
     ],
     "run": [
       "cancel",
@@ -721,19 +812,25 @@
       "show"
     ],
     "slot": [
+      "ack",
       "assign",
       "bridge",
+      "broadcast",
+      "broadcast-status",
       "checkout",
       "claim",
       "control",
       "create",
       "heartbeat",
+      "join",
+      "leave",
       "list",
       "peek",
       "prune",
       "read",
       "release",
       "retire",
+      "rooms",
       "say",
       "wait"
     ],
@@ -794,12 +891,16 @@
     ],
     "trigger": [
       "events",
+      "pause",
+      "resume",
       "schedules",
+      "webhook-fire",
       "webhooks",
       "workflow-activate",
       "workflow-deactivate"
     ],
     "tui": [],
+    "update": [],
     "vault": [
       "activity",
       "assign",
@@ -826,6 +927,25 @@
       "unassign",
       "update"
     ],
+    "vm": [
+      "agents",
+      "cluster",
+      "doctor",
+      "ha",
+      "info",
+      "list",
+      "node",
+      "pool",
+      "reboot",
+      "rehearse",
+      "resolve",
+      "shutdown",
+      "snapshot",
+      "start",
+      "stop",
+      "storage",
+      "templates"
+    ],
     "voice": [
       "calls",
       "identities",
@@ -851,6 +971,7 @@
       "list",
       "rotate"
     ],
+    "welcome": [],
     "whoami": [],
     "workflow": [
       "apply",
@@ -862,6 +983,7 @@
       "list",
       "publish",
       "run",
+      "schedule",
       "steps",
       "update",
       "validate"

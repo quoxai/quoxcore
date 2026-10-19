@@ -184,9 +184,28 @@ function requireReadToken(req, res, next) {
   return next();
 }
 
+/**
+ * #914: the read token OR the caller's own normal auth. With QUOXCORE_READ_TOKEN set, requireReadToken
+ * 401s every other bearer, so a signed-in owner could not read the platform health their own CLI and
+ * TUI ask for. Here the read token still passes on its own; any other caller is handed to `fallback`
+ * (the usual user/service auth). With no token configured the route stays open exactly as before.
+ */
+function readTokenOr(fallback) {
+  return function readTokenOrFallback(req, res, next) {
+    const configuredToken = process.env.QUOXCORE_READ_TOKEN;
+    if (!configuredToken) return next();
+    const authHeader = req.headers && (req.headers.authorization || req.headers.Authorization);
+    const match = typeof authHeader === 'string' && authHeader.match(/^Bearer\s+(.+)$/);
+    const provided = match ? match[1].trim() : '';
+    if (provided && timingSafeEqualStrings(provided, configuredToken)) return next();
+    return fallback(req, res, next);
+  };
+}
+
 module.exports = {
   getResourceStats,
   requireReadToken,
+  readTokenOr,
   // exported for unit testing / reuse
   getCpuStats,
   getMemoryStats,

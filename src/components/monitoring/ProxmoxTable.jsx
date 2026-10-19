@@ -278,8 +278,12 @@ export function ProxmoxTable({
             className={`pxt-tab ${typeFilter === 'backups' ? 'pxt-tab--active' : ''}`}
             onClick={() => onTypeFilterChange?.('backups')}
           >Backups</button>
+          <button
+            className={`pxt-tab ${typeFilter === 'pool' ? 'pxt-tab--active' : ''}`}
+            onClick={() => onTypeFilterChange?.('pool')}
+          >Pool</button>
         </div>
-        {typeFilter !== 'nodes' && typeFilter !== 'backups' && (
+        {typeFilter !== 'nodes' && typeFilter !== 'backups' && typeFilter !== 'pool' && (
           <div className="pxt-controls">
             <button
               className={`pxt-group-toggle ${grouped ? 'pxt-group-toggle--active' : ''}`}

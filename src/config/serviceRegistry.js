@@ -97,9 +97,9 @@ export const SERVICE_REGISTRY = {
     dependents: ['dashboard'],
 
     docs: {
-      configPath: '/opt/quoxcore/services/collector/.env',
+      configPath: '~/quox-dashboard/services/collector/.env',
       logsPath: 'Docker logs or systemd journal',
-      serverFile: '/opt/quoxcore/services/collector/server.js'
+      serverFile: '~/quox-dashboard/services/collector/server.js'
     },
 
     troubleshooting: [
@@ -152,9 +152,9 @@ export const SERVICE_REGISTRY = {
     dependents: ['dashboard'],
 
     docs: {
-      configPath: '/opt/quoxcore/services/auth/.env',
-      databasePath: '/opt/quoxcore/services/auth/data/auth.db',
-      serverFile: '/opt/quoxcore/services/auth/server.js'
+      configPath: '~/quox-dashboard/services/auth/.env',
+      databasePath: '~/quox-dashboard/services/auth/data/auth.db',
+      serverFile: '~/quox-dashboard/services/auth/server.js'
     },
 
     troubleshooting: [
@@ -208,8 +208,8 @@ export const SERVICE_REGISTRY = {
 
     docs: {
       configPath: 'Docker environment',
-      dataPath: '/opt/quoxcore/qdrant-data',
-      dockerCompose: '/opt/quoxcore/docker-compose.yml'
+      dataPath: '~/qdrant-data',
+      dockerCompose: '~/docker-compose.yml'
     },
 
     troubleshooting: [
@@ -263,8 +263,8 @@ export const SERVICE_REGISTRY = {
     dependents: ['dashboard'],
 
     docs: {
-      configPath: '/opt/quoxcore/services/orchestrator/.env',
-      serverFile: '/opt/quoxcore/services/orchestrator/server.js',
+      configPath: '~/quox-dashboard/services/orchestrator/.env',
+      serverFile: '~/quox-dashboard/services/orchestrator/server.js',
       sandboxImages: 'quox-sandbox:restricted, quox-sandbox:standard'
     },
 
@@ -319,7 +319,7 @@ export const SERVICE_REGISTRY = {
     dependents: ['dashboard', 'auth', 'collector'],
 
     docs: {
-      configPath: '/opt/quoxcore/nginx.conf',
+      configPath: '~/quox-dashboard/nginx.conf',
       sslCertPath: '/etc/nginx/ssl/quox.crt',
       sslKeyPath: '/etc/nginx/ssl/quox.key',
       systemdService: 'nginx.service'
@@ -357,7 +357,7 @@ export const SERVICE_REGISTRY = {
 
     links: [
       { label: 'Nginx Status', url: '/nginx_status' },
-      { label: 'Config File', url: 'file:///opt/quoxcore/nginx.conf' }
+      { label: 'Config File', url: 'file://~/quox-dashboard/nginx.conf' }
     ]
   },
 
@@ -385,9 +385,9 @@ export const SERVICE_REGISTRY = {
     dependents: ['collector'],
 
     docs: {
-      configPath: '/opt/quoxcore/services/memory/.env',
+      configPath: '~/quox-dashboard/services/memory/.env',
       databasePath: '/var/lib/quox/memory.db',
-      serverFile: '/opt/quoxcore/services/memory/server.js'
+      serverFile: '~/quox-dashboard/services/memory/server.js'
     },
 
     troubleshooting: [
@@ -440,9 +440,9 @@ export const SERVICE_REGISTRY = {
     dependents: ['dashboard'],
 
     docs: {
-      configPath: '/opt/quoxcore/services/files/.env',
+      configPath: '~/quox-dashboard/services/files/.env',
       storagePath: '/var/lib/quox/files',
-      serverFile: '/opt/quoxcore/services/files/server.js'
+      serverFile: '~/quox-dashboard/services/files/server.js'
     },
 
     troubleshooting: [
@@ -497,7 +497,7 @@ export const SERVICE_REGISTRY = {
     docs: {
       configPath: 'Docker environment (POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD)',
       dataPath: 'postgres-data volume (/var/lib/postgresql/data)',
-      dockerCompose: '/opt/quoxcore/docker-compose.yml'
+      dockerCompose: '~/quox-dashboard/docker-compose.yml'
     },
 
     troubleshooting: [
@@ -550,9 +550,9 @@ export const SERVICE_REGISTRY = {
     dependents: ['collector'],
 
     docs: {
-      configPath: '/opt/quoxcore/quoxflow/.env',
-      serverFile: '/opt/quoxcore/quoxflow/src/server.ts',
-      dockerCompose: '/opt/quoxcore/docker-compose.yml'
+      configPath: '~/quoxflow/.env',
+      serverFile: '~/quoxflow/src/server.ts',
+      dockerCompose: '~/quox-dashboard/docker-compose.yml'
     },
 
     troubleshooting: [
@@ -606,9 +606,9 @@ export const SERVICE_REGISTRY = {
     dependents: ['dashboard'],
 
     docs: {
-      configPath: '/opt/quoxcore/services/tasks/.env',
+      configPath: '~/quox-dashboard/services/tasks/.env',
       databasePath: '/var/lib/quox/tasks.db',
-      serverFile: '/opt/quoxcore/services/tasks/server.js'
+      serverFile: '~/quox-dashboard/services/tasks/server.js'
     },
 
     troubleshooting: [

@@ -9,6 +9,9 @@ export interface AuthUser {
   org_id?: string;
   role?: string;
   type: 'access' | 'service';
+  /** quoxflow#14: the token is an agent principal (attach lease, resident identity, plugin). Set by the
+   * auth middleware from the credential's markers, never self-asserted in a request body. */
+  isAgent?: boolean;
 }
 
 export type AppVariables = {

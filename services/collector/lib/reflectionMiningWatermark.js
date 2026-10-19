@@ -53,6 +53,13 @@ const SCHEMA = `
     last_processed_ts TEXT NOT NULL,
     updated_at        TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS reflection_chat_mining_marks (
+    org_id        TEXT NOT NULL,
+    session_id    TEXT NOT NULL,
+    last_mined_ts INTEGER NOT NULL,
+    updated_at    TEXT NOT NULL,
+    PRIMARY KEY (org_id, session_id)
+  );
   CREATE TABLE IF NOT EXISTS reflection_mining_alert_dedup (
     dedup_key   TEXT PRIMARY KEY,
     org_id      TEXT NOT NULL,
@@ -180,7 +187,44 @@ function _closeForTest(dbPath) {
   _warnedPaths.delete(resolvedPath);
 }
 
+/**
+ * BRAIN2-FABLE11 quox#1193 chat mining: the newest chat turn (epoch ms) already mined for one
+ * session. Durable, so a continued session or a collector restart never mines the same turns
+ * twice. Returns null when the session was never mined (or the store is unreadable).
+ */
+function getChatMark(orgId, sessionId, { dbPath } = {}) {
+  const db = resolveDb(dbPath);
+  if (!db) return null;
+  try {
+    const row = db.prepare('SELECT last_mined_ts FROM reflection_chat_mining_marks WHERE org_id = ? AND session_id = ?').get(String(orgId), String(sessionId));
+    return row ? Number(row.last_mined_ts) : null;
+  } catch (err) {
+    console.error(`[ReflectionMiningWatermark] org=${orgId}: chat mark read failed — ${err.message}`);
+    return null;
+  }
+}
+
+/** Advance a session's chat mark (never backwards). */
+function setChatMark(orgId, sessionId, ts, { dbPath } = {}) {
+  const db = resolveDb(dbPath);
+  if (!db) return false;
+  try {
+    db.prepare(`
+      INSERT INTO reflection_chat_mining_marks (org_id, session_id, last_mined_ts, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(org_id, session_id) DO UPDATE SET
+        last_mined_ts = MAX(last_mined_ts, excluded.last_mined_ts), updated_at = excluded.updated_at
+    `).run(String(orgId), String(sessionId), Number(ts), new Date().toISOString());
+    return true;
+  } catch (err) {
+    console.error(`[ReflectionMiningWatermark] org=${orgId}: chat mark write failed — ${err.message}`);
+    return false;
+  }
+}
+
 module.exports = {
+  getChatMark,
+  setChatMark,
   getWatermark,
   setWatermark,
   alertAlreadySent,

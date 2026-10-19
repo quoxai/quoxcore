@@ -3,6 +3,14 @@ import '../lib/core/prodEnv.js'; // first: production React unless NODE_ENV is s
 
 import v8 from 'node:v8';
 
+// QUOXON-LATENCY: a warm `claude` spare cannot carry this turn's conversation id in its
+// (fixed) env, so the collector writes it to QUOX_SESSION_ID_FILE for the turn. Surface it
+// as QUOX_SESSION_ID before any command reads it. An explicit QUOX_SESSION_ID wins.
+if (!process.env.QUOX_SESSION_ID && process.env.QUOX_SESSION_ID_FILE) {
+  // dynamic, not a static import: bin/quox.js keeps its static imports to prodEnv + node:v8 (r3early, input capture first)
+  try { process.env.QUOX_SESSION_ID = (await import('node:fs')).readFileSync(process.env.QUOX_SESSION_ID_FILE, 'utf8').trim(); } catch { /* turn ended: no session */ }
+}
+
 // CORTEX-BENCH: Node's fetch parses HTTP with a WebAssembly module, and V8
 // recompiles it at the optimising tier on a background thread; Node waits for
 // that compile before exiting, adding 350-700ms to every short command after
@@ -28,9 +36,14 @@ v8.setFlagsFromString('--liftoff-only');
     }
     launcher.takeLauncherHandoff(); // a launched client: read and drop the handoff var before anything can spawn
     if (!qArgv.some(a => a === '--print' || a.startsWith('--print=') || a === '-h' || a === '--help')) (await import('../lib/quoxon/earlyInput.js')).captureEarlyInput();
-    const { main: quoxonMain } = await import('../lib/quoxon/main.js');
     try {
-      await quoxonMain(qArgv);
+      // QUOXON-LATENCY: --print runs headless without loading React / Ink / the App (~2 s cold).
+      const headless = qArgv.some(a => a === '--print' || a.startsWith('--print='))
+        && await (await import('../lib/quoxon/headless.js')).runHeadless(qArgv);
+      if (!headless) {
+        const { main: quoxonMain } = await import('../lib/quoxon/main.js');
+        await quoxonMain(qArgv);
+      }
     } catch (err) {
       console.error(err?.message || err);
       process.exitCode = 1;
@@ -40,10 +53,12 @@ v8.setFlagsFromString('--liftoff-only');
 }
 
 // The commander CLI: loaded only when the conversation client is not (see the block above).
+// `quox --update` is `quox update` (owner 2026-10-16): one updater, lib/core/selfUpdate.js.
+if (process.argv.includes('--update')) process.argv = [...process.argv.slice(0, 2), ...(await import('../lib/core/selfUpdate.js')).rewriteUpdateFlag(process.argv.slice(2))];
 const { Command } = await import('commander');
 const { loadConfig, resolveProfileFlagFromArgv } = await import('../lib/core/config.js');
 const { resolveCliVersion, BASE_VERSION } = await import('../lib/core/version.js');
-const { mergeShadowedGlobals } = await import('../lib/core/global-flags.js');
+const { applyRootOptions, installFlagDeliveryHooks } = await import('../lib/core/rootOptions.js');
 const { createAuth } = await import('../lib/core/auth.js');
 const { extractActingAs } = await import('../lib/core/actingAs.js');
 const { createClient } = await import('../lib/core/client.js');
@@ -69,18 +84,9 @@ const program = new Command();
 program
   .name('quox')
   .description('QuoxCORE CLI — manage agents, workflows, memory, fleet, and more')
-  .version(versionRequested ? resolveCliVersion() : BASE_VERSION)
-  .option('-o, --output <format>', 'output format: table, json, csv, quiet', 'table')
-  .option('--json', 'shorthand for --output json')
-  .option('-q, --quiet', 'suppress output, show IDs only')
-  .option('--org <slug>', 'override active organization')
-  .option('-p, --profile <name>', 'use a specific config profile')
-  .option('--no-color', 'disable colored output')
-  .option('-v, --verbose', 'show detailed output')
-  .option('--debug', 'show HTTP request/response details')
-  .option('--dry-run', 'show what would happen without executing')
-  .option('-y, --yes', 'skip confirmation prompts')
-  .option('--insecure', 'allow self-signed SSL certificates')
+  .version(versionRequested ? resolveCliVersion() : BASE_VERSION);
+// Global options live in lib/core/rootOptions.js so the safety-flag test builds this same root.
+applyRootOptions(program)
   .addHelpText('after', '\nConversation (QUOXON client):\n  quox                                  interactive conversation (terminal only)\n  quox --print "<prompt>" [--output text|json] [--conversation <id>] [--timeout <s>]   one headless turn; exit 0 completed, 2 held for approval, 3 interrupted, 4 not signed in, 5 unconfirmed\n  quox --demo                           simulated journey, nothing real runs\n');
 
 // Wire up global flags
@@ -94,8 +100,30 @@ program.hook('preAction', (thisCommand) => {
 // never receives it: commander resolves against the root first and the
 // subcommand reads undefined forever. See lib/core/global-flags.js for the
 // 13 places this had already shipped, including --dry-run executing for real.
-program.hook('preAction', (thisCommand, actionCommand) => {
-  mergeShadowedGlobals(thisCommand, actionCommand);
+// Also: a --dry-run the leaf cannot honour is refused, never silently dropped
+// (quox#1077 follow-up). Both hooks live in lib/core/rootOptions.js.
+installFlagDeliveryHooks(program);
+
+// #1141: `--org <slug>` (and a slug in QUOX_ORG_ID) resolves to the org ID once, here, so every verb and
+// the GRIPE-709 guard below see an ID. ID-shaped values pass through with no call. Login-type verbs are left alone.
+program.hook('preAction', async (thisCommand, actionCommand) => {
+  const { isOrgId, resolveOrgRef } = await import('../lib/core/orgResolve.js');
+  const { EXEMPT } = await import('../lib/core/org-override.js');
+  if (EXEMPT.has(commandPath(actionCommand))) return;
+  const rootOrg = thisCommand.opts().org;
+  const leafOrg = actionCommand !== thisCommand ? actionCommand.getOptionValue?.('org') : undefined;
+  const envOrg = process.env.QUOX_ORG_ID;
+  if ([rootOrg, leafOrg, envOrg].every((v) => !v || typeof v !== 'string' || isOrgId(v))) return;
+  const { resolveEndpoint } = await import('../lib/api/endpoints.js');
+  const listOrgs = async () => {
+    const ep = resolveEndpoint('orgs.list');
+    const d = await client.get(ep.path, { service: ep.service });
+    return Array.isArray(d) ? d : (d?.organizations || d?.orgs || d?.data || []);
+  };
+  const base = { profile: config.getActiveProfileName?.() || 'default', authData: config.getAuth?.() || null, listOrgs };
+  if (typeof rootOrg === 'string' && !isOrgId(rootOrg)) thisCommand.setOptionValue('org', await resolveOrgRef(rootOrg, base));
+  if (typeof leafOrg === 'string' && !isOrgId(leafOrg)) actionCommand.setOptionValue('org', await resolveOrgRef(leafOrg, base));
+  if (envOrg && !isOrgId(envOrg)) process.env.QUOX_ORG_ID = await resolveOrgRef(envOrg, { ...base, source: 'QUOX_ORG_ID' });
 });
 
 // GRIPE-709: --org must be honoured or refused, never silently ignored.
@@ -221,7 +249,17 @@ async function warnVersionSkew() {
     await program.parseAsync(process.argv);
     await warnVersionSkew();
   } catch (err) {
-    handleError(err, program.opts().output);
+    // #1101: Ctrl-C at any inquirer prompt is the user leaving: "Cancelled.", cursor back, exit 130, no stack.
+    const { exitOnPromptCancel } = await import('../lib/core/promptCancel.js');
+    exitOnPromptCancel(err); // exits 130 on a cancel; otherwise falls through to the normal error printer
+    // #995: tell the error printer which group failed and what verbs it has, so a 404 hint names a real one
+    let ctx = null;
+    try {
+      const word = process.argv.slice(2).find((a, i, all) => !a.startsWith('-') && !['-p', '--profile', '--org', '-o', '--output'].includes(all[i - 1]));
+      const grp = word && program.commands.find((c) => c.name() === word || c.aliases().includes(word));
+      if (grp) ctx = { group: grp.name(), subcommands: grp.commands.map((c) => c.name()) };
+    } catch { /* the hint is advisory */ }
+    handleError(err, program.opts().output, ctx);
     process.exit(err.exitCode || 1);
   }
 }

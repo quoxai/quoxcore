@@ -9,6 +9,10 @@
  * the turn = none here = the server default, as before.
  */
 function buildDelegationBody(input, ctx, agentId, depth) {
+  // WORKER2 (direct-request-hop): the sub-turn's token carries agent_id = selected_agent, and that
+  // mismatch with the human's agent is what marks a CLI specialist's tool call as delegated (the CLI
+  // ctx has no depth). A hop with no target would look like the human's own agent: never send one.
+  if (!agentId || !String(agentId).trim()) throw new Error('delegate_to_agent: a delegation needs a target agent (selected_agent)');
   return JSON.stringify({
     prompt: input.task,
     selected_agent: agentId,
@@ -23,6 +27,8 @@ function buildDelegationBody(input, ctx, agentId, depth) {
     quox_context: ctx.quox_context || undefined,
     conversation_history: ctx.conversation_history || undefined,
     session_id: ctx.session_id || undefined,
+    // quox#1090 ruling (b): the parent turn's held-bearer expiry; the sub-turn's hold never outlives it.
+    _bearer_hold_until: ctx.bearerHoldUntil || undefined,
     voice_mode: ctx.voice_mode || 'hal'
   });
 }

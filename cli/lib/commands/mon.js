@@ -2,7 +2,7 @@
  * Monitoring commands: Docker fleet, Wazuh security monitoring, AGH-chain
  * agent honesty leaderboard, Prometheus metrics, and monitoring config.
  *
- * quox mon docker fleet|containers|container|logs|stats|stacks|df|action
+ * quox mon docker fleet|containers|container|inspect|logs|stats|stacks|df|action
  * quox mon wazuh status|agents|alerts|vulns|deploy-history|deploy-agent|deploy-bulk|active-response
  * quox mon agh-chain leaderboard|agent|events
  * quox mon metrics
@@ -36,6 +36,47 @@ async function confirmOrSkip(program, options, message) {
   return ans.confirm;
 }
 
+
+/** One readable line per fact from the inspect health block (null when the container has no healthcheck). */
+function healthRows(h) {
+  if (!h) return null;
+  const rows = [];
+  const streak = h.failing_streak ? ` (failing ${h.failing_streak} times)` : '';
+  rows.push(`health: ${h.status || 'unknown'}${streak}`);
+  if (h.test) {
+    const parts = [h.interval && `every ${h.interval}`, h.timeout && `timeout ${h.timeout}`, h.retries != null && `retries ${h.retries}`].filter(Boolean);
+    rows.push(`probe: ${h.test}${parts.length ? ' ' + parts.join(', ') : ''}`);
+  }
+  for (const p of h.last_probes || []) {
+    const o = String(p.output || '').replace(/\s+/g, ' ').trim();
+    rows.push(`last: exit ${p.exit_code}${o ? ` '${o}'` : ''}${p.end ? ` at ${p.end}` : ''}`);
+  }
+  return rows;
+}
+
+/**
+ * DEVFLEET-DOCKER: an error body is not data. If the collector reports a refused/failed Docker
+ * read, say so (stderr) and set a non-zero exit instead of printing an empty list. Partial fleets
+ * print the failed hosts as warnings. Returns true when the whole read failed (caller stops).
+ */
+function reportDockerReadFailures(data) {
+  if (!data) return false;
+  const failedHosts = Array.isArray(data.hosts_failed) ? data.hosts_failed
+    : (data.success === false && Array.isArray(data.hosts) ? data.hosts.filter((h) => h && h.ok === false) : []);
+  if (data.success === false) {
+    const tag = data.refused ? ' (refused, error_code ' + (data.error_code || 'approval_required') + ')' : '';
+    console.error('Docker read failed' + tag + ': ' + (data.error || 'unknown error'));
+    for (const h of failedHosts) console.error('  ' + h.host + ': ' + (h.error || 'failed'));
+    process.exitCode = 1;
+    return true;
+  }
+  if (data.partial) {
+    console.error('Partial result: ' + failedHosts.length + ' host(s) could not be read; the list below is incomplete.');
+    for (const h of failedHosts) console.error('  ' + h.host + ': ' + (h.error || 'failed'));
+  }
+  return false;
+}
+
 export function registerMonCommands(program, ctx) {
   const { client, auth } = ctx;
 
@@ -59,6 +100,7 @@ export function registerMonCommands(program, ctx) {
       auth.requireAuth();
       const ep = resolveEndpoint('mon.docker.fleet.list');
       const data = await client.get(ep.path, { service: ep.service, query: options.refresh ? { refresh: 'true' } : undefined });
+      if (reportDockerReadFailures(data)) return;
       const hosts = data.hosts || [];
       formatOutput({
         // fleet #392: docker fleet rows are id/containers_total/docker_version; ip and status don't exist.
@@ -82,6 +124,7 @@ export function registerMonCommands(program, ctx) {
       if (options.all === false) query.all = 'false';
       if (options.refresh) query.refresh = 'true';
       const data = await client.get(ep.path, { service: ep.service, query });
+      if (reportDockerReadFailures(data)) return;
       formatOutput({
         columns: ['host_id', 'id', 'name', 'image', 'state', 'status'],
         headers: ['Host', 'ID', 'Name', 'Image', 'State', 'Status'],
@@ -98,12 +141,33 @@ export function registerMonCommands(program, ctx) {
       auth.requireAuth();
       const ep = resolveEndpoint('mon.docker.containers.get', { id });
       const data = await client.get(ep.path, { service: ep.service, query: { host: options.host } });
+      // quox#1001: a 200 with success:false (e.g. "Bastion not configured") is a failure, not an
+      // empty container. Surface the error on stderr + exit non-zero instead of rendering a blank card.
+      if (reportDockerReadFailures(data)) return;
       formatDetail(data, {
         format: program.opts().output,
         title: `Container: ${id} (${options.host})`,
         fields: ['host', 'container', 'stats', 'logs'],
         labels: { host: 'Host', container: 'Container', stats: 'Stats', logs: 'Logs' },
       });
+    });
+
+  docker
+    .command('inspect')
+    .description('Show container state and health (failing probe command and last results)')
+    .argument('<id>', 'container ID')
+    .requiredOption('--host <hostId>', 'host the container lives on')
+    .action(async (id, options) => {
+      auth.requireAuth();
+      const ep = resolveEndpoint('mon.docker.containers.inspect', { id });
+      const data = await client.get(ep.path, { service: ep.service, query: { host: options.host } });
+      if (reportDockerReadFailures(data)) return;
+      if (program.opts().output === 'json') { console.log(JSON.stringify(data, null, 2)); return; }
+      const d = data.details || {};
+      console.log(`Container: ${id} (${options.host})`);
+      console.log(`state: ${d.status || 'unknown'} · image: ${d.image || 'unknown'}`);
+      const rows = healthRows(d.health);
+      console.log(rows ? rows.join('\n') : 'health: no healthcheck configured');
     });
 
   docker
@@ -143,6 +207,7 @@ export function registerMonCommands(program, ctx) {
       auth.requireAuth();
       const ep = resolveEndpoint('mon.docker.stacks.list');
       const data = await client.get(ep.path, { service: ep.service, query: options.host ? { host: options.host } : undefined });
+      if (reportDockerReadFailures(data)) return;
       formatOutput({
         columns: ['host_id', 'name', 'status', 'services'],
         headers: ['Host', 'Stack', 'Status', 'Services'],
@@ -181,7 +246,9 @@ export function registerMonCommands(program, ctx) {
       const ep = resolveEndpoint('mon.docker.containers.action', { id, action });
       const data = await client.post(ep.path, { service: ep.service, body: { host: options.host } });
       if (data.success === false) {
-        printWarning(`Action failed: ${data.error || 'unknown error'}`);
+        // quox#1001: surface the real server error and exit non-zero (was exit 0 = success on failure).
+        printWarning(`Action failed: ${data.error || data.message || 'unknown error'}`);
+        process.exitCode = 1;
         return;
       }
       printSuccess(`Container ${id}: ${action} succeeded.`);

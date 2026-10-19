@@ -20,7 +20,7 @@ import { showToast } from '../lib/toastBus.js';
  *
  * Conversation history lives in ChatEngine's component state for this
  * render tree; no QuoxPlan-specific storage is added here. The standalone
- * harness at /opt/quoxcore/quoxplan is untouched — ROADY only exists inside
+ * harness at ~/quoxplan is untouched — ROADY only exists inside
  * the dashboard-embedded QuoxPlan view.
  */
 function buildRoadyContext(roadmapId, streamId) {

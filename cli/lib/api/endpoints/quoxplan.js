@@ -27,6 +27,13 @@ export const quoxplan = {
     path: () => `/api/v1/quoxplan/roadmaps`,
     tags: ['live-write'],
   },
+  // Read-only free-text search over streams (id, name, summary, notes, plan, phase titles).
+  'quoxplan.search': {
+    method: 'GET',
+    service: 'collector',
+    path: () => `/api/v1/quoxplan/search`,
+    tags: ['live-safe'],
+  },
   'quoxplan.roadmap.streams.list': {
     method: 'GET',
     service: 'collector',

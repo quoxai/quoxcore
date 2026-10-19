@@ -69,3 +69,18 @@ export function grantBody(rec, provider) {
 export function connectConsentNote(providerId) {
   return `One more step before it can answer: ${providerLabel(providerId)} receives your messages, so Quox needs your OK. /consent grant ${providerId}`;
 }
+
+/**
+ * QUOXON-Z2H lane R: the plain-text message `quox --print` gives for ai_consent_required, naming the exact
+ * shell command (there is no /consent in a one-shot run). profile = the -p the user named, if any.
+ */
+export function consentPrintMessage(ev, profile = null) {
+  if (ev?.retryable) return consentErrorText(ev);
+  const who = providerLabel(ev?.provider);
+  const prov = ev?.provider || '<provider>';
+  const p = profile ? `-p ${profile} ` : '';
+  return `${consentErrorText(ev)} Nothing was sent.\n`
+    + `  Your messages and any tool results would go to ${who}, a third party. Consent is personal; no admin is needed.\n`
+    + `  Grant it, then send again: quox ${p}consent grant --provider ${prov}\n`
+    + '  Or use a local model (Ollama), which needs no consent.';
+}

@@ -7,7 +7,7 @@
 //   <base>/translations_<lang>/**/*.md -> language '<lang>'
 //
 // Usage:
-//   node readers/multilingualReader.mjs --base /opt/quoxcore/obsidian \
+//   node readers/multilingualReader.mjs --base ~/obsidian \
 //     --en-subdir NodeBrain --org <orgId> --vault "ExampleVPN KB" [--scope org] [--dry-run]
 //
 // Idempotent (content-hash skip in the push API). Re-runnable.

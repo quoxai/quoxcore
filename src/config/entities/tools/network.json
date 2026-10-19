@@ -24,6 +24,11 @@
       "defconLevel": "GREEN",
       "requiresApproval": false,
       "parameters": {
+        "host": {
+          "type": "string",
+          "required": true,
+          "description": "Fleet host id to run the probe FROM (as listed by quox fleet hosts / fleet_status); there is no default probe host"
+        },
         "target": {
           "type": "string",
           "required": true,
@@ -71,6 +76,11 @@
       "defconLevel": "GREEN",
       "requiresApproval": false,
       "parameters": {
+        "host": {
+          "type": "string",
+          "required": true,
+          "description": "Fleet host id to run the probe FROM (as listed by quox fleet hosts / fleet_status); there is no default probe host"
+        },
         "target": {
           "type": "string",
           "required": true,
@@ -109,6 +119,11 @@
       "defconLevel": "GREEN",
       "requiresApproval": false,
       "parameters": {
+        "host": {
+          "type": "string",
+          "required": true,
+          "description": "Fleet host id to run the probe FROM (as listed by quox fleet hosts / fleet_status); there is no default probe host"
+        },
         "target": {
           "type": "string",
           "required": true,
@@ -148,6 +163,11 @@
       "defconLevel": "YELLOW",
       "requiresApproval": false,
       "parameters": {
+        "host": {
+          "type": "string",
+          "required": true,
+          "description": "Fleet host id to run the probe FROM (as listed by quox fleet hosts / fleet_status); there is no default probe host"
+        },
         "target": {
           "type": "string",
           "required": true,

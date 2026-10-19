@@ -7,7 +7,7 @@
  * conformance contract, so the skillrights conformance fixture set (the
  * reference CLI is the first conformant implementation) can prove itself
  * usable by a real, differently-shaped downstream consumer. Contract doc:
- * /opt/quoxcore/skillrights/conformance/INTEGRATION.md.
+ * ~/skillrights/conformance/INTEGRATION.md.
  *
  * WHAT THIS ADAPTER DOES NOT DO: it does not reimplement frontmatter
  * parsing or licence classification. Every piece of logic that decides

@@ -1,6 +1,6 @@
 /**
  * Plugin signature v2: what the signature binds, in the exact form the
- * QuoxCORE host recomputes. This is the ESM twin of quox-plugin-sdk
+ * QuoxCORE host recomputes. This is the ESM twin of @quoxai/quox-plugin-sdk
  * packages/quox-plugin-vite/src/cli/signature-v2.js (the signer side); the two
  * must stay line-for-line equivalent, so change both together.
  *

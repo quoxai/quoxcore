@@ -23,7 +23,7 @@
 
 import { NodeExecutor, ExecutorResult } from './executor.interface.js';
 import { Node } from '../core/workflow.js';
-import { ExecutionContext } from '../core/execution.js';
+import { ExecutionContext, actorToString } from '../core/execution.js';
 import { Envelope } from '../core/envelope.js';
 import { processValue } from '../expression/engine.js';
 import { ulid } from 'ulid';
@@ -151,12 +151,16 @@ export class AgentInvokeExecutor implements NodeExecutor {
 
     try {
       const url = `${this.collectorUrl}/api/internal/agents/invoke`;
-      // Extract org_id/user_id — workflow metadata is authoritative (set by converter),
-      // fall back to trigger data (first node input) for direct API executions
+      // org_id: the RUN's org (context.orgId) is authoritative, as for evidence above. Workflow
+      // metadata (set by converters) and trigger input are fallbacks only for a run with no org of
+      // its own. ASSAY audit 2026-10-17: a `quox workflow apply` workflow has no metadata.orgId, so
+      // no org was sent and the collector ran the agent in 'default' with none of its org's tools.
       const wfMeta = (context.workflow.metadata ?? {}) as Record<string, unknown>;
       const inputData = (typeof input === 'object' && input !== null) ? input as Record<string, unknown> : {};
-      const orgId = wfMeta.orgId ?? inputData.orgId;
-      const userId = wfMeta.userId ?? inputData.userId;
+      const orgId = context.orgId ?? wfMeta.orgId ?? inputData.orgId;
+      // FND_01M55X6TRMDS63SDZK3TDS63SD: the user is the run's REAL initiator only. Workflow metadata and
+      // trigger input are author-controlled and must never pick which same-org user an agent runs as.
+      const userId = context.actor?.kind === 'user' ? context.actor.userId : undefined;
 
       const body: Record<string, unknown> = {
         agent_id: agentId,
@@ -178,7 +182,10 @@ export class AgentInvokeExecutor implements NodeExecutor {
           workflow_id: context.workflow.id,
           execution_id: context.id,
           node_id: node.id,
-          ...rawConfig.context,
+          // node config cannot supply `actor`: only the run's own actor is ever reported.
+          ...(({ actor: _forged, ...rest }) => rest)((rawConfig.context ?? {}) as Record<string, unknown>),
+          // A system-initiated run names itself. After the config spread so node config cannot forge it.
+          ...(context.actor?.kind === 'system' ? { actor: actorToString(context.actor) } : {}),
         },
       };
 

@@ -15,17 +15,38 @@ export function registerDepartmentCommands(program, ctx) {
 
   dept
     .command('list')
-    .description('List departments')
-    .requiredOption('--division <divId>', 'division ID')
+    .description('List departments (all divisions unless --division; division ids: quox org divisions list)')
+    .option('--division <divId>', 'only this division')
     .action(async (options) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
-      const data = await client.get(resolveEndpoint('divisions.departments.list', { orgId, division: options.division }).path, { service: resolveEndpoint('divisions.departments.list', { orgId, division: options.division }).service });
+      const listFor = async (division) => {
+        const ep = resolveEndpoint('divisions.departments.list', { orgId, division });
+        const data = await client.get(ep.path, { service: ep.service });
+        return data.departments || data || [];
+      };
+      if (options.division) {
+        formatOutput({
+          columns: ['id', 'name', 'description', 'created_at'],
+          headers: ['ID', 'Name', 'Description', 'Created'],
+          rows: await listFor(options.division),
+        }, { format: program.opts().output });
+        return;
+      }
+      // quox#922: no --division lists every division's departments, so the read
+      // needs no id the department group cannot show.
+      const divEp = resolveEndpoint('divisions.list', { orgId });
+      const divData = await client.get(divEp.path, { service: divEp.service });
+      const divisions = divData.divisions || divData || [];
+      const rows = [];
+      for (const d of divisions) {
+        for (const dept of await listFor(d.id)) rows.push({ ...dept, division: d.name || d.id });
+      }
       formatOutput({
-        columns: ['id', 'name', 'description', 'created_at'],
-        headers: ['ID', 'Name', 'Description', 'Created'],
-        rows: data.departments || data,
-      }, { format: program.opts().output });
+        columns: ['id', 'name', 'division', 'description', 'created_at'],
+        headers: ['ID', 'Name', 'Division', 'Description', 'Created'],
+        rows,
+      }, { format: program.opts().output, emptyMessage: 'No departments.' });
     });
 
   dept

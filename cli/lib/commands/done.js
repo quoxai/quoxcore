@@ -55,6 +55,7 @@ import path from 'node:path';
 import {
   resolveFetchDestination,
   fetchEngine,
+  inspectInstall,
   OPT_GAUGE_DIR,
   userLocalGaugeDir,
   legacyGaugeDir,
@@ -88,24 +89,43 @@ export function resolveEnginePath({ env = process.env, existsSync = fs.existsSyn
 
 const ENGINE = resolveEnginePath();
 
-function runEngine(args) {
-  if (!fs.existsSync(ENGINE)) {
-    process.stderr.write(
-      `DoneEngine not found at ${ENGINE}\n` +
-      'Self-heal: `quox done fetch` pulls the engine bundle straight from ' +
-      'the collector, no human in the loop. Otherwise `quox dev enable` ' +
-      'delivers it to /opt/quoxgauge as part of full dev-server ' +
-      'provisioning. Or set QUOX_DONEENGINE_PATH to a checkout.\n',
-    );
+function engineMissingMessage(engine) {
+  return `DoneEngine not found at ${engine}\n`
+    + 'Self-heal: `quox done fetch` pulls the engine bundle straight from '
+    + 'the collector, no human in the loop. Otherwise `quox dev enable` '
+    + 'delivers it to /opt/quoxgauge as part of full dev-server '
+    + 'provisioning. Or set QUOX_DONEENGINE_PATH to a checkout.\n';
+}
+
+function runEngine(args, engine = ENGINE) {
+  if (!fs.existsSync(engine)) {
+    process.stderr.write(engineMissingMessage(engine));
     // 2, not 1: a missing engine is "cannot tell", not "refused".
     return 2;
   }
-  const r = spawnSync(process.execPath, [ENGINE, ...args], { stdio: 'inherit' });
+  const r = spawnSync(process.execPath, [engine, ...args], { stdio: 'inherit' });
   if (r.error) {
     process.stderr.write(`DoneEngine failed to run: ${r.error.message}\n`);
     return 2;
   }
   return r.status ?? 2;
+}
+
+/**
+ * VISIBILITY GATE (#988 follow-on). Public installs do not ship DoneEngine
+ * (its bundle is built from the private quox-gauge repo and delivered to dev
+ * servers by `quox dev enable`), so listing `quox done` in their help
+ * advertises a command that can only fail. It is listed only when an engine
+ * is installed locally, decided from the filesystem alone with the same
+ * resolution the runner uses: building help never makes a network call.
+ * QUOX_HELP_INCLUDE_GATED=1 lists it regardless; the generators that scrape
+ * `--help` into the command trees set it so those trees do not depend on
+ * which host ran them.
+ */
+export function isDoneEngineInstalled({ env = process.env, home = os.homedir(), fsOps } = {}) {
+  const ops = fsOps || { existsSync: fs.existsSync, readdirSync: fs.readdirSync };
+  const engine = resolveEnginePath({ env, existsSync: ops.existsSync, home });
+  return inspectInstall(path.dirname(engine), ops).healthy;
 }
 
 function defaultExecFn(cmd, args) {
@@ -140,8 +160,56 @@ function defaultFsOps() {
 }
 
 export function registerDoneCommands(program, ctx = {}) {
+  const env = ctx.env || process.env;
+  const home = ctx.home || os.homedir();
+  // Tests inject fsOps/env/home; the real CLI keeps the import-time ENGINE.
+  const injected = !!(ctx.fsOps || ctx.env || ctx.home);
+  const currentEngine = () => (injected
+    ? resolveEnginePath({ env, existsSync: (ctx.fsOps || fs).existsSync, home })
+    : ENGINE);
+  const visible = env.QUOX_HELP_INCLUDE_GATED === '1'
+    || isDoneEngineInstalled({ env, home, fsOps: ctx.fsOps });
+
+  const fetchDeps = () => ({
+    execFn: ctx.execFn || defaultExecFn,
+    isWritable: ctx.isWritable || defaultIsWritable,
+    fsOps: ctx.fsOps || defaultFsOps(),
+  });
+
+  /**
+   * Resolve a runnable engine for a subcommand. Present: use it, no network.
+   * Absent: try the existing fetch path once. A collector 404
+   * (DONEENGINE_NOT_SHIPPED) means this is a public install: refuse with that
+   * message and exit 2, having changed nothing. A bundle that IS available
+   * (a dev collector) installs and the freshly fetched engine runs.
+   */
+  async function ensureEngine() {
+    const engine = currentEngine();
+    const exists = (ctx.fsOps || fs).existsSync(engine);
+    if (exists || !ctx.client || env.QUOX_DONEENGINE_PATH) return { engine };
+    const { execFn, isWritable, fsOps } = fetchDeps();
+    const { dest, needsSudo } = resolveFetchDestination({ env, isWritable, execFn });
+    try {
+      await fetchEngine({ dest, needsSudo, force: false, client: ctx.client, execFn, fsOps });
+      return { engine: path.join(dest, 'gauge.mjs') };
+    } catch (err) {
+      if (err.code === 'DONEENGINE_NOT_SHIPPED') {
+        process.stderr.write(`quox done: ${err.message}\n`);
+        return { code: 2 };
+      }
+      process.stderr.write(`quox done: engine fetch failed: ${err.message}\n`);
+      return { engine };
+    }
+  }
+
+  async function runGuarded(args) {
+    const r = await ensureEngine();
+    if (r.code !== undefined) return r.code;
+    return runEngine(args, r.engine);
+  }
+
   const done = program
-    .command('done')
+    .command('done', { hidden: !visible })
     .description('Quox DoneEngine: is this actually done, and what is the evidence?');
 
   done
@@ -150,7 +218,7 @@ export function registerDoneCommands(program, ctx = {}) {
     .option('--pack <id>', 'rule pack to judge against', 'launch-spine')
     .option('--json', 'structured verdict for agents')
     .option('--root <path>', 'judge <subject> in this repo, reading its own STATUS map with the selected pack (e.g. a plugin with --pack plugin)')
-    .action((subject, options) => {
+    .action(async (subject, options) => {
       const args = ['--can-ship', subject || 'all', '--pack', options.pack];
       if (options.root) {
         if (!subject) {
@@ -161,17 +229,17 @@ export function registerDoneCommands(program, ctx = {}) {
         args.push('--subject', subject, '--root', path.resolve(options.root));
       }
       if (options.json) args.push('--json');
-      process.exitCode = runEngine(args);
+      process.exitCode = await runGuarded(args);
     });
 
   done
     .command('checklist [pack]')
     .description('The builder checklist GENERATED from a pack (every gate the engine judges); --check verifies a doc that embeds it')
     .option('--check <file>', 'exit 1 if the checklist block in this file has drifted from the pack')
-    .action((pack, options) => {
+    .action(async (pack, options) => {
       const args = ['--checklist', pack || 'plugin'];
       if (options.check) args.push('--check', path.resolve(options.check));
-      process.exitCode = runEngine(args);
+      process.exitCode = await runGuarded(args);
     });
 
   done
@@ -180,12 +248,12 @@ export function registerDoneCommands(program, ctx = {}) {
     .option('--json', 'machine-readable, includes raw deploy state')
     .option('--dod', 'per-surface gates, split by evidence class')
     .option('--no-deploy', 'skip docker/git; Deployed Ready becomes unknown, which is not a pass')
-    .action((options) => {
+    .action(async (options) => {
       const args = [];
       if (options.json) args.push('--json');
       if (options.dod) args.push('--dod');
       if (options.deploy === false) args.push('--no-deploy');
-      process.exitCode = runEngine(args);
+      process.exitCode = await runGuarded(args);
     });
 
   done
@@ -193,25 +261,27 @@ export function registerDoneCommands(program, ctx = {}) {
     .description('One rule pack against its subjects: BOTH finish lines, build and deployed')
     .option('--snapshot', 'append this reading to the snapshot history')
     .option('--org <id>', 'measure FOR this org: plan evidence reads as it, the snapshot is stamped with it (default: the pack\'s own org field)')
-    .action((pack, options) => {
+    .action(async (pack, options) => {
       const args = pack ? ['--pack', pack] : ['--launch'];
       if (options.snapshot) args.push('--snapshot');
       if (options.org) args.push('--org', options.org);
-      process.exitCode = runEngine(args);
+      process.exitCode = await runGuarded(args);
     });
 
   done
     .command('history [pack]')
     .description('Movement between snapshots, regressions listed first')
-    .action((pack) => {
-      process.exitCode = runEngine(pack ? ['--history', '--pack', pack] : ['--history']);
+    .action(async (pack) => {
+      process.exitCode = await runGuarded(pack ? ['--history', '--pack', pack] : ['--history']);
     });
 
   done
     .command('packs')
     .description('List available rule packs')
-    .action(() => {
-      const dir = path.join(path.dirname(ENGINE), 'packs');
+    .action(async () => {
+      const r = await ensureEngine();
+      if (r.code !== undefined) { process.exitCode = r.code; return; }
+      const dir = path.join(path.dirname(r.engine), 'packs');
       if (!fs.existsSync(dir)) {
         process.stderr.write(
           `No packs directory at ${dir}\n` +
@@ -246,13 +316,11 @@ export function registerDoneCommands(program, ctx = {}) {
         process.exitCode = 2;
         return;
       }
-      const execFn = ctx.execFn || defaultExecFn;
-      const isWritable = ctx.isWritable || defaultIsWritable;
-      const fsOps = ctx.fsOps || defaultFsOps();
+      const { execFn, isWritable, fsOps } = fetchDeps();
 
       const { dest, reason, needsSudo } = resolveFetchDestination({
         destOption: options.dest,
-        env: process.env,
+        env,
         isWritable,
         execFn,
       });
@@ -267,7 +335,9 @@ export function registerDoneCommands(program, ctx = {}) {
         }
       } catch (err) {
         process.stderr.write(`quox done fetch failed: ${err.message}\n`);
-        process.exitCode = 1;
+        // A public install's 404 is "this install has no DoneEngine", not a
+        // transient failure: exit 2 like every other "cannot tell" here.
+        process.exitCode = err.code === 'DONEENGINE_NOT_SHIPPED' ? 2 : 1;
       }
     });
 

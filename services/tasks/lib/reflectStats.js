@@ -21,7 +21,7 @@ export function computeReflectStats(db, { orgId } = {}) {
       COUNT(*)                                          AS count,
       AVG(quality_score)                                AS avg_quality,
       MAX(created_at)                                   AS last_outcome_at,
-      SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS success_count,
+      SUM(CASE WHEN status IN ('success', 'completed') THEN 1 ELSE 0 END) AS success_count,
       SUM(CASE WHEN status = 'failed'  THEN 1 ELSE 0 END) AS failure_count,
       SUM(CASE WHEN post_mortem IS NOT NULL AND post_mortem != '' THEN 1 ELSE 0 END) AS post_mortem_count,
       SUM(CASE WHEN wisdom_ids IS NOT NULL AND wisdom_ids != '[]' AND wisdom_ids != '' THEN 1 ELSE 0 END) AS wisdom_linked_count

@@ -31,15 +31,23 @@ async function authGet(path, deps) {
   } finally { if (timer) clearTimeout(timer); }
 }
 
+/**
+ * 'yes' only for a human session whose user id auth confirms as instance admin; 'no' for every other caller
+ * or a definite no from auth; 'unavailable' when auth could not answer (timeout, error, no service key), so a
+ * caller can say "try again" instead of a misleading 403 (live 2026-10-15: auth mid-restart). Never 'yes' on doubt.
+ */
+async function checkInstanceAdmin(req, deps = {}) {
+  if (!deps.isHumanAdmin || !deps.isHumanAdmin(req) || !req || !req.user || !req.user.id) return 'no';
+  try {
+    const chk = await authGet(`/api/internal/instance-admin/${encodeURIComponent(req.user.id)}`, deps);
+    return chk && chk.isAdmin === true ? 'yes' : 'no';
+  } catch {
+    return 'unavailable';
+  }
+}
 /** True only for a human session whose user id auth confirms as instance admin. */
 async function isInstanceAdmin(req, deps = {}) {
-  try {
-    if (!deps.isHumanAdmin || !deps.isHumanAdmin(req) || !req.user || !req.user.id) return false;
-    const chk = await authGet(`/api/internal/instance-admin/${encodeURIComponent(req.user.id)}`, deps);
-    return Boolean(chk) && chk.isAdmin === true;
-  } catch {
-    return false;
-  }
+  try { return (await checkInstanceAdmin(req, deps)) === 'yes'; } catch { return false; }
 }
 
 /** The org's own enabled install of pluginId: {image, port, healthPath} or null. */
@@ -273,4 +281,4 @@ function createPluginBackendHandlers(deps) {
   return { register, ensure, remove, tools };
 }
 
-module.exports = { isInstanceAdmin, resolveOrgBackend, instanceBackend, trustPath, registrationConflict, installsConflict, reseedPluginBackends, createPluginBackendHandlers };
+module.exports = { isInstanceAdmin, checkInstanceAdmin, resolveOrgBackend, instanceBackend, trustPath, registrationConflict, installsConflict, reseedPluginBackends, createPluginBackendHandlers };

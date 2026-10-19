@@ -12,6 +12,9 @@ export function matchOrg(query, list) {
   const rows = orgRows(list);
   const q = norm(query);
   if (!q) return { none: true };
+  // An exact slug wins outright, so a slug never ties with another org's look-alike name (#1141).
+  const bySlug = rows.filter((o) => o.slug && o.slug === String(query).trim());
+  if (bySlug.length === 1) return { org: bySlug[0] };
   const exact = rows.filter((o) => String(o.id).toLowerCase() === String(query).trim().toLowerCase() || norm(o.slug) === q || norm(o.name) === q);
   if (exact.length === 1) return { org: exact[0] };
   if (exact.length > 1) return { ambiguous: exact };

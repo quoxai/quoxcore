@@ -102,6 +102,7 @@ export function registerLucidCommands(program, ctx) {
     if (o.json) { console.log(JSON.stringify(data, null, 2)); return; }
     if (o.agent) { console.log(data.text_agent ?? data.text ?? ''); return; }
     if (o.spoken) { console.log(data.spoken ?? data.text ?? ''); return; }
+    if (o.markdown) { const { renderSitrepMarkdown } = await import('../lucid/markdown.js'); console.log(renderSitrepMarkdown(data)); return; }
     const { renderSitrep } = await import('../lucid/sitrep.js');
     const tty = Boolean(process.stdout.isTTY);
     process.stdout.write(renderSitrep(data, {
@@ -118,14 +119,15 @@ export function registerLucidCommands(program, ctx) {
   const sitrepOpts = (c) => c
     .option('--agent', 'compact, id-rich form for agents')
     .option('--json', 'the full structured situation')
-    .option('--spoken', 'sentences only, as read on the phone');
+    .option('--spoken', 'sentences only, as read on the phone')
+    .option('--markdown', 'chat-ready Markdown for Discord, Matrix and slots (fits one message)');
 
   sitrepOpts(lu
     .command('sitrep')
     .description('One-shot formatted snapshot (areas, what needs you, what changed, what I cannot see)'))
     .action(async (o) => showSitrep(o));
 
-  // Top-level shortcut so any human or agent can ask for a sitrep: `quox sitrep [--agent|--json|--spoken]`.
+  // Top-level shortcut so any human or agent can ask for a sitrep: `quox sitrep [--agent|--json|--spoken|--markdown]`.
   sitrepOpts(program
     .command('sitrep')
     .description('LUCID situation report: what needs you, every area, what changed, what LUCID cannot see'))
@@ -393,9 +395,13 @@ export function registerLucidCommands(program, ctx) {
       if (wantJson(cmd)) { console.log(JSON.stringify(data, null, 2)); return; }
       if (data.status === 'filed') {
         printSuccess(`Filed${data.approval_id ? ` (approval ${data.approval_id})` : ''}. Approve it in Approvals.`);
-      } else if (data.status === 'manual') {
+      } else if (data.status === 'manual' && data.command) {
         console.log('This one is manual. Run this yourself:');
-        console.log(`  ${data.command ?? ''}`);
+        console.log(`  ${data.command}`);
+      } else if (data.status === 'manual') {
+        // #992: a 'say' measure has no command; print what it says and how to ask, never a blank instruction.
+        console.log(data.say || (m && m.label) || 'There is nothing to run for this one.');
+        console.log(`  quox lucid ask "${((m && m.label) || 'Look into it').replace(/"/g, "'")} (${ref})"`);
       } else if (data.status === 'opened') {
         console.log(`Opened: ${data.url ?? ''}`);
       } else {

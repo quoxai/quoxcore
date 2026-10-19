@@ -30,7 +30,7 @@
  * degrades to '' so a chat turn is never blocked by this.
  */
 
-const MAX_TOKENS = 800;
+const MAX_TOKENS = 1200; // QUOXON-MIRROR: room for the org Mirror summary (~1500 chars) beside the situation
 const CHARS_PER_TOKEN = 4; // same rough approximation used by memoryImplant.js
 const MAX_CHARS = MAX_TOKENS * CHARS_PER_TOKEN;
 
@@ -60,6 +60,7 @@ async function buildSelfKnowledgeImplant({
   orgId,
   loadCognitiveImplants,
   getCollectorMirrorCompact,
+  getOrgMirrorSummary,
   maxChars = MAX_CHARS,
   env = process.env,
 } = {}) {
@@ -90,12 +91,26 @@ async function buildSelfKnowledgeImplant({
       `You are Quox. This organisation's QuoxMind cognitive implant registry has ${entries.length} implants ` +
       `(${tierSummary}): ${names.join(', ')}.`
     );
-    // Honesty line — do not claim health/activation state we cannot verify here.
-    lines.push(
-      'Implant names/tiers/counts above come from the live registry (real, not hardcoded). ' +
-      'Per-org license/activation state and live per-implant health scores are NOT available to ' +
-      'this server-side block — never claim specific health numbers or "all healthy" from this alone.'
-    );
+    // QUOXON-MIRROR: this org's Mirror, built server-side from each owning service
+    // (lib/mirrorBuilder.js). Only asked for with a real org id, never a default org.
+    let orgMirror = '';
+    if (orgId && typeof getOrgMirrorSummary === 'function') {
+      try { orgMirror = (await getOrgMirrorSummary(orgId)) || ''; } catch (mErr) {
+        console.warn(`[SelfKnowledgeImplant] org Mirror unavailable: ${mErr.message}`);
+      }
+    }
+    if (orgMirror) {
+      lines.push('The QuoxMind Mirror below is this organisation\'s live state, read from each service for this org only. ' +
+        'Quote its numbers; an "Unknown" line says why a value could not be read, so say that rather than guessing.');
+      lines.push(orgMirror);
+    } else {
+      // Honesty line — do not claim health/activation state we cannot verify here.
+      lines.push(
+        'Implant names/tiers/counts above come from the live registry (real, not hardcoded). ' +
+        'Per-org license/activation state and live per-implant health scores are NOT available to ' +
+        'this server-side block — never claim specific health numbers or "all healthy" from this alone.'
+      );
+    }
 
     if (typeof getCollectorMirrorCompact === 'function') {
       try {

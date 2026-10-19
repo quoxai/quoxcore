@@ -41,7 +41,8 @@ const pending = new Map();
 
 function getWorker() {
   if (worker) return worker;
-  worker = new Worker(WORKER_SRC, { eval: true });
+  const self = new Worker(WORKER_SRC, { eval: true });
+  worker = self;
   worker.unref();
   worker.on('message', ({ id, row, error }) => {
     const p = pending.get(id);
@@ -50,19 +51,33 @@ function getWorker() {
     if (error) p.reject(new Error(error)); else p.resolve(row);
   });
   const fail = (err) => {
+    if (worker !== self) return; // superseded (terminated after a timeout)
     for (const p of pending.values()) p.reject(err instanceof Error ? err : new Error(String(err)));
     pending.clear();
     worker = null; // the next probe starts a fresh worker
   };
   worker.on('error', fail);
-  worker.on('exit', (code) => { if (code !== 0) fail(new Error(`probe worker exited ${code}`)); else worker = null; });
+  worker.on('exit', (code) => { if (code !== 0) fail(new Error(`probe worker exited ${code}`)); else if (worker === self) worker = null; });
   return worker;
 }
 
 function runProbe(dbPath, sql, params, { timeoutMs = 60000, mode = 'get' } = {}) {
   return new Promise((resolve, reject) => {
     const id = ++seq;
-    const timer = setTimeout(() => { pending.delete(id); reject(new Error('probe timeout')); }, timeoutMs);
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error('probe timeout'));
+      // A worker stuck inside a synchronous SQLite call cannot be interrupted
+      // cooperatively and would queue every later probe behind it: kill it so
+      // the next probe starts a fresh worker. Other in-flight probes on the
+      // dead worker are rejected (they are retried by their callers).
+      const w = worker;
+      if (w) {
+        worker = null;
+        for (const [pid, p] of pending) { p.reject(new Error('probe worker restarted after timeout')); pending.delete(pid); }
+        w.terminate().catch(() => {});
+      }
+    }, timeoutMs);
     timer.unref?.();
     pending.set(id, {
       resolve: (v) => { clearTimeout(timer); resolve(v); },

@@ -9,14 +9,15 @@ import { AppEnv } from '../types.js';
 import { z } from 'zod';
 import { WorkflowSchema, Workflow } from '../../core/workflow.js';
 import { validateBody, validateQuery, validateParams, IdParamSchema, PaginationQuerySchema } from '../middleware/validation.js';
-import { NotFoundError, ErrorCodes } from '../middleware/error-handler.js';
+import { NotFoundError, ValidationError, ErrorCodes } from '../middleware/error-handler.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { WorkflowStore } from '../stores/workflow-store.js';
 import { ExecutionStore } from '../stores/execution-store.js';
 import { EnvelopeStore } from '../../store/envelope-store.js';
 import { ExecutorRegistry } from '../../executors/executor.interface.js';
-import { ScheduleExecutor } from '../../executors/schedule.executor.js';
+import { ScheduleExecutor, validateScheduleConfig } from '../../executors/schedule.executor.js';
 import { EventBus } from '../../events/event-bus.js';
+import type { WebhookRegistry } from './webhook-triggers.js';
 import { WorkflowService } from '../services/workflow-service.js';
 import { activateWorkflow } from '../../runtime/trigger-bootstrap.js';
 import { envelopes, Intents } from '../../core/envelope.js';
@@ -113,6 +114,43 @@ function paginated<T>(
   });
 }
 
+/**
+ * #1172: refuse to store a schedule trigger that could never fire: no pattern at all (neither
+ * expression nor the cron alias activation also reads), or an unparseable one. Chat create_workflow, the CLI and the dashboard all write through here.
+ */
+function assertSchedulesFire(nodes: unknown): void {
+  if (!Array.isArray(nodes)) return;
+  const problems: Array<{ path: string; message: string }> = [];
+  for (const n of nodes as Array<{ id?: string; type?: string; config?: unknown }>) {
+    if (!n || n.type !== 'trigger:schedule') continue;
+    const r = validateScheduleConfig(n.config);
+    if (!r.valid) for (const message of r.errors || []) problems.push({ path: `nodes.${n.id ?? '?'}`, message });
+  }
+  if (problems.length) {
+    throw new ValidationError(`Schedule trigger would never fire: ${problems.map((p) => `${p.path}: ${p.message}`).join('; ')}`, { errors: problems });
+  }
+}
+
+
+/**
+ * #1190: the engine is the one workflow store, so it owns the step-type check the auth store used to make.
+ * A node type no executor handles can never run; refuse it on create and update, naming the valid types.
+ * Read at request time, so executors registered after startup (approval:gate, human:task, ...) count.
+ */
+function assertKnownNodeTypes(nodes: unknown, executors?: ExecutorRegistry): void {
+  if (!executors || !Array.isArray(nodes)) return;
+  const unknown = (nodes as Array<{ id?: string; type?: unknown }>)
+    .filter((n) => n && typeof n.type === 'string' && !executors.has(n.type))
+    .map((n) => ({ path: `nodes.${n.id ?? '?'}`, type: n.type as string }));
+  if (unknown.length) {
+    const valid = executors.getRegisteredTypes().sort();
+    throw new ValidationError(
+      `Unknown node type${unknown.length > 1 ? 's' : ''}: ${unknown.map((u) => `${u.path} "${u.type}"`).join(', ')}. No executor runs ${unknown.length > 1 ? 'them' : 'it'}. Valid types: ${valid.join(', ')}`,
+      { unknown, valid_node_types: valid },
+    );
+  }
+}
+
 export function createWorkflowRoutes(deps: {
   workflowStore: WorkflowStore;
   workflowService: WorkflowService;
@@ -122,6 +160,7 @@ export function createWorkflowRoutes(deps: {
   executors?: ExecutorRegistry;
   scheduleExecutor?: ScheduleExecutor;
   eventBus?: EventBus;
+  webhookRegistry?: WebhookRegistry;
   // R5.high-2: evaluators must flow into auto-activate so triggered executions are gated.
   budgetEvaluator?: BudgetEvaluator;
   budgetScopeResolver?: (workflowId: string, orgId?: string) => BudgetScopeContext | null;
@@ -137,6 +176,8 @@ export function createWorkflowRoutes(deps: {
   app.post('/', validateBody(WorkflowSchema), async c => {
     const orgId = requireOrgScope(c);
     const workflow = c.get('validatedBody') as Workflow;
+    assertKnownNodeTypes(workflow.nodes, deps.executors);
+    assertSchedulesFire(workflow.nodes);
     const stored = await deps.workflowStore.save(workflow, { orgId });
 
     // QF-MT WP3: null means this id already exists under a different org —
@@ -367,6 +408,8 @@ export function createWorkflowRoutes(deps: {
         : mergedMeta;
     }
 
+    assertKnownNodeTypes(updates.nodes, deps.executors);
+    assertSchedulesFire(updates.nodes);
     const updated = await deps.workflowStore.update(id, orgId, updates);
     if (!updated) {
       throw new NotFoundError(ErrorCodes.WORKFLOW_NOT_FOUND, `Workflow ${id} not found`);
@@ -396,6 +439,17 @@ export function createWorkflowRoutes(deps: {
 
     if (!deleted) {
       throw new NotFoundError(ErrorCodes.WORKFLOW_NOT_FOUND, `Workflow ${id} not found`);
+    }
+
+    // A deleted workflow must not keep firing: unregister its live triggers. Only after the org-scoped
+    // delete succeeded, so a caller can never unregister another org's workflow by id. (Found 2026-10-17:
+    // deleted workflows kept their cron registration until the engine restarted.)
+    try {
+      deps.scheduleExecutor?.unregisterWorkflow(id);
+      deps.eventBus?.unsubscribeWorkflow(id);
+      deps.webhookRegistry?.unregisterWorkflow(id);
+    } catch (err) {
+      console.error(`[Workflows] Trigger cleanup after delete failed for ${id}:`, err instanceof Error ? err.message : err);
     }
 
     // AEE audit envelope

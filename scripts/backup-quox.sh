@@ -113,12 +113,11 @@ record_store() {
 # is built, so the archive is kept and marked rather than discarded.
 #
 # REQUIRED: auth db, collector aee/volt/ward dbs, quoxbrain db, memory store
-#           (memory_db + quox-memory), quoxflow evidence.
+#           (memory_db; + quox-memory where BACKUP_REQUIRE_QUOX_MEMORY=1), quoxflow evidence.
 # OPTIONAL: ssh keys, claude config, bastion audit logs, dashboard-data, and
 #           everything else (skip is recorded, never degrades the run).
 # ----------------------------------------------------------------------------
 EXIT_DEGRADED=2
-REQUIRED_COMPONENTS=(auth_db collector_aee_db volt_db ward_db quoxbrain_db memory_db quox-memory quoxflow-evidence)
 COMPONENT_RECORDS=()   # name|status(ok|skipped|failed)|reason  (non-store components)
 record_component() {
     COMPONENT_RECORDS+=("${1}|${2}|${3:-}")
@@ -126,6 +125,12 @@ record_component() {
 }
 
 # >>> degraded-classifier (extracted verbatim by the bash unit test)
+# quox#1024: quox-memory is the dev box's live memory data dir; a customer install keeps memory in
+# memory_db. Whether it is REQUIRED comes from deployment config (BACKUP_REQUIRE_QUOX_MEMORY=1, set by the
+# dev box), never from the path existing, so a dev box that LOSES it still goes degraded (GRIPE-710)
+# while a public install without it can finish 'completed' and verify.
+REQUIRED_COMPONENTS=(auth_db collector_aee_db volt_db ward_db quoxbrain_db memory_db quoxflow-evidence)
+[ "${BACKUP_REQUIRE_QUOX_MEMORY:-0}" = "1" ] && REQUIRED_COMPONENTS+=(quox-memory)
 DEGRADED=false
 SKIPPED_REQUIRED=()
 DEGRADED_REASONS=()
@@ -288,13 +293,24 @@ wait_for_service() {
         waited=$((waited + 10))
     done
 }
+# sqlite_timeout_for <container> <db_path> <base>: the copy ceiling, scaled to the database size
+# (200s per started GiB, never below <base>). A fixed 400s fit quoxbrain.db at 1.9G and stopped
+# fitting at 3.5G (2026-10-14/15). Unknown size falls back to <base>.
+sqlite_timeout_for() {
+    local container=$1 db_path=$2 base=$3 bytes t
+    bytes=$(docker exec "$container" stat -c %s "$db_path" 2>/dev/null) || bytes=""
+    case "$bytes" in ''|*[!0-9]*) echo "$base"; return 0 ;; esac
+    t=$(( (bytes / 1073741824 + 1) * 200 ))
+    if [ "$t" -gt "$base" ]; then echo "$t"; else echo "$base"; fi
+}
+
 # sqlite_vacuum_verified <container> <db_path> <dbname>: VACUUM INTO a scratch
 # copy inside the container and quick_check it; 0 only for a verified copy.
 sqlite_vacuum_verified() {
     local container=$1 db_path=$2 dbname=$3
     docker exec "$container" rm -f "/tmp/${dbname}.bak" 2>/dev/null || true
     docker exec "$container" timeout "$SQLITE_BACKUP_TIMEOUT" sqlite3 "$db_path" "VACUUM INTO '/tmp/${dbname}.bak'" 2>/dev/null \
-        && docker exec "$container" timeout 300 sqlite3 "/tmp/${dbname}.bak" "PRAGMA quick_check" 2>/dev/null | grep -q '^ok$'
+        && docker exec "$container" timeout "$(( SQLITE_BACKUP_TIMEOUT > 300 ? SQLITE_BACKUP_TIMEOUT : 300 ))" sqlite3 "/tmp/${dbname}.bak" "PRAGMA quick_check" 2>/dev/null | grep -q '^ok$'
 }
 
 backup_sqlite() {
@@ -347,7 +363,7 @@ backup_sqlite() {
     # build to 48 minutes; it only died when a deploy recreated the container.
     # The same orphan appears in a ps capture from 2026-08-14, so this was
     # every night the cap tripped. Both service images ship /usr/bin/timeout.
-    SQLITE_BACKUP_TIMEOUT=${SQLITE_BACKUP_TIMEOUT:-180}
+    SQLITE_BACKUP_TIMEOUT=$(sqlite_timeout_for "$container" "$db_path" "${SQLITE_BACKUP_TIMEOUT:-180}")
     # Primary method is VACUUM INTO, not .backup: .backup restarts from zero
     # whenever a writer touches the source, so it never finishes on a hot DB
     # (the exact spin the timeout exists for). VACUUM INTO reads one
@@ -365,7 +381,9 @@ backup_sqlite() {
         # for the new one and try once more rather than dropping a required
         # database (quox#739: auth_db and ward_db were lost this way).
         warn "$name - $service container restarted during the copy; waiting for it and retrying once"
-        if container=$(wait_for_service "$service") && sqlite_vacuum_verified "$container" "$db_path" "$dbname"; then
+        local again
+        if again=$(wait_for_service "$service") && sqlite_vacuum_verified "$again" "$db_path" "$dbname"; then
+            container=$again
             verified=true
         fi
     fi
@@ -382,7 +400,8 @@ backup_sqlite() {
         # a restore from this artefact must run its own integrity_check first.
         warn "$name - VACUUM INTO did not produce a verified copy within ${SQLITE_BACKUP_TIMEOUT}s; falling back to raw file+WAL copy, CONSISTENCY NOT VERIFIED"
         if [ -n "$service" ] && ! container_ready "$container"; then
-            container=$(wait_for_service "$service") || container=""
+            local fresh
+            fresh=$(wait_for_service "$service") && container=$fresh
         fi
         docker cp "$container:$db_path" "$dest/$dbname" 2>/dev/null || {
             warn "Skipping $name - both VACUUM INTO and docker cp failed"
@@ -546,6 +565,14 @@ get_container() {
     # Fallback: try legacy name pattern (<prefix>-<service>)
     if docker inspect --format '{{.State.Running}}' "$named" 2>/dev/null | grep -q true; then
         echo "$named"
+        return 0
+    fi
+    # Brain2's compose service is `quoxbrain` but its container is `<prefix>-brain`. Resolving the
+    # alias HERE (not only in quoxbrain_container) is what lets container_still / wait_for_service
+    # find it by service name: on 2026-10-14/15 they could not, reported a restart that never
+    # happened, and the nightly dropped quoxbrain_db.
+    if [ "$service" = "quoxbrain" ] && docker inspect --format '{{.State.Running}}' "${CONTAINER_PREFIX}-brain" 2>/dev/null | grep -q true; then
+        echo "${CONTAINER_PREFIX}-brain"
         return 0
     fi
     return 1
@@ -1217,18 +1244,44 @@ compress_backup() {
 # removed, so it needs roughly 2.5x the last archive. On 2026-10-08/09 failed
 # runs and a full root disk took down transcript writes and a CLI config; a run
 # that refuses up front leaves the box usable and says exactly why.
+# estimate_backup_data_bytes (quox#1023): bytes of docker volume data a first
+# backup will copy, measured in a one-shot root container (the auth container
+# runs as uid 1001 but has the docker socket). Prints nothing if it cannot
+# measure, and the caller then keeps the conservative floor.
+estimate_backup_data_bytes() {
+    local droot
+    droot=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null | awk 'NF==1{print $1}')
+    droot="${droot:-/var/lib/docker}"
+    docker run --rm -v "$droot/volumes:/v:ro" alpine:3 du -sb /v 2>/dev/null | awk 'NR==1 && $1 ~ /^[0-9]+$/ {print $1}'
+}
+
 preflight_free_space() {
-    local last_bytes need_bytes avail_bytes min_bytes
+    local last_bytes need_bytes avail_bytes min_bytes data_bytes basis archive_need
     last_bytes=$(find "$BACKUP_ROOT" -maxdepth 1 -name '*.tar.gz' -printf '%T@ %s\n' 2>/dev/null | sort -n | tail -1 | awk '{print $2}')
-    min_bytes=$(( ${BACKUP_MIN_FREE_GB:-20} * 1073741824 ))
-    need_bytes=$(( ${last_bytes:-0} * 5 / 2 ))
+    # quox#1023: size the need from the data actually being archived (2x data for the raw copy + archive,
+    # + 1G margin, never under 2G), and from the last archive when there is one (raw copy + compressed
+    # archive ~ 2.5x it). A flat 20G floor refused every small install, first backup and every one after.
+    data_bytes=$(estimate_backup_data_bytes)
+    archive_need=$(( ${last_bytes:-0} * 5 / 2 ))
+    if [ -n "$data_bytes" ]; then
+        min_bytes=$(( ${BACKUP_MIN_FREE_GB:-2} * 1073741824 ))
+        need_bytes=$(( data_bytes * 2 + 1073741824 ))
+        basis="2x $((data_bytes / 1048576))M of data + 1G"
+        if [ "$archive_need" -gt "$need_bytes" ]; then need_bytes=$archive_need; basis="2.5x last archive"; fi
+        basis="${basis}, min ${BACKUP_MIN_FREE_GB:-2}G"
+    else
+        # data size unknown: keep the conservative floor rather than guess
+        min_bytes=$(( ${BACKUP_MIN_FREE_GB:-20} * 1073741824 ))
+        need_bytes=$archive_need
+        basis="2.5x last archive, data size unknown, min ${BACKUP_MIN_FREE_GB:-20}G"
+    fi
     [ "$need_bytes" -lt "$min_bytes" ] && need_bytes=$min_bytes
     avail_bytes=$(( $(df -Pk "$BACKUP_ROOT" | awk 'NR==2{print $4}') * 1024 ))
     if [ "$avail_bytes" -lt "$need_bytes" ]; then
-        echo "[FAIL] Not starting backup: $((avail_bytes / 1073741824))G free on $(df -P "$BACKUP_ROOT" | awk 'NR==2{print $6}'), need about $((need_bytes / 1073741824))G (2.5x last archive, min ${BACKUP_MIN_FREE_GB:-20}G). Free space or move BACKUP_ROOT to a larger disk." >&2
+        echo "[FAIL] Not starting backup: $((avail_bytes / 1073741824))G free on $(df -P "$BACKUP_ROOT" | awk 'NR==2{print $6}'), need about $(( (need_bytes + 1073741823) / 1073741824 ))G (${basis}). Free space, move BACKUP_ROOT to a larger disk, or set BACKUP_MIN_FREE_GB." >&2
         exit 3
     fi
-    info "Free space OK: $((avail_bytes / 1073741824))G free, need about $((need_bytes / 1073741824))G"
+    info "Free space OK: $((avail_bytes / 1073741824))G free, need about $(( (need_bytes + 1073741823) / 1073741824 ))G (${basis})"
 }
 
 run_backup() {

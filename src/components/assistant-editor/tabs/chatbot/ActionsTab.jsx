@@ -182,6 +182,10 @@ export default function ActionsTab({ widget, authFetch, orgId, onWidgetChange })
   const [tools, setTools] = useState([])
   const [connectors, setConnectors] = useState([])
   const [loading, setLoading] = useState(false)
+  // First-paint honesty: the tools list is unknown until the request resolves.
+  // toolsLoaded flips true only on a 2xx; toolsError holds a failed load.
+  const [toolsLoaded, setToolsLoaded] = useState(false)
+  const [toolsError, setToolsError] = useState(null)
   const [busyId, setBusyId] = useState(null)
   const [error, setError] = useState(null)
   const [info, setInfo] = useState(null)
@@ -384,6 +388,7 @@ export default function ActionsTab({ widget, authFetch, orgId, onWidgetChange })
     if (!authFetch || !orgId || !widgetId) return
     setLoading(true)
     setError(null)
+    setToolsError(null)
     try {
       const [toolsResp, connResp] = await Promise.all([
         authFetch(`/api/orgs/${orgId}/widgets/${widgetId}/tools`),
@@ -392,13 +397,16 @@ export default function ActionsTab({ widget, authFetch, orgId, onWidgetChange })
       if (toolsResp.ok) {
         const data = await toolsResp.json().catch(() => ({}))
         setTools(Array.isArray(data?.items) ? data.items : [])
+        setToolsLoaded(true)
+      } else {
+        setToolsError(`Could not load tools (HTTP ${toolsResp.status})`)
       }
       if (connResp.ok) {
         const data = await connResp.json().catch(() => ({}))
         setConnectors(Array.isArray(data?.items) ? data.items : [])
       }
     } catch (err) {
-      flash(setError, err.message || 'Failed to load actions')
+      setToolsError(err.message || 'Could not load tools')
     } finally {
       setLoading(false)
     }
@@ -525,15 +533,28 @@ export default function ActionsTab({ widget, authFetch, orgId, onWidgetChange })
             single status pill, plus exactly one toggle control. */}
         <div className="qx-flat-panel" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Tools ({tools.length})</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{toolsLoaded ? `Tools (${tools.length})` : 'Tools'}</span>
             <button type="button" onClick={() => setShowToolModal(true)} style={{ padding: '5px 12px', fontSize: 11, fontWeight: 700, background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: 6, color: '#a855f7', cursor: 'pointer' }}>+ New tool</button>
           </div>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.72)' }}>
             Built-in tools need no setup, just enable them below. For custom REST, webhook, or database tools, create a connector below, then a tool that uses it.
           </div>
           <EmailNotConnectedNotice featureLabel="transcript email" />
-          {loading && tools.length === 0 && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.72)' }}>Loading...</div>}
-          {toolRows.map(({ key, tool, preset }) => {
+          {!toolsLoaded && !toolsError && (
+            <div data-testid="tools-skeleton" aria-busy="true" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{ height: 44, borderRadius: 6, background: 'rgba(255,255,255,0.06)' }} />
+              ))}
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.72)' }}>Loading tools...</div>
+            </div>
+          )}
+          {toolsError && !toolsLoaded && (
+            <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: '#ef4444' }}>
+              <span>{toolsError}</span>
+              <button type="button" onClick={load} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, background: 'rgba(239,68,68,0.14)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444', cursor: 'pointer' }}>Retry</button>
+            </div>
+          )}
+          {toolsLoaded && toolRows.map(({ key, tool, preset }) => {
             const isBuiltin = tool ? tool.tool_type === 'builtin' : true
             const label = tool ? toolDisplayLabel(tool) : preset.label
             const machineName = tool ? tool.name : preset.name
@@ -641,7 +662,7 @@ export default function ActionsTab({ widget, authFetch, orgId, onWidgetChange })
               <button type="button" onClick={() => setShowConnectorModal(true)} style={{ padding: '5px 12px', fontSize: 11, fontWeight: 700, background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: 6, color: '#a855f7', cursor: 'pointer' }}>+ New connector</button>
             </div>
           </div>
-          {!loading && connectors.length === 0 && (
+          {toolsLoaded && !loading && connectors.length === 0 && (
             <div className="qx-flat-panel--ghost" style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', textAlign: 'center' }}>
               No connectors yet. Connectors let one REST API, webhook, or database power multiple tools.
             </div>

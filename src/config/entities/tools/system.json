@@ -18,15 +18,15 @@
     {
       "id": "system.services",
       "name": "Service Status",
-      "description": "List systemd services with their status",
+      "description": "List systemd services with their status. filter=failed also says why each failed unit failed (Result, exit status, since), so no shell read is needed",
       "accessLevel": "specialists+",
       "defconLevel": "GREEN",
       "requiresApproval": false,
       "parameters": {
         "host": {
           "type": "string",
-          "required": false,
-          "default": "localhost"
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
         },
         "filter": {
           "type": "string",
@@ -64,8 +64,8 @@
         },
         "host": {
           "type": "string",
-          "required": false,
-          "default": "localhost"
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
         }
       },
       "instructions": {
@@ -120,8 +120,8 @@
       "parameters": {
         "host": {
           "type": "string",
-          "required": false,
-          "default": "localhost"
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
         },
         "sort_by": {
           "type": "string",
@@ -159,8 +159,8 @@
       "parameters": {
         "host": {
           "type": "string",
-          "required": false,
-          "default": "localhost"
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
         },
         "path": {
           "type": "string",
@@ -193,8 +193,8 @@
       "parameters": {
         "host": {
           "type": "string",
-          "required": false,
-          "default": "localhost"
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
         }
       },
       "instructions": {
@@ -216,8 +216,8 @@
       "parameters": {
         "host": {
           "type": "string",
-          "required": false,
-          "default": "localhost"
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
         },
         "unit": {
           "type": "string",
@@ -266,8 +266,8 @@
       "parameters": {
         "host": {
           "type": "string",
-          "required": false,
-          "default": "localhost"
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
         },
         "user": {
           "type": "string",
@@ -294,8 +294,8 @@
       "parameters": {
         "host": {
           "type": "string",
-          "required": false,
-          "default": "localhost"
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
         }
       },
       "returns": {

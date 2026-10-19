@@ -5323,7 +5323,8 @@ export const INTEGRATION_TYPES = {
         fields: [
             { key: 'base_url', label: 'Proxmox URL', type: 'url', required: true, placeholder: 'https://hyp-01.example.com:8006' },
             { key: 'token_id', label: 'API Token ID', type: 'text', required: true, placeholder: 'user@pam!tokenname' },
-            { key: 'token_secret', label: 'Token Secret', type: 'password', required: true, placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' }
+            { key: 'token_secret', label: 'Token Secret', type: 'password', required: true, placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
+            { key: 'tls_fingerprint', label: 'TLS Fingerprint (SHA-256, optional)', type: 'text', required: false, placeholder: 'AA:BB:CC:... (pins the Proxmox certificate)' }
         ],
         testEndpoint: (creds) => `${creds.base_url.replace(/\/$/, '')}/api2/json/version`,
         testMethod: 'GET',

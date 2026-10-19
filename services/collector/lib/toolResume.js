@@ -41,7 +41,7 @@ const { CALLER_SESSION_RESUME_TOOLS } = toolApprovalStore;
  * @param {object} deps
  * @param {Function} deps.executeTool          - agentTools.js executeTool(toolName, input, ctx)
  * @param {Function} [deps.storeAuditEnvelope]  - server.js storeAuditEnvelope (P2 evidence)
- * @returns {Function} async runResume({ approvalId, action, approver, org_id, reason, comment, inboxItemId })
+ * @returns {Function} async runResume({ approvalId, action, approver, approverRole, org_id, reason, comment, inboxItemId })
  */
 function createResumeHandler(deps = {}) {
   const { executeTool, storeAuditEnvelope, resolveHatForTurn, hatAllowsToolName } = deps;
@@ -107,6 +107,11 @@ function createResumeHandler(deps = {}) {
       agentId: row.agent_id,
       userId: row.user_id,
       hitlApprovedItemId: typeof params.inboxItemId === 'string' && params.inboxItemId ? params.inboxItemId : null,
+      // Who approved, and their org role as auth verified it at respond time. Executors may only
+      // NARROW what they lend on this basis (brainNotes: admin flag only for an owner/admin or the
+      // note's author); the approval gate stays the one authority on whether the action runs.
+      approverId: typeof params.approver === 'string' && params.approver ? params.approver : null,
+      approverRole: typeof params.approverRole === 'string' && params.approverRole ? params.approverRole : null,
     };
     const action = String(params.action || '').toLowerCase();
 
@@ -234,6 +239,9 @@ function createResumeHandler(deps = {}) {
       tool_name: row.tool_name,
       org_id: row.org_id,
       input_json: row.input_json || null,
+      // The human who clicked approve (set by the auth inbox respond handler, never by tool input).
+      // DEVFLEET-P15: an ephemeral rehearsal grant is minted in this human's name and only here.
+      approver: typeof params.approver === 'string' && params.approver ? params.approver : null,
     };
 
     const startedAt = Date.now();
@@ -333,7 +341,7 @@ function createResumeEndpoint(deps = {}) {
     // service's inbox respond handler (routes/inbox.js) alongside
     // approvalId — this endpoint previously dropped it. Threaded through to
     // runResume() as inboxItemId, which lands on ctx.hitlApprovedItemId.
-    const { approvalId, action, approver, org_id, reason, comment, inbox_item_id: inboxItemId } = body;
+    const { approvalId, action, approver, org_id, reason, comment, inbox_item_id: inboxItemId, approver_role: approverRole } = body;
     if (!approvalId || typeof approvalId !== 'string') {
       return res.status(400).json({ error: 'approvalId_required' });
     }
@@ -343,12 +351,12 @@ function createResumeEndpoint(deps = {}) {
     const row = toolApprovalStore.getByApprovalId(approvalId);
     const isApprove = ['approve', 'approved', 'accept', 'accepted', 'confirm', 'confirmed'].includes(String(action || '').toLowerCase());
     if (isApprove && row && row.status === 'pending' && row.created_at && Date.now() - Number(row.created_at) > APPROVAL_MAX_AGE_MS) {
-      return Promise.resolve(runResume({ approvalId, action, approver, org_id, reason, comment, inboxItemId }))
+      return Promise.resolve(runResume({ approvalId, action, approver, approverRole, org_id, reason, comment, inboxItemId }))
         .then((out) => res.status(200).json({ approvalId, ...out }))
         .catch((err) => res.status(500).json({ error: 'resume_failed', message: err && err.message }));
     }
     Promise.resolve()
-      .then(() => runResume({ approvalId, action, approver, org_id, reason, comment, inboxItemId }))
+      .then(() => runResume({ approvalId, action, approver, approverRole, org_id, reason, comment, inboxItemId }))
       .catch((err) => console.warn('[toolResume] failed (non-fatal):', err && err.message));
     return res.status(202).json({ accepted: true, approvalId });
   };

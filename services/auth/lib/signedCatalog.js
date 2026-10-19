@@ -41,7 +41,7 @@ import { verify as cryptoVerify } from 'crypto';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
-import { loadLicensePublicKey } from './licenseVerify.js';
+import { loadTrustedPublicKeys } from './licenseVerify.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -110,10 +110,14 @@ export function verifySignedCatalog(artifact) {
         if (!catalog || typeof catalog !== 'object') return false;
         if (typeof sig !== 'string' || !sig.startsWith(SIG_PREFIX)) return false;
 
-        const pubKey = loadLicensePublicKey();
         const sigBytes = Buffer.from(sig.slice(SIG_PREFIX.length), 'base64');
-        // Ed25519: no digest algorithm.
-        return cryptoVerify(null, Buffer.from(catalogPayload(catalog), 'utf-8'), pubKey, sigBytes);
+        const payload = Buffer.from(catalogPayload(catalog), 'utf-8');
+        // Any trusted key, like licences (7d298dca9): during a rotation the new key
+        // is listed first and a catalogue signed by the old, still-trusted key must
+        // keep verifying. Ed25519: no digest algorithm.
+        return loadTrustedPublicKeys().some((pubKey) => {
+            try { return cryptoVerify(null, payload, pubKey, sigBytes); } catch { return false; }
+        });
     } catch {
         return false;
     }

@@ -363,6 +363,11 @@ if [ ! -d "$SSH_KEYS_PATH" ]; then
     mkdir -p "$SSH_KEYS_PATH"
     log "  Created $SSH_KEYS_PATH (add SSH keys for bastion access)"
 fi
+
+# Backups directory (quox#1017): owned by the auth container's uid, or every backup fails "Permission denied"
+. "$SCRIPT_DIR/lib/ensure-backup-root.sh"
+BACKUP_ROOT_ENV=$(grep "^BACKUP_ROOT=" .env 2>/dev/null | cut -d= -f2-)
+BACKUP_ROOT="${BACKUP_ROOT_ENV:-${BACKUP_ROOT:-}}" ensure_backup_root
 echo ""
 
 # ─── Step 5: Clean up stale state ──────────────────────────
@@ -438,9 +443,12 @@ declare -F stage_quoxagent_release >/dev/null || { err "  quoxagent staging step
 # Z2H-R2: parallel buildx targets on a small box hit transient registry resets (ECONNRESET) on 3 of 4
 # fresh-VM runs. Build one-at-a-time on <=2 cores, and retry (max 3 attempts) ONLY when the log shows
 # a transient network error or a containerd/buildkit restart mid-build (Z2H-R3: unattended-upgrades); any other failure stops at once.
+# shellcheck source=lib/build-policy.sh
+. "$SCRIPT_DIR/lib/build-policy.sh"
 if [ -z "${COMPOSE_PARALLEL_LIMIT:-}" ]; then
     CORES=$(nproc 2>/dev/null || echo 4)
-    if [ "$CORES" -le 2 ]; then export COMPOSE_PARALLEL_LIMIT=1; fi
+    LIMIT=$(build_parallel_limit "$CORES")
+    if [ -n "$LIMIT" ]; then export COMPOSE_PARALLEL_LIMIT=$LIMIT; fi
 fi
 TRANSIENT_RE='ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|ENOTFOUND|TLS handshake timeout|50[234] (Bad Gateway|Service Unavailable|Gateway Time-?out)|unexpected HTTP status: 50[234]|error reading from server: EOF|failed to extract layer|rpc error: code = Unavailable|connection reset by peer|failed to solve:.*EOF'
 BUILD_MAX="${QUOX_BUILD_ATTEMPTS:-3}"
@@ -510,7 +518,7 @@ while :; do
     DOCKER_GID="$DOCKER_GID" docker compose build 2>&1 | tee -a "$BUILD_LOG" | tail -3
     BUILD_RC=${PIPESTATUS[0]}
     [ "$BUILD_RC" -eq 0 ] && break
-    if [ "$BUILD_TRY" -lt "$BUILD_MAX" ] && tail -200 "$BUILD_LOG" | grep -qE "$TRANSIENT_RE"; then
+    if [ "$BUILD_TRY" -lt "$BUILD_MAX" ] && is_transient_build_failure "$BUILD_LOG"; then
         BUILD_TRY=$((BUILD_TRY + 1))
         warn "  network hiccup during build, retrying $BUILD_TRY/$BUILD_MAX"
         sleep "${QUOX_BUILD_RETRY_SLEEP:-10}"
@@ -525,6 +533,22 @@ if [ "$BUILD_RC" -ne 0 ]; then
     exit 1
 fi
 log "  Build log: $BUILD_LOG"
+
+# Core profiles: start what we pull. Qortex (quoxbrain) is free in Core and its image is pulled
+# above, but compose gates it behind a profile; without this a public install pulled the brain and
+# never ran it (proof engine 2026-10-14). Merged into any COMPOSE_PROFILES the operator already set.
+CORE_PROFILES="with-quoxbrain"
+CUR_PROFILES=$(grep -s '^COMPOSE_PROFILES=' .env | tail -1 | cut -d= -f2-)
+NEW_PROFILES="$CUR_PROFILES"
+for p in ${CORE_PROFILES//,/ }; do
+    case ",$NEW_PROFILES," in *",$p,"*) ;; *) NEW_PROFILES="${NEW_PROFILES:+$NEW_PROFILES,}$p" ;; esac
+done
+if [ "$NEW_PROFILES" != "$CUR_PROFILES" ]; then
+    if grep -qs '^COMPOSE_PROFILES=' .env; then sed -i "s#^COMPOSE_PROFILES=.*#COMPOSE_PROFILES=$NEW_PROFILES#" .env; else echo "COMPOSE_PROFILES=$NEW_PROFILES" >> .env; fi
+    log "  compose profiles: $NEW_PROFILES"
+fi
+export COMPOSE_PROFILES="$NEW_PROFILES"
+# end core profiles
 
 info "  Starting services..."
 # Z2H-R4: `up` pulls the third-party images on a fresh box; pull quietly (no per-layer progress bars in
@@ -628,6 +652,7 @@ done
 . "$SCRIPT_DIR/lib/quox-host-cli.sh"
 EDGE_PORT=$(grep -s '^DASHBOARD_PORT=' .env | tail -1 | cut -d= -f2-)
 CLI_FAILED=0
+record_install_dir "$PROJECT_ROOT"
 install_host_cli "$PROJECT_ROOT" "https://localhost:${EDGE_PORT:-3000}" || CLI_FAILED=1
 # REL-423: host quox CLI (end)
 

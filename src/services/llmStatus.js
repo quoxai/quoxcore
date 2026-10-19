@@ -17,7 +17,7 @@ const READINESS_REASON_META = {
   claude_cli_missing: {
     title: 'Claude CLI missing',
     message: 'Claude terminal login is unavailable because the Claude CLI is not installed.',
-    action: 'Install Claude Code CLI, or use an OpenAI or Anthropic API key instead.',
+    action: 'Needs a local build (Claude CLI not in prebuilt images), or use an OpenAI or Anthropic API key instead.',
   },
   claude_cli_unhealthy: {
     title: 'Claude CLI unhealthy',

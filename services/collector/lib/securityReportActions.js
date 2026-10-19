@@ -296,6 +296,32 @@ async function proposeQuoxplanForFinding({ finding, engagement, orgId, streamId 
   return { streamId: targetStream, ref, note };
 }
 
+// #1073: an unavailable QuoxPlan must reach the caller as a 5xx with the proxy's wording, so the
+// CLI says PLUGIN_SERVICE_UNAVAILABLE (#1012) instead of a 400 that reads as a malformed request.
+const QUOXPLAN_UNAVAILABLE = 'QuoxPlan service unavailable';
+
+function quoxplanNoteError(status, json) {
+  if (status >= 500) {
+    const err = new Error(QUOXPLAN_UNAVAILABLE);
+    err.httpStatus = status === 503 ? 503 : 502;
+    return err;
+  }
+  const detail = json && json.error ? json.error : String(status);
+  return new Error(`QuoxPlan rejected the note (${status}): ${detail}`);
+}
+
+function quoxplanUnreachableError(message) {
+  const err = new Error(QUOXPLAN_UNAVAILABLE);
+  err.httpStatus = 502;
+  err.cause_message = message;
+  return err;
+}
+
+function proposeErrorResponse(err) {
+  const status = err && err.httpStatus ? err.httpStatus : 400;
+  return { status, body: { success: false, error: (err && err.message) || 'propose failed' } };
+}
+
 // ── Engagement report (HTML + PDF) ──────────────────────────────────────
 
 function escapeHtml(str) {
@@ -492,6 +518,9 @@ module.exports = {
   syncFindingIssueStates,
   buildQuoxplanNoteBody,
   proposeQuoxplanForFinding,
+  quoxplanNoteError,
+  quoxplanUnreachableError,
+  proposeErrorResponse,
   buildEngagementReportHtml,
   generateEngagementReportPdf,
 };

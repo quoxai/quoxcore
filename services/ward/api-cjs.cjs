@@ -329,8 +329,16 @@ function mountWardRoutes(router) {
   });
 
   // GET /ward/source-breakdown?chain=... — count by source_kind
+  // The GROUP BY is a synchronous full scan of ward_entries (millions of rows): one call
+  // blocked the collector event loop ~114 s on 2026-10-15, stalling every chat stream.
+  // Cache per (chain, org) for 10 min so the scan is paid at most once per window.
+  const sourceBreakdownCache = new Map();
+  const SOURCE_BREAKDOWN_TTL_MS = 10 * 60 * 1000;
   router.get('/ward/source-breakdown', async (req, res) => {
     try {
+      const cacheKey = `${req.query.chain || ''}|${req.user?.org_id || req.user?.orgId || ''}`;
+      const hit = sourceBreakdownCache.get(cacheKey);
+      if (hit && Date.now() - hit.at < SOURCE_BREAKDOWN_TTL_MS) return res.json({ ok: true, breakdown: hit.breakdown, cached: true });
       const ward = await getWard();
       const db = ward.getDb();
       const chainId = req.query.chain;
@@ -345,6 +353,7 @@ function mountWardRoutes(router) {
       if (where.length > 0) sql += ' WHERE ' + where.join(' AND ');
       sql += ' GROUP BY source_kind ORDER BY count DESC';
       const breakdown = db.prepare(sql).all(...params);
+      sourceBreakdownCache.set(cacheKey, { at: Date.now(), breakdown });
       res.json({ ok: true, breakdown });
     } catch (err) {
       res.status(500).json({ ok: false, error: err.message });

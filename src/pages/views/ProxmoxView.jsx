@@ -14,7 +14,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { PageLayout } from '../../components/layout'
-import { MonitoringSetup } from '../../components/monitoring/MonitoringSetup'
+import { ProxmoxOnboarding } from '../../components/monitoring/ProxmoxOnboarding'
 import { useProxmoxData, timeAgo } from '../../components/core/monitoring/useProxmoxData'
 import { useResourceHistory } from '../../components/monitoring/useResourceHistory'
 import { ProxmoxTable } from '../../components/monitoring/ProxmoxTable'
@@ -24,6 +24,9 @@ import { ProxmoxChatSidebar } from '../../components/monitoring/ProxmoxChatSideb
 import { ProxmoxContextMenu } from '../../components/monitoring/ProxmoxContextMenu'
 import { ProxmoxNodes } from '../../components/monitoring/ProxmoxNodes'
 import { ProxmoxBackups } from '../../components/monitoring/ProxmoxBackups'
+import { ProxmoxPoolPanel } from '../../components/monitoring/ProxmoxPoolPanel'
+import { ProxmoxDoctorPanel } from '../../components/monitoring/ProxmoxDoctorPanel'
+import { usePoolStatus, poolSummary } from '../../components/monitoring/useProxmoxPool'
 import { useActionExecution } from '../../components/core/actions/useActionExecution'
 import PluginLicenseNotice from '../../components/plugins/PluginLicenseNotice'
 import { usePluginLicenseDiagnosis } from '../../hooks/usePluginLicensed'
@@ -33,15 +36,18 @@ import { useWorkspace } from '../../contexts/WorkspaceContext'
 import './proxmox-view.css'
 import './views.css'
 
-function ProxmoxDashboard({ onReconfigure }) {
+export function ProxmoxDashboard({ onReconfigure, onConnected }) {
   const data = useProxmoxData()
   const {
     cluster, vms, containers, allItems,
-    refreshing, error, scannedAt, hasLiveData, cacheLoaded, isInitialLoad,
+    refreshing, error, scannedAt, hasLiveData, isInitialLoad, connection,
     selectedVM, setSelectedVM, fetchLive,
   } = data
 
-  const isAuthError = error && (error.includes('401') || error.includes('403') || error.toLowerCase().includes('unauthorized'))
+  const connState = connection?.state || 'ok'
+  const connMessage = connection?.message || ''
+  const hasData = connState === 'ok' || connState === 'stale'
+  const isAuthError = !!connMessage && (connMessage.includes('401') || connMessage.includes('403') || connMessage.toLowerCase().includes('unauthorized'))
 
   const { getHistory, itemKey } = useResourceHistory(allItems)
   const { authFetch } = useAuth()
@@ -51,6 +57,8 @@ function ProxmoxDashboard({ onReconfigure }) {
   // Context menu for right-click actions
   const { executeAction } = useActionExecution({ source: 'proxmox', assistant: 'atlas' })
   const [contextMenu, setContextMenu] = useState(null)
+  // VM Doctor: the VM being diagnosed (panel shows above the table)
+  const [doctorVm, setDoctorVm] = useState(null)
 
   const [showActions, setShowActions] = useState(true)
   const [showChat, setShowChat] = useState(true)
@@ -59,6 +67,10 @@ function ProxmoxDashboard({ onReconfigure }) {
   const [typeFilter, setTypeFilter] = useState('all')
 
   const quorate = cluster?.summary?.quorate
+
+  // HYPERION VM pool: one shared read feeds the Pool tab and the agent sidebar
+  const pool = usePoolStatus()
+  const poolInfo = poolSummary(pool.data)
 
   // Evaluate alerts on each data refresh
   const prevAlertRef = useRef(null)
@@ -77,9 +89,10 @@ function ProxmoxDashboard({ onReconfigure }) {
   }, [])
 
   const handleContextAction = useCallback((action) => {
-    executeAction(action)
+    if (action.id === 'vm-diagnose' && contextMenu?.vm) setDoctorVm(contextMenu.vm)
+    else executeAction(action)
     setContextMenu(null)
-  }, [executeAction])
+  }, [executeAction, contextMenu])
 
   return (
     <div className="proxmox-view">
@@ -91,44 +104,43 @@ function ProxmoxDashboard({ onReconfigure }) {
             <span>Proxmox Cluster</span>
           </div>
 
-          <div className={`pxv-cluster-badge ${quorate ? 'pxv-cluster-badge--ok' : 'pxv-cluster-badge--warn'}`}>
-            <span className="pxv-cluster-badge__dot" />
-            {quorate ? 'QUORATE' : 'NO QUORUM'}
-          </div>
-
-          <div className="pxv-header__stats">
-            <span>
-              <span className="pxv-header__stat-value">{cluster?.summary?.online ?? 0}/{cluster?.summary?.totalNodes ?? 0}</span> nodes
-            </span>
-            <span>
-              <span className="pxv-header__stat-value" style={{ color: '#30ff90' }}>{vms?.summary?.running ?? 0}</span> VMs
-            </span>
-            <span>
-              <span className="pxv-header__stat-value" style={{ color: '#38bdf8' }}>{containers?.summary?.running ?? 0}</span> CTs
-            </span>
-          </div>
-
-          {/* Auth error banner */}
-          {isAuthError && (
-            <div className="pxv-auth-error">
-              <span style={{ color: '#ff4444', fontSize: 12 }}>✕</span>
-              <span>API token rejected (401)</span>
-              <button className="pxv-auth-error__btn" onClick={onReconfigure}>Reconfigure</button>
+          {connState === 'not_configured' && (
+            <div className="pxv-cluster-badge pxv-cluster-badge--warn">
+              <span className="pxv-cluster-badge__dot" />
+              Not connected
+            </div>
+          )}
+          {connState === 'error' && (
+            <div className="pxv-cluster-badge pxv-cluster-badge--err">
+              <span className="pxv-cluster-badge__dot" />
+              Connection error
+            </div>
+          )}
+          {connState === 'loading' && (
+            <div className="pxv-cluster-badge pxv-cluster-badge--warn">
+              <span className="pxv-cluster-badge__dot" />
+              Connecting
             </div>
           )}
 
-          {/* Stale notice (only when not an auth error — auth error is more specific) */}
-          {cacheLoaded && !hasLiveData && !refreshing && !isAuthError && (
-            <div className="pxv-stale">
-              Cached from {timeAgo(scannedAt)}
-              <button className="pxv-stale__retry" onClick={() => fetchLive(false)}>Retry</button>
+          {hasData && (
+            <div className={`pxv-cluster-badge ${quorate ? 'pxv-cluster-badge--ok' : 'pxv-cluster-badge--warn'}`}>
+              <span className="pxv-cluster-badge__dot" />
+              {quorate ? 'QUORATE' : 'NO QUORUM'}
             </div>
           )}
 
-          {/* Stale + auth error combo: show how old data is */}
-          {cacheLoaded && !hasLiveData && isAuthError && (
-            <div className="pxv-stale" style={{ borderColor: 'rgba(255, 68, 68, 0.3)' }}>
-              Showing cached data from {timeAgo(scannedAt)}
+          {hasData && (
+            <div className="pxv-header__stats">
+              <span>
+                <span className="pxv-header__stat-value">{cluster?.summary?.online ?? 0}/{cluster?.summary?.totalNodes ?? 0}</span> nodes
+              </span>
+              <span>
+                <span className="pxv-header__stat-value" style={{ color: '#30ff90' }}>{vms?.summary?.running ?? 0}</span> VMs
+              </span>
+              <span>
+                <span className="pxv-header__stat-value" style={{ color: '#38bdf8' }}>{containers?.summary?.running ?? 0}</span> CTs
+              </span>
             </div>
           )}
         </div>
@@ -163,13 +175,17 @@ function ProxmoxDashboard({ onReconfigure }) {
             {refreshing && <span>Updating...</span>}
           </button>
 
-          {/* Connection settings */}
+          {/* Connection: reopens the "Connect your Proxmox" onboarding */}
           <button
-            className="pxv-sidebar-toggle"
+            type="button"
+            className={`qx-btn qx-btn--sm ${isAuthError ? 'qx-btn--danger' : 'qx-btn--ghost'}`}
             onClick={onReconfigure}
-            title="Connection settings"
+            title="Connect or reconnect Proxmox"
           >
-            <span style={{ fontSize: 13, color: isAuthError ? '#ff4444' : 'rgba(255,255,255,0.5)' }}>⚙</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" /><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+            </svg>
+            Connection
           </button>
 
           {/* Sidebar toggles */}
@@ -190,16 +206,52 @@ function ProxmoxDashboard({ onReconfigure }) {
         </div>
       </div>
 
+      {connState === 'error' && (
+        <div className="qx-banner qx-banner--error pxv-banner" role="alert">
+          <span className="qx-banner__title">Proxmox read failed</span>
+          <span>{connMessage}</span>
+          <div className="qx-banner__actions">
+            <button type="button" className="qx-btn qx-btn--sm" onClick={() => fetchLive(false)} disabled={refreshing}>Retry</button>
+            <button type="button" className="qx-btn qx-btn--sm qx-btn--danger" onClick={onReconfigure}>Connection</button>
+          </div>
+        </div>
+      )}
+
+      {connState === 'stale' && (
+        <div className="qx-banner qx-banner--warn pxv-banner" role="alert">
+          <span className="qx-banner__title">Cached {timeAgo(scannedAt)}</span>
+          <span>live read failed: {connMessage}</span>
+          <div className="qx-banner__actions">
+            <button type="button" className="qx-btn qx-btn--sm" onClick={() => fetchLive(false)} disabled={refreshing}>Retry</button>
+            <button type="button" className="qx-btn qx-btn--sm" onClick={onReconfigure}>Connection</button>
+          </div>
+        </div>
+      )}
+
+      {connState === 'not_configured' && (
+        <div className="pxv-onboard">
+          <ProxmoxOnboarding onConnected={(url) => { onConnected?.(url); fetchLive(false) }} />
+        </div>
+      )}
+
       {/* 3-column body */}
-      <div className="pxv-body">
+      {(hasData || connState === 'loading') && <div className="pxv-body">
         {/* Left: Actions */}
         <div className={`pxv-actions ${showActions ? '' : 'pxv-actions--collapsed'}`}>
-          <ProxmoxActions selectedVM={selectedVM} cluster={cluster} />
+          <ProxmoxActions selectedVM={selectedVM} cluster={cluster} onDiagnose={setDoctorVm} />
         </div>
 
         {/* Centre: Table, Topology, or Nodes */}
         <div className="pxv-centre">
-          {viewMode === 'table' || typeFilter === 'nodes' || typeFilter === 'backups' ? (
+          {doctorVm && (
+            <ProxmoxDoctorPanel
+              key={`${doctorVm.node}:${doctorVm.vmid}`}
+              vm={doctorVm}
+              onClose={() => setDoctorVm(null)}
+              onAction={executeAction}
+            />
+          )}
+          {viewMode === 'table' || typeFilter === 'nodes' || typeFilter === 'backups' || typeFilter === 'pool' ? (
             <ProxmoxTable
               items={allItems}
               selectedVM={selectedVM}
@@ -217,6 +269,7 @@ function ProxmoxDashboard({ onReconfigure }) {
             >
               {typeFilter === 'nodes' ? <ProxmoxNodes cluster={cluster} />
                 : typeFilter === 'backups' ? <ProxmoxBackups cluster={cluster} allItems={allItems} />
+                : typeFilter === 'pool' ? <ProxmoxPoolPanel pool={pool} />
                 : null}
             </ProxmoxTable>
           ) : (
@@ -236,9 +289,10 @@ function ProxmoxDashboard({ onReconfigure }) {
             vms={vms}
             containers={containers}
             selectedVM={selectedVM}
+            pool={poolInfo}
           />
         </div>
-      </div>
+      </div>}
 
       {/* Context Menu overlay */}
       {contextMenu && (
@@ -346,9 +400,8 @@ export default function ProxmoxView() {
   if (connected === 'no' || connected === 'reconfigure') {
     return (
       <PageLayout>
-        <MonitoringSetup
-          serviceId="proxmox"
-          currentUrl={currentUrl}
+        <ProxmoxOnboarding
+          onCancel={connected === 'reconfigure' ? () => setConnected('yes') : undefined}
           onConnected={(url) => {
             setCurrentUrl(url)
             setConnected('yes')
@@ -359,5 +412,5 @@ export default function ProxmoxView() {
   }
 
   // 'yes' or 'cached' — show dashboard immediately
-  return <ProxmoxDashboard onReconfigure={handleReconfigure} />
+  return <ProxmoxDashboard onReconfigure={handleReconfigure} onConnected={(url) => { setCurrentUrl(url); setConnected('yes') }} />
 }

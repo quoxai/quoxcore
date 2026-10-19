@@ -22,12 +22,34 @@ function timeoutOf(deps) {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_RERANK_TIMEOUT_MS
 }
 
+// Circuit breaker (2026-10-15): with the provider on 429 every context call
+// still paid a failing rerank round trip (300-700ms, up to the 6s deadline).
+// Per org: 3 straight failures skip rerank for a cooldown that doubles on a
+// failed probe (60s to 10min); one success closes it. Skips report as failed.
+const RERANK_BREAKER_THRESHOLD = 3
+const RERANK_BREAKER_BASE_MS = 60 * 1000
+const RERANK_BREAKER_MAX_MS = 10 * 60 * 1000
+const rerankBreaker = new Map()
+export function _resetRerankBreaker() { rerankBreaker.clear() }
+function rerankRecord(orgId, ok, now) {
+  let b = rerankBreaker.get(orgId)
+  if (!b) { b = { fails: 0, openUntil: 0, cooldownMs: 0 }; rerankBreaker.set(orgId, b) }
+  if (ok) { b.fails = 0; b.openUntil = 0; b.cooldownMs = 0; return }
+  b.fails += 1
+  if (b.fails < RERANK_BREAKER_THRESHOLD) return
+  b.cooldownMs = b.cooldownMs ? Math.min(b.cooldownMs * 2, RERANK_BREAKER_MAX_MS) : RERANK_BREAKER_BASE_MS
+  b.openUntil = now() + b.cooldownMs
+  console.warn(`[QuoxBrain rerank] failing (${b.fails} in a row, org=${orgId}); skipping rerank for ${Math.round(b.cooldownMs / 1000)}s`)
+}
+
 /** Calls the collector. Returns {ok:true, order:[ids], model} or {ok:false}. Never throws. */
 export async function callCollectorRerank(orgId, query, items, deps = {}) {
   const fetchImpl = deps.fetchImpl || fetch
   const collectorUrl = deps.collectorUrl || COLLECTOR_URL_DEFAULT
   const serviceKey = deps.serviceKey !== undefined ? deps.serviceKey : (process.env.INTERNAL_SERVICE_KEY || '')
   if (!serviceKey || !orgId) return { ok: false }
+  const clock = typeof deps.now === 'function' ? deps.now : Date.now
+  if ((rerankBreaker.get(orgId)?.openUntil || 0) > clock()) return { ok: false, reason: 'rerank_breaker_open' }
   // One deadline covers both attempts (2026-10-11: connection-level failures
   // during collector stall bursts let off-topic questions through unvetoed).
   const signal = AbortSignal.timeout(timeoutOf(deps))
@@ -49,7 +71,8 @@ export async function callCollectorRerank(orgId, query, items, deps = {}) {
       console.warn(`[QuoxBrain rerank] retrying once for org=${orgId}: ${err.message}${err.cause?.code ? ` (${err.cause.code})` : ''}`)
       res = await send()
     }
-    if (!res.ok) return { ok: false }
+    if (!res.ok) { rerankRecord(orgId, false, clock); return { ok: false } }
+    rerankRecord(orgId, true, clock)
     const data = await res.json()
     const ids = new Set(items.map((i) => i.id))
     if (!Array.isArray(data?.order)) return { ok: false }
@@ -64,6 +87,7 @@ export async function callCollectorRerank(orgId, query, items, deps = {}) {
     return { ok: true, order, model: data.model || null }
   } catch (err) {
     console.error(`[QuoxBrain rerank] failed for org=${orgId}: ${err.message}${err.cause?.code ? ` (${err.cause.code})` : ''}`)
+    rerankRecord(orgId, false, clock)
     return { ok: false }
   }
 }

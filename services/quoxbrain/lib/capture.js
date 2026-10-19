@@ -3,7 +3,8 @@
 // POST /brain/capture writes a note into the caller's NotesQ vault through the
 // SAME createNote/updateNote path NotesQ uses (so it is editable in NotesQ,
 // chunked + FTS-indexed synchronously by ingestDocuments; embeddings follow
-// via the existing backfill). Idempotent on an exact-content hash (case-sensitive), and a
+// via the existing backfill). Idempotent on an exact-content hash (case-sensitive) plus
+// title (a different explicit title is a new note, quox#963), and a
 // near-identical existing note (word-shingle Jaccard) is flagged via
 // possibleDuplicateOf, never overwritten (update needs an explicit update_note_id). A URL with no text is fetched server-side behind the SSRF egress
 // guard and reduced to readable text (dependency-free heuristic). PDFs are
@@ -245,13 +246,22 @@ function fmTitleBody(content) {
   return body.trimStart().replace(/^#\s+[^\n]*\n+/, '').replace(/\n+Source: \S+\s*$/, '')
 }
 
-function findExisting(vault, hash, text) {
+const sameTitle = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
+
+// quox#963: an exact-body match is only "the same note" when no title was given
+// or the titles agree. Same text under a different explicit title is a new
+// document (flagged possibleDuplicateOf), never a rename of the old one.
+function findExisting(vault, hash, text, explicitTitle = '') {
   const db = getDatabase()
-  const exact = db.prepare(
-    `SELECT id, content_hash, body FROM notes WHERE vault_id = ?
-     AND (CASE WHEN json_valid(frontmatter) THEN json_extract(frontmatter, '$.capture_hash') END) = ? LIMIT 1`
-  ).get(vault.id, hash)
-  if (exact) return { ...exact, exact: true }
+  const exacts = db.prepare(
+    `SELECT id, content_hash, body, title FROM notes WHERE vault_id = ?
+     AND (CASE WHEN json_valid(frontmatter) THEN json_extract(frontmatter, '$.capture_hash') END) = ? ORDER BY created_at, id LIMIT 50`
+  ).all(vault.id, hash)
+  if (exacts.length) {
+    if (!explicitTitle) return { ...exacts[0], exact: true }
+    const same = exacts.find((r) => sameTitle(r.title, explicitTitle))
+    return same ? { ...same, exact: true } : { ...exacts[0], exactOtherTitle: true }
+  }
   // BRAIN2-W7 055: scan the WHOLE vault (keyset-paged), not just the most
   // recent SCAN_LIMIT notes. Jaccard >= NEAR_DUP_THRESHOLD implies a similar word
   // count, so word_count prefilters candidates before any body is loaded (stored
@@ -279,7 +289,7 @@ function findExisting(vault, hash, text) {
 // response reports the PERSISTED title.
 async function applyMetadataToExact({ orgId, userId, authorKind, existing, explicitTitle, cleanTags, sourceUrl }) {
   const cur = notesq.getNote({ orgId, userId, id: existing.id })
-  if (!cur) return { noteId: existing.id, status: 'unchanged', title: explicitTitle }
+  if (!cur) return { noteId: existing.id, status: 'unchanged', title: explicitTitle || existing.title }
   let data = {}, content = cur.body || ''
   try { const m = matter(cur.body || ''); data = m.data || {}; content = m.content } catch { return { noteId: existing.id, status: 'unchanged', title: cur.title } }
   const props = { ...data }
@@ -358,8 +368,9 @@ export async function captureNote({ orgId, userId, scope = 'user', text, title, 
   // BRAIN2-W7 053: lookup + create are one critical section per vault, or two
   // identical in-flight captures both miss and both create.
   const result = await notesq.withLock(`capture:${vault.id}`, async () => {
-    const existing = findExisting(vault, hash, body)
-    if (existing && existing.exact) return applyMetadataToExact({ orgId, userId, authorKind, existing, explicitTitle: (title || '').trim(), cleanTags, sourceUrl: url ? sourceUrl : '' })
+    const existing = findExisting(vault, hash, body, (title || '').trim() ? noteTitle : '')
+    // The title already matches (case-insensitively), so only tags/source merge.
+    if (existing && existing.exact) return applyMetadataToExact({ orgId, userId, authorKind, existing, explicitTitle: '', cleanTags, sourceUrl: url ? sourceUrl : '' })
     // BRAIN2-W7 052: a near-match is never overwritten implicitly (an added "not"
     // or a swapped party is still a different document). Replacing an existing
     // note needs an explicit target.

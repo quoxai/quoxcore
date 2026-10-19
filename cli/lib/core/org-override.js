@@ -18,7 +18,7 @@
 import { QuoxValidationError } from './errors.js';
 
 // Commands where --org legitimately means something other than "act in".
-const EXEMPT = new Set(['login', 'logout', 'signup', 'org switch', 'invites list', 'invites accept']);
+export const EXEMPT = new Set(['login', 'logout', 'signup', 'org switch', 'invites list', 'invites accept']);
 
 export function commandPath(cmd) {
   const parts = [];

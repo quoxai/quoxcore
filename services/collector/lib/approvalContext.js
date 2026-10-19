@@ -145,9 +145,11 @@ function upper(s) { return String(s || '').toUpperCase(); }
  * @param {object|null} [p.turn]      approvalTurnContext.getTurn() result for this conversation
  * @param {Function} [p.delegationChainFor] approvalTurnContext.delegationChainFor
  * @param {object|null} [p.reach]     blast-radius summary, if computed
+ * @param {string|null} [p.fallbackAsk] the human's own message on this conversation (directRequestRegistry.askFor), used for
+ *                                    request_excerpt when the turn registry has none (APPROVAL-WWWH)
  * @param {number} [p.now]
  */
-function buildApprovalContext({ toolName, input = {}, pendingApproval = null, ctx = {}, turn = null, delegationChainFor = null, reach = null, now = Date.now() } = {}) {
+function buildApprovalContext({ toolName, input = {}, pendingApproval = null, ctx = {}, turn = null, delegationChainFor = null, reach = null, fallbackAsk = null, now = Date.now() } = {}) {
   input = input && typeof input === 'object' ? input : {};
   const agentId = String(ctx.agentId || 'quox').toLowerCase();
   const surface = inferSurface(ctx);
@@ -186,13 +188,13 @@ function buildApprovalContext({ toolName, input = {}, pendingApproval = null, ct
   const on_behalf_of = (turn && (turn.userId || turn.text)) ? {
     user_id: turn.userId || null,
     user_name: turn.userName || null,
-    request_excerpt: turn.text ? clip(turn.text, 300) : null,
+    request_excerpt: turn.text ? clip(turn.text, 300) : (fallbackAsk ? clip(redactSensitive(String(fallbackAsk)), 300) : null),
     conversation_id: conversationId,
     surface: turn.surface || null,
   } : (ctx.userId && caller.kind !== 'human' ? {
     user_id: ctx.holderUserId || ctx.userId,
     user_name: ctx.userName || null,
-    request_excerpt: null,
+    request_excerpt: fallbackAsk ? clip(redactSensitive(String(fallbackAsk)), 300) : null,
     conversation_id: conversationId,
     surface: null,
   } : null);
@@ -215,9 +217,7 @@ function buildApprovalContext({ toolName, input = {}, pendingApproval = null, ct
     reason = { text: null, source: 'none' };
   }
 
-  const target = String(input.host || input.host_id || pendingApproval?.targetId
-    || (input.vmid ? `vm ${input.vmid}${input.node ? ` on ${input.node}` : ''}` : '')
-    || input.credential_id || input.repo || input.to || '') || null;
+  const target = approvalTarget(input, pendingApproval);
 
   const rawCommand = extractCommand(toolName, input);
   const command = rawCommand != null
@@ -266,7 +266,46 @@ function buildApprovalContext({ toolName, input = {}, pendingApproval = null, ct
   return context;
 }
 
-/** "VULCAN (CLI)", "ADAM via QUOX → NOVA (dashboard chat)". */
+/** What an approval acts on: host, vm, credential, repo, recipient, path or id. Null when the input names none. */
+function approvalTarget(input = {}, pendingApproval = null) {
+  const pick = (v) => (typeof v === 'string' || typeof v === 'number') && String(v).trim() ? String(v).trim() : '';
+  const to = Array.isArray(input.to) ? input.to.filter(Boolean).join(', ') : input.to;
+  return pick(input.host) || pick(input.host_id) || pick(pendingApproval?.targetId)
+    || (input.vmid ? `vm ${input.vmid}${input.node ? ` on ${input.node}` : ''}` : '')
+    || pick(input.credential_id) || pick(input.repo) || pick(to) || pick(input.recipient) || pick(input.email)
+    || pick(input.container_id) || pick(input.container) || pick(input.service) || pick(input.path) || pick(input.url)
+    || null;
+}
+
+/**
+ * APPROVAL-WHAT: { action, target | target_none, summary } for a gated tool call, so the item says
+ * what will happen and to what. Built from the tool input alone: it never fails while a tool name
+ * exists, and refuses (throws) when it does not.
+ */
+function describeApprovalWhat({ toolName, input = {}, pendingApproval = null } = {}) {
+  if (!toolName || typeof toolName !== 'string') throw new Error('approval_undescribed: no tool name, so the approval cannot say what will happen');
+  input = input && typeof input === 'object' ? input : {};
+  const explicit = pendingApproval && pendingApproval.what && typeof pendingApproval.what === 'object' ? pendingApproval.what : null;
+  const action = (explicit && explicit.action) || (input.action ? `${toolName} ${input.action}` : `run ${toolName}`);
+  const target = (explicit && explicit.target) || approvalTarget(input, pendingApproval);
+  const raw = extractCommand(toolName, input);
+  const detail = raw != null ? clip(redactSensitive(String(raw)).replace(/\s+/g, ' '), 120) : (() => {
+    const a = argsPreview(input); if (!a) return null;
+    let o; try { o = JSON.parse(a); } catch { return clip(redactSensitive(a), 120); }
+    const parts = Object.entries(o).filter(([k, v]) => v != null && v !== '' && !['host', 'host_id', 'action', 'vmid', 'node'].includes(k))
+      .map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : String(v)}`);
+    return parts.length ? clip(redactSensitive(parts.join(' ')).replace(/\s+/g, ' '), 120) : null;
+  })();
+  const proposed = pendingApproval?.title ? actionFromTitle(pendingApproval.title, toolName) : '';
+  const summary = (explicit && explicit.summary)
+    || (proposed && !/^approval (?:required|needed)\b/i.test(proposed) ? proposed : '')
+    || `${action}${target ? ` on ${target}` : ''}${detail ? `: ${detail}` : ''}`;
+  const out = { action: clip(String(action), 120), target: target ? clip(String(target), 200) : null, summary: clip(String(summary), 280) };
+  if (!out.target) out.target_none = (explicit && (explicit.target_none || explicit.targetNone)) || `no target: ${toolName} names no host, recipient or id in its arguments`;
+  return out;
+}
+
+/** "VULCAN (CLI)"", "ADAM via QUOX → NOVA (dashboard chat)". */
 function sourceLabel(c) {
   const rb = c.requested_by;
   const who = rb.caller.kind === 'service' ? rb.agent_label : rb.caller.name;
@@ -337,6 +376,8 @@ function renderContextMarkdown(c) {
 
 module.exports = {
   buildApprovalContext,
+  describeApprovalWhat,
+  approvalTarget,
   buildContextTitle,
   renderContextMarkdown,
   inferSurface,

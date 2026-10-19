@@ -17,6 +17,13 @@ export function friendlyNumbersError(err) {
   return err;
 }
 
+export function parseOnOff(value, flag) {
+  const v = String(value).trim().toLowerCase();
+  if (['on', 'true', 'yes', '1'].includes(v)) return true;
+  if (['off', 'false', 'no', '0'].includes(v)) return false;
+  throw new Error(`${flag} must be on or off`);
+}
+
 export function registerVoiceCommands(program, ctx) {
   const { client, auth } = ctx;
 
@@ -48,13 +55,37 @@ export function registerVoiceCommands(program, ctx) {
     .command('set <number>')
     .description('Bind a number (E.164) to the active org, optionally with a label and policy')
     .option('--label <text>', 'human label for the number')
-    .option('--policy <json>', 'policy as a JSON object')
+    .option('--policy <json>', 'policy as a JSON object (merged over the current policy)')
+    .option('--brand <text>', 'policy: brand name the line answers as')
+    .option('--opener-name <text>', 'policy: name used in the call opener')
+    .option('--ivr <on|off>', 'policy: IVR menu on or off')
+    .option('--voice <text>', 'policy: voice to speak with')
+    .option('--language <text>', 'policy: language')
+    .option('--persona <text>', 'policy: persona')
+    .option('--verbosity <quiet|verbose>', 'policy: how chatty the agent is')
     .action(async (number, options) => {
       auth.requireAuth();
-      const body = { org_id: resolveOrgId(auth, program) };
+      const orgId = resolveOrgId(auth, program);
+      const body = { org_id: orgId };
       if (options.label !== undefined) body.label = options.label;
+      const flagPolicy = {};
+      if (options.brand !== undefined) flagPolicy.brand = options.brand;
+      if (options.openerName !== undefined) flagPolicy.opener_name = options.openerName;
+      if (options.ivr !== undefined) flagPolicy.ivr = parseOnOff(options.ivr, '--ivr');
+      if (options.voice !== undefined) flagPolicy.voice = options.voice;
+      if (options.language !== undefined) flagPolicy.language = options.language;
+      if (options.persona !== undefined) flagPolicy.persona = options.persona;
+      if (options.verbosity !== undefined) flagPolicy.verbosity = options.verbosity;
+      let jsonPolicy;
       if (options.policy !== undefined) {
-        try { body.policy = JSON.parse(options.policy); } catch { throw new Error('--policy must be valid JSON'); }
+        try { jsonPolicy = JSON.parse(options.policy); } catch { throw new Error('--policy must be valid JSON'); }
+      }
+      if (jsonPolicy !== undefined || Object.keys(flagPolicy).length > 0) {
+        // Read-modify-write so one flag never clobbers the other policy keys.
+        const lep = resolveEndpoint('telephony.numbers.list');
+        const cur = await client.get(lep.path, { service: lep.service, query: { org_id: orgId } });
+        const existing = ((cur && cur.numbers) || []).find((n) => n.number === number);
+        body.policy = { ...((existing && existing.policy) || {}), ...(jsonPolicy || {}), ...flagPolicy };
       }
       const ep = resolveEndpoint('telephony.numbers.set', { number });
       let data;

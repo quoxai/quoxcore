@@ -1,5 +1,5 @@
 {
-  "_comment": "Vendored from ~/cli.quox.ai/matrix/domains.json (the proof matrix, 39 domain ids). Source: https://github.com/quoxai/cli.quox.ai matrix/domains.json. Tips name a domain from this list so the matrix can ingest them. When the matrix becomes canonical this file is replaced by the matrix export.",
+  "_comment": "Vendored from ~/cli.quox.ai/matrix/domains.json (the proof matrix, 40 domain ids). Source: https://github.com/quoxai/cli.quox.ai matrix/domains.json. Tips name a domain from this list so the matrix can ingest them. When the matrix becomes canonical this file is replaced by the matrix export.",
   "domains": [
     "chat",
     "providers",
@@ -39,6 +39,8 @@
     "files",
     "plugins",
     "identity",
-    "install"
+    "install",
+    "compliance",
+    "mind"
   ]
 }

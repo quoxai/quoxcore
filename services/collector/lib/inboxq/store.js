@@ -37,7 +37,7 @@
  *   inboxq_sender_reputation — per-org, per-account sender rollup (the
  *                              deterministic learning layer: junk-folder
  *                              ground truth + user refile feedback). See
- *                              /opt/quoxcore/email-analysis/INBOXQ_CLASSIFIER_IMPROVEMENTS.md §3.1
+ *                              ~/email-analysis/INBOXQ_CLASSIFIER_IMPROVEMENTS.md §3.1
  */
 
 const Database = require('better-sqlite3');

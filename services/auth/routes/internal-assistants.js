@@ -94,4 +94,30 @@ router.get('/assistants/:id', (req, res) => {
   });
 });
 
+/**
+ * GET /api/internal/org-agents/:agentId?org_id=
+ * quox#1170: is this an ACTIVE custom agent (agents table, `quox agent create`) IN the caller's
+ * org? The collector asks before it accepts a JWT agent_id claim for a user-made agent. Same
+ * boundary as above: org scope in the WHERE clause, and another org's agent, a retired or
+ * inactive one, or a built-in (known to the collector already) is the same 404.
+ */
+router.get('/org-agents/:agentId', (req, res) => {
+  const callerOrgId = req.query.org_id || req.headers['x-org-id'];
+  if (!callerOrgId) {
+    return res.status(400).json({ error: 'missing_org_id', message: 'org_id query param or x-org-id header required' });
+  }
+  const db = req.db || getDb();
+  let row;
+  try {
+    row = db.prepare(
+      "SELECT agent_id, org_id, status FROM agents WHERE org_id = ? AND agent_id = ? AND status = 'active' AND is_core = 0"
+    ).get(callerOrgId, req.params.agentId);
+  } catch (err) {
+    console.error('[internal-org-agents] lookup failed:', err.message);
+    return res.status(500).json({ error: 'db_error', message: err.message });
+  }
+  if (!row) return res.status(404).json({ error: 'agent_not_found' });
+  return res.json({ agent_id: row.agent_id, org_id: row.org_id, status: row.status });
+});
+
 export default router;

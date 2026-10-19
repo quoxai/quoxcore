@@ -7,7 +7,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, renameSync, openSync, closeSync, statSync, unlinkSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { homedir, networkInterfaces, hostname as osHostname } from 'node:os';
 
 function getConfigDir() { return join(homedir(), '.config', 'quox'); }
 function getConfigFile() { return join(getConfigDir(), 'config.json'); }
@@ -94,35 +94,118 @@ function isPrivateHost(hostname) {
   return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
 }
 
-// Pure port-swap derivation, extracted so it is unit-testable without a
-// full config/profile fixture. Given a base URL (normally the ACTIVE
-// profile's own `url`, never a global default), swap in the target
-// service's port and return the origin. See getServiceUrl step 3 for the
-// loopback scheme-downgrade rule this also carries.
+// QUOXON-Z2H lane R (2026-10-14): where the edge (nginx on the profile's base
+// URL) serves each compose service. Mirrors nginx.conf: /api/auth, /api/setup,
+// /api/orgs ... go to auth at the SAME path, so auth's prefix is empty.
+export const EDGE_PATHS = {
+  auth: '',
+  collector: '/collector',
+  memory: '/api/memory',
+  tasks: '/tasks',
+  orchestrator: '/orchestrator',
+  quoxflow: '/quoxflow',
+  quoxbrain: '/api/quoxbrain',
+  files: '/files-api',
+};
+
+// The local edge's default port. A loopback base on this port is the stack on
+// THIS box, whose services are reachable on their plain-http loopback binds.
+// Any other loopback port is a tunnel (ssh -L 13105:vm:3000) to another box.
+const LOCAL_EDGE_PORTS = new Set(['3000']);
+
+function localIdentity(opts = {}) {
+  let localAddrs = opts.localAddrs;
+  if (!localAddrs) {
+    localAddrs = [];
+    try {
+      for (const list of Object.values(networkInterfaces())) {
+        for (const a of list || []) localAddrs.push(a.address);
+      }
+    } catch { /* no interfaces readable: treat nothing as local */ }
+  }
+  let host = opts.hostname;
+  if (host === undefined) { try { host = osHostname(); } catch { host = ''; } }
+  return { localAddrs: new Set(localAddrs), hostname: String(host || '').toLowerCase() };
+}
+
+function isThisMachine(hostname, id) {
+  const h = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
+  if (LOOPBACK_HOSTS.has(h) || LOOPBACK_HOSTS.has(`[${h}]`)) return true;
+  if (id.localAddrs.has(h)) return true;
+  return !!id.hostname && (h === id.hostname || h === `${id.hostname}.local`);
+}
+
+/**
+ * True when a service URL lands on THIS machine (loopback bind, or a base whose
+ * host is one of this box's own addresses) rather than another host or a tunnel
+ * to one. Used to keep this box's ambient QUOX_SERVICE_KEY from being offered
+ * to a remote instance.
+ */
+export function isLocalServiceTarget(serviceUrl, opts = {}) {
+  try {
+    const u = new URL(serviceUrl);
+    const id = localIdentity(opts);
+    if (LOOPBACK_HOSTS.has(u.hostname)) {
+      // Loopback is this box when it is the local edge or a compose service
+      // bind; any other loopback port is a tunnel to another box.
+      const port = u.port || (u.protocol === 'https:' ? '443' : '80');
+      return LOCAL_EDGE_PORTS.has(port) || Object.values(SERVICE_PORTS).map(String).includes(port);
+    }
+    return isThisMachine(u.hostname, id);
+  } catch {
+    return false;
+  }
+}
+
+/** Join an absolute or relative path onto a service URL WITHOUT dropping its path prefix (new URL('/x', base) would). */
+export function joinServiceUrl(serviceUrl, path) {
+  const base = new URL(serviceUrl);
+  const prefix = base.pathname.replace(/\/+$/, '');
+  const rel = new URL(String(path).replace(/^\/*/, '/'), 'http://x');
+  base.pathname = `${prefix}${rel.pathname}`;
+  base.search = rel.search;
+  base.hash = '';
+  return base;
+}
+
+// Derivation of a compose service's URL from a profile base URL (normally the
+// ACTIVE profile's own `url`, never a global default).
 //
-// DEVSUITE-GRIPE-P7 / Bug A: this used to be computed from getBaseUrl(),
-// which honours the global QUOX_URL env override BEFORE the active
-// profile's own url. That meant `-p <profile>` picked which profile's
-// token/services were used, but a QUOX_URL left set in the shell silently
-// overrode which HOST every derived service URL (auth, memory, etc.)
-// pointed at — `quox -p vulcan-proof signup ...` derived the auth base
-// from whatever QUOX_URL said, not from vulcan-proof's own url. Deriving
-// directly from the profile url here means -p is authoritative for service
-// URL derivation the same way it already is for auth/services overrides.
-export function deriveServiceUrl(baseUrl, port) {
+// QUOXON-Z2H lane R: the base URL is the single source of truth. Port guessing
+// is ONLY for the stack on this very machine:
+//   - loopback base on the local edge port (:3000): plain-http loopback port
+//     swap (BRAIN2-AUDIT: compose services are plain HTTP);
+//   - private-LAN base whose host is one of THIS box's addresses: the
+//     loopback bind (#572/#623: services bind 127.0.0.1, only :3000 is on LAN).
+// Everything else (another LAN host, a tunnel on a loopback port, a public
+// host) goes through that base's edge at the service's nginx path. The old
+// rule rewrote ANY RFC1918 base to 127.0.0.1:<port>, so `quox -p vm9110 login`
+// against https://192.0.2.68:3000 was sent to this box's own auth service
+// and got 401 invalid_credentials, and a tunnel profile hit local ports.
+//
+// DEVSUITE-GRIPE-P7 / Bug A: computed from the profile url, not getBaseUrl(),
+// so a stale QUOX_URL cannot defeat -p.
+export function deriveServiceUrl(baseUrl, port, service, opts = {}) {
   try {
     const url = new URL(baseUrl);
-    url.port = String(port);
-    if (LOOPBACK_HOSTS.has(url.hostname)) {
-      // Loopback base: force http (compose services are plain HTTP); keep the
-      // hostname as-is (localhost stays localhost — already reachable).
+    const id = localIdentity(opts);
+    const basePort = url.port || (url.protocol === 'https:' ? '443' : '80');
+    if (LOOPBACK_HOSTS.has(url.hostname) && LOCAL_EDGE_PORTS.has(basePort)) {
+      url.port = String(port);
       url.protocol = 'http:';
-    } else if (isPrivateHost(url.hostname)) {
-      // Private-LAN base: the service binds loopback, so point at the reachable
-      // bind (#572/#623). Public/remote hosts fall through unchanged.
+      return url.origin;
+    }
+    if (!LOOPBACK_HOSTS.has(url.hostname) && isPrivateHost(url.hostname) && isThisMachine(url.hostname, id)) {
+      url.port = String(port);
       url.protocol = 'http:';
       url.hostname = '127.0.0.1';
+      return url.origin;
     }
+    if (service && Object.prototype.hasOwnProperty.call(EDGE_PATHS, service)) {
+      return `${url.origin}${url.pathname.replace(/\/+$/, '')}${EDGE_PATHS[service]}`;
+    }
+    // A port-mapped service with no edge route: the old port swap is the only guess left.
+    url.port = String(port);
     return url.origin;
   } catch {
     return baseUrl;
@@ -328,6 +411,38 @@ export function loadConfig(profileOverride) {
       this.save();
     },
 
+    // Stale-sign-in fix: another window or `quox login` may have written fresher credentials for this
+    // profile since this process loaded. Re-read ONLY the active profile's auth from disk and adopt it in
+    // place (callers hold profile refs). Returns true when the auth changed. Never logs or returns a token.
+    reloadAuth() {
+      try {
+        const name = this._effectiveProfile;
+        const disk = JSON.parse(readFileSync(getConfigFile(), 'utf-8'));
+        const dAuth = disk?.profiles?.[name]?.auth ?? null;
+        const prof = this._data.profiles?.[name];
+        if (!prof || dAuth == null) return false;
+        if (J(prof.auth) === J(dAuth)) return false;
+        prof.auth = dAuth;
+        // The loaded snapshot now agrees with disk for auth, so save() does not treat it as our change.
+        try {
+          const snap = JSON.parse(this._loadedProfiles[name] || '{}');
+          snap.auth = dAuth;
+          this._loadedProfiles[name] = J(snap);
+        } catch { /* snapshot is advisory */ }
+        this._clearedAuth.delete(name);
+        this._refreshedAuth.delete(name);
+        return true;
+      } catch { return false; }
+    },
+
+    /** mtime (ms) of the credentials file, or 0. A cheap stat for "did anything sign in elsewhere". */
+    credentialsMtime() {
+      try { return statSync(getConfigFile()).mtimeMs; } catch { return 0; }
+    },
+
+    /** Cross-process refresh lock file, next to the credentials. */
+    refreshLockFile() { return `${getConfigFile()}.refresh.lock`; },
+
     setAuth(authData, opts = {}) {
       const profile = this.getActiveProfile();
       if (!profile) throw new Error('No active profile.');
@@ -403,7 +518,7 @@ export function loadConfig(profileOverride) {
       // and the shared services config (step 2) still say exactly what they
       // say, and a remote/non-loopback host keeps its scheme (a real
       // deployment may terminate TLS per port).
-      return deriveServiceUrl(profileUrl, port);
+      return deriveServiceUrl(profileUrl, port, service);
     },
 
     get(key) {

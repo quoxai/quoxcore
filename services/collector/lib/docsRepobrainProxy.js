@@ -3,15 +3,14 @@
  * RepoBrain HTTP service.
  *
  * No parallel search index here — this proxies to RepoBrain the same way
- * `/opt/quoxcore/bin/repobrain`'s `query` verb does, re-implemented against
+ * `~/bin/repobrain`'s `query` verb does, re-implemented against
  * Node's `fetch` (not by shelling out to the bash script). Base-URL
  * resolution mirrors that script's `resolve_api()` exactly: an explicit
- * `REPOBRAIN_API` env override wins outright; otherwise the two real
- * endpoints (the v2 host, then the local container) are health-probed in
+ * `REPOBRAIN_API` / `REPOBRAIN_URL` env override wins outright; otherwise the
+ * default endpoints (the compose service, then loopback) are health-probed in
  * order with a 1s timeout against `${base}/targets`, and the first one that
- * answers OK wins. If neither answers, the historical default
- * (http://192.0.2.127/api) is returned anyway so the caller's error names
- * a real endpoint, same as the bash script's fallback.
+ * answers OK wins. If neither answers, the service name is returned anyway so
+ * the caller's error names a real endpoint.
  *
  * The query call itself mirrors the script's non-cross-repo branch exactly:
  * `POST ${base}/targets/${target}/query` with body
@@ -50,17 +49,18 @@ const QUERY_TIMEOUT_MS = Number(process.env.REPOBRAIN_QUERY_TIMEOUT_MS) > 0
 //      REPOBRAIN_URL (docker-compose). Different name, so the override was
 //      silently ignored and resolution always fell through to the defaults.
 //   2. Both defaults are unreachable FROM THE COLLECTOR CONTAINER.
-//      192.0.2.127 is the v2 host (not routable from here), and
+//      the old LAN-host default was not routable from here, and
 //      127.0.0.1:3105 is the container's OWN loopback — RepoBrain runs in a
 //      different container, so localhost is the one address guaranteed to be
 //      wrong inside Docker.
 //
-// The service name is now first: http://repobrain:3105/api answers 200 with
-// the real target list. The old bases are kept as later fallbacks so a
-// non-Docker deployment still resolves.
+// The service name is first: http://repobrain:3105/api answers 200 with the
+// real target list inside the compose network; loopback covers a non-Docker
+// install. A specific host is configuration (REPOBRAIN_URL / REPOBRAIN_API),
+// never a shipped default: a LAN address here leaked into the public mirror and
+// was wrong on every other install (SITE-CLI 2026-10-15).
 const DEFAULT_BASES = [
   'http://repobrain:3105/api',
-  'http://192.0.2.127/api',
   'http://127.0.0.1:3105/api',
 ];
 
@@ -86,10 +86,10 @@ async function probeBase(base, { fetchImpl }) {
   }
 }
 
-// Same resolution order as bin/repobrain's resolve_api(): env override,
-// then health-probe the v2 host, then the local container. Falls back to
-// the historical default (the v2 host) if nothing answered, so a caller
-// still gets a real endpoint name in any resulting error.
+// Same resolution order as bin/repobrain's resolve_api(): env override, then
+// health-probe the compose service, then loopback. Falls back to the service
+// name if nothing answered, so a caller still gets a real endpoint name in any
+// resulting error.
 async function resolveRepobrainBase(deps = {}) {
   const { env = process.env, fetchImpl = fetch, bases = DEFAULT_BASES } = deps;
   const fromEnv = envBase(env);

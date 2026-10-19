@@ -161,6 +161,19 @@ export const skills = {
     path: ({ qid }) => `/api/quox-skills/review-queue/${qid}/reject`,
     tags: ['live-write'],
   },
+  // #1006: the crystal store (quoxflow skills.ts), where `skills from-execution` writes; list/show merge it in
+  'skills.crystals.list': {
+    method: 'GET',
+    service: 'quoxflow',
+    path: () => `/api/skills`,
+    tags: ['live-safe'],
+  },
+  'skills.crystals.get': {
+    method: 'GET',
+    service: 'quoxflow',
+    path: ({ id }) => `/api/skills/${id}`,
+    tags: ['live-safe'],
+  },
   'skills.rollbackToVersion': {
     method: 'POST',
     service: 'quoxflow',
@@ -171,6 +184,13 @@ export const skills = {
   // It actually runs a workflow/crystal (side effects beyond a rejected
   // write); 'skip-live' keeps it out of the live-contract harness entirely
   // per the WP2.3 brief ("Do NOT seed execute as live").
+  // QSKL create (quoxflow quox-skills.ts POST /): firewall-scanned; ?dry_run=true returns the verdict without writing.
+  'skills.create': {
+    method: 'POST',
+    service: 'quoxflow',
+    path: () => `/api/quox-skills`,
+    tags: ['live-write'],
+  },
   'skills.run': {
     method: 'POST',
     service: 'quoxflow',

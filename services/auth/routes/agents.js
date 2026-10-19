@@ -24,12 +24,16 @@ import { getDb, prepare } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireOrgMembership, requireOrgRole } from '../middleware/org.js';
 import { Capabilities } from '../utils/policy.js';
+import { checkInstanceAdmin } from '../middleware/instanceAdmin.js';
 import { resolveCap } from '../utils/resolveCap.js';
 import { createAuditEvent, ulid } from '../utils/helpers.js';
 import { safeCompare } from '../utils/crypto.js';
 import { unfoldAvailableTools } from '../lib/mcpToolNaming.js';
 import { prefixDeprecatedDescription } from '../lib/powersAvailableToolsDrift.js';
 import { humanGrantorOnly } from '../utils/principal.js';
+import { isValidAgentId } from '../lib/agentIdentity.js';
+import { builtinAgentIdRefusal, builtinAgentPatchRefusal } from '../lib/builtinAgentId.js';
+import { toolNotInCatalogMessage } from '../lib/toolNotInCatalogHint.js';
 
 const router = Router();
 
@@ -63,10 +67,14 @@ const MCP_WRAPPER_INPUT_SCHEMA = {
 // TOOL LIMITS CONFIGURATION
 // ============================================================================
 
+// Same shape as getOrgToolLimits() returns from tool_config. The old
+// WARN_THRESHOLD/SOFT_LIMIT/HARD_LIMIT keys left limits.hard undefined for
+// every org without a tool_config row: single assign always 409'd and
+// bulk-assign never enforced the limit.
 const TOOL_LIMITS = {
-    WARN_THRESHOLD: 5,      // Warn when adding 5th+ tool
-    SOFT_LIMIT: 8,          // Strong warning at 8+
-    HARD_LIMIT: 15          // Requires admin override
+    warn: 5,      // Warn when adding 5th+ tool
+    soft: 8,      // Strong warning at 8+
+    hard: 15      // Requires admin override
 };
 
 // ============================================================================
@@ -86,6 +94,38 @@ const TOOL_LIMITS = {
 function resolveAgentInternalId(orgId, agentIdOrSlug) {
     const ref = resolveAgentRef(orgId, agentIdOrSlug);
     return ref ? ref.id : null;
+}
+
+/**
+ * quox#1072: a built-in (registry) agent is seeded into the `__system__` org
+ * with is_core = 1 and takes its tools from its registry grant (AGENT_TOOLS)
+ * and its hat, never from an org assignment: the collector's DB overlay
+ * (/internal/agents/:agentId/tools) resolves a slug across orgs, so there is
+ * no org-scoped place for a tenant's assignment to a built-in to live. When an
+ * assign target is not one of the caller org's agents but IS a built-in, say
+ * so instead of claiming the agent does not exist.
+ * @returns {{agentSlug: string, name: string}|null}
+ */
+function resolveBuiltinAgent(agentIdOrSlug) {
+    const row = prepare(`
+        SELECT agent_id, name FROM agents
+        WHERE is_core = 1 AND (id = ? OR agent_id = ?) AND status != 'retired'
+        LIMIT 1
+    `).get(agentIdOrSlug, agentIdOrSlug);
+    return row ? { agentSlug: row.agent_id, name: row.name } : null;
+}
+
+function builtinAgentAssignRefusal(builtin) {
+    const slug = builtin.agentSlug;
+    const message = `${slug} is a built-in agent: its tools come from its registry grant and hat, not from assign. ` +
+        'Use a hat, or assign to a custom agent (quox agent create).';
+    return {
+        error: message,
+        message,
+        code: 'BUILTIN_AGENT_TOOLS_FROM_GRANT',
+        agent_id: slug,
+        hint: `See what ${slug} holds: quox agent tool list ${slug}`,
+    };
 }
 
 /**
@@ -348,12 +388,16 @@ router.post('/orgs/:orgId/agents',
                 return res.status(400).json({ error: 'agent_id and name are required' });
             }
 
-            // Validate agent_id format (lowercase, alphanumeric, underscores)
-            if (!/^[a-z][a-z0-9_]*$/.test(agent_id)) {
+            // quox#1025: the shared agent-id rule (lib/agentIdentity.js), the same one attach applies
+            if (!isValidAgentId(agent_id)) {
                 return res.status(400).json({
-                    error: 'agent_id must start with lowercase letter and contain only lowercase letters, numbers, and underscores'
+                    error: 'agent_id must be lowercase letters, digits, hyphens and underscores, starting with a letter or digit (at most 64)'
                 });
             }
+
+            // ASSAY audit: ids are unique per org only, so a tenant agent could wear a built-in's id
+            const builtinRefusal = builtinAgentIdRefusal(agent_id);
+            if (builtinRefusal) return res.status(builtinRefusal.status).json(builtinRefusal.body);
 
             // Check for duplicate agent_id in org
             const existing = prepare(`
@@ -495,6 +539,10 @@ router.patch('/orgs/:orgId/agents/:agentId',
             if (!existing) {
                 return res.status(404).json({ error: 'Agent not found' });
             }
+
+            // A built-in's identity, prompt, tools and model ship with the product: refuse, write nothing.
+            const builtinRefusal = builtinAgentPatchRefusal(existing, req.body);
+            if (builtinRefusal) return res.status(builtinRefusal.status).json(builtinRefusal.body);
 
             // Build update
             const updates = [];
@@ -778,6 +826,40 @@ router.get('/orgs/:orgId/agents/:agentId/tools', requireOrgMembership, async (re
 });
 
 /**
+ * Grant ceiling (ASSAY audit 2026-10-16): a granter cannot give an agent more than they hold. A
+ * high- or critical-risk tool runs behind an approval card; someone without hitl.approve could not
+ * approve that card, so they may grant such a tool only as 'with_approval' (the card stays). Applies
+ * to every write path: assign, PATCH and bulk-assign. Returns a plain refusal string, or null.
+ *
+ * Scope note: auth has no per-user tool permission model, so this ceiling is RISK-based (risk_level +
+ * hitl.approve), not per-tool. A finer per-tool model is a later product decision (SITE-CLI 2026-10-16).
+ */
+const HIGH_RISK_LEVELS = new Set(['high', 'critical']);
+
+/**
+ * Operator-only tools (quox#1171/#1180, SITE-CLI 2026-10-16): proof.status reads the INSTANCE
+ * operator's proof board, so it may be given to an agent only in the operator's org
+ * (instance_config fleet.operator_org_id) or by an instance admin (admin/superadmin). No operator
+ * org configured = only an instance admin (fail closed). Returns a refusal string, or null.
+ */
+const OPERATOR_ONLY_TOOL_IDS = new Set(['proof.status']);
+function operatorOnlyRefusal(req, orgId, toolId, toolName) {
+    if (!OPERATOR_ONLY_TOOL_IDS.has(toolId)) return null;
+    const ia = req.user && req.user.id ? checkInstanceAdmin(req.user.id) : { isAdmin: false };
+    if (ia.isAdmin && (ia.role === 'admin' || ia.role === 'superadmin')) return null;
+    const row = getDb().prepare("SELECT value FROM instance_config WHERE key = 'fleet.operator_org_id'").get();
+    const operatorOrg = row && row.value ? String(row.value) : null;
+    if (operatorOrg && operatorOrg === orgId) return null;
+    return `${toolName || toolId} reads the instance operator's data, so it can only be given to an agent in the operator's org, or by an instance admin. Nothing was changed.`;
+}
+function grantCeilingRefusal(req, riskLevel, accessMode, toolName) {
+    if (!HIGH_RISK_LEVELS.has(String(riskLevel || '').toLowerCase())) return null;
+    if (accessMode === 'with_approval') return null;
+    if (resolveCap(req, Capabilities.HITL_APPROVE)) return null;
+    return `You cannot give an agent ${toolName || 'this tool'} at access mode '${accessMode}': it is ${riskLevel}-risk, and you cannot approve its approval card yourself (no hitl.approve). Grant it with access_mode with_approval, or ask an org admin.`;
+}
+
+/**
  * POST /orgs/:orgId/agents/:agentId/tools
  * Assign a tool to an agent
  */
@@ -789,7 +871,7 @@ router.post('/orgs/:orgId/agents/:agentId/tools',
         try {
             const { orgId } = req.params;
             const {
-                tool_installation_id,
+                tool_id,
                 access_mode = 'full',
                 scope_id,
                 max_daily_invocations,
@@ -816,20 +898,41 @@ router.post('/orgs/:orgId/agents/:agentId/tools',
                 if (resident) assignmentKey = resident.assignmentKey;
             }
             if (!assignmentKey) {
+                const builtin = resolveBuiltinAgent(req.params.agentId);
+                if (builtin) return res.status(409).json(builtinAgentAssignRefusal(builtin));
                 return res.status(404).json({ error: 'Agent not found' });
             }
 
-            // Check tool installation exists and is in same org
+            // Resolve THIS org's enabled installation. The CLI sends
+            // { tool_id } (a definition id or tool slug, what `quox tool list`
+            // shows); the UI sends { tool_installation_id }. Every lookup is
+            // pinned to ti.org_id = the verified :orgId.
+            const requested = req.body.tool_installation_id || tool_id;
+            if (!requested) {
+                return res.status(400).json({ error: 'tool_installation_id or tool_id is required' });
+            }
             const installation = prepare(`
-                SELECT ti.*, td.name as tool_name, td.tool_id
+                SELECT ti.*, td.name as tool_name, td.tool_id, td.risk_level as tool_risk_level
                 FROM tool_installations ti
                 JOIN tool_definitions td ON ti.tool_definition_id = td.id
-                WHERE ti.id = ? AND ti.org_id = ? AND ti.enabled = 1
-            `).get(tool_installation_id, orgId);
+                WHERE ti.org_id = ? AND ti.enabled = 1
+                  AND (ti.id = ? OR td.id = ? OR td.tool_id = ?)
+                ORDER BY (ti.id = ?) DESC
+                LIMIT 1
+            `).get(orgId, requested, requested, requested, requested);
 
             if (!installation) {
-                return res.status(404).json({ error: 'Tool installation not found or disabled' });
+                // quox#1045: only point at `quox tool install` when the id is in
+                // the catalog; otherwise that hint can never be followed.
+                const inCatalog = prepare('SELECT tool_id FROM tool_definitions WHERE id = ? OR tool_id = ? LIMIT 1')
+                    .get(requested, requested);
+                return res.status(404).json({
+                    error: inCatalog
+                        ? `Tool ${requested} is not installed (or is disabled) in this org. Install it first: quox tool install ${inCatalog.tool_id}`
+                        : toolNotInCatalogMessage(getDb(), orgId, requested)
+                });
             }
+            const tool_installation_id = installation.id;
 
             // Check tool limit
             const toolStatus = checkToolLimitStatus(assignmentKey, orgId);
@@ -843,6 +946,14 @@ router.post('/orgs/:orgId/agents/:agentId/tools',
             // Validate access mode
             if (!['full', 'read_only', 'with_approval'].includes(access_mode)) {
                 return res.status(400).json({ error: 'Invalid access_mode' });
+            }
+            const ceiling = grantCeilingRefusal(req, installation.tool_risk_level, access_mode, installation.tool_name);
+            if (ceiling) {
+                return res.status(403).json({ error: ceiling, code: 'GRANT_EXCEEDS_GRANTER' });
+            }
+            const operatorOnly = operatorOnlyRefusal(req, orgId, installation.tool_id, installation.tool_name);
+            if (operatorOnly) {
+                return res.status(403).json({ error: operatorOnly, code: 'OPERATOR_ONLY_TOOL' });
             }
 
             // Check for existing assignment
@@ -887,7 +998,7 @@ router.post('/orgs/:orgId/agents/:agentId/tools',
                 targetType: 'agent',
                 targetId: agentId,
                 metadata: {
-                    agent_id: agent.agent_id,
+                    agent_id: assignmentKey,
                     tool_id: installation.tool_id,
                     tool_name: installation.tool_name,
                     access_mode,
@@ -898,7 +1009,7 @@ router.post('/orgs/:orgId/agents/:agentId/tools',
             });
 
             // Check if we need to warn about tool count
-            const newToolStatus = checkToolLimitStatus(agent.agent_id, orgId);
+            const newToolStatus = checkToolLimitStatus(assignmentKey, orgId);
 
             res.status(201).json({
                 assignment: {
@@ -960,7 +1071,7 @@ router.patch('/orgs/:orgId/agents/:agentId/tools/:assignmentId',
 
             // Check assignment exists
             const assignment = prepare(`
-                SELECT ata.*, td.tool_id, td.name as tool_name
+                SELECT ata.*, td.tool_id, td.name as tool_name, td.risk_level as tool_risk_level
                 FROM agent_tool_assignments ata
                 JOIN tool_installations ti ON ata.tool_installation_id = ti.id
                 JOIN tool_definitions td ON ti.tool_definition_id = td.id
@@ -979,6 +1090,10 @@ router.patch('/orgs/:orgId/agents/:agentId/tools/:assignmentId',
             if (access_mode !== undefined) {
                 if (!['full', 'read_only', 'with_approval'].includes(access_mode)) {
                     return res.status(400).json({ error: 'Invalid access_mode' });
+                }
+                const ceiling = grantCeilingRefusal(req, assignment.tool_risk_level, access_mode, assignment.tool_name);
+                if (ceiling) {
+                    return res.status(403).json({ error: ceiling, code: 'GRANT_EXCEEDS_GRANTER' });
                 }
                 updates.push('access_mode = ?');
                 values.push(access_mode);
@@ -1145,6 +1260,8 @@ router.post('/orgs/:orgId/agents/:agentId/tools/bulk-assign',
             `).get(agentId, orgId) : null;
 
             if (!agent) {
+                const builtin = resolveBuiltinAgent(req.params.agentId);
+                if (builtin) return res.status(409).json(builtinAgentAssignRefusal(builtin));
                 return res.status(404).json({ error: 'Agent not found' });
             }
 
@@ -1197,6 +1314,25 @@ router.post('/orgs/:orgId/agents/:agentId/tools/bulk-assign',
                     requested: tool_installation_ids.length,
                     limit: toolStatus.limits.hard
                 });
+            }
+
+            // Grant ceiling: bulk-assign writes access_mode 'full', so a high/critical-risk tool the
+            // granter could not approve is refused (nothing is written). Use the single assign route
+            // with access_mode with_approval for those.
+            for (const instId of toInsert) {
+                const t = prepare(`
+                    SELECT td.name, td.risk_level, td.tool_id FROM tool_installations ti
+                    JOIN tool_definitions td ON ti.tool_definition_id = td.id
+                    WHERE ti.id = ? AND ti.org_id = ?
+                `).get(instId, orgId);
+                const ceiling = t && grantCeilingRefusal(req, t.risk_level, 'full', t.name);
+                if (ceiling) {
+                    return res.status(403).json({ error: `${ceiling} Bulk assign always grants full, so assign it on its own.`, code: 'GRANT_EXCEEDS_GRANTER' });
+                }
+                const operatorOnly = t && operatorOnlyRefusal(req, orgId, t.tool_id, t.name);
+                if (operatorOnly) {
+                    return res.status(403).json({ error: operatorOnly, code: 'OPERATOR_ONLY_TOOL' });
+                }
             }
 
             // Apply diff in a transaction
@@ -1374,6 +1510,33 @@ function requireInternalAuth(req, res, next) {
 internalRouter.use(requireInternalAuth);
 
 /**
+ * SECURITY (ASSAY audit 2026-10-16): agent slugs are unique per org only, so the
+ * internal lookups must never pick a custom agent from another org. The caller names
+ * its org (?org_id= or X-Org-Id): a custom agent resolves only inside that org, a
+ * built-in (is_core) agent for any org. With no org named, only a built-in resolves.
+ */
+function internalCallerOrg(req) {
+    const org = req.query.org_id || req.headers['x-org-id'];
+    return typeof org === 'string' && org.trim() ? org.trim() : null;
+}
+
+function findInternalAgentRow(db, columns, agentId, orgId) {
+    if (orgId) {
+        return db.prepare(`
+            SELECT ${columns} FROM agents
+            WHERE agent_id = ? AND status = 'active' AND (org_id = ? OR is_core = 1)
+            ORDER BY is_core DESC  -- a built-in is never shadowed by a tenant row of the same slug
+            LIMIT 1
+        `).get(agentId, orgId);
+    }
+    return db.prepare(`
+        SELECT ${columns} FROM agents
+        WHERE agent_id = ? AND status = 'active' AND is_core = 1
+        LIMIT 1
+    `).get(agentId);
+}
+
+/**
  * GET /internal/agents/:agentId/tools
  * Returns tool names (TOOL_DEFS keys) assigned to a custom agent.
  *
@@ -1385,12 +1548,8 @@ internalRouter.get('/agents/:agentId/tools', (req, res) => {
         const db = getDb();
         const { agentId } = req.params;
 
-        // Find the agent across all orgs (internal endpoint, no org scoping)
-        const agent = db.prepare(`
-            SELECT id, org_id FROM agents
-            WHERE agent_id = ? AND status = 'active'
-            LIMIT 1
-        `).get(agentId);
+        // Org-scoped: a custom agent only inside the caller's org, a built-in for any org.
+        const agent = findInternalAgentRow(db, 'id, org_id', agentId, internalCallerOrg(req));
 
         // QUOXTRUST WP3.4b: an ACTIVE resident identity is also a valid
         // assignment principal (keyed by its lowercased user_id — the same
@@ -1401,7 +1560,7 @@ internalRouter.get('/agents/:agentId/tools', (req, res) => {
         let chainAgentId = agent ? agentId : null;
         let chainOrgId = agent ? agent.org_id : null;
         if (!agent) {
-            const resident = resolveResidentAssignmentKey(db, null, agentId);
+            const resident = resolveResidentAssignmentKey(db, internalCallerOrg(req), agentId);
             if (resident) {
                 chainAgentId = resident.assignmentKey;
                 chainOrgId = resident.orgId;
@@ -1566,13 +1725,8 @@ internalRouter.get('/agents/:agentId/prompt', (req, res) => {
         const db = getDb();
         const { agentId } = req.params;
 
-        const agent = db.prepare(`
-            SELECT agent_id, name, description, system_prompt_additions,
-                   domains_json, capabilities_json, level, icon, config_json
-            FROM agents
-            WHERE agent_id = ? AND status = 'active'
-            LIMIT 1
-        `).get(agentId);
+        const agent = findInternalAgentRow(db, `agent_id, name, description, system_prompt_additions,
+                   domains_json, capabilities_json, level, icon, config_json`, agentId, internalCallerOrg(req));
 
         if (!agent) {
             return res.status(404).json({ error: `Agent '${agentId}' not found` });
@@ -1643,10 +1797,17 @@ internalRouter.get('/agents', (req, res) => {
         // the param the pre-existing all-orgs behaviour is unchanged (the
         // delegator depends on it).
         const orgFilter = typeof req.query.org_id === 'string' && req.query.org_id !== '' ? req.query.org_id : null;
+        // QUOXON-PROOF #843: include_inactive=1 returns the set `quox agent list` shows (every
+        // status except 'retired', as GET /orgs/:orgId/agents does), for ONE org only.
+        const includeInactive = ['1', 'true'].includes(String(req.query.include_inactive || '').toLowerCase());
+        if (includeInactive && !orgFilter) {
+            return res.status(400).json({ error: 'include_inactive requires org_id' });
+        }
+        const statusSql = includeInactive ? "status != 'retired'" : "status = 'active'";
         const agents = db.prepare(`
-            SELECT agent_id, org_id, name, description, domains_json, capabilities_json, level, config_json
+            SELECT agent_id, org_id, name, description, domains_json, capabilities_json, level, config_json, status
             FROM agents
-            WHERE status = 'active'${orgFilter ? ' AND org_id = ?' : ''}
+            WHERE ${statusSql}${orgFilter ? ' AND org_id = ?' : ''}
             ORDER BY level, name
         `).all(...(orgFilter ? [orgFilter] : []));
 
@@ -1660,6 +1821,7 @@ internalRouter.get('/agents', (req, res) => {
                 domains: JSON.parse(a.domains_json || '[]'),
                 capabilities: JSON.parse(a.capabilities_json || '[]'),
                 level: a.level,
+                status: a.status,
                 llm: config.llm || null,
                 // BLAST-RADIUS-P0: expose the delegation graph so the
                 // collector's reach resolver can walk canDelegateTo without

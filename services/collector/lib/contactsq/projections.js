@@ -67,6 +67,8 @@ function toCard(orgId, row) {
     })),
     created_at: row.created_at,
     updated_at: row.updated_at,
+    // Owner 2026-10-15: raw numbers and emails are shown to humans only, on this ContactsQ page.
+    open_in: `/contacts?contact=${encodeURIComponent(row.id)}`,
     last_touchpoint_at: row.last_touchpoint_at || null,
     // Photo presence only (the bytes are served by the human-only GET /contacts/:id/photo); photo_v busts the browser cache.
     has_photo: Boolean(row.photo_at),

@@ -20,6 +20,13 @@
   ],
   "action_fallback": "take an action",
   "variants": [
+    { "id": "question", "when": { "tool": { "re": "^decision$" } },
+      "urgency": [{ "is": "today" }],
+      "short": "{L0} ({dur waited_ms})",
+      "L0": "Question for you: {summary70}",
+      "L1": { "who": "{who_line}", "what": "{summary|\"A question is waiting for you.\"}", "why": "It is waiting for your answer." },
+      "how": "Answer it in Approvals on the dashboard, or with quox inbox.",
+      "measures": ["ask_agent_why"] },
     { "id": "with_action", "when": { "tool": { "re": ".+" } },
       "urgency": [{ "when": { "doing": { "re": "post|send|deploy|command|delete|payment|call" } }, "is": "now" }, { "is": "today" }],
       "short": "{L0} ({dur waited_ms})",

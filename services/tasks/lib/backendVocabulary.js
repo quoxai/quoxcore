@@ -25,8 +25,7 @@
  *           payload instead of a flag.
  */
 
-/** The shell-execution family, in either backend's spelling. */
-const SHELL_NAMES = new Set(['bash', 'command'])
+import { getLoopProvider, entryName } from './loopProviders.js'
 
 // Harness-internal tools the CLI needs in order to operate at all under a
 // scope. ToolSearch performs no external action: it only loads deferred tool
@@ -35,13 +34,6 @@ const SHELL_NAMES = new Set(['bash', 'command'])
 // the backstop for calling ToolSearch on its way to mcp__quox__skill_manage.
 // Additions to this set need the same justification: internal, no side effect.
 export const HARNESS_INTERNAL_TOOLS = new Set(['ToolSearch'])
-
-/** Strip a scope entry's argument pattern: 'Bash(git *)' -> 'Bash'. */
-function entryName(entry) {
-  if (typeof entry !== 'string') return ''
-  const paren = entry.indexOf('(')
-  return (paren > 0 ? entry.slice(0, paren) : entry).trim()
-}
 
 /**
  * Translate a tool name as it appeared in a backend's event stream into the
@@ -60,20 +52,8 @@ function entryName(entry) {
  * 'mcp_tool' fallback for a call that named neither server nor tool.
  */
 export function canonicalToolName(backend, rawTool) {
-  if (backend !== 'codex') return rawTool
-  if (typeof rawTool !== 'string' || rawTool === '') return rawTool
-  if (rawTool === 'command') return 'Bash'
-  const dot = rawTool.indexOf('.')
-  if (dot > 0 && dot < rawTool.length - 1) {
-    return `mcp__${rawTool.slice(0, dot)}__${rawTool.slice(dot + 1)}`
-  }
-  return rawTool
-}
-
-/** Does this scope authorise shell execution at all? Decides codex's sandbox level. */
-function scopeAllowsShell(scope) {
-  if (!Array.isArray(scope)) return false
-  return scope.some(entry => SHELL_NAMES.has(entryName(entry).toLowerCase()))
+  const provider = getLoopProvider(backend)
+  return provider ? provider.canonicalToolName(rawTool) : rawTool
 }
 
 /**
@@ -102,28 +82,9 @@ export function scopeToBackendArgs(backend, scope, systemPrompt) {
     throw new Error('empty or missing capability_scope: deny-all (DEC-6) — refusing to build unrestricted loop args')
   }
 
-  if (backend === 'codex') {
-    // Deny by default: a scope that never names the shell family runs read-only.
-    // `codex exec` (headless) takes --sandbox as its ONLY safety lever and
-    // rejects -a/--ask-for-approval outright ("unexpected argument '-a'",
-    // proven on dev-01 2026-08-14 codex 0.118): in exec mode there
-    // is no operator to prompt, so approvals never fire and the flag is invalid.
-    // The human gate happened at objective approval, upstream of the spawn.
-    // --skip-git-repo-check: codex exec refuses to run outside a trusted (git)
-    // directory otherwise ("Not inside a trusted directory", proven live 2026-08-14).
-    // The loop's cwd is the agent's working dir, not a repo, and the sandbox is
-    // the real containment, so the git-trust check adds nothing here.
-    return {
-      args: ['--sandbox', scopeAllowsShell(scoped) ? 'workspace-write' : 'read-only', '--skip-git-repo-check'],
-      systemPromptText: prompt,
-    }
-  }
-
-  // claude (canonical): both levers are real flags.
-  const args = []
-  if (prompt) args.push('--append-system-prompt', prompt)
-  if (scoped) args.push('--allowedTools', scoped.join(','))
-  return { args: args.length > 0 ? args : undefined, systemPromptText: null }
+  // Unknown ids fall through to claude (the canonical backend), as before.
+  const provider = getLoopProvider(backend) || getLoopProvider('claude')
+  return provider.buildArgs(scoped, prompt)
 }
 
 /**
@@ -149,18 +110,7 @@ export function scopeToBackendArgs(backend, scope, systemPrompt) {
  * @throws {Error} naming the offending entry when the codex scope is patterned
  */
 export function assertCodexScopeHonorable(scope) {
-  if (!Array.isArray(scope)) return
-  for (const entry of scope) {
-    if (typeof entry === 'string' && entry.includes('(')) {
-      throw new Error(
-        `capability_scope entry '${entry}' carries an argument pattern, but a codex loop ` +
-        `cannot enforce argument patterns: codex exec --sandbox is shell on/off only, and its ` +
-        `MCP grants are whole-tool. A patterned scope would be silently widened (a shell pattern ` +
-        `becomes arbitrary shell in a writable workspace, an MCP pattern grants the whole tool). ` +
-        `Author the scope without argument patterns for codex, or drive this objective on claude.`
-      )
-    }
-  }
+  getLoopProvider('codex').assertScopeHonorable(scope)
 }
 
 /**

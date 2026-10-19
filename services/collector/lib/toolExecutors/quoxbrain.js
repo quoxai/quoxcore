@@ -118,10 +118,15 @@ function emitBrainUnavailableAudit(ctx, orgId, reason) {
  * quoxbrain_search — search the org's knowledge brain via quoxbrain.
  * Always resolves to a formatted string; never throws.
  */
+// fable11 audit: no org means no brain call (it used to fall back to the shared
+// default org, i.e. another tenant's brain).
+const NO_ORG_MSG = 'No organisation context for this call, so the knowledge brain was not queried.';
+
 async function quoxbrainSearch(input, ctx) {
+  if (!ctx?.orgId) return NO_ORG_MSG;
   const query = input?.query;
   const limit = Math.min(parseInt(input?.limit) || 5, 20);
-  const orgId = ctx?.orgId || 'default';
+  const orgId = ctx.orgId;
   const userId = ctx?.userId;
 
   if (!query || typeof query !== 'string') {
@@ -291,6 +296,8 @@ async function quoxbrainSearch(input, ctx) {
       const h = handles[idx] ? `[${handles[idx]}] ` : '';
       lines.push(`${h}${headingPath ? `${title} · ${headingPath}` : title}`);
       if (snippet) lines.push(`  ${snippet}`);
+      const miss = entityMissLine(r.missingEntities);
+      if (miss) lines.push(`  ${miss}`);
       const hasSpan = Number.isFinite(r.charStart) && Number.isFinite(r.charEnd);
       if (noteId) lines.push(`  (noteId: ${noteId}${hasSpan ? `, chars ${r.charStart}-${r.charEnd}` : ''})`);
       lines.push('');
@@ -318,6 +325,12 @@ async function quoxbrainSearch(input, ctx) {
     // always a real empty result and never a masked failure.
     emitBrainSearchAudit(ctx, orgId, query.length, resultCount);
   }
+}
+
+/** quox#853: one line telling the agent a hit never names the question's subject. */
+function entityMissLine(missing) {
+  const names = Array.isArray(missing) ? missing.filter((m) => typeof m === 'string' && m).join(', ') : '';
+  return names ? `Does not mention ${names}: do not present this note as being about ${names}.` : '';
 }
 
 /** Shared GET against the brain with the same scoping headers as search. Resolves { res } or { err }. */
@@ -370,7 +383,8 @@ function clampInt(v, dflt, min, max) {
 async function quoxbrainRead(input, ctx) {
   const noteId = typeof input?.noteId === 'string' ? input.noteId.trim() : '';
   if (!noteId) return 'Missing required parameter: noteId';
-  const orgId = ctx?.orgId || 'default';
+  if (!ctx?.orgId) return NO_ORG_MSG;
+  const orgId = ctx.orgId;
   const corrKey = ctx?.corr || ctx?.conversationId || ctx?.session_id;
   const start = clampInt(input?.start, 0, 0, Number.MAX_SAFE_INTEGER);
   const maxChars = clampInt(input?.maxChars, READ_DEFAULT_CHARS, 1, READ_MAX_CHARS);
@@ -429,7 +443,8 @@ async function quoxbrainRead(input, ctx) {
 
 /** brain_suggestions: the caller's "Ask Qortex" starter questions. Never throws. */
 async function brainSuggestions(input, ctx) {
-  const orgId = ctx?.orgId || 'default';
+  if (!ctx?.orgId) return NO_ORG_MSG;
+  const orgId = ctx.orgId;
   const count = clampInt(input?.count, 8, 1, 20);
   const { res, err } = await brainGet(`/brain/suggestions?count=${count}`, ctx, orgId);
   if (err || !res || !res.ok) {
@@ -448,11 +463,33 @@ async function brainSuggestions(input, ctx) {
 }
 
 /** brain_brief: what entered the brain recently. Never throws. */
+async function briefTotalLine({ res, err } = {}) {
+  if (err || !res || !res.ok) return `Total note count unavailable (brain status ${err ? 'unreachable' : `http_${res?.status}`}); this is not a count of 0.`;
+  try {
+    const st = await res.json();
+    const n = Number(st?.noteCount);
+    if (!Number.isFinite(n)) return 'Total note count unavailable (brain status carried no count); this is not a count of 0.';
+    const sc = st.noteCountByScope || {};
+    const split = Number.isFinite(Number(sc.org)) && Number.isFinite(Number(sc.user))
+      ? ` (${Number(sc.org)} shared across the org, ${Number(sc.user)} personal)` : '';
+    return `Total notes in the brain: ${n}${split}${st.newestNoteAt ? `, newest ${st.newestNoteAt}` : ''}.`;
+  } catch (_) {
+    return 'Total note count unavailable (brain status unreadable); this is not a count of 0.';
+  }
+}
+
 async function brainBrief(input, ctx) {
-  const orgId = ctx?.orgId || 'default';
+  if (!ctx?.orgId) return NO_ORG_MSG;
+  const orgId = ctx.orgId;
   const since = /^\d+\s*[mhdw]?$/i.test(String(input?.since || '')) ? String(input.since).replace(/\s+/g, '') : '24h';
   const stream = /^[A-Z0-9][A-Z0-9-]{1,40}$/.test(String(input?.stream || '')) ? String(input.stream) : '';
-  const { res, err } = await brainGet(`/brain/brief?since=${encodeURIComponent(since)}${stream ? `&stream=${encodeURIComponent(stream)}` : ''}`, ctx, orgId);
+  // Proof qortex/brain-note-count: the brief also carries the brain's total,
+  // read as the asking user (org + their personal notes), so "how many notes"
+  // has a brain tool to answer from instead of the org-only Mirror.
+  const [{ res, err }, statusR] = await Promise.all([
+    brainGet(`/brain/brief?since=${encodeURIComponent(since)}${stream ? `&stream=${encodeURIComponent(stream)}` : ''}`, ctx, orgId),
+    brainGet('/brain/status?embeddings=none', ctx, orgId),
+  ]);
   if (err || !res || !res.ok) {
     console.warn(`[QuoxBrain] brief failed (org=${orgId}): ${err?.message || res?.status}`);
     return UNAVAILABLE_MSG;
@@ -460,6 +497,7 @@ async function brainBrief(input, ctx) {
   try {
     const d = await res.json();
     const lines = [`Brain brief${stream ? ` for stream ${stream}` : ''} (since ${since}): ${d.summary || 'nothing new.'}`];
+    lines.push(await briefTotalLine(statusR));
     if (Array.isArray(d.topNotes) && d.topNotes.length) {
       lines.push('Newest notes:', ...d.topNotes.map((n, i) => `${i + 1}. ${n.title} (${n.source}, noteId ${n.noteId})`));
     }
@@ -537,7 +575,7 @@ async function brainContext(input, ctx, { fetchImpl = fetch } = {}) {
     const lines = [`Context pack: ${passages.length} passage${passages.length !== 1 ? 's' : ''}, ${data.tokensUsed ?? '?'} tokens (budget ${tokenBudget}).`, ''];
     const structured = passages.map((p) => {
       const c = p.citation || {};
-      return { noteId: p.noteId || c.noteId, title: c.title, relPath: c.relPath, charStart: c.charStart, charEnd: c.charEnd, text: p.text, score: p.score, noteHash: c.noteHash };
+      return { noteId: p.noteId || c.noteId, title: c.title, relPath: c.relPath, charStart: c.charStart, charEnd: c.charEnd, text: p.text, score: p.score, noteHash: c.noteHash, ...(Array.isArray(p.missingEntities) && p.missingEntities.length ? { missingEntities: p.missingEntities } : {}) };
     });
     // Register exactly like quoxbrain_search: [B1].. handles + durable records.
     const corrKey = ctx?.corr || ctx?.conversationId || ctx?.session_id;
@@ -554,6 +592,8 @@ async function brainContext(input, ctx, { fetchImpl = fetch } = {}) {
       if (text.length > CONTEXT_PASSAGE_MAX_CHARS) text = `${text.slice(0, CONTEXT_PASSAGE_MAX_CHARS).trimEnd()}...`;
       lines.push(`${i + 1}. ${handles[i] ? `[${handles[i]}] ` : ''}${p.title || 'Untitled'}`);
       lines.push(`   ${text}`);
+      const miss = entityMissLine(p.missingEntities);
+      if (miss) lines.push(`   ${miss}`);
       const span = Number.isFinite(p.charStart) && Number.isFinite(p.charEnd) ? `, chars ${p.charStart}-${p.charEnd}` : '';
       lines.push(`   (noteId: ${p.noteId || ''}${span})`);
       lines.push('');

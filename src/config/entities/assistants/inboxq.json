@@ -107,6 +107,7 @@
     "startupQueries": [],
     "bastionAwareness": false
   },
+  "delegation": { "wait_ms": 60000 },
   "capabilities": {
     "domains": [
       "email-triage",

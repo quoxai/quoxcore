@@ -2,14 +2,56 @@
  * Agent commands: CRUD, activate/deactivate, tool assignments
  */
 
+import { readFileSync } from 'node:fs';
 import { formatOutput, formatDetail, printSuccess } from '../core/output.js';
 import { resolveOrgId } from './helpers.js';
 import { resolveEndpoint } from '../api/endpoints.js';
+import { QuoxApiError } from '../core/errors.js';
 import { loadBundledAssistantsRoster } from '../core/agentAlias.js';
 import { registerAgentAttachCommands } from './agentAttach.js';
 
+// quox#1169: the prompt, domains and parent a user gives their own agent. Auth reads
+// system_prompt_additions, domains[] and parent_agent_id; it has never read manifest_id.
+function agentPromptFields(options) {
+  if (options.prompt !== undefined && options.promptFile !== undefined) {
+    throw new Error('Give either --prompt or --prompt-file, not both. Nothing was sent.');
+  }
+  if (options.manifestId !== undefined) {
+    throw new Error('--manifest-id is not supported by the server (it was always ignored). Nothing was sent.');
+  }
+  const out = {};
+  if (options.prompt !== undefined) out.system_prompt_additions = String(options.prompt);
+  if (options.promptFile !== undefined) {
+    try {
+      out.system_prompt_additions = readFileSync(options.promptFile, 'utf8');
+    } catch (err) {
+      throw new Error(`cannot read --prompt-file ${options.promptFile}: ${err.code || err.message}. Nothing was sent.`);
+    }
+  }
+  if (options.domain !== undefined) out.domains = String(options.domain).split(',').map((d) => d.trim()).filter(Boolean);
+  if (options.parent !== undefined) out.parent_agent_id = options.parent;
+  return out;
+}
+
 export function registerAgentCommands(program, ctx) {
   const { client, auth } = ctx;
+
+  // Registered specialists (no org row): resolved from the collector registry, quox#927.
+  async function registryAgent(agentId) {
+    try {
+      const ep = resolveEndpoint('v1.agents.registry');
+      const data = await client.get(ep.path, { service: ep.service });
+      return (data?.agents || []).find((r) => r.agent_id === agentId) || null;
+    } catch { return null; }
+  }
+  async function registryGrants(agentId) {
+    try {
+      const ep = resolveEndpoint('v1.tools.agents.list');
+      const data = await client.get(ep.path, { service: ep.service });
+      const list = data?.agentTools?.[agentId];
+      return Array.isArray(list) ? list : null;
+    } catch { return null; }
+  }
 
   const agent = program
     .command('agent')
@@ -106,7 +148,16 @@ export function registerAgentCommands(program, ctx) {
     .action(async (agentId) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
-      const data = await client.get(resolveEndpoint('agents.get', { orgId, agentId }).path, { service: resolveEndpoint('agents.get', { orgId, agentId }).service });
+      let data;
+      try {
+        data = await client.get(resolveEndpoint('agents.get', { orgId, agentId }).path, { service: resolveEndpoint('agents.get', { orgId, agentId }).service });
+      } catch (err) {
+        // quox#927: `agent list` also shows registered specialists that have no org row;
+        // resolve those from the registry instead of answering 404 for an id list printed.
+        const reg = err?.status === 404 ? await registryAgent(agentId) : null;
+        if (!reg) throw err;
+        data = { agent: { ...reg, source: 'registry' } };
+      }
       formatDetail(data.agent || data, {
         format: program.opts().output,
         title: data.agent?.name || data.name,
@@ -122,19 +173,22 @@ export function registerAgentCommands(program, ctx) {
     .option('--domain <domain>', 'agent domain')
     .option('--description <desc>', 'description')
     .option('--parent <parentId>', 'parent agent ID')
-    .option('--manifest-id <id>', 'manifest ID')
+    .option('--manifest-id <id>', 'not supported: refused (the server never read it)')
+    .option('--prompt <text>', "the agent's instructions (its system prompt)")
+    .option('--prompt-file <path>', "read the agent's instructions from a file")
     .action(async (options) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
+      const fields = agentPromptFields(options);
       const body = {
         name: options.name,
         level: parseInt(options.level, 10),
+        ...fields,
       };
       if (options.agentId) body.agent_id = options.agentId;
+      // legacy key kept so older servers and tests see it; auth reads domains[] (set above)
       if (options.domain) body.domain = options.domain;
       if (options.description) body.description = options.description;
-      if (options.parent) body.parent_id = options.parent;
-      if (options.manifestId) body.manifest_id = options.manifestId;
       await client.post(resolveEndpoint('agents.create', { orgId }).path, { service: resolveEndpoint('agents.create', { orgId }).service, body });
       printSuccess(`Agent "${options.name}" created.`);
     });
@@ -147,10 +201,14 @@ export function registerAgentCommands(program, ctx) {
     .option('--description <desc>', 'new description')
     .option('--level <level>', 'new level')
     .option('--status <status>', 'new status')
+    .option('--prompt <text>', "new instructions (system prompt)")
+    .option('--prompt-file <path>', 'read new instructions from a file')
+    .option('--domain <domains>', 'comma-separated domains')
+    .option('--parent <parentId>', 'parent agent ID')
     .action(async (agentId, options) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
-      const body = {};
+      const body = { ...agentPromptFields(options) };
       if (options.name) body.name = options.name;
       if (options.description) body.description = options.description;
       if (options.level) body.level = parseInt(options.level, 10);
@@ -193,7 +251,7 @@ export function registerAgentCommands(program, ctx) {
       const orgId = resolveOrgId(auth, program);
       await client.patch(resolveEndpoint('agents.update', { orgId, agentId }).path, {
         service: resolveEndpoint('agents.update', { orgId, agentId }).service,
-        body: { status: 'inactive' },
+        body: { status: 'paused' }, // #985: auth accepts draft|active|paused|retired; 'inactive' 400'd
       });
       printSuccess('Agent deactivated.');
     });
@@ -210,7 +268,15 @@ export function registerAgentCommands(program, ctx) {
     .action(async (agentId) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
-      const data = await client.get(resolveEndpoint('agents.tools.list', { orgId, agentId }).path, { service: resolveEndpoint('agents.tools.list', { orgId, agentId }).service });
+      let data;
+      try {
+        data = await client.get(resolveEndpoint('agents.tools.list', { orgId, agentId }).path, { service: resolveEndpoint('agents.tools.list', { orgId, agentId }).service });
+      } catch (err) {
+        // quox#927: a registered specialist's tools are its registry grants, not org assignments.
+        const grants = err?.status === 404 ? await registryGrants(agentId) : null;
+        if (!grants) throw err;
+        data = { tools: grants.map((name) => ({ tool_id: name, tool_name: name, category: '-', access_mode: 'registry grant', enabled: true })) };
+      }
       formatOutput({
         // fleet #392: assignment rows carry tool_name/category/enabled.
         columns: ['tool_id', 'tool_name', 'category', 'access_mode', 'enabled'],
@@ -228,10 +294,20 @@ export function registerAgentCommands(program, ctx) {
     .action(async (agentId, options) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
-      await client.post(resolveEndpoint('agents.tools.create', { orgId, agentId }).path, {
-        service: resolveEndpoint('agents.tools.create', { orgId, agentId }).service,
-        body: { tool_id: options.tool, access_mode: options.accessMode },
-      });
+      try {
+        await client.post(resolveEndpoint('agents.tools.create', { orgId, agentId }).path, {
+          service: resolveEndpoint('agents.tools.create', { orgId, agentId }).service,
+          body: { tool_id: options.tool, access_mode: options.accessMode },
+        });
+      } catch (err) {
+        // quox#1072: a built-in agent's tools come from its registry grant and
+        // hat. The server says so in prose; surface that sentence as the error
+        // with a stable code, so it does not read as a generic conflict.
+        if (err?.status === 409 && err.body?.code === 'BUILTIN_AGENT_TOOLS_FROM_GRANT') {
+          throw new QuoxApiError(409, err.body.code, err.body.message || err.body.error, undefined, err.body);
+        }
+        throw err;
+      }
       printSuccess(`Tool assigned to agent.`);
     });
 

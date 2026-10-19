@@ -13,23 +13,14 @@
  */
 import React from 'react';
 import { Box, Text, Transform } from 'ink';
-import { Lexer } from 'marked';
 import { graphemes } from './textBuffer.js';
-import { c, mono, clip, gradient, bulletRole } from './theme.js';
+import { c, mono, gradient, bulletRole } from './theme.js';
 
 const h = React.createElement;
 
-export const lex = (src) => new Lexer({ gfm: true, breaks: false }).lex(src);
+import { lex, splitSettled } from './markdownSettle.js';
 
-export function splitSettled(text) {
-  const tokens = lex(text);
-  let last = -1;
-  for (let i = tokens.length - 1; i >= 0; i--) if (tokens[i].type !== 'space') { last = i; break; }
-  if (last <= 0) return { settled: '', rest: text };
-  let off = 0;
-  for (let i = 0; i < last; i++) off += tokens[i].raw.length;
-  return { settled: text.slice(0, off), rest: text.slice(off) };
-}
+export { lex, splitSettled }; // QUOXON-LATENCY: defined in markdownSettle.js so --print never loads Ink
 
 export function healInline(text) {
   let t = text;
@@ -128,22 +119,55 @@ function inline(tokens = [], style = {}, key = 'i') {
 const w = (s) => graphemes(s).length;
 const padTo = (s, n) => s + ' '.repeat(Math.max(0, n - w(s)));
 
-/** Plain-text table layout: returns { mode: 'grid'|'vertical', lines: [{ text, head? }] }. Pure, for tests. */
+/** Hard-wrap plain text to `width` columns at word boundaries (long words split). Never drops text. Always >= 1 line. */
+export function wrapCell(text, width) {
+  const width_ = Math.max(1, width);
+  const out = [];
+  for (const para of String(text ?? '').split('\n')) {
+    let cur = '';
+    for (const word of para.split(/\s+/).filter(Boolean)) {
+      let g = graphemes(word).map(x => x.text);
+      if (cur && w(cur) + 1 + g.length <= width_) { cur += ' ' + word; continue; }
+      if (cur) { out.push(cur); cur = ''; }
+      while (g.length > width_) { out.push(g.slice(0, width_).join('')); g = g.slice(width_); }
+      cur = g.join('');
+    }
+    out.push(cur);
+  }
+  return out;
+}
+
+/**
+ * Plain-text table layout: { mode: 'grid'|'vertical', lines: [{ text, head?, rule? }] }. Pure, for tests.
+ * Grid when it fits, else vertical key/value blocks whose values wrap under a hanging indent. No cell is ever truncated
+ * (TUI-UX #3: the grounding warning named an id that sat in a clipped cell).
+ */
 export function layoutTable(header, rows, cols) {
   const n = header.length;
   const widths = header.map((hd, i) => Math.max(w(hd), ...rows.map(r => w(r[i] ?? '')), 1));
   const total = widths.reduce((a, b) => a + b, 0) + 3 * (n - 1);
-  if (total <= cols) {
-    const line = (r) => r.map((cell, i) => padTo(cell ?? '', widths[i])).join(' │ ').replace(/\s+$/, '');
-    const rule = widths.map(x => '─'.repeat(x)).join('─┼─');
-    return { mode: 'grid', lines: [{ text: line(header), head: true }, { text: rule, rule: true }, ...rows.map(r => ({ text: line(r) }))] };
-  }
-  // too wide: vertical key: value, one block per row
+  const gridLines = (ws) => {
+    const cellLines = (r) => {
+      const cells = r.map((cell, i) => wrapCell(cell ?? '', ws[i]));
+      const h_ = Math.max(...cells.map(x => x.length));
+      return Array.from({ length: h_ }, (_, k) => cells.map((x, i) => padTo(x[k] ?? '', ws[i])).join(' │ ').replace(/\s+$/, ''));
+    };
+    const rule = ws.map(x => '─'.repeat(x)).join('─┼─');
+    return [...cellLines(header).map(text => ({ text, head: true })), { text: rule, rule: true }, ...rows.flatMap(r => cellLines(r).map(text => ({ text })))];
+  };
+  if (total <= cols) return { mode: 'grid', lines: gridLines(widths) };
+  // vertical key: value, one block per row; values wrap under a hanging indent
   const lines = [];
   const keyW = Math.min(Math.max(...header.map(w)), Math.floor(cols / 3));
+  const valW = Math.max(8, cols - keyW - 2);
   rows.forEach((r, ri) => {
     if (ri) lines.push({ text: '' });
-    header.forEach((hd, i) => lines.push({ text: `${padTo(clip(hd, keyW), keyW)}  ${r[i] ?? ''}`, key: keyW }));
+    header.forEach((hd, i) => {
+      const keyLines = wrapCell(hd, keyW);
+      const val = wrapCell(r[i] ?? '', valW);
+      const count = Math.max(keyLines.length, val.length);
+      for (let k = 0; k < count; k++) lines.push({ text: `${padTo(keyLines[k] ?? '', keyW)}  ${val[k] ?? ''}`.replace(/\s+$/, ''), key: k === 0 ? keyW : undefined });
+    });
   });
   return { mode: 'vertical', lines };
 }
@@ -153,7 +177,7 @@ function Table({ t, cols }) {
   const rows = t.rows.map(r => r.map(x => inlineText(x.tokens)));
   const lay = layoutTable(header, rows, cols);
   return h(Box, { flexDirection: 'column' }, ...lay.lines.map((l, i) => h(Text, {
-    key: i, bold: l.head, color: l.rule ? c('muted') : (l.head ? c('label') : undefined), wrap: 'truncate-end'
+    key: i, bold: l.head, color: l.rule ? c('muted') : (l.head ? c('label') : undefined), wrap: 'wrap'
   }, l.text || ' ')));
 }
 

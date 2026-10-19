@@ -18,7 +18,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-export const BASE_VERSION = '0.3.0';
+export const BASE_VERSION = '0.3.1';
 
 // The CLI source root (…/cli). version.js lives at cli/lib/core/, so two
 // levels up is the tree whose HEAD identifies the running build.

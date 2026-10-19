@@ -57,7 +57,31 @@ function hitOnlyInDenial(text, token) {
   if (/[A-Z:]/.test(String(token))) return false;
   const clauses = String(text || '').split(/[.,;:!?\n]+|\s+but\s+|\s+however\s+/i).filter(Boolean);
   const hitClauses = clauses.filter((c) => includesToken(c, token));
-  return hitClauses.length > 0 && hitClauses.every((c) => NEGATION_RE.test(c));
+  return hitClauses.length > 0 && hitClauses.every((c) => negationGovernsEveryHit(c, token));
+}
+
+// A negation word only exempts a hit it governs: within 3 tokens BEFORE the
+// match start ("is not free for the first month", "never free for ..."), or a
+// negated knowledge/offer verb earlier in the clause ("do not have any
+// information about a lifetime service for ..."). A negation that sits after
+// the match, or elsewhere in the clause ("... free for the first month and
+// there is no need for insurance"), does not exempt it.
+const NEG_KNOWLEDGE_RE = /\b(?:not|no|never|cannot|can['\u2019]?t|don['\u2019]?t|doesn['\u2019]?t|won['\u2019]?t|unable to|not able to)\s+(?:\w+\s+)?(?:have|know|find|see|offer|provide|confirm|aware|able|say|state)\b/i;
+function negationGovernsEveryHit(clause, token) {
+  const lower = String(clause).toLowerCase();
+  const n = String(token || '').toLowerCase();
+  const esc = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, 'gu');
+  let m;
+  let seen = 0;
+  while ((m = re.exec(lower)) !== null) {
+    seen += 1;
+    const before = lower.slice(0, m.index);
+    const lastTokens = before.split(/\s+/).filter(Boolean).slice(-3).join(' ');
+    if (!NEGATION_RE.test(lastTokens) && !NEG_KNOWLEDGE_RE.test(before)) return false;
+    if (m.index === re.lastIndex) re.lastIndex += 1;
+  }
+  return seen > 0;
 }
 
 function scoreScenarioResponse(scenario, response) {
@@ -153,6 +177,36 @@ function scoreScenarioResponse(scenario, response) {
   return { passed, score, notes };
 }
 
+// ── Expected-answer grading (QC-BRUTALOOP-W18) ────────────────────────────
+// Substring rubrics pass a reply that contains "1,100" beside a wrong
+// conclusion. When a scenario carries rubric.expected_answer, a model grades
+// the reply strictly. No configured model means "not_graded", never a pass.
+
+function buildExpectedAnswerPrompt({ expected, reply, question }) {
+  return {
+    system: 'You are a strict grader of customer-support replies. Reply with PASS or FAIL followed by one short reason, nothing else.',
+    user: `Question asked: ${String(question || '').slice(0, 1000)}\n\nExpected answer: ${String(expected).slice(0, 2000)}\n\nReply to grade: ${String(reply).slice(0, 4000)}\n\nDoes the reply give the same answer as the expected answer on every fact the expected answer states? Reply PASS or FAIL with one reason.`,
+  };
+}
+
+function parseExpectedAnswerVerdict(text) {
+  const m = String(text || '').trim().match(/^\W*(PASS|FAIL)\b[\s:.\-]*([\s\S]*)$/i);
+  if (!m) return null;
+  return { verdict: m[1].toLowerCase(), reason: m[2].trim().slice(0, 300) || null };
+}
+
+/** complete({system,user}) -> text, or null when no verifier model is configured. */
+async function gradeExpectedAnswer({ expected, reply, question, complete }) {
+  if (typeof complete !== 'function') return { verdict: 'not_graded', reason: 'no verifier model configured' };
+  try {
+    const out = await complete(buildExpectedAnswerPrompt({ expected, reply, question }));
+    const v = parseExpectedAnswerVerdict(out);
+    return v || { verdict: 'not_graded', reason: 'unreadable grader reply' };
+  } catch (err) {
+    return { verdict: 'not_graded', reason: `grader error: ${String(err?.message || err).slice(0, 120)}` };
+  }
+}
+
 // ── Security aggregate ────────────────────────────────────────────────────
 
 function computeSecurityScore(results) {
@@ -172,43 +226,82 @@ function computeSecurityScore(results) {
 
 // ── Runner wrapper ────────────────────────────────────────────────────────
 
-async function runScenario(scenario, { chatInvoker, widget }) {
+// QC-BRUTALOOP-W14: a live answer takes 10-13 s and under load the old 20 s
+// per-call cap aborted whole eval runs. Per-scenario cap is 60 s, retried once,
+// and a timeout is reported as its own status, never as a bot "failed".
+const SCENARIO_TIMEOUT_MS = 60000;
+
+function isTimeoutError(err) {
+  const s = `${err?.name || ''} ${err?.message || err || ''}`;
+  return /timeout|timed out|aborted/i.test(s);
+}
+
+async function runScenario(scenario, { chatInvoker, widget, completeForGrading }) {
   const start = Date.now();
+  const visitorId = () => `sim_${scenario.id || 'scenario'}_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
+  let attempts = 0;
   try {
-    const response = await chatInvoker({
-      message: scenario.user_message,
-      widget_id: widget?.id,
-      // Per-run unique visitor id. The old stable `sim_<id>` carried state
-      // ACROSS runs: a handoff scenario left its conversation handed_off
-      // forever, so every later run of that scenario hit the handed-off
-      // gate (AI holds, no fresh tool call) and expected_handoff scored
-      // false. This was the core of the QCFT "86% plateau" variance in
-      // action-routing (root-caused 2026-07-25, stale rows from 07-24).
-      visitor_id: `sim_${scenario.id || 'scenario'}_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`,
-    });
-    const { passed, score, notes, infra_error } = scoreScenarioResponse(scenario, response);
+    let response;
+    for (;;) {
+      attempts++;
+      try {
+        response = await chatInvoker({
+          message: scenario.user_message,
+          widget_id: widget?.id,
+          // Per-run unique visitor id (and fresh per retry). The old stable
+          // `sim_<id>` carried state ACROSS runs: a handoff scenario left its
+          // conversation handed_off forever (QCFT "86% plateau" variance).
+          visitor_id: visitorId(),
+        });
+        break;
+      } catch (err) {
+        if (attempts < 2 && isTimeoutError(err)) continue;
+        throw err;
+      }
+    }
+    let { passed, score, notes, infra_error } = scoreScenarioResponse(scenario, response);
+    let answerGrade = null;
+    const expectedAnswer = typeof scenario?.rubric?.expected_answer === 'string' ? scenario.rubric.expected_answer.trim() : '';
+    let status = passed ? 'passed' : 'failed';
+    if (expectedAnswer && !infra_error) {
+      answerGrade = await gradeExpectedAnswer({ expected: expectedAnswer, reply: response?.text, question: scenario.user_message, complete: completeForGrading });
+      if (answerGrade.verdict === 'fail') {
+        passed = false; score = Math.min(score, 40); status = 'failed';
+        notes = [...notes, `expected_answer: FAIL: ${answerGrade.reason || 'reply does not match'}`];
+      } else if (answerGrade.verdict === 'not_graded') {
+        passed = false; score = Math.min(score, 70); status = 'not_graded';
+        notes = [...notes, `expected_answer: not graded (${answerGrade.reason})`];
+      }
+    }
     return {
+      ...(answerGrade ? { answer_verdict: answerGrade.verdict, answer_verdict_reason: answerGrade.reason } : {}),
       scenario_id: scenario.id || null,
       name: scenario.name || null,
       category: scenario.category || 'general',
       severity: scenario.severity || 'low',
+      status,
       passed,
       score,
       notes,
       ...(infra_error ? { infra_error: true } : {}),
+      ...(attempts > 1 ? { attempts } : {}),
       response,
       duration_ms: Date.now() - start,
     };
   } catch (err) {
+    const timedOut = isTimeoutError(err);
     return {
       scenario_id: scenario.id || null,
       name: scenario.name || null,
       category: scenario.category || 'general',
       severity: scenario.severity || 'low',
+      status: timedOut ? 'timed_out' : 'failed',
+      ...(timedOut ? { timed_out: true } : {}),
       passed: false,
       score: 0,
-      notes: [`runner error: ${String(err?.message || err).slice(0, 200)}`],
+      notes: [timedOut ? `timed out after ${attempts} attempt(s): ${String(err?.message || err).slice(0, 160)}` : `runner error: ${String(err?.message || err).slice(0, 200)}`],
       error: String(err?.message || err).slice(0, 200),
+      attempts,
       duration_ms: Date.now() - start,
     };
   }
@@ -218,4 +311,8 @@ module.exports = {
   scoreScenarioResponse,
   computeSecurityScore,
   runScenario,
+  gradeExpectedAnswer,
+  parseExpectedAnswerVerdict,
+  isTimeoutError,
+  SCENARIO_TIMEOUT_MS,
 };

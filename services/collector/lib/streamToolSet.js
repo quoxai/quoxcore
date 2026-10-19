@@ -16,7 +16,7 @@
  */
 async function resolveStreamToolSet(
   { agent, orgId, userId, conversationId, prompt, provider, providerKeys, toolCap, offerBounded = false },
-  { getToolsWithConnectors, resolveHatForTurn, buildTurnManifest, buildFailClosedManifest, applySmartToolCap, checkManifestCompat, storeAuditEnvelope, searchToolsFn, embedText, log = console },
+  { getToolsWithConnectors, resolveHatForTurn, buildTurnManifest, buildFailClosedManifest, applySmartToolCap, checkManifestCompat, storeAuditEnvelope, searchToolsFn, embedText, observeHat = require('./hatSwitchNote.js').observeHat, log = console },
 ) {
   let tools = [];
   try {
@@ -24,18 +24,24 @@ async function resolveStreamToolSet(
     tools = Array.isArray(t) ? t : [];
   } catch (e) {
     log.warn?.(`[ChatStream] tool grant for '${agent}' failed, none listed: ${e && e.message}`);
-    return { tools: [], hatManifest: null, hat: null };
+    return { tools: [], hatManifest: null, hat: null, hatSwitchNote: null };
   }
 
   let hatManifest = null;
   let hat = null;
+  let hatSwitchNote = null;
   try {
     const hatTurn = await resolveHatForTurn({ orgId, userId, conversationId, agent });
     if (hatTurn && hatTurn.hat) {
       const manifest = buildTurnManifest({ agentTools: tools, hat: hatTurn.hat, loadedBundles: hatTurn.binding?.loaded_bundles || [], agent });
       if (manifest) {
         const enforced = hatTurn.enforcement === 'enforce';
-        if (enforced && offerBounded && manifest.authzToolNames instanceof Set) {
+        if (enforced && offerBounded && manifest.offerMembersOnly) {
+          // CUSTOM-HATS: a hat authored tools.offer 'members' offers an orchestrator turn ONLY its
+          // members (+ governance/Tier-0 floors). Authority is unchanged: authzToolNames still
+          // decides execution, so a named ask for a granted tool outside the view still runs.
+          tools = manifest.tools;
+        } else if (enforced && offerBounded && manifest.authzToolNames instanceof Set) {
           // QUOXON-PARITY: the pool is what the hat AUTHORIZES (the set executeTool enforces),
           // presentation first. The presentation manifest carries no authority (hatManifest.js
           // P-B); under a D3 offer it only ordered a view the offer now focuses per turn.
@@ -50,12 +56,18 @@ async function resolveStreamToolSet(
           authzMode: manifest.authzMode,
           authorizedAgents: manifest.authorizedAgents,
           delegationScoped: manifest.delegationScoped,
+          scopedAgents: manifest.scopedAgents,
+          orchestrator: manifest.orchestrator,
+          offerMembersOnly: manifest.offerMembersOnly,
           hatKey: manifest.hatKey,
           hatId: manifest.hatId,
           revision: manifest.revision,
           digest: manifest.digest,
         };
         hat = { key: manifest.hatKey, revision: manifest.revision };
+        // CUSTOM-HATS: the hat differs from the previous turn's -> a one-turn server note for the prompt.
+        hatSwitchNote = observeHat({ orgId, userId, conversationId, agent }, hatManifest);
+        if (hatSwitchNote) log.log?.(`[QUOXHAT] hat switch note injected conv=${conversationId} agent=${agent} hat=${manifest.hatKey}`);
         // Same content-free witness receipt POST /chat emits per hat-resolved turn.
         storeAuditEnvelope({
           type: 'event', from: 'system.quoxhat', to: 'system.tools',
@@ -67,8 +79,14 @@ async function resolveStreamToolSet(
             manifest_digest: manifest.digest, manifest_size: manifest.tools.length, enforced,
             hat_id: manifest.hatId, definition_digest: hatTurn.hat.digest || null,
             agent, conversation_id: conversationId || null, loaded_bundles: manifest.loadedBundles, path: 'chat_stream',
+            // CUSTOM-HATS: the context this turn carries: the agents in scope (null = unscoped)
+            // and whether the offer is members-only. The witness of "a turn under X carries
+            // only X's agents".
+            agents_in_scope: enforced && manifest.delegationScoped ? (Array.isArray(manifest.scopedAgents) ? manifest.scopedAgents : []) : null,
+            offer: manifest.offerMembersOnly ? 'members' : 'authorized',
           },
         });
+        log.log?.(`[QUOXHAT] context scope turn hat=${manifest.hatKey} rev=${manifest.revision} agent=${agent} enforced=${enforced} agents_in_scope=${enforced && manifest.delegationScoped ? (Array.isArray(manifest.scopedAgents) ? manifest.scopedAgents : []).join(',') || '-' : 'all'} offer=${manifest.offerMembersOnly ? 'members' : 'authorized'} pool=${tools.length}`);
       }
     } else if (!hatTurn) {
       const fc = buildFailClosedManifest(orgId);
@@ -81,7 +99,7 @@ async function resolveStreamToolSet(
   }
 
   if (hatManifest && hatManifest.enforced) {
-    if (offerBounded) return { tools, hatManifest, hat }; // the D3 offer sizes what the provider sees
+    if (offerBounded) return { tools, hatManifest, hat, hatSwitchNote }; // the D3 offer sizes what the provider sees
     try {
       const c = checkManifestCompat(provider, tools.length);
       if (!c.compatible) log.error?.(`[QUOXHAT-P6] stream: enforced manifest (${tools.length} tools) vs provider '${provider}': ${(c.reasons || []).join('; ')}`);
@@ -102,7 +120,7 @@ async function resolveStreamToolSet(
       tools = [];
     }
   }
-  return { tools, hatManifest, hat };
+  return { tools, hatManifest, hat, hatSwitchNote };
 }
 
 module.exports = { resolveStreamToolSet };

@@ -13,15 +13,32 @@
 const STOP = new Set('a an the and or but of to in on at for by with from as is are was were be been being do does did what which who whom whose when where why how we our us i me my you your it its this that these those there here about into over under than then so if not no yes can could should would will shall may might must have has had any all some ever never just only also very much more most such per via'.split(' '))
 const CALENDAR = /^(mid-)?(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|june?|july?|aug(ust)?|sep(t|tember)?|oct(ober)?|nov(ember)?|dec(ember)?|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|yesterday|tomorrow)$/i
 
-export function questionEntities(query) {
-  const toks = String(query || '').match(/[\p{L}\p{N}][\p{L}\p{N}._-]*/gu) || []
+// Tokens with whether each opens a sentence: the query's first word, or the
+// first word after . ? ! (quox#1148: "... cost? Answer from what you know"
+// made "answer" a named thing). A dot inside a token (Fly.io) is no boundary.
+export function sentenceTokens(query) {
+  const s = String(query || '')
   const out = []
-  toks.forEach((t, i) => {
+  let prevEnd = 0
+  let prevTok = ''
+  for (const m of s.matchAll(/[\p{L}\p{N}][\p{L}\p{N}._-]*/gu)) {
+    const gap = s.slice(prevEnd, m.index)
+    const start = out.length === 0 || /[.?!]/.test(gap) || (/\.$/.test(prevTok) && /^\s/.test(gap))
+    out.push({ t: m[0], start })
+    prevEnd = m.index + m[0].length
+    prevTok = m[0]
+  }
+  return out
+}
+
+export function questionEntities(query) {
+  const out = []
+  for (const { t, start } of sentenceTokens(query)) {
     const bare = t.replace(/[._-]+$/, '')
-    if (bare.length < 2 || STOP.has(bare.toLowerCase()) || CALENDAR.test(bare)) return
-    const capital = /\p{Lu}/u.test(bare) && (i > 0 || /\p{Lu}/u.test(bare.slice(1)))
+    if (bare.length < 2 || STOP.has(bare.toLowerCase()) || CALENDAR.test(bare)) continue
+    const capital = /\p{Lu}/u.test(bare) && (!start || /\p{Lu}/u.test(bare.slice(1)))
     if (capital || /\d/.test(bare)) out.push(bare.toLowerCase())
-  })
+  }
   return [...new Set(out)]
 }
 
@@ -127,15 +144,14 @@ export function modeEntities(query, mode, sampleFn, scopeKey = '', now = Date.no
     return st
   }
   try {
-    const toks = String(query || '').match(/[\p{L}\p{N}][\p{L}\p{N}._-]*/gu) || []
     const out = new Set(base)
     let lookups = 0
-    toks.forEach((t, i) => {
+    sentenceTokens(query).forEach(({ t, start }) => {
       const bare = t.replace(/[._-]+$/, '')
       const low = bare.toLowerCase()
       if (bare.length < 2 || STOP.has(low) || CALENDAR.test(bare) || out.has(low) || lookups >= MAX_MODE_LOOKUPS) return
       const upper = /\p{Lu}/u.test(bare)
-      if (i === 0 && upper) {
+      if (start && upper) {
         if (OPENERS.has(low)) return
         lookups++
         if (stats(low).capital >= 1) out.add(low)
@@ -156,11 +172,72 @@ export function modeEntities(query, mode, sampleFn, scopeKey = '', now = Date.no
 }
 export function _clearGroundingCache() { sampleCache.clear() }
 
-// "401s" is grounded by "401", "CVEs" by "CVE".
-function mentioned(entity, hay) {
+// quox#853: a renamed product is still named by its old name in everything
+// written before the rename (Brain2 -> Qortex on 2026-10-11). Default pair
+// both ways; BRAIN_ENTITY_ALIASES (JSON {"term":["alias",...]}) merges over it.
+const DEFAULT_ALIASES = { qortex: ['brain2'], brain2: ['qortex'] }
+export function entityAliases() {
+  const m = new Map(Object.entries(DEFAULT_ALIASES).map(([k, v]) => [k, [...v]]))
+  let extra = null
+  try { extra = process.env.BRAIN_ENTITY_ALIASES ? JSON.parse(process.env.BRAIN_ENTITY_ALIASES) : null } catch { extra = null }
+  if (extra && typeof extra === 'object' && !Array.isArray(extra)) {
+    for (const [k, v] of Object.entries(extra)) {
+      const list = (Array.isArray(v) ? v : [v]).filter((a) => typeof a === 'string' && a.trim()).map((a) => a.trim().toLowerCase())
+      if (list.length) m.set(String(k).trim().toLowerCase(), list)
+    }
+  }
+  return m
+}
+
+/** The sparse retrieval query plus any alias of a term it names, once. */
+export function aliasExpandQuery(query) {
+  const q = String(query || '')
+  const lower = q.toLowerCase()
+  const words = new Set(lower.match(/[\p{L}\p{N}.]+/gu) || [])
+  const add = []
+  for (const [term, aliases] of entityAliases()) {
+    if (!words.has(term)) continue
+    for (const a of aliases) if (!lower.includes(a) && !add.includes(a)) add.push(a)
+  }
+  return add.length ? `${q} ${add.join(' ')}` : q
+}
+
+// "401s" is grounded by "401", "CVEs" by "CVE"; an alias grounds its term.
+function mentionedLiteral(entity, hay) {
   if (hay.includes(entity)) return true
   const singular = entity.replace(/(es|s)$/, '')
   return singular.length >= 2 && singular !== entity && hay.includes(singular)
+}
+function mentioned(entity, hay, aliases = entityAliases()) {
+  if (mentionedLiteral(entity, hay)) return true
+  return (aliases.get(entity) || []).some((a) => mentionedLiteral(a, hay))
+}
+
+/**
+ * quox#853: within one page of results, hits that mention every named thing
+ * outrank hits that miss some (fewest misses first, stable), and each miss is
+ * labelled on the hit (missingEntities) so an agent cannot present a note that
+ * never names the subject as being about it. Number-only entities are details,
+ * never a reason to demote. No reordering when no hit or every hit mentions.
+ * @param {object[]} items
+ * @param {string[]} entities
+ * @param {(r:object)=>string} salientOf
+ */
+export function rankByEntityMention(items, entities, salientOf) {
+  const list = Array.isArray(items) ? items : []
+  const named = (entities || []).filter((e) => typeof e === 'string' && e && !/^\d+$/.test(e))
+  if (!named.length || !list.length) return list
+  const aliases = entityAliases()
+  const scored = list.map((r, i) => {
+    let hay = ''
+    try { hay = String(salientOf(r) || '').toLowerCase() } catch { /* no text */ }
+    const missing = named.filter((e) => !mentioned(e, hay, aliases))
+    if (missing.length) r.missingEntities = missing
+    else delete r.missingEntities
+    return { r, i, n: missing.length }
+  })
+  if (scored.every((x) => x.n === scored[0].n)) return list
+  return scored.sort((a, b) => a.n - b.n || a.i - b.i).map((x) => x.r)
 }
 
 /**
@@ -172,7 +249,8 @@ export function groundingVerdict(query, salientTexts, precomputed) {
   const entities = Array.isArray(precomputed) ? precomputed : questionEntities(query)
   if (!entities.length) return { entities, missing: [], ungrounded: false }
   const hay = salientTexts.map((t) => String(t || '')).join(' ').toLowerCase()
-  const missing = entities.filter((e) => !mentioned(e, hay))
+  const aliases = entityAliases()
+  const missing = entities.filter((e) => !mentioned(e, hay, aliases))
   // None of the named things appear.
   if (missing.length === entities.length) return { entities, missing, ungrounded: true }
   // Several named words and at most half appear ("Tekton ... CI" answered by
@@ -201,4 +279,4 @@ export function groundingForTop(query, items, { passageOf, headOf = () => '', n 
   return groundingVerdict(query, salient, entities)
 }
 
-export default { modeEntities, questionEntities, groundingVerdict, groundingForTop }
+export default { modeEntities, questionEntities, groundingVerdict, groundingForTop, rankByEntityMention, aliasExpandQuery, entityAliases }

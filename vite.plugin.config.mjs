@@ -6,7 +6,7 @@
  *
  *   node scripts/build-first-party-plugin.mjs quoxbox-macmini
  *
- * It builds exactly the way a third-party plugin builds — quox-plugin-vite,
+ * It builds exactly the way a third-party plugin builds — @quoxai/quox-plugin-vite,
  * React externalised onto window.__quoxSharedDeps, single plugin.esm.js +
  * plugin.css, packaged into a .quoxplugin ZIP — because the whole point of the
  * loader contract is that first-party and third-party share ONE format. The
@@ -14,7 +14,7 @@
  * the view from the dashboard source tree) and that the result is signed with
  * a Quox publisher key.
  *
- * quox-plugin-vite is resolved from node_modules when installed (npm, from
+ * @quoxai/quox-plugin-vite is resolved from node_modules when installed (npm, from
  * 0.2.0) and otherwise from the sibling quox-plugin-sdk checkout. It is a BUILD-TIME tool for this one
  * script and deliberately not a package.json dependency: adding a file: dep
  * would break `npm ci` inside the dashboard Docker build, which has no sibling
@@ -46,10 +46,10 @@ if (!fs.existsSync(entry)) {
     throw new Error(`No entry at ${entry}`);
 }
 
-/** Resolve quox-plugin-sdk's vite plugin: node_modules first, sibling checkout second. */
+/** Resolve @quoxai/quox-plugin-sdk's vite plugin: node_modules first, sibling checkout second. */
 function loadQuoxPluginVite() {
     try {
-        return require('quox-plugin-vite');
+        return require('@quoxai/quox-plugin-vite');
     } catch { /* not installed — fall through to the sibling checkout */ }
 
     const fallback = process.env.QUOX_PLUGIN_VITE
@@ -57,7 +57,7 @@ function loadQuoxPluginVite() {
     if (fs.existsSync(fallback)) return require(fallback);
 
     throw new Error(
-        'quox-plugin-vite not found. Install it, or point QUOX_PLUGIN_VITE at '
+        '@quoxai/quox-plugin-vite not found. Install it, or point QUOX_PLUGIN_VITE at '
         + 'quox-plugin-sdk/packages/quox-plugin-vite/src/index.js',
     );
 }
@@ -76,7 +76,7 @@ const quoxPluginVite = loadQuoxPluginVite();
  * be used within a WorkspaceProvider". Live repro 2026-08-31: an entitled org
  * hit the host error boundary at /dev-suite.
  *
- * Same defect class as React itself (externalised by quox-plugin-vite) and as
+ * Same defect class as React itself (externalised by @quoxai/quox-plugin-vite) and as
  * the capability-panel registry (window-scoped Map, a8ce9ec4): one host, one
  * instance. The fix is the same shape — resolve every spelling of these two
  * modules to a virtual shim that reads the host's live module namespace off
@@ -353,8 +353,8 @@ function sharedHostContexts() {
 }
 
 /**
- * quox-plugin-vite hardcodes rollupOptions.input to 'src/index.jsx' (the
- * create-quox-plugin scaffold layout). Our first-party entries are flat
+ * @quoxai/quox-plugin-vite hardcodes rollupOptions.input to 'src/index.jsx' (the
+ * @quoxai/create-quox-plugin scaffold layout). Our first-party entries are flat
  * (plugins-src/<id>/index.jsx), so this normal-enforce plugin re-points the
  * input: Vite merges `config` hook results in pre → normal → post order, so a
  * normal plugin declared after the 'pre' one wins the merge.
@@ -371,12 +371,12 @@ function firstPartyEntryOverride() {
 export default defineConfig({
     root: projectRoot,
     plugins: [
-        // Declared before quox-plugin-vite so its resolveId sees the context
+        // Declared before @quoxai/quox-plugin-vite so its resolveId sees the context
         // specifiers first; both are 'pre', and Vite orders equal-enforce
         // plugins by declaration.
         sharedHostContexts(),
         // qxCss: false. First-party bundles run IN-PARENT, where the host's own
-        // qx stylesheet is already loaded; quox-plugin-vite >= 0.2.0 otherwise
+        // qx stylesheet is already loaded; @quoxai/quox-plugin-vite >= 0.2.0 otherwise
         // prepends the full vendored qx css (~210 KB) for community plugins,
         // which run in a frame with no host CSS. Older versions ignore it.
         quoxPluginVite({ pluginId, devHost: false, qxCss: false }),

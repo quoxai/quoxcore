@@ -23,6 +23,7 @@ export const HAT_RECOMMENDED_MAX_MANIFEST = 32
 
 export const SELECTION_MODES = ['manual', 'automatic', 'hybrid']
 export const TRANSITION_CONFIRM = ['none', 'user', 'approver']
+export const TOOL_OFFER_MODES = ['authorized', 'members']
 
 function isStringArray(v) {
   return Array.isArray(v) && v.every(x => typeof x === 'string' && x.length > 0)
@@ -64,6 +65,20 @@ export function validateHatDefinition(def) {
   } else {
     if (tools.explicit !== undefined && !isStringArray(tools.explicit)) {
       errors.push('tools.explicit must be an array of tool names')
+    }
+    // quox#908 (owner 2026-10-14, option 1): read-only tools D3 pulls in only when a question needs
+    // them. They are hat members for authorization and are NOT counted toward budgets.max_manifest
+    // (no turn ever presents them all; the per-turn offer is capped at HAT_HARD_MANIFEST_CAP).
+    if (tools.on_demand_reads !== undefined && !isStringArray(tools.on_demand_reads)) {
+      errors.push('tools.on_demand_reads must be an array of tool names')
+    }
+    // CUSTOM-HATS (owner 2026-10-17): what an ORCHESTRATOR turn is offered. 'authorized' (absent =
+    // the default) offers every tool the hat authorizes, hat members first; 'members' offers only
+    // the hat's own members (explicit, loaded bundles, connector families, plus the governance and
+    // Tier-0 floors), so a narrow custom hat really narrows each turn. PRESENTATION ONLY: it never
+    // changes authorization (authz), and a specialist turn still sees its whole authorized grant.
+    if (tools.offer !== undefined && !TOOL_OFFER_MODES.includes(tools.offer)) {
+      errors.push(`tools.offer must be one of ${TOOL_OFFER_MODES.join(', ')}`)
     }
     if (tools.connector_families !== undefined && !isStringArray(tools.connector_families)) {
       errors.push('tools.connector_families must be an array of connector family ids')

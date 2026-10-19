@@ -61,6 +61,7 @@
 
 const watermarkStore = require('./reflectionMiningWatermark.js')
 const configResolver = require('./configResolver.js')
+const { runChatMining } = require('./reflectionChatMining.js')
 
 const MEMORY_URL = `http://${process.env.MEMORY_HOST || 'memory'}:${process.env.MEMORY_PORT || '3103'}`
 const AUTH_URL = `http://${process.env.AUTH_HOST || 'auth'}:${process.env.AUTH_PORT || '3101'}`
@@ -70,6 +71,9 @@ const DEFAULT_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes — same default the brow
 const DEFAULT_LOOKBACK_MS = 24 * 60 * 60 * 1000 // 24 hours
 const DEFAULT_IDLE_MS = 5 * 60 * 1000 // conversation must be idle 5m before mining
 const DEFAULT_MAX_CONVERSATIONS_PER_CYCLE = 10
+// 2026-10-16: slot logs reach 40k envelopes; reading one in full blocked the loop ~27 s (then extraction ran over
+// all of it). Mining reads only the newest window of each conversation.
+const DEFAULT_MAX_ENVELOPES_PER_CONVERSATION = 500
 const DEFAULT_ALERT_THRESHOLDS = { repeatedFailureCount: 3, anomalyCount: 2, patternConfidence: 0.7 }
 // TRUST-GATE-1.25: same alert condition won't re-fire more than once per window.
 const DEFAULT_ALERT_DEDUP_WINDOW_MS = 6 * 60 * 60 * 1000 // 6 hours
@@ -105,6 +109,17 @@ const JOB_SUBMIT_INTENT = 'quoxagent.job.submit'
 const APPROVAL_REQUEST_INTENT = 'ops.approval.request'
 const APPROVAL_GRANT_INTENT = 'ops.approval.grant'
 const HEARTBEAT_INTENT = 'quoxagent.heartbeat.report'
+
+// quox#1193: the only task intents extractMemoriesFromEnvelopes learns from. A
+// corr is listed as a conversation to mine only if it carries one of them, so
+// agent traffic (QuoxSlots room logs, standing-grant logs, Matrix relays,
+// workflow and CLI runs) is never mined and its chatter never becomes entity
+// memories. server.js interpolates the list into both list statements as a
+// `corr IN (SELECT corr ... WHERE intent IN <list>)` subquery, which the
+// (org_id, intent, ts) index answers in milliseconds (a HAVING over every corr
+// in the window took seconds on the dev box's 380k-envelope week).
+const MINABLE_INTENTS = [CHAT_QUERY_INTENT, JOB_SUBMIT_INTENT, APPROVAL_REQUEST_INTENT]
+const MINABLE_INTENTS_SQL = `(${MINABLE_INTENTS.map((i) => `'${i}'`).join(', ')})`
 
 // fleet #393: env-overridable so this can be tuned on a box without a code
 // change, same shape as getIntervalMs() above it.
@@ -394,11 +409,11 @@ function buildAlertDedupKey(orgId, alert) {
 // Memory service write path — same contract as memoryConsolidationScheduler.js
 // ============================================================================
 
-async function postMemory({ orgId, memory, fetchFn }) {
+async function postMemory({ orgId, memory, fetchFn, userId = null }) {
   try {
     const res = await fetchFn(`${MEMORY_URL}/api/memory`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Service-Key': SERVICE_KEY, 'X-Org-Id': orgId },
+      headers: { 'Content-Type': 'application/json', 'X-Service-Key': SERVICE_KEY, 'X-Org-Id': orgId, ...(userId ? { 'X-User-Id': String(userId) } : {}) },
       body: JSON.stringify(memory),
     })
     if (!res.ok) {
@@ -453,6 +468,8 @@ async function runReflectionMining({
   setWatermarkFn = defaultSetWatermarkFn,
   alertAlreadySentFn = defaultAlertAlreadySentFn,
   recordAlertSentFn = defaultRecordAlertSentFn,
+  maxEnvelopesPerConversation = DEFAULT_MAX_ENVELOPES_PER_CONVERSATION,
+  yieldFn = () => new Promise((resolve) => setImmediate(resolve)),
 } = {}) {
   const results = { orgId, conversationsProcessed: 0, conversationsFailed: 0, memoriesExtracted: 0, patternsDetected: 0, alertsGenerated: 0, alertsSkippedDuplicate: 0, errors: [] }
 
@@ -485,9 +502,13 @@ async function runReflectionMining({
 
     let newWatermark = storedWatermark || null
 
+    let first = true
     for (const conv of idle.slice(0, maxConversationsPerCycle)) {
+      // the reads below are synchronous SQLite: give the loop a turn between conversations
+      if (!first) await yieldFn()
+      first = false
       try {
-        const envelopes = await getConversationEnvelopesFn({ orgId, corr: conv.corr })
+        const envelopes = await getConversationEnvelopesFn({ orgId, corr: conv.corr, limit: maxEnvelopesPerConversation })
         const { memories, entities } = extractMemoriesFromEnvelopes(envelopes || [], conv.corr)
         const toWrite = [...memories, ...entities]
 
@@ -680,6 +701,9 @@ function startReflectionMiningScheduler({
   maxOrgsPerCycle = DEFAULT_MAX_ORGS_PER_CYCLE,
   orgConcurrency,
   setIntervalFn = setInterval,
+  setTimeoutFn = setTimeout,
+  // 2026-10-16: >0 delays the first cycle so it does not run in the boot rush beside the other startup jobs
+  initialDelayMs = 0,
   runFn = runReflectionMining,
   listIdleConversationsFn,
   getConversationEnvelopesFn,
@@ -692,6 +716,14 @@ function startReflectionMiningScheduler({
   // it. Null (no resolver wired) means always enabled, preserving the
   // pre-flag behavior for tests and minimal deployments.
   isMiningEnabledFn = null,
+  // BRAIN2-FABLE11 quox#1193: opt-in chat mining into each asking user's PERSONAL
+  // memory. Fails CLOSED: absent, throwing, or anything but exactly true = no chat mining.
+  isChatMiningEnabledFn = null,
+  listChatSessionsFn = null,
+  listChatTurnsFn = null,
+  chatPostMemoryFn = null,
+  getChatMarkFn = watermarkStore.getChatMark,
+  setChatMarkFn = watermarkStore.setChatMark,
 } = {}) {
   if (schedulerInterval) return // already started
 
@@ -714,6 +746,26 @@ function startReflectionMiningScheduler({
   let backoffTicksRemaining = 0
   const orgFailureStreak = new Map()
   const orgCooldownTicks = new Map()
+
+  const chatMiningWired = typeof isChatMiningEnabledFn === 'function' && typeof listChatSessionsFn === 'function' && typeof listChatTurnsFn === 'function'
+  const mineChatsForOrg = async (orgId) => {
+    if (typeof isChatMiningEnabledFn !== 'function' || typeof listChatSessionsFn !== 'function' || typeof listChatTurnsFn !== 'function') return 0
+    let on = false
+    try { on = (await isChatMiningEnabledFn(orgId)) === true } catch { on = false }
+    if (!on) return 0
+    const now = Date.now()
+    const r = await runChatMining({
+      orgId, after: now - DEFAULT_LOOKBACK_MS, now, idleMs: DEFAULT_IDLE_MS,
+      maxSessions: DEFAULT_MAX_CONVERSATIONS_PER_CYCLE,
+      listSessions: listChatSessionsFn,
+      listTurns: listChatTurnsFn,
+      postMemory: chatPostMemoryFn || (({ memory, userId }) => postMemory({ orgId, memory, fetchFn: fetchFn || fetchWithTimeout, userId })),
+      getMark: (sessionId) => getChatMarkFn(orgId, sessionId),
+      setMark: (sessionId, ts) => setChatMarkFn(orgId, sessionId, ts),
+    })
+    console.log(`[ReflectionMining] org=${orgId}: chat mining sessions=${r.sessions} mined=${r.mined} written=${r.written} failed=${r.failed} skipped=${r.skipped}`)
+    return r.written
+  }
 
   const runAll = async () => {
     if (cycleInFlight) {
@@ -807,6 +859,15 @@ function startReflectionMiningScheduler({
           processedConversations: getProcessedConversationsForOrg(orgId),
         })))
 
+        // no extra await when chat mining is not wired: keeps tick timing identical
+        for (const orgId of (chatMiningWired ? batch : [])) {
+          try {
+            totalMemoriesExtracted += await mineChatsForOrg(orgId)
+          } catch (err) {
+            console.warn(`[ReflectionMining] org=${orgId}: chat mining failed (${err.message})`)
+          }
+        }
+
         batch.forEach((orgId, idx) => {
           const r = batchResults[idx] || {}
           totalMemoriesExtracted += r.memoriesExtracted || 0
@@ -852,7 +913,12 @@ function startReflectionMiningScheduler({
   const orgLabel = Array.isArray(orgIds) && orgIds.length > 0 ? `for org(s): ${orgIds.join(', ')}` : '(live org enumeration each cycle)'
   console.log(`[ReflectionMining] scheduled every ${Math.round(intervalMs / 60000)}m ${orgLabel}, max ${maxOrgsPerCycle} org(s)/cycle`)
 
-  runAll()
+  if (initialDelayMs > 0) {
+    const t = setTimeoutFn(runAll, initialDelayMs)
+    if (t && typeof t.unref === 'function') t.unref()
+  } else {
+    runAll()
+  }
   schedulerInterval = setIntervalFn(runAll, intervalMs)
   if (schedulerInterval && typeof schedulerInterval.unref === 'function') schedulerInterval.unref()
 }
@@ -866,6 +932,8 @@ function stopReflectionMiningScheduler() {
 }
 
 module.exports = {
+  summarize,
+  postMemory,
   extractEntitiesFromEnvelopes,
   extractMemoriesFromEnvelopes,
   detectPatterns,
@@ -877,4 +945,6 @@ module.exports = {
   stopReflectionMiningScheduler,
   fetchWithTimeout,
   FETCH_TIMEOUT_MS,
+  MINABLE_INTENTS,
+  MINABLE_INTENTS_SQL,
 }

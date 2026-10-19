@@ -10,6 +10,21 @@
 import { INTEGRATION_TYPES, getTestConfig } from '../config/integrationTypeRegistry.js';
 import { validateUrlForSSRF, safeFetch, DEFAULT_TIMEOUT_MS } from '../utils/urlValidation.js';
 import { readInstanceConfigValue } from '../lib/instanceConfigOverrides.js';
+import { pinnedGet, PinError } from '../utils/pinnedHttps.js';
+
+export const PROXMOX_SELF_SIGNED_MESSAGE =
+    'Proxmox uses a self-signed certificate: add tls_fingerprint (Proxmox plugin > Connection does this for you)';
+
+// Node/undici codes for "the certificate chain did not verify" (what a stock Proxmox causes).
+const TLS_CERT_ERROR_CODES = new Set([
+    'DEPTH_ZERO_SELF_SIGNED_CERT', 'SELF_SIGNED_CERT_IN_CHAIN', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+    'UNABLE_TO_GET_ISSUER_CERT', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'CERT_UNTRUSTED', 'CERT_HAS_EXPIRED',
+    'ERR_TLS_CERT_ALTNAME_INVALID',
+]);
+function isTlsCertError(err) {
+    const code = err && (err.code || (err.cause && err.cause.code));
+    return TLS_CERT_ERROR_CODES.has(code);
+}
 
 /**
  * Whether LAN (RFC1918) targets are permitted for this integration type.
@@ -45,7 +60,7 @@ export function lanTargetsAllowed(integrationType) {
  *   resolution (unknown type / no test endpoint at all) since there was
  *   nothing to classify.
  */
-export async function testConnection(integrationType, credentials, endpointUrl = null) {
+export async function testConnection(integrationType, credentials, endpointUrl = null, deps = {}) {
     const type = INTEGRATION_TYPES[integrationType];
     if (!type) {
         return { success: false, error: 'Unknown integration type' };
@@ -95,9 +110,16 @@ export async function testConnection(integrationType, credentials, endpointUrl =
         // allowPrivate is computed per type x instance gate (lanTargetsAllowed);
         // for every non-lanAllowed type this is byte-for-byte the old behaviour.
         const ssrfOpts = { allowPrivate: lanTargetsAllowed(integrationType) };
-        const urlValidation = await validateUrlForSSRF(url, ssrfOpts);
+        const urlValidation = await (deps.validateUrlForSSRF || validateUrlForSSRF)(url, ssrfOpts);
         if (!urlValidation.valid) {
             return { success: false, error: urlValidation.error };
+        }
+
+        // Proxmox ships a self-signed certificate, so the verifying fetch below can
+        // never succeed against a stock install. With a tls_fingerprint we accept the
+        // certificate only when it matches the pin (auth is held back until it does).
+        if (integrationType === 'proxmox' && credentials && credentials.tls_fingerprint) {
+            return await testProxmoxPinned(url, type.testHeaders(credentials), credentials.tls_fingerprint, deps);
         }
 
         const options = {
@@ -119,7 +141,7 @@ export async function testConnection(integrationType, credentials, endpointUrl =
         }
 
         // Use safeFetch with timeout protection instead of plain fetch
-        const response = await safeFetch(url, options, DEFAULT_TIMEOUT_MS, 0, ssrfOpts);
+        const response = await (deps.safeFetch || safeFetch)(url, options, DEFAULT_TIMEOUT_MS, 0, ssrfOpts);
 
         if (response.ok || response.status === 200 || response.status === 201) {
             return { success: true, result_kind: 'live' };
@@ -138,6 +160,32 @@ export async function testConnection(integrationType, credentials, endpointUrl =
 
         return { success: false, result_kind: 'live', error: errorMessage };
     } catch (err) {
+        // A stock Proxmox fails certificate verification before the token is checked.
+        // Say so, instead of the opaque "fetch failed".
+        if (integrationType === 'proxmox' && isTlsCertError(err)) {
+            return { success: false, result_kind: 'live', error: PROXMOX_SELF_SIGNED_MESSAGE };
+        }
+        return { success: false, error: err.message };
+    }
+}
+
+async function testProxmoxPinned(url, authHeaders, fingerprint, deps = {}) {
+    try {
+        const get = deps.pinnedGet || pinnedGet;
+        const { status, body } = await get(url, { ...authHeaders, Accept: 'application/json' }, fingerprint, { timeoutMs: DEFAULT_TIMEOUT_MS });
+        if (status >= 200 && status < 300) return { success: true, result_kind: 'live' };
+        let msg = `HTTP ${status}`;
+        try {
+            const j = JSON.parse(body);
+            msg = j.message || (typeof j.errors === 'string' ? j.errors : null) || msg;
+        } catch { /* keep HTTP status */ }
+        if (status === 401) msg = 'Proxmox rejected the API token (HTTP 401): check the token id and secret';
+        return { success: false, result_kind: 'live', error: msg };
+    } catch (err) {
+        if (err instanceof PinError && err.code === 'tls_fingerprint_mismatch') {
+            return { success: false, result_kind: 'live', error: 'The certificate on that Proxmox host does not match the saved tls_fingerprint. If the certificate was renewed, run Proxmox plugin > Connection again.' };
+        }
+        if (err instanceof PinError) return { success: false, result_kind: 'live', error: err.message };
         return { success: false, error: err.message };
     }
 }

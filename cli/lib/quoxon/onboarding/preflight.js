@@ -8,7 +8,7 @@
  */
 import { execFile } from 'node:child_process';
 import { statfs } from 'node:fs/promises';
-import { totalmem, homedir } from 'node:os';
+import { totalmem, homedir, userInfo } from 'node:os';
 import { createConnection } from 'node:net';
 import { CHECK } from './copy.js';
 
@@ -55,13 +55,27 @@ export const defaultDeps = () => ({
 const gb = (bytes) => Math.floor(bytes / 1024 ** 3);
 const row = (id, status, body, extra = {}) => ({ id, name: CHECK[id].name, status, body, ...extra });
 
+const safeUser = () => { try { return userInfo().username; } catch { return ''; } };
+
 export async function checkDocker(d) {
   const v = await d.run('docker', ['--version'], 5000);
-  if (v.missing || v.code !== 0) return row('docker', 'fail', CHECK.docker.missing, { fix: CHECK.docker.missingFix, link: CHECK.docker.missingLink });
+  const linux = (d.platform || process.platform) === 'linux'; // FIRSTRUN: the guide can fix these itself (dockerOffer.js)
+  const offer = (kind) => (linux ? { offer: kind } : {});
+  if (v.missing || v.code !== 0) return row('docker', 'fail', CHECK.docker.missing, { fix: CHECK.docker.missingFix, link: CHECK.docker.missingLink, ...offer('install') });
   const ver = (/version\s+([0-9][\w.\-+]*)/i.exec(v.stdout) || [])[1] || '';
   const info = await d.run('docker', ['info', '--format', '{{.ServerVersion}}'], 10000);
   if (info.code === 0 && info.stdout.trim()) return row('docker', 'ok', CHECK.docker.ok(ver || info.stdout.trim()));
-  if (/permission denied/i.test(info.stderr)) return row('docker', 'fail', CHECK.docker.perm, { fix: CHECK.docker.permFix, link: CHECK.docker.link });
+  if (/permission denied/i.test(info.stderr)) {
+    // Z2H-R5 D: the group was added after this terminal started. `id -nG` shows the groups of THIS process,
+    // `id -nG <user>` the account database; in the second but not the first, "press r" can never pass.
+    const user = d.user || safeUser();
+    if (user) {
+      const [mine, db] = await Promise.all([d.run('id', ['-nG'], 3000), d.run('id', ['-nG', user], 3000)]);
+      const has = (r) => r.code === 0 && r.stdout.trim().split(/\s+/).includes('docker');
+      if (has(db) && !has(mine)) return row('docker', 'fail', CHECK.docker.permStale, { fix: CHECK.docker.permStaleFix, link: CHECK.docker.link, stale: true, ...offer('relaunch') });
+    }
+    return row('docker', 'fail', CHECK.docker.perm, { fix: CHECK.docker.permFix, link: CHECK.docker.link, ...offer('group') });
+  }
   return row('docker', 'fail', CHECK.docker.down, { fix: CHECK.docker.downFix, link: CHECK.docker.link });
 }
 

@@ -2,7 +2,7 @@
  * DiscordProView: the install/settings surface for the Discord Pro daemon.
  *
  * DISCORD-PRO: the daemon itself lives in its own repo
- * (/opt/quoxcore/quox-discord-pro) and runs as a loopback-bound process; this
+ * (~/quox-discord-pro) and runs as a loopback-bound process; this
  * view is a status window onto it, the same shape as TelegramProView is for
  * Telegram Pro. A daemon status card, a bindings table, and an open-support-
  * gaps count. No wizard, no chat surface here.

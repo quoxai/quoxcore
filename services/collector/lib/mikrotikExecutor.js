@@ -35,30 +35,36 @@ function getCollectorUrl() {
 // used by a real panel, never invented here). Keep this in sync with
 // mikrotik.json's tool ids; a tool id present in BOTH this map and the
 // switch below is a bug.
-const UNSUPPORTED_TOOLS = {
-  'mikrotik.discovery.scan':
-    'CDP/MNDP neighbor discovery has no RouterOS REST endpoint on the hardened proxy allowlist (routerosProxyGuard.js); it is not implemented.',
-  'mikrotik.monitoring.interfaces':
-    'No /interface listing path is on the RouterOS proxy allowlist and src/services/routerosClient.js does not call one either; interface statistics are not implemented.',
-  'mikrotik.monitoring.traffic':
-    'No interface traffic/bandwidth path is on the RouterOS proxy allowlist and src/services/routerosClient.js does not call one either; traffic monitoring is not implemented.',
-  'mikrotik.firewall.rules':
-    'No firewall filter/NAT/mangle listing path is on the RouterOS proxy allowlist; only POST /ip/firewall/address-list (block) is allowed. Listing rules is not implemented.',
-  'mikrotik.firewall.unblock_ip':
-    'No DELETE path for /ip/firewall/address-list is on the RouterOS proxy allowlist. src/services/routerosClient.js#unblockDevice is itself a stub that never calls the router, so there is nothing real to bridge to yet.',
-  'mikrotik.diagnostics.analyze_issue':
-    'No RouterOS REST path backs AI-powered issue analysis; it has not been built.',
-  'mikrotik.diagnostics.ping_test':
-    'No ping/probe path is on the RouterOS proxy allowlist; connectivity testing from the router is not implemented.',
-  'mikrotik.diagnostics.dns_check':
-    'No DNS-check path is on the RouterOS proxy allowlist; DNS resolution testing from the router is not implemented.',
-  'mikrotik.automation.preview':
-    'No RouterOS REST path backs configuration-change preview; it has not been built.',
-};
+//
+// quoxai/quox #1051: the map's DATA lives in
+// shared/tool-availability/unsupported-tools.json (key "mikrotik") because the
+// auth service (a separate image without this file) must read the same set to
+// keep these tools out of the tool catalog. entityToolLoader.js reads this
+// export to stop OFFERING them to models. Delete an entry there once the tool
+// is implemented and it is offered again everywhere, automatically.
+function loadUnsupportedTools() {
+  const pathMod = require('path');
+  const candidates = [
+    pathMod.join(__dirname, '../../../shared/tool-availability/unsupported-tools.json'), // source tree
+    pathMod.join(__dirname, '../shared/tool-availability/unsupported-tools.json'), // image: /app/lib -> /app/shared
+  ];
+  for (const p of candidates) {
+    try {
+      return { ...JSON.parse(require('fs').readFileSync(p, 'utf8')).mikrotik };
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
+    }
+  }
+  // Fail loud: an empty map would OFFER and dispatch tools that have no backend.
+  throw new Error('[mikrotikExecutor] shared/tool-availability/unsupported-tools.json not found');
+}
+const UNSUPPORTED_TOOLS = loadUnsupportedTools();
 
-function isPathMethodAllowed(method, path) {
+function isPathMethodAllowed(method, path, body) {
   const upper = String(method || '').toUpperCase();
-  return ALLOWED_ROUTEROS_REQUESTS.some((entry) => entry.method === upper && entry.pattern.test(path));
+  return ALLOWED_ROUTEROS_REQUESTS.some(
+    (entry) => entry.method === upper && entry.pattern.test(path) && (!entry.validateBody || entry.validateBody(body))
+  );
 }
 
 /**
@@ -68,7 +74,7 @@ function isPathMethodAllowed(method, path) {
  * RouterOS call is enough, or combine several into a richer result.
  */
 async function proxyCall(base, orgId, path, method, body) {
-  if (!isPathMethodAllowed(method, path)) {
+  if (!isPathMethodAllowed(method, path, body)) {
     // Defensive only — every path below is a literal from
     // ALLOWED_ROUTEROS_REQUESTS. If this ever fires it is a bug in this
     // file, not a runtime/user condition, so fail the same honest way the
@@ -461,6 +467,112 @@ module.exports = {
             ? 'No VPN tunnels are configured: 0 WireGuard peers and 0 active IPsec peers.'
             : `${up} of ${total} VPN tunnel(s) up.`,
         };
+      }
+
+      case 'mikrotik.monitoring.interfaces': {
+        const res = await proxyCall(base, orgId, '/interface', 'GET');
+        if (!res.success) return res;
+        let rows = Array.isArray(res.data) ? res.data : [];
+        if (input.interface) rows = rows.filter((i) => i.name === input.interface);
+        const interfaces = rows.map((i) => ({
+          name: i.name,
+          type: i.type,
+          running: i.running === true || i.running === 'true',
+          disabled: i.disabled === true || i.disabled === 'true',
+          rx_byte: Number(i['rx-byte']) || 0,
+          tx_byte: Number(i['tx-byte']) || 0,
+          mtu: Number(i['actual-mtu'] || i.mtu) || null,
+        }));
+        return { success: true, interfaces, total: interfaces.length };
+      }
+
+      case 'mikrotik.monitoring.traffic': {
+        const name = input.interface;
+        if (typeof name !== 'string' || !/^[A-Za-z0-9._-]{1,64}$/.test(name)) {
+          return { success: false, error: 'interface is required and must match [A-Za-z0-9._-]{1,64}', status: 400 };
+        }
+        const res = await proxyCall(base, orgId, '/interface/monitor-traffic', 'POST', { interface: name, once: '' });
+        if (!res.success) return res;
+        const row = Array.isArray(res.data) ? res.data[0] : res.data;
+        if (!row || typeof row !== 'object') {
+          return { success: false, error: 'router returned no traffic sample', status: 502 };
+        }
+        return {
+          success: true,
+          interface: row.name || name,
+          rx_bps: Number(row['rx-bits-per-second']) || 0,
+          tx_bps: Number(row['tx-bits-per-second']) || 0,
+        };
+      }
+
+      case 'mikrotik.firewall.rules': {
+        const table = input.table === 'nat' ? 'nat' : 'filter';
+        const res = await proxyCall(base, orgId, `/ip/firewall/${table}`, 'GET');
+        if (!res.success) return res;
+        let rules = Array.isArray(res.data) ? res.data : [];
+        if (input.chain) rules = rules.filter((r) => r.chain === input.chain);
+        return { success: true, table, rules, total: rules.length };
+      }
+
+      case 'mikrotik.diagnostics.ping_test': {
+        const address = input.address || input.target;
+        const isIp = typeof address === 'string' && /^\d{1,3}(\.\d{1,3}){3}$/.test(address);
+        const hostOk = typeof address === 'string' && /^[A-Za-z0-9.-]{1,253}$/.test(address) && !address.startsWith('-');
+        if (!isIp && !hostOk) {
+          return { success: false, error: 'address is required and must be an IPv4 address or hostname', status: 400 };
+        }
+        const n = parseInt(input.count, 10);
+        const count = Math.min(Math.max(Number.isFinite(n) ? n : 3, 1), 5);
+        const res = await proxyCall(base, orgId, '/ping', 'POST', { address, count: String(count) });
+        if (!res.success) return res;
+        const rows = Array.isArray(res.data) ? res.data : [];
+        const last = rows[rows.length - 1];
+        if (!last) return { success: false, error: 'router returned no ping results', status: 502 };
+        const sent = Number(last.sent) || 0;
+        const received = Number(last.received) || 0;
+        return {
+          success: true,
+          address,
+          sent,
+          received,
+          packet_loss_pct: last['packet-loss'] !== undefined ? Number(last['packet-loss']) : (sent ? Math.round(((sent - received) / sent) * 100) : null),
+          avg_rtt: last['avg-rtt'] ?? null,
+          min_rtt: last['min-rtt'] ?? null,
+          max_rtt: last['max-rtt'] ?? null,
+          reachable: received > 0,
+        };
+      }
+
+      case 'mikrotik.diagnostics.dns_check': {
+        const dns = await proxyCall(base, orgId, '/ip/dns', 'GET');
+        if (!dns.success) return dns;
+        const cache = await proxyCall(base, orgId, '/ip/dns/cache', 'GET');
+        if (!cache.success) return cache;
+        const cfg = Array.isArray(dns.data) ? dns.data[0] || {} : dns.data || {};
+        const all = Array.isArray(cache.data) ? cache.data : [];
+        const out = {
+          success: true,
+          servers: String(cfg.servers || '').split(',').map((x) => x.trim()).filter(Boolean),
+          dynamic_servers: String(cfg['dynamic-servers'] || '').split(',').map((x) => x.trim()).filter(Boolean),
+          allow_remote_requests: cfg['allow-remote-requests'] === true || cfg['allow-remote-requests'] === 'true',
+          cache_size: all.length,
+        };
+        if (input.name) out.entries = all.filter((e) => e.name === input.name);
+        return out;
+      }
+
+      case 'mikrotik.discovery.scan': {
+        const res = await proxyCall(base, orgId, '/ip/neighbor', 'GET');
+        if (!res.success) return res;
+        const neighbors = (Array.isArray(res.data) ? res.data : []).map((n) => ({
+          identity: n.identity,
+          address: n.address,
+          mac: n['mac-address'],
+          interface: n.interface,
+          platform: n.platform,
+          version: n.version,
+        }));
+        return { success: true, neighbors, total: neighbors.length };
       }
 
       default:

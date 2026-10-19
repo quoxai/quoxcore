@@ -168,7 +168,31 @@ function outcomeFor(reg, row) {
   return row.kind === 'retract' ? 'dealt with' : undefined;
 }
 
-function buildAreas({ reg, entries, needs, shelved, feeds, health, recent, lessons, now, tz }) {
+/**
+ * A retract row carries only {status: 'gone'}, so its words would come out as blank template slots
+ * ("Proof Matrix: of jobs proven in chat"). Describe it by what the subject last was: the newest earlier
+ * row in the tail, else the subject's own history.
+ */
+function wordsRow(r, recent, orgId) {
+  if (r.kind !== 'retract') return r;
+  const usable = (x) => x.subject === r.subject && x.kind !== 'retract' && x.kind !== 'heartbeat' && x.seq < r.seq;
+  const was = (recent || []).filter(usable).sort((a, b) => b.seq - a.seq)[0];
+  if (was) return was;
+  try {
+    const h = journal.subjectHistory(orgId, r.subject, { limit: 20 }).filter(usable);
+    if (h.length) return h[h.length - 1];
+  } catch { /* no history: fall back to the row itself */ }
+  return r;
+}
+
+function feedsInPlay(reg, feeds, expectedFeeds) {
+  const host = reg.hostFeeds || new Set();
+  const heard = new Set(feeds.map((f) => f.feed));
+  const declared = new Set(expectedFeeds || []);
+  return (name) => !host.has(name) || declared.has(name) || heard.has(name);
+}
+
+function buildAreas({ orgId, reg, entries, needs, shelved, feeds, health, recent, lessons, now, tz, inPlay = () => true }) {
   const needSet = new Set(needs);
   const badFeeds = new Set([...health.silent.map((x) => x.feed), ...health.failing.map((x) => x.feed)]);
   const knownFeeds = new Set(feeds.map((f) => f.feed));
@@ -184,7 +208,7 @@ function buildAreas({ reg, entries, needs, shelved, feeds, health, recent, lesso
     const feedsOut = {
       live: known.filter((n) => !badFeeds.has(n)),
       silent: known.filter((n) => badFeeds.has(n)),
-      unwired: (a.feeds || []).filter((n) => !knownFeeds.has(n)),
+      unwired: (a.feeds || []).filter((n) => inPlay(n) && !knownFeeds.has(n)),
     };
     const missing = [...feedsOut.unwired, ...feedsOut.silent];
 
@@ -211,10 +235,20 @@ function buildAreas({ reg, entries, needs, shelved, feeds, health, recent, lesso
     for (const r of recent) {
       if (r.kind === 'heartbeat' || r.subject.startsWith('legacy:')) continue;
       if (E.areaOf(r.subject, r.ledger) !== a.key) continue;
-      const it = buildItem({ subject: r.subject, ledger: r.ledger, status: r.status, summary: r.summary, state: r.state, feed: r.source && r.source.feed, status_since: r.ts, last_heard: r.ts },
+      const src = wordsRow(r, recent, orgId);
+      const it = buildItem({ subject: r.subject, ledger: r.ledger, status: src.status, summary: src.summary || r.summary, state: src.state, feed: r.source && r.source.feed, status_since: r.ts, last_heard: r.ts },
         { now, tz, lessons });
       const out = outcomeFor(reg, r);
-      last = { L0: it.L0.replace(/^Approval needed: /, ''), ts: r.ts, ref: r.subject, ...(out ? { outcome: out } : {}) };
+      let lastL0 = it.L0.replace(/^Approval needed: /, '');
+      // #968: a generic retract ('dealt with') means an operational problem was CLEARED. Pre-fix
+      // rows kept the FAILURE summary as the row text, so an area's `last` surfaced e.g. "The
+      // approvals list could not be read (fetch failed)" and chat read a resolved problem as
+      // current. Lead such a resolved event with "Resolved:" so it cannot be misread. Approval
+      // retracts (outcome 'approved'/'denied', L0 is the ask) are untouched.
+      if (out === 'dealt with' && !/^(resolved|no longer|recovered)\b/i.test(lastL0)) {
+        lastL0 = `Resolved: ${lastL0}`;
+      }
+      last = { L0: lastL0, ts: r.ts, ref: r.subject, ...(out ? { outcome: out } : {}) };
       break;
     }
 
@@ -314,6 +348,9 @@ function computeCore(orgId, now, tz, injected) {
   const applied = new Set();
 
   for (const s of open) {
+    // #984: a provider limit with a stated reset time is over once that time passes, even when no successful
+    // turn ever retracted it (the limit record expires silently), so it stops being open.
+    if (s.subject.startsWith('provider:') && s.state && s.state.resets_at && Date.parse(s.state.resets_at) <= now) continue;
     const staleNow = isStale(s, now);
     if (staleNow) stale.push({ subject: s.subject, ledger: s.ledger, summary: s.summary, last_heard: s.last_heard, silent_ms: now - s.last_heard });
     const item = legacyFields(buildItem(s, { now, tz, lessons, stale: staleNow, transitions: (trans.get(s.subject) || []).slice(-10) }), s, staleNow, now);
@@ -387,7 +424,8 @@ function buildSituation(orgId, { now = Date.now(), sinceSeq = 0, expectedFeeds =
     const ck = `${journal.generation()}|${orgId}|${r.seq}|${lessons.length}|${tz}`;
     let it = _rowItems.get(ck);
     if (!it) {
-      it = buildItem({ subject: r.subject, ledger: r.ledger, status: r.status, summary: r.summary, state: r.state, feed: r.source && r.source.feed, status_since: r.ts, last_heard: r.ts },
+      const src = wordsRow(r, recent, orgId);
+      it = buildItem({ subject: r.subject, ledger: r.ledger, status: src.status, summary: src.summary || r.summary, state: src.state, feed: r.source && r.source.feed, status_since: r.ts, last_heard: r.ts },
         { now, tz, lessons });
       if (_rowItems.size > 5000) _rowItems.clear();
       _rowItems.set(ck, it);
@@ -403,8 +441,11 @@ function buildSituation(orgId, { now = Date.now(), sinceSeq = 0, expectedFeeds =
   const feeds = injected && injected.feeds ? injected.feeds : journal.listFeeds(orgId);
   const health = feedHealth(feeds, expectedFeeds, now);
   // The honesty floor counts every feed an area relies on, not only the ones someone declared.
-  const coverage = feedHealth(feeds, [...new Set([...(expectedFeeds || []), ...reg.areas.flatMap((a) => a.feeds || [])])], now);
-  const areas = buildAreas({ reg, entries, needs, shelved, feeds, health, recent, lessons, now, tz });
+  // A host feed (dev-suite gatherer, tail, hooks) is only part of this install once declared or heard:
+  // a customer install must not be told it is missing feeds it never ships.
+  const inPlay = feedsInPlay(reg, feeds, expectedFeeds);
+  const coverage = feedHealth(feeds, [...new Set([...(expectedFeeds || []), ...reg.areas.flatMap((a) => (a.feeds || []).filter(inPlay))])], now);
+  const areas = buildAreas({ orgId, reg, entries, needs, shelved, feeds, health, recent, lessons, now, tz, inPlay });
   // The same thing happening several times is one item with a count, not a wall of repeats.
   const grouped = [];
   const byL0 = new Map();
@@ -437,7 +478,9 @@ function buildSituation(orgId, { now = Date.now(), sinceSeq = 0, expectedFeeds =
     in_motion: motion,
     shelved,
     doesnt_add_up,
-    cannot_see: { ...health, stale },
+    // #968: the honesty floor, not the narrow declared view — cannot_see counts every feed any
+    // area relies on (19), so a 5-live org reads 5 of 19, consistent with the coverage field below.
+    cannot_see: { ...coverage, stale },
     lessons_applied: applied.size,
     // ---- compat, one release ----
     board,

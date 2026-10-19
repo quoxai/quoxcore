@@ -54,7 +54,7 @@ const crypto = require('crypto');
 const realFs = require('fs');
 const feedWatermark = require('./feedWatermark.js');
 const brainFeedClient = require('./brainFeedClient.js');
-const { resolveSafeFolderPath, walkFolder, MAX_FILE_BYTES } = require('./feedFolderSource.js');
+const { resolveSafeFolderPath, walkFolder, readNoteHead } = require('./feedFolderSource.js');
 const feedSweep = require('./feedSweep.js');
 
 const SOURCE_TYPE = 'obsidian';
@@ -269,7 +269,7 @@ async function ingestObsidian(orgId, opts = {}, deps = {}) {
       plan = await feedSweep.planRoot({
         store: sweepStore, orgId, key: watermarkKey, root: guard.path, fsImpl,
         walkOpts: { extensions: OBSIDIAN_EXTENSIONS, ignoreDirs: IGNORED_DIRS }, maxFiles, storedWatermark,
-        maxFileBytes: MAX_FILE_BYTES, prefix: (rel) => `obsidian/${rel}`,
+        maxFileBytes: Infinity, prefix: (rel) => `obsidian/${rel}`, // oversize notes are truncated at read, never skipped
       });
     } catch (err) {
       result.error = `walk failed, ${err.message}`;
@@ -280,6 +280,7 @@ async function ingestObsidian(orgId, opts = {}, deps = {}) {
     entries = plan.entries;
     eligible = plan.eligible;
     remaining = plan.remaining;
+    if (plan.hasMore) result.moreWork = true;
   } else {
     try {
       entries = typeof walk === 'function'
@@ -292,10 +293,11 @@ async function ingestObsidian(orgId, opts = {}, deps = {}) {
     }
     // Compound (mtime, relPath) cursor, see feedFolderSource.js (BRAIN2-V3 A4).
     const allEligible = entries
-      .filter((e) => feedWatermark.isAfterCursor(storedWatermark, e.mtimeIso, e.relPath) && e.sizeBytes <= MAX_FILE_BYTES)
+      .filter((e) => feedWatermark.isAfterCursor(storedWatermark, e.mtimeIso, e.relPath))
       .sort((a, b) => feedWatermark.compareByTsId({ ts: a.mtimeIso, id: a.relPath }, { ts: b.mtimeIso, id: b.relPath }));
     eligible = allEligible.slice(0, maxFiles);
     remaining = allEligible.slice(maxFiles).map((e) => ({ ts: e.mtimeIso, id: e.relPath }));
+    if (remaining.length > 0) result.moreWork = true;
   }
 
   // Vault-wide index (all walked entries) so links to notes ingested in
@@ -319,7 +321,9 @@ async function ingestObsidian(orgId, opts = {}, deps = {}) {
 
   for (const entry of eligible) {
     try {
-      const content = fsImpl.readFileSync(entry.filePath, 'utf8');
+      const head = readNoteHead(fsImpl, entry.filePath);
+      const content = head.content;
+      if (head.truncated) result.truncated = (result.truncated || 0) + 1;
       const rawLinks = extractWikilinks(content);
       const resolvedLinks = resolveWikilinks(rawLinks, vaultIndex);
       result.linksFound += rawLinks.length;
@@ -336,6 +340,7 @@ async function ingestObsidian(orgId, opts = {}, deps = {}) {
         sourceType: SOURCE_TYPE,
         occurredAt: entry.mtimeIso,
         links: resolvedLinks,
+        ...(head.truncated ? { truncated: true, totalBytes: head.totalBytes } : {}),
       });
       result.filesRead++;
       if (entry.mtimeIso && !entry.catchUp) processed.push({ ts: entry.mtimeIso, id: entry.relPath });

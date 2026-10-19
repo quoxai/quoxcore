@@ -51,6 +51,10 @@ const QUOXPLAN_URL = process.env.QUOXPLAN_URL || 'http://host.docker.internal:31
 // is emitted for these mutations. See module doc comment above.
 const COLLECTOR_URL = process.env.COLLECTOR_URL || 'http://localhost:9848';
 const FETCH_TIMEOUT_MS = 5000;
+// Writes go through the collector's governed proxy, which waits up to 30s on QuoxPlan. The tool must wait LONGER,
+// so a slow QuoxPlan gets a definite answer from the proxy instead of the tool aborting a write that may land
+// (plan-proof-tick-phase ev_mvbytalv_e151b8, 2026-10-17).
+const QUOXPLAN_WRITE_TIMEOUT_MS = 35000;
 const VALID_LENSES = ['focus', 'tier', 'all'];
 
 // HITL completion (quoxplan_request_complete, below): mints an HITL Inbox
@@ -120,9 +124,14 @@ async function quoxplanWrite(method, path, body, ctx) {
       method,
       headers,
       body: JSON.stringify(body || {}),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      signal: AbortSignal.timeout(QUOXPLAN_WRITE_TIMEOUT_MS),
     });
   } catch (err) {
+    // A timeout is an UNKNOWN outcome, not "unreachable": the proxy may already have applied the write, and
+    // retrying a note would duplicate it.
+    if (err && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+      throw new Error(`QuoxPlan did not answer within ${Math.round(QUOXPLAN_WRITE_TIMEOUT_MS / 1000)}s, so this change may or may not have been applied. Read the stream back (quoxplan_stream_brief or quoxplan_notes) before retrying.`);
+    }
     throw new Error(`QuoxPlan governed proxy unreachable (${err.message}). Is the collector running on ${COLLECTOR_URL}?`);
   }
   let json = null;
@@ -174,6 +183,11 @@ async function pushQuoxplanApproval({ orgId, title, bodyMd, actionParams }) {
     orgId: org, title, bodyMd, kind: 'approval', priority: 'high',
     payload: {
       source: 'quoxplan',
+      what: {
+        action: 'mark stream COMPLETE',
+        target: `stream ${actionParams?.streamId || actionParams?.stream_id || actionParams?.id || 'unknown'}`,
+        summary: `mark QuoxPlan stream ${actionParams?.streamId || actionParams?.stream_id || actionParams?.id || 'unknown'} COMPLETE`,
+      },
       action: 'quoxplan.stream.complete',
       action_params: actionParams,
       callback_url: '/api/internal/quoxplan/approvals/decide',
@@ -364,7 +378,9 @@ const QUOXPLAN_TOOLS = {
         lines.push(`${stream.id} — ${stream.name} (tier ${stream.tier}, ${stream.status}, priority ${stream.priority})`);
         if (stream.summary) lines.push(stream.summary);
         lines.push(`Phases: ${phasesDone}/${phases.length} done` + (phases.length > 0
-          ? ` (${phases.map((p) => `${p.title}${p.status === 'DONE' ? ' ✓' : ''}`).join(', ')})`
+          // One phase per entry with its own number and status: the old "a, b ✓" list read as if the first was
+          // done (plan-proof-tick-phase, 2026-10-17).
+          ? ` (${phases.map((p, i) => `${p.seq ?? i + 1}. ${p.title}: ${p.status || 'TODO'}`).join('; ')})`
           : ''));
 
         const latestNotes = notes.slice(0, 3);
@@ -697,6 +713,7 @@ for (const tool of Object.values(QUOXPLAN_TOOLS)) {
 
 module.exports = {
   QUOXPLAN_TOOLS,
+  QUOXPLAN_WRITE_TIMEOUT_MS,
   getQuoxplanToolDefinitions,
   executeQuoxplanTool,
   resolveQuoxplanOwnerOrgId,

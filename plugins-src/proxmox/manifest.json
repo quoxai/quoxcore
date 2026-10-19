@@ -2,7 +2,7 @@
   "id": "proxmox",
   "name": "proxmox",
   "displayName": "Proxmox VE",
-  "version": "1.0.0",
+  "version": "1.1.2",
   "author": "Quox",
   "official": true,
   "tier": "standard",

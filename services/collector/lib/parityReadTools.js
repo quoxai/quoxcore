@@ -32,12 +32,21 @@ async function wardService() {
   try { return (await deps.getWardService()) || null; } catch { return null; }
 }
 const WARD_UNAVAILABLE = { success: false, error: 'WARD is not available on this instance, so the receipt cannot be checked. Say so; do not guess.' };
+// #1046: the WARD module can load while its store is closed (boot window, or the
+// gracefulShutdown grace during a redeploy). That is "not ready, retry", never the raw
+// internal "call initWardStore()" error and never a verdict.
+const WARD_NOT_READY = { success: false, retryable: true, error: 'WARD is not ready on this instance right now (the collector is starting or restarting), so this cannot be checked yet. Say so and retry shortly; do not guess.' };
+const isStoreNotReady = (e) => /not initiali[sz]ed/i.test(String(e && e.message));
+function wardStoreReady(ward) {
+  if (typeof ward.getDb !== 'function') return true;
+  try { return !!ward.getDb(); } catch { return false; }
+}
 
 const SOURCE_KINDS = ['AEE', 'AOCL', 'VOLT'];
 
 const ward_verify = {
   name: 'ward_verify',
-  description: 'Verify the WARD witness receipt for one envelope id (an AEE envelope, or an AOCL/VOLT source): WITNESSED means it is in the tamper-evident chain under a verified signed tip. Read-only; the same check as `quox governance ward verify --envelope <id>`.',
+  description: 'Verify the WARD witness receipt for one envelope id (an AEE envelope, or an AOCL/VOLT source): WITNESSED means it is in the tamper-evident chain under a verified signed tip. Read-only; the same check as `quox governance ward verify --envelope <id>`. To LIST recent chain entries (with their source kinds), do not loop this over envelopes: delegate to the auditus specialist, which holds ward_query_entries.',
   input_schema: {
     type: 'object',
     properties: {
@@ -54,6 +63,7 @@ const ward_verify = {
     const kind = SOURCE_KINDS.includes(input && input.source_kind) ? input.source_kind : 'AEE';
     const ward = await wardService();
     if (!ward || typeof ward.verifyReceipt !== 'function') return WARD_UNAVAILABLE;
+    if (!wardStoreReady(ward)) return WARD_NOT_READY;
     try {
       const entry = typeof ward.getEntryBySourceAnyChain === 'function' ? ward.getEntryBySourceAnyChain(kind, id) : null;
       // Another org's entry is answered exactly like a missing one: no existence leak.
@@ -80,6 +90,7 @@ const ward_verify = {
           : `${kind} ${id} receipt status ${r.status || 'UNKNOWN'}${r.reason ? ` (${r.reason})` : ''}.`,
       };
     } catch (e) {
+      if (isStoreNotReady(e)) return WARD_NOT_READY;
       return { success: false, error: `WARD receipt check failed: ${e && e.message}` };
     }
   },
@@ -90,7 +101,7 @@ const WARD_STATUS_TTL_MS = 60000;
 
 const ward_status = {
   name: 'ward_status',
-  description: 'WARD witness chain health: total entries, signed tips, witness signer state, and how many entries this org has. Read-only; the same as `quox governance ward status`.',
+  description: 'WARD witness chain health: total entries, signed tips, witness signer state, and how many entries this org has. Read-only; the same as `quox governance ward status`. Totals only: to LIST the entries themselves, delegate to the auditus specialist (ward_query_entries).',
   input_schema: { type: 'object', properties: {}, required: [] },
   execute: async (_input, ctx) => {
     const orgId = ctx && ctx.orgId;
@@ -99,6 +110,7 @@ const ward_status = {
     if (hit && hit.exp > Date.now()) return hit.v;
     const ward = await wardService();
     if (!ward || typeof ward.getStats !== 'function') return { success: false, error: 'WARD is not available on this instance; chain health is unknown. Say so; do not guess.' };
+    if (!wardStoreReady(ward)) return WARD_NOT_READY;
     try {
       const stats = ward.getStats();
       const witness = typeof ward.getWitnessStats === 'function' ? ward.getWitnessStats() : null;
@@ -107,6 +119,7 @@ const ward_status = {
       _wardStatusCache.set(orgId, { v, exp: Date.now() + WARD_STATUS_TTL_MS });
       return v;
     } catch (e) {
+      if (isStoreNotReady(e)) return WARD_NOT_READY;
       return { success: false, error: `WARD status read failed: ${e && e.message}` };
     }
   },
@@ -198,9 +211,22 @@ const memory_history = {
 // lookups"). This reads the agent registry itself: entity identity + declared
 // capabilities, and for one agent its granted tool names.
 const DIRECTORY_DOMAINS_MAX = 8;
+// #843: `quox agent list` is the registry roster MERGED by agent_id with the org's own agent
+// rows (every status except retired); this reads those rows the same way, over the auth
+// service's internal route, so the directory's set and total equal the CLI's.
+async function listOrgAgentsFromAuth(orgId, { fetchImpl = globalThis.fetch, env = process.env } = {}) {
+  const base = env.AUTH_SERVICE_URL || 'http://quox-auth:3101';
+  const url = `${base}/internal/agents?org_id=${encodeURIComponent(orgId)}&include_inactive=1`;
+  const res = await fetchImpl(url, { headers: env.INTERNAL_SERVICE_KEY ? { 'X-Service-Key': env.INTERNAL_SERVICE_KEY } : {}, signal: AbortSignal.timeout(8000) });
+  if (!res || !res.ok) throw new Error(`auth /internal/agents returned ${res ? res.status : 'no response'}`);
+  const body = await res.json();
+  if (!Array.isArray(body && body.agents)) throw new Error('auth /internal/agents returned no agents list');
+  return body.agents;
+}
+
 const agent_directory = {
   name: 'agent_directory',
-  description: 'List the specialist agents you can talk to or delegate to, with each one\'s registered role and capability domains; with agent_id, one agent\'s full registered capabilities and granted tools. Read-only; the source of truth for what an agent can do.',
+  description: 'List every agent in this org you can talk to or delegate to: the registered specialists plus the org\'s own agents (the same set and total as `quox agent list`), each with its role, capability domains and source; total and breakdown give the counts. With agent_id, one agent\'s full registered capabilities and granted tools. Read-only; the source of truth for what an agent can do and how many there are.',
   input_schema: {
     type: 'object',
     properties: { agent_id: { type: 'string', description: 'Optional agent id (e.g. cipher) for one agent in detail.' } },
@@ -225,14 +251,83 @@ const agent_directory = {
           } : {}),
         };
       };
-      const one = input && typeof input.agent_id === 'string' && input.agent_id.trim() ? input.agent_id.trim().toLowerCase() : null;
+      const shapeOrg = (o) => ({
+        id: o.agentId, name: o.name || o.agentId, role: o.description ? String(o.description).slice(0, 120) : null,
+        domains: Array.isArray(o.domains) ? o.domains.slice(0, DIRECTORY_DOMAINS_MAX) : [],
+        status: o.status || null, level: o.level ?? null, source: 'org',
+      });
+      let orgRows = null; let orgError = null;
+      if (typeof deps.listOrgAgents === 'function') {
+        try { orgRows = (await deps.listOrgAgents(ctx.orgId)) || []; } catch (e) { orgError = (e && e.message) || String(e); }
+      } else orgError = 'org agent list not wired';
+      // CUSTOM-HATS (owner 2026-10-17): under an enforced hat that scopes its agents, the
+      // directory is the hat's roster (the agents this turn can use), never the whole org.
+      const scope = require('./delegationRoster.js').hatAgentScope(ctx.hatManifest);
+      const raw = input && typeof input.agent_id === 'string' && input.agent_id.trim() ? input.agent_id.trim() : null;
+      let one = raw ? raw.toLowerCase() : null;
+      let resolvedFrom = null;
       if (one) {
-        const e = deps.getAgent(one);
-        if (!e) return { success: false, error: `No agent with id "${one}" is registered.` };
-        return { success: true, agent: shape(e, true) };
+        let e = deps.getAgent(one);
+        let o = (orgRows || []).find((r) => String(r.agentId).toLowerCase() === one);
+        // #962: not an id — try to resolve it as a DISPLAY NAME (identity.name, or an org agent's name),
+        // case-insensitive. "hyperion"/"ATLAS" -> atlas. Only a UNIQUE match resolves; ambiguity says so.
+        if (!e && !o) {
+          const regMatches = (deps.listAgents() || [])
+            .map((id) => deps.getAgent(id)).filter(Boolean)
+            .filter((a) => String((a.identity && a.identity.name) || '').toLowerCase() === one);
+          const orgMatches = (orgRows || []).filter((r) => String(r.name || '').toLowerCase() === one);
+          const ids = new Set([...regMatches.map((a) => a.id), ...orgMatches.map((r) => r.agentId)].map((x) => String(x).toLowerCase()));
+          if (ids.size > 1) {
+            return { success: false, error: `"${raw}" is a display name shared by more than one agent (${[...ids].join(', ')}). Ask by agent id.` };
+          }
+          if (ids.size === 1) {
+            resolvedFrom = raw;
+            one = [...ids][0];
+            e = deps.getAgent(one);
+            o = (orgRows || []).find((r) => String(r.agentId).toLowerCase() === one);
+          }
+        }
+        const inScope = scope ? { in_hat_scope: scope.agents.includes(one), ...(scope.agents.includes(one) ? {} : { hat_note: `${one} is outside the active hat '${scope.hatKey}': you cannot delegate to it under this hat.` }) } : {};
+        if (e) return { success: true, ...(resolvedFrom ? { resolved_from: resolvedFrom } : {}), ...inScope, agent: { ...shape(e, true), source: o ? 'org+registry' : 'registry', ...(o ? { status: o.status || null } : {}) } };
+        if (o) return { success: true, ...(resolvedFrom ? { resolved_from: resolvedFrom } : {}), ...inScope, agent: shapeOrg(o) };
+        return { success: false, error: `No agent with id or name "${raw}" is registered or in this org${orgError ? ` (the org's own agents could not be read: ${orgError})` : ''}.` };
       }
-      const agents = (deps.listAgents() || []).map((id) => deps.getAgent(id)).filter(Boolean).map((e) => shape(e, false));
-      return { success: true, count: agents.length, agents };
+      const merged = new Map();
+      for (const e of (deps.listAgents() || []).map((id) => deps.getAgent(id)).filter(Boolean)) merged.set(e.id, { ...shape(e, false), source: 'registry' });
+      let both = 0;
+      for (const o of orgRows || []) {
+        if (!o || !o.agentId) continue;
+        const reg = merged.get(o.agentId);
+        if (reg) { both++; merged.set(o.agentId, { ...reg, source: 'org+registry', status: o.status || null }); } else merged.set(o.agentId, shapeOrg(o));
+      }
+      const allAgents = [...merged.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+      if (scope) {
+        const ids = new Set(scope.agents);
+        const inHat = allAgents.filter((a) => ids.has(String(a.id).toLowerCase()));
+        const found = new Set(inHat.map((a) => String(a.id).toLowerCase()));
+        const missing = scope.agents.filter((a) => !found.has(a));
+        return {
+          success: true, complete: orgRows !== null, total: inHat.length, count: inHat.length,
+          scope: { hat: scope.hatKey, narrowed: true, agents_in_scope: scope.agents, org_total: orgRows === null ? null : allAgents.length, ...(missing.length ? { not_found: missing } : {}) },
+          note: `These are the ${inHat.length} agent(s) the active hat '${scope.hatKey}' lets you use right now. The org has ${orgRows === null ? 'more' : allAgents.length} agents in all; the rest are outside this hat, so do not list or offer them.${missing.length ? ` The hat also names ${missing.join(', ')}, which no registered or org agent matches.` : ''}`,
+          agents: inHat,
+        };
+      }
+      const agents = allAgents;
+      const registry = agents.filter((a) => a.source !== 'org').length;
+      if (orgRows === null) {
+        return {
+          success: true, complete: false, total: null, count: agents.length, org_agents_error: orgError,
+          breakdown: { registry, org_created: null, org_and_registry: null },
+          note: `Only the ${agents.length} registered specialists could be read; the org's own agents could not (${orgError}), so the total is unknown. Say that; do not give ${agents.length} as the total.`,
+          agents,
+        };
+      }
+      return {
+        success: true, complete: true, total: agents.length, count: agents.length,
+        breakdown: { registry, org_created: agents.length - registry, org_and_registry: both },
+        agents,
+      };
     } catch (e) {
       return { success: false, error: `Agent registry read failed: ${e && e.message}` };
     }
@@ -242,4 +337,4 @@ const agent_directory = {
 const PARITY_READ_TOOLS = { ward_verify, ward_status, standing_grants_list, safety_status, memory_history, agent_directory };
 const PARITY_READ_TOOL_NAMES = Object.keys(PARITY_READ_TOOLS);
 
-module.exports = { PARITY_READ_TOOLS, PARITY_READ_TOOL_NAMES, setParityReadDeps, __resetParityDepsForTesting };
+module.exports = { PARITY_READ_TOOLS, PARITY_READ_TOOL_NAMES, setParityReadDeps, __resetParityDepsForTesting, listOrgAgentsFromAuth, __depsForTesting: () => deps };

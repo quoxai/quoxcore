@@ -6,6 +6,10 @@
  *   !<shell command>        run via $SHELL -lc
  *   !quox <args> / !q <args> run THIS quox binary (not whatever is on PATH) with the current profile injected
  *   !!                       reserved (refused with a note)
+ *
+ * BANG-TTY (owner 2026-10-16): capture stays the default (so /share works), but a known interactive command
+ * (needsTerminal, e.g. quox lucid deck, vim, top) or a captured run that failed for want of a terminal (ttyFailure)
+ * is handed the terminal, the same way a slot run request is.
  */
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -53,10 +57,14 @@ export function tokenize(s) {
 
 const hasProfile = (args) => args.some(a => a === '-p' || a === '--profile' || a.startsWith('--profile=') || /^-p.+/.test(a));
 const INTERACTIVE = new Set(['tui', 'quoxon']);
+// quox leaves that draw a full-screen view (first two positional words); `--interactive` anywhere also counts
+const INTERACTIVE_QUOX = new Set(['lucid deck']);
+const INTERACTIVE_FLAG = (a) => a === '--interactive'; // not -i: some leaves use it for other things
+// shell programs that need a terminal whatever their arguments; ssh only when it has no remote command
+const INTERACTIVE_SHELL = new Set(['vim', 'vi', 'nvim', 'nano', 'emacs', 'less', 'more', 'most', 'man', 'top', 'htop', 'btop', 'atop', 'watch', 'tmux', 'screen', 'mc', 'ranger']);
+const SSH_VALUE_FLAGS = new Set(['-b', '-c', '-D', '-E', '-e', '-F', '-I', '-i', '-J', '-L', '-l', '-m', '-O', '-o', '-p', '-Q', '-R', '-S', '-W', '-w', '-B']);
 
-/** -> { refuse: 'one-line hint' } | { argv: [...] } for process.execPath. */
-export function quoxArgv(args, { profile, entry = QUOX_ENTRY } = {}) {
-  // positional words: skip flags and the value that follows -p/--profile
+const quoxPositional = (args) => {
   const pos = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -64,11 +72,58 @@ export function quoxArgv(args, { profile, entry = QUOX_ENTRY } = {}) {
     if (a.startsWith('-')) continue;
     pos.push(a);
   }
+  return pos;
+};
+
+/** -> a short reason when this ! command needs a real terminal (hand it over), else null. */
+export function needsTerminal(bang) {
+  if (!bang || (bang.kind !== 'shell' && bang.kind !== 'quox')) return null;
+  if (bang.kind === 'quox') {
+    const args = bang.args || [];
+    const pos = quoxPositional(args);
+    const info = args.some(a => a === '--help' || a === '-h' || a === '--version' || a === '-V');
+    if (!pos.length || info || INTERACTIVE.has(pos[0])) return null; // bare quox and tui stay refused (quoxArgv): this window IS that app
+    if (INTERACTIVE_QUOX.has(pos.slice(0, 2).join(' '))) return `quox ${pos.slice(0, 2).join(' ')} is interactive`;
+    if (args.some(INTERACTIVE_FLAG)) return 'it asked for --interactive';
+    return null;
+  }
+  const words = tokenize(bang.cmd);
+  let i = 0;
+  while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i++; // FOO=1 less x
+  if (/[|;&<>]/.test(bang.cmd)) return null; // a pipeline or redirect is the user's own plumbing: leave it captured
+  const prog = (words[i] || '').split('/').pop();
+  if (INTERACTIVE_SHELL.has(prog)) return `${prog} is interactive`;
+  if (prog === 'ssh') {
+    const rest = words.slice(i + 1); let host = -1;
+    for (let k = 0; k < rest.length; k++) {
+      if (SSH_VALUE_FLAGS.has(rest[k])) { k++; continue; }
+      if (rest[k].startsWith('-')) continue;
+      host = k; break;
+    }
+    if (host >= 0 && host === rest.length - 1) return 'ssh with no command opens a shell';
+  }
+  return null;
+}
+
+const TTY_FAIL = /needs an interactive terminal|not a tty|inappropriate ioctl|must be run (from|in) a terminal|(input|stdin|stdout) is not a terminal|requires a tty|no tty present/i;
+/** -> true when a captured run failed because it had no terminal (re-run it handed over). */
+export function ttyFailure(r) {
+  if (!r || r.code === 0 || r.code == null || r.timedOut || r.killed) return false;
+  return TTY_FAIL.test(String(r.text || '').slice(-2000));
+}
+
+/** -> { refuse: 'one-line hint' } | { argv: [...] } for process.execPath. */
+export function quoxArgv(args, { profile, entry = QUOX_ENTRY } = {}) {
+  // positional words: skip flags and the value that follows -p/--profile
+  const pos = quoxPositional(args);
   const info = args.some(a => a === '--help' || a === '-h' || a === '--version' || a === '-V');
+  const inject = profile && !hasProfile(args) ? ['-p', profile] : [];
+  const argv = [entry, ...inject, ...args];
+  // refuse = it cannot run captured inline; tty = the argv to hand the terminal to instead (BANG-TTY)
   if (!pos.length && !info) return { refuse: 'bare quox opens the full-screen app, which needs the terminal. Give it a subcommand, e.g. !quox inbox list (or !quox --help).' };
   if (INTERACTIVE.has(pos[0])) return { refuse: `quox ${pos[0]} is interactive and needs the terminal, so it cannot run inline. Open it in another terminal.` };
-  const inject = profile && !hasProfile(args) ? ['-p', profile] : [];
-  return { argv: [entry, ...inject, ...args] };
+  if (needsTerminal({ kind: 'quox', args })) return { refuse: `quox ${pos.slice(0, 2).join(' ')} is interactive and needs the terminal, so it cannot run inline.`, tty: { argv } };
+  return { argv };
 }
 
 const STDIN_HINT = /stdin|end of file|\bEOF\b|password|passphrase|\[y\/n\]|\(y\/n\)|continue\?|press (any )?key|enter .*:\s*$/i;

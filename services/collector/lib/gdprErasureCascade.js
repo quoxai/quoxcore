@@ -10,6 +10,7 @@
 
 const DEFAULT_MEMORY_URL = `http://${process.env.MEMORY_HOST || 'memory'}:${process.env.MEMORY_PORT || '3103'}`;
 const DEFAULT_BRAIN_URL = (process.env.QUOXBRAIN_URL || 'http://quoxbrain:3106').replace(/\/$/, '');
+const DEFAULT_TASKS_URL = (process.env.TASKS_SERVICE_URL || 'http://tasks:3104').replace(/\/$/, '');
 const TIMEOUT_MS = 30000;
 
 /** Envelope rows {org_id, corr} -> [{orgId, relPaths}] in the conversation feed's relPath scheme. */
@@ -43,11 +44,13 @@ async function callErase(url, body, { fetchImpl, serviceKey }) {
 
 async function runErasureCascade(userId, { conversations = [] } = {}, deps = {}) {
   const ctx = { fetchImpl: deps.fetchImpl || fetch, serviceKey: deps.serviceKey !== undefined ? deps.serviceKey : (process.env.INTERNAL_SERVICE_KEY || '') };
-  const [memory, brain] = await Promise.all([
+  // QUOXMIND #1110: the tasks leg erases the user's stored focus asks, focus and open loops.
+  const [memory, brain, tasks] = await Promise.all([
     callErase(deps.memoryUrl || DEFAULT_MEMORY_URL, { userId }, ctx),
     callErase(deps.brainUrl || DEFAULT_BRAIN_URL, { userId, conversations }, ctx),
+    callErase(deps.tasksUrl || DEFAULT_TASKS_URL, { userId }, ctx),
   ]);
-  return { complete: memory.ok && brain.ok, memory, brain };
+  return { complete: memory.ok && brain.ok && tasks.ok, memory, brain, tasks };
 }
 
 module.exports = { conversationsFromRows, runErasureCascade };

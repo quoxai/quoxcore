@@ -106,7 +106,9 @@ const GOVERNED_PLUGIN_IDS = [
     // generate-all master key already entitles it. Ids = store slugs =
     // /solutions paths, per LE-3.0.
     'dev-servers', 'qloop', 'quoxbuild', 'gripe', 'triage',
-    'proofloop', 'fixloop', 'skill-packs', 'quoxslots', 'dev-suite-bundle',
+    // skill-packs removed 2026-10-15 by owner ruling: skills that are only instruction files are FREE (never sold
+    // alone); skills inside a paid product with real tooling ride that product's licence.
+    'proofloop', 'fixloop', 'quoxslots', 'dev-suite-bundle',
     // LICENSE-ENFORCE LE-5 drift fix (2026-08-06): three priced, catalog-listed
     // plugins were shipping ungoverned — an entitlement query for any of them
     // returned licensed:true for every org, entitled or not. Each was already
@@ -159,7 +161,7 @@ const GOVERNED_PLUGIN_IDS = [
     // instance BEFORE the next auth rebuild, or expect the lockout.
     'quoxlens',
     // discord-pro: install/settings surface for the Discord Pro daemon
-    // (separate repo, /opt/quoxcore/quox-discord-pro). Governed from day
+    // (separate repo, ~/quox-discord-pro). Governed from day
     // one, per the qlarity/telegram-pro precedent above: a new commercial
     // plugin never starts ungoverned. LOCKOUT WARNING applies exactly as it
     // does for quoxlens: a dev/owner install must hold a discord-pro
@@ -178,6 +180,12 @@ const GOVERNED_PLUGIN_IDS = [
     // they stay red in the drift test until that session governs them.
     'chief-team-small', 'chief-team-medium', 'chief-team-enterprise',
     'quox-security',
+    // 2026-10-15 (WORKER2, SITE-CLI audit finding): match the ratified signed catalogue. doneengine and
+    // enterprise-bundle are the last two Group E ids (owner ruling 2026-08-29 "ALL PAID"); inboxq, calendar-q and
+    // notesq are priced and governed by the signed catalogue since AQ-9D (b352b9af3). Without them here, an instance
+    // with no valid signed catalogue served all five free. Only that fallback path changes: an installed signed
+    // catalogue already governed them. tests/fallback-governed-matches-signed-catalog.test.js keeps the two in step.
+    'doneengine', 'enterprise-bundle', 'inboxq', 'calendar-q', 'notesq',
 ];
 
 /**
@@ -424,6 +432,17 @@ function applyEntitlementEntries(entitlements, entitlementRules, planTiers, rawE
     }
 }
 
+/**
+ * PLUGIN-IMG #1012 (owner decision 2026-10-15): when a lease LAPSES, the
+ * plugins it covered get LAPSE_READ_ONLY_DAYS of read-only access (GETs pass,
+ * writes 402), then nothing. Data is kept throughout. The grace is never a
+ * licence: hasPlugin() and resolvePluginAccess().licensed stay false, and
+ * only a verified, instance-bound lease with a parseable expiry inside the
+ * window qualifies (fail closed when the expiry is unknown).
+ */
+export const LAPSE_READ_ONLY_DAYS = 14;
+const LAPSE_READ_ONLY_MS = LAPSE_READ_ONLY_DAYS * 24 * 3600_000;
+
 function computeEntitlements(db) {
     const instanceId = getInstanceId(db);
     const leases = listStoredLeases(db);
@@ -438,6 +457,10 @@ function computeEntitlements(db) {
      *  LL-2e: entries a verified lease carried that this install REFUSED. */
     const errors = [];
     const licenses = [];
+    /** @type {Map<string, number>} PLUGIN-IMG #1012: pluginId -> latest lapsed lease expiry (ms) inside the grace window. */
+    const lapsed = new Map();
+    /** @type {Map<string, { wholeInstall: boolean, maxOrgs: number }>} rules those lapsed leases carried. */
+    const lapsedRules = new Map();
 
     for (const lease of leases) {
         const verification = verifyLease(lease);
@@ -445,7 +468,17 @@ function computeEntitlements(db) {
         if (!instanceId || lease.instance_id !== instanceId) continue;
 
         const expiresAtMs = Date.parse(lease.expires_at);
-        if (!Number.isFinite(expiresAtMs) || expiresAtMs <= now) continue;
+        if (!Number.isFinite(expiresAtMs)) continue;
+        if (expiresAtMs <= now) {
+            if (now - expiresAtMs < LAPSE_READ_ONLY_MS) {
+                const ids = new Set();
+                applyEntitlementEntries(ids, lapsedRules, new Set(), lease.entitlements, [], lease.license_id);
+                for (const id of ids) {
+                    if (!lapsed.has(id) || lapsed.get(id) < expiresAtMs) lapsed.set(id, expiresAtMs);
+                }
+            }
+            continue;
+        }
 
         applyEntitlementEntries(entitlements, entitlementRules, planTiers, lease.entitlements, errors, lease.license_id);
 
@@ -467,7 +500,7 @@ function computeEntitlements(db) {
     // the ONLY entitlement source. Guard:
     // tests/license-offline-import-removed.test.js.
 
-    return { entitlements, entitlementRules, planTiers, errors, licenses };
+    return { entitlements, entitlementRules, planTiers, errors, licenses, lapsed, lapsedRules };
 }
 
 function getCached(db) {
@@ -837,7 +870,7 @@ export function resolvePluginAccess(db, pluginId, orgId) {
     if (!LICENSE_GOVERNED_PLUGINS.has(pluginId)) return { licensed: true };
 
     const { entitlements, entitlementRules } = getCached(db);
-    if (!entitlements.has(pluginId)) return { licensed: false };
+    if (!entitlements.has(pluginId)) return lapsedAccess(db, pluginId, orgId);
 
     const rule = entitlementRules.get(pluginId);
     if (!rule || rule.wholeInstall) return { licensed: true };
@@ -848,6 +881,31 @@ export function resolvePluginAccess(db, pluginId, orgId) {
         return { licensed: false, reason: 'no_org_context' };
     }
     return { licensed: claimOrgSlot(db, pluginId, orgId, rule.maxOrgs) };
+}
+
+/**
+ * PLUGIN-IMG #1012: unlicensed, plus `lapsed: { lease_expired_at,
+ * read_only_until }` when a verified lease for this plugin lapsed less than
+ * LAPSE_READ_ONLY_DAYS ago. An org-scoped grant only extends grace to an org
+ * that already HELD a seat (read, never claimed): a lapse must not hand out
+ * new seats.
+ * @returns {{ licensed: false, lapsed?: { lease_expired_at: string, read_only_until: string } }}
+ */
+function lapsedAccess(db, pluginId, orgId) {
+    const { lapsed, lapsedRules } = getCached(db);
+    const expiredMs = lapsed && lapsed.get(pluginId);
+    if (!Number.isFinite(expiredMs)) return { licensed: false };
+    const rule = lapsedRules.get(pluginId);
+    if (rule && !rule.wholeInstall) {
+        if (!orgId || !readOrgSlots(db, pluginId).includes(orgId)) return { licensed: false };
+    }
+    return {
+        licensed: false,
+        lapsed: {
+            lease_expired_at: new Date(expiredMs).toISOString(),
+            read_only_until: new Date(expiredMs + LAPSE_READ_ONLY_MS).toISOString(),
+        },
+    };
 }
 
 /**

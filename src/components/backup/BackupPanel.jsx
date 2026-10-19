@@ -102,7 +102,7 @@ function BackupStatusBanner({ status, error }) {
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
                     </svg>
-                    {status.totals?.storagePath || '/opt/quoxcore/backups'}
+                    {status.totals?.storagePath || '~/backups'}
                 </span>
                 {status.schedules?.nextRun && (
                     <span className="backup-status-stat">
@@ -410,7 +410,7 @@ export function BackupPanel({ onStateChange }) {
                 await loadData()
             }
             if (result.imported === 0 && result.totalScanned === 0) {
-                setError('No backup archives found in ' + (backupStatus?.totals?.storagePath || '/opt/quoxcore/backups'))
+                setError('No backup archives found in ' + (backupStatus?.totals?.storagePath || '~/backups'))
             }
         } catch (err) {
             console.error('Scan failed:', err)

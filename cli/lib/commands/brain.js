@@ -148,6 +148,24 @@ export function scoreRetrievalEval(judgements, searches, k = 8) {
 export function registerBrainCommands(program, ctx) {
   const { client, auth } = ctx;
 
+  // quox#934: read/history/related go through the NotesQ API, which only knows
+  // editable NotesQ notes. A feed note (git_commit, email, ...) that `brain note`
+  // resolves came back as a bare 404. On a NotesQ 404, ask the brain itself;
+  // rethrow the original error when the brain does not know the note either.
+  const brainNoteOn404 = async (noteId, err) => {
+    if (!(err instanceof QuoxApiError) || err.status !== 404) throw err;
+    let note;
+    try {
+      const ep = resolveEndpoint('brain.note.get', { id: noteId });
+      note = await client.get(ep.path, { service: ep.service });
+    } catch {
+      throw err;
+    }
+    if (!note || !note.id) throw err;
+    return note;
+  };
+  const feedReason = (n, what) => `${n.id} is a ${n.kind || 'feed'} note${n.source_type ? ` from the ${n.source_type} source` : ''}, not an editable NotesQ note, so it has no ${what}.`;
+
   const brain = program
     .command('brain')
     .description('Query Quox Qortex (vaults, notes, semantic search)')
@@ -176,10 +194,16 @@ export function registerBrainCommands(program, ctx) {
         console.log(JSON.stringify(data, null, 2));
         return;
       }
+      // quox#853: a keyword-only fallback fooled both the product and a
+      // verifier ("0 hits" read as "does not exist"). Say it in words.
+      const degradedNote = data.retrieval === 'fts' && data.degraded
+        ? '⚠ Semantic search was unavailable for this query, so this is keyword-only: a missing or zero result does not prove the note is absent. Retry shortly.'
+        : '';
       if (insufficient) {
         const legLabel = data.retrieval ? ` · ${data.retrieval}` : '';
         console.log(glyphLine('brain2', `search "${query.slice(0, 40)}"`, { result: `0 relevant hits${legLabel}`, ms: data.tookMs ?? '?' }));
         console.log('⚠ Qortex judged the matches for this query insufficient (no relevant notes). The weak hits are withheld; use -o json to see them with the relevance details.');
+        if (degradedNote) console.log(degradedNote);
         return;
       }
       // BRAIN2-AUDIT: sessions must SEE what Qortex recalled, not just a hit
@@ -188,12 +212,14 @@ export function registerBrainCommands(program, ctx) {
         const results = data.results || [];
         const legLabel = data.retrieval ? ` · ${data.retrieval}` : '';
         console.log(glyphLine('brain2', `search "${query.slice(0, 40)}"`, { result: `${results.length} hits${legLabel}`, ms: data.tookMs ?? '?' }));
+        if (degradedNote) console.log(degradedNote);
         if (results.length === 0) {
           console.log(glyphLine('brain2', 'recall', { result: 'nothing on record for this query' }));
           return;
         }
         for (const r of results) {
-          console.log(`${brandName('🌌 QORTEX')} recall │ "${recallSnippet(r)}" · ${recallSource(r)} · ${r.title || 'untitled'} · note ${r.noteId || '?'}`);
+          const miss = Array.isArray(r.missingEntities) && r.missingEntities.length ? ` · does not mention ${r.missingEntities.join(', ')}` : '';
+          console.log(`${brandName('🌌 QORTEX')} recall │ "${recallSnippet(r)}" · ${recallSource(r)} · ${r.title || 'untitled'} · note ${r.noteId || '?'}${miss}`);
         }
         return;
       }
@@ -203,6 +229,7 @@ export function registerBrainCommands(program, ctx) {
       if (program.opts().output !== 'json') {
         const legLabel = data.retrieval ? ` · ${data.retrieval}` : '';
         console.log(glyphLine('brain2', `search "${query.slice(0, 40)}"`, { result: `${(data.results || []).length} hits${legLabel}`, ms: data.tookMs ?? '?' }));
+        if (degradedNote) console.log(degradedNote);
       }
       formatOutput({
         columns: ['title', 'kind', 'snippet', 'score'],
@@ -581,7 +608,13 @@ export function registerBrainCommands(program, ctx) {
     .action(async (noteId, options) => {
       auth.requireAuth();
       const ep = resolveEndpoint('notesq.notes.get', { id: noteId });
-      const data = await client.get(ep.path, { service: ep.service });
+      let data;
+      try {
+        data = await client.get(ep.path, { service: ep.service });
+      } catch (e) {
+        const bn = await brainNoteOn404(noteId, e);
+        data = { note: bn, source: 'brain', editable: false };
+      }
       const n = data.note || data;
       if (program.opts().output === 'json') { console.log(JSON.stringify(data, null, 2)); return; }
       if (options.raw) { console.log(n.body ?? n.markdown ?? ''); return; }
@@ -654,7 +687,14 @@ export function registerBrainCommands(program, ctx) {
     .action(async (noteId, options) => {
       auth.requireAuth();
       const ep = resolveEndpoint('notesq.notes.related', { id: noteId });
-      const data = await client.get(ep.path, { service: ep.service, query: { limit: Math.min(Math.max(parseInt(options.limit, 10) || 8, 1), 20) } });
+      let data;
+      try {
+        data = await client.get(ep.path, { service: ep.service, query: { limit: Math.min(Math.max(parseInt(options.limit, 10) || 8, 1), 20) } });
+      } catch (e) {
+        const bn = await brainNoteOn404(noteId, e);
+        data = { related: [], editable: false, reason: `${feedReason(bn, 'similarity links')} Use \`quox brain neighbours ${noteId}\` for its graph links.` };
+        if (program.opts().output !== 'json') console.log(data.reason);
+      }
       const related = data.related || [];
       if (program.opts().output === 'json') { console.log(JSON.stringify(data, null, 2)); return; }
       console.log(glyphLine('brain2', `related ${noteId.slice(0, 8)}`, { result: `${related.length} notes` }));
@@ -784,7 +824,14 @@ export function registerBrainCommands(program, ctx) {
         return;
       }
       const ep = resolveEndpoint('notesq.notes.revisions', { id: noteId });
-      const data = await client.get(ep.path, { service: ep.service });
+      let data;
+      try {
+        data = await client.get(ep.path, { service: ep.service });
+      } catch (e) {
+        const bn = await brainNoteOn404(noteId, e);
+        data = { revisions: [], editable: false, reason: feedReason(bn, 'revision history') };
+        if (program.opts().output !== 'json') { console.log(data.reason); return; }
+      }
       if (program.opts().output === 'json') { console.log(JSON.stringify(data, null, 2)); return; }
       formatOutput({ columns: ['rev', 'action', 'author_kind', 'created_at', 'content_hash'], headers: ['Rev', 'Action', 'Author', 'When', 'Hash'], rows: data.revisions || [] }, { format: program.opts().output });
     });

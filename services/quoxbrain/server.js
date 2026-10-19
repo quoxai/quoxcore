@@ -18,12 +18,12 @@ import * as notesq from './lib/notesq.js'
 import * as notesqInsights from './lib/notesqInsights.js'
 import * as notesqSchedules from './lib/notesqSchedules.js'
 import { resolveSafeVaultPath } from './lib/vaultRoot.js'
-import { ensureLegHeads, LEG_HEAD_N, buildNoteExcerpt, prefetchQueryEmbedding, assembleContext, tryHybridFusion, isHybridEnabled, dedupeByNote, resolveOrgRetrievalConfig, searchChunksWithQuota } from './lib/contextAssembler.js'
+import { ensureLegHeads, LEG_HEAD_N, buildNoteExcerpt, prefetchQueryEmbedding, assembleContext, tryHybridFusion, isHybridEnabled, dedupeByNote, resolveOrgRetrievalConfig, searchChunksWithQuota, applySparseKindPriors, formatSlowContext } from './lib/contextAssembler.js'
 import { computeRelevance, rerankVetoHolds } from './lib/relevance.js'
 import { getEmbeddingProviderCached, composeEmbeddingsStatus, getEmbeddingCoverageCached } from './lib/embeddingStatus.js'
 import { describeEffectiveConfig } from './lib/effectiveConfig.js'
 import { resolveDreamLlmAllowed, resolveEmbedExclusions, describeEgress, resolveRelevanceThresholds, resolveQueryEmbedTimeout, resolveRerankEnabledDetailed, resolveExpandEnabledDetailed } from './lib/brainConfig.js'
-import { groundingForTop, modeEntities, normalizeGroundingMode, DEFAULT_GROUNDING_MODE } from './lib/entityGrounding.js'
+import { groundingForTop, modeEntities, normalizeGroundingMode, DEFAULT_GROUNDING_MODE, rankByEntityMention, aliasExpandQuery, questionEntities } from './lib/entityGrounding.js'
 import { maybeRerank, RERANK_TOP_N, RERANK_TOP_N_EXPANDED } from './lib/rerank.js'
 import { resolveExpansion } from './lib/expand.js'
 import { guaranteedNoteIds, perResultExplain, explainTarget, hasActiveFacets } from './lib/explain.js'
@@ -836,7 +836,7 @@ app.post('/brain/search', authenticate, orgBudgetMiddleware, async (req, res) =>
       // Wider sparse pool than one page so fusion has something to re-rank,
       // then paginate the fused ranking.
       const poolSize = Math.min(Math.max((clampedLimit + safeOffset) * 3, 30), 200)
-      const sparsePool = searchChunksWithQuota(store.searchChunks, req.org_id, req.user_id, { query, ...facetFilters }, poolSize)
+      const sparsePool = searchChunksWithQuota(store.searchChunks, req.org_id, req.user_id, { query: aliasExpandQuery(query), ...facetFilters }, poolSize)
       mark('sparse')
       const fused = await tryHybridFusion(req.org_id, req.user_id, query, sparsePool, poolSize, { degradedSink, queryEmbedTimeoutMs: embedTimeoutOf(req), orgQueryEmbedTimeoutMs: orgCfg.orgQueryEmbedTimeoutMs, excludedVaultIdSet: orgCfg.excludedVaultIdSet, filters: facetFilters, denseWeight, kindPriors, recency, ...(explainSink ? { explainSink } : {}), ...(expandStarter ? { expand: expandStarter, expandSink } : {}) })
       if (fused) {
@@ -854,15 +854,15 @@ app.post('/brain/search', authenticate, orgBudgetMiddleware, async (req, res) =>
         if (explainOn) guaranteed = guaranteedNoteIds(preLegs, ranked, legWindow)
       rawResults = ranked.slice(safeOffset, safeOffset + clampedLimit)
       } else {
-        chunkPool = sparsePool
-        ranked = dedupeByNote(sparsePool)
+        chunkPool = applySparseKindPriors(sparsePool, kindPriors)
+        ranked = dedupeByNote(chunkPool)
         rawResults = ranked.slice(safeOffset, safeOffset + clampedLimit)
       }
     } else {
       // One hit per note (BRAIN2-AUDIT): overfetch chunks, collapse to the best
       // chunk per note, then paginate the collapsed ranking.
       const facetPool = Math.min(Math.max((clampedLimit + safeOffset) * 3, 30), 200)
-      chunkPool = searchChunksWithQuota(store.searchChunks, req.org_id, req.user_id, { query, vaultIds, kinds, sources, scopes, languages, ...dateWindow.filters }, facetPool)
+      chunkPool = applySparseKindPriors(searchChunksWithQuota(store.searchChunks, req.org_id, req.user_id, { query: aliasExpandQuery(query), vaultIds, kinds, sources, scopes, languages, ...dateWindow.filters }, facetPool), kindPriors)
       ranked = dedupeByNote(chunkPool)
       rawResults = ranked.slice(safeOffset, safeOffset + clampedLimit)
     }
@@ -908,6 +908,18 @@ app.post('/brain/search', authenticate, orgBudgetMiddleware, async (req, res) =>
     const groundingModeReq = isInstanceAuthority(req) ? normalizeGroundingMode(req.body?.groundingMode) : DEFAULT_GROUNDING_MODE
     const modeEnts = groundingModeReq !== 'legacy' ? modeEntities(query, groundingModeReq, (t, v, l) => store.sampleTermChunks(req.org_id, req.user_id, v, l), `${req.org_id}\u0000${req.user_id || ''}`) : null
     let groundingOut = { entities: [], missing: [], ungrounded: false, evaluated: false }
+    // quox#853: within the page, hits naming the question's subject outrank
+    // hits that never mention it, and each miss is labelled on the hit.
+    if (results.length) {
+      const ents = modeEnts || (groundingModeReq === 'legacy' ? questionEntities(query) : [])
+      if (ents.length) {
+        const texts = new Map(store.getChunkDetails(req.org_id, req.user_id, results.map((r) => r.chunkId).filter(Boolean)).map((d) => [d.chunkId, d.text]))
+        results = rankByEntityMention(results, ents, (r) => {
+          const n = r.noteId ? store.getNote(req.org_id, req.user_id, r.noteId) : null
+          return `${r.title || ''} ${r.relPath || ''} ${texts.get(r.chunkId) || r.snippet || ''} ${typeof n?.body === 'string' ? n.body.slice(0, 1200) : ''}`
+        })
+      }
+    }
     if (!relevanceOut.insufficient && results.length) {
       const top = results.slice(0, 3)
       const passages = new Map(store.getChunkDetails(req.org_id, req.user_id, top.map((r) => r.chunkId).filter(Boolean)).map((d) => [d.chunkId, d.text]))
@@ -1036,13 +1048,22 @@ app.post('/brain/context', authenticate, orgBudgetMiddleware, async (req, res) =
     // assembleContext is async as of P4-WP2 (docs/STREAM_QUOXBRAIN_SECONDBRAIN_LENS.md
     // §P4) — it awaits the embedding seam ONLY when QUOXBRAIN_HYBRID_ENABLED='true';
     // otherwise it resolves synchronously-equivalent, same as before.
-    const result = await assembleContext(req.org_id, req.user_id, { query, tokenBudget: Number(tokenBudget) || 800, vaultIds, kinds, minScore: Number(minScore) || 0, sources, scopes, languages, ...dateWindow.filters, queryEmbedTimeoutMs: embedTimeoutOf(req), rerank: rerankOverride, groundingMode: isInstanceAuthority(req) ? req.body?.groundingMode : undefined })
+    // quox#1108: per-phase timings ride on the response and slow calls log them.
+    const tStart = Date.now()
+    const timingsSink = {}
+    const result = await assembleContext(req.org_id, req.user_id, { query, tokenBudget: Number(tokenBudget) || 800, vaultIds, kinds, minScore: Number(minScore) || 0, sources, scopes, languages, ...dateWindow.filters, queryEmbedTimeoutMs: embedTimeoutOf(req), rerank: rerankOverride, groundingMode: isInstanceAuthority(req) ? req.body?.groundingMode : undefined }, isInstanceAuthority(req) && req.body?.kindPriors && typeof req.body.kindPriors === 'object' ? { kindPriors: req.body.kindPriors, timingsSink } : { timingsSink })
+    const tPost = Date.now()
     store.recordUsageEvent({ org_id: req.org_id, user_id: req.user_id || null, surface: 'context', source: usageSource(req) })
     if (result.retrieval === 'hybrid' && store.denseWindowTruncated(req.org_id)) result.denseWindowTruncated = true
     if (Array.isArray(result.passages)) {
       const pinHashes = store.getNoteContentHashes(req.org_id, result.passages.map((p) => p.noteId))
       for (const p of result.passages) if (p?.citation && pinHashes[p.noteId]) p.citation.noteHash = pinHashes[p.noteId]
     }
+    timingsSink.post = Date.now() - tPost
+    timingsSink.total = Date.now() - tStart
+    result.timings = timingsSink
+    const slow = formatSlowContext(timingsSink, { org: req.org_id })
+    if (slow) console.warn(slow)
     res.json(result)
   } catch (error) {
     console.error('[Brain] Context assembly error:', error)

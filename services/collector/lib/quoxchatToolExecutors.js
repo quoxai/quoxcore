@@ -67,19 +67,29 @@ function _buildNeedsInput({ kind, fields, prefill, message }) {
 }
 
 const EMAIL_FIELD = { name: 'email', label: 'Your email', type: 'email', required: true, placeholder: 'you@example.com' };
+const LEAD_PHONE_FIELD = { name: 'phone', label: 'Or your phone', type: 'tel', required: false, placeholder: '07700 900123' };
 const PREFERRED_TIME_FIELD = { name: 'preferred_time', label: 'Preferred time (optional)', type: 'text', required: false, placeholder: 'e.g. Tuesday afternoon' };
 const MESSAGE_FIELD = { name: 'message', label: 'Your message', type: 'textarea', required: true, placeholder: 'What would you like to tell the team?' };
 const SUBJECT_FIELD = { name: 'subject', label: 'What is the issue about?', type: 'text', required: true, placeholder: 'Short summary of the problem' };
 const DESCRIPTION_FIELD = { name: 'description', label: 'Details (optional)', type: 'textarea', required: false, placeholder: 'Anything that helps the team understand the issue' };
 
+// QC-BRUTALOOP-W14b: a callback request with a phone and no email is a real
+// lead (garages, trades); refusing it made the visitor type an email they
+// had no reason to give.
+function _resolvePhone(input) {
+  const raw = typeof input?.phone === 'string' ? input.phone.trim() : '';
+  return raw.replace(/\D/g, '').length >= 7 ? raw : '';
+}
+
 async function leadCapture({ widget, input, context }) {
   const email = _resolveEmail(input, context);
-  if (!email) {
+  const phone = _resolvePhone(input);
+  if (!email && !phone) {
     return _buildNeedsInput({
       kind: 'lead_capture',
-      fields: [EMAIL_FIELD],
-      prefill: { name: _resolveName(input, context), email: typeof input?.email === 'string' ? input.email.trim() : '' },
-      message: "What's the best email to reach you on?",
+      fields: [{ ...EMAIL_FIELD, required: false }, LEAD_PHONE_FIELD],
+      prefill: { name: _resolveName(input, context), email: typeof input?.email === 'string' ? input.email.trim() : '', phone: typeof input?.phone === 'string' ? input.phone.trim() : '' },
+      message: "What's the best email or phone number to reach you on?",
     });
   }
   // Pro polish (PRO-1): intent is what the visitor wants (pricing, demo,
@@ -91,8 +101,8 @@ async function leadCapture({ widget, input, context }) {
         visitor_id: context?.visitor_id || null,
         conversation_id: context?.conversation_id || null,
         name: input.name || null,
-        email,
-        phone: input.phone || null,
+        email: email || null,
+        phone: phone || null,
         company: input.company || null,
         notes: input.notes || null,
         metadata: { intent, page_url: context?.page_url || null, captured_at: new Date().toISOString() },
@@ -100,30 +110,46 @@ async function leadCapture({ widget, input, context }) {
     });
     if (!resp.ok) return { ok: false, error: 'persist_failed', reason: 'persist_failed', message: `auth returned ${resp.status}` };
     const data = await resp.json().catch(() => ({}));
-    return {
-      ok: true,
-      lead_id: data.id || null,
-      result: {
-        captured: true,
-        lead_id: data.id || null,
-        reference: _leadRef(data.id),
-        duplicate: !!data.duplicate,
-        intent,
-        notified: data.notified !== false,
-        // Wave 7: auth reports notified:false when the inbox alert failed;
-        // never tell the visitor the team was told when it was not.
-        message: data.notified === false
-          ? `Your details are saved${_leadRef(data.id) ? ` (reference ${_leadRef(data.id)})` : ''} and the team will see them in their records, but I could not alert anyone right away, so a reply may take a little longer.`
-          : data.alerts_configured === false
-            ? `Thanks, your details are saved${_leadRef(data.id) ? ` (reference ${_leadRef(data.id)})` : ''}. The team will see them on their desk and get in touch when they pick them up.`
-          : data.duplicate
-            ? 'Thanks, we already have your details and will be in touch.'
-            : `Thanks! We\'ve got your details${_leadRef(data.id) ? ` (reference ${_leadRef(data.id)})` : ''} and will be in touch shortly.`,
-      },
-    };
+    return _leadSuccess(data, intent);
   } catch (err) {
+    // QC-BRUTALOOP-W14: a timeout does not mean the row was not written. Read
+    // back by (conversation_id + email) before telling the visitor it failed.
+    try {
+      const q = `${email ? `email=${encodeURIComponent(email)}` : `phone=${encodeURIComponent(phone)}`}&conversation_id=${encodeURIComponent(context?.conversation_id || '')}`;
+      const back = await authInternalCall(`/api/internal/widgets/${encodeURIComponent(widget.id)}/leads/lookup?${q}`, { method: 'GET', timeoutMs: 4000 });
+      if (back.ok) {
+        const found = await back.json().catch(() => ({}));
+        if (found?.id) return _leadSuccess({ id: found.id, duplicate: false, notified: true, readback: true }, intent);
+      }
+    } catch { /* fall through to the honest failure */ }
     return { ok: false, error: 'executor_network', reason: 'executor_network', message: String(err?.message || err).slice(0, 200) };
   }
+}
+
+function _leadSuccess(data, intent) {
+  const ref = _leadRef(data.id, data.reference);
+  const refTxt = ref ? ` (reference ${ref})` : '';
+  const message = data.notified === false
+    ? `Your details are saved${refTxt} and the team will see them in their records, but I could not alert anyone right away, so a reply may take a little longer.`
+    : data.alerts_configured === false
+      ? `Thanks, your details are saved${refTxt}. The team will see them on their desk and get in touch when they pick them up.`
+      : data.duplicate
+        ? `Thanks, we already have your details${refTxt}${Array.isArray(data.merged) && data.merged.length ? ` and I have updated them with what you just gave me (${data.merged.join(', ')})` : ''}, and the team will be in touch.`
+        : `Thanks! We've got your details${refTxt} and will be in touch shortly.`;
+  return {
+    ok: true,
+    lead_id: data.id || null,
+    result: {
+      captured: true,
+      lead_id: data.id || null,
+      reference: ref,
+      duplicate: !!data.duplicate,
+      merged: Array.isArray(data.merged) ? data.merged : [],
+      intent,
+      notified: data.notified !== false,
+      message,
+    },
+  };
 }
 
 // Handover summary: the agent authors this in the SAME tool call that fires
@@ -178,10 +204,33 @@ async function humanHandoff({ widget, input, context }) {
           visitor_name: (typeof context?.identified_name === 'string' && context.identified_name) || null,
           visitor_email: (typeof context?.identified_email === 'string' && context.identified_email) || typedEmail || null,
         },
+        // W15: the handoff endpoint creates the Matrix room and fires alerts, so
+        // it routinely takes longer than the 3s default. A timeout here made the
+        // card red while the row had in fact been written.
+        timeoutMs: 10000,
       }
     );
     if (!resp.ok) return { ok: false, error: 'persist_failed', message: `auth returned ${resp.status}` };
-    const data = await resp.json().catch(() => ({}));
+    return buildHandoffSuccess(await resp.json().catch(() => ({})));
+  } catch (err) {
+    // W15 read-back: a timeout does not mean the handoff was not written.
+    try {
+      if (context?.visitor_id && widget?.id) {
+        const key = process.env.INTERNAL_SERVICE_KEY;
+        const authUrl = process.env.AUTH_SERVICE_URL || 'http://auth:3101';
+        const back = key ? await fetch(`${authUrl}/api/internal/widget-conversations/handoff?widget_id=${encodeURIComponent(widget.id)}&visitor_id=${encodeURIComponent(context.visitor_id)}`, {
+          headers: { 'x-service-key': key }, signal: AbortSignal.timeout(4000),
+        }) : null;
+        if (back && back.ok) {
+          const found = await back.json().catch(() => ({}));
+          if (found?.conversation?.conversation_id === context.conversation_id) return buildHandoffSuccess({});
+        }
+      }
+    } catch { /* fall through to the honest failure */ }
+    return { ok: false, error: 'executor_network', message: String(err?.message || err).slice(0, 200) };
+  }
+
+  function buildHandoffSuccess(data) {
     // Wave 6 D9: never promise a pickup "shortly" when nobody is online.
     const av = context?.availability;
     const nobodyOnline = !!av && (av.human_available === false || av.operator_online === false);
@@ -209,8 +258,6 @@ async function humanHandoff({ widget, input, context }) {
             : 'Handing you over to a human, one of our team will pick up shortly.',
       },
     };
-  } catch (err) {
-    return { ok: false, error: 'executor_network', message: String(err?.message || err).slice(0, 200) };
   }
 }
 
@@ -437,12 +484,12 @@ async function bookDemo({ widget, input, context }) {
       result: {
         booked: true,
         lead_id: data.id || null,
-        reference: _leadRef(data.id),
+        reference: _leadRef(data.id, data.reference),
         duplicate: !!data.duplicate,
         preferred_time: preferredTime,
         message: data.duplicate
           ? 'Thanks, we already have your demo request and will be in touch.'
-          : `Thanks! I've flagged this as a demo request${preferredTime ? ` for ${preferredTime}` : ''}${_leadRef(data.id) ? ` (reference ${_leadRef(data.id)})` : ''} and someone will reach out shortly.`,
+          : `Thanks! I've flagged this as a demo request${preferredTime ? ` for ${preferredTime}` : ''}${_leadRef(data.id, data.reference) ? ` (reference ${_leadRef(data.id, data.reference)})` : ''} and someone will reach out shortly.`,
       },
     };
   } catch (err) {
@@ -556,7 +603,8 @@ async function sendResource({ tool, input }) {
 // (appointment_requested / demo_requested / message_left) through the
 // existing notifyWidgetChannels fan-out after the turn.
 // Short, visitor-quotable reference for a captured lead (last 6 of the id).
-function _leadRef(id) {
+function _leadRef(id, stored) {
+  if (typeof stored === 'string' && /^[A-Za-z0-9]{4,12}$/.test(stored)) return stored.toUpperCase();
   const s = typeof id === 'string' ? id.replace(/[^A-Za-z0-9]/g, '') : '';
   return s.length >= 6 ? s.slice(-6).toUpperCase() : null;
 }
@@ -603,10 +651,10 @@ function _makeLeadActionExecutor({ kind, leadType, intent, buildNotes, confirm, 
           captured: true,
           lead_type: leadType,
           lead_id: data.id || null,
-          reference: _leadRef(data.id),
+          reference: _leadRef(data.id, data.reference),
           duplicate: !!data.duplicate,
           preferred_time: preferredTime,
-          message: confirm({ duplicate: !!data.duplicate, preferredTime, email, ref: _leadRef(data.id) }),
+          message: confirm({ duplicate: !!data.duplicate, preferredTime, email, ref: _leadRef(data.id, data.reference) }),
         },
       };
     } catch (err) {
@@ -664,9 +712,9 @@ const leaveMessage = _makeLeadActionExecutor({
     if (!msg) return notes || null;
     return notes ? `${msg}\n\n${notes}` : msg;
   },
-  confirm: ({ duplicate, email }) => duplicate
-    ? 'Thanks, we already have your message with our team.'
-    : `Your message is with the team, they will reply to ${email}.`,
+  confirm: ({ duplicate, email, ref }) => duplicate
+    ? `Thanks, we already have your message with our team${ref ? ` (reference ${ref})` : ''}.`
+    : `Your message is with the team${ref ? ` (reference ${ref})` : ''}, they will reply to ${email}.`,
 });
 
 function normaliseRedirectUrl(raw, { allowedDomains = [], basePage } = {}) {

@@ -36,12 +36,24 @@ case "\$PWD/" in
     *) args+=(-v "\$PWD:\$PWD" -w "\$PWD") ;;
 esac
 if [ -t 0 ] && [ -t 1 ]; then args+=(-t); fi
+# Z2H-425 (#1314): tell the CLI which install this is (server status/update/doctor need it), and mount it if it is outside \$home
+args+=(-e "QUOX_INSTALL_DIR=\$QUOX_INSTALL_DIR")
+case "\$QUOX_INSTALL_DIR/" in "\$home"/*) ;; *) args+=(-v "\$QUOX_INSTALL_DIR:\$QUOX_INSTALL_DIR") ;; esac
 crt="\$QUOX_INSTALL_DIR/ssl/quox.crt"
 if [ -r "\$crt" ]; then args+=(-v "\$crt:/etc/quox/quox.crt:ro" -e NODE_EXTRA_CA_CERTS=/etc/quox/quox.crt); fi
 while IFS= read -r v; do args+=(-e "\$v"); done < <(compgen -e | grep -E '^(QUOX_[A-Z0-9_]*|NO_COLOR|FORCE_COLOR|TERM|COLUMNS|LINES)\$' || true)
 exec docker "\${args[@]}" --entrypoint node "\$img" /opt/quox-cli/bin/quox.js "\$@"
 WRAP
     chmod 0755 "$dest"
+}
+
+# Z2H-425 (#1314): record where this install lives so `quox server status` finds it from any directory.
+# Written even with --no-cli (a CLI installed another way reads it too). record_install_dir <install-dir>
+record_install_dir() {
+    local dir="$1" cfg="${XDG_CONFIG_HOME:-$HOME/.config}/quox"
+    mkdir -p "$cfg" 2>/dev/null || return 0
+    printf '{"dir":"%s"}\n' "$dir" > "$cfg/install.json" 2>/dev/null || { _qc_say warn "  could not record the install dir in $cfg/install.json"; return 0; }
+    _qc_say log "  install dir recorded in $cfg/install.json"
 }
 
 # Point the `local` profile at this install's edge, keeping any sign-in. Leaves an operator's own URL alone.

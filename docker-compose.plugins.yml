@@ -1,0 +1,64 @@
+# ===========================================================================
+# Paid plugin overlay (PLUGIN-IMG #1012)
+# ===========================================================================
+# Runs licensed plugins from their PREBUILT, PRIVATE images. One compose
+# profile per plugin; nothing here starts unless its profile is named, so a
+# free install is unaffected by this file.
+#
+#   quox plugin enable quoxplan
+#
+# does the licence check first (unlicensed: refused, nothing pulled), then:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.images.yml \
+#     -f docker-compose.plugins.yml --profile with-quoxplan up -d quoxplan
+#
+# The images live on GHCR as private packages. Pulling one needs a
+# short-lived, package-scoped credential that the licence server issues only
+# to an instance whose valid lease covers the plugin (not shipped yet; the
+# CLI says so plainly).
+#
+# A lapsed licence keeps the data: the named volume below is never removed by
+# enable/disable, only by an explicit volume delete. For 14 days after a lease
+# lapses the collector serves the plugin read-only (writes 402), then 402s it.
+#
+# QUOX_IMAGE_TAG is the quoxcore release tag (for example v4.2.0); plugin
+# images are tagged with the same release.
+services:
+  quoxplan:
+    profiles: ["with-quoxplan"]
+    image: ghcr.io/quoxai/quoxplan:${QUOX_IMAGE_TAG:-latest}
+    container_name: quox-quoxplan
+    restart: unless-stopped
+    # No host port: only the collector reaches QuoxPlan, over quox-network,
+    # and it authenticates with the service key below.
+    environment:
+      - PORT=3107
+      - QUOXPLAN_DB=/data/quoxplan.db
+      # The collector is a sibling container, so QuoxPlan must listen on the
+      # container network, not loopback. Safe: no published port, and the
+      # service-key gate rejects any caller without the key.
+      - QUOXPLAN_BIND=0.0.0.0
+      # Must equal the collector's x-service-key (INTERNAL_SERVICE_KEY from
+      # .env, written by scripts/generate-secrets.sh). Required: compose
+      # refuses to start the service without it.
+      - QUOXPLAN_SERVICE_KEY=${INTERNAL_SERVICE_KEY:?INTERNAL_SERVICE_KEY must be set in .env}
+    volumes:
+      - quoxplan-data:/data
+    healthcheck:
+      # Probe the routable interface, not loopback, so a loopback-only bind
+      # shows UNHEALTHY instead of a green /health with a dead API.
+      test: ["CMD-SHELL", "curl -fsS http://$(hostname -i):3107/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - quox-network
+
+  collector:
+    environment:
+      - QUOXPLAN_URL=http://quoxplan:3107
+
+volumes:
+  quoxplan-data:
+    name: quox-quoxplan-data

@@ -241,6 +241,8 @@ export function createApp(config: AppConfig) {
     executors: config.executors,
     scheduleExecutor: config.scheduleExecutor,
     eventBus: config.eventBus,
+    // Delete unregisters the workflow's webhook paths too (a stale path blocked reuse, 2026-10-17).
+    webhookRegistry: config.webhookRegistry,
     // R5.high-2: pass evaluators so auto-activate on create/import-objective gates triggers.
     budgetEvaluator: config.budgetEvaluator,
     budgetScopeResolver: config.budgetScopeResolver,

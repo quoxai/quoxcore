@@ -26,4 +26,12 @@ if [ -S /var/run/docker.sock ]; then
     fi
 fi
 
+# #905: `docker exec` runs as root, so a hand sign-in (`claude` then /login) wrote the
+# credentials root-owned, mode 600. The server runs as quox and then answered
+# anthropic_not_connected on every turn. /home/quox/.claude is a named volume, so a
+# recreate alone never heals it: hand the CLI config back to quox at every start.
+for p in /home/quox/.claude /home/quox/.claude.json /home/quox/.codex; do
+    [ -e "$p" ] && chown -hR quox:quox "$p" 2>/dev/null  # -h: never follow a symlink out of the volume
+done
+
 exec gosu quox "$@"

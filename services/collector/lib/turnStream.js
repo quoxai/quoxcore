@@ -48,7 +48,9 @@ function firstString(v) {
   return typeof v === 'string' && v ? v : null;
 }
 
-function createTurnStream({ turnId, conversationId = null, write, now = () => new Date().toISOString() }) {
+// timing (QUOXON-LATENCY, optional): a lib/turnTiming.js record; finish() emits its
+// summary as turn.timing just before turn.finished and logs it once.
+function createTurnStream({ turnId, conversationId = null, write, now = () => new Date().toISOString(), timing = null, log = console }) {
   const state = { started: false, finished: false, failed: false, interrupted: false, startedAt: Date.now(), usage: null };
 
   const stamp = (type, fields) => ({ type, turn_id: turnId, ts: now(), ...fields });
@@ -86,14 +88,28 @@ function createTurnStream({ turnId, conversationId = null, write, now = () => ne
     emit('turn.note', { kind: 'effect_unknown', status: 'effect_unknown', message: String(message || 'The turn was interrupted; effects of any in-flight tool are unknown.').slice(0, 300) });
   }
 
+  // QUOXON handoff offer (2026-10-17): the attached agent lacks the tools this ask needs (lib/handoffSuggest.js).
+  // At most once per turn, and only while the turn is open; the TUI shows it as a y/N card.
+  function suggestHandoff(h) {
+    if (!h || typeof h !== 'object' || state.finished || state.handoff) return;
+    state.handoff = true;
+    emit('turn.handoff_suggested', { handoff_suggested: h });
+  }
+
   function finish() {
     if (!state.started || state.finished) return;
     state.finished = true;
     const status = state.interrupted ? 'interrupted' : (state.failed ? 'failed' : 'completed');
+    if (timing) {
+      try {
+        emit('turn.timing', timing.summary());
+        if (log && typeof log.log === 'function') log.log(timing.logLine(turnId));
+      } catch { /* telemetry only */ }
+    }
     emit('turn.finished', { status, conversation_id: conversationId, usage: { elapsed_ms: Date.now() - state.startedAt, ...(state.usage || {}) } });
   }
 
-  return { send, emit, trace, started, finish, markInterrupted, setUsage, effectUnknown, state, turnId };
+  return { send, emit, trace, started, finish, suggestHandoff, markInterrupted, setUsage, effectUnknown, state, turnId };
 }
 
 module.exports = { wantsGovernedTools, resolveTurnIdentity, ensureConversationId, createTurnStream, TURN_ID_RE };

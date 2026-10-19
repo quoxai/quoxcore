@@ -65,7 +65,10 @@ async function brainSave(input, ctx, { fetchImpl = fetch } = {}) {
     noteId: json.noteId ? String(json.noteId) : null,
     title: json.title || null,
     ...(json.content_hash ? { revision: json.content_hash } : {}),
-    output: `${verb} to the knowledge brain: "${json.title || ''}" (note ${String(json.noteId || '')}). It is searchable now and editable in NotesQ.`,
+    ...(json.possibleDuplicateOf ? { possibleDuplicateOf: String(json.possibleDuplicateOf) } : {}),
+    output: `${verb} to the knowledge brain: "${json.title || ''}" (note ${String(json.noteId || '')}). It is searchable now and editable in NotesQ.`
+      // quox#963: a new title over the same text is a separate note; say so.
+      + (json.possibleDuplicateOf ? ` This is a new note; note ${String(json.possibleDuplicateOf)} has the same text under another title and was not changed.` : ''),
   };
 }
 

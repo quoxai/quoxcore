@@ -7,6 +7,50 @@
 
 import chalk from 'chalk';
 import { resolveEndpoint } from '../api/endpoints.js';
+import { joinServiceUrl } from '../core/config.js';
+
+/** Seconds to a short "1d 1h" / "3h 12m" / "45s" label. */
+function shortUptime(sec) {
+  if (typeof sec !== 'number' || !Number.isFinite(sec)) return '-';
+  const d = Math.floor(sec / 86400); const h = Math.floor((sec % 86400) / 3600); const m = Math.floor((sec % 3600) / 60);
+  if (d) return `${d}d ${h}h`;
+  if (h) return `${h}h ${m}m`;
+  return m ? `${m}m` : `${Math.floor(sec)}s`;
+}
+
+/**
+ * quox#946: one row per agent from GET /api/v1/agents (the same source as
+ * `quox fleet agents`). /api/v1/fleet/status carries totals only, which is why
+ * the old dashboard always said "No agents reporting".
+ */
+export function fleetRows(data) {
+  const list = Array.isArray(data) ? data : (Array.isArray(data?.agents) ? data.agents : []);
+  return list.map((a) => ({
+    host_id: a.host_id || a.system?.hostname || '-',
+    status: typeof a.status === 'object' ? (a.status?.health ?? a.status?.connection ?? 'unknown') : (a.status || 'unknown'),
+    cpu_percent: Math.round(a.resources?.cpu?.usage_percent ?? a.cpu_percent ?? 0),
+    memory_percent: Math.round(a.resources?.memory?.usage_percent ?? a.memory_percent ?? 0),
+    uptime: shortUptime(a.system?.uptime_seconds ?? a.uptime_seconds),
+    version: a.agent?.version || a.version || '-',
+    last_seen_seconds: typeof a.status?.last_seen_seconds === 'number' ? a.status.last_seen_seconds : null,
+  }));
+}
+
+/**
+ * quox#946: a slow service is a TIMEOUT, a refused connection is DOWN, a non-2xx
+ * answer is DEGRADED. The old dashboard called every failure "down".
+ */
+export async function probeService(url, fetchImpl = fetch, timeoutMs = 8000) {
+  const start = Date.now();
+  try {
+    const res = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
+    const latency_ms = Date.now() - start;
+    return res.ok ? { status: 'healthy', latency_ms, code: res.status } : { status: 'degraded', latency_ms, code: res.status };
+  } catch (err) {
+    if (err?.name === 'TimeoutError' || err?.name === 'AbortError') return { status: 'timeout', latency_ms: Date.now() - start };
+    return { status: 'down', reason: err?.cause?.code || err?.message || 'error' };
+  }
+}
 
 export function registerWatchCommands(program, { client, auth, config }) {
   const watch = program
@@ -20,13 +64,22 @@ export function registerWatchCommands(program, { client, auth, config }) {
     .action(async (opts) => {
       auth.requireAuth();
       const interval = Math.max(2, parseInt(opts.interval, 10) || 5) * 1000;
+      const fetchAgents = async () => {
+        const ep = resolveEndpoint('v1.agents.list');
+        return fleetRows(await client.get(ep.path, { service: ep.service }));
+      };
+
+      // --json: one snapshot, then exit (a dashboard loop is not machine output).
+      if (program.opts().output === 'json') {
+        console.log(JSON.stringify({ agents: await fetchAgents(), timestamp: new Date().toISOString() }, null, 2));
+        return;
+      }
 
       console.log(chalk.cyan('Fleet Watch') + chalk.dim(' (Ctrl+C to stop)\n'));
 
       const tick = async () => {
         try {
-          const data = await client.get(resolveEndpoint('v1.fleet.status.list').path, { service: resolveEndpoint('v1.fleet.status.list').service });
-          const agents = data.agents || [];
+          const agents = await fetchAgents();
 
           // Clear screen and redraw
           process.stdout.write('\x1B[2J\x1B[H');
@@ -50,7 +103,7 @@ export function registerWatchCommands(program, { client, auth, config }) {
                 `${statusColor(String(a.status || 'unknown').padEnd(10))} ` +
                 `${cpuColor(String((a.cpu_percent || 0) + '%').padEnd(7))} ` +
                 `${memColor(String((a.memory_percent || 0) + '%').padEnd(7))} ` +
-                `${String(a.uptime || '-').padEnd(10)} ` +
+                `${String(a.uptime).padEnd(10)} ` +
                 `${chalk.dim(a.version || '-')}`
               );
             }
@@ -82,29 +135,28 @@ export function registerWatchCommands(program, { client, auth, config }) {
         { name: 'orchestrator', port: 3100, path: '/health' },
       ];
 
+      const probeAll = async () => Promise.all(services.map(async (svc) => ({
+        name: svc.name,
+        ...(await probeService(joinServiceUrl(config.getServiceUrl(svc.name), svc.path).href)),
+      })));
+
+      // --json: one snapshot, then exit.
+      if (program.opts().output === 'json') {
+        console.log(JSON.stringify({ services: await probeAll(), timestamp: new Date().toISOString() }, null, 2));
+        return;
+      }
+
       const tick = async () => {
+        const results = await probeAll();
         process.stdout.write('\x1B[2J\x1B[H');
         console.log(chalk.cyan.bold('QuoxCLI Service Watch') + chalk.dim(`  ${new Date().toLocaleTimeString()}  (Ctrl+C to stop)`));
         console.log(chalk.dim('─'.repeat(50)));
-
-        for (const svc of services) {
-          try {
-            const svcUrl = config.getServiceUrl(svc.name);
-            const fullUrl = new URL(svc.path, svcUrl);
-            const start = Date.now();
-            const res = await fetch(fullUrl.href, { signal: AbortSignal.timeout(5000) });
-            const latency = Date.now() - start;
-
-            if (res.ok) {
-              console.log(`  ${chalk.green('●')} ${svc.name.padEnd(14)} ${chalk.green('healthy')}  ${chalk.dim(latency + 'ms')}`);
-            } else {
-              console.log(`  ${chalk.yellow('●')} ${svc.name.padEnd(14)} ${chalk.yellow(res.status)}     ${chalk.dim(latency + 'ms')}`);
-            }
-          } catch {
-            console.log(`  ${chalk.red('●')} ${svc.name.padEnd(14)} ${chalk.red('down')}`);
-          }
+        for (const r of results) {
+          if (r.status === 'healthy') console.log(`  ${chalk.green('●')} ${r.name.padEnd(14)} ${chalk.green('healthy')}  ${chalk.dim(r.latency_ms + 'ms')}`);
+          else if (r.status === 'degraded') console.log(`  ${chalk.yellow('●')} ${r.name.padEnd(14)} ${chalk.yellow(r.code)}     ${chalk.dim(r.latency_ms + 'ms')}`);
+          else if (r.status === 'timeout') console.log(`  ${chalk.yellow('●')} ${r.name.padEnd(14)} ${chalk.yellow('slow (no answer in ' + Math.round(r.latency_ms / 1000) + 's)')}`);
+          else console.log(`  ${chalk.red('●')} ${r.name.padEnd(14)} ${chalk.red('down')}  ${chalk.dim(r.reason || '')}`);
         }
-
         console.log(chalk.dim('\n  refreshing every ' + (interval / 1000) + 's'));
       };
 

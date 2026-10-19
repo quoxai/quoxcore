@@ -304,7 +304,16 @@ export class SubworkflowExecutor implements NodeExecutor {
       executors: this.deps.executors,
     });
 
-    const result = await pipeline.execute(subWorkflow, subInput);
+    // FND_01M55XC52943J21SWDKW43J21S: the child runs in the parent's org. With no org, an agent:invoke
+    // inside it fell back to the child's metadata.orgId, which can name another org.
+    const result = await pipeline.execute(subWorkflow, subInput, {
+      orgId: context.orgId,
+      // FND_01M55X6TRMDS63SDZK3TDS63SD: the child runs as the parent's initiator and records its parent run.
+      actor: context.actor,
+      parentExecutionId: context.id,
+      parentCorrelationId: context.correlationId,
+      parentNodeId: node.id,
+    });
     emitted.push(...result.envelopes);
 
     // Emit completion event
@@ -317,6 +326,9 @@ export class SubworkflowExecutor implements NodeExecutor {
         nodeType: node.type,
         workflowId: config.workflowId,
         subworkflowSuccess: result.success,
+        // the parent's trail names the child run (and the child's start names this run): one walkable chain
+        child_execution_id: result.executionId,
+        child_correlation_id: result.correlationId,
       }
     );
     emitted.push(completeEnvelope);

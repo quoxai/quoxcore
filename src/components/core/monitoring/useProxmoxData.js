@@ -38,11 +38,47 @@ export function getStatusColor(status) {
   }
 }
 
+/**
+ * Does this error mean "no Proxmox credential/URL configured" (as opposed to a
+ * real failure of a configured connection)? The collector proxy answers 404
+ * "Unknown service" / not_configured when nothing is set up.
+ */
+export function isNotConfiguredError(error) {
+  if (!error || typeof error !== 'string') return false
+  return /not[_ ]configured|unknown service|no proxmox (credential|url)/i.test(error)
+}
+
+/**
+ * Decide what the Proxmox surface may show, from the LIVE read outcome.
+ * An error is never data: a failed read must not render as "0 nodes / 0 VMs".
+ *
+ *   loading        first read in flight, nothing cached
+ *   not_configured live read says no credential -> onboarding
+ *   error          live read failed (auth/TLS/network), nothing cached
+ *   stale          live read failed but a cached snapshot exists -> show it, labelled
+ *   ok             live read succeeded
+ */
+export function deriveConnection({ liveStatus, error, cacheLoaded, scannedAt, cachedNodes = 0 }) {
+  if (liveStatus === 'ok') return { state: 'ok', message: null }
+  if (liveStatus === 'failed') {
+    if (isNotConfiguredError(error)) return { state: 'not_configured', message: error }
+    if (cacheLoaded && cachedNodes > 0) {
+      return { state: 'stale', message: error, cachedAt: scannedAt }
+    }
+    return { state: 'error', message: error || 'Failed to connect to Proxmox API' }
+  }
+  // pending
+  if (cacheLoaded && cachedNodes > 0) return { state: 'ok', message: null }
+  return { state: 'loading', message: null }
+}
+
 export function useProxmoxData({ autoRefresh = true } = {}) {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
   const [scannedAt, setScannedAt] = useState(null)
   const [hasLiveData, setHasLiveData] = useState(false)
+  // 'pending' until the first live read settles; then 'ok' | 'failed'
+  const [liveStatus, setLiveStatus] = useState('pending')
   const [cacheLoaded, setCacheLoaded] = useState(false)
 
   const [cluster, setCluster] = useState({ summary: { totalNodes: 0, online: 0, quorate: false } })
@@ -107,21 +143,31 @@ export function useProxmoxData({ autoRefresh = true } = {}) {
 
       if (!mountedRef.current) return
 
+      // A failed live read is an outcome, not data: keep the last good
+      // (cached) snapshot, never overwrite it with the zero-count error shape.
+      let failure = null
       if (!clusterData.success) {
-        setError(clusterData.error || 'Failed to connect to Proxmox API')
+        failure = clusterData.error || 'Failed to connect to Proxmox API'
       } else if (!vmData.success) {
-        setError(vmData.error || 'Failed to load VM data')
-      } else if (clusterData.summary?.totalNodes > 0 && vmData.summary?.total === 0 && ctData.summary?.total === 0) {
+        failure = vmData.error || 'Failed to load VM data'
+      }
+
+      if (failure) {
+        setError(failure)
+        setLiveStatus('failed')
+        return
+      }
+
+      if (clusterData.summary?.totalNodes > 0 && vmData.summary?.total === 0 && ctData.summary?.total === 0) {
         setError('permissionHint')
       }
 
       applyData(clusterData, vmData, ctData)
       setScannedAt(new Date().toISOString())
       setHasLiveData(true)
+      setLiveStatus('ok')
 
-      if (clusterData.success) {
-        saveToCache(clusterData, vmData, ctData)
-      }
+      saveToCache(clusterData, vmData, ctData)
 
       // IP enrichment (throttled to every 5 min)
       const now = Date.now()
@@ -136,7 +182,7 @@ export function useProxmoxData({ autoRefresh = true } = {}) {
         }).catch(() => {})
       }
     } catch (err) {
-      if (mountedRef.current) setError(err.message)
+      if (mountedRef.current) { setError(err.message); setLiveStatus('failed') }
     } finally {
       if (mountedRef.current) setRefreshing(false)
     }
@@ -170,6 +216,11 @@ export function useProxmoxData({ autoRefresh = true } = {}) {
     return ip ? { ...item, ip } : item
   })
 
+  const connection = deriveConnection({
+    liveStatus, error, cacheLoaded, scannedAt,
+    cachedNodes: cluster?.summary?.totalNodes ?? 0,
+  })
+
   return {
     // Data
     cluster,
@@ -183,6 +234,8 @@ export function useProxmoxData({ autoRefresh = true } = {}) {
     scannedAt,
     hasLiveData,
     cacheLoaded,
+    liveStatus,
+    connection,
     isInitialLoad: !cacheLoaded && !hasLiveData && refreshing,
 
     // Selection

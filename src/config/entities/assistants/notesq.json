@@ -105,6 +105,7 @@
     "startupQueries": [],
     "bastionAwareness": false
   },
+  "delegation": { "wait_ms": 180000 },
   "capabilities": {
     "domains": [
       "note-taking",

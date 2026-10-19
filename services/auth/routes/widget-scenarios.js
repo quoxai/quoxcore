@@ -107,7 +107,7 @@ router.use(requireAuth);
 
 const CATEGORIES = ['faq', 'security', 'tool_use', 'off_topic', 'edge_case', 'general'];
 const SEVERITIES = ['low', 'medium', 'high'];
-const RUBRIC_KEYS = new Set(['must_include', 'must_not_include', 'expected_topic', 'expected_tool', 'expected_handoff', 'max_response_length']);
+const RUBRIC_KEYS = new Set(['must_include', 'must_not_include', 'expected_topic', 'expected_tool', 'expected_handoff', 'max_response_length', 'expected_answer']);
 
 function validateRubric(rubric) {
   if (rubric === undefined || rubric === null) return null; // optional
@@ -117,6 +117,7 @@ function validateRubric(rubric) {
     if ((key === 'must_include' || key === 'must_not_include')) {
       if (!Array.isArray(val) || val.some(v => typeof v !== 'string')) return `rubric_json.${key} must be an array of strings`;
     }
+    if (key === 'expected_answer' && (typeof val !== 'string' || val.length > 2000)) return 'rubric_json.expected_answer must be a string of at most 2000 characters';
     if (key === 'expected_topic' || key === 'expected_tool') {
       if (typeof val !== 'string') return `rubric_json.${key} must be a string`;
     }
@@ -429,9 +430,13 @@ router.post('/orgs/:orgId/widgets/:widgetId/simulate', requireOrgMembership, asy
           job.status = 'done'; job.result = data;
         } else {
           job.status = 'error'; job.http_status = resp.status; job.error = data?.error || `collector_${resp.status}`;
+          job.message = PUBLISH_UNREACHABLE_MESSAGE;
         }
       })
-      .catch((err) => { job.status = 'error'; job.error = err?.message || 'collector_unreachable'; })
+      .catch((err) => {
+        job.status = 'error'; job.error = err?.message || 'collector_unreachable';
+        job.message = PUBLISH_UNREACHABLE_MESSAGE;
+      })
       .finally(() => { job.finished_ms = Date.now(); job.finished_at = new Date().toISOString(); });
     res.status(202).json(publicSimJob(job));
   } catch (err) {
@@ -647,6 +652,10 @@ function failedSecurityScenarios(widgetId, results) {
   });
 }
 
+// Pause before the single collector retry; tests shorten it on the router.
+router.publishRetryDelayMs = 2000;
+const PUBLISH_UNREACHABLE_MESSAGE = 'Could not reach the chat service to finish publishing. Try again.';
+
 const GATE_MESSAGES = (lib) => ({
   no_simulation_run: 'Run the security checks before publishing',
   no_security_scenarios: 'Seed the security scenarios and run them before publishing',
@@ -738,16 +747,26 @@ router.post('/orgs/:orgId/widgets/:widgetId/publish', requireOrgMembership, asyn
     };
     simJobs.set(job.job_id, job);
     const userId = req.user?.id;
-    fetch(`${collectorUrl}/quoxchat/simulate`, {
+    const callCollector = () => fetch(`${collectorUrl}/quoxchat/simulate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-service-key': serviceKey },
       body: JSON.stringify({ widget_id: widgetId, scope: 'publish:security', scenarios, simulation: true }),
       signal: AbortSignal.timeout(SIM_JOB_TIMEOUT_MS),
-    })
+    });
+    // W16: a transient network failure ("fetch failed") retries once after a
+    // short pause. A timeout is not retried: it already waited the full budget.
+    callCollector()
+      .catch(async (err) => {
+        if (err?.name === 'TimeoutError' || err?.name === 'AbortError') throw err;
+        console.warn('[publish] collector call failed, retrying once:', err?.message);
+        await new Promise((r) => setTimeout(r, router.publishRetryDelayMs));
+        return callCollector();
+      })
       .then(async (resp) => {
         const data = await resp.json().catch(() => ({}));
         if (!(resp.status >= 200 && resp.status < 300)) {
           job.status = 'error'; job.http_status = resp.status; job.error = data?.error || `collector_${resp.status}`;
+          job.message = PUBLISH_UNREACHABLE_MESSAGE;
           return;
         }
         const lib = securityLibraryStatus(widgetId);
@@ -772,7 +791,10 @@ router.post('/orgs/:orgId/widgets/:widgetId/publish', requireOrgMembership, asyn
         job.result = { published: true, status: 'published', security_score: lib.score, security_library: lib, failed_scenarios: failedScenarios, claim, compliance_warnings: compliance, warnings,
           message: `Live. Security score ${lib.score}/${SECURITY_SCORE_MIN} needed, ${lib.run} security checks run.` };
       })
-      .catch((err) => { job.status = 'error'; job.error = err?.message || 'collector_unreachable'; })
+      .catch((err) => {
+        job.status = 'error'; job.error = err?.message || 'collector_unreachable';
+        job.message = PUBLISH_UNREACHABLE_MESSAGE;
+      })
       .finally(() => { job.finished_ms = Date.now(); job.finished_at = new Date().toISOString(); });
     res.status(202).json(publicSimJob(job));
   } catch (err) {

@@ -22,7 +22,8 @@
  */
 import { spawn as defaultSpawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, writeFileSync, rmSync, mkdirSync, appendFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync, appendFileSync, openSync, readSync, fstatSync, closeSync } from 'node:fs';
+import { explainInstallFailure } from './failureCause.js';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { STAGE_IDS, stageList } from './runner.js';
@@ -137,7 +138,9 @@ export function createInstallRunner({
         logPath = join(logDir, `install-${new Date(now()).toISOString().replace(/[:.]/g, '-')}.log`);
         writeFileSync(logPath, `# quox install log, started ${new Date(now()).toISOString()}\n`, { mode: 0o600 });
       } catch { logPath = null; } // best effort: a log that cannot be written never fails the install
+      const recent = []; // FIRSTRUN: the last lines, so a failure can say its cause
       const tee = (e) => {
+        if (e.type === 'log') { recent.push(e.line); if (recent.length > 400) recent.shift(); }
         if (logPath) {
           try {
             if (e.type === 'log') appendFileSync(logPath, e.line + '\n');
@@ -147,6 +150,11 @@ export function createInstallRunner({
         onEvent(e);
       };
       const res = await runCore({ ...opts, onEvent: tee });
+      if (!res.ok && !res.interrupted) {
+        const named = recent.map(l => /Full build log:\s*(\S+)/.exec(l)?.[1]).filter(Boolean).pop();
+        const cause = explainInstallFailure(`${recent.join('\n')}\n${res.error || ''}\n${named ? tailOf(named) : ''}`);
+        if (cause) res.cause = cause;
+      }
       if (!res.ok && !res.interrupted && logPath) {
         // Z2H-R2: a failed run always says where the full log is and what to do next.
         res.hint = `Full log: ${logPath}. It is safe to run the installer again; finished steps are kept and the build is cached.`;
@@ -260,4 +268,17 @@ export function createInstallRunner({
         try { rmSync(dir, { recursive: true, force: true }); } catch { /* temp cleanup only */ }
       }
   }
+}
+
+/** The last `max` bytes of a file, '' when it cannot be read (a cause is best effort, never a new failure). */
+function tailOf(path, max = 256 * 1024) {
+  let fd = null;
+  try {
+    fd = openSync(path, 'r');
+    const size = fstatSync(fd).size;
+    const len = Math.min(size, max);
+    const buf = Buffer.alloc(len);
+    readSync(fd, buf, 0, len, size - len);
+    return buf.toString('utf8');
+  } catch { return ''; } finally { if (fd != null) try { closeSync(fd); } catch { /* closed */ } }
 }

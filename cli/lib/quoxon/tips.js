@@ -45,6 +45,9 @@ const BASE = [
     text: 'Switching models is one step with favourites: save the ones you use, then ' +
       '/model 1 jumps to the first. They follow your account to other machines.',
     try: '/model fav add' },
+  { id: 'chat-rows', product: 'Chat', tier: 'free', maturity: 'beta', requires: [], skipIf: ['rows'],
+    text: 'Put your own live stats above the status bar: /row add watches a URL or a command and shows a line you template, like 12/14 pass.',
+    try: '/row' },
   { id: 'chat-bang', product: 'Chat', tier: 'free', maturity: 'beta', requires: [], skipIf: [],
     text: 'Need a quick command without opening a new session? Start a line with ! and it runs here, like !quox inbox list. The output stays with you unless you /share it.', try: '!ls' },
   { id: 'chat-dashboard', product: 'Dashboard', tier: 'free', maturity: 'beta', requires: [], skipIf: [],
@@ -185,6 +188,7 @@ const META = {
   'chat-model': M('Choose the provider and model', 'providers', ['models'], '/model'),
   'chat-model-chooser': M('The model chooser', 'providers', ['models'], '/model'),
   'chat-model-favs': M('Favourite models', 'providers', ['models'], '/model'),
+  'chat-rows': M('Custom rows above the status bar', 'chat', ['chat'], '/row'),
   'chat-dashboard': M('Open the dashboard signed in', 'identity', ['plans', 'sessions'], '/dashboard'),
   'chat-sessions': M('Every live session in one view', 'sessions', ['sessions', 'fleet'], '/sessions'),
   'chat-doctor': M('Run Doctor', 'install', ['fleet', 'models'], '/doctor'),
@@ -414,7 +418,8 @@ export function tipsReply(arg, ctx = {}, tips = TIPS) {
   }
   const shown = more ? matches.slice(PAGE) : matches.slice(0, PAGE);
   if (!shown.length) return { lines: [`No more tips for "${query}".`], tone: 'plain' };
-  const lines = [`Tips for "${query}" (${matches.length}${more ? `, from ${PAGE + 1}` : ''}):`];
+  const head = `Tips for "${query}" (${matches.length}${more ? `, from ${PAGE + 1}` : ''}):`;
+  const lines = [head];
   shown.forEach((t, i) => {
     const n = (more ? PAGE : 0) + i + 1;
     lines.push(...wrap(`${n}. ${t.title}: ${tipText(t)}`, 92, '   '));
@@ -423,5 +428,6 @@ export function tipsReply(arg, ctx = {}, tips = TIPS) {
   const rest = more ? 0 : matches.length - shown.length;
   if (rest > 0) lines.push(`(${rest} more: /tips ${query} more)`);
   if (hiddenNote) lines.push(hiddenNote);
-  return { lines, tone: 'plain' };
+  // Structured form for the TUI: one framed tip per match; `tail` = the lines that follow the frames.
+  return { lines, tone: 'plain', head, tips: shown.map(t => ({ text: `${t.title}: ${tipText(t)}`, cmd: t.try })), tail: [...(rest > 0 ? [`(${rest} more: /tips ${query} more)`] : []), ...(hiddenNote ? [hiddenNote] : [])] };
 }

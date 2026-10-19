@@ -104,7 +104,7 @@ function normalizeBrainItem(r) {
     score: typeof r.score === 'number' ? r.score : null,
     updatedAt: r.updatedAt || r.occurredAt || null,
     origin,
-    meta: { title: r.title, headingPath: r.headingPath, noteId: r.noteId, charStart: r.charStart, charEnd: r.charEnd, kind: r.kind, relPath: r.relPath, vaultId: r.vaultId, ...(typeof r.noteBody === 'string' ? { noteBody: r.noteBody, noteBodyPartial: r.noteBodyPartial === true } : {}) },
+    meta: { title: r.title, headingPath: r.headingPath, noteId: r.noteId, charStart: r.charStart, charEnd: r.charEnd, kind: r.kind, relPath: r.relPath, vaultId: r.vaultId, ...(Array.isArray(r.missingEntities) && r.missingEntities.length ? { missingEntities: r.missingEntities, note: `does not mention ${r.missingEntities.join(', ')}` } : {}), ...(typeof r.noteBody === 'string' ? { noteBody: r.noteBody, noteBodyPartial: r.noteBodyPartial === true } : {}) },
   };
 }
 
@@ -401,15 +401,24 @@ function termCoverage(query, text) {
 // Same rules as quoxbrain lib/entityGrounding.js (2026-10-11): month and day
 // names are capitalised by convention, not because they name a thing.
 const CALENDAR = /^(mid-)?(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|june?|july?|aug(ust)?|sep(t|tember)?|oct(ober)?|nov(ember)?|dec(ember)?|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|yesterday|tomorrow)$/i;
+// The first word after . ? ! opens a sentence too, like the query's first
+// word (quox#1148); a dot inside a token (Fly.io) is no boundary.
 function questionEntities(query) {
-  const toks = String(query).match(/[\p{L}\p{N}][\p{L}\p{N}._-]*/gu) || [];
+  const s = String(query);
   const out = [];
-  toks.forEach((t, i) => {
+  let prevEnd = 0;
+  let prevTok = '';
+  let n = 0;
+  for (const m of s.matchAll(/[\p{L}\p{N}][\p{L}\p{N}._-]*/gu)) {
+    const t = m[0];
+    const gap = s.slice(prevEnd, m.index);
+    const start = n === 0 || /[.?!]/.test(gap) || (/\.$/.test(prevTok) && /^\s/.test(gap));
+    n++; prevEnd = m.index + t.length; prevTok = t;
     const bare = t.replace(/[._-]+$/, '');
-    if (bare.length < 2 || STOP.has(bare.toLowerCase()) || CALENDAR.test(bare)) return;
-    const capital = /\p{Lu}/u.test(bare) && (i > 0 || /\p{Lu}/u.test(bare.slice(1)));
+    if (bare.length < 2 || STOP.has(bare.toLowerCase()) || CALENDAR.test(bare)) continue;
+    const capital = /\p{Lu}/u.test(bare) && (!start || /\p{Lu}/u.test(bare.slice(1)));
     if (capital || /\d/.test(bare)) out.push(bare.toLowerCase());
-  });
+  }
   return [...new Set(out)];
 }
 // "401s" is grounded by "401", "CVEs" by "CVE" (same as quoxbrain).

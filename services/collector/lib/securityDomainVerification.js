@@ -128,9 +128,12 @@ async function lookupDnsTxt(domain, deps = {}) {
  * documents as a residual risk for automatic redirect handling).
  */
 async function fetchWellKnown(domain, deps = {}) {
-  await assertSafeEgressHost(domain, deps);
+  // #1007: a url target is verified at its own origin (scheme, host, port); a bare domain keeps https.
+  // The egress guard always sees the HOST, never a whole URL.
+  const origin = /^[a-z][a-z0-9+.-]*:\/\//i.test(String(domain)) ? new URL(domain).origin : null;
+  await assertSafeEgressHost(origin ? new URL(origin).hostname : domain, deps);
   const fetchImpl = deps.fetchImpl || fetch;
-  const url = `https://${domain}/.well-known/quox-verification`;
+  const url = origin ? `${origin}/.well-known/quox-verification` : `https://${domain}/.well-known/quox-verification`;
   const resp = await fetchImpl(url, { redirect: 'manual', signal: AbortSignal.timeout(10000) });
   if (!resp.ok) {
     throw badEgress(`http_${resp.status}: well-known verification file not reachable at ${url}`);

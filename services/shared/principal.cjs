@@ -17,6 +17,8 @@ function isNonHumanClaims(c) {
   if (c.actor_type === 'agent' || c.actorType === 'agent') return true;
   // SEC-PLUGIN-TRUST C1: a plugin backend acting on behalf of an org is never a human.
   if (c.actor_type === 'plugin' || c.actorType === 'plugin') return true;
+  // RunActor slice 2: a workflow/scheduled turn's system actor is never a human.
+  if (c.actor_type === 'system' || c.actorType === 'system') return true;
   if (c.agent_ops === true || c.agent_ops === 1 || c.agentOps === true) return true;
   if (c.attach_lease_id || c.attachLeaseId) return true;
   return false;

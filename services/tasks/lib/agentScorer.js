@@ -15,6 +15,25 @@ import { ulid } from 'ulid'
 
 const WINDOW = 30  // rolling window of recent tasks
 
+// AT-3: Simple domain inference from task title keywords. Shared by the
+// decomposer (routing lookup) and the QuoxFlow poller (performance recording)
+// so a recorded row lands in the same domain the router later queries.
+export function inferDomainFromTitle(title) {
+  const t = (title || '').toLowerCase()
+  if (t.match(/security|audit|scan|vuln|cve|firewall/)) return 'security'
+  if (t.match(/deploy|docker|ci|cd|build|release/)) return 'devops'
+  if (t.match(/network|dns|route|vpn|ssl|cert/)) return 'network'
+  if (t.match(/monitor|metric|alert|health|status/)) return 'monitoring'
+  if (t.match(/database|sql|migration|backup|restore/)) return 'database'
+  if (t.match(/test|qa|quality|validate|verify/)) return 'testing'
+  if (t.match(/api|rest|graphql|endpoint/)) return 'api'
+  if (t.match(/frontend|ui|react|css|component/)) return 'frontend'
+  if (t.match(/backend|server|service/)) return 'backend'
+  if (t.match(/doc|readme|changelog|report/)) return 'documentation'
+  if (t.match(/browser|website|web page|screenshot|scrape|fill form|login to|navigate to|extract from.*site|download.*from|monitor.*site|open.*url/)) return 'web-automation'
+  return 'general'
+}
+
 /**
  * Record a task's performance outcome.
  *

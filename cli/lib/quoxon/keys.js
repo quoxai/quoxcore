@@ -5,7 +5,20 @@
  *
  * parseChunk(chunk, state) -> { events, state }
  * Events: { type: 'text', text } | { type: 'paste', text } | { type: 'key', name, ctrl?, alt? } | { type: 'focus', focused }
+ *   | { type: 'mouse', action: 'press'|'release'|'drag'|'move'|'wheel', button, x, y, shift, alt, ctrl } (SGR 1006, QUOXON-MOUSE)
+ *   | { type: 'cursor', row, col } (a cursor position report, the answer to DSR ESC[6n)
  */
+
+const BUTTONS = ['left', 'middle', 'right', 'none'];
+const WHEEL = ['up', 'down', 'left', 'right'];
+/** One SGR mouse report (ESC [ < b ; x ; y M|m) as an event. */
+function mouseEvent(b, x, y, final) {
+  const low = b & 3;
+  const mods = { shift: Boolean(b & 4), alt: Boolean(b & 8), ctrl: Boolean(b & 16) };
+  if (b & 64) return { type: 'mouse', action: 'wheel', button: WHEEL[low], x, y, ...mods };
+  if (b & 32) return { type: 'mouse', action: low === 3 ? 'move' : 'drag', button: BUTTONS[low], x, y, ...mods };
+  return { type: 'mouse', action: final === 'm' ? 'release' : 'press', button: BUTTONS[low], x, y, ...mods };
+}
 
 export const PASTE_ON = '\x1b[?2004h';
 export const PASTE_OFF = '\x1b[?2004l';
@@ -42,13 +55,21 @@ const CSI_KEYS = {
   '\x1b[1~': 'home', '\x1b[4~': 'end', '\x1b[7~': 'home', '\x1b[8~': 'end',
   '\x1b[3~': 'delete', '\x1b[Z': 'shift-tab',
   '\x1b[13;2u': 'shift-enter', '\x1b[27;2;13~': 'shift-enter', '\x1b\r': 'shift-enter', '\x1b\n': 'shift-enter',
-  '\x1b[1;5D': 'word-left', '\x1b[1;5C': 'word-right', '\x1b[1;3D': 'word-left', '\x1b[1;3C': 'word-right'
+  '\x1b[1;5D': 'word-left', '\x1b[1;5C': 'word-right', '\x1b[1;3D': 'word-left', '\x1b[1;3C': 'word-right',
+  // COMPOSER-EDIT (owner 2026-10-17: edit like Claude Code's prompt box). Alt+B/F (macOS Option+Left/Right), iTerm2 Alt+arrows,
+  // Alt+Backspace, Alt+D, Ctrl/Alt+Delete, and Shift (+Ctrl/Alt) arrows, Home and End for selection.
+  '\x1bb': 'word-left', '\x1bf': 'word-right', '\x1b\x1b[D': 'word-left', '\x1b\x1b[C': 'word-right',
+  '\x1b\x7f': 'delete-word', '\x1b\x08': 'delete-word', '\x1bd': 'delete-word-forward',
+  '\x1b[3;5~': 'delete-word-forward', '\x1b[3;3~': 'delete-word-forward',
+  '\x1b[1;2D': 'select-left', '\x1b[1;2C': 'select-right', '\x1b[1;2A': 'select-up', '\x1b[1;2B': 'select-down',
+  '\x1b[1;2H': 'select-home', '\x1b[1;2F': 'select-end',
+  '\x1b[1;6D': 'select-word-left', '\x1b[1;6C': 'select-word-right', '\x1b[1;4D': 'select-word-left', '\x1b[1;4C': 'select-word-right'
 };
 const CSI_LIST = Object.keys(CSI_KEYS).sort((a, b) => b.length - a.length);
 
 const CTRL = {
   '\x01': 'home', '\x05': 'end', '\x03': 'ctrl-c', '\x04': 'ctrl-d', '\x07': 'ctrl-g',
-  '\x0f': 'ctrl-o', '\x13': 'ctrl-s', '\x15': 'kill-line', '\x17': 'delete-word',
+  '\x0b': 'kill-line-forward', '\x0f': 'ctrl-o', '\x13': 'ctrl-s', '\x15': 'kill-line', '\x17': 'delete-word',
   '\x1f': 'undo', '\x19': 'redo', '\x0a': 'newline', '\x7f': 'backspace', '\x08': 'backspace',
   '\r': 'enter', '\t': 'tab', '\x02': 'left', '\x06': 'right'
 };
@@ -78,6 +99,12 @@ export function parseChunk(chunk, state = initialKeyState(), draft = '') {
     if (s[0] === '\x1b') {
       // Focus reporting (CSI ?1004h, enabled by sound/index.js): CSI I = focus in, CSI O = focus out.
       if (s.startsWith('\x1b[I') || s.startsWith('\x1b[O')) { events.push({ type: 'focus', focused: s[2] === 'I' }); s = s.slice(3); continue; }
+      // QUOXON-MOUSE: SGR mouse reports; a report split across chunks is held, never typed into the composer.
+      const mm = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])/.exec(s);
+      if (mm) { events.push(mouseEvent(Number(mm[1]), Number(mm[2]), Number(mm[3]), mm[4])); s = s.slice(mm[0].length); continue; }
+      if (/^\x1b\[<[\d;]*$/.test(s)) { st.partial = s; s = ''; break; }
+      const cr = /^\x1b\[(\d+);(\d+)R/.exec(s);
+      if (cr) { events.push({ type: 'cursor', row: Number(cr[1]), col: Number(cr[2]) }); s = s.slice(cr[0].length); continue; }
       const hit = CSI_LIST.find(k => s.startsWith(k));
       if (hit) { events.push({ type: 'key', name: CSI_KEYS[hit] }); s = s.slice(hit.length); continue; }
       // Unknown escape sequence: swallow ESC [ ... final byte, or a bare ESC+char (alt-x).

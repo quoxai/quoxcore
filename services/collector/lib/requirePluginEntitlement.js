@@ -33,7 +33,16 @@
  *
  * Mount AFTER requireServiceOrUserAuth() so req already carries req.user /
  * req.service.
+ *
+ * PLUGIN-IMG #1012 (owner decision 2026-10-15): a LAPSED licence gets 14 days
+ * read-only. Auth's has-plugin reports `read_only_until` for a lease that
+ * lapsed inside the window; while now < read_only_until, GET/HEAD/OPTIONS
+ * pass and writes get 402 LICENSE_LAPSED_READ_ONLY ("licence lapsed,
+ * read-only until <date>"). After it, everything is 402 LICENSE_REQUIRED.
+ * A missing or unparseable date is no grace (fail closed). Data is kept.
  */
+
+const READ_ONLY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 'use strict';
 
@@ -42,7 +51,7 @@
  * @param {(orgId: string, pluginId: string) => Promise<boolean>} deps.isPluginLicensed
  * @returns {(pluginId: string) => Function} express middleware factory
  */
-function createRequirePluginEntitlement({ isPluginLicensed, licenseVerdict }) {
+function createRequirePluginEntitlement({ isPluginLicensed, licenseVerdict, now = Date.now }) {
   if (typeof isPluginLicensed !== 'function') throw new TypeError('isPluginLicensed is required');
 
   return function requirePluginEntitlement(pluginId) {
@@ -56,6 +65,7 @@ function createRequirePluginEntitlement({ isPluginLicensed, licenseVerdict }) {
           return res.status(402).json({ error: 'LICENSE_REQUIRED', plugin: pluginId, reason: 'no_org_context' });
         }
         let licensed = false;
+        let readOnlyUntil = null;
         try {
           if (typeof licenseVerdict === 'function') {
             // GRIPE-784: still fail closed, but an auth outage (no stale cache)
@@ -65,11 +75,27 @@ function createRequirePluginEntitlement({ isPluginLicensed, licenseVerdict }) {
               return res.status(503).json({ error: 'LICENSE_CHECK_UNAVAILABLE', plugin: pluginId, retryable: true });
             }
             licensed = !!(v && v.licensed);
+            if (!licensed && v && typeof v.readOnlyUntil === 'string') readOnlyUntil = v.readOnlyUntil;
           } else {
             licensed = await isPluginLicensed(req.user.org_id, pluginId);
           }
         } catch (_) {
           licensed = false; // fail closed
+          readOnlyUntil = null;
+        }
+        if (!licensed && readOnlyUntil) {
+          const untilMs = Date.parse(readOnlyUntil);
+          if (Number.isFinite(untilMs) && now() < untilMs) {
+            const method = String(req.method || 'GET').toUpperCase();
+            if (READ_ONLY_METHODS.has(method)) return next();
+            const until = new Date(untilMs).toISOString();
+            return res.status(402).json({
+              error: 'LICENSE_LAPSED_READ_ONLY',
+              plugin: pluginId,
+              read_only_until: until,
+              message: `licence lapsed, read-only until ${until.slice(0, 10)}`,
+            });
+          }
         }
         if (!licensed) {
           return res.status(402).json({ error: 'LICENSE_REQUIRED', plugin: pluginId });

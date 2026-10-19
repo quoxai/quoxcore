@@ -3121,7 +3121,8 @@
             "fields": [
                 "base_url",
                 "token_id",
-                "token_secret"
+                "token_secret",
+                "tls_fingerprint"
             ]
         },
         "fly_io": {
@@ -4134,7 +4135,46 @@
             "hasLiveTest": true,
             "testDepth": "live",
             "fields": [
-                "base_url"
+                "base_url",
+                "default_model",
+                "allow_private_origin"
+            ]
+        },
+        "lmstudio": {
+            "id": "lmstudio",
+            "name": "LM Studio",
+            "category": "ai",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "default_model",
+                "allow_private_origin"
+            ]
+        },
+        "vllm": {
+            "id": "vllm",
+            "name": "vLLM",
+            "category": "ai",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "api_key",
+                "default_model",
+                "allow_private_origin"
+            ]
+        },
+        "openai_compatible": {
+            "id": "openai_compatible",
+            "name": "OpenAI-compatible endpoint",
+            "category": "ai",
+            "hasLiveTest": true,
+            "testDepth": "live",
+            "fields": [
+                "base_url",
+                "api_key",
+                "default_model"
             ]
         },
         "langsmith": {

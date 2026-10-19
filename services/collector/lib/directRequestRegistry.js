@@ -37,9 +37,34 @@ function isTaintingTool(toolName, toolDef = null) {
   return TAINTING_TOOL.test(String(toolName || ''));
 }
 
-function markDirectRequest(conversationId, { userId, orgId } = {}, now = Date.now()) {
+// QUOXON lane S: `role` (the verified login's org role) and `ask` (the human's own message
+// this turn, bounded) let a tool that runs ONLY on the user's request check both, whichever
+// dispatch path runs it. Both come from the chat handler's verified token and the turn's
+// prompt, never from tool input. QUOXON-ASK J2: `agentId` is the agent the human is talking
+// to, so a no-card quox_cli_write is that agent doing what they asked (never a delegated
+// specialist); `message` is accepted as an alias of `ask`.
+const ASK_MAX = 2000;
+// QUOXON-MESH: `heldSlot` ({ name, session, display }) is the slot the human's window holds,
+// sent by the client with the turn (never by the model) so slot_say signs as that slot.
+// slot_say re-checks it against the slot store before trusting it.
+function cleanHeldSlot(h) {
+  if (!h || typeof h !== 'object') return null;
+  const name = typeof h.name === 'string' ? h.name.trim().toLowerCase().slice(0, 32) : '';
+  const session = typeof h.session === 'string' ? h.session.trim().slice(0, 128) : '';
+  if (!/^[a-z0-9-]{1,32}$/.test(name) || !session) return null;
+  const display = typeof h.display === 'string' ? h.display.trim().slice(0, 40) : '';
+  return { name, session, display: display || null };
+}
+function markDirectRequest(conversationId, { userId, orgId, role, ask, message, agentId = null, heldSlot = null } = {}, now = Date.now()) {
   if (!conversationId || !userId || !orgId) return false;
-  _byConv.set(String(conversationId), { userId: String(userId), orgId: String(orgId), at: now, tainted: false });
+  const words = typeof ask === 'string' && ask ? ask : (typeof message === 'string' && message ? message : null);
+  _byConv.set(String(conversationId), {
+    userId: String(userId), orgId: String(orgId), at: now, tainted: false,
+    role: typeof role === 'string' && role ? role : null,
+    ask: words ? words.slice(0, ASK_MAX) : null,
+    agentId: agentId ? String(agentId).toLowerCase() : null,
+    heldSlot: cleanHeldSlot(heldSlot),
+  });
   if (_byConv.size > MAX) {
     for (const [k, v] of _byConv) { if (now - v.at > TTL_MS) _byConv.delete(k); }
     while (_byConv.size > MAX) _byConv.delete(_byConv.keys().next().value);
@@ -64,9 +89,74 @@ function isDirectRequest(conversationId, orgId, now = Date.now()) {
   if (!e) return null;
   if (now - e.at > TTL_MS) { _byConv.delete(String(conversationId)); return null; }
   if (e.orgId !== String(orgId) || e.tainted) return null;
-  return { userId: e.userId, orgId: e.orgId };
+  return { userId: e.userId, orgId: e.orgId, role: e.role || null, ask: e.ask || null, message: e.ask || null, agentId: e.agentId || null, delegatedTo: e.delegatedTo || null };
+}
+
+/** SITE-CLI ruling (a): does the human's own words name this specialist (id, display name, short name)? */
+// 2026-10-17 (proof notes/note-*): a plugin specialist the user names by its NOUN, not its id. "Create a note"
+// names NotesQ as surely as "ask NotesQ". Only listed specialists; the tool must still match the ask
+// (approvalGate DELEGATED_TOOL_ASK), so the noun alone never authorizes anything.
+const SPECIALIST_ASK_NOUNS = { notesq: ['note', 'notes'] };
+const specialistNames = (agentId, names = []) => [...names, ...(SPECIALIST_ASK_NOUNS[String(agentId || '').toLowerCase()] || [])];
+
+function askNamesAgent(ask, names = []) {
+  if (!ask || typeof ask !== 'string') return false;
+  for (const n of names) {
+    const t = String(n || '').trim();
+    if (t.length < 2) continue;
+    const body = t.split(/[-\s_]+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[-\\s_]?');
+    if (new RegExp('\\b' + body + '\\b', 'i').test(ask)) return true;
+  }
+  return false;
+}
+
+/**
+ * SITE-CLI ruling: carry the human's direct request into the key a delegated specialist's tools run
+ * under, ONLY when (a) the human's own words this turn name the specialist, and the parent's turn is
+ * still untainted. A NEW entry (agentId = the specialist, tainted = false, `delegatedTo` set) so the
+ * specialist's own tainting calls taint only it, and so directRequestAuthorizes can require the tool
+ * to match the ask. Same key as the parent = nothing to do (already one shared entry). Returns bool.
+ */
+function aliasForSpecialist(parentKeys, specialistKey, specialistAgentId, names = [], now = Date.now()) {
+  if (!specialistKey || !specialistAgentId) return false;
+  const sk = String(specialistKey);
+  for (const k of [].concat(parentKeys || [])) {
+    if (!k) continue;
+    const e = _byConv.get(String(k));
+    if (!e) continue;
+    if (String(k) === sk) return false;
+    if (now - e.at > TTL_MS || e.tainted || !e.ask) return false;
+    if (!askNamesAgent(e.ask, specialistNames(specialistAgentId, names))) return false;
+    const id = String(specialistAgentId).toLowerCase();
+    _byConv.set(sk, { userId: e.userId, orgId: e.orgId, at: e.at, tainted: false, role: e.role || null, ask: e.ask, agentId: id, heldSlot: null, delegatedTo: id });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * QUOXON-MESH: the slot the human's window holds for this conversation, or null. Identity,
+ * not authorization, so taint does not hide it (outside content cannot change who is typing).
+ */
+function heldSlotFor(conversationId, orgId, now = Date.now()) {
+  if (!conversationId || !orgId) return null;
+  const e = _byConv.get(String(conversationId));
+  if (!e || now - e.at > TTL_MS || e.orgId !== String(orgId)) return null;
+  return e.heldSlot ? { ...e.heldSlot } : null;
+}
+
+/**
+ * quox#1105: the human's own words on this conversation, for CONTEXT only (which specialist tool a
+ * delegation exists to use). Never authorization, so taint does not hide it: it can only make a
+ * delegation check stricter, never grant anything.
+ */
+function askFor(conversationId, orgId, now = Date.now()) {
+  if (!conversationId || !orgId) return null;
+  const e = _byConv.get(String(conversationId));
+  if (!e || now - e.at > TTL_MS || e.orgId !== String(orgId)) return null;
+  return e.ask || null;
 }
 
 function _clear() { _byConv.clear(); }
 
-module.exports = { markDirectRequest, noteToolForTaint, isDirectRequest, isTaintingTool, _clear, TTL_MS };
+module.exports = { specialistNames, SPECIALIST_ASK_NOUNS, markDirectRequest, noteToolForTaint, isDirectRequest, heldSlotFor, askFor, isTaintingTool, aliasForSpecialist, askNamesAgent, _clear, TTL_MS };

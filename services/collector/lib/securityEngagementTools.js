@@ -75,16 +75,27 @@ const SECURITY_ENGAGEMENT_TOOLS = {
 
   security_get_engagement: {
     name: 'security_get_engagement',
-    description: 'Get one security engagement by id, scoped to the calling org. Returns engagement:null (not an error) if it does not exist or belongs to a different org.',
+    description: 'Get one security engagement by id (ENG_...) or by its exact name, scoped to the calling org. Returns engagement:null with a note (not an error) if nothing in this org matches.',
     input_schema: {
       type: 'object',
-      properties: { engagement_id: { type: 'string' } },
+      properties: { engagement_id: { type: 'string', description: 'The engagement id (ENG_...) or its exact name' } },
       required: ['engagement_id'],
     },
     execute: async ({ engagement_id }, ctx) => {
       try {
         if (!ctx || !ctx.orgId) return { success: false, error: 'org_id could not be derived from the calling context (ctx.orgId missing)' };
-        const engagement = securityEngagement.getEngagement(engagement_id, ctx.orgId, requireDb());
+        const db = requireDb();
+        let engagement = securityEngagement.getEngagement(engagement_id, ctx.orgId, db);
+        if (!engagement && typeof engagement_id === 'string' && engagement_id.trim()) {
+          // #1036: users name engagements; an id-only lookup made a name miss read as "not visible to this
+          // org". Match the name ONLY among the calling org's own engagements (the same org-scoped list
+          // security_list_engagements uses), so another org's engagement can never resolve by name.
+          const want = engagement_id.trim().toLowerCase();
+          const hits = securityEngagement.listEngagements(ctx.orgId, db).filter((e) => String(e.name || '').trim().toLowerCase() === want);
+          if (hits.length > 1) return { success: true, engagement: null, matches: hits.map((e) => ({ id: e.id, name: e.name, status: e.status })), note: `${hits.length} engagements in this org share that name; ask again with one of these ids.` };
+          if (hits.length === 1) engagement = securityEngagement.getEngagement(hits[0].id, ctx.orgId, db);
+        }
+        if (!engagement) return { success: true, engagement: null, note: 'No engagement in this org matches that id or name. Run security_list_engagements to see the ones that exist.' };
         return { success: true, engagement };
       } catch (err) {
         return { success: false, error: err.message };
@@ -94,13 +105,18 @@ const SECURITY_ENGAGEMENT_TOOLS = {
 
   security_list_engagements: {
     name: 'security_list_engagements',
-    description: 'List all security engagements for the calling org, most recent first.',
+    description: 'List the security engagements for the calling org, most recent first. Returns count and by_status (engagements per status) across ALL engagements, plus compact rows (id, name, status, tier, risk ceiling): answer "how many engagements / what status" from count and by_status, never by tallying rows.',
     input_schema: { type: 'object', properties: {}, required: [] },
     execute: async (_input, ctx) => {
       try {
         if (!ctx || !ctx.orgId) return { success: false, error: 'org_id could not be derived from the calling context (ctx.orgId missing)' };
-        const engagements = securityEngagement.listEngagements(ctx.orgId, requireDb());
-        return { success: true, count: engagements.length, engagements };
+        const all = securityEngagement.listEngagements(ctx.orgId, requireDb());
+        const by_status = {};
+        for (const e of all) by_status[e.status] = (by_status[e.status] || 0) + 1;
+        // Compact rows: the full row (exclusions, authorization record...) is a 34KB list at 44
+        // engagements; security_get_engagement has the detail.
+        const engagements = all.map((e) => ({ id: e.id, name: e.name, status: e.status, environment_tier: e.environment_tier, risk_ceiling: e.risk_ceiling, responsible_project: e.responsible_project ?? null, created_at: e.created_at }));
+        return { success: true, count: all.length, by_status, engagements };
       } catch (err) {
         return { success: false, error: err.message };
       }

@@ -20,11 +20,13 @@ export const FLEET_LABELS = ['fleet/qa', 'fleet/idea', 'fleet/docs', 'fleet/plan
 /** Repo keyword table, in the agent prompt's order. */
 export const REPO_RULES = [
   { repo: 'quoxai/quoxwebsite', keywords: ['website', 'pricing', 'landing', 'blog', 'seo'] },
-  { repo: 'quoxai/quox', keywords: ['dashboard', 'sidebar', 'panel', 'plugin', 'agent', 'memory', 'glass', 'cogcore', 'wiremap', 'opsdeck', 'mission control'] },
+  { repo: 'quoxai/quox', keywords: ['dashboard', 'sidebar', 'panel', 'plugin', 'agent', 'memory', 'glass', 'cogcore', 'wiremap', 'opsdeck', 'mission control', 'quox tui', 'tui', 'quoxon', 'slash command', 'quox window', 'status line'] },
   { repo: 'quoxai/quoxflow', keywords: ['flow', 'workflow', 'cron', 'executor', 'schedule', 'quoxflow'] },
   { repo: 'quoxai/quoxmcp', keywords: ['mcp', 'oauth', 'tool-call'] },
-  { repo: 'quoxai/quoxterminal', keywords: ['terminal', 'tauri', 'desktop'] },
-  { repo: 'quoxai/quox-plugin-sdk', keywords: ['sdk', 'plugin-sdk', 'marketplace'] },
+  { repo: 'quoxai/quoxterminal', keywords: ['quoxterminal', 'tauri', 'desktop app'] },
+  // QUOXON-PRIVACY (d2683d4b5): no PUBLIC repo is ever picked by keyword. quoxai/quox-plugin-sdk is
+  // public, so it is reachable only by an explicit repo: override (the collector's allowlist then asks
+  // a human to confirm a public filing).
   { repo: 'quoxai/quoxbastion', keywords: ['bastion', 'ssh', 'fleet', 'vm'] },
 ]
 

@@ -4,8 +4,10 @@
  * which narrows the list because the draft IS the filter.
  */
 import { findEntry } from '../commands.js';
+import { signedOutNotice } from '../sessionDead.js';
 import { paletteQuery, paletteItems, filterPalette, completion, paletteView, PALETTE_MAX } from './palette.js';
 import { argContext, levelFor, staticItems, rankArgs, applyArg } from './args.js';
+import { mentionContext, rankMentions, applyMention } from '../mentions.js';
 
 const ARG_TTL = 30000;      // a fetched list is reused this long
 const ARG_FAIL_TTL = 8000;  // a failed fetch is quiet (no rows) and retried after this
@@ -16,9 +18,10 @@ const startsLike = (q, it) => {
 };
 
 export function createPalette({
-  getDraft, setDraft, run, say, ctx = () => ({}), source = null, refresh = () => {}, now = Date.now
+  getDraft, setDraft, run, say, ctx = () => ({}), source = null, refresh = () => {}, now = Date.now,
+  mentions = null // MENTIONS: { cache (mentions.js createMentionCache), local: () => receipt items }
 }) {
-  const st = { sel: 0, q: null, dismissed: null, picked: false, aq: null };
+  const st = { sel: 0, q: null, dismissed: null, picked: false, aq: null, mq: null };
   const cache = new Map(); // 'src:param' -> { at, ttl, items, pending }
   /** Cached items for an async source; fetches when missing or stale. Never throws or blocks. */
   const fetchItems = (src, param) => {
@@ -44,7 +47,7 @@ export function createPalette({
     if (!cx) return null;
     const lv = levelFor(cx.entry, cx.words);
     if (!lv) return null;
-    const param = lv.of != null ? cx.words[lv.of] : undefined;
+    const param = lv.of === 'partial' ? cx.partial.slice(0, cx.partial.lastIndexOf('/') + 1) : lv.of != null ? cx.words[lv.of] : undefined; // 'partial': the directory typed so far (QUOXON-MESH /send paths)
     const items = [...staticItems(lv), ...(lv.src ? fetchItems(lv.src, param) : [])];
     const rows = rankArgs(items, cx.partial);
     const key = d.slice(0, cx.start) + '\u0000' + cx.partial;
@@ -58,6 +61,19 @@ export function createPalette({
     const a = argState();
     return a && a.rows.length ? a : null;
   };
+  /** MENTIONS: the @word at the end of the draft and its ranked rows from the session cache, or null. */
+  const mentionOpen = () => {
+    if (!mentions) return null;
+    const d = getDraft();
+    const cx = mentionContext(d);
+    if (!cx) return null;
+    if (st.dismissed !== null && st.dismissed !== d) st.dismissed = null;
+    if (st.dismissed === d) return null;
+    const rows = rankMentions([...mentions.cache.items(), ...(mentions.local?.() || [])], cx.partial);
+    const key = d.slice(0, cx.start) + '\u0000' + cx.partial;
+    if (key !== st.mq) { st.mq = key; st.sel = 0; st.picked = false; }
+    return rows.length ? { cx, rows } : null;
+  };
   const rows = () => {
     const q = paletteQuery(getDraft());
     if (q !== st.q) { st.q = q; st.sel = 0; st.picked = false; }
@@ -66,9 +82,20 @@ export function createPalette({
   const isOpen = () => {
     const d = getDraft();
     if (st.dismissed !== null && st.dismissed !== d) st.dismissed = null;
-    if (paletteQuery(d) === null) return argOpen() !== null;
+    if (paletteQuery(d) === null) return argOpen() !== null || mentionOpen() !== null;
     return st.dismissed !== d;
   };
+  /** MENTIONS keys: Up/Down choose, Tab or Enter accept, Esc closes. */
+  function onMentionKey(name, m) {
+    const n = m.rows.length;
+    switch (name) {
+      case 'up': st.sel = (st.sel - 1 + n) % n; st.picked = true; return true;
+      case 'down': st.sel = (st.sel + 1) % n; st.picked = true; return true;
+      case 'escape': st.dismissed = getDraft(); return true;
+      case 'tab': case 'enter': setDraft(applyMention(getDraft(), m.cx, m.rows[Math.min(st.sel, n - 1)].value)); return true;
+      default: return false;
+    }
+  }
   /** -> true when the key was the palette's. */
   function onArgKey(name, a) {
     const n = a.rows.length;
@@ -87,7 +114,7 @@ export function createPalette({
   }
   function onKey(name) {
     if (!isOpen()) return false;
-    if (paletteQuery(getDraft()) === null) return onArgKey(name, argOpen());
+    if (paletteQuery(getDraft()) === null) { const a = argOpen(); return a ? onArgKey(name, a) : onMentionKey(name, mentionOpen()); }
     const list = rows();
     switch (name) {
       case 'up': if (!list.length) return false; st.sel = (st.sel - 1 + list.length) % list.length; st.picked = true; return true;
@@ -107,7 +134,7 @@ export function createPalette({
         // A loose (subsequence) match only runs when the user chose it with the arrows. Typing an unknown
         // word and pressing Enter must not run some other command (z2h: "/hat" ran /approvals).
         if (!st.picked && !startsLike(st.q, it)) return false;
-        if (it.disabled) { say(`${it.name} is ${it.disabled}.`, 'warn'); return true; }
+        if (it.disabled) { say(signedOutNotice(it.name, it.disabled), 'warn'); return true; }
         setDraft('');
         run(it.name);
         return true;
@@ -118,7 +145,12 @@ export function createPalette({
   function view() {
     if (paletteQuery(getDraft()) === null) {
       const a = argOpen();
-      if (!a) return { rows: [], sel: 0, more: 0, empty: null, hint: null };
+      if (!a) {
+        const mo = mentionOpen();
+        if (!mo) return { rows: [], sel: 0, more: 0, empty: null, hint: null };
+        const mv = paletteView(mo.rows, st.sel, PALETTE_MAX);
+        return { rows: mv.rows.map(it => ({ key: `@${it.value}`, text: `${it.kind}${it.label ? ` · ${it.label}` : ''}` })), sel: mv.sel, more: mv.more, empty: null, hint: '↑↓ select · Tab or Enter accept · Esc close' };
+      }
       const v = paletteView(a.rows, st.sel, PALETTE_MAX);
       const rows = v.rows.map(it => ({ key: it.value, text: it.desc || '' }));
       const hint = '↑↓ select · Tab complete · Esc close';

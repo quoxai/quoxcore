@@ -17,8 +17,18 @@
  */
 
 import crypto from 'crypto';
+import { hostPath } from '../utils/hostPaths.js';
+
 import { encryptEnvelope, decrypt as vaultDecrypt, deriveKek } from '../utils/encryption.js';
 import { getRotatableStores } from '../config/encryptedStores.js';
+
+// #1021: SQL string literal holding a JSON path list, built at runtime from host
+// paths (constants, never user input). Matches the old '["a", "b"]' spacing.
+function sqlPathList(...paths) {
+    const json = '[' + paths.map((p) => JSON.stringify(p)).join(', ') + ']';
+    return "'" + json.replace(/'/g, "''") + "'";
+}
+
 
 /**
  * FALSE-NEGATIVE FIX (2026-07): the original Phase A.5 seed pointed the
@@ -179,11 +189,11 @@ export function applyBackupComponentsD1b(database) {
         }
 
         database.exec(`
-            UPDATE backup_components SET source_paths_json = '["/opt/quoxcore/quoxagent/playbooks/"]'
+            UPDATE backup_components SET source_paths_json = ${sqlPathList(hostPath('quoxagent', 'playbooks/'))}
             WHERE component_key = 'quoxagent_playbooks'
         `);
         database.exec(`
-            UPDATE backup_components SET source_paths_json = '["/opt/quoxcore/quoxagent/configs/"]'
+            UPDATE backup_components SET source_paths_json = ${sqlPathList(hostPath('quoxagent', 'configs/'))}
             WHERE component_key = 'quoxagent_configs'
         `);
         database.exec(`
@@ -215,8 +225,8 @@ export function applyBackupComponentsD1b(database) {
             ('comp_org_logos', 'org_logos', 'Organization Logos', 'Uploaded organization logo and branding files', '["docker://quox-auth:/var/lib/quox/uploads/"]', 'directory', 'docker_cp', 46, 'data', 'image', 5000000),
             ('comp_quoxflow_evidence', 'quoxflow_evidence', 'QuoxFlow Evidence Files', 'Workflow execution evidence, artifacts, and audit attachments', '["docker://quox-quoxflow:/app/evidence/"]', 'directory', 'docker_cp', 47, 'data', 'file-check', 50000000),
             ('comp_ssl_certs', 'ssl_certs', 'SSL Certificates', 'TLS/SSL certificates and private keys for HTTPS services', '["/etc/ssl/quox/", "certs/"]', 'file', 'copy', 91, 'config', 'lock', 50000),
-            ('comp_ssh_keys', 'ssh_keys', 'SSH Keys', 'SSH key pairs used for bastion access and fleet deployment', '["/opt/quoxcore/.ssh/"]', 'directory', 'copy', 92, 'config', 'key', 20000),
-            ('comp_bastion_fleet', 'bastion_fleet_registry', 'Bastion Fleet Registry', 'Fleet host registry and topology data from the bastion', '["/opt/quoxcore/QuoxBastion/data/fleet.json", "/opt/quoxcore/QuoxBastion/data/hosts/"]', 'file', 'copy', 115, 'infrastructure', 'network', 100000),
+            ('comp_ssh_keys', 'ssh_keys', 'SSH Keys', 'SSH key pairs used for bastion access and fleet deployment', ${sqlPathList(hostPath('.ssh/'))}, 'directory', 'copy', 92, 'config', 'key', 20000),
+            ('comp_bastion_fleet', 'bastion_fleet_registry', 'Bastion Fleet Registry', 'Fleet host registry and topology data from the bastion', ${sqlPathList(hostPath('QuoxBastion', 'data', 'fleet.json'), hostPath('QuoxBastion', 'data', 'hosts/'))}, 'file', 'copy', 115, 'infrastructure', 'network', 100000),
             ('comp_bastion_audit', 'bastion_audit_logs', 'Bastion Audit Logs', 'SSH session audit logs and command history from the bastion', '["rsync://gw-01:/var/log/quoxbastion/"]', 'directory', 'rsync', 120, 'infrastructure', 'shield', 20000000)
         `);
 
@@ -604,6 +614,22 @@ export function widenBackupsStatusCheck(database) {
 }
 
 /**
+ * quox#1062 follow-up: rows written before quox#823 (d4f45ab08) may read 'completed'/'verified' with no
+ * archive (NULL/0 bytes): a lock-skipped run (2026-10-11 weekly full) counted as a success in backup_status
+ * and `quox backup list`. Relabel them 'failed' with the same message new runs get. Real archives and every
+ * other status are untouched; idempotent (a repaired row is 'failed' and no longer matches).
+ */
+export function repairEmptyArchiveBackups(database) {
+    const exists = database.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='backups'`).get();
+    if (!exists) return 0;
+    const msg = 'NO ARCHIVE: this run produced no archive (0 bytes) but was recorded as completed before quox#823. Relabelled failed.';
+    const r = database.prepare(`UPDATE backups SET status = 'failed', error_message = COALESCE(error_message, ?)
+        WHERE status IN ('completed', 'verified') AND COALESCE(archive_size_bytes, 0) <= 0`).run(msg);
+    if (r.changes) console.log(`quox#1062: relabelled ${r.changes} empty-archive backup row(s) as failed`);
+    return r.changes;
+}
+
+/**
  * Runs every legacy JS-level data migration, in the same relative order
  * they ran in the original applyMigrations() (health_endpoint fix →
  * share_policies seed → backup D.1b → CHECK-widening → legacy table drop).
@@ -634,4 +660,7 @@ export function applyLegacyDataMigrations(database) {
 
     try { backfillWidgetIdentitySecrets(database); }
     catch (err) { console.warn('[legacyDataMigrations] backfillWidgetIdentitySecrets failed (non-fatal):', err.message); }
+
+    try { repairEmptyArchiveBackups(database); }
+    catch (err) { console.warn('[legacyDataMigrations] repairEmptyArchiveBackups failed (non-fatal):', err.message); }
 }

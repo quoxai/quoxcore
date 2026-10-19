@@ -10,6 +10,8 @@
  * /messages), never a direct Matrix client in the CLI.
  */
 
+import { presenceText } from './presence.js';
+import { readInstalledBuild, CLI_DIR } from '../core/cliBuild.js';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, openSync, closeSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
@@ -20,8 +22,12 @@ import { events, printEvent } from '../core/quoxglyph.js';
 import { resolveEndpoint } from '../api/endpoints.js';
 import { QuoxApiError, QuoxNetworkError } from '../core/errors.js';
 import { resolveOrgId } from './helpers.js';
+import { parseBroadcastArgs, broadcastSummary, deliveryLine, parseAckArgs } from '../quoxon/slash/broadcast.js';
 import { claudeSessionInfo, procStartTime, resolveMyAttach, readSlotState } from './agentAttach.js';
 import { runKeeper, keeperDir, makeProcessProbe, sameProcess } from '../core/slotKeeper.js';
+import { loadConfig } from '../core/config.js';
+import { createAuth } from '../core/auth.js';
+import { createClient } from '../core/client.js';
 
 // Local record of the slots checked out from this box, written at checkout
 // and cleared at release. Consumers (the slot-inbox hook) re-verify each
@@ -53,7 +59,9 @@ function writeHeldSlots(all, path) {
 // `info` is claudeSessionInfo() ({ sessionKey, pid, starttime }) or null.
 // Entries written before quox#662 are { session, recorded_at } only, and
 // still read fine: they just carry no process binding.
-export function recordHeldSlot(name, session, path = heldSlotsPath(), info = null, member = null) {
+// HOLDER-SAY (2026-10-17): `profile` is the CLI profile whose identity took the hold. The server binds the hold
+// to that identity (holder_identity), so `say` must speak through the same profile, not whatever the default is now.
+export function recordHeldSlot(name, session, path = heldSlotsPath(), info = null, member = null, profile = null) {
   try {
     const all = readHeldSlots(path);
     // P10: a joining member must not clobber a sibling session's HOLDER entry
@@ -65,6 +73,7 @@ export function recordHeldSlot(name, session, path = heldSlotsPath(), info = nul
       ...(info ? { sessionKey: info.sessionKey, pid: info.pid, starttime: info.starttime } : {}),
       // P10: joined an already-held slot as a member (not the holder).
       ...(member ? { member: true, splinter: member.splinter ?? null, member_key: member.member_key ?? null } : {}),
+      ...(profile ? { profile } : {}),
       recorded_at: new Date().toISOString(),
     };
     writeHeldSlots(all, path);
@@ -316,6 +325,24 @@ export function registerSlotCommands(program, ctx) {
     ...(ctx.deps || {}),
   };
 
+  // HOLDER-SAY: the profile this invocation runs as (null when unknown, e.g. in tests without a config).
+  const profileName = () => { try { return ctx.config?.getActiveProfileName?.() || null; } catch { return null; } };
+  const explicitProfile = () => Boolean(ctx.config?._explicitProfile) || Boolean(String(process.env.QUOX_PROFILE || '').trim());
+  // HOLDER-SAY: the client a say into `name` as session `from` goes through. The hold is bound server-side to the
+  // identity that checked it out; when this box recorded that a DIFFERENT local profile took it, speak through that
+  // profile (the same identity, its own credentials). The server's holder check is unchanged: another identity
+  // still cannot speak as the holder. An explicit -p / QUOX_PROFILE always wins (the caller said who they are).
+  function sayClientFor(name, from) {
+    if (!from || explicitProfile()) return { client, profile: null };
+    const e = readHeldSlots()[name];
+    const cur = profileName();
+    if (!e || e.member || e.session !== from || !e.profile || !cur || e.profile === cur) return { client, profile: null };
+    try {
+      const c = deps.clientForProfile ? deps.clientForProfile(e.profile) : (() => { const cfg = loadConfig(e.profile); return createClient(cfg, createAuth(cfg)); })();
+      return c ? { client: c, profile: e.profile } : { client, profile: null };
+    } catch { return { client, profile: null }; }
+  }
+
   // Session identity (quox#662). Holder names are free text and every verb
   // used to default differently, so EMAIL-AGENTS vs email-agents 409'd. One
   // rule now: --session wins; else the binding this very Claude session
@@ -343,6 +370,31 @@ export function registerSlotCommands(program, ctx) {
       if (!mine?.agentId) return null;
       const st = readSlotState(mine.agentId);
       return st && st.name === name && st.session_label ? st.session_label : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // SLOTS-REPLY: the slot THIS session holds, sent as from_slot so a reply can reach
+  // it (a free-text --session label is not an address). Only this Claude session's
+  // own live bindings count; outside Claude, an entry recorded under the same
+  // session name. The server re-checks the hold (same_user) and drops a bad claim.
+  function senderSlot(from) {
+    try {
+      const cur = deps.claudeSessionInfo();
+      const all = readHeldSlots();
+      let mine = Object.entries(all).filter(([, e]) => e && !e.member && (cur
+        ? e.sessionKey && e.sessionKey === cur.sessionKey && sameProcess(deps.probe, e.pid, e.starttime)
+        : from && String(e.session || '').toLowerCase() === String(from).toLowerCase() && (!e.pid || sameProcess(deps.probe, e.pid, e.starttime))));
+      if (!mine.length) {
+        const mineAtt = resolveMyAttach();
+        const st = mineAtt?.agentId ? readSlotState(mineAtt.agentId) : null;
+        return st && st.name ? st.name : null;
+      }
+      const named = mine.filter(([, e]) => from && e.session === from);
+      if (named.length) mine = named;
+      mine.sort((a, b) => String(b[1].recorded_at || '').localeCompare(String(a[1].recorded_at || '')));
+      return mine[0][0];
     } catch {
       return null;
     }
@@ -385,6 +437,8 @@ export function registerSlotCommands(program, ctx) {
         // --json gets the API records (data keys), never the table cells.
         raw: data.slots || [],
       });
+      // PRESENCE: who is away (approvals to them queue). Table output only; --json has humans in the records.
+      if (program.opts().output !== 'json') for (const h of (data.humans || []).filter((x) => x && x.away)) printInfo(`  ⏸ ${presenceText(h)}`);
     });
 
   slot
@@ -515,7 +569,7 @@ export function registerSlotCommands(program, ctx) {
         // moment the binding is known for certain, so it gets written down
         // here rather than re-derived later.
         const me = deps.claudeSessionInfo();
-        recordHeldSlot(name, holderSession, heldSlotsPath(), me, joined);
+        recordHeldSlot(name, holderSession, heldSlotsPath(), me, joined, profileName());
         // Owner incident, 2026-08-22/23: "you cant bind to a slot and then
         // immediately ignore the channel it creates". Checkout hands back a
         // live address (a Matrix/Discord room), not just a lock; say so once,
@@ -553,6 +607,24 @@ export function registerSlotCommands(program, ctx) {
             throw new Error(`slot ${name} is assigned to ${err.detail.assigned_to}; pass --force to take it anyway`);
           }
           const holder = err.detail?.holder_session || 'another session';
+          // POKE-WAKE: the server refuses a same-session re-checkout under a different identity (a hold
+          // taken as a human, re-checked-out as the resident). When this box's binding proves the hold
+          // belongs to THIS claude process, the slot is already ours: refresh the keeper (a newer build
+          // replaces an older keeper) instead of failing. Nothing server-side changes.
+          const me = deps.claudeSessionInfo();
+          const rec = readHeldSlots()[name];
+          if (me && holder === holderSession && rec && rec.session === holderSession && !rec.member
+              && Number(rec.pid) === Number(me.pid) && String(rec.starttime) === String(me.starttime)) {
+            printInfo(`slot ${name} is already held by this session (${holderSession}); refreshing its hold keeper.`);
+            if (options.keep !== false) {
+              try {
+                deps.spawnKeeper(name, holderSession, { pid: me.pid, starttime: me.starttime });
+              } catch (kerr) {
+                printWarning(`could not start the hold keeper (${kerr.message}).`);
+              }
+            }
+            return;
+          }
           throw new Error(`slot ${name} is held by ${holder}`);
         }
         // fleet #449: a bare "404 Not Found: unknown" against an instance
@@ -586,6 +658,12 @@ export function registerSlotCommands(program, ctx) {
         ...attachAuthFor(name),
         body: { holder_session: relSession || undefined, force: !!options.force, org_id: resolveOrgId(auth, program) },
       });
+      // Never print a tick the server did not earn: the returned slot must actually be free (or handed to
+      // someone else), not still held by the session we just asked to release.
+      const after = data?.slot;
+      if (after && after.state !== 'free' && !data.promoted && (options.force || (relSession && after.holder_session === relSession))) {
+        throw new Error(`slot ${name} was NOT released: the server still shows it ${after.state} by ${after.holder_session || 'unknown'}`);
+      }
       formatDetail(data.slot || data, { format: program.opts().output, title: `Slot released: ${name}` });
       printEvent(events.released('quox', `slot ${name}`, relSession || 'this box'));
       forgetHeldSlot(name);
@@ -596,7 +674,7 @@ export function registerSlotCommands(program, ctx) {
     .command('control')
     .description('Send a control command to the session holding a slot (owner/admin only). Commands: compact, status')
     .argument('<name>', 'slot name')
-    .argument('<command>', 'control command (compact | status)')
+    .argument('<command>', 'control command (compact | status | wake)')
     .option('--wait', 'wait up to 40s for the keeper to ack and print its answer (always on for status)')
     .action(async (name, command, options) => {
       auth.requireAuth();
@@ -733,14 +811,70 @@ export function registerSlotCommands(program, ctx) {
       if (program.opts().output === 'json') formatDetail(data, { format: 'json' });
     });
 
+  // QUOXON-ROOMS: a slot is a group room. join = subscribe + post without holding it (checkout stays the
+  // exclusive task-ownership concept). Membership is server-side, org-scoped.
+  async function joinRoom(name, session, person) {
+    const ep = resolveEndpoint('v1.slots.join', { name });
+    return client.post(ep.path, { service: ep.service, ...attachAuthFor(name), body: { session, ...(person ? { person } : {}), org_id: resolveOrgId(auth, program) } });
+  }
+  slot
+    .command('join')
+    .description('Join a slot as a room: read its live stream and post to it without holding it')
+    .argument('<name>', 'slot name')
+    .option('--session <s>', 'session name to join as (default: $QUOX_STREAM)')
+    .option('--person <p>', 'who you act for, shown as "session (person)"')
+    .action(async (name, options) => {
+      auth.requireAuth();
+      const session = options.session || process.env.QUOX_STREAM;
+      if (!session) throw new Error('no session name: pass --session or set QUOX_STREAM');
+      const data = await joinRoom(name, session, options.person);
+      printSuccess(data.already ? `${session} is already in ${name}.` : `${session} joined ${name}. Read: quox slot wait ${name} --session ${session}; post: quox slot say ${name} --room --session ${session} <text>`);
+    });
+  slot
+    .command('leave')
+    .description('Leave a slot room you joined (does not release a hold)')
+    .argument('<name>', 'slot name')
+    .option('--session <s>', 'session name (default: $QUOX_STREAM)')
+    .action(async (name, options) => {
+      auth.requireAuth();
+      const session = options.session || process.env.QUOX_STREAM;
+      if (!session) throw new Error('no session name: pass --session or set QUOX_STREAM');
+      const ep = resolveEndpoint('v1.slots.leave', { name });
+      const data = await client.post(ep.path, { service: ep.service, ...attachAuthFor(name), body: { session, org_id: resolveOrgId(auth, program) } });
+      printSuccess(data.removed ? `${session} left ${name}.` : `${session} was not in ${name}.`);
+    });
+  slot
+    .command('rooms')
+    .description('List the slot rooms a session has joined')
+    .option('--session <s>', 'session name (default: $QUOX_STREAM)')
+    .action(async (options) => {
+      auth.requireAuth();
+      const session = options.session || process.env.QUOX_STREAM;
+      if (!session) throw new Error('no session name: pass --session or set QUOX_STREAM');
+      const ep = resolveEndpoint('v1.slots.rooms');
+      const data = await client.get(ep.path, { service: ep.service, query: { session, org_id: resolveOrgId(auth, program) } });
+      formatOutput((data.rooms || []).map((r) => ({ ROOM: r.slot_name, JOINED: r.joined_at })), {
+        format: program.opts().output, columns: ['ROOM', 'JOINED'], emptyMessage: `${session} has joined no rooms.`, raw: data.rooms || [],
+      });
+    });
+
   slot
     .command('say')
     .description("Say something into a slot's Matrix room (use - to read a multi-line, Markdown message from stdin)")
     .argument('<name>', 'slot name')
     .argument('<text...>', 'message text')
     .option('--session <s>', 'session name to speak as (default: $QUOX_STREAM)')
+    .option('--room', 'post as a joined room member (no hold needed); signed "session (person)" by the server')
+    .option('--run <command>', 'ask the human to run ONE command in their own terminal (the text is why); the quox TUI shows it in full and runs it only on their y. Never run server-side')
     .action(async (name, textParts, options) => {
       auth.requireAuth();
+      // SLOT-RUN: same rule as the collector (one line, max 2000, no control/bidi characters), checked before sending.
+      if (options.run !== undefined) {
+        const run = String(options.run);
+        if (!run.trim()) throw new Error('--run is empty');
+        if (run.length > 2000) throw new Error('--run too long (max 2000 characters)');
+        if (/[\u0000-\u001f\u007f\u0080-\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/.test(run)) throw new Error('--run must be one command on one line, without control, bidi or zero-width characters');
+      }
       // `say <name> -` reads the message from stdin (owner 2026-10-05: slot
       // channels were "enormous single paragraphs" because multi-line text is
       // awkward as a shell argument). Line breaks and Markdown survive as-is.
@@ -759,16 +893,24 @@ export function registerSlotCommands(program, ctx) {
       // authenticated identity.
       const from = resolveSession(options, name, null);
       const ep = resolveEndpoint('v1.slots.say', { name });
-      const body = { text, ...(from ? { from } : {}), org_id: resolveOrgId(auth, program) };
+      if (options.room && !from) throw new Error('--room needs a session: pass --session or set QUOX_STREAM');
+      const body = { text, ...(options.room ? { room_session: from } : from ? { from } : {}), org_id: resolveOrgId(auth, program) };
+      if (options.run !== undefined) body.run = String(options.run);
+      // SLOTS-REPLY: carry the sender's own slot so the recipient's reply reaches it.
+      // A room post already has its address (the room), so it carries none.
+      const fromSlot = options.room ? null : senderSlot(from);
+      if (fromSlot) body.from_slot = fromSlot;
       // A freshly created slot gets its Matrix room a few seconds AFTER
       // checkout returns (provisioning is async), so a say straight after
       // checkout used to fail with 409 "no Matrix room yet" (slots audit
       // 2026-10-02, measured ~5s). Ride out exactly that race; any other
       // 409 is real and surfaces immediately.
       let data;
+      const sayVia = options.room ? { client, profile: null } : sayClientFor(name, from);
+      if (sayVia.profile) printInfo(`Speaking as profile ${sayVia.profile}: it checked out ${name} for ${from}, and the hold is bound to its identity.`);
       for (let attempt = 1; ; attempt += 1) {
         try {
-          data = await client.post(ep.path, { service: ep.service, ...attachAuthFor(name), body });
+          data = await sayVia.client.post(ep.path, { service: ep.service, ...attachAuthFor(name), body });
           break;
         } catch (err) {
           // The collector sends {error: '<text>'}, which the client stores
@@ -790,12 +932,93 @@ export function registerSlotCommands(program, ctx) {
               `running in the background so replies are heard and the hold stays fresh.`
             );
           }
+          // A non-holder who has joined the room: post as a room member instead of failing.
+          if (err instanceof QuoxApiError && err.status === 403 && !options.room && from && /not (the current )?slot holder/i.test(said)) {
+            try {
+              data = await client.post(ep.path, { service: ep.service, ...attachAuthFor(name), body: { ...body, from: undefined, room_session: from } });
+              break;
+            } catch { /* not a member either: surface the original error with its join hint */ }
+          }
+          // HOLDER-SAY: the session name matches the hold, but this CLI speaks as a different identity than the one
+          // that took it (e.g. the default profile changed since checkout). Never bypassed: say exactly what to do.
+          if (err instanceof QuoxApiError && err.status === 403 && from && err.detail?.holder_session === from && /not (the current )?slot holder|not the current holder/i.test(said)) {
+            throw new Error(
+              `${name} is held by ${from}, but that hold is bound to the identity that checked it out, and this CLI ` +
+              `(profile ${profileName() || 'default'}) speaks as a different one. Say it as the profile that checked it out ` +
+              `(\`quox -p <that profile> slot say ${name} --session ${from} ...\`), or re-take the hold as this identity: ` +
+              `\`quox slot release ${name} --session ${from} && quox slot checkout ${name} --session ${from}\`.`
+            );
+          }
           throw err;
         }
       }
       printSuccess(`Said into ${name}.`);
+      if (!options.room && !fromSlot) {
+        printWarning(`${from || 'This session'} holds no slot, so replies cannot reach it. Claim one: quox slot checkout <name> --create --session ${from || '<session>'}`);
+      } else if (fromSlot && data?.from_slot_dropped) {
+        printWarning(`${fromSlot} was not accepted as your reply address (${data.from_slot_dropped}), so replies cannot reach you; re-check it out: quox slot checkout ${fromSlot} --session ${from || '<session>'}`);
+      }
+      reportPresence(name, data?.presence);
+      reportHumanPresence(data?.human_presence);
       reportBridgeDelivery(data?.bridges);
       if (program.opts().output === 'json') formatDetail(data, { format: 'json' });
+    });
+
+  // QUOXON-BROADCAST: one call fans a message out to every held slot in the org (or --slots).
+  slot
+    .command('broadcast')
+    .description('Broadcast a message to every held slot in this org (--slots to pick, --priority urgent, --ack to track acknowledgements)')
+    .argument('<text...>', 'message text')
+    .option('--slots <list>', 'comma-separated slot names instead of every held slot')
+    .option('--priority <p>', 'normal or urgent', 'normal')
+    .option('--ack', 'ask recipients to acknowledge with /ack <id>')
+    .option('--session <s>', 'session name to sign as (default: $QUOX_STREAM)')
+    .action(async (textParts, options) => {
+      auth.requireAuth();
+      const parsed = parseBroadcastArgs([
+        options.slots ? `--slots ${options.slots}` : '', `--priority ${options.priority}`, options.ack ? '--ack' : '', textParts.join(' '),
+      ].filter(Boolean).join(' '));
+      if (!parsed.ok) throw new Error(parsed.message);
+      const from = options.session || process.env.QUOX_STREAM || null;
+      const ep = resolveEndpoint('v1.slots.broadcast');
+      const data = await client.post(ep.path, {
+        service: ep.service, retries: 0,
+        body: { text: parsed.text, priority: parsed.priority, ack: parsed.ack, ...(parsed.slots ? { slots: parsed.slots } : {}), ...(from ? { from } : {}), org_id: resolveOrgId(auth, program) },
+      });
+      if (program.opts().output === 'json') return formatDetail(data, { format: 'json' });
+      for (const [line, kind] of broadcastSummary(data)) (kind === 'warn' ? printWarning : printInfo)(line);
+      reportHumanPresence(data?.human_presence);
+      return undefined;
+    });
+
+  slot
+    .command('broadcast-status')
+    .description('Delivered / acknowledged / awaiting counts for a broadcast')
+    .argument('<id>', 'broadcast id (bc_...)')
+    .action(async (id) => {
+      auth.requireAuth();
+      const ep = resolveEndpoint('v1.slots.broadcast.get', { id });
+      const data = await client.get(ep.path, { service: ep.service, retries: 0, query: { org_id: resolveOrgId(auth, program) } });
+      if (program.opts().output === 'json') return formatDetail(data, { format: 'json' });
+      printInfo(deliveryLine(data));
+      for (const d of data.deliveries || []) printInfo(`  ${d.slot}: ${d.status}${d.room ? `, room ${d.room}` : ''}${d.acked ? ', acknowledged' : ''}`);
+      return undefined;
+    });
+
+  slot
+    .command('ack')
+    .description('Acknowledge a broadcast on behalf of a slot you hold')
+    .argument('<id>', 'broadcast id (bc_...)')
+    .requiredOption('--slot <name>', 'the slot acknowledging')
+    .action(async (id, options) => {
+      auth.requireAuth();
+      const a = parseAckArgs(id);
+      if (!a.ok) throw new Error(a.message);
+      const ep = resolveEndpoint('v1.slots.broadcast.ack', { id });
+      const data = await client.post(ep.path, { service: ep.service, retries: 0, body: { slot: options.slot, org_id: resolveOrgId(auth, program) } });
+      if (program.opts().output === 'json') return formatDetail(data, { format: 'json' });
+      printSuccess(`Acknowledged ${id} as ${options.slot}. ${deliveryLine(data)}`);
+      return undefined;
     });
 
   /**
@@ -812,6 +1035,21 @@ export function registerSlotCommands(program, ctx) {
    * Silent when no bridges are configured: an org that has not set one up does
    * not need a line about it on every say.
    */
+  function agoText(iso) {
+    const m = iso ? Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)) : null;
+    return m == null || Number.isNaN(m) ? 'a while ago' : m < 1 ? 'just now' : m < 60 ? `${m}m ago` : `${Math.round(m / 60)}h ago`;
+  }
+  // PRESENCE (owner 2026-10-16): the human this slot belongs to is away; approvals will queue. Silent otherwise.
+  function reportHumanPresence(hp) {
+    if (hp && hp.away && hp.notice) printInfo(`  ⏸ ${hp.notice}`);
+  }
+  // Same wording as the TUI (quoxon/slotChat presenceLine). Silent when an older server sends no presence.
+  function reportPresence(name, presence) {
+    if (!presence || !presence.state) return;
+    if (presence.state === 'listening') printInfo(`  ✔ delivered to ${name} (listening now)`);
+    else if (presence.state === 'nobody_holds') printInfo(`  · nobody holds this slot`);
+    else printInfo(`  · not listening right now (${presence.last_checked_in_at ? `last checked in ${agoText(presence.last_checked_in_at)}` : 'no check-in on record'})`);
+  }
   function reportBridgeDelivery(bridges) {
     if (!Array.isArray(bridges) || bridges.length === 0) return;
     for (const b of bridges) {
@@ -872,6 +1110,7 @@ export function registerSlotCommands(program, ctx) {
     .option('--since <ts>', 'resume from this ISO-8601 cursor (from a previous wait timeout)')
     .option('--timeout <mins>', 'give up after this many minutes of silence (default: wait forever)', (v) => parseFloat(v))
     .option('--once', 'single server round-trip (~50s max), exit even if silent')
+    .option('--join', 'join the slot as a room first (read without holding it; your own posts are not echoed)')
     .option('--also <slots>', 'also listen on these peer slots (comma-separated, read-only): hear replies another session posts in ITS slot')
     .action(async (name, options) => {
       if (options.also) return waitMany(name, options);
@@ -884,6 +1123,10 @@ export function registerSlotCommands(program, ctx) {
       // separate heartbeat loop too.
       auth.requireAuth();
       const session = resolveSession(options, name, null);
+      if (options.join) {
+        if (!session) throw new Error('--join needs a session: pass --session or set QUOX_STREAM');
+        await joinRoom(name, session, null);
+      }
       const ep = resolveEndpoint('v1.slots.wait', { name });
       const deadline = Number.isFinite(options.timeout) && options.timeout > 0
         ? Date.now() + options.timeout * 60 * 1000
@@ -896,7 +1139,7 @@ export function registerSlotCommands(program, ctx) {
         const query = { org_id: resolveOrgId(auth, program), timeout_ms: 50000 };
         if (cursor) query.since = cursor;
         if (session) {
-          query.holder_session = session;
+          if (!options.join) query.holder_session = session; // a room member does not hold
           query.exclude_from = session;
         }
         let data;
@@ -956,7 +1199,7 @@ export function registerSlotCommands(program, ctx) {
         // quox#662/C: a wait whose hold is gone used to warn once and keep
         // polling forever: deaf AND unheld. Exit non-zero so whatever
         // supervises this process (the Claude background-task wake) notices.
-        const holdLost = !!session && data.held === false;
+        const holdLost = !!session && !options.join && data.held === false;
         const holdLostLine = `HOLD LOST: ${name} is no longer held by ${session}; re-run quox slot checkout ${name} --session ${session}`;
 
         if ((data.messages || []).length > 0) {
@@ -1030,6 +1273,16 @@ export function registerSlotCommands(program, ctx) {
       const tmuxPane = validTmuxPane(options.tmuxPane) ? options.tmuxPane : (validTmuxPane(process.env.TMUX_PANE) ? process.env.TMUX_PANE : null);
       const res = await runKeeper({
         name, session, claude: me, probe: deps.probe,
+        // KEEPER-REEXEC: track the installed build; on a change start a successor with the SAME
+        // args (this keeper has already dropped its lock) and exit, keeping the hold.
+        buildId: () => readInstalledBuild(CLI_DIR),
+        reexec: () => {
+          if (!isQuoxEntry(process.argv[1])) throw new Error('not running as the quox CLI');
+          const fd = openSync(join(keeperDir(), `${name}.log`), 'a');
+          try {
+            spawn(process.execPath, process.argv.slice(1), { detached: true, stdio: ['ignore', fd, fd], env: process.env }).unref();
+          } finally { closeSync(fd); }
+        },
         sleep: ctx.sleep,
         tmuxPane,
         pollControl: async () => {

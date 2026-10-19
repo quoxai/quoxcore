@@ -372,8 +372,9 @@ function buildScheduleConfig(n8nNode: N8nNode, params: Record<string, unknown>) 
     }
   }
 
+  // #1172: the schedule executor reads config.expression only.
   return {
-    cron,
+    expression: cron,
     timezone: params.timezone as string,
   };
 }

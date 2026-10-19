@@ -7357,6 +7357,13 @@ export const INTEGRATION_TYPES = {
                 "type": "password",
                 "required": true,
                 "placeholder": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            },
+            {
+                "key": "tls_fingerprint",
+                "label": "TLS Fingerprint (SHA-256, optional)",
+                "type": "text",
+                "required": false,
+                "placeholder": "AA:BB:CC:... (pins the Proxmox certificate)"
             }
         ],
         "hasLiveTest": true,
@@ -9625,12 +9632,132 @@ export const INTEGRATION_TYPES = {
                 "required": true,
                 "placeholder": "http://localhost:11434",
                 "default": "http://localhost:11434"
+            },
+            {
+                "key": "default_model",
+                "label": "Default chat model",
+                "type": "text",
+                "required": false,
+                "placeholder": "qwen2.5:7b"
+            },
+            {
+                "key": "allow_private_origin",
+                "label": "Allow this private address (origin)",
+                "type": "text",
+                "required": false,
+                "placeholder": "http://<lan-ip>:11434"
             }
         ],
         "hasLiveTest": true,
         "testDepth": "live",
         "category": "ai",
         "docs": "https://github.com/ollama/ollama/blob/main/docs/api.md"
+    },
+    "lmstudio": {
+        "id": "lmstudio",
+        "name": "LM Studio",
+        "description": "Local model server (OpenAI-compatible)",
+        "color": "#4F46E5",
+        "fields": [
+            {
+                "key": "base_url",
+                "label": "LM Studio server URL",
+                "type": "url",
+                "required": true,
+                "placeholder": "http://<lan-ip>:1234"
+            },
+            {
+                "key": "default_model",
+                "label": "Default chat model",
+                "type": "text",
+                "required": false,
+                "placeholder": "qwen2.5-7b-instruct"
+            },
+            {
+                "key": "allow_private_origin",
+                "label": "Allow this private address (origin)",
+                "type": "text",
+                "required": false,
+                "placeholder": "http://<lan-ip>:1234"
+            }
+        ],
+        "hasLiveTest": true,
+        "testDepth": "live",
+        "category": "ai",
+        "docs": "https://lmstudio.ai/docs/app/api/endpoints/openai"
+    },
+    "vllm": {
+        "id": "vllm",
+        "name": "vLLM",
+        "description": "Self-hosted inference server (OpenAI-compatible)",
+        "color": "#30A2FF",
+        "fields": [
+            {
+                "key": "base_url",
+                "label": "vLLM server URL",
+                "type": "url",
+                "required": true,
+                "placeholder": "http://<lan-ip>:8000"
+            },
+            {
+                "key": "api_key",
+                "label": "API key (if started with --api-key)",
+                "type": "password",
+                "required": false,
+                "placeholder": "optional"
+            },
+            {
+                "key": "default_model",
+                "label": "Default chat model",
+                "type": "text",
+                "required": false,
+                "placeholder": "meta-llama/Llama-3.1-8B-Instruct"
+            },
+            {
+                "key": "allow_private_origin",
+                "label": "Allow this private address (origin)",
+                "type": "text",
+                "required": false,
+                "placeholder": "http://<lan-ip>:8000"
+            }
+        ],
+        "hasLiveTest": true,
+        "testDepth": "live",
+        "category": "ai",
+        "docs": "https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html"
+    },
+    "openai_compatible": {
+        "id": "openai_compatible",
+        "name": "OpenAI-compatible endpoint",
+        "description": "Any OpenAI-compatible chat API over https",
+        "color": "#64748B",
+        "fields": [
+            {
+                "key": "base_url",
+                "label": "Base URL (https)",
+                "type": "url",
+                "required": true,
+                "placeholder": "https://llm.example.com/v1"
+            },
+            {
+                "key": "api_key",
+                "label": "API key",
+                "type": "password",
+                "required": false,
+                "placeholder": "optional"
+            },
+            {
+                "key": "default_model",
+                "label": "Default chat model",
+                "type": "text",
+                "required": false,
+                "placeholder": "model id"
+            }
+        ],
+        "hasLiveTest": true,
+        "testDepth": "live",
+        "category": "ai",
+        "docs": "https://platform.openai.com/docs/api-reference/chat"
     },
     "langsmith": {
         "id": "langsmith",

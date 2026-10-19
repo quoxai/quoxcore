@@ -27,6 +27,13 @@ export function registerAdminCommands(program, ctx) {
       const config = data.config || data;
       if (key) {
         // quox#533: `get <key>` used to be rejected outright.
+        // #1010: auth returns an ARRAY of { key, value, ... } rows; an object map is handled too.
+        if (Array.isArray(config)) {
+          const row = config.find((r) => r && r.key === key);
+          if (!row) throw new Error(`config key "${key}" not found. Run \`quox admin config get\` to list all keys.`);
+          formatDetail(row, { format: program.opts().output, title: 'Platform Config' });
+          return;
+        }
         if (!config || typeof config !== 'object' || !(key in config)) {
           throw new Error(`config key "${key}" not found. Run \`quox admin config get\` to list all keys.`);
         }
@@ -345,6 +352,15 @@ export function registerAdminCommands(program, ctx) {
       const body = {};
       if (options.dryRun) body.dry_run = true;
       const data = await client.post(resolveEndpoint('admin.retention.cleanup').path, { service: resolveEndpoint('admin.retention.cleanup').service, body });
+      if (options.dryRun) {
+        // quox#1084: servers before the fix ignored dry_run and deleted for real.
+        // Never present an unconfirmed result as a harmless preview.
+        if (!data || data.dry_run !== true) {
+          throw new Error('the server did not honour --dry-run (it predates quox#1084): the cleanup may have run for real. Check `quox admin retention stats`.');
+        }
+        formatDetail(data, { format: program.opts().output, title: 'Cleanup preview (dry run): nothing deleted' });
+        return;
+      }
       formatDetail(data, { format: program.opts().output, title: 'Cleanup Result' });
     });
 

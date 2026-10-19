@@ -6,8 +6,8 @@
  * pending/denied/error responses.
  *
  * Written to the collector-data named volume (/var/lib/quox, docker-compose
- * volume `collector-data`), NOT the read-only /opt/quoxcore:ro bind mount —
- * the collector container cannot write under /opt/quoxcore, and the
+ * volume `collector-data`), NOT the read-only ~:ro bind mount —
+ * the collector container cannot write under ~, and the
  * original implementation of this hook shelled out to
  * ~/bin/session-mail (a host CLI script under that same read-only mount),
  * which cannot have worked in the deployed container. Same fix already

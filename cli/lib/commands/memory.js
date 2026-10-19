@@ -26,6 +26,7 @@ import { resolveEndpoint } from '../api/endpoints.js';
 import { QuoxError } from '../core/errors.js';
 import { resolveOrgId } from './helpers.js';
 import { resolveMyAttach } from './agentAttach.js';
+import { hasExplicitProfile } from '../core/actingAs.js';
 
 // QUOXIDENTITY P9: which agent this session acts as is resolved session-scoped
 // (QUOX_T subtree / QUOX_ATTACH_AGENT override / single-attach fallback), so
@@ -46,7 +47,12 @@ async function callMemoryTool({ client, auth, program }, toolName, input) {
   const body = { tool_name: toolName, input };
   const requestOptions = { service: ep.service, body };
 
-  const lease = detectSoleAttachLease();
+  // An explicit -p/--profile (or QUOX_PROFILE) is the caller saying "as me":
+  // it wins over the session's attach lease, same precedence as
+  // core/actingAs. Before this, `quox -p moo memory search` inside an attached
+  // session went out on the lease token and 401'd (proof engine 2026-10-14).
+  const argv = (program.rawArgs || process.argv).slice(2);
+  const lease = hasExplicitProfile(argv) ? null : detectSoleAttachLease();
   if (lease) {
     requestOptions.noAuth = true;
     requestOptions.headers = { Authorization: `Bearer ${lease.token}` };
@@ -260,16 +266,87 @@ export function registerMemoryCommands(program, ctx) {
       }, { format: program.opts().output });
     });
 
+  // QUOXMIND #1111: the old view counted only rows under YOUR user id, so an
+  // org holding hundreds of agent-written memories looked nearly empty. Default
+  // is now the org view (per agent, per writer), falling back honestly.
   memory
     .command('stats')
-    .description('Show memory statistics')
-    .action(async () => {
+    .description('Show memory statistics: the whole org by agent and writer (org admins), else your own')
+    .option('--mine', 'only memories written under your own login')
+    .action(async (options) => {
       auth.requireAuth();
-      const data = await client.get(resolveEndpoint('memory.stats.list').path, { service: resolveEndpoint('memory.stats.list').service });
-      formatDetail(data.stats || data, {
-        format: program.opts().output,
-        title: 'Memory Stats',
-      });
+      const ep = resolveEndpoint('memory.stats.list');
+      let data;
+      let note = '';
+      if (options.mine) {
+        data = await client.get(ep.path, { service: ep.service, query: {} });
+      } else {
+        try {
+          data = await client.get(ep.path, { service: ep.service, query: { scope: 'org' } });
+        } catch (err) {
+          if (err?.status !== 403) throw err;
+          data = await client.get(ep.path, { service: ep.service, query: {} });
+          note = 'Org-wide counts need an org admin or owner. Showing only memories written under your own login; agents write under their own identities, so the org holds more.';
+        }
+      }
+      const format = program.opts().output;
+      if (format === 'json') { console.log(JSON.stringify(note ? { ...data, note } : data, null, 2)); return; }
+      if (data?.scope !== 'org') {
+        formatDetail(data.stats || data, { format, title: 'Memory Stats (your login only)' });
+        console.log(note || 'Counts only memories written under your own login. `quox memory stats` without --mine shows the whole org (org admins).');
+        return;
+      }
+      const m = data.memories || {};
+      console.log(`Memory Stats (org): ${m.total ?? 0} valid memories, ${m.not_valid ?? 0} superseded or deleted (kept for history), ${data.pinned ?? 0} pinned, last write ${data.last_write_at || 'never'}`);
+      if (m.by_type) console.log(`By type: ${Object.entries(m.by_type).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+      formatOutput({
+        columns: ['agent', 'count'], headers: ['Agent', 'Memories'],
+        rows: Object.entries(data.by_agent || {}).map(([agent, count]) => ({ agent, count })),
+      }, { format });
+      formatOutput({
+        columns: ['user_id', 'kind', 'count', 'agents'], headers: ['Writer', 'Kind', 'Memories', 'Agents'],
+        rows: (data.by_user || []).map((u) => ({ ...u, agents: (u.agents || []).join(',') })),
+      }, { format });
+      console.log('Valid = not deleted and not superseded. A writer is the login a memory was saved under: your own, an agent identity, service/system (internal agents), or org-shared beliefs.');
+    });
+
+  memory
+    .command('core')
+    .description('Show the core set: memories loaded into every chat turn (pinned, plus auto-promoted decisions and facts rated high or critical)')
+    .option('--limit <n>', 'max memories', '20')
+    .action(async (options) => {
+      auth.requireAuth();
+      const ep = resolveEndpoint('memory.core-set');
+      const data = await client.get(ep.path, { service: ep.service, query: { limit: options.limit } });
+      formatOutput({
+        columns: ['id', 'core_reason', 'agent_id', 'memory_type', 'content'],
+        headers: ['ID', 'Why', 'Agent', 'Type', 'Content'],
+        rows: (data.memories || []).map((m) => ({ ...m, content: (m.content || '').slice(0, 80) })),
+      }, { format: program.opts().output, raw: data });
+    });
+
+  memory
+    .command('pin')
+    .description('Pin a memory into the core set so every chat turn carries it')
+    .argument('<id>', 'memory ID')
+    .action(async (id) => {
+      auth.requireAuth();
+      const ep = resolveEndpoint('memory.pin', { id });
+      const data = await client.post(ep.path, { service: ep.service, body: {} });
+      if (program.opts().output === 'json') { console.log(JSON.stringify(data, null, 2)); return; }
+      printSuccess(`Pinned ${id} into the core set.`);
+    });
+
+  memory
+    .command('unpin')
+    .description('Take a memory out of the core set (also stops it being auto-promoted)')
+    .argument('<id>', 'memory ID')
+    .action(async (id) => {
+      auth.requireAuth();
+      const ep = resolveEndpoint('memory.unpin', { id });
+      const data = await client.delete(ep.path, { service: ep.service });
+      if (program.opts().output === 'json') { console.log(JSON.stringify(data, null, 2)); return; }
+      printSuccess(`Unpinned ${id}: it stays a memory, but is no longer in the core set.`);
     });
 
   memory

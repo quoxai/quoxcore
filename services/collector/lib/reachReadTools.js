@@ -42,7 +42,7 @@ const microToUsd = (v) => (Number.isFinite(Number(v)) && v !== null ? Number(v) 
 const REACH_READ_TOOLS = {
   plugin_list: {
     name: 'plugin_list',
-    description: "List this org's installed plugins: id, name, version, tier and whether each is enabled. Read-only; enabling or disabling a plugin is a CLI/dashboard action.",
+    description: "List this org's installed plugins: id, name, version, tier, whether each is enabled, and who installed it (installed_by: 'system:first-party' for plugins the system provisioned, otherwise the installing user's id), with installed_by_system / installed_by_user tallies. Read-only; enabling or disabling a plugin is a CLI/dashboard action.",
     input_schema: {
       type: 'object',
       properties: { enabled_only: { type: 'boolean', description: 'Only list enabled plugins.' } },
@@ -62,9 +62,14 @@ const REACH_READ_TOOLS = {
           enabled: !!p.is_enabled,
           tier: (p.manifest && p.manifest.tier) || null,
           installed_at: p.installed_at || null,
+          installed_by: p.installed_by || null,
         }));
         if (input && input.enabled_only) plugins = plugins.filter((p) => p.enabled);
-        return { success: true, count: plugins.length, enabled: plugins.filter((p) => p.enabled).length, plugins };
+        const bySystem = plugins.filter((p) => String(p.installed_by || '').startsWith('system:')).length;
+        return {
+          success: true, count: plugins.length, enabled: plugins.filter((p) => p.enabled).length,
+          installed_by_system: bySystem, installed_by_user: plugins.length - bySystem, plugins,
+        };
       } catch (err) {
         return { success: false, error: err.message };
       }
@@ -99,9 +104,13 @@ const REACH_READ_TOOLS = {
         for (const b of rows.slice(0, MAX_BUDGETS)) {
           // The budget id comes from the server's own list for ctx.orgId, never from the model.
           const u = await getJson(`${QUOXFLOW_URL}/api/budgets/${encodeURIComponent(b.id)}/usage?${new URLSearchParams({ org_id: ctx.orgId })}`, headers);
-          const usage = u.ok ? ((u.body && ((u.body.data && u.body.data.usage) || u.body.usage)) || null) : null;
+          // #967: a SUCCESSFUL usage read (u.ok) with no spend recorded means ZERO spent, not
+          // "unknown". `quox budget usage` reports 0 for a fresh budget; the tool must match, or
+          // chat answers "I can't tell how much is used" on every spend question. Only a FAILED
+          // read (!u.ok) is genuinely unknown (null + usage_error).
+          const usage = u.ok ? ((u.body && ((u.body.data && u.body.data.usage) || u.body.usage)) || {}) : null;
           const max = microToUsd(b.max_cost_usd_micro);
-          const spent = usage ? microToUsd(usage.cost_usd_micro) : null;
+          const spent = u.ok ? microToUsd(usage.cost_usd_micro ?? 0) : null;
           budgets.push({
             id: b.id,
             scope: b.scope_kind,
@@ -111,9 +120,13 @@ const REACH_READ_TOOLS = {
             hard_stop: !!b.hard_stop,
             max_cost_usd: max,
             max_tokens: b.max_tokens ?? null,
+            // #983: every cap the budget sets, or chat says "no iteration cap" when there is one
+            max_tool_calls: b.max_tool_calls ?? null,
+            max_duration_ms: b.max_duration_ms ?? null,
+            max_iterations: b.max_iterations ?? null,
             spent_cost_usd: spent,
-            tokens_in: usage ? usage.tokens_in ?? null : null,
-            tokens_out: usage ? usage.tokens_out ?? null : null,
+            tokens_in: u.ok ? (usage.tokens_in ?? 0) : null,
+            tokens_out: u.ok ? (usage.tokens_out ?? 0) : null,
             used_pct: max && spent !== null ? Math.round((spent / max) * 1000) / 10 : null,
             ...(u.ok ? {} : { usage_error: `HTTP ${u.status}` }),
           });

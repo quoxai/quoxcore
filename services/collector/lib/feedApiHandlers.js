@@ -254,6 +254,29 @@ function createGetStatusHandler({ getSourceFn = feedWatermark.getSource, catalog
 }
 
 /**
+ * POST /api/feed/sources/:sourceType/sync?org_id=... — BRAIN2-FABLE11 "sync now".
+ * Service-key callers only (a trusted caller names the org, like the other
+ * service routes here). Kicks the scheduler's own ingest for one org+source
+ * and returns 202 at once; progress shows in GET /api/feed/status.
+ */
+function createSyncNowHandler({ syncNowFn } = {}) {
+  return async function handleSyncNow(req, res) {
+    if (req.service !== true) return res.status(403).json({ error: 'service key required' });
+    const orgId = resolveOrgId(req);
+    if (!orgId) return res.status(400).json({ error: 'org_id required' });
+    try {
+      const fn = syncNowFn || require('./feedScheduler.js').syncNow;
+      const r = await fn(orgId, req.params.sourceType);
+      if (!r.ok) return res.status(r.status || 500).json({ error: r.error, busy: !!r.busy });
+      return res.status(202).json({ started: true, orgId, sourceType: req.params.sourceType });
+    } catch (err) {
+      console.error(`[FeedAPI] org=${orgId}: POST sync failed, ${err.message}`);
+      return res.status(500).json({ error: 'failed to start sync' });
+    }
+  };
+}
+
+/**
  * POST /api/feed/ai-history: pushes an already-parsed batch of AI-chat-export
  * conversations (see feedAiHistorySource.js for the expected shape) into the
  * "AI History" push vault via ingestAiHistory(). Batches are capped at
@@ -312,6 +335,7 @@ function createIngestAiHistoryHandler({ ingestFn = ingestAiHistory } = {}) {
 }
 
 module.exports = {
+  createSyncNowHandler,
   createGetSourcesHandler,
   createPutSourceHandler,
   createGetStatusHandler,

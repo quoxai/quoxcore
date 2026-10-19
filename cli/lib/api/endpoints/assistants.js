@@ -23,10 +23,22 @@ export const assistants = {
     path: ({ orgId, assistantId }) => `/api/orgs/${orgId}/assistants/${assistantId}/deploy`,
     tags: ['live-write'],
   },
+  'assistants.undeploy': {
+    method: 'DELETE',
+    service: 'auth',
+    path: ({ orgId, assistantId, deploymentId }) => `/api/orgs/${orgId}/assistants/${assistantId}/deployments/${deploymentId}`,
+    tags: ['live-write'],
+  },
   'assistants.fork': {
     method: 'POST',
     service: 'auth',
     path: ({ orgId, assistantId }) => `/api/orgs/${orgId}/assistants/${assistantId}/fork`,
+    tags: ['live-write'],
+  },
+  'assistants.publish': {
+    method: 'POST',
+    service: 'auth',
+    path: ({ orgId, assistantId }) => `/api/orgs/${orgId}/assistants/${assistantId}/publish`,
     tags: ['live-write'],
   },
   'assistants.get': {

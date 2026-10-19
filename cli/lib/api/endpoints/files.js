@@ -23,4 +23,18 @@ export const files = {
     path: () => `/upload`,
     tags: ['live-write'],
   },
+  // F01 A': quarantined legacy files (no proven owner) and their owner-approved assignment. Collector routes,
+  // human instance admin only (enforced server-side).
+  'files.quarantine.list': {
+    method: 'GET',
+    service: 'collector',
+    path: () => `/api/v1/admin/files/quarantine`,
+    tags: ['live-safe'],
+  },
+  'files.quarantine.assign': {
+    method: 'POST',
+    service: 'collector',
+    path: () => `/api/v1/admin/files/assign`,
+    tags: ['live-write'],
+  },
 };

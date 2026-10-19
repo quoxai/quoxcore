@@ -87,7 +87,9 @@ const COMMANDERQ_REACH_TOOLS = {
       required: [],
     },
     execute: async (input, ctx) => {
-      const action = input.action || 'org';
+      // Models reach for the word they see ("leaderboard", "board"): those mean the org view.
+      const raw = String(input.action || 'org').toLowerCase();
+      const action = ['leaderboard', 'board', 'org-wide', 'all'].includes(raw) ? 'org' : raw;
       try {
         let path;
         if (action === 'org') {
@@ -116,12 +118,12 @@ const COMMANDERQ_REACH_TOOLS = {
 
   noc_tool_outcomes: {
     name: 'noc_tool_outcomes',
-    description: 'Read NOC tool-execution outcome telemetry: raw call log (tool, agent, org, success, duration, timestamp) or aggregated per-tool success-rate/error-count stats over a rolling window. Use to check whether a specific tool or agent has been failing lately before relying on it.',
+    description: 'Read NOC tool-execution outcome telemetry: raw call log (tool, agent, org, success, duration, timestamp) or aggregated per-tool success-rate/error-count stats over a rolling window. For "which tools fail most often / success rate" ALWAYS use stats=true with a window (one small per-tool table; raw rows are huge and cannot be summarised without a shell). Use to check whether a specific tool or agent has been failing lately before relying on it.',
     input_schema: {
       type: 'object',
       properties: {
-        stats: { type: 'boolean', description: 'true for aggregated stats (requires window); false (default) for raw outcome rows' },
-        window: { type: 'string', enum: ['1h', '24h', '7d', '30d'], description: 'Required when stats=true' },
+        stats: { type: 'boolean', description: 'true for aggregated stats (window defaults to 7d); false (default, capped at 50 rows unless limit given) for raw outcome rows' },
+        window: { type: 'string', enum: ['1h', '24h', '7d', '30d'], description: 'Rolling window for stats=true (default 7d)' },
         tool: { type: 'string', description: 'Filter by tool name' },
         agent: { type: 'string', description: 'Filter by agent id' },
         orgId: { type: 'string', description: 'Filter by org id (defaults to caller org if omitted)' },
@@ -134,7 +136,8 @@ const COMMANDERQ_REACH_TOOLS = {
     },
     execute: async (input, ctx) => {
       const stats = !!input.stats;
-      if (stats && !input.window) return { success: false, error: 'window is required when stats=true' };
+      if (stats && !input.window) input = { ...input, window: '7d' };
+      if (!stats && !(Number(input.limit) > 0)) input = { ...input, limit: 50 };
       try {
         const orgId = input.orgId || (ctx && ctx.orgId) || undefined;
         const path = stats
@@ -151,17 +154,34 @@ const COMMANDERQ_REACH_TOOLS = {
 
   doneengine_readiness: {
     name: 'doneengine_readiness',
-    description: 'Read DoneEngine ship-readiness snapshots (the "quox done" instrument): list all past snapshots or get the latest one for a pack. Absence of a snapshot is absence of evidence, not proof of readiness or unreadiness — a missing snapshot is reported honestly, not as an error.',
+    description: 'Read DoneEngine readiness (the "quox done" instrument). action=board: the ESTATE BOARD, every surface with its score and gate counts (use it for any per-surface score or for how many surfaces there are; pass surface=<NAME> for one row). action=latest / list: per-pack readiness SNAPSHOTS (launch-spine, dev-suite). All of these are recorded readings, not a live measurement: always tell the user when it was taken (taken_at / age_days), and say so when stale=true. For a live reading the user runs refresh_command or live_command. Never suggest gauge.mjs. Absence of a reading is absence of evidence, not proof of readiness or unreadiness, and is reported honestly, not as an error.',
     input_schema: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['list', 'latest'], description: 'list (all snapshots) or latest (default)' },
+        action: { type: 'string', enum: ['board', 'list', 'latest'], description: 'board (estate board: every surface and its score), list (all pack snapshots) or latest (default: newest pack snapshot)' },
         pack: { type: 'string', description: 'Pack name filter for action=latest' },
+        surface: { type: 'string', description: 'For action=board: one surface name (e.g. COLLECTOR_AUTH)' },
       },
       required: [],
     },
     execute: async (input, ctx) => {
       const action = input.action || 'latest';
+      if (action === 'board') {
+        try {
+          const { ok, status, data } = await readCollector(`/api/v1/doneengine/board${qs({ surface: input.surface })}`, ctx);
+          if (!ok) {
+            if (status === 404 && data && data.error === 'no_board') return { success: true, no_board: true, message: data.message, refresh_command: data.refresh_command };
+            return { success: false, error: `DoneEngine board returned ${status}`, status, data };
+          }
+          const compact = (s) => s && ({ surface: s.surface, score: s.score, attested: `${s.attested_passed}/${s.attested_total}`, machine: `${s.machine_passed}/${s.machine_total}`, status_doc: s.file });
+          const out = { success: true, action, taken_at: data.taken_at, age_days: data.age_days, stale: data.stale, refresh_command: data.refresh_command, surface_count: data.surface_count };
+          if (input.surface) { out.surface = compact(data.surface); if (!data.surface) out.known_surfaces = data.known_surfaces; }
+          else out.surfaces = (data.board && data.board.surfaces || []).map(compact);
+          return out;
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+      }
       try {
         const path = action === 'list'
           ? '/api/v1/doneengine/snapshots'
@@ -169,7 +189,7 @@ const COMMANDERQ_REACH_TOOLS = {
         const { ok, status, data } = await readCollector(path, ctx);
         if (!ok) {
           if (status === 404 && data && data.error === 'no_snapshot') {
-            return { success: true, no_snapshot: true, message: data.message || 'No DoneEngine readiness snapshot exists yet.' };
+            return { success: true, no_snapshot: true, message: data.message || 'No DoneEngine readiness snapshot exists yet.', refresh_command: data.refresh_command, live_command: data.live_command };
           }
           return { success: false, error: `DoneEngine returned ${status}`, status, data };
         }
@@ -207,7 +227,7 @@ const COMMANDERQ_REACH_TOOLS = {
           if (!input.scope) return { success: false, error: 'scope is required for action=finding' };
           path = `/api/v1/lens/findings/${input.scope}`;
         } else {
-          return { success: false, error: `Unknown action "${action}"` };
+          return { success: false, error: `Unknown action "${action}". Use one of: lenses, lens, findings (lists the findings scopes), finding.` }; // 2026-10-17: a model that guessed ("scopes") gets it right next call
         }
         const { ok, status, data } = await readCollector(path, ctx);
         if (!ok) {
@@ -244,7 +264,9 @@ const COMMANDERQ_REACH_TOOLS = {
         } else if (input.artifact === 'classification' && input.extra === 'questions') {
           path = '/api/v1/compliance/classification/questions';
         } else if (input.id) {
-          path = `/api/v1/compliance/${input.artifact}/${encodeURIComponent(input.id)}`;
+          // #937: the by-id read dropped org_id, so resolveComplianceOrgId got null for a service
+          // caller and orgOwns() 404'd every fetch. Scope it like the list path below.
+          path = `/api/v1/compliance/${input.artifact}/${encodeURIComponent(input.id)}${qs({ org_id: orgId })}`;
         } else {
           path = `/api/v1/compliance/${input.artifact}${qs({ org_id: orgId })}`;
         }

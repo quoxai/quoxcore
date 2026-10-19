@@ -153,6 +153,7 @@ Every global utility in the Quox dashboard design system. Consume these classes 
 | `.qx-diff` + `__line`(`--add`/`--remove`/`--context`) + `__hunk` + `__ln` + `__sign` | Unified diff viewer. |
 | `.qx-trail` + `__node` + `__sep` | Chain-of-custody pills; `__node--aee`/`--aocl`/`--volt`/`--ward`. |
 | `.qx-evidence` + `__dot` + `__source` + `__ts` + `__sep` | Provenance source + verifier badge. |
+| `.qx-receipt` + `__proto` / `__id` / `__state` | Receipt chip: one action's proof (dot, protocol, short id, seq, verify state). Use `<ReceiptChip>` from `components/ui/ReceiptChip`; hue by state via `.qx-chip--hue-cyan` / `-amber` / `-red`. |
 
 ## Workflow / canvas
 

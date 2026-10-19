@@ -98,7 +98,7 @@ function parsePing(raw) {
   let transmitted = 0, received = 0, lossPercent = 100;
   if (summaryLine) {
     const txMatch = summaryLine.match(/(\d+) packets transmitted/);
-    const rxMatch = summaryLine.match(/(\d+) received/);
+    const rxMatch = summaryLine.match(/(\d+) (?:packets )?received/); // iputils "N received" or BSD/inetutils "N packets received"
     const lossMatch = summaryLine.match(/([\d.]+)% packet loss/);
     if (txMatch) transmitted = parseInt(txMatch[1]);
     if (rxMatch) received = parseInt(rxMatch[1]);

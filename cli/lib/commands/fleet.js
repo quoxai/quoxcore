@@ -4,6 +4,8 @@
 
 import { missingReasonWarning } from '../core/callerSource.js';
 import chalk from 'chalk';
+import tls from 'node:tls';
+import { X509Certificate, createHash } from 'node:crypto';
 import { formatOutput, formatDetail, printSuccess, printWarning, printInfo } from '../core/output.js';
 import { events, printEvent, line as glyphLine } from '../core/quoxglyph.js';
 import { parseJSON } from './helpers.js';
@@ -211,10 +213,166 @@ export function parseSentinel(output) {
 /** The full install pipe, using install.sh's REAL flags. */
 export function buildRehomeInstallCommand({ collector, hostId, orgId }) {
   const base = String(collector).replace(/\/+$/, '');
-  return `curl -sSL ${base}/install | sudo bash -s --`
+  // quox#1223: fail loud, no `curl | bash` (see buildEnrolCommand). TLS verification stays on.
+  return `( f=$(mktemp) && trap 'rm -f "$f"' EXIT && curl -fsSL ${base}/install -o "$f" && sudo bash "$f"`
     + ` ${INSTALL_SH_FLAGS.hostId} ${shellSingleQuote(hostId)}`
     + ` ${INSTALL_SH_FLAGS.collector} ${shellSingleQuote(base)}`
-    + ` ${INSTALL_SH_FLAGS.org} ${shellSingleQuote(orgId)}`;
+    + ` ${INSTALL_SH_FLAGS.org} ${shellSingleQuote(orgId)} )`;
+}
+
+// ── fleet enrol (Z2H-AGENTINST) ─────────────────────────────────────────────
+
+export const ENROL_OS = ['linux', 'darwin'];
+export const ENROL_ARCH = ['amd64', 'arm64'];
+
+/** Exact wording when GET /install answers 503 (no installer shipped). */
+export const ENROL_NO_INSTALLER_MESSAGE =
+  'this install has no agent installer yet (quoxagent binaries not shipped); enrolment is not available';
+
+/** Argument validation for `fleet enrol`. Returns a list of errors. */
+export function validateEnrolArgs(hostId, options = {}) {
+  const usage = 'Usage: quox fleet enrol <host> [--os linux --arch amd64|arm64] [--run]';
+  const errors = [];
+  if (!hostId || !String(hostId).trim()) errors.push(`Missing <host>. ${usage}`);
+  else if (/[\s'"`$\;|&<>]/.test(String(hostId))) {
+    errors.push(`<host> "${hostId}" has characters that are not valid in a host id (spaces, quotes, shell symbols). ${usage}`);
+  }
+  if (options.os !== undefined && !ENROL_OS.includes(String(options.os))) {
+    errors.push(`--os must be one of ${ENROL_OS.join(', ')} (got "${options.os}"). ${usage}`);
+  }
+  if (options.arch !== undefined && !ENROL_ARCH.includes(String(options.arch))) {
+    errors.push(`--arch must be one of ${ENROL_ARCH.join(', ')} (got "${options.arch}"). ${usage}`);
+  }
+  return errors;
+}
+
+/**
+ * Pull the collector URL the serving collector templated into install.sh's
+ * `COLLECTOR_URL="${COLLECTOR_URL:-<url>}"` default arm. Empty string when the
+ * collector has no event URL configured (the script then refuses to run
+ * without --collector).
+ */
+export function parseInstallerCollectorUrl(script) {
+  const m = /^COLLECTOR_URL="\$\{COLLECTOR_URL:-([^}"]*)\}"$/m.exec(String(script || ''));
+  return m ? m[1].trim() : '';
+}
+
+/**
+ * Probe GET <base>/install. Returns { collectorUrl, bytes } or throws an Error
+ * whose message is plain English, never a raw status dump. `fetchImpl` is
+ * injectable for tests.
+ */
+export async function probeEnrolInstaller(base, fetchImpl = fetch) {
+  const root = String(base).replace(/\/+$/, '');
+  const url = `${root}/install`;
+  let resp;
+  try {
+    resp = await fetchImpl(url, { signal: AbortSignal.timeout(10000) });
+  } catch (err) {
+    throw new Error(
+      `Could not reach ${url} (${err.message}). Check the Quox instance is running and reachable from this machine.`
+    );
+  }
+  if (resp.status === 503) throw new Error(`Enrolment is not available: ${ENROL_NO_INSTALLER_MESSAGE}.`);
+  if (!resp.ok) {
+    throw new Error(`Enrolment is not available: GET ${url} answered HTTP ${resp.status}, not an installer.`);
+  }
+  const script = await resp.text();
+  if (!script.startsWith(INSTALL_SCRIPT_MAGIC)) {
+    throw new Error(
+      `Enrolment is not available: ${url} answered but not with the QuoxAgent installer `
+      + '(a proxy error page or a login redirect is in the way). Point the profile at the Quox instance itself.'
+    );
+  }
+  return { collectorUrl: parseInstallerCollectorUrl(script), bytes: script.length };
+}
+
+/**
+ * The exact command to run ON the host. `base` is the URL the installer is
+ * fetched from (the collector's own templated LAN URL when it has one, else
+ * the instance URL); `collector` is the URL the agent will report to.
+ *
+ * Fail loud (quox#1223): the script is downloaded to a temp file with
+ * `curl -f` and only then run, inside a subshell, so a curl failure (TLS
+ * error, HTTP error) stops the command with curl's non-zero exit and nothing
+ * is piped into bash. TLS verification stays ON unless the operator passes
+ * `insecureTls` (the explicit --insecure-tls opt-in).
+ */
+export function buildEnrolCommand({ base, collector, hostId, insecureTls = false, tlsPin = null, binarySha256 = null }) {
+  const root = String(base).replace(/\/+$/, '');
+  const coll = String(collector || root).replace(/\/+$/, '');
+  // REL-423: binary integrity out of band. install.sh fetches the agent binary from the collector URL (plain http
+  // on a default install) and fails closed when BINARY_SHA256 does not match; the CLI read this hash over its own
+  // verified connection, so a MITM on the binary download cannot swap it.
+  const sha = /^[0-9a-f]{64}$/.test(String(binarySha256 || '')) ? `env BINARY_SHA256=${binarySha256} ` : '';
+  const flags = ` ${INSTALL_SH_FLAGS.hostId} ${shellSingleQuote(hostId)} ${INSTALL_SH_FLAGS.collector} ${shellSingleQuote(coll)} )`;
+  if (tlsPin && !insecureTls) {
+    // REL-423: a self-signed edge with TLS verification ON and no -k. The install's own certificate rides in the
+    // command as the only trusted CA (--cacert: chain + hostname checked) and its public key is pinned too
+    // (--pinnedpubkey: a different key aborts with curl exit 90). Both were read over a verified handshake.
+    const { pem, pin } = pemAndPinParts(tlsPin);
+    return `( f=$(mktemp) && c=$(mktemp) && trap 'rm -f "$f" "$c"' EXIT && printf -- '${pem}' > "$c"`
+      + ` && curl -fsSL --cacert "$c" --pinnedpubkey 'sha256//${pin}' ${root}/install -o "$f" && sudo ${sha}bash "$f"` + flags;
+  }
+  const curl = insecureTls ? 'curl -fsSLk' : 'curl -fsSL';
+  if (sha) return `( f=$(mktemp) && trap 'rm -f "$f"' EXIT && ${curl} ${root}/install -o "$f" && sudo ${sha}bash "$f"` + flags;
+  return `( f=$(mktemp) && trap 'rm -f "$f"' EXIT && ${curl} ${root}/install -o "$f" && sudo bash "$f"`
+    + ` ${INSTALL_SH_FLAGS.hostId} ${shellSingleQuote(hostId)}`
+    + ` ${INSTALL_SH_FLAGS.collector} ${shellSingleQuote(coll)} )`;
+}
+
+/** Validate a { pem, pin } pair and return the shell-safe parts (base64 only, so nothing can break out of quotes). */
+function pemAndPinParts({ pem, pin }) {
+  const body = String(pem || '').replace(/-----(BEGIN|END) CERTIFICATE-----/g, '').replace(/\s+/g, '');
+  if (!/^[A-Za-z0-9+/]+=*$/.test(body) || !/^[A-Za-z0-9+/]{43}=$/.test(String(pin || ''))) throw new Error('invalid TLS pin');
+  const lines = body.match(/.{1,64}/g).join('\\n');
+  return { pem: `-----BEGIN CERTIFICATE-----\\n${lines}\\n-----END CERTIFICATE-----\\n`, pin };
+}
+
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+/**
+ * REL-423: the URL another host fetches the installer from. The instance's own TLS edge (it proxies /install and
+ * /download/quoxagent-* to the collector), with a loopback profile host (the host CLI's `local` profile is
+ * https://localhost:3000) swapped for the LAN host the collector advertises (COLLECTOR_LAN_URL, set by setup.sh).
+ * Returns null when a loopback base has no LAN host to swap in.
+ */
+export function edgeInstallerBase(base, collectorUrl) {
+  const u = new URL(String(base));
+  if (LOOPBACK_HOSTNAMES.has(u.hostname)) {
+    let lan = '';
+    try { lan = collectorUrl ? new URL(collectorUrl).hostname : ''; } catch { lan = ''; }
+    if (!lan || LOOPBACK_HOSTNAMES.has(lan)) return null;
+    u.hostname = lan;
+  }
+  return `${u.protocol}//${u.host}`;
+}
+
+/**
+ * REL-423: read the edge's certificate over a VERIFIED handshake (Node's CAs plus NODE_EXTRA_CA_CERTS, hostname
+ * checked) and return { pem, pin } (pin = base64 SHA-256 of the SPKI, curl's --pinnedpubkey form). Throws with a
+ * plain reason when the certificate cannot be verified, so no pin is ever taken from an unverified peer.
+ */
+export function readEdgeTlsPin(url, { connect = tls.connect, timeoutMs = 10000 } = {}) {
+  const u = new URL(String(url));
+  const host = u.hostname.replace(/^\[|\]$/g, '');
+  const port = Number(u.port || 443);
+  const isIp = /^[0-9.]+$/.test(host) || host.includes(':');
+  return new Promise((resolve, reject) => {
+    const sock = connect({ host, port, servername: isIp ? undefined : host, rejectUnauthorized: true });
+    const done = (fn, v) => { try { sock.destroy(); } catch { /* closed */ } fn(v); };
+    sock.setTimeout?.(timeoutMs, () => done(reject, new Error(`timed out reading the TLS certificate of ${u.host}`)));
+    sock.once('error', (err) => done(reject, new Error(`cannot verify the TLS certificate of ${u.host} (${err.code || err.message})`)));
+    sock.once('secureConnect', () => {
+      try {
+        const raw = sock.getPeerCertificate(true)?.raw;
+        if (!raw) throw new Error(`no certificate from ${u.host}`);
+        const x = new X509Certificate(raw);
+        const spki = x.publicKey.export({ type: 'spki', format: 'der' });
+        done(resolve, { pem: x.toString(), pin: createHash('sha256').update(spki).digest('base64') });
+      } catch (err) { done(reject, err); }
+    });
+  });
 }
 
 /** Argument validation for `fleet codex-provision`. Returns a list of errors. */
@@ -407,7 +565,20 @@ export function registerFleetCommands(program, ctx) {
     .action(async () => {
       auth.requireAuth();
       const ep = resolveEndpoint('v1.fleet.hosts.list');
-      const data = await client.get(ep.path, { service: ep.service });
+      // quox#1224: on an install with no Bastion the collector answers from the agent registry (200) or, with
+      // no agents either, a 503 whose body says so in a sentence. Either way the operator reads that sentence,
+      // never a bare status code.
+      let data;
+      try {
+        data = await client.get(ep.path, { service: ep.service });
+      } catch (err) {
+        if (err && err.status === 503 && err.body && err.body.bastion === false) {
+          data = { hosts: [], bastion: false, message: err.body.message || err.body.error };
+        } else {
+          throw err;
+        }
+      }
+      if (data && data.bastion === false && data.message && program.opts().output !== 'json') printInfo(data.message);
       const raw = data.hosts || data || [];
       const rows = (raw || []).map(h => ({
         id: h.id,
@@ -421,7 +592,7 @@ export function registerFleetCommands(program, ctx) {
         columns: ['id', 'ip', 'group', 'state', 'health', 'last_seen'],
         headers: ['Host', 'IP', 'Group', 'State', 'Health', 'Last Seen'],
         rows,
-      }, { format: program.opts().output, emptyMessage: 'No hosts in the Bastion registry.' });
+      }, { format: program.opts().output, emptyMessage: data && data.bastion === false ? 'No agents enrolled yet.' : 'No hosts in the Bastion registry.' });
     });
 
   fleet
@@ -514,6 +685,10 @@ export function registerFleetCommands(program, ctx) {
       // quox#791: a held call prints how to read the output once approved.
       const heldId = data && data.pending && (data.approvalId || (data._approval && data._approval.id));
       if (heldId) console.error(`after approval run: quox approvals result ${heldId}`);
+      // quox#999: a failed tool call must exit non-zero, or a script/CI step reads success on
+      // failure. A HELD (pending) call is not a failure — it awaits a human — so it stays 0.
+      const failed = (data && data.success === false) || (data && data.result && data.result.success === false);
+      if (failed && !(data && data.pending)) process.exitCode = 1;
     });
 
   fleet
@@ -842,6 +1017,138 @@ export function registerFleetCommands(program, ctx) {
       console.log(chalk.dim('  dev.register / dev.sessions profiles are SIGNED by the collector that issued them,'));
       console.log(chalk.dim(`  so a dev-enabled host must re-register with ${collector} before dev sessions work again.`));
       console.log();
+    });
+
+  fleet
+    .command('enrol <host>')
+    .alias('enroll')
+    .description('Print (default; or with --run, execute over the governed path) the exact command that enrols a host into this Quox instance. Needs the instance to ship the quoxagent installer.')
+    .option('--os <os>', `target OS: ${ENROL_OS.join('|')} (default: linux)`)
+    .option('--arch <arch>', `target CPU: ${ENROL_ARCH.join('|')} (default: amd64)`)
+    // NOTE: no --print flag. Printing is the default, and `--print` anywhere in argv is claimed by the
+    // root headless-chat router (lib/quoxon/route.js), which would swallow this whole command.
+    .option('--run', 'run it on <host> through the governed exec path (needs <host> already reachable by the Bastion; may wait on approval)')
+    .option('--insecure-tls', 'opt in to skipping TLS verification when fetching the installer (self-signed certs). Off by default; prints a warning')
+    .option('--exec-org <id>', 'org ID for the governed exec calls (with --run)')
+    .option('--wait <seconds>', 'with --run: how long to wait for the host to show up', '120')
+    .action(async (hostId, options) => {
+      auth.requireAuth();
+      const errors = validateEnrolArgs(hostId, options);
+      if (errors.length) throw new Error(errors.join('\n'));
+
+      const host = String(hostId).trim();
+      const os = options.os || 'linux';
+      const arch = options.arch || 'amd64';
+      const isJson = program.opts().output === 'json';
+      const say = (fn, msg) => { if (!isJson) fn(msg); };
+      const base = String(ctx.config.getBaseUrl()).replace(/\/+$/, '');
+
+      // 1. Is there an installer at all? Never hand out a command that cannot work.
+      const probe = await probeEnrolInstaller(base);
+
+      // 2. A binary must be staged for the platform; its hash (read over this verified connection) is pinned
+      //    into the command as BINARY_SHA256 (REL-423), so the host checks the binary it downloads.
+      const binUrl = `${base}/download/quoxagent-${os}-${arch}.sha256`;
+      let bin;
+      try { bin = await fetch(binUrl, { signal: AbortSignal.timeout(10000) }); }
+      catch (err) { throw new Error(`Could not reach ${binUrl} (${err.message}).`); }
+      if (!bin.ok) {
+        throw new Error(
+          `Enrolment is not available for ${os}/${arch}: this install has no quoxagent binary staged for it (HTTP ${bin.status}).`
+        );
+      }
+      const binarySha256 = (/^([0-9a-f]{64})\b/.exec(await bin.text()) || [])[1] || null;
+      if (!binarySha256) throw new Error(`Enrolment is not available for ${os}/${arch}: ${binUrl} did not return a SHA-256.`);
+
+      const collector = probe.collectorUrl || base;
+      const insecureTls = Boolean(options.insecureTls);
+      // REL-423 (supersedes the quox#1223 plain-http collector fetch): an https instance hands out its own TLS edge
+      // (/install is proxied to the collector there), with TLS verification ON for its self-signed certificate:
+      // the certificate and its key pin are read now over a verified handshake and travel in the command.
+      // --insecure-tls (explicit opt-in) and a plain-http instance keep the collector URL, as before.
+      let installerBase = probe.collectorUrl || base;
+      let tlsPin = null;
+      if (/^https:/i.test(base) && !insecureTls) {
+        installerBase = edgeInstallerBase(base, probe.collectorUrl);
+        if (!installerBase) {
+          throw new Error(
+            `Enrolment needs this server's LAN address: the profile points at ${base} and the collector advertises no `
+            + 'LAN URL. Set COLLECTOR_LAN_URL=http://<this-server-LAN-address>:9848 in the install\'s .env '
+            + '(./scripts/setup.sh does this) and restart the collector, or use a profile with the LAN address.'
+          );
+        }
+        try { tlsPin = await readEdgeTlsPin(installerBase); }
+        catch (err) {
+          throw new Error(
+            `Cannot hand out a verified enrol command: ${err.message}. If the certificate does not name `
+            + `${new URL(installerBase).hostname}, reissue it (rm ssl/quox.crt ssl/quox.key && ./scripts/setup.sh); `
+            + 'or re-run with --insecure-tls to accept the risk explicitly.'
+          );
+        }
+      }
+      const command = buildEnrolCommand({ base: installerBase, collector, hostId: host, insecureTls, tlsPin, binarySha256 });
+
+      if (!options.run) {
+        if (isJson) {
+          console.log(JSON.stringify({ host_id: host, os, arch, installer_url: `${installerBase}/install`, collector, insecure_tls: insecureTls, tls_pin: tlsPin ? `sha256//${tlsPin.pin}` : null, binary_sha256: binarySha256, command }, null, 2));
+          return;
+        }
+        if (!probe.collectorUrl) {
+          printWarning(`The installer has no collector URL configured (COLLECTOR_LAN_URL / COLLECTOR_PUBLIC_URL on the collector); the command passes ${collector} explicitly.`);
+        }
+        if (insecureTls) {
+          printWarning('--insecure-tls: the command skips TLS certificate verification. Anyone on the path can swap the installer, which runs as root. Use it only on a network you trust.');
+        } else if (/^http:/i.test(installerBase)) {
+          printWarning(`The installer is fetched over plain http (${installerBase}); the agent binary is still checked against BINARY_SHA256.`);
+        }
+        console.log();
+        console.log(`Run this on ${chalk.cyan(host)} (${os}/${arch}), as a user who can sudo:`);
+        console.log();
+        console.log(`  ${chalk.bold(command)}`);
+        console.log();
+        console.log(chalk.dim('  Then `quox fleet agents` and `quox fleet hosts` list it once it heartbeats.'));
+        console.log(chalk.dim('  The host must be able to reach ' + collector + ' (the instance\'s collector).'));
+        console.log();
+        return;
+      }
+
+      // --run: governed ssh_exec to <host>, detached and polled.
+      say(printInfo, `Installing on ${host} from ${base} (detached, polled)...`);
+      const install = await runDetachedStep(host, {
+        unit: 'quoxagent-enrol',
+        command,
+        orgOverride: options.execOrg,
+      });
+      if (install.state === 'timeout') {
+        throw new Error(`The install did not finish in time on ${host}. Check \`systemctl status quoxagent-enrol\` and ${install.log} on the host, then re-run.`);
+      }
+      if (install.state === 'failed') {
+        throw new Error(`QuoxAgent install failed on ${host} (exit ${install.exitCode}):\n${install.text}`);
+      }
+      say(printSuccess, '  install completed.');
+
+      const waitSeconds = Math.max(0, Number.parseInt(options.wait, 10) || 0);
+      const deadline = Date.now() + waitSeconds * 1000;
+      let seen = false;
+      let detail = 'not listed yet';
+      do {
+        try {
+          const ep = resolveEndpoint('v1.agents.list');
+          const data = await client.get(ep.path, { service: ep.service });
+          const agents = data.agents || data || [];
+          seen = (Array.isArray(agents) ? agents : []).some((a) => a.host_id === host);
+          detail = seen ? 'heartbeating' : `agent list has ${Array.isArray(agents) ? agents.length : 0} entries, none matching ${host}`;
+        } catch (err) { detail = err.message; }
+        if (seen || Date.now() >= deadline) break;
+        await sleep(5000);
+      } while (Date.now() < deadline);
+
+      if (isJson) {
+        console.log(JSON.stringify({ host_id: host, command, install: { state: install.state, exit_code: install.exitCode }, enrolled: seen, detail }, null, 2));
+        return;
+      }
+      if (seen) printEvent(glyphLine('bastion', 'host enrolled', { result: `${host} -> ${collector}`, status: 'ok' }));
+      else printWarning(`${host} is not listed yet (${detail}). The install succeeded; check \`quox fleet agents\` shortly.`);
     });
 
   fleet

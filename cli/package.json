@@ -1,6 +1,6 @@
 {
   "name": "quoxcli",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Quox: the conversational front door to your self-hosted AI agent control plane",
   "type": "module",
   "bin": {
@@ -58,6 +58,7 @@
     "!lib/**/__tests__/",
     "!lib/vendor/",
     "!lib/core/websiteSession.js",
+    "!lib/quoxon/whatsnew.md",
     "README.md",
     "LICENSE"
   ],

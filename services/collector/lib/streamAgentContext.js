@@ -70,8 +70,8 @@ function buildTurnSystemPrompt({ agent, fullPrompt, profile = 'full', toolCount 
   }
   const p = applyToolHonesty(base, toolCount);
   if (toolCount <= 0) return p;
-  const { STATE_CHANGE_RULE, CLAIM_RULES } = require('./turnToolSelection.js');
-  return `${p}\n\n## Tools this turn\n- ${STATE_CHANGE_RULE}\n- Only the tools listed are offered. If none fits, call more_tools with what you need before saying you cannot.\n${CLAIM_RULES.map((r) => `- ${r}`).join('\n')}`;
+  const { STATE_CHANGE_RULE, CLAIM_RULES, DECISION_RULE } = require('./turnToolSelection.js');
+  return `${p}\n\n## Tools this turn\n- ${STATE_CHANGE_RULE}\n- Only the tools listed are offered. If none fits, call more_tools with what you need before saying you cannot.\n${[...CLAIM_RULES, DECISION_RULE].map((r) => `- ${r}`).join('\n')}`;
 }
 
 module.exports = { resolvePromptProfile, buildTurnSystemPrompt, applyToolHonesty, resolveStreamAgentContext, genericPrompt, NO_TOOLS_NOTE };

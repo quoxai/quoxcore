@@ -38,6 +38,25 @@ const { buildChatStack } = require('./aoclStack.js');
 const { runPipeline, emitLayerEnvelope, EXPECTED_LAYERS } = require('./aoclPipeline.js');
 
 const PRE_LAYERS = ['L0', 'L1', 'L2', 'L3', 'L4'];
+
+// TUI-DIVIDER: short layer names for the per-layer `aocl.layer` stream event (same words the
+// quoxon /aocl table uses).
+const LAYER_NAMES = Object.freeze({
+  L0: 'ingress', L1: 'identity', L2: 'router', L3: 'policy', L4: 'planner', L5: 'context',
+  L6: 'shape', L7: 'delegate', L8: 'verify', L9: 'assemble', L10: 'audit',
+});
+
+/**
+ * One layer record -> the `aocl.layer` event body. `result` is what a client colours by:
+ * blocked (reject), bypass (not evaluated on this path), gated (passed through a gate:
+ * a granted approval at L3, a warned verification at L8), pass.
+ */
+function layerEvent(rec, phase) {
+  const result = rec.outcome === 'reject' ? 'blocked'
+    : rec.outcome === 'bypass' ? 'bypass'
+    : (rec.gated || /^warn:/.test(String(rec.reason || ''))) ? 'gated' : 'pass';
+  return { id: rec.id, name: LAYER_NAMES[rec.id] || rec.id, outcome: rec.outcome, result, ms: rec.ms, phase, ...(rec.reason ? { reason: rec.reason } : {}) };
+}
 // Identity and policy must never degrade to a timeout bypass.
 const PRE_BUDGET_OVERRIDES = Object.freeze({ L1: 0, L3: 0 });
 
@@ -77,6 +96,12 @@ function createStreamAoclTurn({ aoclCtx, voltDb = null, deps = {} } = {}) {
   let postMs = 0;
   let postDone = false;
   let verdict = null;
+  const listeners = [];
+  const emitted = []; // aocl.layer bodies in the order the layers were recorded
+
+  function notify(ev) {
+    for (const fn of listeners) { try { fn(ev); } catch { /* a client write never breaks the turn */ } }
+  }
 
   const stack = buildChatStack({
     profile: 'default',
@@ -89,8 +114,19 @@ function createStreamAoclTurn({ aoclCtx, voltDb = null, deps = {} } = {}) {
   });
   const byId = Object.fromEntries(stack.layers.map(l => [l.id, l]));
 
-  function record(id, outcome, ms, reason) {
-    records.set(id, { id, outcome, ms: Math.round((Number(ms) || 0) * 10) / 10, ...(reason ? { reason: String(reason).slice(0, 120) } : {}) });
+  function record(id, outcome, ms, reason, { gated = false } = {}) {
+    const rec = { id, outcome, ms: Math.round((Number(ms) || 0) * 10) / 10, ...(reason ? { reason: String(reason).slice(0, 120) } : {}) };
+    records.set(id, rec);
+    const ev = layerEvent({ ...rec, gated }, PRE_LAYERS.includes(id) ? 'pre' : 'post');
+    emitted.push(ev);
+    notify(ev);
+  }
+
+  /** Attach a per-layer listener: replays every layer already recorded, then streams new ones. */
+  function onLayer(fn) {
+    if (typeof fn !== 'function') return;
+    for (const ev of emitted) { try { fn(ev); } catch { /* replay is best-effort */ } }
+    listeners.push(fn);
   }
 
   function bypass(id, reason, extras = {}) {
@@ -141,7 +177,7 @@ function createStreamAoclTurn({ aoclCtx, voltDb = null, deps = {} } = {}) {
     for (const id of PRE_LAYERS) {
       if (r.layersBypassed.includes(id)) record(id, 'bypass', ms[id], aoclCtx.layerResults[id]?.reason);
       else if (r.deniedAtLayer === id) record(id, 'reject', ms[id], aoclCtx.layerResults[id]?.reason);
-      else if (r.layersRun.includes(id)) record(id, 'complete', ms[id]);
+      else if (r.layersRun.includes(id)) record(id, 'complete', ms[id], null, { gated: id === 'L3' && Boolean(aoclCtx.layerResults.L3?.approvalSatisfied) });
     }
     delete aoclCtx.__aoclLayerMs;
     if (!r.proceed) {
@@ -156,7 +192,7 @@ function createStreamAoclTurn({ aoclCtx, voltDb = null, deps = {} } = {}) {
    * @param {{ text?: string, status?: 'completed'|'failed'|'interrupted' }} p
    * @returns {Promise<{ summary: object, verdict: object|null }>}
    */
-  async function runPost({ text = '', status = 'completed' } = {}) {
+  async function runPost({ text = '', status = 'completed', grounding = null } = {}) {
     if (postDone) return { summary: summary(), verdict };
     postDone = true;
     const t0 = nowMs();
@@ -184,7 +220,12 @@ function createStreamAoclTurn({ aoclCtx, voltDb = null, deps = {} } = {}) {
         l8 = { proceed: false, reason: `l8.exception: ${err && err.message}`, extras: { exception: true } };
       }
       const l8Ms = nowMs() - s8;
-      const l8Extras = (l8 && l8.extras) || {};
+      const l8Extras = { ...((l8 && l8.extras) || {}) };
+      // QUOXON-ENGINE class 2: the grounding contract's verdict for this answer (computed on
+      // the answer path with the turn's tool results) is recorded by L8 and surfaces as a
+      // warned verdict, so ungrounded claims are flagged in the UI and in the L8 envelope.
+      const groundingFlagged = grounding && typeof grounding === 'object' && Object.keys(grounding).length > 0;
+      if (groundingFlagged) l8Extras.grounding = grounding;
       aoclCtx.layerResults.L8 = { ...l8, ...l8Extras, duration_ms: l8Ms };
       const l8Outcome = l8 && l8.bypass ? 'bypass' : (l8 && l8.proceed === false ? 'reject' : 'complete');
       emitLayerEnvelope(aoclCtx, 'L8', l8Outcome, { ...l8Extras, reason: l8 && l8.reason, duration_ms: l8Ms });
@@ -193,6 +234,8 @@ function createStreamAoclTurn({ aoclCtx, voltDb = null, deps = {} } = {}) {
         verdict = { verdict: 'blocked', layer: 'L8', mode: l8Extras.mode || 'enforce', reason: l8.reason || 'verification_failed', delivered: true };
       } else if (l8Outcome === 'complete' && l8Extras.valid === false) {
         verdict = { verdict: 'warned', layer: 'L8', mode: l8Extras.mode || 'warn', reason: l8.reason || 'verification_failed', delivered: true };
+      } else if (groundingFlagged && l8Outcome !== 'reject') {
+        verdict = { verdict: 'warned', layer: 'L8', mode: 'warn', reason: `grounding: ${Object.keys(grounding).join(', ')} not backed by a tool result this turn`, grounding, delivered: true };
       }
 
       bypass('L9', 'stream.delivered_incrementally');
@@ -231,7 +274,7 @@ function createStreamAoclTurn({ aoclCtx, voltDb = null, deps = {} } = {}) {
     };
   }
 
-  return { runPre, runPost, summary, get postDone() { return postDone; } };
+  return { runPre, runPost, summary, onLayer, layerEvents: () => emitted.slice(), get postDone() { return postDone; } };
 }
 
 /**
@@ -249,7 +292,7 @@ function createStreamAoclTurn({ aoclCtx, voltDb = null, deps = {} } = {}) {
  */
 function attachStreamAoclClose({ turnStream, aoclTurn, timeoutMs = 2000, log = console } = {}) {
   if (!aoclTurn || !turnStream) return { pending: () => false, close: () => Promise.resolve() };
-  const seen = { text: '', chunks: '', interrupted: false };
+  const seen = { text: '', chunks: '', interrupted: false, grounding: null };
   let sent = false;
   let closing = null;
 
@@ -259,6 +302,7 @@ function attachStreamAoclClose({ turnStream, aoclTurn, timeoutMs = 2000, log = c
     if (data && data.type === 'done') {
       if (typeof data.full_response === 'string' && data.full_response) seen.text = data.full_response;
       if (data.interrupted) seen.interrupted = true;
+      if (data.grounding_flags && typeof data.grounding_flags === 'object') seen.grounding = data.grounding_flags;
     }
     return send(data);
   };
@@ -271,7 +315,7 @@ function attachStreamAoclClose({ turnStream, aoclTurn, timeoutMs = 2000, log = c
     const status = (seen.interrupted || st.interrupted) ? 'interrupted' : (st.failed ? 'failed' : 'completed');
     let timer;
     const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(null), timeoutMs); });
-    closing = Promise.race([aoclTurn.runPost({ text: seen.text || seen.chunks, status }), timeout])
+    closing = Promise.race([aoclTurn.runPost({ text: seen.text || seen.chunks, status, grounding: seen.grounding }), timeout])
       .then((out) => {
         const summary = out ? out.summary : aoclTurn.summary();
         if (out && out.verdict) turnStream.emit('aocl.verdict', out.verdict);
@@ -286,4 +330,4 @@ function attachStreamAoclClose({ turnStream, aoclTurn, timeoutMs = 2000, log = c
   return { pending: () => !sent, close };
 }
 
-module.exports = { createStreamAoclTurn, attachStreamAoclClose, PRE_LAYERS, legacyDenial };
+module.exports = { createStreamAoclTurn, attachStreamAoclClose, PRE_LAYERS, legacyDenial, layerEvent, LAYER_NAMES };

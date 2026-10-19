@@ -26,7 +26,7 @@ const PAGE = 200;
 const MAX_ERRORS = 20;
 const CONCURRENCY = 2;
 
-function createImportService({ notesqCall, uploadAttachment, audit, now = () => Date.now(), ttlMs = JOB_TTL_MS }) {
+function createImportService({ notesqCall, uploadAttachment, audit, now = () => Date.now(), ttlMs = JOB_TTL_MS, jobStore = null }) {
   for (const [k, v] of Object.entries({ notesqCall, uploadAttachment, audit })) {
     if (typeof v !== 'function') throw new Error(`createImportService requires ${k}`);
   }
@@ -130,6 +130,7 @@ function createImportService({ notesqCall, uploadAttachment, audit, now = () => 
       job.status = 'failed';
       job.fatal = String(e?.message || e).slice(0, 300);
     }
+    jobStore?.save(job); // quox#1015: the summary outlives the 1h memory TTL and a collector restart
     emit('quox.notes.import.completed', job, { status: job.status, total: job.total, created: job.created, skipped: job.skipped, failed: job.failed });
   }
 
@@ -143,15 +144,22 @@ function createImportService({ notesqCall, uploadAttachment, audit, now = () => 
         createdAt: now(), names: new Map(), mimes: new Map(),
       };
       jobs.set(job.id, job);
+      jobStore?.save(job);
       emit('quox.notes.import.started', job, { total: job.total });
-      const done = run(job, parsed).catch((e) => { console.error('[notesq-import] runner crashed:', e?.message); job.status = 'failed'; job.fatal = 'internal_error'; });
+      const done = run(job, parsed).catch((e) => { console.error('[notesq-import] runner crashed:', e?.message); job.status = 'failed'; job.fatal = 'internal_error'; jobStore?.save(job); });
       job.done = done;
       return job.id;
     },
     /** Org+user scoped lookup; null for unknown, expired or another caller's job. */
     get(jobId, { orgId, userId }) {
       sweep();
-      const j = jobs.get(jobId);
+      let j = jobs.get(jobId);
+      if (!j && jobStore) {
+        // quox#1015: past the memory TTL or after a restart, read the persisted summary
+        j = jobStore.load(jobId);
+        // stored as running but no longer in memory: the collector restarted mid-job, it is not still going
+        if (j && j.status === 'running') j = { ...j, status: 'interrupted', fatal: 'the collector restarted while this job was running; notes written before that are kept (re-run it: already-imported notes are skipped)' };
+      }
       if (!j || j.orgId !== orgId || j.userId !== (userId || null)) return null;
       return view(j);
     },

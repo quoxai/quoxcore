@@ -31,9 +31,9 @@
 // ── Repo detection (verbatim from gripe.json's systemPromptAdditions "Step 1: Parse", item 1) ──
 const REPO_KEYWORD_TABLE = [
   { repo: 'quoxai/quoxwebsite', keywords: ['website', 'pricing', 'landing', 'blog', 'seo'] },
-  { repo: 'quoxai/quox', keywords: ['dashboard', 'sidebar', 'panel', 'plugin', 'agent', 'memory', 'glass', 'cogcore', 'wiremap', 'opsdeck', 'mission control'] },
+  { repo: 'quoxai/quox', keywords: ['dashboard', 'sidebar', 'panel', 'plugin', 'agent', 'memory', 'glass', 'cogcore', 'wiremap', 'opsdeck', 'mission control', 'quox tui', 'tui', 'quoxon', 'slash command', 'quox window', 'status line'] },
   { repo: 'quoxai/quoxflow', keywords: ['flow', 'workflow', 'cron', 'executor', 'schedule', 'quoxflow'] },
-  { repo: 'quoxai/quoxterminal', keywords: ['terminal', 'tauri', 'desktop'] },
+  { repo: 'quoxai/quoxterminal', keywords: ['quoxterminal', 'tauri', 'desktop app'] },
   // QUOXON-PRIVACY: no public repo (quox-plugin-sdk, quoxmcp etc.) is ever selected by
   // keyword. Public repos are reachable only by explicit target + confirm.
   { repo: 'quoxai/quoxbastion', keywords: ['bastion', 'ssh', 'fleet', 'vm'] },

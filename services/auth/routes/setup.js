@@ -8,6 +8,7 @@
  * - Dev mode auto-login
  */
 
+import { hostPath } from '../utils/hostPaths.js';
 import { Router } from 'express';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import * as fsPromises from 'fs/promises';
@@ -2004,7 +2005,7 @@ IP.2 = ${targetIp}
 // BOOTSTRAP RESTORE — Restore from backup on fresh instances
 // ============================================================================
 
-const BACKUP_ROOT = process.env.BACKUP_ROOT || '/opt/quoxcore/backups';
+const BACKUP_ROOT = process.env.BACKUP_ROOT || hostPath('backups');
 // Writable temp dir inside the container's data volume (always writable by the app user)
 const AUTH_DATA_DIR = process.env.AUTH_DB_PATH
     ? dirname(process.env.AUTH_DB_PATH)
@@ -2904,6 +2905,8 @@ router.get('/internal/has-plugin', (req, res) => {
             licensed: access.licensed,
             tier: tierForPlugin(db, pluginId),
             ...(access.reason ? { reason: access.reason } : {}),
+            // PLUGIN-IMG #1012: lapsed-lease read-only grace (never a licence).
+            ...(access.lapsed ? { lapsed: true, lease_expired_at: access.lapsed.lease_expired_at, read_only_until: access.lapsed.read_only_until } : {}),
         });
     } catch (err) {
         console.error('[has-plugin] error:', err);

@@ -141,7 +141,8 @@ export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
   const [totalConversations, setTotalConversations] = useState(null)
   const [selectedConv, setSelectedConv] = useState(null)
   const [messages, setMessages] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(Boolean(authFetch && orgId && widget?.id))
+  const [reloadTick, setReloadTick] = useState(0)
   const [msgLoading, setMsgLoading] = useState(false)
   const [error, setError] = useState(null)
   const [filters, setFilters] = useState({ status: '', rating: '', visitor_id: '', q: '', blocked: false, includeTest: false })
@@ -228,7 +229,7 @@ export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
       .catch(err => { if (!cancelled) setError(err.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [authFetch, orgId, widget?.id, queryString])
+  }, [authFetch, orgId, widget?.id, queryString, reloadTick])
 
   const handleSelectConv = async (conv) => {
     setSelectedConv(conv)
@@ -410,7 +411,7 @@ export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
       <div className="qx-flat-panel" style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0, overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>
-            Conversations ({totalConversations ?? conversations.length})
+            Conversations ({loading && conversations.length === 0 ? '…' : error && conversations.length === 0 ? '?' : (totalConversations ?? conversations.length)})
           </span>
           {/* P2 "Logs list upgrade": one Export button opening a CSV/JSON
               menu, instead of two bare-label buttons stripped of context. */}
@@ -626,7 +627,8 @@ export default function LogsTab({ widget, authFetch, orgId, correctedBy }) {
         )}
         {error && (
           <div style={{ padding: 20, textAlign: 'center', color: '#ef4444', fontSize: 11 }}>
-            Failed to load: {error}
+            Failed to load: {error}{' '}
+            <button type="button" className="glass-btn" data-testid="logs-retry" onClick={() => setReloadTick(t => t + 1)} style={{ padding: '2px 10px', fontSize: 11, cursor: 'pointer' }}>Retry</button>
           </div>
         )}
       </div>

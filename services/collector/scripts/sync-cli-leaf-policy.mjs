@@ -33,6 +33,17 @@ if (bad.length) throw new Error(`source policy has ${bad.length} malformed rows 
 const rows = [...src.rows].sort((a, b) => a.path.localeCompare(b.path)).map((r) => ({ path: r.path, class: r.class, reason: String(r.reason || '') }));
 const header = { vendored_from: 'docs/matrix/sources/cli-leaf-policy.json', cli: src.cli || null, built_at: src.built_at || null, counts: src.counts || null };
 const body = `${JSON.stringify(header).slice(0, -1)}, "rows": [\n${rows.map((r) => `  ${JSON.stringify(r)}`).join(',\n')}\n]}\n`;
+// The TUI's slash-to-CLI table (cli/lib/quoxon/slash/cliLeaves.json, path -> class) is a second
+// vendored copy; sync it in the same pass so the two can never drift apart (2026-10-14: it fell 4 leaves behind).
+const CLI_OUT = join(here, '..', '..', '..', 'cli', 'lib', 'quoxon', 'slash', 'cliLeaves.json');
+const cliBody = JSON.stringify(Object.fromEntries(rows.map(r => [r.path, r.class]).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))), null, 0).replace(/,"/g, ',\n"') + '\n';
+if (check) {
+  const cliCur = existsSync(CLI_OUT) ? readFileSync(CLI_OUT, 'utf8') : '';
+  if (JSON.stringify(JSON.parse(cliCur || '{}')) !== JSON.stringify(JSON.parse(cliBody))) { console.error('cli/lib/quoxon/slash/cliLeaves.json drifted; run: node services/collector/scripts/sync-cli-leaf-policy.mjs'); process.exitCode = 1; }
+} else {
+  writeFileSync(CLI_OUT, cliBody);
+  console.log(`vendored ${rows.length} leaf classes to ${CLI_OUT}`);
+}
 if (check) {
   const cur = existsSync(OUT) ? readFileSync(OUT, 'utf8') : '';
   if (cur !== body) { console.error('cliLeafPolicy.json drifted from docs/matrix/sources/cli-leaf-policy.json; run: node services/collector/scripts/sync-cli-leaf-policy.mjs'); process.exitCode = 1; }

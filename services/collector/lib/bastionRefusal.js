@@ -20,6 +20,7 @@ function bastionHttpErrorResult(status, text) {
   return {
     success: false,
     refused: true,
+    error_code: 'approval_required',
     http_status: 403,
     approval_card_created: false,
     error: `Bastion returned 403 (refused): ${detail}. Nothing ran, and no approval card was created. `

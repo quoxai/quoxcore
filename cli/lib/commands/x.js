@@ -340,10 +340,19 @@ export function registerXCommands(program, ctx) {
       const orgId = resolveOrgId(auth, program);
       const ep = resolveEndpoint('v1.tools.execute');
 
-      const budgetData = await client.post(ep.path, {
-        service: ep.service,
-        body: { tool_name: 'x_budget_status', input: {}, org_id: orgId },
-      });
+      // Budget over the org-scoped REST route, not the x_budget_status tool: that tool left the
+      // Default hat (cap room), so the tool path answered "not granted" for every caller.
+      let budgetData;
+      try {
+        const actEp = resolveEndpoint('x.activity');
+        const act = await client.get(actEp.path, { service: actEp.service, query: { org_id: orgId } });
+        const b = act && act.budget;
+        budgetData = b && typeof b === 'object'
+          ? { success: true, daily_used: b.dailyUsed, daily_limit: b.dailyLimit, monthly_used: b.monthlyUsed, monthly_limit: b.monthlyLimit, org_id: act.org_id || orgId }
+          : { success: false, error: (act && act.error) || 'budget missing from /x/activity response' };
+      } catch (err) {
+        budgetData = { success: false, error: err.message };
+      }
 
       let credResult = null;
       let credError = null;

@@ -64,6 +64,47 @@ const RETRY_CAP_MS = 60 * 60 * 1000;
 const retryBackoffMs = (attempts) => Math.min(RETRY_CAP_MS, RETRY_BASE_MS * 2 ** Math.max(0, attempts - 1));
 
 /**
+ * BRAIN2-FABLE11: reads at most `maxBytes` of a note. An oversize note is
+ * indexed as a truncated head with a visible marker instead of being skipped
+ * (long notes used to vanish from the brain without trace). Never reads more
+ * than maxBytes+1 bytes into memory.
+ * @returns {{content: string, truncated: boolean, totalBytes: number}}
+ */
+function readNoteHead(fsImpl, filePath, maxBytes = MAX_FILE_BYTES) {
+  let content;
+  let total;
+  let truncated = false;
+  let size = null;
+  try { if (typeof fsImpl.statSync === 'function') size = fsImpl.statSync(filePath).size; } catch { size = null; }
+  // Normal-size notes take the plain readFileSync path (also the injectable test seam);
+  // only a note known to be oversize is read as a bounded head through a descriptor.
+  if (typeof size === 'number' && size > maxBytes
+    && typeof fsImpl.openSync === 'function' && typeof fsImpl.readSync === 'function' && typeof fsImpl.fstatSync === 'function') {
+    const fd = fsImpl.openSync(filePath, 'r');
+    try {
+      total = fsImpl.fstatSync(fd).size;
+      const buf = Buffer.alloc(maxBytes + 1);
+      const n = fsImpl.readSync(fd, buf, 0, maxBytes + 1, 0);
+      truncated = n > maxBytes;
+      content = buf.subarray(0, Math.min(n, maxBytes)).toString('utf8');
+    } finally {
+      try { fsImpl.closeSync(fd); } catch { /* ignore */ }
+    }
+  } else {
+    const full = fsImpl.readFileSync(filePath, 'utf8');
+    const b = Buffer.from(full, 'utf8');
+    total = b.length;
+    truncated = total > maxBytes;
+    content = truncated ? b.subarray(0, maxBytes).toString('utf8') : full;
+  }
+  if (truncated) {
+    content = content.replace(/\uFFFD+$/, ''); // a multibyte char cut at the boundary
+    content += `\n\n[Quox Feed: truncated, first ${Buffer.byteLength(content, 'utf8')} of ${total} bytes indexed]\n`;
+  }
+  return { content, truncated, totalBytes: total };
+}
+
+/**
  * Derives a short, stable, path-specific watermark key so two different
  * connected folders (or the same source_type reconnected at a new path)
  * never share a cursor. Deliberately NOT reversible/guessable-sensitive —
@@ -235,7 +276,8 @@ function walkFolder(rootDir, fsImpl, { maxEntries = MAX_WALK_ENTRIES, extensions
 
     let names;
     try {
-      names = fsImpl.readdirSync(dir);
+      // name order, not the filesystem's listing order: the same folder always indexes the same way (feedW7A 038)
+      names = [...fsImpl.readdirSync(dir)].sort();
     } catch {
       continue; // unreadable directory — skip, never abort the whole walk
     }
@@ -370,7 +412,7 @@ async function ingestFolder(orgId, opts = {}, deps = {}) {
       plan = await feedSweep.planRoot({
         store: sweepStore, orgId, key: watermarkKey, root: guard.path, fsImpl,
         walkOpts: { extensions: ALLOWED_EXTENSIONS }, maxFiles, storedWatermark,
-        maxFileBytes: MAX_FILE_BYTES, prefix: (rel) => `folder/${rel}`,
+        maxFileBytes: Infinity, prefix: (rel) => `folder/${rel}`, // oversize notes are truncated at read, never skipped
       });
     } catch (err) {
       result.error = `walk failed — ${err.message}`;
@@ -379,7 +421,7 @@ async function ingestFolder(orgId, opts = {}, deps = {}) {
     }
     eligible = plan.eligible;
     remaining = plan.remaining;
-    if (plan.oversize) result.oversize = plan.oversize;
+    if (plan.hasMore) result.moreWork = true;
   } else {
     let entries = [];
     try {
@@ -395,12 +437,11 @@ async function ingestFolder(orgId, opts = {}, deps = {}) {
     // Compound (mtime, relPath) cursor: files tied on mtime beyond the cap are
     // owed to the next tick, not lost (BRAIN2-V3 A4).
     const allEligible = entries
-      .filter((e) => feedWatermark.isAfterCursor(storedWatermark, e.mtimeIso, e.relPath) && e.sizeBytes <= MAX_FILE_BYTES)
+      .filter((e) => feedWatermark.isAfterCursor(storedWatermark, e.mtimeIso, e.relPath))
       .sort((a, b) => feedWatermark.compareByTsId({ ts: a.mtimeIso, id: a.relPath }, { ts: b.mtimeIso, id: b.relPath }));
-    const oversizeCount = entries.filter((e) => e.sizeBytes > MAX_FILE_BYTES).length;
-    if (oversizeCount) result.oversize = oversizeCount;
     eligible = allEligible.slice(0, maxFiles);
     remaining = allEligible.slice(maxFiles).map((e) => ({ ts: e.mtimeIso, id: e.relPath }));
+    if (remaining.length > 0) result.moreWork = true;
   }
 
   const vaultName = config.name || `Folder: ${path.basename(guard.path)}`;
@@ -461,19 +502,21 @@ async function ingestFolder(orgId, opts = {}, deps = {}) {
   if (canReal) { try { rootReal = fsImpl.realpathSync(guard.path); } catch { /* read will fail below */ } }
   const allowedReal = process.env.FEED_FOLDER_ALLOWED_ROOTS ? getAllowedRoots(fsImpl, { orgId }) : null;
   const readContained = (filePath) => {
-    if (!canReal) return fsImpl.readFileSync(filePath, 'utf8');
+    if (!canReal) return readNoteHead(fsImpl, filePath);
     const real = fsImpl.realpathSync(filePath);
     if (!isWithin(real, rootReal) || (allowedReal && !allowedReal.some((r) => isWithin(real, r)))) {
       const e = new Error(`symlink escapes root ${guard.path}`);
       e.code = 'EFEEDESCAPE';
       throw e;
     }
-    return fsImpl.readFileSync(real, 'utf8');
+    return readNoteHead(fsImpl, real);
   };
 
   for (const entry of eligible) {
     try {
-      const content = readContained(entry.filePath);
+      const head = readContained(entry.filePath);
+      const content = head.content;
+      if (head.truncated) result.truncated = (result.truncated || 0) + 1;
       const title = path.basename(entry.relPath).replace(/\.(md|markdown|txt)$/i, '');
       docs.push({
         relPath: `folder/${entry.relPath}`,
@@ -482,6 +525,7 @@ async function ingestFolder(orgId, opts = {}, deps = {}) {
         kind: 'folder_note',
         sourceType: SOURCE_TYPE,
         occurredAt: entry.mtimeIso,
+        ...(head.truncated ? { truncated: true, totalBytes: head.totalBytes } : {}),
       });
       result.filesRead++;
       readOk.push(entry.relPath);
@@ -555,6 +599,7 @@ module.exports = {
   ingestFolder,
   resolveSafeFolderPath,
   walkFolder,
+  readNoteHead,
   watermarkKeyForPath,
   SOURCE_TYPE,
   ALLOWED_EXTENSIONS,

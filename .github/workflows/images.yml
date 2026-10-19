@@ -91,6 +91,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Write a throwaway .env (random values for every required compose variable)
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          set_var() {
+            if grep -q "^$1=" .env; then sed -i "s|^$1=.*|$1=$2|" .env; else echo "$1=$2" >> .env; fi
+          }
+          for v in JWT_SECRET POSTGRES_PASSWORD INTERNAL_SERVICE_KEY QDRANT_API_KEY; do
+            val=$(openssl rand -hex 32)
+            echo "::add-mask::$val"
+            set_var "$v" "$val"
+          done
+          set_var DOCKER_GID "$(getent group docker | cut -d: -f3 || true)"
+          grep -q '^DOCKER_GID=.\+' .env || set_var DOCKER_GID 999
+
       - name: Pull the published images
         env:
           QUOX_IMAGE_TAG: ${{ github.ref_name }}

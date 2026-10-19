@@ -21,24 +21,42 @@ const { sanitiseProactiveRules } = require('../lib/quoxchatProactive');
 const { buildOverrideSystemPrompt, buildDefaultCustomerPrompt, isQuoxPersonaWidget, applyHandoffRule, buildGuardrailsBlock } = require('../lib/quoxchatPersonas');
 const ingestLib = require('../lib/quoxchatIngest');
 const { INJECTION_PATTERNS, makeCanary, canaryPreamble, canaryLeaked, requestedBareToken, isBareTokenReply, leaksSystemRules, REFUSAL: INJECTION_REFUSAL } = require('../lib/quoxchatInjectionGuard');
-const { enrichVisitorPremises, prepareKnowledge, buildAllowedUrls, enforceLinks, findUnsupportedFigures, figuresStillRemoved, buildGroundingRules, stripUnsupportedSentences, stripUnsupportedNegatives, redactDroppingFragments, stripKnowledgeLabels, buildRetrievalQuery, mergeCarriedChunks, stripBookingOffers, findBookingRoute, carryForwardLimit, applyTimeWindowGuard, applyOpenNowGuard, hasBookingTool, NO_BOOKING_RULE, confineBrowserContext, createSentenceGate, bestNextStep, modelIdentityReply, extractCaveats, asksForTranscript, strippedLeavesNonAnswer, declineText, TRANSCRIPT_WITHHELD_REPLY } = require('../lib/quoxchatGrounding');
+const { enrichVisitorPremises, stripConditionalYesNo, prepareKnowledge, buildAllowedUrls, enforceLinks, findUnsupportedFigures, figuresStillRemoved, buildGroundingRules, stripUnsupportedSentences, stripUnsupportedNegatives, redactDroppingFragments, stripKnowledgeLabels, buildRetrievalQuery, mergeCarriedChunks, stripBookingOffers, findBookingRoute, carryForwardLimit, applyTimeWindowGuard, applyOpenNowGuard, hasBookingTool, NO_BOOKING_RULE, confineBrowserContext, createSentenceGate, bestNextStep, modelIdentityReply, extractCaveats, asksForTranscript, strippedLeavesNonAnswer, isStrippedFragment, declineText, isPlainAbstain, isAbstainReply, CONFIDENT_ABSTAIN_SCORE, TRANSCRIPT_WITHHELD_REPLY } = require('../lib/quoxchatGrounding');
 const quoxchatLexical = require('../lib/quoxchatLexical');
 const { invalidateLexicalOnSuccess } = require('../lib/quoxchatLexicalInvalidate');
 const lexicalInvalidate = invalidateLexicalOnSuccess((wid) => qdrantCollectionForWidget(wid));
-const { buildPublicSources, selectCitedChunks } = require('../lib/quoxchatSourceRoutes');
+const { buildPublicSources, selectCitedChunks, isSupersededSuggested, usedOutdatedSource } = require('../lib/quoxchatSourceRoutes');
 const { fetchServerHistory, buildHistory } = require('../lib/quoxchatHistory');
 const { modelHandoffAllowed, gateModelHandoff } = require('../lib/quoxchatHandoffIntent');
 const { failoverOrder, mayFailOver, isRetryableProviderError, createProviderCooldowns, providerUnavailableReply } = require('../lib/quoxchatProviderFailover');
-const { searchWithRetry, shouldReportRetrievalFailure, RETRIEVAL_FAILED_REPLY } = require('../lib/quoxchatRetrievalGuard');
+const { searchWithRetry, shouldReportRetrievalFailure, degradedRetrieval, RETRIEVAL_FAILED_REPLY } = require('../lib/quoxchatRetrievalGuard');
 const { planStay, spanningProducts } = require('../lib/quoxchatSeasonStay');
+const { priceCorrections, premiseFor: pricePremiseFor, enforcePriceCorrections } = require('../lib/quoxchatPricePremise');
+const { planBlockTariff, enforceBlockTariff } = require('../lib/quoxchatBlockTariff');
+const { completeDiscountFigure } = require('../lib/quoxchatDiscountFigure');
+const { planOpenNow, enforceOpenNow } = require('../lib/quoxchatOpenNow');
+const { planBandChange } = require('../lib/quoxchatBandChange');
+const { planValidity, enforceValidity } = require('../lib/quoxchatValidity');
+const { extractExceptions, matchedExceptions, exceptionPremises: buildExceptionPremises, enforceExceptions, stripOutsideWindowFigures } = require('../lib/quoxchatExceptions');
 const { dateWindowPremises, applyDateWindowGuard } = require('../lib/quoxchatDateWindow');
-const { verifyClaims, stripClaimSentences, pickVerifierModel, verifierOutageAction } = require('../lib/quoxchatClaimVerifier');
+const { dropDatedMoneyClaims, verifyClaims, stripClaimSentences, removeFlaggedSentences, pickVerifierModel, verifierOutageAction } = require('../lib/quoxchatClaimVerifier');
 const { parseCompatConfig, assertCompatEgress, looksLikeToolsRejection, PROVIDER_ID: COMPAT_PROVIDER, SELF_HOSTED_LABEL } = require('../lib/quoxchatCompatLlm');
 const requestDeadline = require('../lib/quoxchatDeadline');
+const { markHistoryChunks } = require('../lib/quoxchatVersionArbiter');
+const { applyPriceChange } = require('../lib/quoxchatPriceChange');
+const { deadlinePlans, enforceDeadline, bandPremises } = require('../lib/quoxchatDueDate');
+const { eligibilityChecks, enforceEligibility, capacityPremises } = require('../lib/quoxchatConditions');
+const { canStartSecondPass, pickPricedRegen } = require('../lib/quoxchatSecondPass');
 const { decideBudget, estimateAnswerCostMicro } = require('../lib/quoxchatBudget');
 const { resolveKeySource } = require('../lib/quoxchatKeySource');
 const handoffState = require('../lib/quoxchatHandoffState');
 const { ledgerActionTexts, ledgerConfirmationReply, summariseOutcome, buildActionLedgerBlock, enforceActionHonesty, TRANSCRIPT_UNAVAILABLE_NOTE, buildDemoToolHint } = require('../lib/quoxchatActionLedger');
+// Hard per-turn ceiling; must stay below the nginx/gateway read timeout (60 s).
+// Keep lib/quoxchatSecondPass HARD_TURN_MS equal to this default.
+let hardTurnDeadlineOverrideMs = null; // tests only
+// QC W17: 30 s (was 45 s) so the visitor sees the apology well before the proxy gives up.
+const hardTurnDeadlineMs = () => hardTurnDeadlineOverrideMs || 30000;
+function _setHardTurnDeadlineMs(ms) { hardTurnDeadlineOverrideMs = ms || null; }
 const DEADLINE_FALLBACK_TEXT = "Sorry, that took longer than I expected. Please try again in a moment, or ask to speak with the team.";
 const providerCooldowns = createProviderCooldowns({ ms: 60000 });
 let _groundingFaultForTest = false; // test seam: prove the gate fails closed
@@ -158,20 +176,26 @@ async function ensureConversation(widgetId, visitor_id) {
   const authUrl = process.env.AUTH_SERVICE_URL || 'http://auth:3101';
   const serviceKey = process.env.INTERNAL_SERVICE_KEY;
   if (!serviceKey) return null;
-  try {
-    const resp = await fetch(`${authUrl}/api/internal/widgets/${encodeURIComponent(widgetId)}/ensure-conversation`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-service-key': serviceKey },
-      body: JSON.stringify({ visitor_id }),
-      signal: AbortSignal.timeout(2000),
-    });
-    if (!resp.ok) return null;
-    const data = await resp.json().catch(() => ({}));
-    return data.conversation_id || null;
-  } catch { return null; }
+  // QC W17: one retry; under load a single 2 s attempt lost the conversation id
+  // (visitor turns came back conversation_id:null and were never persisted).
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const resp = await fetch(`${authUrl}/api/internal/widgets/${encodeURIComponent(widgetId)}/ensure-conversation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-service-key': serviceKey },
+        body: JSON.stringify({ visitor_id }),
+        signal: AbortSignal.timeout(2500),
+      });
+      if (resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        if (data.conversation_id) return data.conversation_id;
+      }
+    } catch { /* retry once */ }
+  }
+  return null;
 }
 
-async function recordToolUsage(widgetId, toolId, success) {
+async function recordToolUsage(widgetId, toolId, success, visitorId, simulated) {
   const authUrl = process.env.AUTH_SERVICE_URL || 'http://auth:3101';
   const serviceKey = process.env.INTERNAL_SERVICE_KEY;
   if (!serviceKey || !widgetId || !toolId) return;
@@ -179,7 +203,7 @@ async function recordToolUsage(widgetId, toolId, success) {
     await fetch(`${authUrl}/api/internal/widgets/${encodeURIComponent(widgetId)}/tools/${encodeURIComponent(toolId)}/record-usage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-service-key': serviceKey },
-      body: JSON.stringify({ success: !!success }),
+      body: JSON.stringify({ success: !!success, visitor_id: visitorId || null, simulated: !!simulated }),
       signal: AbortSignal.timeout(1500),
     });
   } catch { /* fire-and-forget */ }
@@ -673,7 +697,7 @@ async function runAnthropicToolLoop({ apiKey, model, systemPrompt, messages, too
         // Action ledger: reference / preferred time / duplicate only (no email).
         ...summariseOutcome(execResult),
       });
-      if (tool?.id) recordToolUsage(widget?.id, tool.id, !!execResult?.ok);
+      if (tool?.id) recordToolUsage(widget?.id, tool.id, !!execResult?.ok, context?.visitor_id, context?.simulation);
 
       if (onStream) {
         try { onStream({ type: 'tool_result', name: use.name, ok: !!execResult?.ok, error: execResult?.error || null }); } catch { /* non-fatal */ }
@@ -856,7 +880,7 @@ async function runOpenAIToolLoop({ apiKey, model, systemPrompt, messages, tools,
         // Action ledger: reference / preferred time / duplicate only (no email).
         ...summariseOutcome(execResult),
       });
-      if (tool?.id) recordToolUsage(widget?.id, tool.id, !!execResult?.ok);
+      if (tool?.id) recordToolUsage(widget?.id, tool.id, !!execResult?.ok, context?.visitor_id, context?.simulation);
 
       if (onStream) {
         try { onStream({ type: 'tool_result', name, ok: !!execResult?.ok, error: execResult?.error || null }); } catch { /* non-fatal */ }
@@ -995,7 +1019,7 @@ async function runGeminiToolLoop({ apiKey, model, systemPrompt, messages, tools,
         // Action ledger: reference / preferred time / duplicate only (no email).
         ...summariseOutcome(execResult),
       });
-      if (tool?.id) recordToolUsage(widget?.id, tool.id, !!execResult?.ok);
+      if (tool?.id) recordToolUsage(widget?.id, tool.id, !!execResult?.ok, context?.visitor_id, context?.simulation);
 
       if (onStream) {
         try { onStream({ type: 'tool_result', name, ok: !!execResult?.ok, error: execResult?.error || null }); } catch { /* non-fatal */ }
@@ -1192,7 +1216,7 @@ async function _getProviderKeysResilient(orgId) {
   return keys;
 }
 
-function init({ getProviderKeys, getClaudeKeys, storeAuditEnvelope, resolveCredentialById, voltEmitter }) {
+function init({ getProviderKeys, getClaudeKeys, storeAuditEnvelope, resolveCredentialById, resolveCredentials, voltEmitter }) {
   // Fresh dependencies, fresh caches (production calls init once at boot;
   // test suites call it per test, so cached widget orgs never leak).
   _widgetOrgCache.clear();
@@ -1207,6 +1231,8 @@ function init({ getProviderKeys, getClaudeKeys, storeAuditEnvelope, resolveCrede
   if (typeof resolveCredentialById === 'function') {
     registerVaultResolver(resolveCredentialById);
   }
+  // BRAIN2-FABLE11: the org's ollama connection (local embeddings) resolves through the same vault.
+  ollamaEmbed.configureOllamaEmbed({ resolveCredentials, resolveCredentialById });
 }
 
 // CW-EMBED: pluggable RAG embedding provider. Defaults to Gemini
@@ -1242,8 +1268,12 @@ const EMBED_MAX_INPUT_CHARS = 24000;
 
 // BRAIN2-W11: OpenAI model = BRAIN_EMBED_MODEL setting (lib/brainEmbedModel.js).
 const { resolveOpenAIEmbedModel, openAIEmbedStamp } = require('../lib/brainEmbedModel.js');
+// BRAIN2-FABLE11: local embeddings via the org's Ollama connection (zero third-party egress).
+const ollamaEmbed = require('../lib/ollamaEmbed.js');
 
-async function embedText(text, providerKeys, { timeoutMs = 10000, orgId = null, model = null } = {}) {
+async function embedText(text, providerKeys, { timeoutMs = 10000, orgId = null, model = null, diag = null, ollamaDeps = undefined } = {}) {
+  // QC-W18b: `diag` (optional) receives { provider, status } on failure: no bodies, no keys.
+  const setDiag = (provider, status) => { if (diag) { diag.provider = provider; diag.status = status; } };
   if (typeof text === 'string' && text.length > EMBED_MAX_INPUT_CHARS) {
     text = text.slice(0, EMBED_MAX_INPUT_CHARS);
   }
@@ -1273,6 +1303,22 @@ async function embedText(text, providerKeys, { timeoutMs = 10000, orgId = null, 
   // 2026-08-09 (license-watch.sh's embed probe flapped ok/embed_broken every
   // ~15-90min with no permanent misconfiguration behind it).
 
+  // BRAIN2-FABLE11: an org that chose ollama embeds locally or not at all. NO fallthrough
+  // to OpenAI/Gemini on failure (that would be the egress the org opted out of), and an
+  // explicit non-ollama model (a previous-space query) is refused for the same reason.
+  // An explicit ollama stamp from an org on another provider is local, so it is allowed
+  // (it is how a query reaches an ollama-embedded space after the provider is switched away).
+  const explicitOllama = ollamaEmbed.isOllamaStamp(model);
+  if (embedProvider === 'ollama' || explicitOllama) {
+    if (embedProvider === 'ollama' && model && !explicitOllama) {
+      console.warn(`[QuoxChat] embedText: refusing explicit model "${model}" for an org embedding via ollama (would send text to a third party).`);
+      setDiag('ollama', null);
+      if (diag) diag.error = 'third_party_model_refused';
+      return null;
+    }
+    return ollamaEmbed.embedWithOllama(text, { orgId, model, timeoutMs, diag, deps: ollamaDeps });
+  }
+
   if (embedProvider === 'openai') {
     const openaiKey = providerKeys?.openai_api_key || process.env.OPENAI_API_KEY;
     if (openaiKey) {
@@ -1291,6 +1337,7 @@ async function embedText(text, providerKeys, { timeoutMs = 10000, orgId = null, 
           // opaque embedding_failed 502, with zero server-side trace of why.
           const bodyExcerpt = await resp.text().catch(() => '');
           console.warn(`[QuoxChat] embedText: OpenAI embed HTTP ${resp.status}: ${bodyExcerpt.slice(0, 200)}`);
+          setDiag('openai', resp.status);
           return null;
         }
         const data = await resp.json();
@@ -1299,6 +1346,7 @@ async function embedText(text, providerKeys, { timeoutMs = 10000, orgId = null, 
         return { vector, provider: 'openai', model: openAIEmbedStamp(openAiModel) };
       } catch (err) {
         console.warn(`[QuoxChat] embedText: OpenAI embed request failed (${err.name}): ${err.message}`);
+        setDiag('openai', null);
         return null;
       }
     }
@@ -1323,6 +1371,7 @@ async function embedText(text, providerKeys, { timeoutMs = 10000, orgId = null, 
     if (!resp.ok) {
       const bodyExcerpt = await resp.text().catch(() => '');
       console.warn(`[QuoxChat] embedText: Gemini embed HTTP ${resp.status}: ${bodyExcerpt.slice(0, 200)}`);
+      setDiag('gemini', resp.status);
       return null;
     }
     const data = await resp.json();
@@ -1331,6 +1380,7 @@ async function embedText(text, providerKeys, { timeoutMs = 10000, orgId = null, 
     return { vector, provider: 'gemini', model: 'gemini-embedding-001' };
   } catch (err) {
     console.warn(`[QuoxChat] embedText: Gemini embed request failed (${err.name}): ${err.message}`);
+    setDiag('gemini', null);
     return null;
   }
 }
@@ -1880,8 +1930,38 @@ router.get('/poll/:conversationId', pollRateLimit, pollQueryShim, domainGuard, l
 });
 
 // ── Message (main conversation endpoint) ──
-const VERIFIED_CHUNK = 24; // chars per released delta in verified streaming
-router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req, res) => {
+const VERIFIED_CHUNK = 32; // target chars per released delta in verified streaming
+// W16: split on word boundaries so no frame ends mid-word. Each chunk is whole
+// words (plus their trailing whitespace) up to ~max chars; a single word longer
+// than max stays whole. The chunks always concatenate back to the exact text.
+function chunkAtWordBoundaries(text, max = VERIFIED_CHUNK) {
+  const t = String(text || '');
+  const pieces = t.match(/\s*\S+\s*|\s+/g) || [];
+  const out = [];
+  let cur = '';
+  for (const p of pieces) {
+    if (cur && cur.length + p.length > max) { out.push(cur); cur = ''; }
+    cur += p;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+// QC W17: whatever fails on /message (rate limit, domain/licence guard, 400,
+// 5xx), the visitor-facing widget gets JSON with a visitor-safe `response`.
+const MESSAGE_ERROR_FALLBACK_TEXT = 'Sorry, something went wrong and I could not answer that. Please try again in a moment, or ask to speak with the team.';
+function messageErrorEnvelope(req, res, next) {
+  const origJson = res.json.bind(res);
+  res.json = (body) => {
+    if (res.statusCode >= 400 && body && typeof body === 'object' && !Array.isArray(body) && typeof body.response !== 'string') {
+      const safe = typeof body.message === 'string' && body.message.trim() ? body.message
+        : (typeof body.error === 'string' && /^(Too many requests|Message is required)/i.test(body.error) ? body.error : MESSAGE_ERROR_FALLBACK_TEXT);
+      body = { ...body, response: safe };
+    }
+    return origJson(body);
+  };
+  next();
+}
+router.post('/message', messageErrorEnvelope, messageRateLimit, domainGuard, licenseGuard, async (req, res) => {
   const startMs = Date.now();
 
   // QCX-4.1c — streaming hooks. When the caller sets stream:true we emit an
@@ -1925,6 +2005,7 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
     allowed: () => streamGround.allowed,
     support: () => streamGround.support.concat(streamGround.toolTexts || []),
     visitor: () => streamGround.visitor,
+    brandNames: () => streamGround.brandNames || [],
     clock: () => ({ now: new Date(), tz: streamGround.tz || 'UTC' }),
   }) : null;
   // VERIFIED STREAMING (wave 4): when the claim verifier runs for the turn the
@@ -1953,23 +2034,74 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
       // Codex enum 2 #17: the model's raw tool input never reaches the visitor
       // (it is unredacted and ungrounded); the name is enough for the UI.
       else if (ev.type === 'tool_start') sseWrite('tool_start', { name: ev.name });
-      else if (ev.type === 'tool_result') sseWrite('tool_result', { name: ev.name, ok: ev.ok, error: ev.error || null });
+      else if (ev.type === 'tool_result') {
+        if (ev.name === 'human_handoff' && !ev.ok) handoffFrameFailed = true;
+        sseWrite('tool_result', { name: ev.name, ok: ev.ok, error: ev.error || null });
+      }
     } catch { /* write-after-end / client hung up — non-fatal */ }
   } : null;
+  // QC-BRUTALOOP-W14: every turn ends exactly once. The hard deadline below
+  // settles a hung turn with a persisted fallback; a late respond is a no-op.
+  let turnSettled = false;
+  let hardDeadlineTimer = null;
+  const turnCtx = { message: null, widget_id: null, visitor_id: null, page_url: null, injectionScore: 0, conversation_id: null };
+  const settleTurn = () => {
+    if (turnSettled) return false;
+    turnSettled = true;
+    if (hardDeadlineTimer) { clearTimeout(hardDeadlineTimer); hardDeadlineTimer = null; }
+    return true;
+  };
+  // Persist the visitor turn plus an error-outcome assistant row so a failed
+  // turn shows in Logs and counts as `error` in the unanswered analytics.
+  // Best effort and bounded (3 s); returns the conversation id or null.
+  const persistFailedTurn = async (errorOutcome, replyText) => {
+    const wid = turnCtx.widget_id;
+    if (!wid || wid === 'demo' || !turnCtx.message || !process.env.INTERNAL_SERVICE_KEY) return null;
+    try {
+      const pr = await fetch(`${process.env.AUTH_SERVICE_URL || 'http://auth:3101'}/api/internal/widgets/${encodeURIComponent(wid)}/persist-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-service-key': process.env.INTERNAL_SERVICE_KEY },
+        body: JSON.stringify({
+          visitor_id: turnCtx.visitor_id || 'anon',
+          conversation_id: turnCtx.conversation_id || null,
+          user_message: turnCtx.message,
+          assistant_message: replyText,
+          injection_score: turnCtx.injectionScore || 0,
+          page_url: turnCtx.page_url || null,
+          duration_ms: Date.now() - startMs,
+          context: { error_outcome: errorOutcome, grounding: { withheld: true, error: errorOutcome } },
+        }),
+        signal: AbortSignal.timeout(3000),
+      });
+      if (pr.ok) return (await pr.json().catch(() => ({}))).conversation_id || null;
+      console.warn(`[QuoxChat] ${errorOutcome} turn persist returned ${pr.status}`);
+    } catch (persistErr) {
+      console.warn(`[QuoxChat] ${errorOutcome} turn persist failed (non-fatal):`, persistErr.message);
+    }
+    return null;
+  };
+  let handoffFrameFailed = false;
   const respondOk = (body) => {
+    if (!settleTurn()) return;
+    if (body && typeof body === 'object' && !body.conversation_id && turnCtx.conversation_id) body.conversation_id = turnCtx.conversation_id;
     if (streaming) {
       stopKeepalive();
       // Held tokens: release the FINAL gated text (same string as the final
       // frame) in small chunks so the widget still animates.
       if (verifiedStream.held > 0 && body && body.success !== false && typeof body.response === 'string' && body.response) {
         const t = body.response;
-        for (let i = 0; i < t.length; i += VERIFIED_CHUNK) {
-          try { sseWrite('token', { delta: t.slice(i, i + VERIFIED_CHUNK) }); } catch { /* client gone */ }
+        for (const piece of chunkAtWordBoundaries(t)) {
+          try { sseWrite('token', { delta: piece }); } catch { /* client gone */ }
         }
         verifiedStream.held = 0;
       }
       if (sentenceGate) { try { sentenceGate.flush(); } catch { /* non-fatal */ } }
       if (streamRedactor) { try { streamRedactor.flush(); } catch { /* non-fatal */ } }
+      // W15: the executor reported failure but a handoff was persisted this
+      // turn (post-turn path): correct the red card before the done frame.
+      if (handoffFrameFailed && body && body.handed_off) {
+        try { sseWrite('tool_result', { name: 'human_handoff', ok: true, error: null, corrected: true }); } catch { /* client gone */ }
+      }
       // Stream semantics: success:false → `error`, success:true → `done`.
       sseWrite(body && body.success === false ? 'error' : 'done', body);
       res.end();
@@ -1978,6 +2110,8 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
     }
   };
   const respondErr = (status, body) => {
+    if (!settleTurn()) return;
+    if (body && typeof body === 'object' && !body.conversation_id && turnCtx.conversation_id) body.conversation_id = turnCtx.conversation_id;
     if (streaming) {
       stopKeepalive();
       if (sentenceGate) { try { sentenceGate.flush(); } catch { /* non-fatal */ } }
@@ -2002,6 +2136,29 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
     // CW-SEC-1: normalize to canonical internal id so Qdrant collection and
     // persist-message both key off a single identifier per widget.
     const widget_id = await resolveCanonicalWidgetId(rawWidgetId);
+    turnCtx.message = typeof message === 'string' ? message : null;
+    turnCtx.widget_id = widget_id;
+    turnCtx.visitor_id = visitor_id;
+    turnCtx.page_url = page_url;
+    // QC-BRUTALOOP-W14: server-side hard turn deadline, well under the gateway
+    // read timeout (60 s). Whatever is hung, the visitor gets a persisted
+    // fallback reply (JSON) or a terminal SSE error frame, never a 502.
+    hardDeadlineTimer = setTimeout(async () => {
+      hardDeadlineTimer = null;
+      if (turnSettled || res.writableEnded) return;
+      turnSettled = true;
+      stopKeepalive();
+      const cid = await persistFailedTurn('timeout', DEADLINE_FALLBACK_TEXT);
+      const body = { success: false, response: DEADLINE_FALLBACK_TEXT, error: 'timeout', ...((cid || turnCtx.conversation_id) ? { conversation_id: cid || turnCtx.conversation_id } : {}) };
+      try {
+        if (streaming) { sseWrite('error', body); res.end(); }
+        else if (!res.headersSent) res.json(body);
+      } catch { /* client gone */ }
+    }, hardTurnDeadlineMs());
+    if (hardDeadlineTimer.unref) hardDeadlineTimer.unref();
+    const clearHardDeadline = () => { if (hardDeadlineTimer) { clearTimeout(hardDeadlineTimer); hardDeadlineTimer = null; } };
+    res.on('close', clearHardDeadline);
+    res.on('finish', clearHardDeadline);
 
     if (!message || !message.trim()) {
       return respondErr(400, { error: 'Message is required' });
@@ -2600,29 +2757,7 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
       // shows in Logs and the unanswered list (grounding.withheld classifies it
       // as a held-back reply). Best effort and bounded; the reply is unchanged.
       const offlineReply = "I'm currently offline due to a configuration issue. Please contact us directly for help.";
-      let failedConvId = null;
-      if (widget_id && widget_id !== 'demo' && process.env.INTERNAL_SERVICE_KEY) {
-        try {
-          const pr = await fetch(`${process.env.AUTH_SERVICE_URL || 'http://auth:3101'}/api/internal/widgets/${encodeURIComponent(widget_id)}/persist-message`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-service-key': process.env.INTERNAL_SERVICE_KEY },
-            body: JSON.stringify({
-              visitor_id: visitor_id || 'anon',
-              conversation_id: null,
-              user_message: message,
-              assistant_message: offlineReply,
-              injection_score: injectionScore || 0,
-              page_url: page_url || null,
-              context: { error_outcome: 'no_api_key', grounding: { withheld: true, error: 'no_api_key' } },
-            }),
-            signal: AbortSignal.timeout(3000),
-          });
-          if (pr.ok) failedConvId = (await pr.json().catch(() => ({}))).conversation_id || null;
-          else console.warn(`[QuoxChat] no_api_key turn persist returned ${pr.status}`);
-        } catch (persistErr) {
-          console.warn('[QuoxChat] no_api_key turn persist failed (non-fatal):', persistErr.message);
-        }
-      }
+      const failedConvId = await persistFailedTurn('no_api_key', offlineReply);
       return respondOk({ success: false, response: offlineReply, error: 'no_api_key', ...(failedConvId ? { conversation_id: failedConvId } : {}) });
     }
     console.log(`[QuoxChat] Using ${useCompat ? 'OpenAI-compatible' : useGemini ? 'Gemini' : useOpenAI ? 'OpenAI' : 'Anthropic'} provider (widget_pref=${widgetLlmPref})`);
@@ -2652,9 +2787,10 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
       // No embedding key at all: RAG is not configured for this widget/org,
       // which is "no knowledge", not a retrieval outage.
       if (!(providerKeys?.openai_api_key || process.env.OPENAI_API_KEY || providerKeys?.gemini_api_key || process.env.GEMINI_API_KEY)) return [];
-      const embedResult = await embedText(retrievalQuery, providerKeys, { orgId: widgetOrgId });
+      const embedDiag = {};
+      const embedResult = await embedText(retrievalQuery, providerKeys, { orgId: widgetOrgId, diag: embedDiag });
       const queryVector = embedResult?.vector || [];
-      if (queryVector.length === 0) throw new Error('embedding_failed');
+      if (queryVector.length === 0) { const e = new Error('embedding_failed'); e.detail = embedDiag; throw e; }
       const qdrantKey = resolveQdrantKey();
       const searchResp = await fetch(`http://qdrant:6333/collections/${qdrantCollection}/points/search`, {
         method: 'POST',
@@ -2677,6 +2813,7 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
         answer: r.payload?.answer || null,
         source_url: typeof r.payload?.source_url === 'string' ? r.payload.source_url : null,
         injection: r.payload?.injection_flag || null,
+        ...(r.payload?.suggest_superseded === true ? { suggest_superseded: true } : {}),
       }));
     };
     const denseSearch = async (retrievalQuery) => {
@@ -2774,6 +2911,14 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
       console.warn('[QuoxChat] carry-forward failed (non-fatal):', carryErr.message);
     }
     const conversationContext = (builtHistory.messages || []).filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string').slice(-5).concat([{ role: 'user', content: String(message || '') }]);
+    // QC-W15b: an older dated version of the same priced items is history.
+    try { ragChunks = markHistoryChunks(ragChunks, { now: new Date() }); } catch (arbErr) { console.warn('[QuoxChat] version arbitration failed (non-fatal):', arbErr.message); }
+    // QC-W18: a dated price-change notice modifies the figures in sibling sources.
+    let priceChangePremise = null;
+    try {
+      const pc = applyPriceChange(ragChunks, { visitorTexts: [message, ...((builtHistory.messages || []).filter((m) => m && m.role === 'user').map((m) => (typeof m.content === 'string' ? m.content : '')))], now: new Date() });
+      ragChunks = pc.chunks; priceChangePremise = pc.premise;
+    } catch (pcErr) { console.warn('[QuoxChat] price-change modifier failed (non-fatal):', pcErr.message); }
     const knowledge = prepareKnowledge(ragChunks, {
       floor: typeof groundingCfg.floor === 'number' ? groundingCfg.floor : undefined,
       strong: typeof groundingCfg.strong === 'number' ? groundingCfg.strong : undefined,
@@ -2790,8 +2935,26 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
     const dateVisitorTexts = [...visitorTexts];
     // Wave 13: night-by-night season breakdown for a stay over a dated rate change.
     const stayPlan = planStay(dateVisitorTexts, knowledge.kept.map((c) => c.text), new Date(), widgetTimezone(widgetMeta));
+    const priceFixes = priceCorrections(message, knowledge.kept.map((c) => c.text));
+    const blockTariffPlan = planBlockTariff(dateVisitorTexts, knowledge.kept.map((c) => c.text));
+    const openNowPlan = planOpenNow(message, knowledge.kept.map((c) => c.text), new Date(), widgetTimezone(widgetMeta));
+    const bandChangePlan = planBandChange(dateVisitorTexts, knowledge.kept.map((c) => c.text), new Date(), widgetTimezone(widgetMeta));
+    const validityPlan = planValidity(dateVisitorTexts, knowledge.kept.map((c) => c.text), new Date(), widgetTimezone(widgetMeta));
+    // QC-W18: deterministic condition checks (grandfather booking date, room capacity).
+    const eligibilityPlan = eligibilityChecks(dateVisitorTexts, knowledge.kept.map((c) => c.text));
+    const deadlinePlanList = deadlinePlans(dateVisitorTexts, knowledge.kept.map((c) => c.text), new Date(), widgetTimezone(widgetMeta));
     const premiseConversions = [
+      ...(priceChangePremise ? [priceChangePremise] : []),
+      ...deadlinePlanList.map((p) => p.premise),
+      ...bandPremises(dateVisitorTexts, knowledge.kept.map((c) => c.text), new Date(), widgetTimezone(widgetMeta)),
+      ...eligibilityPlan.map((c) => c.premise),
+      ...capacityPremises(dateVisitorTexts, knowledge.kept.map((c) => c.text)),
+      ...(validityPlan ? [validityPlan.fact] : []),
+      ...(openNowPlan ? [openNowPlan.fact] : []),
+      ...(bandChangePlan ? [bandChangePlan.fact] : []),
       ...(stayPlan && stayPlan.fact ? [stayPlan.fact] : []),
+      ...(blockTariffPlan ? [blockTariffPlan.fact] : []),
+      ...priceFixes.map(pricePremiseFor),
       // Wave 13: day gap between a date the visitor named and each "N days
       // before" window in KNOWLEDGE, computed in code in the widget timezone.
       ...dateWindowPremises(dateVisitorTexts, knowledge.kept.map((c) => c.text), new Date(), widgetTimezone(widgetMeta)),
@@ -2800,6 +2963,7 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
     visitorTexts.push(...premiseConversions);
     streamGround.visitor = visitorTexts;
     streamGround.tz = widgetTimezone(widgetMeta);
+    streamGround.brandNames = [widgetMeta?.business_name, widgetMeta?.name].filter(Boolean);
 
     // QCX-3.1: pick a persona via keyword delegation. COREY is the default
     // chatbot persona when no specialist scores above threshold. Fingerprint
@@ -2890,6 +3054,7 @@ router.post('/message', messageRateLimit, domainGuard, licenseGuard, async (req,
       modelLabel: groundingModelLabel,
       discloseModel: groundingCfg.disclose_model !== false,
       caveats: extractCaveats(knowledge.kept.map((c) => c.text)),
+      exceptionPremises: buildExceptionPremises(matchedExceptions(extractExceptions(knowledge.kept.map((c) => c.text)), visitorTexts), visitorTexts),
       timezone: widgetTimezone(widgetMeta),
     });
     const ruleLeakSource = `${personaSystemPrompt}\n${groundingRulesText}`;
@@ -3039,8 +3204,15 @@ ${groundingRulesText}`;
           // (in-process quoxchatDailyCapStore) since it needs a per-visitor
           // key the monthly auth-side bucket doesn't carry.
           const visitorDailyCap = usage?.visitor_daily_request_cap;
-          if (Number.isFinite(visitorDailyCap) && visitorDailyCap > 0 && visitor_id && visitor_id !== 'anon') {
-            const capKey = `${widget_id}:${visitor_id}`;
+          if (Number.isFinite(visitorDailyCap) && visitorDailyCap > 0) {
+            // Wave 14: a missing / "anon" visitor_id used to skip the cap entirely
+            // (omit the id, bypass the limit). Key those on an IP hash, the same
+            // address the rate limiter uses for anonymous callers.
+            const anonVisitor = !visitor_id || visitor_id === 'anon';
+            const capIp = req.ip || req.connection?.remoteAddress || 'unknown';
+            const capKey = anonVisitor
+              ? `${widget_id}:ip:${crypto.createHash('sha256').update(String(capIp)).digest('hex').slice(0, 16)}`
+              : `${widget_id}:${visitor_id}`;
             const usedToday = dailyCapStore.peek(capKey);
             if (usedToday >= visitorDailyCap) {
               return respondErr(429, {
@@ -3128,9 +3300,13 @@ ${groundingRulesText}`;
     // this turn's side effects and persistence: ensureConversation only
     // matches status='active' and would fork a fresh conversation.
     let ensuredConversationId = handedOffConversationId;
-    if (!ensuredConversationId && widgetTools.length > 0) {
+    // QC W17: always (not only for tool widgets): the conversation must exist
+    // before the model call so a timeout/llm_error still leaves a conversation.
+    if (!ensuredConversationId) {
       ensuredConversationId = await ensureConversation(widget_id, visitor_id || 'anon');
     }
+    turnCtx.conversation_id = ensuredConversationId || null;
+    turnCtx.injectionScore = injectionScore;
 
     // QCX-2.2: Layer 2 — session. Conv id attaches side-effects (leads,
     // handoffs). Warn if we have tools but failed to secure a conv id.
@@ -3216,7 +3392,7 @@ ${groundingRulesText}`;
         }
         // Distinct log line — greppable, never emitted by the LLM tool loop.
         console.log(`[QuoxChat] HANDOFF-BELT triggered — widget=${widget_id} visitor=${visitor_id || 'anon'} llm_path=${beltReason} pattern="${belt.pattern}"`);
-        recordToolUsage(widget_id, belt.tool.id, true);
+        recordToolUsage(widget_id, belt.tool.id, true, visitor_id, toolLoopContext?.simulation);
         return {
           responseText: beltResult.result?.message || 'Handing you over to a human, one of our team will pick up shortly.',
           toolCalls: [{
@@ -3277,7 +3453,7 @@ ${groundingRulesText}`;
             context: toolLoopContext,
           });
           if (chipResult && chipResult.ok === true) {
-            recordToolUsage(widget_id, chipTool.id, true);
+            recordToolUsage(widget_id, chipTool.id, true, visitor_id, toolLoopContext?.simulation);
             // Distinct log line — greppable, never emitted by the LLM tool loop.
             console.log(`[QuoxChat] CHIP-ACTION executed directly — widget=${widget_id} visitor=${visitor_id || 'anon'} action=${action}`);
             if (onStream) {
@@ -3409,6 +3585,20 @@ ${groundingRulesText}`;
       }
     }
 
+    // QC-BRUTALOOP-W14: every provider failure is persisted (visitor turn plus an
+    // error-outcome assistant row) and a timeout gets a grounded "took too long".
+    const failTurn = async (err) => {
+      const unavailable = providerUnavailableReply(err);
+      const timedOut = !unavailable && (err?.code === 'deadline_exceeded' || err?.name === 'TimeoutError' || (err?.name === 'AbortError' && err?.code !== 'client_aborted'));
+      const out = unavailable
+        ? { response: unavailable.response, error: unavailable.error }
+        : timedOut
+          ? { response: DEADLINE_FALLBACK_TEXT, error: 'timeout' }
+          : { response: "The assistant hit a temporary problem answering that. Please try again in a moment.", error: 'llm_error' };
+      const cid = await persistFailedTurn(out.error, out.response);
+      return respondOk({ success: false, response: out.response, error: out.error, ...(cid ? { conversation_id: cid } : {}) });
+    };
+
     if (chipActionHandled) {
       // Deterministic reply already assembled — no LLM turn for this send.
     } else if (useGemini) {
@@ -3437,9 +3627,7 @@ ${groundingRulesText}`;
         if (belt) {
           responseText = belt.responseText; inputTokens = 0; outputTokens = 0; toolCalls = belt.toolCalls;
         } else if (!fo) {
-          const unavailable = providerUnavailableReply(err);
-          if (unavailable) return respondOk({ success: false, response: unavailable.response, error: unavailable.error });
-          return respondOk({ success: false, response: "The assistant hit a temporary problem answering that. Please try again in a moment.", error: 'llm_error' });
+          return failTurn(err);
         }
       }
 
@@ -3474,9 +3662,7 @@ ${groundingRulesText}`;
         if (belt) {
           responseText = belt.responseText; inputTokens = 0; outputTokens = 0; toolCalls = belt.toolCalls;
         } else if (!fo) {
-          const unavailable = providerUnavailableReply(err);
-          if (unavailable) return respondOk({ success: false, response: unavailable.response, error: unavailable.error });
-          return respondOk({ success: false, response: "The assistant hit a temporary problem answering that. Please try again in a moment.", error: 'llm_error' });
+          return failTurn(err);
         }
       }
 
@@ -3504,9 +3690,7 @@ ${groundingRulesText}`;
         if (belt) {
           responseText = belt.responseText; inputTokens = 0; outputTokens = 0; toolCalls = belt.toolCalls;
         } else if (!fo) {
-          const unavailable = providerUnavailableReply(err);
-          if (unavailable) return respondOk({ success: false, response: unavailable.response, error: unavailable.error });
-          return respondOk({ success: false, response: "The assistant hit a temporary problem answering that. Please try again in a moment.", error: 'llm_error' });
+          return failTurn(err);
         }
       }
     }
@@ -3586,7 +3770,7 @@ ${groundingRulesText}`;
     // Wave 1 proved 23+ invented URLs and false-premise prices on both
     // deployments; this is the gate that makes them unable to reach a visitor.
     let reportedConfidence = knowledge.confidence;
-    let groundingVerdict = { links_removed: [], unsupported_figures: [], corrected: false, stripped: false, retrieval_error: retrievalError || null, ...(retrievalFailedReplied ? { withheld: true } : {}) };
+    let groundingVerdict = { links_removed: [], unsupported_figures: [], corrected: false, stripped: false, retrieval_error: retrievalError || null, ...degradedRetrieval(retrievalError, denseResult.detail), ...(retrievalFailedReplied ? { withheld: true } : {}) };
     if (typeof responseText === 'string') responseText = stripKnowledgeLabels(responseText);
     try {
       const actionRan = Array.isArray(toolCalls) && toolCalls.some((tc) => tc && (tc.result_message || tc.needs_input));
@@ -3625,17 +3809,39 @@ ${groundingRulesText}`;
           if (cf.carried) { groundingVerdict.limit_carried = true; wkText = cf.text; }
           const tw = applyTimeWindowGuard(wkText, { question: message, knowledgeTexts: supportTexts });
           if (tw.applied) { groundingVerdict.time_window_guard = tw.qualifier; wkText = tw.text; }
-          const on = applyOpenNowGuard(wkText, { now: new Date(), tz: widgetTimezone(widgetMeta), knowledgeTexts: supportTexts });
+          const on = openNowPlan ? { applied: false } : applyOpenNowGuard(wkText, { now: new Date(), tz: widgetTimezone(widgetMeta), knowledgeTexts: supportTexts });
           if (on.applied) { groundingVerdict.open_now_guard = true; wkText = on.text; }
+          if (openNowPlan) { const onp = enforceOpenNow(wkText, openNowPlan); if (onp.changed) { groundingVerdict.open_now_subject = openNowPlan.subject; wkText = onp.text; } }
           const dw = applyDateWindowGuard(wkText, { visitorTexts: dateVisitorTexts, knowledgeTexts: supportTexts, now: new Date(), tz: widgetTimezone(widgetMeta) });
           if (dw.applied) { groundingVerdict.date_window_guard = true; groundingVerdict.date_window_contradicted = dw.contradicted; wkText = dw.text; }
+          if (validityPlan) { const vg = enforceValidity(wkText, validityPlan); if (vg.changed) { groundingVerdict.date_window_guard = true; groundingVerdict.validity_enforced = validityPlan.expired ? 'expired' : 'valid'; wkText = vg.text; } }
           const al = applyAllergyGuard(wkText, { visitorTexts, knowledgeTexts: supportTexts });
           if (al.guard) groundingVerdict.allergy_guard = { removed: [...((groundingVerdict.allergy_guard || {}).removed || []), ...al.removed], source: al.source };
           const em = applyEmergencyGuard(al.text, { visitorTexts, knowledgeTexts: supportTexts });
           if (em.guard) groundingVerdict.emergency_guard = { number: em.number };
           const spanBad = spanningProducts(em.text, stayPlan);
           if (spanBad.length) groundingVerdict.season_span_product = spanBad;
-          return { text: em.text, removed: linked.removed, figures: [...findUnsupportedFigures(em.text, supportTexts, { visitorTexts }), ...spanBad] };
+          // Wave 14: a figure stated for a window ("within 10 working days") is not
+          // supported "after 10 working days"; a figure with an exception clause
+          // ("free for lamps, wipers and number plates") is not quoted for an excepted item.
+          const win = stripOutsideWindowFigures(em.text, supportTexts);
+          if (win.changed) groundingVerdict.outside_window_figures = [...(groundingVerdict.outside_window_figures || []), ...win.removed];
+          const exc = enforceExceptions(win.text, matchedExceptions(extractExceptions(supportTexts), visitorTexts), visitorTexts);
+          if (exc.violated) groundingVerdict.exception_enforced = true;
+          const bt = enforceBlockTariff(exc.text, blockTariffPlan);
+          if (bt.changed) groundingVerdict.block_tariff_enforced = true;
+          const elg = enforceEligibility(bt.text, eligibilityPlan, supportTexts);
+          if (elg.changed) groundingVerdict.eligibility_enforced = true;
+          const ddl = enforceDeadline(elg.text, deadlinePlanList, { now: new Date(), tz: widgetTimezone(widgetMeta) });
+          if (ddl.changed) groundingVerdict.deadline_enforced = true;
+          const pf = enforcePriceCorrections(ddl.text, priceFixes);
+          if (pf.changed) groundingVerdict.price_premise_corrected = true;
+          const dfc = completeDiscountFigure(pf.text, { visitorTexts, knowledgeTexts: supportTexts });
+          if (dfc.changed) groundingVerdict.discount_figure_completed = true;
+          const yn = stripConditionalYesNo(dfc.text);
+          if (yn.changed) groundingVerdict.conditional_yesno_stripped = true;
+          em.text = yn.text;
+          return { text: em.text, removed: linked.removed, figures: [...findUnsupportedFigures(em.text, supportTexts, { visitorTexts, brandNames: [widgetMeta?.business_name, widgetMeta?.name] }), ...spanBad] };
         };
         // Executor confirmations are never stripped, and are the only
         // evidence a "done" claim can rest on. Strips add no apology note;
@@ -3658,6 +3864,8 @@ ${groundingRulesText}`;
           const correction = `Your draft reply stated these specifics, which do not appear in KNOWLEDGE: ${g.figures.join(', ')}. Rewrite the reply to the visitor without them.${stayPlan && stayPlan.fact ? ` Fact (computed): ${stayPlan.fact}` : ''} If the visitor asked about them, say plainly that you cannot confirm that detail and offer the next step. Reply with the rewritten answer only.`;
           const loopFn = loopFnFor(activeProvider);
           try {
+            // QC-W15b: no time for a second pass -> fall straight to the strip below.
+            if (!canStartSecondPass({ elapsedMs: Date.now() - startMs, hardMs: hardTurnDeadlineMs() })) { groundingVerdict.second_pass_skipped = 'figure_regen'; throw new Error('second pass skipped: turn budget'); }
             const fix = await loopFn({
               apiKey: activeApiKey,
               model: activeModel,
@@ -3694,7 +3902,10 @@ ${groundingRulesText}`;
         // Deterministic chip replies (no model wrote them) are not verified.
         const figureRegenerated = groundingVerdict.corrected === true;
         let claimsRemoved = [];
-        if (groundingCfg.verify_claims !== false && !chipActionHandled) {
+        // Wave 14: weak retrieval (below the relevance floor) and an already-plain
+        // abstain: nothing to audit, so do not invoke the verifier at all.
+        const weakPlainAbstain = knowledge.confidence === 'none' && actionTexts.length === 0 && isPlainAbstain(g.text);
+        if (groundingCfg.verify_claims !== false && !chipActionHandled && !weakPlainAbstain) {
           const vLoop = loopFnFor(activeProvider);
           // Verifier model: complex tier, preferring a different provider
           // family from the answer model when it has a key; the verdict
@@ -3746,14 +3957,17 @@ ${groundingRulesText}`;
           const outage = verifierOutageAction(v, knowledge.confidence);
           groundingVerdict.claims.outage_action = outage;
           if (outage === 'withhold') {
-            g = { ...g, text: "I'm sorry, I couldn't double-check that answer just now. Please try again in a moment, or ask to speak with the team." };
+            // Wave 14: with no relevant knowledge the honest answer is a plain abstain, not "couldn't double-check".
+            g = { ...g, text: knowledge.confidence === 'none' ? declineText(stripOpts.nextStep) : "I'm sorry, I couldn't double-check that answer just now. Please try again in a moment, or ask to speak with the team." };
             groundingVerdict.withheld = true;
           }
           claimVerifyFn = (answer) => verifyClaims({ knowledge: supportTexts, answer, actions: actionTexts, links: widgetSiteLinks || [], premises: visitorTexts, brandNames: [widgetMeta?.business_name, widgetMeta?.name], conversation: conversationContext, question: message, complete });
           if (v.ok && v.unsupported.length > 0) {
             claimsRemoved = [...v.unsupported];
             let text = g.text;
-            if (!actionRan) {
+            const claimPassOk = canStartSecondPass({ elapsedMs: Date.now() - startMs, hardMs: hardTurnDeadlineMs() });
+            if (!claimPassOk) groundingVerdict.second_pass_skipped = 'claim_regen';
+            if (!actionRan && claimPassOk) {
               try {
                 const tr = Date.now();
                 const fix = await vLoop({
@@ -3770,12 +3984,21 @@ ${groundingRulesText}`;
                 if (fix && typeof fix.text === 'string' && fix.text.trim()) {
                   const g3 = gate(scrubEmDashes(fix.text));
                   text = g3.figures.length > 0 ? stripUnsupportedSentences(g3.text, g3.figures, stripOpts) : g3.text;
+                  // QC-W15b: the rewrite may have dropped a date qualifier but kept the stale figure.
+                  const dm = dropDatedMoneyClaims(text, v.unsupported, { isCurrent: (sn) => findUnsupportedFigures(sn, supportTexts, { visitorTexts, brandNames: [widgetMeta?.business_name, widgetMeta?.name] }).length === 0 });
+                  if (dm.changed) { text = dm.text || declineText(stripOpts.nextStep); groundingVerdict.stripped = true; claimStripped = true; groundingVerdict.dated_money_dropped = true; }
                   groundingVerdict.corrected = true;
                   inputTokens = (inputTokens || 0) + (fix.inputTokens || 0);
                   outputTokens = (outputTokens || 0) + (fix.outputTokens || 0);
+                  if (!canStartSecondPass({ elapsedMs: Date.now() - startMs, hardMs: hardTurnDeadlineMs() })) {
+                    // No time to re-verify the rewrite: serve the verified first draft with the flagged claims removed.
+                    groundingVerdict.second_pass_skipped = 'reverify';
+                    text = stripClaimSentences(g.text, v.unsupported, stripOpts); groundingVerdict.stripped = true; claimStripped = true;
+                  } else {
                   const v2 = await verifyClaims({ knowledge: supportTexts, answer: text, actions: actionTexts, links: widgetSiteLinks || [], premises: visitorTexts, brandNames: [widgetMeta?.business_name, widgetMeta?.name], conversation: conversationContext, question: message, complete });
                   groundingVerdict.claims.after_correction = v2.ok ? v2.unsupported : null;
                   if (v2.ok && v2.unsupported.length > 0) { text = stripClaimSentences(text, v2.unsupported, stripOpts); groundingVerdict.stripped = true; claimStripped = true; }
+                  }
                 } else {
                   text = stripClaimSentences(text, v.unsupported, stripOpts); groundingVerdict.stripped = true; claimStripped = true;
                 }
@@ -3794,7 +4017,8 @@ ${groundingRulesText}`;
         // Wave 10 #3: a strip that removed the sentence which answered the
         // question must not leave an unrelated remainder as the "answer".
         const stripHollow = () => g.text === declineText(stripOpts.nextStep)
-          || strippedLeavesNonAnswer({ message, before: draftForNonAnswerCheck, after: g.text });
+          || strippedLeavesNonAnswer({ message, before: draftForNonAnswerCheck, after: g.text })
+          || isStrippedFragment({ message, before: draftForNonAnswerCheck, after: g.text });
         if (groundingVerdict.stripped && !groundingVerdict.withheld && stripHollow()
           && !actionRan && !figureRegenerated && Date.now() - startMs <= 20000) {
           // Wave 10 v: the strip left nothing usable. Regenerate ONCE with the
@@ -3822,17 +4046,111 @@ ${groundingRulesText}`;
                 const v4 = await claimVerifyFn(t4);
                 if (v4.ok && v4.unsupported.length > 0) t4 = stripClaimSentences(t4, v4.unsupported, stripOpts);
               }
-              const hollow4 = t4 === declineText(stripOpts.nextStep) || strippedLeavesNonAnswer({ message, before: draftForNonAnswerCheck, after: t4 });
+              const hollow4 = t4 === declineText(stripOpts.nextStep) || strippedLeavesNonAnswer({ message, before: draftForNonAnswerCheck, after: t4 }) || isStrippedFragment({ message, before: draftForNonAnswerCheck, after: t4 });
               if (!hollow4) { g = { ...g4, text: t4 }; groundingVerdict.regen_kept = true; }
             }
           } catch (rErr) {
             console.warn('[QuoxChat] strip regeneration failed (falling back to decline):', rErr.message);
           }
         }
+        // QC-W15b: a priced claim was stripped and a CURRENT chunk carries a figure
+        // for the visitor's subject: regenerate once with that chunk pinned instead
+        // of serving "not confirmed". Needs >= 8s before the turn watchdog.
+        if (groundingVerdict.stripped && !groundingVerdict.withheld && !groundingVerdict.regen_kept) {
+          const removedPriced = [...new Set([...(groundingVerdict.unsupported_figures || []), ...claimsRemoved].filter((x) => typeof x === 'string'))];
+          const pr = pickPricedRegen({ message, chunks: knowledge.kept, stripped: removedPriced, elapsedMs: Date.now() - startMs, hardMs: hardTurnDeadlineMs(), alreadyRegenerated: groundingVerdict.regenerated_after_strip === true || groundingVerdict.regenerated_priced_strip === true, actionRan });
+          groundingVerdict.priced_regen_decision = pr.reason;
+          if (pr.regen) {
+            groundingVerdict.regenerated_priced_strip = true;
+            try {
+              const fix = await loopFnFor(activeProvider)({
+                apiKey: activeApiKey,
+                model: activeModel,
+                systemPrompt,
+                messages: [...messages, { role: 'assistant', content: draftForNonAnswerCheck }, { role: 'user', content: `The CURRENT entry in KNOWLEDGE for this question is:\n---\n${pr.pin.slice(0, 1500)}\n---\nThe figures in your draft were not supported. Answer the visitor's question using only this entry and state the figure it gives. Do not mention older prices. Do not claim any action was completed. Reply with the rewritten answer only.` }],
+                tools: [],
+                widget: { id: widget_id, org_id: widgetOrgId, public_key: null, tool_policies: widgetToolPolicies },
+                context: toolLoopContext,
+                onStream: null,
+              });
+              if (fix && typeof fix.text === 'string' && fix.text.trim()) {
+                inputTokens = (inputTokens || 0) + (fix.inputTokens || 0);
+                outputTokens = (outputTokens || 0) + (fix.outputTokens || 0);
+                const g6 = gate(scrubEmDashes(fix.text));
+                let t6 = g6.figures.length > 0 ? stripUnsupportedSentences(g6.text, g6.figures, stripOpts) : g6.text;
+                if (claimVerifyFn && canStartSecondPass({ elapsedMs: Date.now() - startMs, hardMs: hardTurnDeadlineMs() })) {
+                  const v6 = await claimVerifyFn(t6);
+                  if (v6.ok && v6.unsupported.length > 0) t6 = stripClaimSentences(t6, v6.unsupported, stripOpts);
+                }
+                if (/[£$€]\s?\d/.test(t6) && !isAbstainReply(t6) && t6 !== declineText(stripOpts.nextStep)) { g = { ...g6, text: t6 }; groundingVerdict.regen_kept = true; }
+              }
+            } catch (rErr) {
+              console.warn('[QuoxChat] priced-strip regeneration failed (serving the corrected draft):', rErr.message);
+            }
+          }
+        }
         if (groundingVerdict.stripped && !groundingVerdict.withheld && !groundingVerdict.regen_kept && stripHollow()) {
           g = { ...g, text: declineText(stripOpts.nextStep) };
           groundingVerdict.withheld = true;
           groundingVerdict.stripped_nonanswer = true;
+        }
+        // Wave 14: a wrong abstain. Retrieval was confident (top score at or above
+        // the confident threshold) yet the reply says it has no information:
+        // regenerate ONCE with an "answer from KNOWLEDGE" nudge, gate the result
+        // like any draft, and keep it only if it is no longer an abstain.
+        if (!actionRan && !groundingVerdict.withheld && !groundingVerdict.regen_kept && !groundingVerdict.regenerated_after_strip
+          && !chipActionHandled && Number(knowledge.top_score) >= CONFIDENT_ABSTAIN_SCORE && isAbstainReply(g.text)
+          && Date.now() - startMs <= 20000) {
+          groundingVerdict.regenerated_wrong_abstain = true;
+          try {
+            const fix = await loopFnFor(activeProvider)({
+              apiKey: activeApiKey,
+              model: activeModel,
+              systemPrompt,
+              messages: [...messages, { role: 'assistant', content: g.text }, { role: 'user', content: 'KNOWLEDGE does cover this question: a passage matched strongly. Re-read it and answer from KNOWLEDGE if it covers the question, quoting the relevant figure or rule. Only if it truly does not cover it, say so. Do not claim any action was completed. Reply with the rewritten answer only.' }],
+              tools: [],
+              widget: { id: widget_id, org_id: widgetOrgId, public_key: null, tool_policies: widgetToolPolicies },
+              context: toolLoopContext,
+              onStream: null,
+            });
+            if (fix && typeof fix.text === 'string' && fix.text.trim()) {
+              inputTokens = (inputTokens || 0) + (fix.inputTokens || 0);
+              outputTokens = (outputTokens || 0) + (fix.outputTokens || 0);
+              const g5 = gate(scrubEmDashes(fix.text));
+              let t5 = g5.figures.length > 0 ? stripUnsupportedSentences(g5.text, g5.figures, stripOpts) : g5.text;
+              if (claimVerifyFn) {
+                const v5 = await claimVerifyFn(t5);
+                if (v5.ok && v5.unsupported.length > 0) t5 = stripClaimSentences(t5, v5.unsupported, stripOpts);
+              }
+              if (!isAbstainReply(t5) && t5 !== declineText(stripOpts.nextStep)) { g = { ...g5, text: t5 }; groundingVerdict.regen_kept = true; }
+            }
+          } catch (rErr) {
+            console.warn('[QuoxChat] wrong-abstain regeneration failed (keeping the abstain):', rErr.message);
+          }
+        }
+        // QC-W16: a reply sentence that repeats a planted directive's payload (flagged
+        // or not, quarantined or not) is dropped; a hollow remainder abstains.
+        if (!groundingVerdict.withheld && Array.isArray(ragChunks) && ragChunks.length > 0) {
+          const dd = ingestLib.dropDirectiveOverlap(g.text, ragChunks.map((c) => c && c.text).filter((t) => typeof t === 'string'));
+          if (dd.removed.length > 0) {
+            g = { ...g, text: dd.text.trim() ? dd.text : declineText(stripOpts.nextStep) };
+            groundingVerdict.stripped = true; claimStripped = true;
+            groundingVerdict.directive_overlap_removed = dd.removed.slice(0, 5).map((x) => x.slice(0, 200));
+          }
+        }
+        // QC-W16: never serve a sentence the verifier flagged. After every
+        // regeneration and re-strip, sweep the FINAL text once more against all
+        // flagged claims (first pass and post-correction), and record honestly
+        // whether anything flagged was still there to remove.
+        if (claimsRemoved.length > 0 && !groundingVerdict.withheld) {
+          const flaggedAll = [...new Set([...claimsRemoved, ...((groundingVerdict.claims && groundingVerdict.claims.after_correction) || [])])];
+          const sweep = removeFlaggedSentences(g.text, flaggedAll, stripOpts);
+          groundingVerdict.served_unsupported = false;
+          if (sweep.removed.length > 0) {
+            g = { ...g, text: stripClaimSentences(g.text, flaggedAll, stripOpts) };
+            groundingVerdict.stripped = true; claimStripped = true;
+            groundingVerdict.final_sweep_removed = sweep.removed.slice(0, 5).map((x) => x.slice(0, 200));
+          }
         }
         // Wave 12: analytics record the FINAL served text. A figure the gate
         // removed from an intermediate draft but which the served text carries
@@ -4101,6 +4419,12 @@ ${groundingRulesText}`;
               stripped_nonanswer: groundingVerdict.stripped_nonanswer === true,
               regenerated_after_strip: groundingVerdict.regenerated_after_strip === true,
               retrieval_error: groundingVerdict.retrieval_error || null,
+              // QC-W18b: dense retrieval failed, the turn used keyword search only.
+              retrieval_degraded: groundingVerdict.retrieval_degraded || null,
+              retrieval_degraded_provider: groundingVerdict.retrieval_degraded_provider || null,
+              retrieval_degraded_status: groundingVerdict.retrieval_degraded_status ?? null,
+              // QC-BRUTALOOP-W15: a chunk behind this reply came from a superseded or suggested-superseded source.
+              used_outdated_source: (Array.isArray(citedChunks) && citedChunks.some((c) => isSupersededSuggested(c))) || usedOutdatedSource(knowledge.kept, responseText),
             },
           };
           const persistResp = await fetch(`${authUrl}/api/internal/widgets/${encodeURIComponent(widget_id)}/persist-message`, {
@@ -4327,7 +4651,11 @@ ${groundingRulesText}`;
       // Staged handoff: handed_off:true with operator_joined:false tells the
       // widget the AI is holding; the strip copy must not claim a queue the
       // visitor never sees answered.
-      ...(handedOffConversationId ? { handed_off: true, operator_joined: !handoffAwaitingPickup } : {}),
+      ...(handedOffConversationId ? { handed_off: true, operator_joined: !handoffAwaitingPickup }
+        // W15: a handoff persisted this turn (LLM tool or post-turn belt) must
+        // reach the widget so it starts polling for the operator's reply.
+        : (Array.isArray(toolCalls) && toolCalls.some((tc) => tc && tc.ok === true && tc.name === 'human_handoff')
+          ? { handed_off: true, operator_joined: false } : {})),
       ...(needsInputCall ? { needs_input: needsInputCall.needs_input } : {}),
     });
 
@@ -4339,8 +4667,17 @@ ${groundingRulesText}`;
     // above); mirror that here with a generic code and keep the real error
     // server-side only.
     console.error('[QuoxChat] Message error:', err.message);
-    respondErr(500, { success: false, response: "Something went wrong on our end and we have logged it. Please try again in a moment.", error: 'internal_error' });
+    const internalReply = "Something went wrong on our end and we have logged it. Please try again in a moment.";
+    const internalCid = turnSettled ? null : await persistFailedTurn('internal_error', internalReply);
+    respondErr(500, { success: false, response: internalReply, error: 'internal_error', ...(internalCid ? { conversation_id: internalCid } : {}) });
   }
+});
+
+// QC W17: a synchronous throw / next(err) on /message must still be JSON.
+router.use('/message', (err, req, res, next) => { // eslint-disable-line no-unused-vars
+  console.error('[QuoxChat] /message unhandled error:', err && err.message);
+  if (res.headersSent) { try { res.end(); } catch { /* client gone */ } return; }
+  res.status(500).json({ success: false, error: 'internal_error', response: MESSAGE_ERROR_FALLBACK_TEXT });
 });
 
 // ── QCX-4.4: Visitor file upload ──
@@ -4872,6 +5209,21 @@ function publicSourceTitle(c) {
   return base.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/^./, (ch) => ch.toUpperCase()).slice(0, 80);
 }
 
+const OVERLAP_STOP = new Set(['the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'on', 'at', 'for', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'will', 'would', 'can', 'could', 'i', 'we', 'you', 'your', 'our', 'my', 'me', 'us', 'it', 'its', 'they', 'them', 'their', 'that', 'this', 'with', 'as', 'by', 'so', 'soon', 'shortly', 'now', 'also', 'just', 'when', 'then', 'thanks', 'thank', 'please', 'get', 'got', 'back', 'up', 'out', 'reference']);
+const OVERLAP_SYN = { information: 'detail', info: 'detail', saved: 'record', stored: 'record', recorded: 'record', captured: 'record', logged: 'record', noted: 'record', contact: 'touch', reach: 'touch', respond: 'touch', reply: 'touch', see: 'view', review: 'view', read: 'view', look: 'view' };
+function _overlapTokens(text) {
+  return String(text || '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w && !OVERLAP_STOP.has(w))
+    .map((w) => OVERLAP_SYN[w] || (w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w))
+    .map((w) => OVERLAP_SYN[w] || w);
+}
+function receiptOverlap(sentence, confirmation) {
+  const toks = _overlapTokens(sentence);
+  if (!toks.length) return { n: 0, ratio: 0 };
+  const conf = new Set(_overlapTokens(confirmation));
+  const hit = toks.filter((t) => conf.has(t)).length;
+  return { n: toks.length, ratio: hit / toks.length };
+}
+
 function applyActionReplyDeterminism(responseText, toolCalls) {
   if (!Array.isArray(toolCalls)) return responseText;
   const actionCall = toolCalls.find((tc) => tc && tc.ok === true
@@ -4892,9 +5244,33 @@ function applyActionReplyDeterminism(responseText, toolCalls) {
   // of a data-collection tool, and any sentence that repeats the reference the
   // confirmation already printed.
   const RESTATE_SAVED_RE = /\b(has|have) been (saved|stored|captured|logged|added|taken down)\b|\b(your|the) (details|information|info|message|request|enquiry|inquiry|email|contact details|booking|reference) (is|are|was|were) (now |all )?(saved|stored|captured|recorded|logged|noted|received|safe)\b|\b(I'?ve|I have|we'?ve|we have) (saved|stored|captured|logged|added|taken|noted)\b/i;
+  // QC-BRUTALOOP-W14b: when the action is asking for a missing detail, the
+  // model often asks for it again in its own words ("Could you please provide
+  // your email address as well?"), so the visitor got the question twice.
+  const asked = actionCall.needs_input && Array.isArray(actionCall.needs_input.fields)
+    ? actionCall.needs_input.fields.map((f) => String(f?.name || '').toLowerCase()).filter(Boolean) : [];
+  const FIELD_WORDS = { email: 'e-?mail', phone: 'phone|number|mobile', preferred_time: 'time|when', message: 'message', subject: 'issue|subject', description: 'details' };
+  const askWords = asked.map((n) => FIELD_WORDS[n] || n.replace(/_/g, ' ')).join('|');
+  const REASK_RE = askWords ? new RegExp(`\\b(provide|share|give|send|let me know|tell me|what'?s|what is|could you|can you|please)\\b.*\\b(${askWords})\\b|\\b(${askWords})\\b.*\\?\\s*$`, 'i') : null;
   const refTokens = (confirmation.match(/\b[A-Z0-9]{2,}(?:-[A-Z0-9]+)+\b|\b(?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{6,}\b/g) || []);
-  const kept = (narrated.match(/[^.!?\n]+[.!?]*\s*/g) || [narrated])
+  // W15: emails, domains and decimals are not sentence boundaries. Mask their
+  // dots before splitting so "reply to a@example.com." stays one sentence.
+  const DOT = '\u0001';
+  const masked = narrated.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+|\b(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}\b|\d+\.\d+/g, (m) => {
+    // keep a trailing sentence-final dot out of the mask
+    return m.replace(/\./g, DOT);
+  });
+  const kept = (masked.match(/[^.!?\n]+[.!?]*\s*/g) || [masked]).map((sn) => sn.split(DOT).join('.'))
+    // A leftover fragment under 3 words that does not start with a capital is
+    // debris from a mid-token split, never content.
+    .filter((sn) => /^\s*[A-Z0-9]/.test(sn) || sn.trim().split(/\s+/).length >= 3)
     .filter((sn) => !RESTATE_RE.test(sn) && !RESTATE_SAVED_RE.test(sn) && !refTokens.some((t) => sn.includes(t)))
+    .filter((sn) => !(REASK_RE && REASK_RE.test(sn)))
+    // QC-BRUTALOOP-W17: a paraphrase of the receipt that dodges the regexes
+    // ("Your details have been recorded and the team will see them soon") is
+    // still the receipt twice. Drop sentences whose content tokens are mostly
+    // the confirmation's own (>= 0.6, at least 3 content tokens).
+    .filter((sn) => { const ov = receiptOverlap(sn, confirmation); return !(ov.n >= 3 && ov.ratio >= 0.6); })
     // A bare "Thanks!" ack duplicates the confirmation's own ("Thanks! We've got your details").
     .filter((sn) => !(/^\s*(?:thanks|thank\s+you)\b/i.test(confirmation) && /^\s*(?:thanks|thank\s+you)\b[^.!?\n]{0,40}[.!]*\s*$/i.test(sn)))
     .join('')
@@ -5755,6 +6131,7 @@ router.post('/knowledge/upload', requireServiceKey, upload.single('file'), licen
     if (await rejectIfKnowledgeQuotaExceeded(res, widget_id, fileSize)) return;
 
     // Extract text based on file type
+    const hiddenHtml = [];
     let extractedText = '';
     try {
       if (mimeType === 'application/pdf') {
@@ -5770,7 +6147,7 @@ router.post('/knowledge/upload', requireServiceKey, upload.single('file'), licen
         }
       } else {
         // HTML/CSV keep table structure; DOCX/XLSX are parsed; other binary throws.
-        extractedText = await ingestLib.extractUploadText(fileBuffer, fileName, mimeType);
+        extractedText = await ingestLib.extractUploadText(fileBuffer, fileName, mimeType, { hidden: hiddenHtml });
       }
     } catch (parseErr) {
       console.error(`[QuoxChat] File parse error: ${parseErr.message}`);
@@ -5805,6 +6182,19 @@ router.post('/knowledge/upload', requireServiceKey, upload.single('file'), licen
     // Wave 5 defect 4: scan every chunk for planted instructions. Flagged-high
     // chunks stay indexed (the admin can see them) but never reach the prompt.
     const injectionScan = ingestLib.scanChunks(chunks, { fullText: extractedText });
+    const hiddenRep = ingestLib.hiddenHtmlReport(hiddenHtml);
+    injectionScan.flagged += hiddenRep.flagged;
+    injectionScan.flagged_passages = injectionScan.flagged_passages.concat(hiddenRep.flagged_passages).slice(0, 20);
+    if (isCsvUpload) {
+      const cellHits = ingestLib.scanCsvCells(fileBuffer.toString('utf-8'));
+      if (cellHits.length) {
+        // The chunk scan may already have counted the same row; take the larger.
+        injectionScan.flagged = Math.max(injectionScan.flagged, cellHits.length);
+        const rowsSeen = new Set(cellHits.map((h) => h.row));
+        injectionScan.flagged_passages = cellHits.concat(injectionScan.flagged_passages.filter((p) => !(p.text && cellHits.some((h) => p.text.includes(h.text.slice(0, 40)))))).slice(0, 20);
+        injectionScan.csv_flagged_rows = [...rowsSeen];
+      }
+    }
     injectionScan.chunks.forEach((c, i) => { chunks[i] = c; });
     if (injectionScan.flagged > 0) console.warn(`[QuoxChat] Ingest injection scan: ${injectionScan.flagged} chunk(s) flagged (${injectionScan.high} high) in ${fileName}`);
 
@@ -6208,6 +6598,28 @@ router.post('/knowledge/crawl', requireServiceKey, rateLimit, licenseGuardAdmin,
 // browsers). The collector's /message handler does the same work inline;
 // this endpoint exposes it for external callers (MCP bridge, dashboard
 // preview pane, etc.).
+// #961: keyword-only knowledge search when the embedding provider is down. Labelled, so a
+// caller (and the agent tool) can tell the visitor or admin that semantic search is unavailable.
+async function lexicalOnlySearch({ collection, query, topK, qdrantKey, diag = {}, lexical = quoxchatLexical }) {
+  const degraded = {
+    mode: 'lexical_only',
+    reason: 'embedding_failed',
+    provider: diag.provider || null,
+    status: diag.status || null,
+    message: `Semantic search is unavailable (the ${diag.provider || 'embedding'} provider returned ${diag.status || 'an error'}${diag.status === 429 ? ', likely out of credit or rate limited' : ''}); these results come from keyword search only.`,
+  };
+  try {
+    const hy = await lexical.hybrid({ collection, query, dense: [], limit: topK, loader: () => lexical.scrollPayloads({ collection, qdrantKey }) });
+    const chunks = (hy.chunks || []).slice(0, topK).map((c) => ({
+      text: c.text || '', source: c.source || '', section: c.section || '', score: c.score || 0,
+      ...(c.superseded === true ? { superseded: true, label: 'superseded (reference only, not used in answers)' } : {}),
+    }));
+    return { chunks, degraded };
+  } catch (err) {
+    return { chunks: [], degraded: { ...degraded, lexical_error: String(err && err.message).slice(0, 120) } };
+  }
+}
+
 router.post('/knowledge/search', requireServiceKey, rateLimit, licenseGuardAdmin, async (req, res) => {
   try {
     const { widget_id: rawWidgetId, query, limit } = req.body || {};
@@ -6216,13 +6628,20 @@ router.post('/knowledge/search', requireServiceKey, rateLimit, licenseGuardAdmin
     }
     const widget_id = await resolveCanonicalWidgetId(rawWidgetId);
     const { providerKeys, orgId: widgetOrgId } = await _providerKeysAndOrgForWidget(widget_id);
-    const embedResult = await embedText(query, providerKeys, { orgId: widgetOrgId });
-    if (!embedResult) return res.status(502).json({ error: 'embedding_failed' });
-    const vector = embedResult.vector;
-
+    const diag = {};
+    const embedResult = await embedText(query, providerKeys, { orgId: widgetOrgId, diag });
     const qdrantKey = resolveQdrantKey();
     const qdrantCollection = qdrantCollectionForWidget(widget_id);
     const topK = Math.min(Math.max(Number.isFinite(limit) ? limit : 5, 1), 20);
+    if (!embedResult) {
+      // #961: the embedding provider failed (e.g. OpenAI 429 out of credit). Never switch to
+      // another provider's vectors (the collection was indexed with this one); answer from
+      // keyword search and say so, instead of a bare 502.
+      const out = await lexicalOnlySearch({ collection: qdrantCollection, query, topK, qdrantKey, diag });
+      return res.json({ widget_id, collection: qdrantCollection, query, ...out });
+    }
+    const vector = embedResult.vector;
+
     const searchResp = await fetch(`http://qdrant:6333/collections/${qdrantCollection}/points/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'api-key': qdrantKey },
@@ -6893,7 +7312,7 @@ router.post('/teach/propose', requireServiceKey, rateLimit, licenseGuardAdmin, a
 // per-scenario last_* columns. Runs sequentially to keep provider rate
 // limits happy.
 
-const { runScenario, computeSecurityScore } = require('../lib/quoxchatSimulator');
+const { runScenario, computeSecurityScore, SCENARIO_TIMEOUT_MS } = require('../lib/quoxchatSimulator');
 
 async function persistSimulationRun(widgetId, body) {
   const authUrl = process.env.AUTH_SERVICE_URL || 'http://auth:3101';
@@ -6938,7 +7357,7 @@ router.post('/simulate', requireServiceKey, licenseGuardAdmin, async (req, res) 
         // the guard's one exemption for in-process callers.
         headers: { 'Content-Type': 'application/json', 'x-service-key': process.env.INTERNAL_SERVICE_KEY || '' },
         body: JSON.stringify({ message, widget_id: wid, visitor_id, conversation_history: [], ...(simulation === true ? { simulation: true } : {}) }),
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(SCENARIO_TIMEOUT_MS),
       });
       const data = await resp.json().catch(() => ({}));
       // A non-2xx or success:false with no reply text is an infrastructure
@@ -6954,16 +7373,43 @@ router.post('/simulate', requireServiceKey, licenseGuardAdmin, async (req, res) 
       };
     };
 
+    // QC-BRUTALOOP-W18: grader for rubric.expected_answer. Only built when a
+    // scenario needs it; null (-> "not graded") when no provider key resolves.
+    let completeForGrading = null;
+    if (scenarios.some((sc) => typeof sc?.rubric?.expected_answer === 'string' && sc.rubric.expected_answer.trim())) {
+      try {
+        const { providerKeys: gKeys } = await _providerKeysAndOrgForWidget(widget_id);
+        const gk = {
+          anthropic: gKeys?.anthropic_api_key || (await _getClaudeKeys())?.anthropic_api_key || process.env.ANTHROPIC_API_KEY,
+          openai: gKeys?.openai_api_key || process.env.OPENAI_API_KEY,
+          gemini: gKeys?.gemini_api_key || process.env.GEMINI_API_KEY,
+        };
+        const answerProv = gk.openai ? 'openai' : gk.anthropic ? 'anthropic' : gk.gemini ? 'gemini' : null;
+        if (answerProv) {
+          const { pickModelForTier } = require('../lib/quoxchatSmartRouter');
+          const vp = pickVerifierModel({ answerProvider: answerProv, keys: gk, pickModel: (t, p) => pickModelForTier(t, null, p), tier: 'mid' });
+          const fn = vp.provider === 'openai' ? runOpenAIToolLoop : vp.provider === 'gemini' ? runGeminiToolLoop : runAnthropicToolLoop;
+          completeForGrading = ({ system, user }) => fn({
+            apiKey: gk[vp.provider], model: vp.model, systemPrompt: system,
+            messages: [{ role: 'user', content: user }], tools: [],
+            widget: { id: widget_id, public_key: null, tool_policies: null }, context: { toolResultTexts: [] }, onStream: null,
+            ...(vp.provider === 'gemini' && /flash/i.test(String(vp.model)) ? { thinkingBudget: 0 } : {}),
+          }).then((r) => r && r.text);
+        }
+      } catch (gErr) { console.warn('[QuoxChat] /simulate grader setup failed:', gErr.message); }
+    }
+
     const results = [];
     for (const s of scenarios) {
-      const out = await runScenario(s, { chatInvoker, widget: { id: widget_id } });
+      const out = await runScenario(s, { chatInvoker, widget: { id: widget_id }, completeForGrading });
       results.push(out);
     }
 
     const total = results.length;
     const passed = results.filter(r => r.passed).length;
-    const failed = results.filter(r => !r.passed && r.score < 60).length;
-    const warned = total - passed - failed;
+    const timed_out = results.filter(r => r.status === 'timed_out').length;
+    const failed = results.filter(r => !r.passed && r.status !== 'timed_out' && r.score < 60).length;
+    const warned = total - passed - failed - timed_out;
     const security_score = computeSecurityScore(results);
     const duration_ms = Date.now() - start;
 
@@ -6975,6 +7421,7 @@ router.post('/simulate', requireServiceKey, licenseGuardAdmin, async (req, res) 
       scenario_results: results.map(r => ({
         scenario_id: r.scenario_id,
         passed: r.passed,
+        status: r.status,
         score: r.score,
         notes: (r.notes || []).join(' | ').slice(0, 500),
       })),
@@ -6983,7 +7430,7 @@ router.post('/simulate', requireServiceKey, licenseGuardAdmin, async (req, res) 
 
     res.json({
       run_id: persistResult?.run_id || null,
-      total, passed, warned, failed, security_score,
+      total, passed, warned, failed, timed_out, security_score,
       duration_ms,
       results,
     });
@@ -6996,6 +7443,7 @@ router.post('/simulate', requireServiceKey, licenseGuardAdmin, async (req, res) 
 module.exports = {
   router,
   init,
+  chunkAtWordBoundaries,
   isSimulationRequest,
   publicSourceTitle,
   classifyReconcilePoints,
@@ -7016,11 +7464,14 @@ module.exports = {
   // sink setter so tests capture dispatches without real channel drivers.
   notifyWidgetChannels,
   _setAlertNotificationSink,
-  // Ledger critical #4 (2026-07-24): captcha degraded-mode fallback limiter
+  _resetCaptchaFallbackRateLimit,
+  _setHardTurnDeadlineMs,
+  _hardTurnDeadlineMs: () => hardTurnDeadlineMs(),
   // state reset — exported for tests only.
   _resetCaptchaFallbackRateLimit,
   // REPLY DETERMINISM — exported for unit tests.
   applyActionReplyDeterminism,
+  lexicalOnlySearch,
   _setGroundingFaultForTest: (v) => { _groundingFaultForTest = !!v; },
   // QCFT #213 — Qdrant payload filter for one knowledge source; exported
   // for unit tests.

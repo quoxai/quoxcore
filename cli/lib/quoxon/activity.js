@@ -90,6 +90,11 @@ export function nextActivity(prev, ev, now = 0, ctx = {}) {
     }
     case 'trace': { const t = traceWord(ev); return t ? mk(t[0], t[1], now) : p; }
     case 'tool.started': { const t = toolWord(ev.tool, ev.tool === 'delegate_to_agent' ? delegateTarget(ev) : ev); return mk(t.word, t.detail, now, 'work', null, ev.tool || null); }
+    case 'delegation.progress': { // QUOXON 2026-10-17: a specialist's real tool call, forwarded by the server
+      if (!ev.tool) return p;
+      const who = ev.agent_name || ev.agent_id || 'specialist';
+      return mk('Delegating', `${who} \u00b7 ${ev.tool}${ev.detail ? ` (${ev.detail})` : ''}`, now, 'work', null, ev.tool);
+    }
     case 'tool.finished': return ev.status === 'failed' ? { ...p, flash: now } : p; // keep the word, flash the Q only
     case 'approval.requested': return mk('Waiting', 'for your approval', now, 'wait');
     case 'approval.resolved': return mk('Resuming', null, now);

@@ -31,6 +31,11 @@ const feedBatchSupport = require('./feedBatchSupport.js');
 
 const DEFAULT_MAX_ITEMS = 50;
 const REDACTED_PLACEHOLDER = '[REDACTED]';
+// BRAIN2-FABLE11: deletion reconciliation scans the whole org-scoped table, so
+// it is bounded (a bigger table is "not a complete snapshot", never a partial
+// one) and throttled (a full scan every tick would be wasteful).
+const MAX_SNAPSHOT_ROWS = 200000;
+const RECONCILE_MIN_INTERVAL_MS = 10 * 60 * 1000;
 // Field-encrypted values (utils/fieldEncryption.js) are ciphertext. They
 // carry no recall value and must never be copied into a brain doc; we drop
 // them rather than decrypt (decrypting would widen exposure).
@@ -149,6 +154,34 @@ function renderRow(row, spec) {
 }
 
 /**
+ * Every relPath the adapter would currently push for this org: a full,
+ * org-scoped scan of the spec's table/view filtered through renderRow (so
+ * signal gates and rowFilter apply exactly as on push). Returns null when the
+ * scan fails or exceeds MAX_SNAPSHOT_ROWS, so a failed or truncated read can
+ * never look like "everything was deleted".
+ */
+function collectSnapshot(db, spec, orgId) {
+  try {
+    let sql = `SELECT * FROM "${spec.table}" WHERE "${spec.orgCol}" = ?`;
+    if (spec.where) sql += ` AND (${spec.where})`;
+    const stmt = db.prepare(sql);
+    const it = typeof stmt.iterate === 'function' ? stmt.iterate(orgId) : stmt.all(orgId);
+    const seen = [];
+    let n = 0;
+    for (const row of it) {
+      if (++n > MAX_SNAPSHOT_ROWS) return null;
+      try {
+        const doc = renderRow(row, spec);
+        if (doc) seen.push(doc.relPath);
+      } catch { /* unrenderable row: not a doc, not a snapshot member */ }
+    }
+    return seen;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Ingests one db-source adapter spec for one org: bounded SELECT, per-row
  * render (best-effort), push to the spec's own vault, watermark advance on
  * success only. Never throws — mirrors every other Feed ingester's
@@ -183,6 +216,8 @@ async function ingestDbSource(orgId, opts = {}, deps = {}) {
     setWatermarkFn = (org, ts) => feedWatermark.setWatermark(org, spec.sourceType, ts, { dbPath: deps.dbPath }),
     ensurePushVaultFn = brainFeedClient.ensurePushVault,
     pushDocumentsFn = brainFeedClient.pushDocuments,
+    pushDeletionsFn = brainFeedClient.pushDeletions,
+    reconcileIntervalMs = RECONCILE_MIN_INTERVAL_MS,
     openDbFn,
     fetchImpl,
     userId,
@@ -212,6 +247,11 @@ async function ingestDbSource(orgId, opts = {}, deps = {}) {
     return result;
   }
 
+  const stateStore = feedBatchSupport.resolveStateStore(deps, !!deps.getWatermarkFn);
+  const guardKey = `db:${spec.sourceType}`;
+  const sweepAtKey = `${guardKey}:sweepAt`;
+  let snapshot = null; // set only from a successful, bounded, full scan on a caught-up tick
+
   let rows = [];
   let overflowRows = [];
   try {
@@ -220,6 +260,14 @@ async function ingestDbSource(orgId, opts = {}, deps = {}) {
     // maxItems+1 rows fetched: the extra row (if any) is the proof that more
     // rows are owed, so a tie at the batch edge keeps a compound cursor.
     if (rows.length > maxItems) { overflowRows = rows.slice(maxItems); rows = rows.slice(0, maxItems); }
+    if (!dryRun && stateStore && overflowRows.length === 0) {
+      let due = true;
+      try {
+        const last = Number(await stateStore.get(orgId, sweepAtKey)) || 0;
+        due = Date.now() - last >= reconcileIntervalMs;
+      } catch { /* unreadable throttle: just scan */ }
+      if (due) snapshot = collectSnapshot(db, spec, orgId);
+    }
   } catch (err) {
     result.error = `query failed — ${err.message}`;
     console.error(`[FeedDbSource] org=${orgId} source=${spec.sourceType}: ${result.error}`);
@@ -231,8 +279,6 @@ async function ingestDbSource(orgId, opts = {}, deps = {}) {
   const docs = [];
   let newWatermark = storedWatermark || null;
   const processed = [];
-  const stateStore = feedBatchSupport.resolveStateStore(deps, !!deps.getWatermarkFn);
-  const guardKey = `db:${spec.sourceType}`;
   const guard = await feedBatchSupport.createFailureGuard(stateStore, orgId, guardKey);
   let heldAt = -1; // index of the first failed row: later rows still push, the cursor stops before it
 
@@ -274,9 +320,8 @@ async function ingestDbSource(orgId, opts = {}, deps = {}) {
 
   if (dryRun) return result; // tallies rowsRead, pushes/advances nothing
 
-  if (docs.length === 0) {
-    // Every row was filtered as no-signal: nothing to push, but advance the
-    // watermark past them so the same rows are not re-read every tick.
+  const ensureVault = async () => ensurePushVaultFn(orgId, spec.vaultName, { scope: spec.scope || 'org', userId, fetchImpl });
+  const advanceWatermark = async () => {
     if (newWatermark && newWatermark !== storedWatermark) {
       try {
         await setWatermarkFn(orgId, newWatermark);
@@ -284,32 +329,43 @@ async function ingestDbSource(orgId, opts = {}, deps = {}) {
         console.error(`[FeedDbSource] org=${orgId} source=${spec.sourceType}: watermark write failed — ${err.message}`);
       }
     }
-    return result;
-  }
+  };
 
   try {
-    const vaultId = await ensurePushVaultFn(orgId, spec.vaultName, { scope: spec.scope || 'org', userId, fetchImpl });
-    if (!vaultId) {
-      result.error = 'ensurePushVault returned no vaultId';
-      console.error(`[FeedDbSource] org=${orgId} source=${spec.sourceType}: ${result.error} — not advancing watermark`);
-      return result;
-    }
-
-    const pushResult = await pushDocumentsFn(orgId, vaultId, docs, { userId, fetchImpl });
-    if (pushResult?.error) {
-      result.error = pushResult.error;
-      console.error(`[FeedDbSource] org=${orgId} source=${spec.sourceType}: push failed — ${pushResult.error} — not advancing watermark`);
-      return result;
-    }
-
-    result.docsPushed = docs.length;
-
-    if (newWatermark && newWatermark !== storedWatermark) {
-      try {
-        await setWatermarkFn(orgId, newWatermark);
-      } catch (err) {
-        console.error(`[FeedDbSource] org=${orgId} source=${spec.sourceType}: watermark write failed — ${err.message}`);
+    if (docs.length === 0) {
+      // Every row was filtered as no-signal: nothing to push, but advance the
+      // watermark past them so the same rows are not re-read every tick.
+      await advanceWatermark();
+    } else {
+      const vaultId = await ensureVault();
+      if (!vaultId) {
+        result.error = 'ensurePushVault returned no vaultId';
+        console.error(`[FeedDbSource] org=${orgId} source=${spec.sourceType}: ${result.error} — not advancing watermark`);
+        return result;
       }
+
+      const pushResult = await pushDocumentsFn(orgId, vaultId, docs, { userId, fetchImpl });
+      if (pushResult?.error) {
+        result.error = pushResult.error;
+        console.error(`[FeedDbSource] org=${orgId} source=${spec.sourceType}: push failed — ${pushResult.error} — not advancing watermark`);
+        return result;
+      }
+
+      result.docsPushed = docs.length;
+      await advanceWatermark();
+    }
+
+    // BRAIN2-FABLE11: a complete scan is a full snapshot, so rows that vanished
+    // (deleted, retention-pruned) get explicit tombstones. Never on a failed,
+    // oversize or errored read (snapshot stays null), never while rows are owed.
+    if (snapshot && !result.error) {
+      const r = await feedBatchSupport.reconcileDeletions({
+        store: stateStore, orgId, key: guardKey, seen: snapshot, complete: true, ensureVault,
+        pushDeletionsFn, pushOpts: { userId, fetchImpl },
+      });
+      if (r.deleted > 0) result.deleted = r.deleted;
+      if (r.error) { result.error = r.error; console.error(`[FeedDbSource] org=${orgId} source=${spec.sourceType}: ${r.error}`); }
+      else { try { await stateStore.set(orgId, sweepAtKey, String(Date.now())); } catch { /* rescanned next tick */ } }
     }
   } catch (err) {
     result.error = `push failed — ${err.message}`;

@@ -683,6 +683,18 @@ router.post('/login', authLimiter, async (req, res) => {
                 activeOrg = queries.getOrgById(resolvedOrgId);
             }
         }
+        // Audit FND_01M4ZH8J7W0QTNKT9H740QTNKT: a requested org the user is NOT an active member of used to
+        // drive the IP allowlist, MFA gate, session policy, session row and JWT below, so naming a laxer
+        // foreign org skipped the user's own org's policy. Only a VERIFIED org counts: fall back to the
+        // user's own first active org, else none.
+        if (!activeOrg && org_id) {
+            const own = queries.getUserOrgs(user.id)[0] || null;
+            if (own) {
+                orgRole = own.role;
+                activeOrg = queries.getOrgById(own.id);
+            }
+        }
+        resolvedOrgId = activeOrg ? activeOrg.id : null;
 
         // ET-ENFORCE round-4 — deprovisioned-user persistence guard. SCIM
         // DELETE / admin-remove flips org_memberships.status to 'removed'
@@ -1103,7 +1115,9 @@ router.post('/refresh', async (req, res) => {
  */
 router.post('/switch-org', authenticate({ required: true }), async (req, res) => {
     try {
-        const { org_id } = req.body;
+        // #1034: scope 'window' = a CLI window's own org token. The shared session (and so every other process on
+        // the same login, which refreshes from it) stays where it was.
+        const { org_id, scope } = req.body;
         const userId = req.user.id;
 
         if (!org_id) {
@@ -1191,7 +1205,7 @@ router.post('/switch-org', authenticate({ required: true }), async (req, res) =>
         // so switch-org doesn't silently flip org context on the user's
         // other devices. req.user.sessionId is set by authenticate() from
         // the access-token payload.
-        queries.updateSessionOrg(userId, org_id, req.user?.sessionId || null);
+        if (scope !== 'window') queries.updateSessionOrg(userId, org_id, req.user?.sessionId || null);
 
         // Create new access token with updated org context (keep the
         // same session_id so session-policy continuity survives switch-org)
@@ -1213,7 +1227,7 @@ router.post('/switch-org', authenticate({ required: true }), async (req, res) =>
         // used a hardcoded 15 minutes while the token itself lived 1 hour,
         // causing the cookie to stop being sent well before the token
         // actually expired (premature logout after switching orgs).
-        setAccessTokenCookie(res, accessToken);
+        if (scope !== 'window') setAccessTokenCookie(res, accessToken);
 
         // Log org switch
         // fleet #438: org_switch had 134 envelopes and ZERO org-tagged, despite
@@ -1221,7 +1235,8 @@ router.post('/switch-org', authenticate({ required: true }), async (req, res) =>
         // switched to. Tagged explicitly.
         logAuthEvent(AuditActions.AUTH_ORG_SWITCH || 'auth.org_switch', user.id, req, {
             from_org_id: req.org?.id || null,
-            to_org_id: org_id
+            to_org_id: org_id,
+            ...(scope === 'window' ? { scope: 'window' } : {})
         }, org_id);
 
         res.json({
@@ -1233,7 +1248,8 @@ router.post('/switch-org', authenticate({ required: true }), async (req, res) =>
                 plan: org.plan
             },
             role: membership.role,
-            access_token: accessToken
+            access_token: accessToken,
+            ...(scope === 'window' ? { scope: 'window' } : {})
         });
 
     } catch (err) {

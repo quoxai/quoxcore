@@ -382,7 +382,7 @@ export default function SimulationTab({ widget, authFetch, orgId }) {
                         <button type="button" onClick={() => deleteScenario(sc)} style={{ padding: '3px 8px', fontSize: 9, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 4, color: '#ef4444', cursor: 'pointer' }}>×</button>
                       )}
                       {sc.is_seed && <span />}
-                      {sc.last_passed === false && (sc.last_response || sc.last_notes) && (
+                      {(sc.last_passed === true ? sc.last_response : (sc.last_response || sc.last_notes)) && sc.last_passed !== null && sc.last_passed !== undefined && (
                         <div data-testid="scenario-failure" style={{ gridColumn: '1 / -1', fontSize: 10, color: 'rgba(255,255,255,0.7)', borderTop: '1px solid rgba(239,68,68,0.2)', paddingTop: 4 }}>
                           {sc.last_response && <div>Response: &ldquo;{sc.last_response}&rdquo;</div>}
                           {sc.last_notes && <div style={{ fontFamily: "'JetBrains Mono', monospace", color: '#ef4444' }}>{sc.last_notes}</div>}

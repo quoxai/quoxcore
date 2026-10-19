@@ -17,6 +17,7 @@
   "tools": [
     {
       "id": "proxmox.storage.usage",
+      "primary_grant": false,
       "name": "Storage Usage",
       "description": "Get storage utilization across all Proxmox datastores",
       "accessLevel": "specialists+",
@@ -66,6 +67,7 @@
     },
     {
       "id": "proxmox.snapshots.list",
+      "primary_grant": false,
       "name": "List Snapshots",
       "description": "List all VM/container snapshots with age and size",
       "accessLevel": "specialists+",
@@ -128,6 +130,7 @@
     },
     {
       "id": "proxmox.vm.resources",
+      "primary_grant": false,
       "name": "VM Resource Usage",
       "description": "Get detailed CPU, memory, and disk I/O per VM",
       "accessLevel": "specialists+",
@@ -162,6 +165,7 @@
     },
     {
       "id": "proxmox.node.resources",
+      "primary_grant": false,
       "name": "Node Resources",
       "description": "Get CPU, memory, and storage usage for a specific Proxmox node — for capacity planning before placing a new VM, distinct from proxmox.vm.resources (per-VM, not per-node)",
       "accessLevel": "specialists+",
@@ -185,6 +189,7 @@
     },
     {
       "id": "proxmox.backup.status",
+      "primary_grant": false,
       "name": "Backup Status",
       "description": "Check Proxmox backup job status and recent backups",
       "accessLevel": "specialists+",
@@ -214,6 +219,7 @@
     },
     {
       "id": "proxmox.ha.status",
+      "primary_grant": false,
       "name": "HA Status",
       "description": "Check High Availability cluster status and failover readiness",
       "accessLevel": "specialists+",
@@ -336,6 +342,229 @@
           "VM has insufficient disk space for snapshot"
         ]
       }
+    },
+    {
+      "id": "proxmox.pool.status",
+      "name": "VM Pool Status",
+      "description": "Show the org's disposable test-VM pool: settings, counts by state and every pool VM with its lessee and lease expiry",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {},
+      "instructions": {
+        "summary": "See which disposable test VMs are warm, leased or failed",
+        "when_to_use": [
+          "User asks what test VMs are available",
+          "Before leasing or releasing a pool VM"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.pool.lease",
+      "name": "Lease Pool VM",
+      "description": "Lease a disposable Ubuntu test VM from the pool (warm if one fits, else built to order). The lessee supplies their own SSH public key; only its fingerprint is stored. Every host command underneath is governed by the org's standing grant or approval.",
+      "accessLevel": "specialists+",
+      "defconLevel": "YELLOW",
+      "requiresApproval": false,
+      "externalEffect": true,
+      "parameters": {
+        "lessee": {
+          "type": "string",
+          "required": true,
+          "description": "Who the VM is for"
+        },
+        "ssh_pubkey": {
+          "type": "string",
+          "required": true,
+          "description": "One ssh-ed25519, ssh-rsa or ecdsa public key line"
+        },
+        "cores": {
+          "type": "number",
+          "required": false,
+          "description": "CPU cores (pool default if omitted)"
+        },
+        "memory_gb": {
+          "type": "number",
+          "required": false,
+          "description": "RAM in GB (pool default if omitted)"
+        },
+        "disk_gb": {
+          "type": "number",
+          "required": false,
+          "description": "Disk in GB, at least 20"
+        },
+        "purpose": {
+          "type": "string",
+          "required": false,
+          "description": "What the VM is for"
+        }
+      },
+      "instructions": {
+        "summary": "Hand a throwaway test VM to a session",
+        "when_to_use": [
+          "A session needs a disposable VM to test on"
+        ],
+        "requires_first": [
+          "proxmox.pool.status (pool must be enabled)"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.pool.release",
+      "name": "Release Pool VM",
+      "description": "Stop and destroy a pool VM, then re-warm the pool. Only VMs inside the org's configured pool range are touched.",
+      "accessLevel": "specialists+",
+      "defconLevel": "YELLOW",
+      "requiresApproval": false,
+      "externalEffect": true,
+      "parameters": {
+        "vmid": {
+          "type": "number",
+          "required": true,
+          "description": "Pool VM id to destroy"
+        }
+      },
+      "instructions": {
+        "summary": "Destroy a finished disposable VM",
+        "when_to_use": [
+          "The lessee is done with the VM"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.pool.configure",
+      "name": "Configure VM Pool",
+      "description": "Change the org's VM pool settings (admin settings write, held for approval)",
+      "accessLevel": "managers+",
+      "defconLevel": "AMBER",
+      "requiresApproval": true,
+      "parameters": {
+        "enabled": {
+          "type": "boolean",
+          "required": false,
+          "description": "Turn the pool on or off"
+        },
+        "lanes": {
+          "type": "array",
+          "required": false,
+          "description": "Placement lanes, each covered by its own standing grant: [{ node, template_vmid, max, clone_mode: linked|full }]"
+        },
+        "deny_nodes": {
+          "type": "array",
+          "required": false,
+          "description": "Hard denylist: nodes the pool never places on or touches"
+        },
+        "prom_url": {
+          "type": "string",
+          "required": false,
+          "description": "Prometheus base URL for free-RAM-fraction placement (omit to use fewest pool VMs)"
+        },
+        "backup_window": {
+          "type": "string",
+          "required": false,
+          "description": "HH:MM-HH:MM UTC during which the scheduler does not warm"
+        },
+        "vmid_min": {
+          "type": "number",
+          "required": false,
+          "description": "First VMID the pool may use"
+        },
+        "vmid_max": {
+          "type": "number",
+          "required": false,
+          "description": "Last VMID the pool may use"
+        },
+        "warm_target": {
+          "type": "number",
+          "required": false,
+          "description": "Ready VMs to keep warm"
+        },
+        "max_pool": {
+          "type": "number",
+          "required": false,
+          "description": "Hard cap on pool VMs"
+        },
+        "default_cores": {
+          "type": "number",
+          "required": false,
+          "description": "Default cores"
+        },
+        "default_mem_gb": {
+          "type": "number",
+          "required": false,
+          "description": "Default RAM in GB"
+        },
+        "default_disk_gb": {
+          "type": "number",
+          "required": false,
+          "description": "Default disk in GB"
+        },
+        "lease_ttl_h": {
+          "type": "number",
+          "required": false,
+          "description": "Lease lifetime in hours"
+        },
+        "guest_user": {
+          "type": "string",
+          "required": false,
+          "description": "Login user inside the VM"
+        },
+        "cpu_type": {
+          "type": "string",
+          "required": false,
+          "description": "Proxmox cpu type, e.g. host"
+        }
+      },
+      "instructions": {
+        "summary": "Adjust the disposable VM pool settings",
+        "when_to_use": [
+          "An admin asks to resize, enable or move the pool"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.rehearse",
+      "name": "Rehearse On Twin",
+      "description": "Rehearse a command on a disposable, network-isolated twin of a VM (snapshot, full clone with every NIC link_down, health checks before/after) and return a pass/fail verdict plus a rehearsal_id for the approval card",
+      "accessLevel": "specialists+",
+      "defconLevel": "AMBER",
+      "requiresApproval": true,
+      "parameters": {
+        "vmid": { "type": "number", "required": true, "description": "Target VM id (not a template)" },
+        "node": { "type": "string", "required": true, "description": "Proxmox node the target is on" },
+        "command": { "type": "string", "required": true, "description": "Shell command to run inside the twin (no single quotes)" },
+        "checks": { "type": "array", "required": false, "description": "Health checks before/after: {type:url,url:http://127.0.0.1:port/path} | {type:unit,name} | {type:cmd,run}" },
+        "keep_twin": { "type": "boolean", "required": false, "description": "Leave the stopped isolated twin in place" }
+      },
+      "instructions": {
+        "summary": "Prove a risky change on a throwaway copy before asking a human to approve it",
+        "when_to_use": [
+          "Before proposing a package upgrade, config change or restart on a production VM",
+          "A human asks whether a change is safe"
+        ]
+      }
+    },
+    {
+      "id": "proxmox.vm.doctor",
+      "name": "VM Doctor",
+      "description": "Diagnose why a VM is slow or unhealthy (read-only): gathers VM status, config, snapshots, hour/day performance history, host node load, storage use, recent tasks and the guest agent, runs fixed rules and returns a verdict with ranked findings (evidence and suggested fix) plus gaps for anything it could not read",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "target": {
+          "type": "string",
+          "required": true,
+          "description": "VM name or numeric vmid"
+        }
+      },
+      "instructions": {
+        "summary": "Explain why a VM is slow or unhealthy, with evidence, without touching it",
+        "when_to_use": [
+          "A human asks why a VM is slow, unresponsive or unhealthy",
+          "Before proposing a fix, to find the likely cause"
+        ]
+      }
     }
   ],
 
@@ -343,6 +572,9 @@
 
   "agent_hints": {
     "primary_agent": "atlas",
-    "delegation_keywords": ["storage", "snapshot", "backup", "clone", "template", "golden clone", "ha", "high availability", "vm resource", "proxmox capacity"]
+    "delegation_keywords": ["storage", "snapshot", "backup", "clone", "template", "golden clone", "ha", "high availability", "vm resource", "proxmox capacity", "vm pool", "test vm", "disposable vm", "lease a vm",
+      "slow vm",
+      "diagnose vm",
+      "vm doctor"]
   }
 }

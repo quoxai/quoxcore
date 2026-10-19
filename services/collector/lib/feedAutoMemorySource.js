@@ -38,6 +38,7 @@
 
 'use strict';
 
+const { claudeProjectDir } = require('../utils/runtimePaths.js');
 const fs = require('fs');
 const path = require('path');
 const brainFeedClient = require('./brainFeedClient.js');
@@ -51,9 +52,9 @@ const VAULT_NAME = 'Agent Memory';
 const MANIFEST_KEY = 'automemory:manifest';
 // Same default + same directory autoMemoryReader.mjs uses — the collector
 // container bind-mounts the host home directory read-only at the identical
-// path (`/opt/quoxcore:/opt/quoxcore:ro` in docker-compose.yml), so this
+// path (`$HOME:$HOME:ro` in docker-compose.yml), so this
 // path resolves inside the container exactly as it does on the host.
-const DEFAULT_MEMORY_DIR = '/opt/quoxcore/.claude/projects/-opt-quoxcore/memory';
+const DEFAULT_MEMORY_DIR = require('path').join(claudeProjectDir(), 'memory');
 
 /**
  * Lists top-level `*.md` files directly under `dir` (no recursion — mirrors

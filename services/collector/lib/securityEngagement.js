@@ -282,7 +282,8 @@ async function verifyTarget(targetId, orgId, deps) {
     if (typeof deps.lookupDnsTxt !== 'function') {
       throw new Error('lookupDnsTxt dependency is required to verify a dns_txt target');
     }
-    const records = await deps.lookupDnsTxt(target.value);
+    // #1007: a url target's TXT record lives on its hostname, not on the whole URL
+    const records = await deps.lookupDnsTxt(fleetLookupValue(target));
     const expected = `quox-verify=${target.verification_token}`;
     const match = (records || []).find((r) => r === expected);
     verified = !!match;
@@ -291,7 +292,8 @@ async function verifyTarget(targetId, orgId, deps) {
     if (typeof deps.fetchWellKnown !== 'function') {
       throw new Error('fetchWellKnown dependency is required to verify a well_known_file target');
     }
-    const body = await deps.fetchWellKnown(target.value);
+    // #1007: a url target is challenged at its own origin (scheme, host, port), never the whole URL
+    const body = await deps.fetchWellKnown(target.type === 'url' ? new URL(target.value).origin : target.value);
     verified = body === target.verification_token;
     ref = verified ? body : null;
   } else if (target.verification_method === 'quoxagent_install') {

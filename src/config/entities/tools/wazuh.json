@@ -5,119 +5,15 @@
   },
   "tools": [
     {
-      "id": "wazuh.alerts",
-      "name": "Security Alerts",
-      "description": "Retrieve recent security alerts from Wazuh manager, filtered by severity",
-      "aeeIntent": "quox.noc.wazuh.alerts.query",
-      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
-      "accessLevel": "specialists+",
-      "defconLevel": "AMBER",
-      "requiresApproval": false,
-      "parameters": {
-        "severity": {
-          "type": "string",
-          "required": false,
-          "description": "Filter by severity: low, medium, high, critical"
-        },
-        "limit": {
-          "type": "number",
-          "required": false,
-          "default": 50,
-          "description": "Maximum number of alerts to return"
-        },
-        "agentId": {
-          "type": "string",
-          "required": false,
-          "description": "Filter alerts by specific Wazuh agent ID"
-        }
-      },
-      "instructions": {
-        "summary": "Query Wazuh indexer for security alerts",
-        "when_to_use": [
-          "User asks about security alerts or threats",
-          "User wants to see recent security events",
-          "Investigating a security incident"
-        ]
-      }
-    },
-    {
-      "id": "wazuh.agents",
-      "name": "Agent Status",
-      "description": "List Wazuh agents with connection status and OS information",
-      "aeeIntent": "quox.noc.wazuh.agents.list",
-      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
-      "accessLevel": "specialists+",
-      "defconLevel": "GREEN",
-      "requiresApproval": false,
-      "parameters": {
-        "status": {
-          "type": "string",
-          "required": false,
-          "description": "Filter by status: active, disconnected, all"
-        }
-      },
-      "instructions": {
-        "summary": "Check connectivity of Wazuh security agents",
-        "when_to_use": [
-          "User asks which hosts have security monitoring",
-          "Checking agent health after infrastructure changes"
-        ]
-      }
-    },
-    {
-      "id": "wazuh.vulnerabilities",
-      "name": "Vulnerability Report",
-      "description": "Query Wazuh indexer for vulnerability states across monitored hosts",
-      "aeeIntent": "quox.noc.wazuh.vulnerabilities.query",
-      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
-      "accessLevel": "specialists+",
-      "defconLevel": "AMBER",
-      "requiresApproval": false,
-      "parameters": {
-        "severity": {
-          "type": "string",
-          "required": false,
-          "description": "Filter by severity: low, medium, high, critical"
-        },
-        "agentId": {
-          "type": "string",
-          "required": false,
-          "description": "Filter by specific agent"
-        }
-      },
-      "instructions": {
-        "summary": "Get vulnerability scan results from Wazuh",
-        "when_to_use": [
-          "User asks about vulnerabilities on hosts",
-          "Security compliance review",
-          "Pre-deployment security check"
-        ]
-      }
-    },
-    {
-      "id": "wazuh.manager.status",
-      "name": "Manager Status",
-      "description": "Check Wazuh manager health and cluster status",
-      "aeeIntent": "quox.noc.wazuh.manager.status",
-      "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
-      "accessLevel": "specialists+",
-      "defconLevel": "GREEN",
-      "requiresApproval": false,
-      "parameters": {},
-      "instructions": {
-        "summary": "Verify Wazuh manager is running and healthy",
-        "when_to_use": [
-          "Checking overall security infrastructure health",
-          "Troubleshooting missing alerts"
-        ]
-      }
-    },
-    {
       "id": "wazuh.deploy-agent",
       "name": "Deploy Agent",
       "description": "Deploy Wazuh agent to a host via SSH through bastion",
       "aeeIntent": "quox.noc.wazuh.agent.deploy",
-      "aoclClassification": { "layer": 5, "risk": "HIGH", "autonomy": "APPROVAL_REQUIRED" },
+      "aoclClassification": {
+        "layer": 5,
+        "risk": "HIGH",
+        "autonomy": "APPROVAL_REQUIRED"
+      },
       "accessLevel": "admin",
       "defconLevel": "RED",
       "requiresApproval": true,

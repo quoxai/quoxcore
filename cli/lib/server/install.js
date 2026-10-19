@@ -25,12 +25,21 @@ function normalize(p) {
   return null;
 }
 
+/** install.json that scripts/setup.sh writes: { dir } (the install root or the quox checkout). */
+export function installRecordPath(env = process.env, home = homedir()) {
+  return join(env.XDG_CONFIG_HOME || join(home, '.config'), 'quox', 'install.json');
+}
+function readRecordedDir(env, home) {
+  try { const d = JSON.parse(readFileSync(installRecordPath(env, home), 'utf8'))?.dir; return typeof d === 'string' && d.startsWith('/') ? d : null; } catch { return null; }
+}
+
 /**
  * Where the install lives: --dir, then QUOX_INSTALL_DIR, then the Getting started journey
- * (~/.config/quox/onboarding.json installDir), then the running containers' compose label.
+ * (~/.config/quox/onboarding.json installDir), then ~/.config/quox/install.json (written by setup.sh), then
+ * the running containers' compose label, then the installer's default ~/quox-install.
  * -> { repoDir, root, project, source } | { error }
  */
-export async function resolveInstall({ dir, env = process.env, sys, journey = null } = {}) {
+export async function resolveInstall({ dir, env = process.env, sys, journey = null, home = homedir() } = {}) {
   if (dir) {
     const n = normalize(dir);
     if (!n) return { error: `${dir} is not a Quox install (no docker-compose.yml there or in ${join(dir, 'quox')})` };
@@ -46,6 +55,8 @@ export async function resolveInstall({ dir, env = process.env, sys, journey = nu
     const n = normalize(j.installDir);
     if (n) return { ...n, project: await projectFor(n.repoDir, sys), source: 'Getting started' };
   }
+  const rec = normalize(readRecordedDir(env, home));
+  if (rec) return { ...rec, project: await projectFor(rec.repoDir, sys), source: 'install.json' };
   if (sys) {
     const r = await sys.run('docker', ['inspect', 'quox-auth', '--format', '{{index .Config.Labels "com.docker.compose.project.working_dir"}}|{{index .Config.Labels "com.docker.compose.project"}}']);
     if (r.code === 0) {
@@ -54,7 +65,9 @@ export async function resolveInstall({ dir, env = process.env, sys, journey = nu
       if (n) return { ...n, project: project || basename(n.repoDir), source: 'running containers' };
     }
   }
-  return { error: 'no Quox install found here. Pass --dir <path>, or set QUOX_INSTALL_DIR (Getting started records it for you).' };
+  const def = normalize(join(home, 'quox-install'));
+  if (def) return { ...def, project: await projectFor(def.repoDir, sys), source: 'default ~/quox-install' };
+  return { error: 'no Quox install found here. Pass --dir <path>, or set QUOX_INSTALL_DIR (setup.sh records it in ~/.config/quox/install.json).' };
 }
 
 async function projectFor(repoDir, sys) {

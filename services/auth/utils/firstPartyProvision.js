@@ -55,8 +55,10 @@ import {
     removeAssignment,
     setEnabled,
     sha256Hex,
+    ensurePluginInstallsCoveringIndex,
 } from './plugins.js';
 import { FIRST_PARTY_PLUGINS, OFFICIAL_LICENSED_PLUGINS, FIRST_PARTY_ACTOR } from '../config/firstPartyPlugins.js';
+import { createHash } from 'crypto';
 import { hasPlugin } from '../lib/entitlements.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -345,7 +347,7 @@ export function provisionFirstPartyPlugins(db, { bundles = null, actor = FIRST_P
  * the container. Chunking + yielding keeps the process responsive throughout.
  *
  * @param {object} [options]
- * @param {number} [options.chunkSize=10] orgs processed per synchronous burst
+ * @param {number} [options.chunkSize=1] orgs processed per synchronous burst (AUTH-BOOT: yield after EVERY org)
  * @param {() => Promise<void>} [options.yieldFn] injectable yield (default: setImmediate)
  * @returns {Promise<{orgs,installed,upgraded,refreshed,current,removed,absent,failed}>}
  */
@@ -354,7 +356,7 @@ export async function provisionFirstPartyPluginsChunked(db, {
     actor = FIRST_PARTY_ACTOR,
     logger = console,
     hasEntitlement = hasPlugin,
-    chunkSize = 10,
+    chunkSize = 1,
     yieldFn = () => new Promise((resolve) => setImmediate(resolve)),
 } = {}) {
     ensurePluginsSchema(db);
@@ -396,11 +398,34 @@ export async function provisionFirstPartyPluginsChunked(db, {
  * @param {(summary) => void} [options.onComplete] optional completion hook (tests)
  */
 export function scheduleFirstPartyProvisioning(db, options = {}) {
-    const { onComplete, logger = console, ...rest } = options;
+    const { onComplete, logger = console, force = process.env.FIRST_PARTY_FORCE === '1', ...rest } = options;
     setImmediate(() => {
-        provisionFirstPartyPluginsChunked(db, { logger, ...rest })
+        let set;
+        let fingerprint;
+        try {
+            ensurePluginsSchema(db);
+            // AUTH-BOOT: built post-listen, once; keeps every lookup off blob overflow pages.
+            ensurePluginInstallsCoveringIndex(db);
+            set = rest.bundles || loadFirstPartyBundles({ logger });
+            fingerprint = computeProvisionFingerprint(db, set);
+            if (!force && readProvisionFingerprint(db) === fingerprint) {
+                logger.log?.(`[FirstParty] bundle set and org list unchanged since last successful run (${fingerprint.slice(0, 12)}); skipping boot sweep`);
+                onComplete?.({ skipped: true, fingerprint });
+                return;
+            }
+        } catch (err) {
+            logger.error?.(`[FirstParty] background provisioning failed (non-fatal): ${err.message}`);
+            onComplete?.(null);
+            return;
+        }
+        provisionFirstPartyPluginsChunked(db, { logger, ...rest, bundles: set })
             .then((s) => {
                 logger.log?.(`[FirstParty] ${s.installed} installed · ${s.upgraded} upgraded · ${s.refreshed} refreshed · ${s.current} current · ${s.removed} removed · ${s.absent} unentitled · ${s.failed} failed across ${s.orgs} orgs`);
+                // Only a fully clean run may arm the skip; a partial run must retry next boot.
+                if (s.failed === 0) {
+                    try { writeProvisionFingerprint(db, fingerprint); }
+                    catch (e) { logger.error?.(`[FirstParty] could not store fingerprint (non-fatal): ${e.message}`); }
+                }
                 onComplete?.(s);
             })
             .catch((err) => {
@@ -408,6 +433,45 @@ export function scheduleFirstPartyProvisioning(db, options = {}) {
                 onComplete?.(null);
             });
     });
+}
+
+const FINGERPRINT_KEY = 'first_party_provision_fingerprint';
+
+function ensureStateTable(db) {
+    db.exec(`CREATE TABLE IF NOT EXISTS first_party_provision_state (
+        key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+}
+
+/**
+ * AUTH-BOOT: fingerprint of everything the boot sweep reconciles against:
+ * every bundle (id, version, bytes sha, signature sha, entitlement gating) and
+ * the org id list. Equal fingerprint after a clean run => the sweep would be a
+ * no-op, so it is skipped. Entitlement lapses / grants are reconciled by their
+ * own events (see ensureFirstPartyForOrg callers), not by this boot sweep.
+ * FIRST_PARTY_FORCE=1 forces a sweep.
+ */
+export function computeProvisionFingerprint(db, bundles) {
+    const h = createHash('sha256');
+    const parts = bundles
+        .map((b) => [b.pluginId, b.version, bundleSha(b),
+            b.signatureJson ? sha256Hex(Buffer.from(b.signatureJson)) : '', b.entitlementGated ? 'g' : ''].join('|'))
+        .sort();
+    h.update(parts.join('\n'));
+    h.update('\n--orgs--\n');
+    const orgIds = db.prepare('SELECT id FROM orgs ORDER BY id').all().map((r) => r.id);
+    h.update(orgIds.join('\n'));
+    return h.digest('hex');
+}
+
+export function readProvisionFingerprint(db) {
+    ensureStateTable(db);
+    return db.prepare('SELECT value FROM first_party_provision_state WHERE key = ?').get(FINGERPRINT_KEY)?.value ?? null;
+}
+
+export function writeProvisionFingerprint(db, fingerprint) {
+    ensureStateTable(db);
+    db.prepare(`INSERT INTO first_party_provision_state (key, value, updated_at) VALUES (?, ?, datetime('now'))
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`).run(FINGERPRINT_KEY, fingerprint);
 }
 
 // Cached bundle set for the hot org-creation path (loaded once per process).

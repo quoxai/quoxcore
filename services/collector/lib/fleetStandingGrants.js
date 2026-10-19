@@ -60,6 +60,14 @@ function ensure(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_fleet_standing_grants_org ON fleet_standing_grants(org_id, host);
   `);
+  // DEVFLEET-P15 (ephemeral rehearsal grants): optional caps. NULL = the old behaviour, so every
+  // existing grant is unaffected. max_uses bounds how many calls the grant may cover; vmid_allow_json
+  // is an explicit VMID allowlist (the range model cannot express {target, twin}); source_approval_id
+  // names the human approval that minted it.
+  const have = new Set(db.prepare('PRAGMA table_info(fleet_standing_grants)').all().map((c) => c.name));
+  if (!have.has('max_uses')) db.exec('ALTER TABLE fleet_standing_grants ADD COLUMN max_uses INTEGER');
+  if (!have.has('vmid_allow_json')) db.exec('ALTER TABLE fleet_standing_grants ADD COLUMN vmid_allow_json TEXT');
+  if (!have.has('source_approval_id')) db.exec('ALTER TABLE fleet_standing_grants ADD COLUMN source_approval_id TEXT');
   _db = db;
 }
 
@@ -93,11 +101,18 @@ function proxmoxTestVmLane({ templateVmid, namePrefix }) {
   const P = namePrefix;
   const ID = '(?<vmid>\\d{1,9})';
   const DETACH = `(?:systemd-run --collect --unit ${P}-[a-z0-9-]{1,40} )?`;
+  // DEVFLEET-P15: Proxmox itself is the book of who holds a lane VM. Tags are [a-z0-9_-] items split by
+  // commas; the description is ONE single-quoted argument of plain text (no quote, newline or shell metachar).
+  const TAGS = '[a-z0-9_-]{1,40}(?:,[a-z0-9_-]{1,40}){0,9}';
+  const DESC = "'[A-Za-z0-9 .,:=_/@+-]{1,300}'";
   return [
     'qm list',
     `qm config ${T}`,
     `${DETACH}qm clone ${T} ${ID} --name ${P}-[a-z0-9-]{1,40}(?: --full)?(?: --storage [a-z0-9-]{1,40})?`,
     `qm set ${ID}(?: --(?:cores|sockets|memory|balloon|cpu|onboot|agent|name|net0|ipconfig0) [A-Za-z0-9=,._:/-]{1,80})+`,
+    `qm set ${ID} --tags ${TAGS}`,
+    `qm set ${ID} --description ${DESC}`,
+    `qm set ${ID} --tags ${TAGS} --description ${DESC}`,
     `qm resize ${ID} (?:scsi|virtio|sata)0 \\+?\\d{1,4}G`,
     `qm (?:start|status|config|stop|reboot|reset|pending) ${ID}`,
     `qm shutdown ${ID}(?: --timeout \\d{1,4})?`,
@@ -109,6 +124,9 @@ function proxmoxTestVmLane({ templateVmid, namePrefix }) {
 }
 
 const PRESETS = { 'proxmox-test-vm-lane': proxmoxTestVmLane };
+
+/** Regex-escape a literal so the anchored compile() matches exactly that string and nothing else. */
+function escapeRe(str) { return String(str).replace(/[.*+?^${}()|[\]\\\/-]/g, '\\$&'); }
 
 function compile(p) { return new RegExp(`^(?:${p})$`); }
 
@@ -151,8 +169,36 @@ function validateGrant(b = {}) {
   if (!HOST_RE.test(host)) return { error: 'host must be one concrete host id' };
   const reason = typeof b.reason === 'string' ? b.reason.trim() : '';
   if (reason.length < 8 || reason.length > 500) return { error: 'reason is required (8-500 characters)' };
-  const days = Number(b.expires_in_days);
-  if (!Number.isFinite(days) || days <= 0 || days > MAX_DAYS) return { error: `expires_in_days must be > 0 and <= ${MAX_DAYS} (expiry)` };
+  const exact = b.exact_commands !== undefined && b.exact_commands !== null;
+  let expiresAt;
+  if (exact) {
+    // Ephemeral exact-scope grant (rehearsal twins): minutes, not days, and literal commands only.
+    const mins = Number(b.expires_in_minutes);
+    if (!Number.isFinite(mins) || mins <= 0 || mins > 120) return { error: 'expires_in_minutes must be > 0 and <= 120 for an exact-command grant' };
+    expiresAt = Date.now() + Math.round(mins * 60000);
+  } else {
+    const days = Number(b.expires_in_days);
+    if (!Number.isFinite(days) || days <= 0 || days > MAX_DAYS) return { error: `expires_in_days must be > 0 and <= ${MAX_DAYS} (expiry)` };
+    expiresAt = Date.now() + Math.round(days * 86400000);
+  }
+  let maxUses = null;
+  if (b.max_uses !== undefined && b.max_uses !== null) {
+    maxUses = Number(b.max_uses);
+    if (!Number.isInteger(maxUses) || maxUses < 1 || maxUses > 500) return { error: 'max_uses must be an integer from 1 to 500' };
+  }
+  let vmidAllow = null;
+  if (b.vmid_allow !== undefined && b.vmid_allow !== null) {
+    if (!Array.isArray(b.vmid_allow) || b.vmid_allow.length < 1 || b.vmid_allow.length > 8
+      || b.vmid_allow.some((n) => !Number.isInteger(n) || n < 100 || n > 999999999)) {
+      return { error: 'vmid_allow must be 1-8 integers >= 100' };
+    }
+    vmidAllow = [...new Set(b.vmid_allow)].sort((x, y) => x - y);
+  }
+  let sourceApproval = null;
+  if (b.source_approval_id !== undefined && b.source_approval_id !== null) {
+    if (typeof b.source_approval_id !== 'string' || !/^[A-Za-z0-9_.:-]{1,100}$/.test(b.source_approval_id)) return { error: 'source_approval_id is malformed' };
+    sourceApproval = b.source_approval_id;
+  }
 
   let vmidMin = null; let vmidMax = null;
   if (b.vmid_min !== undefined || b.vmid_max !== undefined) {
@@ -163,7 +209,16 @@ function validateGrant(b = {}) {
   }
 
   let patterns; let preset = null;
-  if (b.preset !== undefined && b.preset !== null) {
+  if (exact) {
+    if (b.preset || b.patterns) return { error: 'exact_commands cannot be combined with preset or patterns' };
+    if (vmidMin !== null) return { error: 'exact_commands use vmid_allow, not a vmid range' };
+    if (!Array.isArray(b.exact_commands) || b.exact_commands.length < 1 || b.exact_commands.length > 40) return { error: 'exact_commands must be 1-40 commands' };
+    const seen = new Set(); patterns = [];
+    for (const c of b.exact_commands) {
+      if (typeof c !== 'string' || !c.trim() || c.length > MAX_COMMAND || /[\x00-\x1f\x7f]/.test(c)) return { error: 'each exact command must be a non-empty single-line string' };
+      if (!seen.has(c)) { seen.add(c); patterns.push(escapeRe(c)); }
+    }
+  } else if (b.preset !== undefined && b.preset !== null) {
     if (!PRESETS[b.preset]) return { error: `unknown preset (known: ${Object.keys(PRESETS).join(', ')})` };
     const tv = Number(b.template_vmid);
     if (!Number.isInteger(tv) || tv < 100) return { error: 'template_vmid is required for this preset' };
@@ -193,7 +248,7 @@ function validateGrant(b = {}) {
     }
   }
   return {
-    ok: { tool, host, reason, patterns, preset, vmid_min: vmidMin, vmid_max: vmidMax, expires_at: Date.now() + Math.round(days * 86400000) },
+    ok: { tool, host, reason, patterns, preset, vmid_min: vmidMin, vmid_max: vmidMax, expires_at: expiresAt, max_uses: maxUses, vmid_allow: vmidAllow, source_approval_id: sourceApproval },
   };
 }
 
@@ -205,6 +260,9 @@ function rowToGrant(r) {
     created_at: new Date(r.created_at).toISOString(),
     revoked_at: r.revoked_at ? new Date(r.revoked_at).toISOString() : null, revoked_by: r.revoked_by || null,
     use_count: r.use_count, last_used_at: r.last_used_at ? new Date(r.last_used_at).toISOString() : null,
+    max_uses: r.max_uses === undefined ? null : r.max_uses,
+    vmid_allow: r.vmid_allow_json ? JSON.parse(r.vmid_allow_json) : null,
+    source_approval_id: r.source_approval_id || null,
   };
 }
 
@@ -214,13 +272,15 @@ function createGrant(orgId, v, createdBy) {
   const id = `SGR_${crypto.randomBytes(10).toString('hex')}`;
   const t = Date.now();
   requireDb().prepare(`
-    INSERT INTO fleet_standing_grants (grant_id, org_id, tool, host, patterns_json, preset, vmid_min, vmid_max, expires_at, created_by, reason, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, orgId, v.tool, v.host, JSON.stringify(v.patterns), v.preset, v.vmid_min, v.vmid_max, v.expires_at, createdBy, v.reason, t);
+    INSERT INTO fleet_standing_grants (grant_id, org_id, tool, host, patterns_json, preset, vmid_min, vmid_max, expires_at, created_by, reason, created_at, max_uses, vmid_allow_json, source_approval_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, orgId, v.tool, v.host, JSON.stringify(v.patterns), v.preset, v.vmid_min, v.vmid_max, v.expires_at, createdBy, v.reason, t,
+    v.max_uses ?? null, v.vmid_allow ? JSON.stringify(v.vmid_allow) : null, v.source_approval_id ?? null);
   const g = getGrant(orgId, id);
   emit('quox.approval.standing_grant.created', orgId, createdBy, {
     grant_id: id, tool: v.tool, host: v.host, preset: v.preset, vmid_min: v.vmid_min, vmid_max: v.vmid_max,
     expires_at: g.expires_at, reason: v.reason, pattern_count: v.patterns.length,
+    max_uses: g.max_uses, vmid_allow: g.vmid_allow, source_approval_id: g.source_approval_id,
   });
   return g;
 }
@@ -249,10 +309,13 @@ function revokeGrant(orgId, grantId, revokedBy) {
 }
 
 /** Does this one grant row cover (tool, host, command) right now? -> reason string | null (null = covered). */
-function whyNot(r, { tool, host, command, now }) {
+function whyNot(r, { tool, host, command, now, afterUse = false }) {
   if (!r) return 'no such grant';
   if (r.revoked_at) return 'grant revoked';
   if (r.expires_at <= now) return 'grant expired';
+  // max_uses: coversCall runs BEFORE recordUse, the auth mint callback (checkGrant) AFTER it for the
+  // same call, so the callback tolerates use_count == max_uses and only refuses beyond it.
+  if (r.max_uses !== null && r.max_uses !== undefined && (afterUse ? r.use_count > r.max_uses : r.use_count >= r.max_uses)) return 'grant exhausted (max_uses reached)';
   if (r.tool !== tool) return 'tool not covered';
   if (r.host !== host) return 'host not covered';
   if (typeof command !== 'string' || !command || command.length > MAX_COMMAND) return 'command missing or too long';
@@ -263,6 +326,13 @@ function whyNot(r, { tool, host, command, now }) {
     if (!m) continue;
     const groups = m.groups || {};
     const ids = Object.keys(groups).filter((k) => k.startsWith('vmid') && groups[k] !== undefined);
+    if (r.vmid_allow_json) {
+      const allow = JSON.parse(r.vmid_allow_json);
+      // An explicit VMID allowlist: every captured VMID must be on it, and a pattern with no VMID
+      // group only counts when it is an exact escaped literal of this very command.
+      if (!ids.every((k) => allow.includes(Number(groups[k])))) continue;
+      if (ids.length === 0 && p !== escapeRe(command)) continue;
+    }
     if (r.vmid_min !== null && r.vmid_min !== undefined) {
       if (ids.length === 0 && !LITERAL_RE.test(p)) continue;
       const inRange = ids.every((k) => { const n = Number(groups[k]); return Number.isInteger(n) && n >= r.vmid_min && n <= r.vmid_max; });
@@ -291,7 +361,7 @@ function checkGrant({ orgId, grantId, host, command, tool = 'ssh_exec', now = Da
   if (!Array.isArray(targets) || targets.length !== 1 || !resolvedHost || targets[0] !== resolvedHost) {
     return { allowed: false, reason: 'targets must be exactly the resolved grant host' };
   }
-  const why = whyNot(getRow(orgId, grantId), { tool, host, command, now });
+  const why = whyNot(getRow(orgId, grantId), { tool, host, command, now, afterUse: true });
   return why === null ? { allowed: true } : { allowed: false, reason: why };
 }
 
@@ -307,5 +377,5 @@ function recordUse(orgId, grantId, { approvalId, command, userId, agentId, host 
 
 module.exports = {
   ensure, setEmitter, validateGrant, createGrant, getGrant, listGrants, revokeGrant,
-  coversCall, checkGrant, recordUse, PRESETS, _internal: { compile, whyNot },
+  coversCall, checkGrant, recordUse, PRESETS, escapeRe, _internal: { compile, whyNot },
 };

@@ -24,6 +24,18 @@ function normalizeDelegateResponse(resp, result) {
     tokensUsed: body.tokensUsed || body.tokens_used || undefined,
     needs_approval: body.needs_approval || null,
   };
+  // quox#1167: L7 is the LLM dispatch itself. A 403 from it means the specialist's run failed while
+  // executing (CLI timeout or crash, provider error), NOT that policy refused it. Its tool calls are not
+  // in this body, so tools_used is unknown, never "0".
+  if (!ok && body.deniedByLayer === 'L7') {
+    const reason = body.message && !/^Blocked at L7$/i.test(body.message) ? body.message : 'no reason given';
+    out.error_code = 'specialist_exec_failed';
+    out.error = `the specialist's run did not finish (an execution failure, not a policy decision): ${reason}`;
+    out.response = out.error;
+    out.tools_used = undefined;
+    out.tools_ran = 'unknown';
+    return out;
+  }
   if (!ok) {
     const detail = body.error || body.message
       || (!httpOk ? `HTTP ${resp && resp.status != null ? resp.status : 'error'}` : 'specialist reported failure');

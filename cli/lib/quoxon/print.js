@@ -7,6 +7,7 @@
 import { textGate } from './events.js';
 import { streamFields, fallbackNote } from './model.js';
 import { connectOfferFor } from './connect.js';
+import { isConsentError, consentPrintMessage } from './consent.js';
 
 export const EXIT = { ok: 0, error: 1, approval: 2, interrupted: 3, auth: 4, unconfirmed: 5 };
 
@@ -28,7 +29,7 @@ const isAuth = (e) => e?.status === 401 || /valid jwt|service key|unauthor|not a
 const newTurnId = () => `QXN_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 /** Runs one turn. out/err are write(string) sinks. Returns the exit code. */
-export async function runPrint({ api, prompt, agent = 'quox', output = 'text', conversation = null, turnId = newTurnId(), timeoutS = 0, color = false, stopGraceMs = 8000, context = undefined, choice = null, promptProfile = undefined, out, err }) {
+export async function runPrint({ api, prompt, agent = 'quox', output = 'text', conversation = null, turnId = newTurnId(), timeoutS = 0, color = false, stopGraceMs = 8000, context = undefined, choice = null, promptProfile = undefined, profile = null, out, err }) {
   if (!prompt || !prompt.trim()) { err('quox: empty prompt (pass --print "<prompt>" or pipe it on stdin)\n'); return EXIT.error; }
   const ctrl = new AbortController();
   let abandoned = false, graceTimer = null;
@@ -45,10 +46,10 @@ export async function runPrint({ api, prompt, agent = 'quox', output = 'text', c
   const sum = { tools: 0, approvals: 0, receipts: [] };
   let convo = conversation, doneSession = null, status = null, text = '', sawApproval = false, errorMsg = null, authFail = false;
   const seen = new Set();
-  let offer = null;
+  let offer = null, handoff = null;
   let gate = null;
   try {
-    for await (const ev of api.stream({ turnId, message: prompt, agent: agent || 'quox', conversationId: conversation, context, ...streamFields(choice), ...(promptProfile ? { promptProfile } : {}) }, ctrl.signal)) {
+    for await (const ev of api.stream({ turnId, message: prompt, agent: agent || 'quox', conversationId: conversation, context, ...streamFields(choice), ...(promptProfile ? { promptProfile } : {}), ...(timeoutS > 0 ? { turnBudgetMs: timeoutS * 1000 } : {}) }, ctrl.signal)) {
       if (output === 'json') out(JSON.stringify(ev) + '\n');
       const fb = fallbackNote(choice, ev);
       if (fb) err(`quox: ${fb}\n`);
@@ -61,8 +62,9 @@ export async function runPrint({ api, prompt, agent = 'quox', output = 'text', c
       else if (ev.type === 'tool.finished') { if (!seen.has(ev.call_id)) { seen.add(ev.call_id); sum.tools++; } if (ev.receipt?.ward_seq != null) sum.receipts.push(ev.receipt.ward_seq); }
       else if (ev.type === 'approval.requested') { sawApproval = true; sum.approvals++; }
       else if (ev.type === 'approval.resolved') sawApproval = false;
+      else if (ev.type === 'turn.handoff_suggested' && ev.handoff_suggested?.agent) handoff = ev.handoff_suggested; // QUOXON handoff offer
       else if (ev.type === 'turn.finished') status = ev.status || 'completed';
-      else if (ev.type === 'error') errorMsg = ev.error || 'stream error';
+      else if (ev.type === 'error') errorMsg = isConsentError(ev) ? consentPrintMessage(ev, profile) : (ev.error || 'stream error');
     }
   } catch (e) {
     if (ctrl.signal.aborted) { status = 'abandoned'; errorMsg = `timed out after ${timeoutS}s; the server was not confirmed stopped`; }
@@ -83,12 +85,14 @@ export async function runPrint({ api, prompt, agent = 'quox', output = 'text', c
   if (!status) status = authFail ? 'auth' : 'failed';
 
   if (output === 'json') {
-    out(JSON.stringify({ type: 'summary', status, turn_id: turnId, conversation_id: convo, duration_ms: Date.now() - t0, server_stopped: serverStopped, ...sum }) + '\n');
+    out(JSON.stringify({ type: 'summary', status, turn_id: turnId, conversation_id: convo, duration_ms: Date.now() - t0, server_stopped: serverStopped, ...sum, ...(handoff ? { handoff_suggested: handoff } : {}) }) + '\n');
   } else if (text) out(text.endsWith('\n') ? text : text + '\n');
   if (authFail) err(`Not signed in for chat. Run: quox login -p <profile>\n`);
   else if (code === EXIT.approval) err('Held for approval: approve it in the dashboard or with `quox` /approvals.\n');
   else if (code === EXIT.unconfirmed) err('quox: Ended without confirmation from the server\n');
   else if (errorMsg) err(`quox: ${errorMsg}\n`);
   if (offer && code !== EXIT.ok) err(`${offer}\n`);
+  // QUOXON handoff offer: no y/N here, so name the exact one-turn command (same question, same conversation).
+  if (handoff && output !== 'json' && code === EXIT.ok) err(`quox: ${handoff.reason ? `${String(handoff.reason).replace(/\s+$/, '')} ` : ''}${handoff.name || handoff.agent} can answer it: quox --print --agent ${handoff.agent}${convo ? ` --conversation ${convo}` : ''} ${JSON.stringify(prompt)}\n`);
   return code;
 }

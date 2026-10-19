@@ -25,7 +25,7 @@ async function searchWithRetry(searchOnce, { retries = 1 } = {}) {
       lastErr = err;
     }
   }
-  return { chunks: [], error: String((lastErr && lastErr.message) || lastErr || 'retrieval_failed').slice(0, 160), attempts };
+  return { chunks: [], error: String((lastErr && lastErr.message) || lastErr || 'retrieval_failed').slice(0, 160), attempts, detail: (lastErr && lastErr.detail) || null };
 }
 
 /** True when the turn should be answered with the honest lookup-failed text. */
@@ -35,4 +35,15 @@ function shouldReportRetrievalFailure({ retrievalError, keptCount, message }) {
   return words.length >= 3;
 }
 
-module.exports = { RETRIEVAL_FAILED_REPLY, searchWithRetry, shouldReportRetrievalFailure };
+/**
+ * QC-W18b: per-turn grounding fields when dense retrieval failed and the turn
+ * ran on keyword search only. Provider + HTTP status only: no bodies, no keys.
+ */
+function degradedRetrieval(retrievalError, detail) {
+  if (!retrievalError) return {};
+  const status = detail && Number.isFinite(detail.status) ? detail.status : null;
+  const provider = detail && typeof detail.provider === 'string' ? detail.provider.slice(0, 20) : null;
+  return { retrieval_degraded: 'lexical_only', retrieval_degraded_provider: provider, retrieval_degraded_status: status };
+}
+
+module.exports = { degradedRetrieval, RETRIEVAL_FAILED_REPLY, searchWithRetry, shouldReportRetrievalFailure };

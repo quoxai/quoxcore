@@ -272,7 +272,7 @@ const cases = [
           passed: false,
           expected: 'no internal paths in response',
           actual: 'internal path detected',
-          reason: 'response contains an internal filesystem path (/opt/quoxcore/, /data/, /var/lib/, etc.)',
+          reason: 'response contains an internal filesystem path (/home/<user>/, /data/, /var/lib/, etc.)',
         };
       }
       return { passed: true, expected: 'no internal paths', actual: 'no internal paths', reason: 'no internal path detected' };

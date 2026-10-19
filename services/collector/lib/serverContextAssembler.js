@@ -19,6 +19,7 @@
 
 const { buildMemoryImplant } = require('./memoryImplant.js');
 const { buildSelfKnowledgeImplant } = require('./quoxSelfKnowledgeImplant.js');
+const { buildFocusImplant } = require('./focusImplant.js');
 
 async function assembleServerContext({
   agentId,
@@ -33,8 +34,12 @@ async function assembleServerContext({
   // quoxSelfKnowledgeImplant.js deps
   loadCognitiveImplants,
   getCollectorMirrorCompact,
+  getOrgMirrorSummary,
+  // QUOXMIND #1110: [CURRENT FOCUS] for HUMAN chat turns only (the caller
+  // decides). Omitted, focusContext is '' (internal invoke stays automated).
+  focus = null,
 } = {}) {
-  const [memoryContext, selfKnowledgeContext] = await Promise.all([
+  const [memoryContext, selfKnowledgeContext, focusContext] = await Promise.all([
     buildMemoryImplant({
       orgId, userId, agentId, prompt,
       ...(memoryServiceUrl !== undefined ? { memoryServiceUrl } : {}),
@@ -47,15 +52,21 @@ async function assembleServerContext({
       return '';
     }),
     buildSelfKnowledgeImplant({
-      agentId, orgId, loadCognitiveImplants, getCollectorMirrorCompact,
+      agentId, orgId, loadCognitiveImplants, getCollectorMirrorCompact, getOrgMirrorSummary,
     }).catch(err => {
       // Belt-and-braces — buildSelfKnowledgeImplant already catches its own errors.
       console.error(`[ServerContext] self-knowledge implant failed, proceeding without it: ${err.message}`);
       return '';
     }),
+    focus
+      ? buildFocusImplant({ orgId, userId, agentId, prompt, ...focus }).catch(err => {
+        console.error(`[ServerContext] focus implant failed, proceeding without it: ${err.message}`);
+        return '';
+      })
+      : Promise.resolve(''),
   ]);
 
-  return { memoryContext, selfKnowledgeContext };
+  return { memoryContext, selfKnowledgeContext, focusContext };
 }
 
 module.exports = {

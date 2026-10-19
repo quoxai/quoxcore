@@ -1,6 +1,6 @@
 /**
  * discord-pro: status proxy for the Quox Discord Pro daemon (separate repo:
- * /opt/quoxcore/quox-discord-pro), the install/settings surface's only data
+ * ~/quox-discord-pro), the install/settings surface's only data
  * path.
  *
  * The daemon runs its own loopback-bound control API (quox-discord-pro's
@@ -13,15 +13,15 @@
  *   1. QDP_CONTROL_URL + QDP_CONTROL_TOKEN  (e.g. http://172.17.0.1:3109, the
  *      docker bridge gateway, so a containerised collector reaches the host
  *      daemon). Preferred, and the documented requirement if this container
- *      is ever moved somewhere that cannot see /opt/quoxcore at all.
+ *      is ever moved somewhere that cannot see ~ at all.
  *   2. Fallback: read controlPort from the daemon config file at
  *      QDP_CONFIG_PATH and call http://127.0.0.1:<controlPort> (works only
  *      when the collector shares the daemon's loopback, e.g. same host, no
  *      container boundary). The token itself resolves separately (env >
  *      controlTokenFile > legacy inline controlToken) — see
- *      resolveControlToken() below; on this host /opt/quoxcore is bind-
+ *      resolveControlToken() below; on this host ~ is bind-
  *      mounted read-only into the collector container, so controlTokenFile
- *      (default /opt/quoxcore/.quox-discord/control-token) is reachable
+ *      (default ~/.quox-discord/control-token) is reachable
  *      even without QDP_CONTROL_TOKEN set.
  *
  * Status semantics (always HTTP 200, never a 500, so a plugin card never has
@@ -80,7 +80,7 @@
  * token. The daemon is a standalone process outside the collector, so it
  * cannot decrypt QuoxVault directly; it authenticates here with its own
  * QUOX_SERVICE_KEY (a dedicated scoped qmcp_ token, see
- * /opt/quoxcore/.quox-discord/qdp.env) and this route resolves the org's
+ * ~/.quox-discord/qdp.env) and this route resolves the org's
  * `discord` vault credential (integration_type 'discord', field bot_token
  * -- see services/auth/config/integrationTypeRegistry.js; the type already
  * existed, nothing new registered) via the same resolveNotifCreds() waterfall
@@ -96,6 +96,7 @@
 
 'use strict';
 
+const { hostPath } = require('../utils/runtimePaths.js');
 const fs = require('fs');
 const { Router } = require('express');
 const { resolveNotifCreds } = require('../lib/notificationService.js');
@@ -280,15 +281,15 @@ function emitBindingEnvelope(req, { intent, channelId, binding }) {
   }
 }
 
-const CONFIG_PATH = process.env.QDP_CONFIG_PATH || '/opt/quoxcore/quox-discord-pro/config.json';
+const CONFIG_PATH = process.env.QDP_CONFIG_PATH || hostPath('quox-discord-pro', 'config.json');
 
 // Resolve the daemon's control token. Order (first match wins), mirrors
 // quox-discord-pro/src/controlToken.js on the daemon side:
 //   1. QDP_CONTROL_TOKEN env - required deployment path for a containerised
 //      collector once it cannot see the host filesystem at all.
 //   2. cfg.controlTokenFile - a path outside the daemon repo (default
-//      /opt/quoxcore/.quox-discord/control-token), reachable here because
-//      /opt/quoxcore is bind-mounted read-only into this container.
+//      ~/.quox-discord/control-token), reachable here because
+//      ~ is bind-mounted read-only into this container.
 //   3. cfg.controlToken - legacy inline value, kept only so an unmigrated
 //      config does not hard-break; logs once if hit.
 function resolveControlToken(cfg) {
@@ -328,6 +329,9 @@ function resolveControl() {
 // it looked like the daemon was down when the daemon was healthy and merely
 // slower than an arbitrary timeout. Callers pass their own budget; the default
 // stays 3s so nothing else got slower.
+// quox#1168: 30s was below what /doctor needs at 96 bindings (2026-10-16).
+const DOCTOR_TIMEOUT_MS = 120000;
+
 async function callControlApi(baseUrl, token, path, timeoutMs = 3000) {
   const res = await fetch(`${baseUrl}${path}`, {
     headers: { 'X-QDP-Token': token },
@@ -388,12 +392,30 @@ router.get('/diagnose', async (req, res) => {
     });
   }
   try {
-    // 30s: /doctor is one Discord REST call per binding (~12s at 27 bindings and
-    // it grows with the estate), so it needs a budget proportional to the work,
-    // not the 3s default that suits the in-memory endpoints.
-    const report = await callControlApi(ctrl.baseUrl, ctrl.token, '/doctor', 30000);
+    // /doctor is one Discord REST call per binding (~12s at 27 bindings; >30s at 96 on 2026-10-16),
+    // so it needs a budget proportional to the work, not the 3s default for in-memory endpoints.
+    const report = await callControlApi(ctrl.baseUrl, ctrl.token, '/doctor', DOCTOR_TIMEOUT_MS);
     return res.json({ ok: true, status: 'active', ...report });
-  } catch {
+  } catch (err) {
+    // quox#1168: a slow doctor, a rejected token and a refused connection are different faults.
+    // Reporting a timeout as "offline" told users the daemon was down while /status said active.
+    if (err && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+      return res.json({
+        ok: false,
+        status: 'timeout',
+        results: [],
+        hint: `the daemon is reachable but its doctor did not finish within ${Math.round(DOCTOR_TIMEOUT_MS / 1000)}s (it checks every binding against Discord, so a large estate is slow); run quox discord status for liveness, or retry`,
+      });
+    }
+    const httpStatus = err && /returned (\d{3})/.exec(String(err.message || ''));
+    if (httpStatus) {
+      return res.json({
+        ok: false,
+        status: 'error',
+        results: [],
+        hint: `the daemon control API answered /doctor with HTTP ${httpStatus[1]} (a 401/403 means the control token is stale or not wired)`,
+      });
+    }
     return res.json({
       ok: false,
       status: 'offline',
@@ -523,4 +545,4 @@ router.get('/credentials/bot-token', requireServiceOrMcpAuth, async (req, res) =
 // resolveControl exported for devSlotDiscordProvision.js: per-slot channel
 // provisioning talks to the same daemon control API and must never grow a
 // second, driftable copy of the URL/token resolution.
-module.exports = { router, setAuditFn, resolveControl };
+module.exports = { router, setAuditFn, resolveControl, DOCTOR_TIMEOUT_MS };

@@ -390,7 +390,7 @@ async function saveFileDataAsync(fileId, base64Data, filename) {
   if (!isServerUp) {
     throw new Error(
       'File server is not running. Start it with:\n\n' +
-      '  cd /opt/quoxcore/services/files && npm start\n\n' +
+      '  cd ~/quox-dashboard/services/files && npm start\n\n' +
       'The file server provides unlimited storage for your files.'
     )
   }

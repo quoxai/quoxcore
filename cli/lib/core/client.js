@@ -12,6 +12,7 @@
 import { resolveActing, resolveActingToken } from './actingAs.js';
 import { detectCallerSource } from './callerSource.js';
 import { QuoxApiError, QuoxNetworkError, QuoxAuthError, QuoxTransientAuthError } from './errors.js';
+import { joinServiceUrl, isLocalServiceTarget } from './config.js';
 
 const RETRY_STATUSES = new Set([429, 502, 503]);
 const MAX_RETRIES = 3;
@@ -33,8 +34,9 @@ export function describeNetworkError(service, baseUrl, err) {
   const code = err?.cause?.code || err?.code;
   let msg = `Could not connect to ${service} service at ${baseUrl}: ${err.message}`;
   if (code && TLS_TRUST_CODES.has(code)) {
-    msg += `\n  TLS: certificate not trusted (${code}). For a self-signed dev edge, trust its CA:`
-      + `\n    export NODE_EXTRA_CA_CERTS=~/.config/quox/quox-dev-edge.pem`
+    msg += `\n  TLS: certificate not trusted (${code}). A new QuoxCORE uses its own self-signed certificate; trust that file`
+      + `\n  (on the server, by default ~/quox-install/quox/ssl/quox.crt; copy it here if the server is another machine):`
+      + `\n    export NODE_EXTRA_CA_CERTS=<path to quox.crt>`
       + `\n  Never disable TLS verification (NODE_TLS_REJECT_UNAUTHORIZED=0) instead.`;
   } else if (code === 'ERR_SSL_WRONG_VERSION_NUMBER' || code === 'EPROTO') {
     // quox#532 defect 1: the profile says https:// but the service answered
@@ -128,10 +130,13 @@ export function createClient(config, auth) {
       noAuth = false,
       noActAs = false,
       sensitive = false,
+      // HYPERION #23: an outside-caller request (trigger webhook-fire) also drops the caller labels
+      // (X-Quox-Session / X-Quox-Profile): the receiving route may store every header in an org-readable record.
+      anonymous = false,
     } = options;
 
     const baseUrl = config.getServiceUrl(service);
-    const url = new URL(path, baseUrl);
+    const url = joinServiceUrl(baseUrl, path);
 
     if (query) {
       for (const [key, value] of Object.entries(query)) {
@@ -142,7 +147,7 @@ export function createClient(config, auth) {
     const fetchHeaders = {
       'X-Quox-Correlation': correlationId,
       'X-Quox-Client': 'cli',
-      ...callerContextHeaders(config),
+      ...(anonymous ? {} : callerContextHeaders(config)),
       ...extraHeaders,
     };
 
@@ -195,7 +200,10 @@ export function createClient(config, auth) {
         usingServiceKey = true;
       } else if (tokens?.access_token) {
         fetchHeaders['Authorization'] = `Bearer ${tokens.access_token}`;
-      } else if (serviceKey) {
+      } else if (serviceKey && isLocalServiceTarget(url.href)) {
+        // QUOXON-Z2H lane R: the implicit fallback is THIS box's key; never
+        // offer it to another host (a remote profile with no login). A caller
+        // that owns a remote key says so with QUOX_FORCE_SERVICE_KEY.
         fetchHeaders['X-Service-Key'] = serviceKey;
         usingServiceKey = true;
       }
@@ -218,6 +226,10 @@ export function createClient(config, auth) {
     }
 
     let lastError;
+    let staleReloaded = false;
+    // REL-424: one refresh per request, on whichever attempt the 401 lands. A token that expires while the
+    // client sleeps between 503 retries gets its 401 on attempt 1+, and gating refresh on attempt 0 surfaced it.
+    let refreshedThisRequest = false;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
@@ -255,10 +267,32 @@ export function createClient(config, auth) {
         // profile over what is really just "wrong token for this route".
         // In that case, skip the refresh and fall through to the normal
         // error handling below so the original 401/403 is surfaced as-is.
-        const looksExpired = typeof auth.isExpired === 'function' ? auth.isExpired() : true;
+        let looksExpired = typeof auth.isExpired === 'function' ? auth.isExpired() : true;
+        // The SERVER saying "invalid or expired token" outranks the local clock. expires_at is
+        // stamped after the refresh response lands, so for a moment the server rejects a token
+        // the client still thinks is good. 2026-10-14 07:32:03: three windows hit that gap
+        // together, skipped the refresh and declared the profile signed out. Refresh is safe
+        // here: a dead refresh token is still judged by auth.refresh() itself.
+        if (res.status === 401 && !looksExpired && !noAuth && !actingAs && !usingServiceKey) {
+          try { looksExpired = (await res.clone().json())?.error === 'invalid_token'; } catch { /* non-JSON body */ }
+        }
+
+        // Stale sign-in: a sibling window or `quox login` may have written a newer token for this profile.
+        // Adopt it and retry this request ONCE before any refresh (which would spend our stale refresh token).
+        if (res.status === 401 && !noAuth && !actingAs && !usingServiceKey && !staleReloaded
+            && typeof config.reloadAuth === 'function' && config.reloadAuth()) {
+          staleReloaded = true;
+          const fresh = auth.getTokens?.();
+          if (fresh?.access_token) {
+            fetchHeaders['Authorization'] = `Bearer ${fresh.access_token}`;
+            attempt--; // this retry is free: it does not spend the caller's retry budget
+            continue;
+          }
+        }
 
         const refreshCoolingDown = refreshFailedAt && (Date.now() - refreshFailedAt < REFRESH_RETRY_COOLDOWN_MS);
-        if (res.status === 401 && !noAuth && !actingAs && attempt === 0 && !refreshCoolingDown && looksExpired) {
+        if (res.status === 401 && !noAuth && !actingAs && !refreshedThisRequest && !refreshCoolingDown && looksExpired) {
+          refreshedThisRequest = true;
           try {
             if (!refreshing) {
               const serviceUrl = config.getServiceUrl('auth');
@@ -288,16 +322,25 @@ export function createClient(config, auth) {
             if (refreshErr && refreshErr.transient) {
               // Auth is only temporarily unavailable (429 / restart): no
               // cooldown, and keep the type so a listener can back off.
-              throw new QuoxTransientAuthError(`Re-authentication temporarily unavailable. ${refreshErr.message}`, refreshErr.retryAfterMs ?? null);
+              throw new QuoxTransientAuthError(`Quox server is slow or unreachable, retrying. ${refreshErr.message}`, refreshErr.retryAfterMs ?? null);
             }
             refreshFailedAt = Date.now();
             const why = refreshErr?.message ? ` ${refreshErr.message}` : '';
-            throw new QuoxAuthError(`Session expired. Run \`quox login\` to re-authenticate.${why}`);
+            const dead = new QuoxAuthError(`Session expired. Run \`quox login\` to re-authenticate.${why}`);
+            if (refreshErr?.code) dead.code = refreshErr.code;
+            if (refreshErr?.reason) dead.reason = refreshErr.reason;
+            throw dead;
           }
         }
 
         // Retry transient errors
+        // quox#882: the server can say a failure won't clear by itself (a downstream refusing
+        // connections): body retryable:false skips the backoff retries.
+        let noRetry = false;
         if (RETRY_STATUSES.has(res.status) && attempt < retries) {
+          try { noRetry = (await res.clone().json())?.retryable === false; } catch { /* not JSON */ }
+        }
+        if (RETRY_STATUSES.has(res.status) && attempt < retries && !noRetry) {
           const delay = RETRY_DELAYS[attempt] || 9000;
           if (isDebug) {
             console.error(`   Retrying in ${delay}ms (attempt ${attempt + 1}/${retries})...`);
@@ -315,7 +358,8 @@ export function createClient(config, auth) {
           try {
             data = await res.json();
           } catch {
-            data = { error: 'unknown', message: res.statusText };
+            // CLI-ERRORS: a proxy error page, not a Quox body; named so the renderer can say so
+            data = { error: 'non_json_response', message: res.statusText };
           }
           // A permission error while we silently fell back to the SERVICE
           // KEY is almost never a permissions problem: the service key
@@ -327,7 +371,10 @@ export function createClient(config, auth) {
           // theory about who could grant it. He had held instance-admin
           // since March. His session had simply expired and the CLI had
           // quietly downgraded the request to a key with no user attached.
-          let message = data.message || `Request failed with status ${res.status}`;
+          // CLI-ERRORS: a body with only a prose `error` ("Agent not found") leads with that, never
+          // "Request failed with status N" (the real reason used to sit on the dim Status line).
+          const proseError = !data.message && typeof data.error === 'string' && /\s/.test(data.error);
+          let message = data.message || (proseError ? data.error : `Request failed with status ${res.status}`);
           // quox#617: surface the server's machine-readable `reason`. A vault
           // update returns 403 with `reason: 'mfa_required'` for an MFA-enabled
           // owner (a step-up gate) vs `reason: 'role_<r>_lacks_capability_<cap>'`
@@ -344,18 +391,38 @@ export function createClient(config, auth) {
               + `The service key has no user identity, so anything gated on WHO you are will refuse it regardless of your real permissions. `
               + `Run \`quox login\` (or \`quox -p <profile> login\`) and retry before treating this as a permissions problem.`;
           }
+          // #1012: the paid backends (QuoxPlan, QuoxSEO, QLarity, QuoxSignal) are not part of the public
+          // install, so a licensed customer got a bare 502 from the collector proxy. This client cannot
+          // tell "not installed" from "installed but down", so it says both, and exits 1 (not 8).
+          const pluginDown = (res.status === 502 || res.status === 503) && typeof data.error === 'string'
+            && /^(QuoxPlan|QuoxSEO|QLarity|QuoxSignal) service unavailable$/i.exec(data.error);
+          if (pluginDown) {
+            const err = new QuoxApiError(
+              res.status,
+              'PLUGIN_SERVICE_UNAVAILABLE',
+              `${pluginDown[1]} isn't reachable on this server. It isn't part of the public install (it ships separately), `
+                + 'or it is installed but down: run `quox health`. Nothing was changed.',
+              data.detail || data.details,
+              data
+            );
+            err.exitCode = 1;
+            throw err;
+          }
           // LL-3d: carry the WHOLE body, not just message/detail. Endpoints
           // that answer with structured context (the licensing 409's
           // bound_instance_name / bound[] / max_servers, the 402's plugin)
           // had it flattened away here, so command handlers could only print
           // "Request failed with status 409".
-          throw new QuoxApiError(
+          const apiErr = new QuoxApiError(
             res.status,
             data.error || 'api_error',
             message,
             data.detail || data.details,
             data
           );
+          if (proseError) apiErr.reasonFromError = true;
+          if (usingServiceKey && (res.status === 403 || res.status === 401)) apiErr.serviceKeyFallback = true;
+          throw apiErr;
         }
 
         // Handle empty responses (204 No Content)
@@ -431,7 +498,7 @@ export function createClient(config, auth) {
     } = options;
 
     const baseUrl = config.getServiceUrl(service);
-    const url = new URL(path, baseUrl);
+    const url = joinServiceUrl(baseUrl, path);
 
     if (query) {
       for (const [key, value] of Object.entries(query)) {
@@ -462,7 +529,7 @@ export function createClient(config, auth) {
       fetchHeaders['X-Service-Key'] = streamServiceKey;
     } else if (streamTokens?.access_token) {
       fetchHeaders['Authorization'] = `Bearer ${streamTokens.access_token}`;
-    } else if (process.env.QUOX_SERVICE_KEY) {
+    } else if (process.env.QUOX_SERVICE_KEY && isLocalServiceTarget(url.href)) {
       streamServiceKey = process.env.QUOX_SERVICE_KEY;
       fetchHeaders['X-Service-Key'] = streamServiceKey;
     }
@@ -472,22 +539,61 @@ export function createClient(config, auth) {
       console.error(`-> ${streamBody !== undefined ? 'POST' : 'GET'}(stream) ${url.toString()}`);
     }
 
-    let res;
-    try {
-      res = await fetch(url.toString(), {
-        method: streamBody !== undefined ? 'POST' : 'GET',
-        headers: fetchHeaders,
-        ...(streamBody !== undefined ? { body: JSON.stringify(streamBody) } : {}),
-        signal: externalSignal,
-        // Same redirect protection as the non-streaming path above: never let
-        // a 3xx resend X-Service-Key to a host we did not choose.
-        ...(streamServiceKey ? { redirect: 'manual' } : {}),
-      });
-    } catch (err) {
-      throw new QuoxNetworkError(
-        describeNetworkError(service, baseUrl, err),
-        err
-      );
+    const openStream = async () => {
+      try {
+        return await fetch(url.toString(), {
+          method: streamBody !== undefined ? 'POST' : 'GET',
+          headers: fetchHeaders,
+          ...(streamBody !== undefined ? { body: JSON.stringify(streamBody) } : {}),
+          signal: externalSignal,
+          // Same redirect protection as the non-streaming path above: never let
+          // a 3xx resend X-Service-Key to a host we did not choose.
+          ...(streamServiceKey ? { redirect: 'manual' } : {}),
+        });
+      } catch (err) {
+        throw new QuoxNetworkError(
+          describeNetworkError(service, baseUrl, err),
+          err
+        );
+      }
+    };
+    let res = await openStream();
+
+    // 2026-10-16: request() refreshed an expired session on a 401, the stream (the chat path) did not,
+    // so a chat turn right after the access token expired read "Not signed in" on a signed-in profile.
+    // Same rule as request(): one refresh for a user token that looks expired (locally, or the server
+    // says invalid_token), shared with any refresh already in flight, then one retry.
+    const usesUserToken = !streamActing && !streamServiceKey && !!streamTokens?.access_token;
+    if (res.status === 401 && usesUserToken && typeof config.reloadAuth === 'function' && config.reloadAuth()) {
+      // Stale sign-in: a sibling window or `quox login` wrote a newer token. Adopt it, retry once.
+      const fresh = auth.getTokens?.();
+      if (fresh?.access_token) { fetchHeaders['Authorization'] = `Bearer ${fresh.access_token}`; res = await openStream(); }
+    }
+    if (res.status === 401 && usesUserToken) {
+      let looksExpired = typeof auth.isExpired === 'function' ? auth.isExpired() : true;
+      if (!looksExpired) {
+        try { looksExpired = (await res.clone().json())?.error === 'invalid_token'; } catch { /* non-JSON body */ }
+      }
+      const refreshCoolingDown = refreshFailedAt && (Date.now() - refreshFailedAt < REFRESH_RETRY_COOLDOWN_MS);
+      if (looksExpired && !refreshCoolingDown) {
+        try {
+          if (!refreshing) {
+            refreshing = auth.refresh(config.getServiceUrl('auth')).finally(() => { refreshing = null; });
+          }
+          await refreshing;
+        } catch (refreshErr) {
+          if (refreshErr && refreshErr.transient) {
+            throw new QuoxTransientAuthError(`Quox server is slow or unreachable, retry shortly. ${refreshErr.message}`, refreshErr.retryAfterMs ?? null);
+          }
+          refreshFailedAt = Date.now();
+          const dead = new QuoxAuthError(`Session expired. Run \`quox login\` to re-authenticate.${refreshErr?.message ? ` ${refreshErr.message}` : ''}`);
+          dead.status = 401;
+          throw dead;
+        }
+        const fresh = auth.getTokens();
+        if (fresh?.access_token) fetchHeaders['Authorization'] = `Bearer ${fresh.access_token}`;
+        res = await openStream();
+      }
     }
 
     if (!res.ok) {
@@ -495,15 +601,18 @@ export function createClient(config, auth) {
       try {
         data = await res.json();
       } catch {
-        data = { error: 'unknown', message: res.statusText };
+        data = { error: 'non_json_response', message: res.statusText };
       }
-      throw new QuoxApiError(
+      const proseError = !data.message && typeof data.error === 'string' && /\s/.test(data.error);
+      const streamErr = new QuoxApiError(
         res.status,
         data.error || 'api_error',
-        data.message || `Stream request failed with status ${res.status}`,
+        data.message || (proseError ? data.error : `Stream request failed with status ${res.status}`),
         data.detail || data.details,
         data
       );
+      if (proseError) streamErr.reasonFromError = true;
+      throw streamErr;
     }
 
     if (!res.body) {

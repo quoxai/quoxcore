@@ -7,7 +7,10 @@
  */
 
 const REPOBRAIN_API = (process.env.REPOBRAIN_URL || 'http://repobrain:3105') + '/api'
-const TIMEOUT_MS = 10000
+// quox#836: the engine answers a quox-dashboard query in 8.5 to 11s on the dev
+// box, so the old 10s abort failed about half of all queries. 30s covers the
+// observed range with headroom; the CLI's own request timeout is 60s.
+const TIMEOUT_MS = 30000
 
 /**
  * codebase_query — search the indexed codebase via RepoBrain

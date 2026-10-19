@@ -7,7 +7,7 @@
 You don't have to trust it. You can check it.
 
 [![Licence](https://img.shields.io/badge/licence-Quox%20Community%20Source%201.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-4.2.4-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-4.2.5-blue.svg)](VERSION)
 
 ![QuoxCORE architecture: identity and access, governance, evidence, orchestration, memory and interfaces on one self-hosted core, built on the AEE, AOCL, VOLT and WARD protocols, with store plugins and your own plugins on top](docs/assets/quoxcore-architecture.png)
 
@@ -23,7 +23,7 @@ This repository is the public release mirror of QuoxCORE. Development happens in
 
 ## Install
 
-You need Docker with Compose and Git. Plan for 8 GB of RAM and 30 GB of free disk: the installer builds every image from source on first run, which takes a while (prebuilt images are coming). It refuses to start below 4 GB of RAM or 10 GB of disk.
+You need Docker with Compose and Git. Plan for 8 GB of RAM and 30 GB of free disk: the installer pulls prebuilt images from `ghcr.io/quoxai` (retrying up to 3 times on network errors) and, if the pull fails, falls back to building every image from source, which takes a while. Set `QUOX_IMAGES=build` to force a local build. It refuses to start below 4 GB of RAM or 10 GB of disk.
 
 ```bash
 curl -fsSL https://get.quox.ai | sh
@@ -39,7 +39,7 @@ cd quox
 ./scripts/setup.sh
 ```
 
-Then open `https://localhost:3000`, create the admin account in the setup wizard, and connect at least one model provider (Anthropic, OpenAI or Google key, or a Claude or Codex sign-in). Until a provider is connected, agents cannot answer.
+Then open `https://localhost:3000`, create the admin account in the setup wizard, and connect at least one model provider. An Anthropic, OpenAI or Google API key works on every install, and so does a Codex sign-in. A Claude sign-in needs the Claude CLI, which the prebuilt images do not include (it is not redistributed): build locally with `QUOX_IMAGES=build ./scripts/setup.sh` to use it. Until a provider is connected, agents cannot answer.
 
 Setup also installs the `quox` command at `/usr/local/bin/quox` (or `~/.local/bin/quox` when it cannot write there). It runs the CLI that ships inside this install's collector image, so the host needs Docker only, not Node. Your profiles stay in `~/.config/quox`, it trusts this install's own certificate, and the `local` profile already points at `https://localhost:3000`. Pass `--no-cli` to setup to skip it. From the same terminal:
 
@@ -83,7 +83,7 @@ Some parts are stable and some are beta or experimental. Per-area maturity pages
 
 Plugins, agents, connectors, workflows and skills you build through the documented interfaces are yours. You can publish or sell them under your own terms.
 
-- Plugin SDK (MIT): public release coming soon
+- Plugin SDK (Apache-2.0): [github.com/quoxai/quox-plugin-sdk](https://github.com/quoxai/quox-plugin-sdk)
 - MCP tools: [QuoxMCP](https://github.com/quoxai/quoxmcp)
 - Docs: [quox.ai/docs](https://quox.ai/docs)
 

@@ -5077,3 +5077,22 @@ button.qx-avatar:focus-visible { outline: 2px solid var(--m-border-focus, #38bdf
 .qx-session-agent__name { font-weight: 700; letter-spacing: 0.02em; }
 .qx-session-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
 @media (max-width: 640px) { .qx-session-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 61. RECEIPT CHIP: one action's proof in a pill (Enterprise Trust, P1)    */
+/*     Compose: .qx-receipt .qx-chip .qx-chip--xs .qx-chip--hue-<state hue>  */
+/*     with a leading static small .qx-dot and a protocol glyph, then a      */
+/*     .qx-code seq. See src/components/ui/ReceiptChip.jsx.      */
+/* ═══════════════════════════════════════════════════════════════════════ */
+.qx-receipt {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  color: #fff;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.qx-receipt__proto { font-weight: 700; letter-spacing: 0.04em; color: #fff; }
+.qx-receipt__id    { color: #fff; overflow: hidden; text-overflow: ellipsis; }
+.qx-receipt__state { display: inline-flex; align-items: center; gap: 3px; color: #fff; }
+.qx-receipt__state svg { width: 10px; height: 10px; }
+.qx-receipt .qx-code { padding: 0 4px; font-size: 1em; }
+.qx-receipt:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

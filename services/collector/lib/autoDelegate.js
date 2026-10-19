@@ -9,7 +9,7 @@
  *   - depth 1: a delegated turn (or an auto hop) never auto-delegates again;
  *   - the caller's own hat must authorise delegate_to_agent, and the hop goes through
  *     executeTool('delegate_to_agent') so every hat and delegation gate still applies;
- *   - reads only: a write is never auto-delegated, it keeps the governed path;
+ *   - reads only: a write, or any approval-gated tool, is never auto-delegated: it keeps the governed path;
  *   - the original ctx (user, org, conversation, hat) rides the hop;
  *   - the hop is recorded: an AEE envelope (quox.delegation.auto), the routing verdict rationale
  *     and an auto_delegated field on the result.
@@ -23,7 +23,21 @@ const NOT_READ_TOKENS = new Set(['click', 'type', 'fill', 'form', 'select', 'dow
   'close', 'tab', 'navigate', 'lease', 'release', 'configure', 'rehearse', 'clone', 'snapshot', 'cleanup',
   'action', 'reboot', 'shutdown', 'login', 'send', 'reply', 'publish', 'schedule']);
 
+// BASH-FALLBACK approval boundary: a tool that files an approval card for any caller is never
+// treated as a read here, whatever its name sounds like (db_query,
+// contacts_context, bob_dispatch_build, alerts_manage with no action all passed the name test).
+// It keeps the governed path: the caller's own call, its own card.
+function isApprovalGated(toolName) {
+  try {
+    const gate = require('./approvalGate.js');
+    if (gate.AGENT_ALWAYS_PROPOSE_TOOLS && gate.AGENT_ALWAYS_PROPOSE_TOOLS.has(toolName)) return true;
+    for (const tools of Object.values(gate.AGENT_GATED_TOOLS || {})) if (tools && tools.has && tools.has(toolName)) return true;
+    return false;
+  } catch { return true; } // cannot tell: not a read
+}
+
 function isRead(toolName, input) {
+  if (isApprovalGated(toolName)) return false;
   const ts = require('./turnToolSelection.js');
   if (ts.isStateChangingTool({ name: toolName })) return false;
   if (ts.isWriteAction(toolName, input)) return false;

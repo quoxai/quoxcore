@@ -25,7 +25,7 @@ const DOMAINS = [
   { key: 'browser', label: 'web pages (browser automation, extraction, Lighthouse audits, objectives)', match: /^browser_/ },
   { key: 'backup', label: 'backups, restores and updates', match: /^keeper_/ },
   { key: 'workflows', label: 'workflows (list, run, executions)', match: /(^|_)workflows?(_|$)|^list_executions$/ },
-  { key: 'research', label: 'web research with citations', match: /^perplexity_/ },
+  { key: 'research', label: 'web research with citations', match: /^web_read$/ },
   { key: 'files', label: 'files and documents', match: /^(list_files|read_file|search_files)$/ },
 ];
 
@@ -69,18 +69,67 @@ function buildDelegationRoster(deps = defaultDeps()) {
 }
 
 let _cache = null;
-/** Markdown lines "- <domain>: id (NAME), ..." The first agent holds the most of that domain's tools. */
-function renderDelegationRoster(deps) {
+
+// The two roster lines every orchestrator prompt carries when NO hat scopes its agents. Kept
+// verbatim here so each prompt site renders them from one place (CUSTOM-HATS).
+const UNSCOPED_OTHER_AGENT_LINES = [
+  '- Anything else: any agent or custom agent by its id (agent_directory lists them).',
+  '- Plugin specialists (only when the org has that plugin; if a delegation is refused as not enabled, tell the user plainly): inboxq = email and inbox, calendar-q = calendar and schedule, contactsq = people, contacts and reaching them, notesq = notes ("jot this down", "write that down", find, read or edit a note). Never claim you saved a note yourself: delegate to notesq and report what it returned.',
+].join('\n');
+
+/**
+ * CUSTOM-HATS (owner 2026-10-17): the agents an ENFORCED hat puts in scope, from a turn's hat
+ * manifest, or null when no hat scopes the roster (preview, no hat, or a hat with no specialists,
+ * e.g. Default). This is PRESENTATION: the delegation gate (agentTools delegate_to_agent, P-D)
+ * is what refuses an out-of-scope agent; this only stops the turn carrying their context.
+ */
+function hatAgentScope(hm) {
+  if (!hm || hm.enforced !== true || hm.delegationScoped !== true) return null;
+  let agents = Array.isArray(hm.scopedAgents) ? hm.scopedAgents : null;
+  if (!agents && hm.authorizedAgents instanceof Set) agents = [...hm.authorizedAgents].filter((a) => a !== String(hm.orchestrator || 'quox').toLowerCase());
+  if (!agents) return null;
+  const list = [...new Set(agents.map((a) => String(a).toLowerCase()).filter(Boolean))];
+  return { hatKey: String(hm.hatKey || ''), agents: list };
+}
+
+function normScope(scope) {
+  if (!scope || !Array.isArray(scope.agents)) return null;
+  return { hatKey: String(scope.hatKey || ''), agents: [...new Set(scope.agents.map((a) => String(a).toLowerCase()).filter(Boolean))] };
+}
+
+/**
+ * Markdown lines "- <domain>: id (NAME), ..." The first agent holds the most of that domain's tools.
+ * With { scope } (hatAgentScope), the roster names ONLY the hat's agents: a head line lists them
+ * (custom org agents included, which the registry roster never names) and each domain row keeps
+ * only in-scope holders; a row with none is dropped.
+ */
+function renderDelegationRoster(deps, { scope } = {}) {
   const d = deps || defaultDeps();
-  const sig = deps ? null : `${Object.values(d.agentTools).reduce((n, l) => n + (Array.isArray(l) ? l.length : 0), 0)}:${d.listAssistants().length}`;
-  if (sig && _cache && _cache.sig === sig) return _cache.text;
   const named = (id) => {
     const n = d.getAssistant(id)?.identity?.name;
     return n && n.toLowerCase() !== id ? `${id} (${n})` : id;
   };
+  const sc = normScope(scope);
+  if (sc) {
+    const allowed = new Set(sc.agents);
+    const rows = buildDelegationRoster(d)
+      .map((r) => ({ ...r, agents: r.agents.filter((a) => allowed.has(a)) }))
+      .filter((r) => r.agents.length);
+    const head = `- Your active hat "${sc.hatKey}" puts ONLY these agents in scope right now: ${sc.agents.length ? sc.agents.map(named).join(', ') : 'none'}.`;
+    return [head, ...rows.map((r) => `- ${r.label}: ${r.agents.map(named).join(', ')}`)].join('\n');
+  }
+  const sig = deps ? null : `${Object.values(d.agentTools).reduce((n, l) => n + (Array.isArray(l) ? l.length : 0), 0)}:${d.listAssistants().length}`;
+  if (sig && _cache && _cache.sig === sig) return _cache.text;
   const text = buildDelegationRoster(d).map((r) => `- ${r.label}: ${r.agents.map(named).join(', ')}`).join('\n');
   if (sig) _cache = { sig, text };
   return text;
 }
 
-module.exports = { DOMAINS, buildDelegationRoster, renderDelegationRoster };
+/** The lines after the roster: unscoped = any agent + plugin specialists; scoped = this hat only. */
+function renderOtherAgentLines(scope) {
+  const sc = normScope(scope);
+  if (!sc) return UNSCOPED_OTHER_AGENT_LINES;
+  return `- Delegate ONLY to the agents in the "${sc.hatKey}" hat. Every other agent in the org is outside this hat (a delegation to one is refused), so do not list or offer them. If the user needs one, say so plainly and offer to propose a hat switch (hat_propose_switch).`;
+}
+
+module.exports = { DOMAINS, buildDelegationRoster, renderDelegationRoster, renderOtherAgentLines, hatAgentScope, UNSCOPED_OTHER_AGENT_LINES };

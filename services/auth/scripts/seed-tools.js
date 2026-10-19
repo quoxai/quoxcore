@@ -10,8 +10,9 @@
  *   AUTH_DB_PATH=/path/to/db node scripts/seed-tools.js
  */
 
-import crypto from 'crypto';
 import { readFileSync, readdirSync } from 'fs';
+import { manifestToRows } from '../lib/toolCatalogSeed.js';
+import { getUnavailableToolIds } from '../lib/unavailableTools.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
@@ -24,92 +25,9 @@ const DB_PATH = process.env.AUTH_DB_PATH || '/var/lib/quox/auth.db';
 // Tool manifests directory (relative to project root, or override with env var)
 const TOOLS_DIR = process.env.TOOLS_DIR || join(__dirname, '../../../src/config/entities/tools');
 
-// Generate ULID-like ID using cryptographically secure randomness
-function ulid() {
-    const chars = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-    const time = Date.now().toString(32).toUpperCase().padStart(10, '0');
-    // Use cryptographically secure random bytes
-    const randomBytes = crypto.randomBytes(16);
-    let rand = '';
-    for (let i = 0; i < 16; i++) {
-        rand += chars[randomBytes[i] % 32];
-    }
-    return time + rand;
-}
-
-// Load and parse tool manifest
-function loadToolManifest(filePath) {
-    const content = readFileSync(filePath, 'utf-8');
-    return JSON.parse(content);
-}
-
-// Convert tool manifest to database rows
-function manifestToRows(manifest) {
-    const rows = [];
-
-    // Check if this is a v2 manifest with nested tools
-    if (manifest.tools && Array.isArray(manifest.tools)) {
-        // This is a tool pack with multiple tools
-        for (const tool of manifest.tools) {
-            rows.push({
-                id: ulid(),
-                tool_id: tool.id,
-                name: tool.name,
-                description: tool.description,
-                category: manifest.category || 'uncategorized',
-                subcategory: manifest.subcategory || null,
-                provider: manifest.provider || null,
-                version: manifest.version || '1.0.0',
-                spec_json: JSON.stringify({
-                    ...tool,
-                    // Include parent-level instructions and help
-                    instructions: tool.instructions || manifest.instructions,
-                    help: manifest.help,
-                    agent_hints: manifest.agent_hints,
-                    endpoints: manifest.endpoints
-                }),
-                risk_level: manifest.risk_level || 'low',
-                sandbox_profile: manifest.sandbox_profile || 'standard',
-                capabilities_json: JSON.stringify(tool.capabilities || []),
-                min_access_level: tool.accessLevel || 'specialists+',
-                requires_license: manifest.requires_license || null,
-                requires_config: manifest.endpoints ? 1 : 0,
-                status: 'available',
-                is_core: 1,
-                is_featured: 0,
-                icon: manifest.icon || null,
-                documentation_url: manifest.help?.man_url || null
-            });
-        }
-    } else {
-        // Single tool manifest (v1 style)
-        rows.push({
-            id: ulid(),
-            tool_id: manifest.id,
-            name: manifest.name,
-            description: manifest.description,
-            category: manifest.category || 'uncategorized',
-            subcategory: manifest.subcategory || null,
-            provider: manifest.provider || null,
-            version: manifest.version || '1.0.0',
-            spec_json: JSON.stringify(manifest),
-            risk_level: manifest.risk_level || 'low',
-            sandbox_profile: manifest.sandbox_profile || 'standard',
-            capabilities_json: JSON.stringify(manifest.capabilities || []),
-            min_access_level: manifest.accessLevel || 'specialists+',
-            requires_license: manifest.requires_license || null,
-            requires_config: manifest.endpoints ? 1 : 0,
-            status: 'available',
-            is_core: 1,
-            is_featured: 0,
-            icon: manifest.icon || null,
-            documentation_url: manifest.help?.man_url || null
-        });
-    }
-
-    return rows;
-}
-
+// Row building is shared with the auth boot seed (quox#1045). This script is
+// the explicit operator REFRESH: unlike the boot seed it overwrites existing
+// rows from the manifests.
 // Main seed function
 async function seedTools() {
     console.log('Tool Definitions Seeder');
@@ -176,10 +94,15 @@ async function seedTools() {
         console.log(`Processing ${file}...`);
 
         try {
-            const manifest = loadToolManifest(filePath);
+            const manifest = JSON.parse(readFileSync(filePath, 'utf-8'));
             const rows = manifestToRows(manifest);
 
             for (const row of rows) {
+                // quox #1051: declared but not implemented (501); never seed it.
+                if (getUnavailableToolIds().has(row.tool_id)) {
+                    console.log(`  - ${row.tool_id} (not implemented yet, not seeded)`);
+                    continue;
+                }
                 try {
                     // Check if tool already exists
                     const existing = db.prepare('SELECT id FROM tool_definitions WHERE tool_id = ?').get(row.tool_id);

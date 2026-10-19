@@ -43,6 +43,14 @@ const { readOpenAIChatStream } = require('./openaiChatStream.js');
 const MAX_TOOL_ROUNDS = 5;
 const ROUND_SEPARATOR = '\n\n';
 
+const providerHealth = require('./providerHealth.js');
+/** Provider-health key for this loop's label ('OpenAI', 'OpenAI (loop)', 'openai-compatible', 'Gemini' ...). */
+function healthProvider(label) {
+  const l = String(label || '').toLowerCase();
+  if (l.includes('openai')) return 'openai';
+  return l.split(/[\s(]/)[0] || 'openai-compatible';
+}
+
 function safeParseArgs(raw) {
   try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
 }
@@ -51,14 +59,9 @@ const { classifyToolStatus: _classifyToolStatus, approvalFromResult: _approvalFr
 function serializeToolResultForModel(toolName, toolResult) {
   // A gated tool held for a human is not a failure: say so, with the id, so the model
   // reports "pending approval" instead of an empty tool_error (seen live 2026-10-08).
-  if (toolResult?.pending === true || toolResult?._approval?.status === 'pending') {
-    return JSON.stringify({
-      status: 'pending_approval',
-      approval_id: toolResult._approval?.id || toolResult.approvalId || null,
-      message: toolResult.message || toolResult.error || 'Waiting for a human to approve this action.',
-      tool: toolName,
-    });
-  }
+  // Not finished: held for a human or still running; the one rule in lib/toolRouteReceipts.js (HYPERION review)
+  const notFinished = require('./toolRouteReceipts.js').modelPendingContent(toolName, toolResult);
+  if (notFinished) return notFinished;
   if (toolResult?.success === false) {
     return JSON.stringify({
       error: true,
@@ -161,6 +164,10 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
   };
 
   const { fetchFn, executeTool, voltEmitter, storeAuditEnvelope, emitToolEvidence } = deps || {};
+  const countApprovalsSince = (deps && typeof deps.countApprovalsSince === 'function')
+    ? deps.countApprovalsSince : (a) => require('./toolApprovalStore.js').countCreatedSince(a);
+  const heldStartedAt = Date.now();
+  let heldFirstAnswer = null; // SITE-CLI journey-server-trouble: one labelled continuation (heldChangeAsk.js)
   if (typeof fetchFn !== 'function') {
     throw new Error('executeOpenAICompatibleToolLoop: no fetch implementation available');
   }
@@ -215,18 +222,37 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
     }
     const roundAbort = streaming && typeof control?.hasSteer === 'function' ? require('./governedToolDispatch.js').createRoundAbort(signal) : null;
     const roundSignal = roundAbort ? roundAbort.signal : signal;
-    const response = await fetchFn(apiUrl, {
+    // QUOXON lane S (B): a model that refuses function tools at its default reasoning effort
+    // is retried once with reasoning_effort 'none' (the provider's own remedy) and remembered.
+    const toolCompat = require('./openaiToolCompat.js');
+    toolCompat.applyToolCompat(requestBody, apiUrl);
+    const sendRound = () => fetchFn(apiUrl, {
       method: 'POST',
       headers,
       body: JSON.stringify(requestBody),
       ...(roundSignal ? { signal: roundSignal } : {}),
     }, timeoutMs);
+    let response = await sendRound();
+    if (!response.ok && Array.isArray(requestBody.tools) && requestBody.tools.length > 0 && requestBody.reasoning_effort === undefined) {
+      const firstErrText = await response.text();
+      if (toolCompat.isReasoningEffortToolsRefusal(response.status, firstErrText)) {
+        toolCompat.rememberNeedsEffortNone(apiUrl, model);
+        requestBody.reasoning_effort = 'none';
+        console.warn(`[OpenAILoop] ${providerLabel} model ${model} refuses function tools at its default reasoning effort; retrying with reasoning_effort none`);
+        response = await sendRound();
+      } else {
+        const replay = firstErrText;
+        response = { ok: false, status: response.status, text: async () => replay };
+      }
+    }
 
     if (!response.ok) {
       const errText = await response.text();
-      const err = new Error(`${providerLabel} API returned ${response.status}: ${errText.substring(0, 200)}`);
+      const err = new Error(toolCompat.plainProviderErrorMessage({ providerLabel, model, status: response.status, text: errText }));
       err.status = response.status;
       err.body = errText;
+      // #904 part 3: an out-of-credits / rate-limited key shows in status and LUCID before the next turn.
+      providerHealth.observeTurn({ orgId, scope: orgId || null, provider: healthProvider(providerLabel), ok: false, message: err.message, status: response.status, body: errText });
       if (
         roundTools.length > 0 &&
         round === 0 &&
@@ -237,6 +263,7 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
       }
       throw err;
     }
+    if (round === 0) providerHealth.observeTurn({ orgId, scope: orgId || null, provider: healthProvider(providerLabel), ok: true });
 
     let data;
     if (streaming) {
@@ -258,7 +285,7 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
     }
     addRoundUsage(usage, data && data.usage);
     const assistantMessage = data.choices?.[0]?.message || {};
-    const content = flattenOpenAIMessageContent(assistantMessage.content);
+    let content = flattenOpenAIMessageContent(assistantMessage.content);
     const roundReasoning = typeof assistantMessage.reasoning === 'string' ? assistantMessage.reasoning
       : (typeof assistantMessage.reasoning_content === 'string' ? assistantMessage.reasoning_content : '');
     if (roundReasoning && typeof onReasoning === 'function') {
@@ -304,7 +331,28 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
         }
         continue;
       }
+      // SITE-CLI 2026-10-17 journey-server-trouble (ev_mvcpwzqm_e8c14c): a held-change ask that ends on an offer with no
+      // card filed gets ONE more round, labelled in the answer, emitted as an event and witnessed as an envelope.
+      if (heldFirstAnswer === null) {
+        const hc = require('./heldChangeAsk.js');
+        if (hc.isHeldChangeAsk(userMessage)) {
+          let filed = null;
+          try { filed = countApprovalsSince({ org_id: orgId, user_id: userId, since: heldStartedAt }); } catch { filed = null; }
+          if (hc.needsHeldChangeFollowUp({ ask: userMessage, answer: content, approvalsFiled: filed })) {
+            heldFirstAnswer = content || '';
+            if (typeof storeAuditEnvelope === 'function') {
+              try { storeAuditEnvelope(hc.heldChangeEnvelope({ agent: selected_agent, path: 'openai_compatible', corr: effectiveSessionId || session_id, orgId, userId, ask: userMessage, firstAnswer: content, filedBefore: filed })); } catch { /* best-effort */ }
+            }
+            emitEvent({ type: 'held_change.follow_up', label: hc.HELD_CHANGE_STEP_LABEL });
+            appendText(ROUND_SEPARATOR + hc.HELD_CHANGE_STEP_LINE);
+            messages.push({ role: 'assistant', content: content || '' });
+            messages.push({ role: 'user', content: hc.HELD_CHANGE_FOLLOW_UP });
+            continue;
+          }
+        }
+      }
     }
+    if (heldFirstAnswer !== null && toolCalls.length === 0) content = require('./heldChangeAsk.js').joinFollowUpAnswer(heldFirstAnswer, content);
     if (toolCalls.length === 0 || round === maxToolRounds) {
       // An interrupt that landed during this final model call: the answer is complete,
       // but say so honestly (stopped) rather than reporting an uninterrupted turn.
@@ -316,6 +364,11 @@ async function executeOpenAICompatibleToolLoop(req, opts, deps) {
       // ctx above (toolCtx.session_id = `session_id || undefined`), so the
       // register and finalize ends cannot disagree. No-op unless this turn
       // called quoxbrain_search. Not awaited — never adds answer latency.
+      // quox#1292: a cited brain handle gets a Sources line naming its note (read before finalize retires it).
+      try {
+        const srcLine = require('./brainCitationTrace.js').citationSourcesLine(effectiveSessionId || session_id, content, orgId ? { orgId: orgId } : null);
+        if (srcLine) { appendText(srcLine); content = `${content || ''}${srcLine}`; }
+      } catch { /* the answer stands without it */ }
       try {
         const { finalizeAnswer } = require('./brainCitationTrace.js');
         Promise.resolve(finalizeAnswer(effectiveSessionId || session_id, content)).catch(() => {});

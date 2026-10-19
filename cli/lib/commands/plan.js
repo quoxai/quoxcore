@@ -137,6 +137,23 @@ function renderRoadmapsList(roadmaps) {
   return lines;
 }
 
+function renderSearchResults(data) {
+  const results = data.results || [];
+  if (results.length === 0) return [chalk.dim(`  No streams match "${data.q}".`)];
+  const lines = [''];
+  for (const r of results) {
+    const g = statusGlyph(r.status);
+    const where = [...new Set((r.matches || []).map((m) => m.where))].join(', ');
+    const first = (r.matches || []).find((m) => m.snippet) || {};
+    lines.push(
+      `  ${g.color(g.glyph)} ${pad(truncate(r.id, ID_WIDTH), ID_WIDTH)} ${pad(truncate(r.name, NAME_WIDTH), NAME_WIDTH)} `
+      + `${pad(r.status, 15)} ${pad(where, 18)} ${chalk.dim(truncate(first.snippet || '', 60))}`
+    );
+  }
+  lines.push('', chalk.dim(`  ${results.length} stream${results.length === 1 ? '' : 's'} matched "${data.q}"`));
+  return lines;
+}
+
 function streamLine(s, { indent = 0, showReasons = false } = {}) {
   const prefix = indent > 0 ? '  '.repeat(indent) + '└ ' : '  ';
   const g = statusGlyph(s.status);
@@ -544,6 +561,27 @@ export function registerPlanCommands(program, ctx) {
       if (isJsonOutput(program)) return printJson(data);
       const created = data.roadmap || data;
       printSuccess(`Created roadmap ${created.id || options.id} for org ${orgId}`);
+    });
+
+  // ── search ───────────────────────────────────────────────────────────
+
+  plan
+    .command('search <text...>')
+    .description('Search streams by text (id, name, notes, plan, phase titles)')
+    .option('--roadmap <id>', 'limit to one roadmap')
+    .option('--status <status>', `limit to one status (${VALID_STATUSES.join(', ')})`)
+    .action(async (textParts, options) => {
+      auth.requireAuth();
+      if (options.status && !VALID_STATUSES.includes(options.status)) {
+        throw new Error(`invalid --status "${options.status}" (expected ${VALID_STATUSES.join(', ')})`);
+      }
+      const query = { q: textParts.join(' ') };
+      if (options.roadmap) query.roadmap = options.roadmap;
+      if (options.status) query.status = options.status;
+      const ep = resolveEndpoint('quoxplan.search');
+      const data = await client.get(ep.path, { service: ep.service, query });
+      if (isJsonOutput(program)) return printJson(data);
+      console.log(renderSearchResults(data).join('\n'));
     });
 
   // ── list ─────────────────────────────────────────────────────────────

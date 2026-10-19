@@ -94,7 +94,17 @@ export function evaluateComplianceReadiness(widget, embedConfig, classification)
   // 6) Retention — warning when null: no org default exists, so nothing is
   //    pruned automatically. Not a blocker; surfaced as a warning.
   if (typeof widget?.retention_days_override === 'number' && widget.retention_days_override > 0) {
-    checks.push(PASS('retention_configured', `Retention set to ${widget.retention_days_override} days.`));
+    // QC-BRUTALOOP-W14: retention only runs via POST .../retention/run. A set
+    // period is not enforcement unless a scheduled job exists (flag below).
+    if (widget.retention_scheduled === true || cfg.retention_scheduled === true) {
+      checks.push(PASS('retention_configured', `Retention set to ${widget.retention_days_override} days and run on a schedule.`));
+    } else {
+      checks.push(FAIL_WARN(
+        'retention_configured',
+        `Retention is set to ${widget.retention_days_override} days but is configured-but-manual: it only runs when someone starts it, so older conversations are kept until then.`,
+        `Run retention from the Compliance tab on a regular basis: /quoxchat/${widget?.id || ':widgetId'}?tab=compliance`,
+      ));
+    }
   } else {
     checks.push(FAIL_WARN(
       'retention_configured',

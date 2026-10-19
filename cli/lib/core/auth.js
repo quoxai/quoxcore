@@ -5,7 +5,7 @@
  * Tokens stored in config profile's auth field.
  */
 
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync, statSync, openSync, closeSync, unlinkSync } from 'node:fs';
 import { QuoxAuthError, QuoxApiError, QuoxTransientAuthError } from './errors.js';
 import { loadResidentProfile, residentLogin, resolveResidentBaseUrl } from './residentAuth.js';
 
@@ -140,6 +140,25 @@ export function rememberEmail(config, email) {
   } catch { /* best-effort */ }
 }
 
+// Cross-process refresh lock (wx file next to the credentials). Returns a release function. Never throws:
+// after the wait it proceeds unlocked, because a stuck lock must not sign anyone out.
+async function acquireRefreshLock(file, { staleMs = 20000, waitMs = 20000 } = {}) {
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    try {
+      closeSync(openSync(file, 'wx', 0o600));
+      return () => { try { unlinkSync(file); } catch { /* already gone */ } };
+    } catch (e) {
+      if (e.code !== 'EEXIST') return () => {};
+      try {
+        if (Date.now() - statSync(file).mtimeMs > staleMs) { try { unlinkSync(file); } catch { /* raced */ } continue; }
+      } catch { continue; }
+      if (Date.now() > deadline) return () => {};
+      await new Promise(r => setTimeout(r, 25));
+    }
+  }
+}
+
 export function createAuth(config) {
   return {
     async login(baseUrl, email, password, orgId) {
@@ -226,7 +245,41 @@ export function createAuth(config) {
       config.clearAuth();
     },
 
+    /**
+     * Refresh the session. Stale-sign-in safe: serialised across processes by a lock file next to the
+     * credentials, and it adopts credentials another window or `quox login` wrote since this process
+     * loaded. A fresh token on disk is reused with no server call (so two windows never spend one
+     * rotating refresh token twice); a rejected refresh re-reads disk and retries ONCE if it changed.
+     */
     async refresh(baseUrl) {
+      if (tokenFilePath() || typeof config.reloadAuth !== 'function' || typeof config.refreshLockFile !== 'function') {
+        return this._refreshOnce(baseUrl);
+      }
+      const lock = await acquireRefreshLock(config.refreshLockFile());
+      try {
+        if (config.reloadAuth() && config.getAuth()?.access_token && !this.isExpired()) {
+          return { access_token: config.getAuth().access_token, reused: true };
+        }
+        const sent = config.getAuth()?.refresh_token;
+        try {
+          return await this._refreshOnce(baseUrl);
+        } catch (e) {
+          if (e?.code === 'session_expired') {
+            config.reloadAuth();
+            const now = config.getAuth();
+            if (now?.refresh_token && now.refresh_token !== sent) {
+              if (!this.isExpired()) return { access_token: now.access_token, reused: true };
+              return await this._refreshOnce(baseUrl);
+            }
+          }
+          throw e;
+        }
+      } finally {
+        lock();
+      }
+    },
+
+    async _refreshOnce(baseUrl) {
       const tokenFile = tokenFilePath();
       if (tokenFile) {
         const before = this._tokenFileLast;
@@ -261,14 +314,24 @@ export function createAuth(config) {
       // 2026-08-24: header -> no_refresh_token, body -> invalid_refresh_token.
       // The header is kept because it costs nothing and other deployments may
       // read it.
-      const res = await fetch(`${baseUrl}/api/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${auth.refresh_token}`,
-        },
-        body: JSON.stringify({ refresh_token: auth.refresh_token }),
-      });
+      // QUOXON-FW12: a timeout or network error says nothing about the token.
+      // It is TRANSIENT (tokens kept, caller backs off and retries), never
+      // "signed out". 2026-10-14 02:50: a slow auth service signed the owner out
+      // of a session the server still held active.
+      let res;
+      try {
+        res = await fetch(`${baseUrl}/api/auth/refresh`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${auth.refresh_token}`,
+          },
+          body: JSON.stringify({ refresh_token: auth.refresh_token }),
+          signal: AbortSignal.timeout(15000),
+        });
+      } catch (e) {
+        throw new QuoxTransientAuthError(`Quox server is slow or unreachable (${e?.name === 'TimeoutError' ? 'refresh timed out' : (e?.cause?.code || e?.message || 'network error')}). Stored session KEPT; retrying.`);
+      }
 
       let data = null;
       try { data = await res.json(); } catch { /* non-JSON error body */ }
@@ -283,7 +346,7 @@ export function createAuth(config) {
         // fault into a lost session, which is exactly how the header/body bug
         // above cost three re-logins in one night before it was found.
         if ((data && data.error) === 'no_refresh_token') {
-          throw new QuoxAuthError(
+          throw new QuoxTransientAuthError(
             'The auth service received no refresh token, so it could not tell whether yours is valid. '
             + 'Stored session KEPT. This is a client/transport fault, not an expiry — retry, and report it if it persists.'
           );
@@ -316,7 +379,7 @@ export function createAuth(config) {
             healthy = false;
           }
           if (!healthy) {
-            throw new QuoxAuthError(
+            throw new QuoxTransientAuthError(
               `Auth service is not healthy right now (refresh returned ${res.status} but /health did not answer OK). ` +
               `Stored session KEPT — this is very likely a restart or deploy in progress. Retry in a moment.`
             );
@@ -328,10 +391,13 @@ export function createAuth(config) {
           );
           // Machine-readable, so the TUI can say WHY (idle_timeout | max_session, from the server's session policy).
           dead.code = 'session_expired';
-          dead.reason = (data && data.reason) || null;
+          // A revoke carries no `reason`; keep the error so the card can still say why (SIGNOUT-WIPE).
+          dead.reason = (data && data.reason) || ((data && data.error) === 'session_revoked' ? 'session_revoked' : null);
           throw dead;
         }
-        throw new QuoxAuthError(`Token refresh failed (${res.status}); stored session kept. Retry, or login again if this persists.`);
+        // 5xx / 429 / anything not a definitive 401/403: the token was never judged.
+        const ra = Number(res.headers?.get?.('retry-after'));
+        throw new QuoxTransientAuthError(`Token refresh failed (${res.status}); stored session kept. Retry, or login again if this persists.`, Number.isFinite(ra) && ra > 0 ? ra * 1000 : null);
       }
 
       auth.access_token = data.access_token;

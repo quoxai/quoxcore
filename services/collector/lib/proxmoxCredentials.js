@@ -20,7 +20,7 @@
  * @param {object|null} resolved - result of resolveCredentialForAgent(orgId, 'atlas', 'proxmox'):
  *   { credentials: { base_url, token_id, token_secret }, source, ... } | { leaseBlocked, leaseReason } | null
  * @param {object} [env] - process.env (injected for testability), defaults to process.env
- * @returns {{ url: string, token: string }}
+ * @returns {{ url: string, token: string, tlsFingerprint?: string }}
  * @throws {Error} with `.leaseBlocked = true` when the org's lease-enforcement
  *   mode blocks this agent from the credential (no fallback to env in that
  *   case — mirrors resolveWazuhConnection()'s rule).
@@ -33,12 +33,14 @@ function resolveProxmoxConnection(resolved, env = process.env) {
     throw err;
   }
 
-  let url, token;
+  let url, token, tlsFingerprint;
 
   const creds = resolved && resolved.credentials;
   if (creds && creds.base_url && creds.token_id && creds.token_secret) {
     url = creds.base_url;
     token = `${creds.token_id}=${creds.token_secret}`;
+    // DEVFLEET-A2: optional SHA-256 pin of the PVE certificate (colon hex).
+    if (creds.tls_fingerprint) tlsFingerprint = String(creds.tls_fingerprint);
   }
 
   // Env vars are the LAST fallback — PROXMOX_API_TOKEN is already the
@@ -47,7 +49,7 @@ function resolveProxmoxConnection(resolved, env = process.env) {
   if (!url) url = env.PROXMOX_URL || '';
   if (!token) token = env.PROXMOX_API_TOKEN || '';
 
-  return { url, token };
+  return tlsFingerprint ? { url, token, tlsFingerprint } : { url, token };
 }
 
 module.exports = { resolveProxmoxConnection };

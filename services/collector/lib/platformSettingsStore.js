@@ -164,6 +164,14 @@ function setOrgSetting(db, orgId, key, rawValue, actor = {}) {
   if (!valid) {
     throw new Error(reason || `invalid value for ${key}`);
   }
+  // quox#1061: an ORG-supplied integration URL the collector fetches
+  // server-side is checked against the monitoring egress policy (no
+  // loopback/metadata/internal service targets). The instance scope is
+  // operator controlled and keeps the plain URL check above.
+  if (entry.orgEgressPolicy === 'monitoring-integration' && orgId !== INSTANCE_SCOPE_ORG_ID) {
+    const refusal = require('./monitoringEgressPolicy.js').orgMonitoringUrlRefusal(rawValue);
+    if (refusal) throw new Error(`invalid value for ${key}: ${refusal}`);
+  }
 
   const oldValue = getOrgSettingRaw(db, orgId, key) ?? null;
 

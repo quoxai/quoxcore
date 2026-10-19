@@ -3,6 +3,7 @@
  * lives in core/governedSession.js; this file holds argument parsing and the
  * commander wiring. argv arrays only; user input never reaches a shell string.
  */
+import { markForwardsRawArgs } from '../core/global-flags.js';
 import * as gs from '../core/governedSession.js';
 import { validateName, PROGRAMS } from '../core/governedSession.js';
 import { runClaudeLs } from '../core/claudeLs.js';
@@ -178,8 +179,8 @@ export function registerClaudeCommands(program, ctx, over) {
   // `quox claude <args>` behaves exactly like `claude <args>`: every arg is
   // forwarded verbatim. Only --no-tmux is quox's own. Management lives in
   // `quox sessions` so it can never collide with claude's own arguments.
-  program
-    .command('claude')
+  markForwardsRawArgs(program
+    .command('claude'), 'forwards argv after the verb verbatim')
     .description('Run Claude Code (same arguments as claude) in a tmux session that survives sleep and drops')
     .argument('[args...]', 'passed to claude exactly as given (quox adds only --no-tmux, --as, --slot)')
     .addHelpText('after', `
@@ -205,8 +206,8 @@ Claude's own --agent is untouched and passes through to claude.`)
       const parsed = parseClaudeArgs(rest);
       process.exitCode = runClaude(parsed, over);
     });
-  program
-    .command('codex')
+  markForwardsRawArgs(program
+    .command('codex'), 'forwards argv after the verb verbatim')
     .description('Run Codex (same arguments as codex) in a tmux session that survives sleep and drops')
     .argument('[args...]', 'passed to codex exactly as given (quox adds only --no-tmux)')
     .helpOption(false)
@@ -218,8 +219,8 @@ Claude's own --agent is untouched and passes through to claude.`)
       const parsed = parseCodexArgs(i >= 0 ? raw.slice(i + 1) : []);
       process.exitCode = runCodex(parsed, over);
     });
-  program
-    .command('gemini')
+  markForwardsRawArgs(program
+    .command('gemini'), 'forwards argv after the verb verbatim')
     .description('Run Gemini CLI (same arguments as gemini) in a tmux session that survives sleep and drops')
     .argument('[args...]', 'passed to gemini exactly as given (quox adds only --no-tmux)')
     .helpOption(false)
@@ -230,8 +231,8 @@ Claude's own --agent is untouched and passes through to claude.`)
       const i = raw.indexOf('gemini', 2);
       process.exitCode = runGemini(parseGeminiArgs(i >= 0 ? raw.slice(i + 1) : []), over);
     });
-  program
-    .command('wrap')
+  markForwardsRawArgs(program
+    .command('wrap'), 'forwards argv after the verb verbatim')
     .description('Run any program in a governed tmux session: quox wrap <program> [args...]')
     .argument('<program>', 'command name on PATH')
     .argument('[args...]', 'passed to the program exactly as given')
@@ -269,6 +270,31 @@ Claude's own --agent is untouched and passes through to claude.`)
       });
       const json = !!o.json || program.opts().output === 'json';
       process.exitCode = await runSessionsOverview({ json, watch: !!o.watch, all: !!o.all }, { ...so, fetchIndex });
+    });
+  // `quox active [sessions|slots|agents]`: one short summary of who is doing what (QUOXON-1208).
+  program.command('active [filter]')
+    .description('Who is doing what: one line per active worker, grouped working / waiting on you / idle; filter: sessions, slots, agents')
+    .option('--json', 'print the summary as JSON')
+    .option('--all', 'show every worker (default: top 10 per group)')
+    .option('--lines', 'the older one-line-per-worker layout with state and age columns')
+    .action(async (filter, o) => {
+      const so = (over && over.sessionsOverview) || {};
+      const fetchIndex = so.fetchIndex || (async () => {
+        const { client, auth } = ctx;
+        auth.requireAuth();
+        const ep = resolveEndpoint('v1.sessions.index');
+        const org = orgOrNull(auth);
+        return client.get(ep.path, { service: ep.service, retries: 0, ...(org ? { query: { org_id: org } } : {}) });
+      });
+      const json = !!o.json || program.opts().output === 'json';
+      const { runActive } = await import('../core/activeSummary.js');
+      const fetchSlots = so.fetchSlots || (async () => {
+        const { client, auth } = ctx;
+        const ep = resolveEndpoint('v1.slots.list');
+        const r = await client.get(ep.path, { service: ep.service, retries: 0 });
+        return Array.isArray(r) ? r : (r?.slots || r?.data || []);
+      });
+      process.exitCode = await runActive({ filter: filter || null, json, all: !!o.all, lines: !!o.lines }, { ...so, fetchIndex, fetchSlots });
     });
   sessions.command('heartbeat <tmuxSession>', { hidden: true })
     .description('Heartbeat one wrapped tmux session to the org session index (started by quox claude)')

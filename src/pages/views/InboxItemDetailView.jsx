@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useOutletContext, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useStepUp } from '../../hooks/useStepUp.jsx';
 import { useWorkspace } from '../../contexts/WorkspaceContext';
 import Badge from '../../components/ui/Badge';
 import InboxChatSidebar from '../../components/inbox/InboxChatSidebar';
@@ -421,6 +422,7 @@ function InboxItemDetailView() {
     const location = useLocation();
     const { halState } = useOutletContext() || {};
     const { authFetch } = useAuth();
+    const { stepUpFetch, stepUpModal } = useStepUp(authFetch); // QUOXON-STEPUP
     const { currentOrg } = useWorkspace();
 
     // org_id passed from the list view when clicking through; lets us scope
@@ -557,12 +559,12 @@ function InboxItemDetailView() {
         const timeoutId = setTimeout(() => controller.abort(), 12000);
 
         try {
-            const response = await authFetch(`/api/orgs/${effectiveOrgId}/inbox/${itemId}/respond`, {
+            const response = await stepUpFetch(`/api/orgs/${effectiveOrgId}/inbox/${itemId}/respond`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
                 signal: controller.signal
-            });
+            }, { subject: { line1: item?.title ? `approve: ${item.title}` : 'approve this item' } });
             if (!response.ok) {
                 // Rollback optimistic state
                 setItem(previousItem);
@@ -668,6 +670,7 @@ function InboxItemDetailView() {
 
     return (
         <div className="inbox-item-detail view-page" style={{ flexDirection: 'row' }}>
+            {stepUpModal}
             {/* LEFT: Main content column */}
             <div className="inbox-item-detail__main">
               <div className="inbox-item-detail__scroll">

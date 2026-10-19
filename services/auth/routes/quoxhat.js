@@ -24,6 +24,7 @@ import {
     createHat,
     updateHatDefinition,
     resetHatToTemplate,
+    deleteHat,
     getOrgSettings,
     listEnforceOrgs,
     setOrgSettings,
@@ -97,7 +98,7 @@ router.post('/orgs/:orgId/quoxhat/hats', requireAuth, requireOrgMembership, (req
 
 router.put('/orgs/:orgId/quoxhat/hats/:hatId', requireAuth, requireOrgMembership, (req, res) => {
     try {
-        const { definition, change_reason } = req.body || {};
+        const { definition, change_reason, name } = req.body || {};
         const existing = getHat(req.params.orgId, req.params.hatId, req.user.id);
         if (!existing) return res.status(404).json({ error: 'hat_not_found' });
         const isOwnPrivate = existing.visibility === 'private' && existing.owner_user_id === req.user.id;
@@ -109,6 +110,7 @@ router.put('/orgs/:orgId/quoxhat/hats/:hatId', requireAuth, requireOrgMembership
             userId: req.user.id,
             hatId: req.params.hatId,
             definition,
+            name, // CUSTOM-HATS: optional rename (custom hats only), same audited revisioned write
             changeReason: change_reason || null,
             ipAddress: req.ip,
             userAgent: req.get('user-agent'),
@@ -118,6 +120,32 @@ router.put('/orgs/:orgId/quoxhat/hats/:hatId', requireAuth, requireOrgMembership
     } catch (err) {
         console.error('[quoxhat] update error:', err);
         res.status(500).json({ error: 'failed_to_update_hat' });
+    }
+});
+
+// CUSTOM-HATS (owner 2026-10-17) — delete a custom hat. Same permission as an
+// edit (own private hat, or ORG_MANAGE_SETTINGS for an org hat); never wider.
+// Built-ins are refused (400); the org default is refused (409).
+router.delete('/orgs/:orgId/quoxhat/hats/:hatId', requireAuth, requireOrgMembership, (req, res) => {
+    try {
+        const existing = getHat(req.params.orgId, req.params.hatId, req.user.id);
+        if (!existing) return res.status(404).json({ error: 'hat_not_found' });
+        const isOwnPrivate = existing.visibility === 'private' && existing.owner_user_id === req.user.id;
+        if (!isOwnPrivate && !resolveCap(req, Capabilities.ORG_MANAGE_SETTINGS)) {
+            return res.status(403).json({ error: 'insufficient_permissions' });
+        }
+        const result = deleteHat({
+            orgId: req.params.orgId,
+            userId: req.user.id,
+            hatId: req.params.hatId,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent'),
+        });
+        if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+        res.json({ deleted: result.deleted });
+    } catch (err) {
+        console.error('[quoxhat] delete error:', err);
+        res.status(500).json({ error: 'failed_to_delete_hat' });
     }
 });
 

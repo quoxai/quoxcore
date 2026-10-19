@@ -30,7 +30,9 @@ const PRUNE_BATCH = 500;
 const DEFAULT_TTL_DAYS = 7;
 const DEFAULT_MAX_CHARS = 12000;
 // CLI-QUOX B1 (G0 port): a bounded, scrubbed summary of the tool calls a governed turn
-// made, stored as an 'activity' row beside the exchange. Only an opt-in hydrate reads it.
+// made, stored as an 'activity' row beside the exchange. Every model-facing hydrate reads it
+// (QUOXON lane S: a provider switch must not hide what the previous provider's tools did);
+// the conversation list (UI) never shows it as a message.
 const ACTIVITY_ROLE = 'activity';
 const MAX_ACTIVITY_CHARS = 1500;
 // /compact: a summary row is the head of the history. Turns it replaced are kept
@@ -200,7 +202,7 @@ function recordExchange({ orgId, userId, sessionId, prompt, reply, turnId, activ
  * `maxChars` (newest turns kept).
  * @returns {{ history: Array, hydrated: number }}
  */
-function hydrateHistory({ orgId, userId, sessionId, clientHistory, includeActivity = false } = {}, { dbPath, limit, maxChars } = {}) {
+function hydrateHistory({ orgId, userId, sessionId, clientHistory, includeActivity = true } = {}, { dbPath, limit, maxChars } = {}) {
   if (Array.isArray(clientHistory) && clientHistory.length > 0) return { history: clientHistory, hydrated: 0 };
   const empty = { history: Array.isArray(clientHistory) ? clientHistory : [], hydrated: 0 };
   if (!orgId || !sessionId) return empty;
@@ -307,7 +309,7 @@ function listSessions({ orgId, userId, limit } = {}, { dbPath } = {}) {
  * (a message id from a previous call). Another org/user's session id returns [].
  * @returns {Array<{id:number,role:string,content:string,ts:number}>}
  */
-function listMessages({ orgId, userId, sessionId, after, limit } = {}, { dbPath } = {}) {
+function listMessages({ orgId, userId, sessionId, after, limit, includeActivity = false } = {}, { dbPath } = {}) {
   if (!orgId || !sessionId) return [];
   const db = resolveDb(dbPath);
   if (!db) return [];
@@ -315,21 +317,77 @@ function listMessages({ orgId, userId, sessionId, after, limit } = {}, { dbPath 
   const cursor = Number.isFinite(parseInt(after, 10)) ? parseInt(after, 10) : 0;
   try {
     const cols = hasCompactionColumns(db) ? ', compacted' : '';
+    // includeActivity (model-facing callers only): a turn's activity row is folded into that
+    // turn's assistant message as a "[Tool activity] ..." prefix, never returned on its own.
+    const roleFilter = includeActivity ? '' : `AND role != '${ACTIVITY_ROLE}'`;
     const rows = db.prepare(`SELECT id, role, content, ts, turn_id${cols} FROM chat_session_turns
-      WHERE org_id = ? AND identity = ? AND session_id = ? AND id > ? AND role != '${ACTIVITY_ROLE}' ORDER BY id ASC LIMIT ?`)
-      .all(String(orgId), identityOf(userId), String(sessionId), cursor, lim);
+      WHERE org_id = ? AND identity = ? AND session_id = ? AND id > ? ${roleFilter} ORDER BY id ASC LIMIT ?`)
+      .all(String(orgId), identityOf(userId), String(sessionId), cursor, includeActivity ? lim * 2 : lim);
     const out = [];
     out.skipped = 0;
     out.lastId = rows.length ? rows[rows.length - 1].id : null;
+    let pendingActivity = null;
     for (const r of rows) {
       let text;
       try { text = decrypt(r.content); } catch { out.skipped++; continue; } // never expose ciphertext; keep paging
+      if (r.role === ACTIVITY_ROLE) { pendingActivity = text; continue; }
+      if (r.role === 'assistant' && pendingActivity) text = `[Tool activity] ${pendingActivity}\n\n${text}`;
+      pendingActivity = null;
+      if (out.length >= lim) break;
       out.push({ id: r.id, role: r.role, content: text, ts: r.ts, turn_id: r.turn_id || null, compacted: !!r.compacted });
     }
     if (out.skipped) console.warn(`[ChatSessionHistory] listMessages skipped ${out.skipped} undecryptable row(s) in one page`);
     return out;
   } catch (err) {
     console.error(`[ChatSessionHistory] listMessages failed: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * BRAIN2-FABLE11 quox#1193: sessions of ONE org with activity after `after` (epoch ms),
+ * for opt-in chat mining. Org-scoped in SQL; service-owned rows ('__svc__') excluded.
+ * @returns {Array<{identity:string,session_id:string,last_ts:number}>}
+ */
+function listOrgSessionsSince({ orgId, after, limit } = {}, { dbPath } = {}) {
+  if (!orgId) return [];
+  const db = resolveDb(dbPath);
+  if (!db) return [];
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 500);
+  const cursor = Number.isFinite(Number(after)) ? Number(after) : 0;
+  try {
+    return db.prepare(`SELECT identity, session_id, MAX(ts) AS last_ts FROM chat_session_turns
+      WHERE org_id = ? AND ts > ? AND identity != ? AND identity != '' AND session_id != ''
+      GROUP BY identity, session_id ORDER BY last_ts ASC LIMIT ?`)
+      .all(String(orgId), cursor, SVC_IDENTITY, lim);
+  } catch (err) {
+    console.error(`[ChatSessionHistory] listOrgSessionsSince failed: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * user/assistant turns (decrypted, oldest first) of one session with ts > `after`.
+ * Org AND identity scoped in SQL. Activity and summary rows are never returned.
+ * @returns {Array<{id:number,role:string,content:string,ts:number}>}
+ */
+function listSessionTurnsSince({ orgId, identity, sessionId, after, limit } = {}, { dbPath } = {}) {
+  if (!orgId || !identity || !sessionId) return [];
+  const db = resolveDb(dbPath);
+  if (!db) return [];
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 500);
+  const cursor = Number.isFinite(Number(after)) ? Number(after) : 0;
+  try {
+    const rows = db.prepare(`SELECT id, role, content, ts FROM chat_session_turns
+      WHERE org_id = ? AND identity = ? AND session_id = ? AND ts > ? AND role IN ('user', 'assistant')
+      ORDER BY id ASC LIMIT ?`).all(String(orgId), String(identity), String(sessionId), cursor, lim);
+    const out = [];
+    for (const r of rows) {
+      try { out.push({ id: r.id, role: r.role, content: decrypt(r.content), ts: r.ts }); } catch { /* never expose ciphertext */ }
+    }
+    return out;
+  } catch (err) {
+    console.error(`[ChatSessionHistory] listSessionTurnsSince failed: ${err.message}`);
     return [];
   }
 }
@@ -682,7 +740,7 @@ function _backdateCliFilesForTest(dbPath, ms) {
 }
 
 module.exports = {
-  recordExchange, hydrateHistory, listSessions, listMessages, lastMessageId, lastTurnAt, getCliSession, recordCliSession, purgeUser, purgeOrg,
+  recordExchange, hydrateHistory, listSessions, listMessages, listOrgSessionsSince, listSessionTurnsSince, lastMessageId, lastTurnAt, getCliSession, recordCliSession, purgeUser, purgeOrg,
   compactionSource, storeSummary, conversationStats, resetCliSessions, SUMMARY_PREFIX, MAX_SUMMARY_CHARS,
   setCliProjectsDir, recordCliSessionFile, listCliSessionFiles, isKnownCliSession, pruneCliSessionFiles,
   _resetForTest, _backdateForTest, _rawRowsForTest, _resetCliSessionsForTest, _backdateCliFilesForTest,

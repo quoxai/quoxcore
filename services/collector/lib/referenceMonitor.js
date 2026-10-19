@@ -194,6 +194,49 @@ async function mediateGovernancePolicy(toolName, input, ctx, deps, toolMeta) {
     }
   }
 
+  // quox#1290 (FND_01M59D6H0GGAZ2AQE5X5GAZ2AQ) — the destructive DEFAULT gate. A native or connector tool whose
+  // name or `action` is a removal verb reaches here only when no explicit org deny/require_approval matched. Before
+  // this block it was ALLOWed unless someone had hand-listed it in AGENT_ALWAYS_PROPOSE_TOOLS or wrapped it in
+  // withApprovalGate, so delete_workflow (and every other unlisted delete) ran with no human in the loop: a new
+  // user's "delete my memories" deleted a workflow with no card. Only a human approval bound to this exact action
+  // (ctx._claimedApproval, set by toolResume) releases it; tool input never does. Tools that also gate inside
+  // execute resume with _approvalId + _resumeToken, so one card still means one execution.
+  if (isDestructiveTool(toolName, inp) && !claimedApprovalBinds(toolName, inp, context)) {
+    console.log(`[RefMonitor] DESTRUCTIVE DEFAULT GATE: ${toolName} requires approval (no explicit policy)`);
+    try {
+      const approval = await createApprovalRequest(toolName, inp, {
+        trigger: {
+          policyId: 'destructive-default',
+          ruleId: 'quox-1290-destructive-default-approval',
+          condition: `destructive tool ${toolName} has no explicit org policy; default require_approval`,
+        },
+        approvers: ['admin', 'group:infrastructure'],
+        timeout_ms: 3600000,
+      }, context.orgId, context);
+      return {
+        outcome: OUTCOME.PENDING_APPROVAL,
+        response: {
+          success: false,
+          pending: true,
+          approvalId: approval?.id || null,
+          message: `${toolName} removes something and needs a human approval first.`,
+          instructions: `Nothing has run yet. This is held for approval (approval ${approval?.id || 'pending'}). Approve with a 👍 reaction in the room, or from the Inbox.`,
+          _policy: { id: 'destructive-default', effect: 'require_approval' },
+        },
+      };
+    } catch (mintErr) {
+      console.warn(`[RefMonitor] destructive default-gate mint failed for ${toolName} (blocking closed): ${mintErr.message}`);
+      return {
+        outcome: OUTCOME.DENIED,
+        response: {
+          success: false,
+          error: `${toolName} needs approval but the approval could not be surfaced (approval_surfacing_failed: ${mintErr.message}); nothing ran (fail-closed).`,
+          _policy: { id: 'destructive-default', effect: 'require_approval' },
+        },
+      };
+    }
+  }
+
   // QUOXTRUST F5 (FND_01M3R1TYXZW516YN6TNGW516YN) — the plugin-effect DEFAULT gate.
   // A third-party plugin tool classified as an EFFECT (see classifyPluginToolEffect:
   // effect-verb name OR declared effect OR undeclared-fail-safe) reaches here only
@@ -245,4 +288,16 @@ async function mediateGovernancePolicy(toolName, input, ctx, deps, toolMeta) {
   return { outcome: OUTCOME.ALLOW };
 }
 
-module.exports = { OUTCOME, mediateGovernancePolicy };
+// quox#1290: removal verbs. Matched as a whole `_`-separated word of the tool name, or as the leading word of an
+// `action` input (manage-style tools: keeper_schedule_manage action=delete). Deliberately about REMOVAL: reversible
+// changes (disable, deactivate, archive, dismiss) are not in it; restart/stop/reboot stay with the tools that own them.
+const DESTRUCTIVE_VERBS = 'delete|remove|destroy|purge|drop|wipe|erase|truncate|forget|uninstall|unregister|revoke|prune|kill|terminate';
+const DESTRUCTIVE_NAME_RE = new RegExp(`(^|_)(${DESTRUCTIVE_VERBS})(_|$)`, 'i');
+const DESTRUCTIVE_ACTION_RE = new RegExp(`^\\s*(${DESTRUCTIVE_VERBS})(\\b|_)`, 'i');
+function isDestructiveTool(toolName, input) {
+  if (DESTRUCTIVE_NAME_RE.test(String(toolName || ''))) return true;
+  const action = input && typeof input === 'object' ? input.action : null;
+  return typeof action === 'string' && DESTRUCTIVE_ACTION_RE.test(action);
+}
+
+module.exports = { OUTCOME, mediateGovernancePolicy, isDestructiveTool };

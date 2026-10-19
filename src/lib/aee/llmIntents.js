@@ -22,7 +22,7 @@
  * null (not fabricated zeros or estimates) so rendering code can choose
  * appropriate fallbacks.
  *
- * Reference: /opt/quoxcore/docs/STREAM_AEE_FULL_PLAN.md
+ * Reference: quox-dashboard/docs/STREAM_AEE_FULL_PLAN.md
  */
 
 // ─── Union arrays ──────────────────────────────────────────────────────

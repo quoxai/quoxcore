@@ -26,6 +26,7 @@
  *   - Non-2xx non-{401,403} statuses throw (legacy wrapper converts to 500).
  */
 
+const { catalogDefaultModel } = require('./catalogDefaultModel.js');
 const { emitToolEvidence } = require('./toolEvidence.js');
 const { captureOverride, wantsCaptureOverride } = require('./claudeCliDispatcher.js');
 const { applyLenses } = require('./lensComposer.js');
@@ -96,7 +97,10 @@ async function dispatchClaudeMessages(opts, deps) {
     bastionHost,
     abortTimeoutMs = API_TIMEOUT_MS,
     fleetTimeoutMs = FLEET_TIMEOUT_MS,
+    countApprovalsSince = (a) => require('./toolApprovalStore.js').countCreatedSince(a),
   } = deps || {};
+  // SITE-CLI journey-server-trouble: one labelled continuation when a held-change ask ends on an offer (see heldChangeAsk.js)
+  let heldFirstAnswer = null;
 
   if (typeof fetchFn !== 'function') {
     throw new Error('dispatchClaudeMessages: no fetch implementation available');
@@ -146,7 +150,7 @@ async function dispatchClaudeMessages(opts, deps) {
 You can delegate sub-tasks to specialist agents using delegate_to_agent. Use this when:
 - The query spans multiple domains (e.g., "check security then deploy a fix")
 - A specialist holds the tools for the job. Who holds which tools (from the agent registry; delegate by id):
-${require('./delegationRoster.js').renderDelegationRoster()}
+${require('./delegationRoster.js').renderDelegationRoster(undefined, { scope: require('./delegationRoster.js').hatAgentScope(hatManifest) })}
 - You need to combine results from multiple agents
 
 Delegation guidelines:
@@ -202,7 +206,7 @@ Agent: ${selected_agent}`;
       agent_type: 'chat_assistant',
       agent_name: selected_agent,
       provider: requestedProvider || 'anthropic',
-      model: requestedModel || 'claude-sonnet-4-6',
+      model: requestedModel || catalogDefaultModel(),
       status: 'running',
       user: jwtUserId || 'anonymous',
       project: 'quox-dashboard',
@@ -258,7 +262,7 @@ Agent: ${selected_agent}`;
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     const apiBody = {
-      model: requestedModel || 'claude-sonnet-4-6',
+      model: requestedModel || catalogDefaultModel(),
       max_tokens: 4096,
       system: sysPrompt,
       messages,
@@ -279,7 +283,7 @@ Agent: ${selected_agent}`;
         org_id: jwtOrgId,
         agent_name: selected_agent,
         type: 'activity.thinking',
-        data: { round, model: requestedModel || 'claude-sonnet-4-6', tools_available: hasTools ? agentTools.length : 0 },
+        data: { round, model: requestedModel || catalogDefaultModel(), tools_available: hasTools ? agentTools.length : 0 },
         summary: round === 0 ? `${selected_agent} processing...` : `${selected_agent} tool round ${round + 1}...`,
       });
     }
@@ -353,7 +357,7 @@ Agent: ${selected_agent}`;
           toolsUsed,
           toolExecutions,
           toolRounds: round,
-          model: requestedModel || 'claude-sonnet-4-6',
+          model: requestedModel || catalogDefaultModel(),
           images: collectedImages,
           richContent,
           decisionEvidence: null,
@@ -395,6 +399,30 @@ Agent: ${selected_agent}`;
     if (toolUseBlocks.length === 0 || apiResult.stop_reason !== 'tool_use') {
       const textBlocks = (apiResult.content || []).filter((b) => b.type === 'text');
       let content = textBlocks.map((b) => b.text).join('\n\n');
+      // SITE-CLI 2026-10-17 journey-server-trouble (ev_mvcpwzqm_e8c14c): the user asked for the fix to be held for their
+      // approval and the answer offers to raise it with no card filed. Continue ONCE, labelled and witnessed, so the
+      // change is issued and the gate holds it. Never approves anything.
+      if (heldFirstAnswer === null && round < MAX_TOOL_ROUNDS) {
+        const hc = require('./heldChangeAsk.js');
+        if (hc.isHeldChangeAsk(rawPrompt)) {
+          let filed = null;
+          try { filed = countApprovalsSince({ org_id: jwtOrgId, user_id: jwtUserId, since: chatStartTime }); } catch { filed = null; }
+          if (hc.needsHeldChangeFollowUp({ ask: rawPrompt, answer: content, approvalsFiled: filed })) {
+            heldFirstAnswer = content;
+            console.log(`[Claude] held-change ask ended on an offer with no card filed; continuing once (API path, round ${round})`);
+            if (typeof storeAuditEnvelope === 'function') {
+              try { storeAuditEnvelope(hc.heldChangeEnvelope({ agent: selected_agent, path: 'messages_api', corr: chatSessionId, orgId: jwtOrgId, userId: jwtUserId, ask: rawPrompt, firstAnswer: content, filedBefore: filed })); } catch { /* best-effort like the turn's own */ }
+            }
+            if (typeof emitAgentEvent === 'function') {
+              try { emitAgentEvent({ session_id: chatSessionId, org_id: jwtOrgId, agent_name: selected_agent, type: 'activity.message', data: { role: 'assistant', step: hc.HELD_CHANGE_STEP_LABEL }, summary: `${selected_agent}: ${hc.HELD_CHANGE_STEP_LABEL}` }); } catch { /* display only */ }
+            }
+            messages.push({ role: 'assistant', content: apiResult.content });
+            messages.push({ role: 'user', content: hc.HELD_CHANGE_FOLLOW_UP });
+            continue;
+          }
+        }
+      }
+      if (heldFirstAnswer !== null) content = require('./heldChangeAsk.js').joinFollowUpAnswer(heldFirstAnswer, content);
       if (nativeWebSearch) content = appendSearchSources(content, apiResult.content);
       const voiceSummary = typeof extractVoiceSummary === 'function' ? extractVoiceSummary(content) : '';
       const toolSuffix = toolsUsed.length > 0 ? `\n\n---\n*Tools used: ${toolsUsed.join(', ')}*` : '';
@@ -572,6 +600,9 @@ Agent: ${selected_agent}`;
       // turn with no session_id registers nothing and finalizes nothing, which
       // stays consistent rather than silently mismatching. Not awaited; a
       // citation measurement must never add latency to the answer.
+      // quox#1292: a cited brain handle gets a Sources line naming its note (read before finalize retires it).
+      let sourcesLine = '';
+      try { sourcesLine = require('./brainCitationTrace.js').citationSourcesLine(effectiveSessionId || session_id, cleanContent, jwtOrgId ? { orgId: jwtOrgId } : null); } catch { sourcesLine = ''; }
       try {
         const { finalizeAnswer } = require('./brainCitationTrace.js');
         Promise.resolve(finalizeAnswer(effectiveSessionId || session_id, cleanContent)).catch(() => {});
@@ -580,13 +611,13 @@ Agent: ${selected_agent}`;
       return {
         outcome: 'success',
         path: 'api',
-        text: cleanContent + toolSuffix,
+        text: cleanContent + sourcesLine + toolSuffix,
         voiceSummary,
         tokensUsed: totalTokensUsed,
         toolsUsed,
         toolExecutions,
         toolRounds: round,
-        model: apiResult.model || apiBody.model || requestedModel || 'claude-sonnet-4-6',
+        model: apiResult.model || apiBody.model || requestedModel || catalogDefaultModel(),
         stopReason: apiResult.stop_reason,
         responseLength: content.length,
         images: collectedImages,
@@ -658,9 +689,10 @@ Agent: ${selected_agent}`;
       // QUOXTRUST D6: this dispatcher emits its own per-tool evidence (below); opt
       // the executeTool choke out to avoid a double-emit.
       if (toolCtx) toolCtx._callerEmitsToolEvidence = true;
-      const toolResult = typeof executeTool === 'function'
+      // QUOXON-ENGINE class 4 (quox#830): plain error for the model and the UI.
+      const toolResult = require('./toolErrorPlain.js').plainToolResult(toolBlock.name, typeof executeTool === 'function'
         ? await executeTool(toolBlock.name, toolBlock.input, toolCtx)
-        : { success: false, error: 'executeTool dep missing' };
+        : { success: false, error: 'executeTool dep missing' });
       toolExec.success = toolResult.success !== false && !toolResult.error;
       toolExec.result = toolResult;
       toolExecutions.push(toolExec);
@@ -842,14 +874,11 @@ Agent: ${selected_agent}`;
 
       // Include error details so Claude can explain failures to the user
       let resultContent;
-      if (toolResult.pending === true || toolResult._approval?.status === 'pending') {
-        // Held for a human: not a failure (same shape as openaiInvokeDispatcher).
-        resultContent = JSON.stringify({
-          status: 'pending_approval',
-          approval_id: toolResult._approval?.id || toolResult.approvalId || null,
-          message: toolResult.message || toolResult.error || 'Waiting for a human to approve this action.',
-          tool: toolBlock.name,
-        });
+      // Not finished: held for a human (pending_approval + id) or still running (in_progress + handle). One rule with
+      // the receipts and openaiInvokeDispatcher (lib/toolRouteReceipts.js), never a failure.
+      const _notFinished = require('./toolRouteReceipts.js').modelPendingContent(toolBlock.name, toolResult);
+      if (_notFinished) {
+        resultContent = _notFinished;
       } else if (toolResult.success === false) {
         resultContent = JSON.stringify({
           error: true,
@@ -893,7 +922,7 @@ Agent: ${selected_agent}`;
     toolsUsed,
     toolExecutions,
     toolRounds: MAX_TOOL_ROUNDS + 1,
-    model: requestedModel || 'claude-sonnet-4-6',
+    model: requestedModel || catalogDefaultModel(),
     images: collectedImages,
     richContent,
     decisionEvidence: null,

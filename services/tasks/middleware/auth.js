@@ -1,6 +1,7 @@
 // JWT authentication middleware — mirrors memory service pattern
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
+import { verifyStepUpHeader, stepUpEnforced } from '../lib/stepUpToken.js'
 
 // MCPB-HARDEN-1b: constant-time string compare to prevent timing attacks on
 // the service key comparison.
@@ -103,7 +104,7 @@ export function requireHumanApprover(req, res, next) {
  * Every real instance behaves exactly like requireHumanApprover.
  */
 export function requireHumanApproverUnlessSandbox(req, res, next) {
-  if (!req.viaServiceKey && !req.user?.agent_id) return next()
+  if (!req.viaServiceKey && !req.user?.agent_id && !req.user?.agent_ops) return next()
   import('../lib/disposableTestInstance.js')
     .then(({ hasActiveSandboxApprovalGrant }) => hasActiveSandboxApprovalGrant())
     .catch(() => false)
@@ -111,6 +112,37 @@ export function requireHumanApproverUnlessSandbox(req, res, next) {
       if (grantActive) return next()
       return res.status(403).json({
         error: 'HITL approval requires a human session; a service key or agent identity cannot approve, reject, or halt',
+      })
+    })
+}
+
+/**
+ * QUOXON-STEPUP: approving a plan or checkpoint is a person's decision. A human JWT proves a login, not
+ * a person (an agent can hold `quox -p <human>`), so approval needs a live step-up token minted by auth
+ * after a PIN verify, bound to this user, session, org and the `approve` scope. Objectives and
+ * checkpoints are agent-raised by nature, so this is unconditional. The disposable-test sandbox lease
+ * (read server-side from auth, fail-safe locked) is the one exemption. Mount AFTER the human-approver gate.
+ */
+export function requireStepUpApprove(req, res, next) {
+  import('../lib/disposableTestInstance.js')
+    .then(({ hasActiveSandboxApprovalGrant }) => hasActiveSandboxApprovalGrant())
+    .catch(() => false)
+    .then((grantActive) => {
+      if (grantActive) return next()
+      const chk = verifyStepUpHeader(req, {
+        userId: req.user_id,
+        sessionId: req.user?.session_id || null,
+        orgId: req.user?.org_id || req.user?.orgId || null,
+        scope: 'approve',
+        secret: JWT_SECRET,
+      })
+      if (chk.ok) return next()
+      if (!stepUpEnforced()) { console.warn(`[StepUp] would require step-up (not enforced): tasks approve, reason=${chk.reason}`); return next() }
+      return res.status(403).json({
+        error: 'step_up_required',
+        reason: chk.reason,
+        scope: 'approve',
+        message: 'A person must confirm this approval with their step-up PIN',
       })
     })
 }

@@ -61,6 +61,11 @@ const ULID_CHARS = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
  * Generate a ULID (Universally Unique Lexicographically Sortable Identifier).
  * Timestamp prefix ensures chronological sorting.
  */
+// Monotonic within a millisecond (ULID spec): the same ms reuses the last random part + 1, so ids created in one
+// millisecond still sort in creation order. enforceQuota() prunes by filename sort; a random suffix there pruned a
+// NEWER image when three were saved in the same ms (nightly suite flake, 2026-10-19).
+let _lastUlidMs = -1;
+let _lastUlidRand = null; // array of 16 base32 digit values
 function generateUlid() {
   const now = Date.now();
   let ts = now;
@@ -69,12 +74,22 @@ function generateUlid() {
     timeChars.unshift(ULID_CHARS[ts % 32]);
     ts = Math.floor(ts / 32);
   }
-  const randomBytes = crypto.randomBytes(10);
-  const randChars = [];
-  for (let i = 0; i < 16; i++) {
-    randChars.push(ULID_CHARS[randomBytes[i % 10] % 32]);
+  let rand;
+  if (now === _lastUlidMs && _lastUlidRand) {
+    rand = _lastUlidRand.slice();
+    let k = rand.length - 1;
+    while (k >= 0 && rand[k] === 31) { rand[k] = 0; k--; }
+    if (k < 0) throw new Error('imageStore ULID random part overflowed within one millisecond');
+    rand[k] += 1;
+  } else {
+    const randomBytes = crypto.randomBytes(16);
+    rand = Array.from(randomBytes, (b) => b % 32);
+    // headroom so increments in the same ms cannot overflow in practice
+    rand[0] = rand[0] % 16;
   }
-  return timeChars.join('') + randChars.join('');
+  _lastUlidMs = now;
+  _lastUlidRand = rand;
+  return timeChars.join('') + rand.map((v) => ULID_CHARS[v]).join('');
 }
 
 // Strict ULID validation: exactly 26 Crockford Base32 chars

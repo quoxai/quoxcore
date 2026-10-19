@@ -24,6 +24,7 @@
 
 const configResolver = require('./configResolver.js');
 const { OPENAI_EMBED_MODELS, resolveOpenAIEmbedModel, openAIEmbedStamp } = require('./brainEmbedModel.js');
+const ollamaEmbed = require('./ollamaEmbed.js');
 
 const EMBED_BATCH_CAP = 64;
 const EMBED_MODEL = 'gemini-embedding-001';
@@ -59,8 +60,9 @@ function createEmbedHandler({ embedText, getProviderKeys, getOrgId }) {
     // BRAIN2-W11: optional explicit OpenAI model (bare name or stamp) so
     // quoxbrain can embed a query in the PREVIOUS space during migration.
     if (requestedModel !== undefined && requestedModel !== null
-      && !(typeof requestedModel === 'string' && OPENAI_EMBED_MODELS.includes(requestedModel.split('@')[0]))) {
-      return res.status(400).json({ error: `model must be one of ${OPENAI_EMBED_MODELS.join(', ')}` });
+      && !(typeof requestedModel === 'string' && (OPENAI_EMBED_MODELS.includes(requestedModel.split('@')[0]) || ollamaEmbed.isOllamaStamp(requestedModel)))) {
+      // BRAIN2-FABLE11: an `ollama:<model>@768` stamp is also accepted (query embed in the local space).
+      return res.status(400).json({ error: `model must be one of ${OPENAI_EMBED_MODELS.join(', ')} or an ollama:<model>@768 stamp` });
     }
 
     const providerKeys = getProviderKeys
@@ -103,9 +105,9 @@ function createEmbedHandler({ embedText, getProviderKeys, getOrgId }) {
  * `embeddings` state on quoxbrain's /brain/status (ready | indexing |
  * no_provider) — BRAIN2-SEMANTIC, replacing the silent-FTS-fallback UX.
  *
- * 200 { provider: 'openai'|'gemini'|null, model: string|null }
+ * 200 { provider: 'openai'|'gemini'|'ollama'|null, model: string|null }
  */
-function createEmbedProviderHandler({ getProviderKeys, getOrgId }) {
+function createEmbedProviderHandler({ getProviderKeys, getOrgId, ollamaDeps }) {
   return async function handleEmbedProvider(req, res) {
     const providerKeys = getProviderKeys
       ? await getProviderKeys(req).catch(() => ({}))
@@ -119,6 +121,13 @@ function createEmbedProviderHandler({ getProviderKeys, getOrgId }) {
     const embedProvider = (orgId
       ? configResolver.getSetting(orgId, 'QUOXCHAT_EMBED_PROVIDER').value
       : configResolver.getInstanceSetting('QUOXCHAT_EMBED_PROVIDER').value) || 'openai';
+    // BRAIN2-FABLE11: ollama chosen = local or nothing. Reported honestly with NO fallthrough to
+    // openai/gemini: if the connection or egress check fails, nothing would embed (provider null).
+    if (embedProvider === 'ollama') {
+      const a = await ollamaEmbed.ollamaEmbedAvailability(orgId, { deps: ollamaDeps || {} });
+      if (a.ok) return res.json({ provider: 'ollama', model: a.model, local: true });
+      return res.json({ provider: null, model: null, reason: `ollama_${a.error}` });
+    }
     if (embedProvider === 'openai' && (providerKeys?.openai_api_key || process.env.OPENAI_API_KEY)) {
       return res.json({ provider: 'openai', model: openAIEmbedStamp(resolveOpenAIEmbedModel()) });
     }

@@ -7,6 +7,8 @@
  * - Prometheus metrics endpoint
  */
 
+const { catalogDefaultModel } = require('./lib/catalogDefaultModel.js'); // QUOXON-MODEL: single no-model Claude default
+const { providerErrorFields } = require('./lib/providerRefusal.js');
 const express = require('express');
 // Safety net: forward rejections from async (req,res) route handlers to the error
 // middleware instead of hanging the request forever (Express 4 doesn't do this).
@@ -107,6 +109,7 @@ const wardApiModule = loadOptionalModule(
   }),
   'WARD'
 );
+const { bucketFleetHealth } = require('./lib/fleetHealthBuckets');
 const { buildTraceListQuery } = require('./lib/traceListQuery');
 const { initWardHooks, wardHookAEE, wardHookAOCL, wardHookVOLT, countersignVoltBundle, closeWardHooks, getHookKeypair, wardHooksStatus } = wardHooksModule;
 // One ward.db transaction per sync batch (speed audit 2026-10-10); a stub without the module.
@@ -161,7 +164,7 @@ const { enrichResponse, startEnrichmentTimer, getEnrichmentStats } = require('./
 const { startMemoryConsolidationScheduler } = require('./lib/memoryConsolidationScheduler.js');
 // TRUST-GATE-1.18f: server-side AEE conversation mining (replaces the remaining
 // browser setInterval cycle in reflectionLoop.js — extractMemories/detectPatterns/generateAlerts)
-const { startReflectionMiningScheduler } = require('./lib/reflectionMiningScheduler.js');
+const { startReflectionMiningScheduler, MINABLE_INTENTS_SQL } = require('./lib/reflectionMiningScheduler.js');
 // The Feed (WP2, docs/STREAM_QUOXBRAIN_FEED_PLAN.md): collector-side autopilot
 // ingestion scheduler — feeds QuoxBrain from AEE conversations (F1) and, later,
 // host-file/fleet/connector sources (F2+). Ships dark (QUOXFEED_ENABLED=false by default).
@@ -171,6 +174,8 @@ const { createApprovalsqStore } = require('./lib/approvalsqStore.js');
 const { normalizePolicy: normalizeApprovalsqPolicy } = require('./lib/approvalsqPolicy.js');
 const { registerApprovalsqRoutes } = require('./lib/approvalsqRoutes.js');
 const { registerFleetStandingGrantRoutes } = require('./lib/fleetStandingGrantRoutes.js');
+const { registerProxmoxPoolRoutes } = require('./lib/proxmoxPoolRoutes.js');
+const proxmoxOnboard = require('./lib/proxmoxOnboard.js');
 // X-PLUGIN P4: inbound @mention poller — dark unless X_INBOUND_POLL_ENABLED=1
 // and X_INBOUND_POLL_ORGS is set (see lib/xInboundPoller.js header for the
 // NO-ENV-ONLY-CONFIG note and the loop-triad implementation).
@@ -201,6 +206,7 @@ const { setAuditFn: setBrainCitationAuditFn, getFinalized: getBrainCitationFinal
 const { isAllowedRouterosRequest, assertRouterosEgressHost } = require('./lib/routerosProxyGuard.js');
 const { isAllowedWazuhRequest } = require('./lib/wazuhProxyGuard.js');
 const { resolveWazuhConnection, resolveWazuhIndexerConnection } = require('./lib/wazuhCredentials.js');
+const { checkWazuhConfigured } = require('./lib/wazuhConfiguredGuard.js');
 const { resolveProxmoxConnection } = require('./lib/proxmoxCredentials.js');
 const { loadRouterosConfig, saveRouterosConfig, removeRouterosConfig } = require('./lib/routerosConfigStore.js');
 const routerosTransport = require('./lib/routerosTransport.js');
@@ -419,7 +425,7 @@ const {
   requireFleetHostAuth,
 } = require('./lib/fleetHostCredentialsStore.js');
 // DEVSUITE-BUILD Phase 1 ("receipts wedge") — durable build-receipts history.
-// /opt/quoxcore/bin/quox-build-daemon's record_action() currently only
+// ~/bin/quox-build-daemon's record_action() currently only
 // appends to /tmp/quox-build-history (lost on reboot, no WARD witnessing).
 // This is the collector-side receiving endpoint; the daemon-side POST call
 // is a separate, parallel task. See lib/buildReceiptsStore.js.
@@ -516,6 +522,7 @@ const { createRequireLicence } = require('./lib/requireLicence.js');
 const { resolveOrgId: resolveLicenceOrgId } = require('./lib/feedApiHandlers');
 const requireLicence = createRequireLicence({
   isPluginLicensed: isPluginLicensedForOrg,
+  licenseVerdict: licenseVerdictForOrg,
   resolveOrgId: resolveLicenceOrgId,
 });
 // LICENSE-LAUNCH LL-6d: entitlement gate for the collector-native plugin route
@@ -596,7 +603,7 @@ const xRoutes = require('./routes/xRoutes.js');
 // reads only, nothing here applies a Lens or mutates a finding.
 const quoxlensRoutes = require('./routes/quoxlens.js');
 // DISCORD-PRO: status proxy for the Quox Discord Pro daemon (separate repo,
-// /opt/quoxcore/quox-discord-pro). Reads the daemon's loopback control API
+// ~/quox-discord-pro). Reads the daemon's loopback control API
 // (health + bindings) so the dashboard install/settings surface has one
 // status endpoint to poll. No init() needed: read-only proxy, no store.
 const discordProRoutes = require('./routes/discord-pro.js');
@@ -615,6 +622,7 @@ const { pruneAeeBatched } = require('./lib/bootYield.js');
 // MON-GOV-4: Behavioural baselines + anomaly detection
 const {
   initAgentBehaviorBaselines,
+  anchorErrorCountingChange,
   attachAeeDb: attachAeeDbForBehavior,
   computeBaselines: computeAgentBaselines,
   computeBaselinesAsync: computeAgentBaselinesAsync,
@@ -651,9 +659,12 @@ const {
   // P0a (b) — stricter gate: rejects service/agent callers, human admin only
   requireHumanAdmin,
   isHumanAdmin,
+  requireHumanActor,
   deriveActorType
 } = require('./utils/httpAuth');
 const {
+  hostHome,
+  hostPath,
   resolveBastionSshKeyPath,
   resolveQuoxCliEntryPath,
   resolveRuntimeHomeDir,
@@ -1463,8 +1474,11 @@ async function handleOpenAIChat(req, res, opts) {
       effectiveUserMessage = require('./lib/nativeWebSearch.js').withNoWebSearchNote(userMessage, true);
     }
   }
+  // QUOXON-ENGINE class 2: the turn's tool results, for the grounding contract below.
+  const openaiGroundingEv = require('./lib/groundingContract.js').createEvidenceCollector();
   if (!loopResult) try {
     loopResult = await executeOpenAICompatibleToolLoop(req, {
+      onEvent: openaiGroundingEv.onEvent,
       apiUrl: 'https://api.openai.com/v1/chat/completions',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       model,
@@ -1503,7 +1517,14 @@ async function handleOpenAIChat(req, res, opts) {
     throw err;
   }
 
-  const content = loopResult.content || '';
+  // QUOXON-ENGINE classes 2 + 5: the grounding contract on the non-stream path too.
+  const openaiGrounding = require('./lib/groundingContract.js').applyGroundingContract({ stripFakeActivity: true,
+    answer: loopResult.content || '',
+    evidence: [openaiGroundingEv.text(), userMessage, quox_context || '', memory_context || ''].join('\n'),
+    toolResults: openaiGroundingEv.items(), userMessage, evidenceAvailable: !opts.nativeWebSearch || loopResult.toolsUsed.length > 0,
+    tag: `path=openai-nonstream agent=${selected_agent}`,
+  });
+  const content = openaiGrounding.text;
   const toolSuffix = loopResult.toolsUsed.length > 0 ? `\n\n---\n*Tools used: ${loopResult.toolsUsed.join(', ')}*` : '';
   const voiceSummary = extractVoiceSummary(content);
 
@@ -1511,7 +1532,7 @@ async function handleOpenAIChat(req, res, opts) {
   storeAuditEnvelope({
     type: 'event', from: `agent.${selected_agent}`, to: 'audit.system',
     intent: 'quox.chat.success', corr: session_id || `CHAT_${Date.now()}`,
-    payload: { agent: selected_agent, path: 'openai', model, response_length: content.length, tools_used: loopResult.toolsUsed }
+    payload: { agent: selected_agent, path: 'openai', model, response_length: content.length, tools_used: loopResult.toolsUsed, ...(openaiGrounding.flagged ? { grounding_flags: openaiGrounding.flags } : {}) }
   });
 
   return res.json({
@@ -1892,8 +1913,10 @@ async function handleLocalInferenceChat(req, res, opts) {
 
   try {
     let loopResult;
+    const localGroundingEv = require('./lib/groundingContract.js').createEvidenceCollector();
     try {
       loopResult = await executeOpenAICompatibleToolLoop(req, {
+        onEvent: localGroundingEv.onEvent,
         apiUrl: chatUrl,
         headers,
         model,
@@ -1941,7 +1964,13 @@ async function handleLocalInferenceChat(req, res, opts) {
       }
     }
 
-    const content = loopResult.content || '';
+    // QUOXON-ENGINE classes 2 + 5: the grounding contract on the local-inference path.
+    const localGrounding = require('./lib/groundingContract.js').applyGroundingContract({ stripFakeActivity: true,
+      answer: loopResult.content || '', userMessage, toolResults: localGroundingEv.items(),
+      evidence: [localGroundingEv.text(), userMessage, quox_context || '', memory_context || ''].join('\n'),
+      tag: `path=local-inference agent=${selected_agent}`,
+    });
+    const content = localGrounding.text;
     const latencyMs = Date.now() - start;
     const tokensUsed = loopResult.data?.usage?.total_tokens || null;
     const voiceSummary = extractVoiceSummary(content);
@@ -2007,6 +2036,12 @@ async function handleLocalInferenceChat(req, res, opts) {
 
 // In-memory agent store
 const agents = new Map();
+// QUOXON first-text (2026-10-19): fleet host names, synchronously, for the pre-dispatch handoff gap (lib/fleetHostNames.js).
+const _fleetHostNames = require('./lib/fleetHostNames.js').createFleetHostNames({
+  load: (...a) => require('./lib/agentTools.js').getFleetRegistryLocal(...a),
+  liveIds: () => [...agents.keys()],
+});
+const knownFleetHostNames = () => _fleetHostNames.get();
 // QUOXTRUST D2 — per-host_id set of source IPs seen on heartbeats. >1 distinct
 // IP for one host_id ⇒ TWO VMs POST under the same id (clone provisioned without
 // a unique host_id), which makes the collector's keyed-status flap. Diagnostic
@@ -2054,6 +2089,14 @@ async function refreshCollectorMirror() {
 }
 
 function getCollectorMirrorCompact() {
+  // QUOXON-MIRROR (#1125): retired. This block was built once for the whole collector (every org's
+  // CommanderQ saw the whole fleet count). The org-scoped Mirror (lib/orgMirror.js) now rides in
+  // [SELF-KNOWLEDGE] on every path, so the global "## System Status" line is no longer injected.
+  return '';
+}
+
+// The pre-#1125 whole-collector line, kept only for GET /api/internal/mirror (service key, ops view).
+function getCollectorWideStatusLine() {
   if (!_collectorMirrorCache) return '';
   const m = _collectorMirrorCache;
   const guardian = m.guardian
@@ -2262,6 +2305,8 @@ try {
   // MON-GOV-4: Agent behavioural baselines schema + ATTACH the AEE db
   // so a single voltDb handle can read both tables in the detector.
   initAgentBehaviorBaselines(voltDb);
+  // receipts honesty: the first boot running it anchors MON-GOV's "error counting changed" note (kept on later boots)
+  anchorErrorCountingChange(voltDb);
   attachAeeDbForBehavior(voltDb, AEE_DB_PATH);
 
   // AUD-PDF: generated-PDF cache (cache-key hash of (format, input))
@@ -2817,6 +2862,7 @@ const aeeStatements = aeeDb ? {
   getByCorr: aeeDb.prepare('SELECT * FROM envelopes WHERE corr = ? ORDER BY ts ASC'),
   // BRAIN2-W5 022: org-scoped corr read for Feed / reflection mining.
   getByCorrForOrg: aeeDb.prepare('SELECT * FROM envelopes WHERE corr = ? AND org_id = ? ORDER BY ts ASC'),
+  getRecentByCorrForOrg: aeeDb.prepare('SELECT * FROM envelopes WHERE corr = ? AND org_id = ? ORDER BY ts DESC LIMIT ?'),
   // AEE-CORE-2.3: intent+type histogram for list-row rollup badges.
   // Only plain-text columns — no decryption needed.
   groupedByCorr: aeeDb.prepare('SELECT intent, type, COUNT(*) as n FROM envelopes WHERE corr = ? GROUP BY intent, type'),
@@ -2867,6 +2913,7 @@ const aeeStatements = aeeDb ? {
   // predicate is an unconditional range, so the planner can use
   // idx_envelopes_org_intent (org_id = ? AND intent >= ? AND intent < ?).
   queryOrgScopedPrefix: aeeDb.prepare(statusProbeSql.queryOrgScopedPrefix),
+  queryAgentEnvelopesSince: aeeDb.prepare(statusProbeSql.queryAgentEnvelopesSince),
   queryOrgIntentPrefixLatest: aeeDb.prepare(statusProbeSql.queryOrgIntentPrefixLatest),
   countOrgScopedPrefix: aeeDb.prepare(statusProbeSql.countOrgScopedPrefix),
   // Covering-index variant for the footer badge shape (org + intent prefix
@@ -3135,7 +3182,8 @@ const aeeStatements = aeeDb ? {
   // it a range scan + temp b-tree group (measured 18ms on the same data).
   getActiveConversationsSince: aeeDb.prepare(`
     SELECT corr, MAX(ts) as last_ts, COUNT(*) as recent_count
-    FROM (SELECT corr, ts FROM envelopes INDEXED BY idx_ts WHERE ts >= ?)
+    FROM (SELECT corr, ts FROM envelopes INDEXED BY idx_ts WHERE ts >= ?
+          AND corr IN (SELECT corr FROM envelopes WHERE ts >= ? AND intent IN ${MINABLE_INTENTS_SQL}))
     WHERE corr NOT LIKE 'FLEET_%'
       AND corr NOT LIKE 'AUDIT_%'
     GROUP BY corr
@@ -3146,9 +3194,15 @@ const aeeStatements = aeeDb ? {
   // extracted from other tenants' conversations posted under this org's
   // X-Org-Id). An org with no envelopes of its own is now a free no-op,
   // which is also quox#508's activity floor in its natural form.
+  // 2026-10-17: pinned to the (org_id, ts) range. Left alone, SQLite picks the covering
+  // idx_envelopes_org_corr_ts on org_id ONLY (it suits GROUP BY corr) and walks the org's whole history
+  // whatever the watermark: an 8.5 s loop block after boot on dev. test/reflectionMiningIdlePlan.test.js
+  // quox#1193: only corrs carrying an intent the miner learns from (see
+  // MINABLE_INTENTS_SQL); slot logs and other agent traffic are never mined.
   getActiveConversationsSinceForOrg: aeeDb.prepare(`
     SELECT corr, MAX(ts) as last_ts, COUNT(*) as recent_count
-    FROM (SELECT corr, ts FROM envelopes WHERE ts >= ? AND org_id = ?)
+    FROM (SELECT corr, ts FROM envelopes INDEXED BY idx_envelopes_org_ts WHERE ts >= ? AND org_id = ?
+          AND corr IN (SELECT corr FROM envelopes WHERE ts >= ? AND org_id = ? AND intent IN ${MINABLE_INTENTS_SQL}))
     WHERE corr NOT LIKE 'FLEET_%'
       AND corr NOT LIKE 'AUDIT_%'
     GROUP BY corr
@@ -3282,8 +3336,8 @@ function reflectionMiningListIdleConversations({ orgId, after }) {
   // quox#518: org-scoped when an orgId is supplied (the scheduler always
   // supplies one) — the unscoped path survives only as a defensive fallback.
   const rows = orgId
-    ? aeeStatements.getActiveConversationsSinceForOrg.all(after, orgId)
-    : aeeStatements.getActiveConversationsSince.all(after);
+    ? aeeStatements.getActiveConversationsSinceForOrg.all(after, orgId, after, orgId)
+    : aeeStatements.getActiveConversationsSince.all(after, after);
   return rows
     .filter(r => {
       if (r.recent_count > 1) return true;
@@ -3293,10 +3347,10 @@ function reflectionMiningListIdleConversations({ orgId, after }) {
 }
 
 const { getConversationEnvelopesForOrg } = require('./lib/aeeOrgReadScope');
-function reflectionMiningGetConversationEnvelopes({ orgId, corr }) {
+function reflectionMiningGetConversationEnvelopes({ orgId, corr, limit }) {
   if (!aeeStatements) return [];
-  // BRAIN2-W5 022: scope by org as well as corr (no org => no rows).
-  return getConversationEnvelopesForOrg(aeeStatements, { orgId, corr }).map(reflectionMiningRowToEnvelope);
+  // BRAIN2-W5 022: scope by org as well as corr (no org => no rows). limit: newest-window read (2026-10-16).
+  return getConversationEnvelopesForOrg(aeeStatements, { orgId, corr, limit }).map(reflectionMiningRowToEnvelope);
 }
 
 function reflectionMiningQueryRecentEnvelopes({ orgId, after }) {
@@ -4105,7 +4159,7 @@ const adaptiveChatLimiter = (req, res, next) => {
 // Roadmap Viewer plugin — serve STRATEGIC_ROADMAP.json + plan docs
 app.get('/api/v1/roadmap', (req, res) => {
   try {
-    const roadmapPath = '/opt/quoxcore/STRATEGIC_ROADMAP.json';
+    const roadmapPath = hostPath('STRATEGIC_ROADMAP.json');
     const data = JSON.parse(require('fs').readFileSync(roadmapPath, 'utf8'));
     res.json(data);
   } catch (err) {
@@ -4120,6 +4174,11 @@ app.get('/api/v1/roadmap', (req, res) => {
 // second instance here is safe and avoids reordering the existing
 // DEVSUITE-SLOTS block just to satisfy this route's earlier position.
 const agentSlotBindings = require('./lib/agentSlotBindings.js').createAgentSlotBindingsStore({ getDb: () => aeeDb });
+// quox#1171: a user-made agent may slot_say only into its admin-bound slot (lib/slotTools.js).
+require('./lib/slotTools.js').configureSlotAgentScope({
+  isOrgCustomAgent: (args) => require('./lib/agentIdResolver.js').isUserMadeOrgAgent(args),
+  getBinding: (args) => agentSlotBindings.getBinding(args),
+});
 const devSlotsForIdentity = require('./lib/devSlotsStore.js').createDevSlotsStore({ getDb: () => aeeDb });
 
 // QUOXIDENTITY P1 (territory B): the attach kit. Auth: requireServiceOrUserAuth()
@@ -4207,6 +4266,15 @@ app.post('/api/v1/agent-attach/detach', requireServiceOrUserAuth(), createAgentA
   // QUOXON-ASK lane J: quox_cli / quox_cli_write evidence (content-free receipt on
   // system.tools + argv on audit.system), WARD-witnessed through the same choke.
   require('./lib/quoxCliTools.js').setQuoxCliAuditFn((e) => storeAuditEnvelope(e));
+  // QUOXON-ASK P2: build the quox_cli leaf index (SITE-CLI asks per leaf) once at boot, off
+  // the request path, so no turn pays for it. A failure leaves the lazy build in place.
+  setImmediate(() => {
+    try {
+      const t0 = Date.now();
+      const r = require('./lib/quoxCli/candidates.js').rankCandidateLeaves('list', { k: 1 });
+      console.log(`[quox_cli] leaf index ready (source=${r.source}) in ${Date.now() - t0}ms`);
+    } catch (err) { console.warn('[quox_cli] leaf index build failed (lazy build on first ask):', err && err.message); }
+  });
 
   // INBOXQ background sync scheduler. DARK unless INBOXQ_SYNC_ENABLED=1 (env
   // master, registered in envRegistry); then only orgs whose inboxq_settings
@@ -4273,6 +4341,8 @@ try {
     audit: (e) => storeAuditEnvelope({ from: 'service.notesq', to: 'audit.system', ...e }),
     deriveActorType,
     isHumanAdmin,
+    // quox#1015: import/batch job summaries persist in aeeDb (lazy: aeeDb opens after routes register)
+    importJobStore: require('./lib/notesq/import/jobStore.js').createImportJobStore(() => aeeDb),
   });
   // NOTESQ agent tools consume the SAME notesqCall the routes use (no second path).
   require('./lib/notesqTools.js').setNotesqToolsCall(notesqCall);
@@ -4409,9 +4479,10 @@ app.get('/api/v1/observability/tool-turns', requireAuth(), (req, res) => {
 });
 
 // AGH-CHAIN-4: per-agent honesty leaderboard endpoints.
+const { aghChainOrgId } = require('./lib/aghChainOrg.js');
 app.get('/api/v1/agh-chain/leaderboard', requireServiceOrUserAuth(), (req, res) => {
   try {
-    const orgId = req.user?.org_id;
+    const orgId = aghChainOrgId(req);
     if (!orgId) return res.status(403).json({ error: 'org_id required' });
     const window = req.query.window || '24h';
     if (!['24h', '7d', '30d'].includes(window)) {
@@ -4426,7 +4497,7 @@ app.get('/api/v1/agh-chain/leaderboard', requireServiceOrUserAuth(), (req, res) 
 
 app.get('/api/v1/agh-chain/leaderboard/:agentId', requireServiceOrUserAuth(), (req, res) => {
   try {
-    const orgId = req.user?.org_id;
+    const orgId = aghChainOrgId(req);
     if (!orgId) return res.status(403).json({ error: 'org_id required' });
     const window = req.query.window || '24h';
     if (!['24h', '7d', '30d'].includes(window)) {
@@ -4441,7 +4512,7 @@ app.get('/api/v1/agh-chain/leaderboard/:agentId', requireServiceOrUserAuth(), (r
 
 app.get('/api/v1/agh-chain/leaderboard/:agentId/events', requireServiceOrUserAuth(), (req, res) => {
   try {
-    const orgId = req.user?.org_id;
+    const orgId = aghChainOrgId(req);
     if (!orgId) return res.status(403).json({ error: 'org_id required' });
     const window = req.query.window || '24h';
     const guardKind = req.query.guard || 'claims_stripped';
@@ -4459,7 +4530,7 @@ app.get('/api/v1/agh-chain/leaderboard/:agentId/events', requireServiceOrUserAut
 // events specifically — see honestyRollup.getRecentCorrections doc comment).
 app.get('/api/v1/agh-chain/corrections', requireServiceOrUserAuth(), (req, res) => {
   try {
-    const orgId = req.user?.org_id;
+    const orgId = aghChainOrgId(req);
     if (!orgId) return res.status(403).json({ error: 'org_id required' });
     const window = req.query.window || '7d';
     if (!['24h', '7d', '30d'].includes(window)) {
@@ -4505,7 +4576,7 @@ app.get('/api/v1/agh-chain/status', requireServiceOrUserAuth(), (req, res) => {
     tasks: process.env.TASKS_SERVICE_URL || 'http://tasks:3104',
     quoxflow: process.env.QUOXFLOW_URL || 'http://quoxflow:3200',
     quoxbrain: process.env.QUOXBRAIN_URL || 'http://quoxbrain:3106',
-    quoxplan: process.env.QUOXPLAN_URL || 'http://host.docker.internal:3107',
+    quoxplan: require('./lib/quoxplanUrl.js').resolveQuoxplanUrl(),
     quoxseo: process.env.QUOXSEO_URL || 'http://quoxseo:3110',
     qlarity: process.env.QLARITY_URL || 'http://qlarity:3109',
     quoxsignal: process.env.QUOXSIGNAL_URL || 'http://host.docker.internal:3108',
@@ -4563,7 +4634,10 @@ app.get('/api/v1/agh-chain/status', requireServiceOrUserAuth(), (req, res) => {
           const r = await resolveCredentials(orgId, ['ollama']);
           ollama = r ? !!(r.providers && r.providers.ollama && r.providers.ollama.credentialId) : null;
         } catch { ollama = null; }
-        return { ok: true, openai, anthropic, claude_subscription: claudeSubscription, ...compat, ollama };
+        // Z2H-425: is there a claude binary at all (public prebuilt images ship without it)? Unknown stays undefined.
+        let claudeCli;
+        try { const h = await getClaudeCliHealth({ timeoutMs: 5000, cacheMs: 120000 }); claudeCli = h.ok ? true : (/ENOENT/.test(String(h.error || '')) ? false : undefined); } catch { claudeCli = undefined; }
+        return { ok: true, openai, anthropic, claude_subscription: claudeSubscription, claude_cli: claudeCli, ...compat, ollama };
       },
       mailAccounts: async (orgId) => require('./lib/inboxq/store.js').listAccounts(orgId).length,
       calendarConnections: async (orgId) => require('./lib/calendarq/store.js').listConnections(orgId).length,
@@ -4597,7 +4671,8 @@ app.get('/api/v1/platform/capabilities', requireServiceOrUserAuth(), (req, res) 
     if (classification && !['user', 'operator'].includes(classification)) {
       return res.status(400).json({ error: 'classification must be user or operator' });
     }
-    const orgId = req.user?.org_id || null;
+    // quox#1065: a service caller may name its org via X-Org-Id (quox#524 rule).
+    const orgId = platformCapabilities.capabilitiesCallerOrgId(req);
     const settings = orgId ? platformSettingsStore.listOrgSettings(voltDb, orgId) : null;
     const capabilities = platformCapabilities.getCapabilities({ classification, settings });
     return res.json({ capabilities });
@@ -4806,7 +4881,7 @@ app.get('/api/public/honesty-stats', (req, res) => {
 // Governance Claims Matrix — served for plugin + drift dashboard consumption
 app.get('/api/v1/governance/claims-matrix', (req, res) => {
   try {
-    const matrixPath = '/opt/quoxcore/docs/governance-claims.json';
+    const matrixPath = hostPath('quox-dashboard', 'docs', 'governance-claims.json');
     const data = JSON.parse(require('fs').readFileSync(matrixPath, 'utf8'));
     res.json(data);
   } catch (err) {
@@ -4818,7 +4893,7 @@ app.get('/api/v1/governance/claims-matrix', (req, res) => {
 app.get('/api/v1/governance/claims-matrix/verify', (req, res) => {
   try {
     // Verifier script lives outside the container image but is bind-mounted.
-    const verifierPath = '/opt/quoxcore/scripts/verify-claims-matrix.cjs';
+    const verifierPath = hostPath('quox-dashboard', 'scripts', 'verify-claims-matrix.cjs');
     // Clear any stale module cache so the live script is always used
     delete require.cache[verifierPath];
     const { verify, loadMatrix } = require(verifierPath);
@@ -4878,7 +4953,7 @@ app.post('/api/v1/artifacts/plan', requireServiceOrUserAuth(), async (req, res) 
           kind: 'approval',
           title: `Plan approval — ${planBody.title || 'untitled'}`.slice(0, 120),
           bodyMd: `**${planBody.title || 'Plan'}**\n\n${planBody.intent || ''}\n\n${planBody.steps.length} step(s). Approve to authorise execution; deviation from this plan will require re-approval.`,
-          payload: { artifact_id: artifact.artifact_id, artifact_type: 'plan', kind_detail: 'plan_approval' },
+          payload: { artifact_id: artifact.artifact_id, artifact_type: 'plan', kind_detail: 'plan_approval', what: { action: 'authorise plan', target: `plan ${artifact.artifact_id}`, summary: `authorise execution of plan "${String(planBody.title || 'untitled').slice(0, 100)}" (${planBody.steps.length} step(s))` } },
         });
         approval_filed = !!(card && card.ok);
       } catch (e) { console.warn('[Artifact] approval card failed (non-fatal):', e.message); }
@@ -4932,7 +5007,7 @@ app.post('/api/v1/artifacts/plan/:id/diff', requireServiceOrUserAuth(), async (r
           kind: 'approval',
           title: 'Plan deviation — re-approval needed',
           bodyMd: `Plan **${artifact.body?.title || artifact.artifact_id}** deviated from its approved steps (missing: ${diff.missing.length}, extra: ${diff.extra.length}, changed: ${diff.changed.length}). Re-approval required before continuing.`,
-          payload: { artifact_id: artifact.artifact_id, artifact_type: 'plan', kind_detail: 'plan_deviation' },
+          payload: { artifact_id: artifact.artifact_id, artifact_type: 'plan', kind_detail: 'plan_deviation', what: { action: 're-authorise deviated plan', target: `plan ${artifact.artifact_id}`, summary: `let plan "${String(artifact.body?.title || artifact.artifact_id).slice(0, 100)}" continue after deviating (missing ${diff.missing.length}, extra ${diff.extra.length}, changed ${diff.changed.length})` } },
         });
         reapproval_filed = !!(card && card.ok);
       } catch (e) { console.warn('[Artifact] reapproval card failed (non-fatal):', e.message); }
@@ -5012,7 +5087,7 @@ app.post('/api/v1/commitments/:id/resolve', requireServiceOrUserAuth(), async (r
         const card = await fileInboxCard({
           orgId, kind: 'approval', title: 'Commitment escalated',
           bodyMd: `A commitment was escalated${body.note ? `: ${body.note}` : '.'}`,
-          payload: { commitment_id: req.params.id, kind_detail: 'commitment_escalation' },
+          payload: { commitment_id: req.params.id, kind_detail: 'commitment_escalation', what: { action: 'decide escalated commitment', target: `commitment ${req.params.id}`, summary: `decide on escalated commitment ${req.params.id}${body.note ? `: ${String(body.note).slice(0, 140)}` : ''}` } },
         });
         escalation_filed = !!(card && card.ok);
       } catch (e) { console.warn('[Commitment] escalation card failed (non-fatal):', e.message); }
@@ -5097,7 +5172,7 @@ app.post('/api/v1/commanderq/contactability/policy/propose', requireServiceOrUse
         kind: 'approval',
         title: `Contactability opt-in — ${recipient} via ${channel}`.slice(0, 120),
         bodyMd: `An agent proposes recording contact consent for **${recipient}** on **${channel}**.\n\nPurpose: ${String(body.purpose || 'unspecified').slice(0, 300)}\nProposed quiet hours: ${body.quiet_start || '—'}–${body.quiet_end || '—'}, caps: min ${body.min_interval_minutes || 0}m / max ${body.max_per_day || 0}/day.\n\nApprove ONLY with a lawful basis and the recipient's actual opt-in. Approving grants consent; declining leaves contact denied-by-default.`,
-        payload: { kind_detail: 'contactability_optin', recipient, channel, proposed: body },
+        payload: { kind_detail: 'contactability_optin', recipient, channel, proposed: body, what: { action: 'record contact consent', target: `${recipient} via ${channel}`, summary: `record that ${recipient} opted in to contact on ${channel}` } },
       });
       filed = !!(card && card.ok);
     } catch (e) { console.warn('[Contactability] propose card failed (non-fatal):', e.message); }
@@ -5183,7 +5258,7 @@ app.post('/api/v1/commanderq/contactability/watch', requireServiceOrUserAuth(), 
         orgId, kind: 'approval',
         title: `Standing watch — ${name}`.slice(0, 120),
         bodyMd: `An agent proposes a standing watch:\n\n**${name}**\nCondition: ${condition}\n\nWhen it fires it will PROPOSE a contact; any outbound still passes the deny-by-default contactability engine first. Approve to activate the watch.`,
-        payload: { kind_detail: 'standing_watch', watch_id: id },
+        payload: { kind_detail: 'standing_watch', watch_id: id, what: { action: 'activate standing watch', target: `watch ${id}`, summary: `activate standing watch "${String(name).slice(0, 80)}" (condition: ${condition.slice(0, 100)})` } },
       });
       filed = !!(card && card.ok);
     } catch (e) { console.warn('[Contactability] watch card failed (non-fatal):', e.message); }
@@ -5461,7 +5536,7 @@ app.post('/api/v1/governance/assurance-pack', requireServiceOrUserAuth(), async 
     // wardData: read current chain state via the WARD verify route's data shape
     const wardData = async () => {
       try {
-        const verifierPath = '/opt/quoxcore/services/ward/lib/verify.js';
+        const verifierPath = hostPath('quox-dashboard', 'services', 'ward', 'lib', 'verify.js');
         // WARD is ESM — just return a summary from the public stats endpoint shape
         // via a direct read of the DB if available. Otherwise return a minimal stub.
         const wardDb = voltDb; // WARD lives in its own DB; but we'll read from ward.db if path env says so
@@ -5546,13 +5621,13 @@ app.get('/api/v1/roadmap/plan-doc', (req, res) => {
   // Handle both "docs/STREAM_X.md" and "quox-dashboard/docs/STREAM_X.md"
   const cleanPath = docPath.replace(/^quox-dashboard\//, '');
   try {
-    const fullPath = require('path').join('/opt/quoxcore', cleanPath);
+    const fullPath = require('path').join(hostPath('quox-dashboard'), cleanPath);
     const content = require('fs').readFileSync(fullPath, 'utf8');
     res.json({ path: docPath, content });
   } catch (err) {
-    // Try as absolute path under /opt/quoxcore
+    // Try as absolute path under ~
     try {
-      const altPath = require('path').join('/opt/quoxcore', docPath);
+      const altPath = require('path').join(hostHome(), docPath);
       const content = require('fs').readFileSync(altPath, 'utf8');
       res.json({ path: docPath, content });
     } catch {
@@ -5612,15 +5687,34 @@ app.delete('/api/v1/plugins/:pluginId/storage/:key', requireServiceOrUserAuth(),
 // QUOX_APPROVALSQ_WATCHER is set) only places calls so a human decides.
 const approvalsqStore = voltDb ? createApprovalsqStore(voltDb) : null;
 registerApprovalsqRoutes(app, { getStore: () => approvalsqStore, auth: requireServiceOrUserAuth });
-// Fleet standing grants (owner decision 2026-10-13): org-admin pre-approved ssh_exec lanes.
-registerFleetStandingGrantRoutes(app, { auth: requireServiceOrUserAuth, requireHumanAdmin });
-
 app.get('/api/v1/plugins/:pluginId/storage', requireServiceOrUserAuth(), requirePluginStorageOrg({ isPluginLicensed: isPluginLicensedForOrg }), (req, res) => {
   if (!pluginStorageStatements) return res.status(503).json({ error: 'Storage not available' });
   const rows = pluginStorageStatements.all.all(req.params.pluginId, req.pluginStorageOrgId);
   const data = {};
   for (const row of rows) { try { data[row.key] = JSON.parse(row.value); } catch { data[row.key] = row.value; } }
   res.json({ data });
+});
+
+// Fleet standing grants (owner decision 2026-10-13): org-admin pre-approved ssh_exec lanes.
+registerFleetStandingGrantRoutes(app, { auth: requireServiceOrUserAuth, requireHumanAdmin });
+// Proxmox disposable VM pool (DEVFLEET-P10): org from the verified caller only; host commands ride the governed ssh_exec boundary.
+registerProxmoxPoolRoutes(app, { auth: requireServiceOrUserAuth, requireHumanAdmin, requireHumanActor });
+// HYPERION activity (DEVFLEET-P15): read-only VMs, holders, node load and recent ops. Org from the verified caller only.
+require('./lib/proxmoxActivity.js').registerProxmoxActivityRoutes(app, { auth: requireServiceOrUserAuth, getAeeDb: () => aeeDb, callBastion: devServerHeartbeatCallBastion });
+// Proxmox onboarding (DEVFLEET-ONBOARD): cert fetch, token test, vault save. Human org admin only; org from the verified caller only.
+proxmoxOnboard.registerProxmoxOnboardRoutes(app, {
+  auth: requireServiceOrUserAuth,
+  requireHumanAdmin,
+  limiter: rateLimit({ windowMs: 60_000, max: 20, message: { error: 'Too many Proxmox onboarding requests' } }),
+  vault: proxmoxOnboard.createVaultClient({ authBaseUrl: `${AUTH_BASE_URL}/api` }),
+  emit: (intent, orgId, payload, actor) => storeAuditEnvelope({
+    type: 'event',
+    from: `human.${actor || 'unknown'}`,
+    to: 'system.proxmox_onboard',
+    intent,
+    corr: `proxmox-onboard:${orgId}`,
+    payload: { orgId, org_id: orgId, ...payload },
+  }),
 });
 
 /**
@@ -5782,7 +5876,8 @@ let _healthCache = null;
 let _healthCacheTime = 0;
 const HEALTH_CACHE_TTL = 5000; // 5 seconds
 
-app.get('/api/v1/health/aggregate', requireReadToken, async (req, res) => {
+// #914: the Qluster read token, or the caller's own user/service auth (a signed-in owner's `quox status`).
+app.get('/api/v1/health/aggregate', require('./lib/resourceStats.js').readTokenOr(requireServiceOrUserAuth()), async (req, res) => {
   const now = Date.now();
   if (_healthCache && (now - _healthCacheTime) < HEALTH_CACHE_TTL) {
     return res.json(_healthCache);
@@ -6104,6 +6199,18 @@ if (aeeDb) {
     // Fleet standing grants share aee.db; every create/use/revoke is an AEE envelope.
     require('./lib/fleetStandingGrants.js').ensure(aeeDb);
     require('./lib/fleetStandingGrants.js').setEmitter((envelope) => storeAuditEnvelope(envelope));
+    // Proxmox VM pool (DEVFLEET-P10) shares aee.db; every pool op is an AEE envelope.
+    require('./lib/proxmoxPoolStore.js').ensure(aeeDb);
+    require('./lib/proxmoxPool.js').setEmitter((envelope) => storeAuditEnvelope(envelope));
+    // Rehearsal twins (DEVFLEET-P15): org-scoped rehearsal records an approval card can reference by id.
+    require('./lib/proxmoxRehearseStore.js').ensure(aeeDb);
+    // VM Doctor (DEVFLEET-DOCTOR): org-scoped diagnosis reports + the quox.proxmox.doctor evidence envelope.
+    require('./lib/proxmoxDoctorStore.js').ensure(aeeDb);
+    require('./lib/proxmoxDoctor.js').setEmitter((envelope) => storeAuditEnvelope(envelope));
+    // One-shot (no timer): rehearsals left 'running' by a previous process get their twin and snapshot cleaned up and are marked error.
+    require('./lib/proxmoxRehearse.js').getRehearser().recoverAtBoot().catch((e) => console.warn('[ProxmoxRehearse] boot recovery failed:', e && e.message));
+    // Reap expired leases + warm to target every 5 min for enabled orgs. Interval only, no boot-time tick (loop hygiene).
+    require('./lib/proxmoxPoolScheduler.js').createProxmoxPoolScheduler({ pool: require('./lib/proxmoxPool.js').getPool(), store: require('./lib/proxmoxPoolStore.js') }).start();
   } catch (tErr) {
     console.warn('[HITL] tool-approval store init failed:', tErr.message);
   }
@@ -6340,7 +6447,7 @@ app.get('/api/internal/mirror', (req, res) => {
   res.json({
     cache: _collectorMirrorCache,
     age_ms: _collectorMirrorTimestamp > 0 ? Date.now() - _collectorMirrorTimestamp : null,
-    compact: getCollectorMirrorCompact(),
+    compact: getCollectorWideStatusLine(),
   });
 });
 
@@ -6919,7 +7026,12 @@ app.post('/api/v1/heartbeat', (req, res) => {
   }
 
   // QMD-B: Record heartbeat in signal aggregation layer (threshold + cascade detection)
-  try { recordSignalHeartbeat(heartbeat.host_id, heartbeat.resources) } catch { /* non-blocking */ }
+  // QUOXMIND #1110: a concern is attributed to the heartbeat's org only when the heartbeat
+  // presented the agent or internal key, so QuoxSense never shows an org a spoofed host.
+  try {
+    const hbOrg = (agentData.heartbeat_auth === 'scoped' || agentData.heartbeat_auth === 'internal') && typeof heartbeat.org_id === 'string' ? heartbeat.org_id : null;
+    recordSignalHeartbeat(heartbeat.host_id, heartbeat.resources, { orgId: hbOrg });
+  } catch { /* non-blocking */ }
 
   // Heartbeats are fleet telemetry — do NOT store in AEE audit trail.
   // 30 hosts × 2/min = 86,400/day = 7GB/month of noise that kills query perf.
@@ -8003,6 +8115,7 @@ var devSessionsListInvoke = null;
 // ============================================================================
 const devLoopSessions = require('./lib/devLoopSessionsStore.js');
 const devLoopSpawner = require('./lib/devLoopSpawner.js');
+const { makeLoopSpawnGrantFn } = require('./lib/loopSpawnGrant.js');
 const { classifyLoopAocl, buildLoopVoltEntry } = require('./lib/devLoopEvidence.js');
 // FLEET #431 — the collector base URL stamped into the agent envelope is
 // consumed on ANOTHER machine, so it has no safe default. Single resolver,
@@ -8020,7 +8133,7 @@ app.post('/api/v1/dev-sessions/spawn', requireServiceOrUserAuth(), async (req, r
   // (pinned contract). capability_scope is audit-only here: enforcement lives
   // in args plus the tasks side. tool_access is what the agent needs, so it
   // must not be dropped.
-  const { host_id, backend, payload, args, max_duration_ms, max_turns, capability_scope, tool_access } = req.body || {};
+  const { host_id, backend, payload, args, max_duration_ms, max_turns, capability_scope, tool_access, objective_id, approval_item_id } = req.body || {};
   const orgId = resolveRequestOrgId(req);
   // CORE-LOCAL (QuoxPlan #2873, 2026-08-20): host_id is OPTIONAL now. With a
   // host, the loop runs on that governed fleet host exactly as before; with
@@ -8031,8 +8144,12 @@ app.post('/api/v1/dev-sessions/spawn', requireServiceOrUserAuth(), async (req, r
   if (!orgId || !backend) {
     return res.status(400).json({ error: 'org_id (or authed org) and backend are required' });
   }
-  if (backend !== 'claude' && backend !== 'codex') {
+  const isApiBackend = backend === 'openai' && require('./lib/openaiLoopRunner.js').isAvailable();
+  if (backend !== 'claude' && backend !== 'codex' && !isApiBackend) {
     return res.status(400).json({ error: "backend must be 'claude' or 'codex'" });
+  }
+  if (isApiBackend && host_id) {
+    return res.status(400).json({ error: "api-kind backend 'openai' runs in the collector, not on a fleet host" });
   }
   const hostId = host_id || 'core-local';
 
@@ -8046,7 +8163,32 @@ app.post('/api/v1/dev-sessions/spawn', requireServiceOrUserAuth(), async (req, r
   }
   try {
     let agentSessionId;
-    if (!host_id) {
+    if (isApiBackend) {
+      // API-kind delivery: the model loop runs in-process; its tools go ONLY
+      // through the governed chokepoint (openaiToolLoopDeps), its turns self-ingest
+      // through the same /:id/events route, and /interrupt reaches it below.
+      const openaiRunner = require('./lib/openaiLoopRunner.js');
+      // Resolve the full governed tool catalogue for the loop's agent; the
+      // runner offers ONLY the subset the capability_scope names (deny by
+      // default, argument-patterned entries never offered). Loops run as
+      // CommanderQ ('quox'). A resolver failure is caught by the outer try and
+      // marks the session errored rather than silently running tool-less.
+      const loopAgentId = 'quox';
+      const loopTools = await getToolsWithConnectors(loopAgentId, orgId);
+      ({ agentSessionId } = openaiRunner.startOpenAILoop({
+        sessionRef: id,
+        ingestToken,
+        orgId,
+        agentId: loopAgentId,
+        payload: payload || '',
+        capabilityScope: Array.isArray(capability_scope) ? capability_scope : [],
+        tools: Array.isArray(loopTools) ? loopTools : [],
+        maxDurationMs: Number(max_duration_ms) || 0,
+        maxTurns: Number(max_turns) || 0,
+        collectorUrl: `http://127.0.0.1:${PORT}`,
+        deps: openaiToolLoopDeps(),
+      }));
+    } else if (!host_id) {
       // Core-local delivery: spawn in-process, events self-ingest through
       // the SAME /:id/events route the fleet agent posts to, so evidence
       // behaves identically. tool_access is not wired for core-local in
@@ -8097,13 +8239,16 @@ app.post('/api/v1/dev-sessions/spawn', requireServiceOrUserAuth(), async (req, r
         if (!resp.ok) throw new Error(`signing oracle returned ${resp.status}`);
         return resp.json();
       },
-      deliverFn: async (hostId, command) => {
+      // Throws (never returns null) when an approval item exists but cannot be
+      // proven this objective's human before_start approval: fails closed.
+      grantFn: makeLoopSpawnGrantFn({ orgId, objectiveId: objective_id, approvalItemId: approval_item_id }),
+      deliverFn: async (hostId, command, grant) => {
         const bastionUrl = process.env.BASTION_URL || '';
         const bastionToken = process.env.BASTION_API_TOKEN || '';
         if (!bastionUrl || !bastionToken) return { success: false, error: 'Bastion not configured' };
         const resp = await fetch(`${bastionUrl}/api/v1/exec`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${bastionToken}` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${bastionToken}`, ...(grant ? { 'X-Bastion-Approval-Grant': grant } : {}) },
           body: JSON.stringify({ targets: [hostId], command }),
           signal: AbortSignal.timeout(45000),
         });
@@ -8331,7 +8476,9 @@ app.post('/api/v1/dev-sessions/:id/interrupt', requireServiceOrUserAuth(), async
       // escalation), no Bastion leg. An already-dead child reports
       // killed:false with a reason, mirroring the agent's structured-kill
       // honesty (a kill that killed nothing must be visible).
-      const coreLocal = require('./lib/coreLocalLoopRunner.js');
+      const coreLocal = session.backend === 'openai'
+        ? { killCoreLocalLoop: require('./lib/openaiLoopRunner.js').killOpenAILoop }
+        : require('./lib/coreLocalLoopRunner.js');
       const r = coreLocal.killCoreLocalLoop(session.agent_session_id, req.body?.reason || 'observer_stuck');
       if (!r.killed) {
         const r2 = coreLocal.killCoreLocalLoop(session.id, req.body?.reason || 'observer_stuck');
@@ -8544,11 +8691,53 @@ app.get('/api/v1/live-sessions', requireServiceOrUserAuth(), (req, res) => {
 // cadence to be worth a WARD entry per beat).
 // ============================================================================
 const devSlots = require('./lib/devSlotsStore.js').createDevSlotsStore({ getDb: () => aeeDb });
+const { readThroughOf } = require('./lib/devSlotsStore.js');
+// PRESENCE (owner 2026-10-16): /afk, /sleep, /back. Per (org, user) in aee.db; read by slot responses,
+// slot list, quox presence, the presence_get tool, turn context and approval-request responses.
+// Approvals still queue exactly as before: presence never approves, denies or skips anything.
+const userPresenceLib = require('./lib/userPresence.js');
+const userPresence = userPresenceLib.createUserPresenceStore({ getDb: () => aeeDb });
+userPresenceLib.setDefaultStore(userPresence);
+require('./lib/userPresenceRoutes.js').registerUserPresenceRoutes(app, {
+  getStore: () => (aeeDb ? userPresence : null), auth: requireServiceOrUserAuth, resolveOrgId: resolveSlotOrgId,
+  audit: (e) => storeAuditEnvelope(e),
+});
+// PRESENCE clears ONLY through the explicit POST /api/v1/presence/activity, called by the interactive TUI or a PIN step-up.
+// Never implicitly on chat or approval routes: proof runs and agents drive `quox -p moo chat` with the owner's JWT all day.
+/** human_presence for a response about one slot: set only when that slot's human is away. Never throws. */
+function humanPresenceForSlot(orgId, slotName) {
+  try { return aeeDb ? userPresenceLib.slotPresenceField(userPresence.forSlot({ orgId, slot: slotName })) : null; } catch { return null; }
+}
+/** [OWNER PRESENCE] for a chat turn in this org; '' when nobody is away. Never throws. */
+function presenceContextBlock(orgId) {
+  try { return aeeDb && orgId ? userPresenceLib.contextBlock(userPresence.awayHumans({ orgId })) : ''; } catch { return ''; }
+}
 // QUOXON-PROOF (quox#824): the slot_list agent tool reads this store in-process (same
 // licence gate as GET /api/v1/slots) instead of a loopback fetch that queued behind busy turns.
 require('./lib/slotTools.js').configureSlotStore({
   listSlots: (args) => devSlots.listSlots(args),
   isLicensed: (orgId) => isPluginLicensedForOrg(orgId, 'quoxslots'),
+});
+// QUOXON lane S: slot_create / slot_checkout run in-process with the caller from the turn
+// identity (the Claude CLI's per-turn token cannot reach the slot routes). Same licence gate.
+require('./lib/slotTools.js').configureSlotActions({
+  create: async ({ orgId, name, notes, actor }) => {
+    if (!aeeDb) return { ok: false, code: 'storage_unavailable' };
+    if (!(await isPluginLicensedForOrg(orgId, 'quoxslots'))) return { ok: false, code: 'unlicensed' };
+    return withSlotRoom(createSlotWithEffects({ orgId, name, notes, actor }));
+  },
+  checkout: async ({ orgId, name, holderSession, holderKind, holderIdentity, create, actor }) => {
+    if (!aeeDb) return { ok: false, code: 'storage_unavailable' };
+    if (!(await isPluginLicensedForOrg(orgId, 'quoxslots'))) return { ok: false, code: 'unlicensed' };
+    const result = devSlots.checkoutSlot({ orgId, name, holderSession, holderKind, holderIdentity, create: create === true, createdBy: actor });
+    if (result.ok) {
+      runCheckoutSideEffects({
+        result, orgId, name, actor, holder_session: holderSession, holder_kind: holderKind, host_id: null,
+        storeAuditEnvelope, provisionSlotRoom, devSlots, devSlotDiscord,
+      });
+    }
+    return withSlotRoom(result);
+  },
 });
 const {
   callerFromReq, evaluateMemberJoin, createClaimHandler: createSlotClaimHandler,
@@ -8560,7 +8749,21 @@ const { runCheckoutSideEffects } = require('./lib/devSlotCheckoutEffects.js');
 // DEVSUITE-SLOTS phase 4: derive a Matrix room per slot through the existing
 // M-ROOMS provisioning path (auth's /api/internal/matrix/provision-node,
 // node_type 'dev_slot'). Fail-soft by contract, see devSlotMatrixProvision.js.
-const { provisionSlotRoom, deprovisionSlotRoom, relaySlotMessage, renderSlotLineToBridge, probeBridgeRoom, isDiscordWebhook, isSlotsOwnPuppetSender } = require('./lib/devSlotMatrixProvision.js');
+const { provisionSlotRoom: provisionSlotRoomRaw, deprovisionSlotRoom, relaySlotMessage, renderSlotLineToBridge, probeBridgeRoom, isDiscordWebhook, isSlotsOwnPuppetSender } = require('./lib/devSlotMatrixProvision.js');
+// QUOXON-MESH: every room provision goes through one tracker (deduped per slot, waitable, and the delivery
+// point for a say that landed before the room existed; lib/devSlotRoomTracker.js).
+const slotRoomTracker = require('./lib/devSlotRoomTracker.js').createSlotRoomTracker({
+  provision: provisionSlotRoomRaw, relay: relaySlotMessage,
+});
+const provisionSlotRoom = (args) => slotRoomTracker.provision(args);
+const SLOT_ROOM_WAIT_MS = 10 * 1000;
+// create/checkout return with a room when one lands within the bound, so the next say finds it.
+async function withSlotRoom(result) {
+  if (!result || !result.ok || !result.slot || result.slot.matrix_room_id) return result;
+  const roomId = await slotRoomTracker.waitForRoom(result.slot.id, SLOT_ROOM_WAIT_MS);
+  if (roomId) return { ...result, slot: { ...result.slot, matrix_room_id: roomId } };
+  return { ...result, room_pending: true };
+}
 // DEVSUITE-SLOTS item 5: the per-slot Discord channel. Lifecycle mirrors the
 // Matrix room at the same call sites, EXCEPT retire keeps the channel (owner
 // decision; see the module header). All calls fail-soft.
@@ -8569,7 +8772,7 @@ const devSlotDiscord = require('./lib/devSlotDiscordProvision.js');
 // file + devSlotMessagesStore.js header — a CACHE of the room, not the
 // truth; no server-side Matrix timeline-read precedent exists yet).
 const devSlotMessages = require('./lib/devSlotMessagesStore.js').createDevSlotMessagesStore({ getDb: () => aeeDb });
-const { deriveSlotAuthor, deriveCallerIdentity, validateSlotLabel, checkSlotSayAuthor } = require('./lib/devSlotMessagesStore.js');
+const { deriveSlotAuthor, deriveCallerIdentity, deriveSayIdentity, deriveOnBehalfOf, validateSlotLabel, checkSlotSayAuthor, checkFromSlot, resolveFromSlot, validateRunCommand } = require('./lib/devSlotMessagesStore.js');
 // QUOXIDENTITY DEFECT #2: CommanderQ must defer to a held slot's own voice
 // rather than front-run it. See lib/commanderQHeldSlotDefer.js.
 const { checkHeldMatrixSlotDefer } = require('./lib/commanderQHeldSlotDefer.js');
@@ -8579,6 +8782,7 @@ const { handleInboundByRoom } = require('./lib/devSlotInboundByRoom.js');
 // DEVSUITE-SLOTS wait verb: long-poll seam so a holding session can block on
 // inbound messages instead of hand-rolling a poll loop (see devSlotWait.js
 // header for the 2026-08-22 deaf-resident incident that mandated this).
+const devSlotRoomMembers = require('./lib/devSlotRoomMembers.js').createDevSlotRoomMembers({ getDb: () => aeeDb });
 const devSlotWait = require('./lib/devSlotWait.js').createDevSlotWait({ devSlots, devSlotMessages });
 // DEVSUITE-SLOTS phase 9: governed, org-scoped bridge-room config, replacing
 // QUOX_SLOT_BRIDGE_ROOM / QUOX_SLOT_DISCORD_ROOM as the primary source (env
@@ -8588,6 +8792,15 @@ const devSlotBridges = require('./lib/devSlotBridgesStore.js').createDevSlotBrid
 // install-wide QLARITY_ALLOWLIST env var as the thing a CUSTOMER can manage.
 // See migrations/aee/016-qlarity-org-allowlist.sql for the scope boundary.
 const qlarityAllowlist = require('./lib/qlarityAllowlistStore.js').createQlarityAllowlistStore({ getDb: () => aeeDb });
+// quox#1171: per-org URL-prefix allowlist behind the governed agent fetch tool
+// (web_fetch_allowlisted). Routes are mounted next to the qlarity-allowlist ones.
+const agentFetchAllowlist = require('./lib/agentFetchAllowlistStore.js').createAgentFetchAllowlistStore({ getDb: () => aeeDb });
+require('./lib/allowlistedFetchTool.js').configureAllowlistedFetch({
+  store: agentFetchAllowlist,
+  audit: (e) => storeAuditEnvelope(e),
+});
+// SDK-TEAM #5002: web_search reads the same allowlist for an admin-named private SearXNG origin.
+require('./lib/webResearch.js').configureWebResearch({ store: agentFetchAllowlist, audit: (e) => storeAuditEnvelope(e) });
 
 // quox#665: no slot route may send the per-channel Discord webhook URL (it
 // embeds its own posting token). Registered BEFORE every /api/v1/slots route,
@@ -8600,7 +8813,11 @@ app.get('/api/v1/slots', requireServiceOrUserAuth(), requireLicence('quoxslots',
   const orgId = resolveSlotOrgId(req);
   if (!orgId) return res.status(400).json({ error: 'org could not be resolved' });
   try {
-    res.json({ slots: devSlots.listSlots({ orgId }) });
+    // PRESENCE: which humans are away, and on each human slot (hitl, triage-q, a window's own) who is.
+    let humans = [];
+    try { humans = userPresence.list({ orgId }).map((p) => ({ who: p.who, state: p.state, away: p.away, since: p.since, note: p.note, slots: p.slots })); } catch { humans = []; }
+    const slots = devSlots.listSlots({ orgId }).map((sl) => { const hp = humanPresenceForSlot(orgId, sl.name); return hp ? { ...sl, human_presence: hp } : sl; });
+    res.json({ slots, humans });
   } catch (err) {
     console.error('[DevSlots] list failed:', err.message);
     res.status(500).json({ error: 'list failed' });
@@ -8644,6 +8861,65 @@ async function retireSlotAndMaybeDeleteChannel({ orgId, name, actor, deleteChann
   }
   return { ok: true, slot: result.slot, channel };
 }
+
+// QUOXON-BROADCAST: /broadcast fan-out. One call delivers to the caller's org's held slots (or --slots),
+// returns per-slot status (delivered / queued / failed / unknown), stores the broadcast and its acks.
+// Registered before the :name routes. Recipients come only from the caller's org (lib/devSlotBroadcast.js).
+const devSlotBroadcast = require('./lib/devSlotBroadcast.js').createDevSlotBroadcast({
+  getDb: () => aeeDb,
+  devSlots,
+  devSlotMessages: { appendMessage: (a) => devSlotMessages.appendMessage(a) },
+  relay: ({ slot, text, from }) => relaySlotMessage({ roomId: slot.matrix_room_id, slotId: slot.id, slotName: slot.name, text, from }),
+});
+app.post('/api/v1/slots/broadcast', requireServiceOrUserAuth(), requireLicence('quoxslots', 'QuoxSlots'), async (req, res) => {
+  if (!aeeDb) return res.status(503).json({ error: 'storage unavailable' });
+  const orgId = resolveSlotOrgId(req);
+  if (!orgId) return res.status(400).json({ error: 'org could not be resolved' });
+  const { text, from, slots, priority, ack } = req.body || {};
+  const labelCheck = validateSlotLabel(from);
+  if (!labelCheck.ok) return res.status(400).json({ error: labelCheck.error });
+  if (slots !== undefined && slots !== null && !Array.isArray(slots)) return res.status(400).json({ error: 'slots must be an array of names' });
+  try {
+    const identity = deriveCallerIdentity(req);
+    const sender = deriveSlotAuthor(req, labelCheck.value);
+    const r = await devSlotBroadcast.broadcast({ orgId, text, from: sender, identity, slots, priority: priority || 'normal', ack: ack === true });
+    if (!r.ok) return res.status(r.status || 400).json({ error: r.error });
+    storeAuditEnvelope({
+      type: 'event', from: `session.${sender}`, to: 'audit.system', intent: 'quox.slot.broadcast', corr: r.id,
+      payload: { org_id: orgId, broadcast_id: r.id, from: sender, author_identity: identity, priority: r.priority, ack: r.ack, recipients: r.deliveries.map((d) => d.slot), text_length: String(text).length },
+    });
+    // PRESENCE: a broadcast or page that reaches a human slot while its human is away says so.
+    const hp = (r.deliveries || []).map((d) => humanPresenceForSlot(orgId, d.slot)).find(Boolean) || null;
+    res.json(hp ? { ...r, human_presence: hp } : r);
+  } catch (err) {
+    console.error('[DevSlots] broadcast failed:', err.message);
+    res.status(500).json({ error: 'broadcast failed' });
+  }
+});
+app.get('/api/v1/slots/broadcast/:id', requireServiceOrUserAuth(), requireLicence('quoxslots', 'QuoxSlots'), (req, res) => {
+  if (!aeeDb) return res.status(503).json({ error: 'storage unavailable' });
+  const orgId = resolveSlotOrgId(req);
+  if (!orgId) return res.status(400).json({ error: 'org could not be resolved' });
+  try {
+    const st = devSlotBroadcast.status({ orgId, id: req.params.id });
+    if (!st) return res.status(404).json({ error: 'unknown broadcast' });
+    res.json(st);
+  } catch (err) { res.status(500).json({ error: 'broadcast status failed' }); }
+});
+app.post('/api/v1/slots/broadcast/:id/ack', requireServiceOrUserAuth(), requireLicence('quoxslots', 'QuoxSlots'), (req, res) => {
+  if (!aeeDb) return res.status(503).json({ error: 'storage unavailable' });
+  const orgId = resolveSlotOrgId(req);
+  if (!orgId) return res.status(400).json({ error: 'org could not be resolved' });
+  try {
+    const r = devSlotBroadcast.ack({ orgId, id: req.params.id, slot: (req.body || {}).slot, by: deriveCallerIdentity(req) });
+    if (!r.ok) return res.status(r.status || 400).json({ error: r.error });
+    storeAuditEnvelope({
+      type: 'event', from: `session.${deriveCallerIdentity(req)}`, to: 'audit.system', intent: 'quox.slot.broadcast_ack', corr: req.params.id,
+      payload: { org_id: orgId, broadcast_id: req.params.id, slot: String((req.body || {}).slot) },
+    });
+    res.json(r.broadcast);
+  } catch (err) { res.status(500).json({ error: 'broadcast ack failed' }); }
+});
 
 app.post('/api/v1/slots/prune', requireServiceOrUserAuth(), requireLicence('quoxslots', 'QuoxSlots'), async (req, res) => {
   if (!aeeDb) return res.status(503).json({ error: 'storage unavailable' });
@@ -8711,6 +8987,43 @@ app.post('/api/v1/slots/prune', requireServiceOrUserAuth(), requireLicence('quox
   }
 });
 
+// QUOXON lane S: the create core, shared by POST /api/v1/slots and the slot_create agent
+// tool (lib/slotTools.js configureSlotActions). The caller's admin gate stays at each entry.
+function createSlotWithEffects({ orgId, name, notes, actor }) {
+  const result = devSlots.createSlot({ orgId, name, createdBy: actor, notes });
+  if (!result.ok) return result;
+  storeAuditEnvelope({
+    type: 'event', from: actor, to: 'audit.system', intent: 'quox.slot.create',
+    corr: result.slot.id, payload: { org_id: orgId, name, notes: notes || null },
+  });
+  // Fire-and-forget room derivation (M-ROOMS #416 path): a Matrix/auth
+  // outage must never fail the create response. Success writes the room
+  // id back onto the slot row (denorm cache; auth's ledger is the truth).
+  provisionSlotRoom({ orgId, slotId: result.slot.id, label: `Slots > ${name}` })
+    .then((roomId) => {
+      if (roomId) {
+        devSlots.setSlotRoomId({ orgId, name, roomId });
+        // #574: announce the write-back. Success was previously silent,
+        // so an empty matrix_room_id right after create (fire-and-forget
+        // had not finished) read as "provisioning never ran".
+        console.log(`[DevSlotMatrix] slot ${name} room provisioned and written back: ${roomId}`);
+      }
+    })
+    .catch((err) => console.warn(`[DevSlots] room provision for ${name} failed (non-fatal): ${err.message}`));
+  // Item 5: the channel follows the SLOT, so it is born here. Same
+  // fail-soft contract as the room; a later checkout heals a miss.
+  devSlotDiscord.provisionSlotDiscordChannel({ slotName: name })
+    .then((ch) => {
+      if (!ch) return;
+      devSlots.setSlotDiscord({ orgId, name, channelId: ch.channelId, webhookUrl: ch.webhookUrl });
+      // #574: announce the write-back (was silent on success).
+      console.log(`[DevSlotDiscord] slot ${name} channel provisioned and written back: ${ch.channelId}`);
+      return devSlotDiscord.updateSlotDiscordStatus({ channelId: ch.channelId, slotName: name, state: 'free' });
+    })
+    .catch((err) => console.warn(`[DevSlots] discord provision for ${name} failed (non-fatal): ${err.message}`));
+  return result;
+}
+
 app.post('/api/v1/slots', requireServiceOrUserAuth(), requireLicence('quoxslots', 'QuoxSlots'), async (req, res) => {
   if (!aeeDb) return res.status(503).json({ error: 'storage unavailable' });
   const orgId = resolveSlotOrgId(req);
@@ -8731,41 +9044,12 @@ app.post('/api/v1/slots', requireServiceOrUserAuth(), requireLicence('quoxslots'
       return res.json({ slot: r.slot, ...(r.channel ? { channel: r.channel } : {}) });
     }
 
-    const result = devSlots.createSlot({ orgId, name, createdBy: actor, notes });
+    const result = createSlotWithEffects({ orgId, name, notes, actor });
     if (!result.ok) {
       if (result.code === 'bad_name') return res.status(400).json({ error: 'name must match /^[a-z0-9-]{1,32}$/' });
       if (result.code === 'duplicate') return res.status(409).json({ error: 'slot already exists' });
       return res.status(500).json({ error: 'create failed' });
     }
-    storeAuditEnvelope({
-      type: 'event', from: actor, to: 'audit.system', intent: 'quox.slot.create',
-      corr: result.slot.id, payload: { org_id: orgId, name, notes: notes || null },
-    });
-    // Fire-and-forget room derivation (M-ROOMS #416 path): a Matrix/auth
-    // outage must never fail the create response. Success writes the room
-    // id back onto the slot row (denorm cache; auth's ledger is the truth).
-    provisionSlotRoom({ orgId, slotId: result.slot.id, label: `Slots > ${name}` })
-      .then((roomId) => {
-        if (roomId) {
-          devSlots.setSlotRoomId({ orgId, name, roomId });
-          // #574: announce the write-back. Success was previously silent,
-          // so an empty matrix_room_id right after create (fire-and-forget
-          // had not finished) read as "provisioning never ran".
-          console.log(`[DevSlotMatrix] slot ${name} room provisioned and written back: ${roomId}`);
-        }
-      })
-      .catch((err) => console.warn(`[DevSlots] room provision for ${name} failed (non-fatal): ${err.message}`));
-    // Item 5: the channel follows the SLOT, so it is born here. Same
-    // fail-soft contract as the room; a later checkout heals a miss.
-    devSlotDiscord.provisionSlotDiscordChannel({ slotName: name })
-      .then((ch) => {
-        if (!ch) return;
-        devSlots.setSlotDiscord({ orgId, name, channelId: ch.channelId, webhookUrl: ch.webhookUrl });
-        // #574: announce the write-back (was silent on success).
-        console.log(`[DevSlotDiscord] slot ${name} channel provisioned and written back: ${ch.channelId}`);
-        return devSlotDiscord.updateSlotDiscordStatus({ channelId: ch.channelId, slotName: name, state: 'free' });
-      })
-      .catch((err) => console.warn(`[DevSlots] discord provision for ${name} failed (non-fatal): ${err.message}`));
     res.status(201).json({ slot: result.slot });
   } catch (err) {
     console.error('[DevSlots] create/retire failed:', err.message);
@@ -8777,7 +9061,7 @@ app.post('/api/v1/slots/:name/checkout', requireServiceOrUserAuth(), requireLice
   if (!aeeDb) return res.status(503).json({ error: 'storage unavailable' });
   const orgId = resolveSlotOrgId(req);
   if (!orgId) return res.status(400).json({ error: 'org could not be resolved' });
-  const { holder_session, holder_kind, host_id, force, create } = req.body || {};
+  const { holder_session, holder_kind, host_id, force, create, take } = req.body || {};
   if (!holder_session) return res.status(400).json({ error: 'holder_session is required' });
 
   // QUOXPERTICUS-REVISIT P3: an interactive checkout naming a dev host must
@@ -8813,7 +9097,7 @@ app.post('/api/v1/slots/:name/checkout', requireServiceOrUserAuth(), requireLice
       // a resident that checked out under a display --session name can still
       // pass the say double-voice gate as itself.
       holderIdentity: deriveCallerIdentity(req),
-      force: force === true, create: create === true, createdBy: actor,
+      force: force === true, create: create === true, take: take === true, createdBy: actor,
     });
     if (!result.ok) {
       if (result.code === 'bad_name') return res.status(400).json({ error: 'name must match /^[a-z0-9-]{1,32}$/' });
@@ -8857,7 +9141,13 @@ app.post('/api/v1/slots/:name/checkout', requireServiceOrUserAuth(), requireLice
       return res.status(409).json({
         error: 'slot held',
         message: `slot ${req.params.name} is held by ${result.slot?.holder_session || 'unknown'}`,
-        detail: { holder_session: result.slot?.holder_session || null },
+        detail: {
+          holder_session: result.slot?.holder_session || null,
+          state: result.slot?.state || null,
+          same_user: result.sameUser === true,
+          checked_out_at: result.slot?.checked_out_at || null,
+          last_heartbeat_at: result.slot?.last_heartbeat_at || null,
+        },
         slot: result.slot,
       });
     }
@@ -8865,7 +9155,7 @@ app.post('/api/v1/slots/:name/checkout', requireServiceOrUserAuth(), requireLice
       result, orgId, name: req.params.name, actor, holder_session, holder_kind, host_id,
       storeAuditEnvelope, provisionSlotRoom, devSlots, devSlotDiscord,
     });
-    res.json(result.refreshed ? { slot: result.slot, refreshed: true } : { slot: result.slot });
+    res.json(result.refreshed ? { slot: result.slot, refreshed: true } : result.tookOver ? { slot: result.slot, took_over: result.tookOver } : { slot: result.slot });
   } catch (err) {
     console.error('[DevSlots] checkout failed:', err.message);
     res.status(500).json({ error: 'checkout failed' });
@@ -8881,6 +9171,7 @@ app.post('/api/v1/slots/:name/release', requireServiceOrUserAuth(), requireLicen
   try {
     const result = devSlots.releaseSlot({
       orgId, name: req.params.name, holderSession: holder_session, force: !!force,
+      holderIdentity: deriveCallerIdentity(req),
       memberKey: callerFromReq(req).memberKey,
     });
     if (!result.ok) {
@@ -9236,13 +9527,20 @@ app.post('/api/v1/slots/:name/say', requireServiceOrUserAuth(), requireLicence('
   // rather than silently mangle it.
   const labelCheck = validateSlotLabel(from);
   if (!labelCheck.ok) return res.status(400).json({ error: labelCheck.error });
+  // SLOT-RUN: an optional command for the human to run in their own terminal. Validated and stored
+  // verbatim; the collector NEVER executes it (the quox TUI shows it in full and asks first).
+  const runCheck = validateRunCommand(req.body && req.body.run);
+  if (!runCheck.ok) return res.status(400).json({ error: runCheck.error });
 
   try {
     const slot = devSlots.getSlot({ orgId, name: req.params.name });
     if (!slot) return res.status(404).json({ error: 'unknown slot' });
-    if (!slot.matrix_room_id) {
-      return res.status(409).json({ error: 'slot has no Matrix room yet (provisioning may still be pending)' });
-    }
+    // QUOXON-MESH: a slot whose room is still provisioning (just created) no longer refuses the say. The
+    // line is stored and pushed to listeners now; only its Matrix room copy waits for the room.
+    const roomPending = !slot.matrix_room_id;
+    // PRESENCE: saying into a human's slot while they are away says so (approvals will queue).
+    const humanPresenceFields = () => { const hp = humanPresenceForSlot(orgId, slot.name); return hp ? { human_presence: hp } : {}; };
+    const sayPresence = () => require("./lib/devSlotPresence.js").slotPresence({ slot: devSlots.getSlot({ orgId, name: req.params.name }) || slot, listeners: devSlotMessages.listeners({ orgId, slotId: slot.id, excludeSession: (req.body && (req.body.room_session || req.body.holder_session)) || null }) });
 
     // Durable, synchronous work FIRST (cache + witness), THEN the network
     // sends fire-and-forget. Audit 2026-08-17: the old order relayed to the
@@ -9258,7 +9556,10 @@ app.post('/api/v1/slots/:name/say', requireServiceOrUserAuth(), requireLicence('
     // falling back to the identity when none is supplied), which is why
     // slots stay addressable by session name even though many sessions
     // share one authenticated account.
-    const identity = deriveCallerIdentity(req);
+    const identity = deriveSayIdentity(req, req.body);
+    if (identity === null) return res.status(400).json({ error: 'acting_agent must be an agent id' });
+    const onBehalfOf = deriveOnBehalfOf(req, req.body);
+    if (onBehalfOf === null) return res.status(400).json({ error: 'on_behalf_of must be a user id or a system actor' });
 
     // P1-TRUST slice 2, the double-voice kill: a resident's identity IS the
     // slot's voice (checkoutSlot for a resident sets holder_session to
@@ -9267,7 +9568,14 @@ app.post('/api/v1/slots/:name/say', requireServiceOrUserAuth(), requireLicence('
     // ordinary human/session say (steer) is never subject to it, see
     // checkSlotSayAuthor's module comment for why identity alone can only
     // gate a resident, not a human. Fail closed, name the actual holder.
-    const authCheck = checkSlotSayAuthor({
+    // QUOXON-ROOMS: a room member (joined, not holding) posts as its membership says
+    // (session + person, server-derived), never under a caller-chosen human label.
+    const roomSession = (req.body && typeof req.body.room_session === 'string') ? req.body.room_session : '';
+    const roomMember = roomSession ? devSlotRoomMembers.getMember({ orgId, slotId: slot.id, session: roomSession }) : null;
+    if (roomSession && !roomMember) {
+      return res.status(403).json({ error: 'not a room member', message: `${roomSession} has not joined ${req.params.name}; quox slot join ${req.params.name} --session ${roomSession}` });
+    }
+    const authCheck = roomMember ? { ok: true } : checkSlotSayAuthor({
       slot, identity, caller: callerFromReq(req, { session: (req.body && req.body.holder_session) || null, identity }),
     });
     if (!authCheck.ok) {
@@ -9278,24 +9586,45 @@ app.post('/api/v1/slots/:name/say', requireServiceOrUserAuth(), requireLicence('
       });
     }
 
-    const author = deriveSlotAuthor(req, labelCheck.value);
+    const author = roomMember ? devSlotRoomMembers.senderFor(roomMember) : deriveSlotAuthor(req, labelCheck.value);
+
+    // SLOTS-REPLY: the sender's own slot (its reply address), kept only when this
+    // org's slot is held by the same authenticated identity; otherwise dropped.
+    const fromSlot = resolveFromSlot({
+      fromSlot: req.body && req.body.from_slot, identity,
+      holderSession: roomMember ? null : (req.body && req.body.holder_session),
+      getSlot: (n) => devSlots.getSlot({ orgId, name: n }),
+      listSlots: () => devSlots.listSlots({ orgId }),
+    });
+    const fromSlotFields = { from_slot: fromSlot.value, ...(fromSlot.dropped ? { from_slot_dropped: fromSlot.dropped } : {}) };
 
     const stored = devSlotMessages.appendMessage({
-      orgId, slotId: slot.id, slotName: slot.name, from: author, authorIdentity: identity, text, source: 'say',
+      orgId, slotId: slot.id, slotName: slot.name, from: author, authorIdentity: identity, text, source: 'say', fromSlot: fromSlot.value, run: runCheck.value,
     });
 
     storeAuditEnvelope({
       type: 'event', from: `session.${author}`, to: 'audit.system', intent: 'quox.slot.say',
       corr: slot.id,
       payload: {
-        org_id: orgId, name: req.params.name, from: author, author_identity: identity, text_length: String(text).length,
+        org_id: orgId, name: req.params.name, from: author, author_identity: identity, from_slot: fromSlot.value, text_length: String(text).length,
+        ...(onBehalfOf ? { on_behalf_of: onBehalfOf } : {}),
+        ...(runCheck.value ? { run_request: true, run_length: runCheck.value.length } : {}),
       },
     });
 
     // Relay into the slot room and fan to the owner's bridge (set-relay), both
     // fire-and-forget: the witnessed record is the cache row + envelope above.
-    relaySlotMessage({ roomId: slot.matrix_room_id, slotId: slot.id, slotName: slot.name, text, from: labelCheck.value })
-      .catch((err) => console.warn(`[DevSlots] say relay for ${slot.name} failed (non-fatal): ${err.message}`));
+    if (roomPending) {
+      const q = slotRoomTracker.enqueue(slot.id, { slotId: slot.id, slotName: slot.name, text, from: labelCheck.value });
+      if (!q.queued) console.warn(`[DevSlots] say for ${slot.name} not queued for its room (${q.reason}); stored and pushed only`);
+      // Kick (or join) provisioning so the queue drains; deduped per slot, fail-soft.
+      provisionSlotRoom({ orgId, slotId: slot.id, label: `Slots > ${slot.name}` })
+        .then((roomId) => { if (roomId) devSlots.setSlotRoomId({ orgId, name: slot.name, roomId }); })
+        .catch((err) => console.warn(`[DevSlots] room provision on say for ${slot.name} failed (non-fatal): ${err.message}`));
+    } else {
+      relaySlotMessage({ roomId: slot.matrix_room_id, slotId: slot.id, slotName: slot.name, text, from: labelCheck.value })
+        .catch((err) => console.warn(`[DevSlots] say relay for ${slot.name} failed (non-fatal): ${err.message}`));
+    }
     // Phase 9: resolve bridge rooms from the governed org-scoped store first,
     // env vars only as a fallback when no row exists for that org/platform.
     const bridgeCfg = devSlotBridges.getBridgeRooms({ orgId });
@@ -9330,6 +9659,13 @@ app.post('/api/v1/slots/:name/say', requireServiceOrUserAuth(), requireLicence('
     const telegramBridgeRoom = bridgeCfg.telegram || process.env.QUOX_SLOT_BRIDGE_ROOM || null;
     const labelBridge = (b) => (b && telegramBridgeRoom && b.target === telegramBridgeRoom
       ? { ...b, platform: 'telegram' } : b);
+    // QUOXON-MESH: a chat window's say (@slot, /say) wants "delivered" the moment the line is
+    // in the slot (cache row + notify bus, above), not after the slowest bridge. It opts out of
+    // the bridge report; the render still runs, unreported.
+    if (req.body && req.body.bridge_report === false) {
+      bridgeRender.catch(() => {});
+      return res.json({ ok: true, message: stored, ...fromSlotFields, bridges: bridgeRooms.map(() => ({ ok: null, reason: 'not awaited' })), presence: sayPresence(), ...humanPresenceFields(), ...(roomPending ? { room_pending: true } : {}) });
+    }
     const bridges = await Promise.race([
       bridgeRender.then((r) => (r.results || []).map(labelBridge)),
       new Promise((resolve) => setTimeout(
@@ -9341,7 +9677,7 @@ app.post('/api/v1/slots/:name/say', requireServiceOrUserAuth(), requireLicence('
     // cannot surface as an unhandled promise.
     bridgeRender.catch(() => {});
 
-    res.json({ ok: true, message: stored, bridges });
+    res.json({ ok: true, message: stored, ...fromSlotFields, bridges, presence: sayPresence(), ...humanPresenceFields(), ...(roomPending ? { room_pending: true } : {}) });
   } catch (err) {
     console.error('[DevSlots] say failed:', err.message);
     res.status(500).json({ error: 'say failed' });
@@ -9468,7 +9804,7 @@ app.get('/api/v1/slots/:name/messages', requireServiceOrUserAuth(), requireLicen
     // holder_session can never mark someone else's hold as caught up.
     if (req.query.holder_session) {
       try {
-        devSlots.touchSlotRead({ orgId, name: req.params.name, holderSession: req.query.holder_session, memberKey: callerFromReq(req).memberKey });
+        devSlots.touchSlotRead({ orgId, name: req.params.name, holderSession: req.query.holder_session, memberKey: callerFromReq(req).memberKey, readThrough: readThroughOf(messages) });
       } catch (err) {
         console.warn(`[DevSlots] touchSlotRead for ${req.params.name} failed (non-fatal): ${err.message}`);
       }
@@ -9526,7 +9862,7 @@ app.get('/api/v1/slots/:name/wait', requireServiceOrUserAuth(), requireLicence('
     // caught up.
     if (req.query.holder_session && result.held) {
       try {
-        devSlots.touchSlotRead({ orgId, name: req.params.name, holderSession: req.query.holder_session, memberKey: callerFromReq(req).memberKey });
+        devSlots.touchSlotRead({ orgId, name: req.params.name, holderSession: req.query.holder_session, memberKey: callerFromReq(req).memberKey, readThrough: readThroughOf(result.messages) });
       } catch (err) {
         console.warn(`[DevSlots] touchSlotRead for ${req.params.name} failed (non-fatal): ${err.message}`);
       }
@@ -9541,6 +9877,59 @@ app.get('/api/v1/slots/:name/wait', requireServiceOrUserAuth(), requireLicence('
     console.error('[DevSlots] wait failed:', err.message);
     res.status(500).json({ error: 'wait failed' });
   }
+});
+
+// QUOXON-MESH: the push form of wait. One SSE response per listening window,
+// fed by the same in-process notify bus (zero DB reads per message, one
+// replay read at connect, capped connections, bounded lifetime). Same auth
+// and licence posture as wait; not on the collectorAuthGate allowlist.
+const slotStreamHandler = require('./lib/devSlotStream.js').createSlotStreamHandler({
+  devSlots, devSlotMessages, resolveOrgId: resolveSlotOrgId, roomMembers: devSlotRoomMembers,
+});
+// QUOXON-ROOMS: join/leave/members. Membership is subscribe + post; holding stays exclusive and separate.
+app.post('/api/v1/slots/:name/join', requireServiceOrUserAuth(), requireLicence('quoxslots', 'QuoxSlots'), (req, res) => {
+  if (!aeeDb) return res.status(503).json({ error: 'storage unavailable' });
+  const orgId = resolveSlotOrgId(req);
+  if (!orgId) return res.status(400).json({ error: 'org could not be resolved' });
+  try {
+    const slot = devSlots.getSlot({ orgId, name: req.params.name });
+    if (!slot) return res.status(404).json({ error: 'unknown slot' });
+    const b = req.body || {};
+    const r = devSlotRoomMembers.join({ orgId, slotId: slot.id, slotName: slot.name, session: b.session, person: b.person, identity: deriveCallerIdentity(req) });
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    return res.json({ ok: true, slot: slot.name, already: r.already, member: { session: r.member.session, person: r.member.person, joined_at: r.member.joined_at } });
+  } catch (err) { console.error('[DevSlots] join failed:', err.message); return res.status(500).json({ error: 'join failed' }); }
+});
+app.post('/api/v1/slots/:name/leave', requireServiceOrUserAuth(), requireLicence('quoxslots', 'QuoxSlots'), (req, res) => {
+  if (!aeeDb) return res.status(503).json({ error: 'storage unavailable' });
+  const orgId = resolveSlotOrgId(req);
+  if (!orgId) return res.status(400).json({ error: 'org could not be resolved' });
+  try {
+    const slot = devSlots.getSlot({ orgId, name: req.params.name });
+    if (!slot) return res.status(404).json({ error: 'unknown slot' });
+    return res.json({ ok: true, slot: slot.name, ...devSlotRoomMembers.leave({ orgId, slotId: slot.id, session: (req.body || {}).session }) });
+  } catch (err) { console.error('[DevSlots] leave failed:', err.message); return res.status(500).json({ error: 'leave failed' }); }
+});
+app.get('/api/v1/slot-rooms', requireServiceOrUserAuth(), requireLicence('quoxslots', 'QuoxSlots'), (req, res) => {
+  if (!aeeDb) return res.status(503).json({ error: 'storage unavailable' });
+  const orgId = resolveSlotOrgId(req);
+  if (!orgId) return res.status(400).json({ error: 'org could not be resolved' });
+  if (!req.query.session) return res.status(400).json({ error: 'session is required' });
+  try { return res.json({ rooms: devSlotRoomMembers.listForSession({ orgId, session: String(req.query.session) }) }); } catch (err) { return res.status(500).json({ error: 'rooms failed' }); }
+});
+app.get('/api/v1/slots/:name/members', requireServiceOrUserAuth(), requireLicence('quoxslots', 'QuoxSlots'), (req, res) => {
+  if (!aeeDb) return res.status(503).json({ error: 'storage unavailable' });
+  const orgId = resolveSlotOrgId(req);
+  if (!orgId) return res.status(400).json({ error: 'org could not be resolved' });
+  try {
+    const slot = devSlots.getSlot({ orgId, name: req.params.name });
+    if (!slot) return res.status(404).json({ error: 'unknown slot' });
+    return res.json({ slot: slot.name, holder_session: slot.holder_session || null, members: devSlotRoomMembers.listMembers({ orgId, slotId: slot.id }) });
+  } catch (err) { return res.status(500).json({ error: 'members failed' }); }
+});
+app.get('/api/v1/slots/:name/stream', requireServiceOrUserAuth(), requireLicence('quoxslots', 'QuoxSlots'), (req, res) => {
+  if (!aeeDb) return res.status(503).json({ error: 'storage unavailable' });
+  return slotStreamHandler(req, res);
 });
 
 // Server-side sweep (never a browser timer, per the collector-owned-
@@ -9636,7 +10025,7 @@ if (voltDb && process.env.QUOX_BRAIN_GARDENER_DISABLED !== 'true') {
 // (not in the collectorAuthGate allowlist; same-origin cookie or valid
 // service/user auth once COLLECTOR_AUTH_ENFORCE=enforce). Reads
 // CODEBASE_MAP.md / STATUS_AND_LIMITS_*.md directly off this box's
-// filesystem (the collector container has /opt/quoxcore mounted at the same
+// filesystem (the collector container has ~ mounted at the same
 // path — confirmed via `docker inspect quox-collector`) and proxies search
 // to the real RepoBrain HTTP service.
 // DONEENGINE phase 9 — the dashboard panel's data: the engine's own
@@ -9651,6 +10040,7 @@ if (voltDb && process.env.QUOX_BRAIN_GARDENER_DISABLED !== 'true') {
   const de = require('./lib/doneengineSnapshots.js');
   app.get('/api/v1/doneengine/snapshots', requireServiceOrUserAuth(), de.createSnapshotsListHandler());
   app.get('/api/v1/doneengine/snapshots/latest', requireServiceOrUserAuth(), de.createSnapshotsLatestHandler());
+  app.get('/api/v1/doneengine/board', requireServiceOrUserAuth(), de.createBoardHandler());
 }
 app.get('/api/v1/docs/repos', createDocsReposListHandler());
 app.get('/api/v1/docs/repos/:repo/map', createDocsRepoMapHandler());
@@ -9735,11 +10125,10 @@ app.get('/api/v1/fleet/status', requireFleetAllowance('bastion-fleet'), (req, re
 
 // Fleet summary
 // LL-7 D3: entitlement-gated (see /api/v1/fleet/status note above).
-app.get('/api/v1/fleet/summary', requireFleetAllowance('bastion-fleet'), (req, res) => {
+app.get('/api/v1/fleet/summary', requireFleetAllowance('bastion-fleet'), async (req, res) => {
   const now = Date.now();
   let connected = 0, stale = 0, dead = 0;
   let totalCpu = 0, totalMem = 0;
-  let healthyCount = 0, warningCount = 0, criticalCount = 0;
 
   for (const [, agent] of agents) {
     const age = now - agent.received_at;
@@ -9756,14 +10145,40 @@ app.get('/api/v1/fleet/summary', requireFleetAllowance('bastion-fleet'), (req, r
       totalMem += agent.resources.memory.usage_percent;
     }
 
-    // Health status
-    const health = agent.status?.health || 'unknown';
-    if (health === 'healthy') healthyCount++;
-    else if (health === 'warning') warningCount++;
-    else if (health === 'critical') criticalCount++;
   }
 
+  // QUOXON-FLEET: degraded counts as warning, unhealthy as critical (lib/fleetHealthBuckets.js)
+  const healthBuckets = bucketFleetHealth(agents.values());
+  const healthyCount = healthBuckets.healthy, warningCount = healthBuckets.warning, criticalCount = healthBuckets.critical;
+
   const total = agents.size;
+
+  // SDK-TEAM: opt-in (?registry=1) Bastion registry inventory, read through GET /api/v1/fleet/hosts itself
+  // (one proxy, no duplicate); without the flag the body is unchanged and Bastion is never contacted.
+  let registry;
+  if (req.query && req.query.registry === '1') {
+    try {
+      const r = await fetch(`http://127.0.0.1:${PORT}/api/v1/fleet/hosts`, {
+        headers: { ...(process.env.INTERNAL_SERVICE_KEY ? { 'X-Service-Key': process.env.INTERNAL_SERVICE_KEY } : {}), ...(req.headers['x-org-id'] ? { 'X-Org-Id': String(req.headers['x-org-id']) } : {}) },
+        signal: AbortSignal.timeout(12000),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok || !Array.isArray(body.hosts)) {
+        registry = { error: body.error || `HTTP ${r.status}` };
+      } else {
+        const by_state = {};
+        const rows = body.hosts.map((h) => {
+          const f = require('./lib/fleetAsk.js').bastionHostFields(h); // Bastion nests status {state,health,last_seen}
+          const state = f.state || 'unknown';
+          by_state[state] = (by_state[state] || 0) + 1;
+          return { id: String((h && (h.id || h.host_id || h.name)) || 'unnamed'), ip: (h && h.ip) || null, group: (h && h.group) || null, state, health: f.health, last_seen: f.last_seen };
+        });
+        registry = { total: rows.length, by_state, hosts: rows };
+      }
+    } catch (err) {
+      registry = { error: err.message };
+    }
+  }
 
   res.json({
     total_agents: total,
@@ -9781,7 +10196,8 @@ app.get('/api/v1/fleet/summary', requireFleetAllowance('bastion-fleet'), (req, r
       avg_cpu_percent: total > 0 ? totalCpu / total : 0,
       avg_memory_percent: total > 0 ? totalMem / total : 0
     },
-    last_updated: new Date().toISOString()
+    last_updated: new Date().toISOString(),
+    ...(registry ? { registry } : {})
   });
 });
 
@@ -9798,10 +10214,21 @@ app.get('/api/v1/fleet/hosts', requireFleetAllowance('bastion-fleet'), async (re
   const bastionUrl = process.env.BASTION_URL || '';
   const bastionToken = process.env.BASTION_API_TOKEN || '';
   if (!bastionUrl || !bastionToken) {
-    return res.status(503).json({
-      success: false,
-      error: 'Bastion is not configured on this collector (BASTION_URL/BASTION_API_TOKEN unset).'
-    });
+    // quox#1224: no Bastion (every public install). The agent registry is the inventory; answer from it with
+    // the same truth `quox fleet agents` and the chat fleet_status tool use. Only when there are NO agents
+    // either do we answer 503, and then with a plain sentence and an empty list, never a bare status.
+    const { agentsToHostRows, describeNoBastion } = require('./lib/fleetHostsFallback.js');
+    const nowMs = Date.now();
+    const rows = agentsToHostRows([...agents.values()].map((a) => {
+      const age = nowMs - a.received_at;
+      const connection = age > AGENT_DEAD_MS ? 'dead' : age > AGENT_TIMEOUT_MS ? 'stale' : 'connected';
+      return { ...a, status: { ...a.status, connection, last_seen_seconds: Math.floor(age / 1000) } };
+    })).sort((x, y) => String(x.id).localeCompare(String(y.id)));
+    const message = describeNoBastion(rows);
+    if (rows.length === 0) {
+      return res.status(503).json({ success: false, bastion: false, hosts: [], count: 0, source: 'agent-registry', error: message, message });
+    }
+    return res.json({ hosts: rows, count: rows.length, bastion: false, source: 'agent-registry', message });
   }
 
   try {
@@ -10450,12 +10877,30 @@ app.get('/agents/:agentId/tools', requireAuth(), (req, res) => {
 // Execute a tool (used by QuoxMCP callback)
 app.post('/api/v1/tools/execute', toolLimiter, requireServiceOrUserAuth({ acceptAudience: require('./lib/turnToken.js').TURN_TOKEN_AUDIENCE }), async (req, res) => {
   const { tool_name, input, org_id, user_id, auth_token } = req.body;
+  // #970: the view `quox tool exec --select/--summary/--limit` showed the caller, for the receipt.
+  const _outputShape = require('./lib/toolOutputShape.js').sanitizeOutputShape(req.body.output_shape);
   // QUOXON-IDENTITY: a per-turn credential pins the conversation; body session_id
   // is only honoured for callers that do not carry one.
   const session_id = req.user?.conversation_id || req.body.session_id;
 
   if (!tool_name) {
     return res.status(400).json({ success: false, error: 'tool_name is required' });
+  }
+  // QUOXON-ENGINE class 3 (quox#842): the per-turn credential carries the turn's intent.
+  // On a read-only ask a hat switch proposal or bundle load is dropped, never filed.
+  // PLAN MODE: a plan-only turn's credential refuses every state-changing call (lib/planMode.js). Nothing runs.
+  if (req.user && req.user.turn_mode === 'plan') {
+    const planWhy = require('./lib/planMode.js').planRefusal(tool_name, input || {});
+    if (planWhy) return res.status(200).json({ success: false, dropped: true, plan_mode: true, error: planWhy });
+  }
+  // 2026-10-16 (card 01M53E5YHS8MQT6W6VVX6SX2D6): a security read with no shell ask never runs a shell sweep.
+  // QUOXON 2026-10-19: except a provably read-only allowlisted command (uptime, `claude --version`), which runs direct, no card.
+  if (req.user && req.user.no_shell && tool_name === 'ssh_exec' && !require('./lib/turnCredentialGate.js').allowlistedRead(input)) {
+    // the body (and the same rule) live in lib/turnCredentialGate.js, unit-tested against any tool the model names
+    return res.status(200).json(require('./lib/turnCredentialGate.js').execGateDrop(req.user, tool_name));
+  }
+  if (req.user && req.user.turn_intent === 'read' && require('./lib/turnToolSelection.js').READ_TURN_WITHHELD.has(tool_name)) {
+    return res.status(200).json({ success: false, dropped: true, error: `Dropped: ${tool_name} was not run because the user asked a read-only question; no hat switch is proposed on a read. Say which hat carries the tool and that the user can ask to switch.` });
   }
 
   // SEC-FIX-4: resolve agent_id with validation — JWT claim beats body to
@@ -10517,8 +10962,15 @@ app.post('/api/v1/tools/execute', toolLimiter, requireServiceOrUserAuth({ accept
   // (isServiceKeyAuth). Without this, an Org A user could pass org_id=OrgB and
   // read Org B's vault credentials — the exact class already fixed on the
   // sibling /volt/runs, /volt/stats routes.
+  // withheld-exec (2026-10-19): on the Claude CLI path the model can name ANY tool; a gated turn runs only what it offered
+  // (lib/turnToolGate.js). Before any credential is resolved or any tool runs.
+  { const g = require('./lib/turnToolGate.js').turnToolRefusal(req.user, tool_name); if (g) return res.status(200).json(g); }
   const { resolveCallerOrgId } = require('./lib/toolExecuteOrgScope.js');
-  const { bearerForToolCall } = require('./lib/turnBearerStore.js');
+  const { toolCallCredential } = require('./lib/turnBearerStore.js');
+  // quox#1090 ruling (b): an OBO tool on a turn whose held bearer ran out (or was capped to nothing by
+  // its parent's expiry) is refused with turn_credential_expired, never run on the bare turn token.
+  const _cred = toolCallCredential({ toolName: tool_name, user: req.user, headerToken: (req.headers.authorization?.replace('Bearer ', '')) || auth_token || undefined });
+  if (_cred.error) return res.status(401).json({ success: false, error: _cred.error, message: _cred.message });
   const ctx = {
     agentId: agentIdResult.agentId,
     session_id: session_id || undefined,
@@ -10529,7 +10981,9 @@ app.post('/api/v1/tools/execute', toolLimiter, requireServiceOrUserAuth({ accept
     // The caller's own bearer wins over a body-supplied auth_token.
     // QUOXON-ASK J2: for quox_cli on a Claude CLI turn token, the caller's own bearer held
     // in collector memory for that turn (never in the model's env); else unchanged.
-    token: bearerForToolCall({ toolName: tool_name, user: req.user, headerToken: (req.headers.authorization?.replace('Bearer ', '')) || auth_token || undefined }),
+    token: _cred.token,
+    // quox#1090 ruling (b): this turn's held-bearer expiry, so a delegation can cap its sub-turn's hold.
+    bearerHoldUntil: require('./lib/turnBearerStore.js').heldUntil(req.user?.turn_id),
     // QUOXIDENTITY F2b: for attach-lease callers (req.user.attach_lease_id,
     // e.g. agent.seer driven via the attach JWT), the lease holder is the
     // human responsible for the action — surfaced onto req.user in
@@ -10537,6 +10991,9 @@ app.post('/api/v1/tools/execute', toolLimiter, requireServiceOrUserAuth({ accept
     // AEE envelope + VOLT actor block below so the receipt names both the
     // agent (actor_id) and the human (holder_user_id). null for every
     // non-attach caller; existing evidence shape is unchanged for them.
+    // quox#1090: the calling turn's end, ONLY from the signed claim of its own per-turn token (never a
+    // caller-supplied value); it only stretches the delegation wait.
+    turnDeadlineAt: require('./lib/turnBudget.js').turnDeadlineFromToken(req.user),
     attachLeaseId: req.user?.attach_lease_id || null,
     holderUserId: req.user?.holder_user_id || null,
     // QUOXIDENTITY P9: splinter label from the attach JWT claim (absent = no field).
@@ -10587,6 +11044,8 @@ app.post('/api/v1/tools/execute', toolLimiter, requireServiceOrUserAuth({ accept
             authzMode: manifest.authzMode,
             authorizedAgents: manifest.authorizedAgents,
             delegationScoped: manifest.delegationScoped,
+            scopedAgents: manifest.scopedAgents, // CUSTOM-HATS: roster scope for agent_directory + prompts
+            orchestrator: manifest.orchestrator,
             hatKey: manifest.hatKey,
             hatId: manifest.hatId,
             revision: manifest.revision,
@@ -10691,180 +11150,139 @@ app.post('/api/v1/tools/execute', toolLimiter, requireServiceOrUserAuth({ accept
       return res.status(result.status || 400).json({ success: false, error: result.error });
     }
 
-    // MCP-AUDIT-1b: VOLT tool.call.executed event + completeRun
-    voltEmitter.emit(voltRunId, 'tool.call.executed', {
-      actor: {
-        actor_type: 'agent',
-        actor_id: ctx.agentId || 'quox',
-        // QUOXIDENTITY F2b: name the responsible human alongside the agent
-        // for attach-lease callers only.
-        ...(ctx.attachLeaseId ? { holder_user_id: ctx.holderUserId, attach_lease_id: ctx.attachLeaseId, ...(ctx.splinter ? { splinter: ctx.splinter } : {}) } : {}),
-      },
-      tool: tool_name,
-      input: input || {},
-      output: result,
-      duration_ms: durationMs,
-    });
-    voltEmitter.completeRun(voltRunId);
-
-    // MCPB-HARDEN-1c: aocl.run.complete so trace viewer timeline is complete
-    storeAuditEnvelope({
-      type: 'event',
-      from: `agent.${ctx.agentId || 'quox'}`,
-      to: 'system.aocl',
-      intent: 'aocl.run.complete',
-      corr: runStartCorr,
-      payload: {
-        tool_name,
-        agent_id: ctx.agentId,
-        user_id: ctx.userId,
-        org_id: ctx.orgId,
+    // Receipts honesty (2026-10-17, lib/toolRouteReceipts.js): a tool that RETURNED { success:false } gets the same
+    // .failed receipts as a thrown one, never success:true ones. A call held for a human is not a failure: it keeps the
+    // path below. Only a returned failure leaves it.
+    const _receipts = require('./lib/toolRouteReceipts.js');
+    // quox#1235: a call held for a human is witnessed as held (nothing ran), never success:true, never failed
+    if (_receipts.classifyRouteResult({ result }) === 'held') {
+      _receipts.emitToolRouteReceipts({
+        outcome: 'held', result, tool_name, ctx, input, durationMs, runStartCorr, corrId,
+        aeeIntent, aoclClassification, toolActionCommit, voltRunId,
+        storeAuditEnvelope, voltEmitter, recordNocOutcome,
+        settle: (id, envId) => require('./lib/agentTools.js').settleObligationDelivered(id, envId),
+      });
+    } else if (_receipts.classifyRouteResult({ result }) === 'pending') {
+      // still running, no approval (a delegation past its wait deadline): witnessed as pending, never held or failed
+      _receipts.emitToolRouteReceipts({
+        outcome: 'pending', result, tool_name, ctx, input, durationMs, runStartCorr, corrId,
+        aeeIntent, aoclClassification, toolActionCommit, voltRunId,
+        storeAuditEnvelope, voltEmitter, recordNocOutcome,
+        settle: (id, envId) => require('./lib/agentTools.js').settleObligationDelivered(id, envId),
+      });
+    } else if (_receipts.classifyRouteResult({ result }) === 'failed') {
+      _receipts.emitToolRouteReceipts({
+        outcome: 'failed', result, tool_name, ctx, input, durationMs, runStartCorr, corrId,
+        aeeIntent, aoclClassification, toolActionCommit, voltRunId,
+        storeAuditEnvelope, voltEmitter, recordNocOutcome,
+        settle: (id, envId) => require('./lib/agentTools.js').settleObligationDelivered(id, envId),
+      });
+    } else {
+      // MCP-AUDIT-1b: VOLT tool.call.executed event + completeRun
+      voltEmitter.emit(voltRunId, 'tool.call.executed', {
+        actor: {
+          actor_type: 'agent',
+          actor_id: ctx.agentId || 'quox',
+          // QUOXIDENTITY F2b: name the responsible human alongside the agent
+          // for attach-lease callers only.
+          ...(ctx.attachLeaseId ? { holder_user_id: ctx.holderUserId, attach_lease_id: ctx.attachLeaseId, ...(ctx.splinter ? { splinter: ctx.splinter } : {}) } : {}),
+        },
+        tool: tool_name,
+        input: input || {},
+        output: result,
         duration_ms: durationMs,
-        success: true,
-        source: 'mcp',
-        orgId: ctx.orgId,
-        userId: ctx.userId,
-        agentId: ctx.agentId,
-      }
-    });
+      });
+      voltEmitter.completeRun(voltRunId);
 
-    const _goldOkReceipt = storeAuditEnvelope({
-      type: 'event',
-      from: `agent.${ctx.agentId || 'quox'}`,
-      to: 'system.tools',
-      intent: aeeIntent || 'ops.tool.executed',
-      corr: corrId,
-      payload: {
-        tool_name,
-        agent_id: ctx.agentId,
-        user_id: ctx.userId,
-        org_id: ctx.orgId,
-        duration_ms: durationMs,
-        success: true,
-        ...(aoclClassification ? { aocl: aoclClassification } : {}),
-        // QUOXIDENTITY F2b: attach-lease callers only — names the human who
-        // holds the lease alongside the agent that acted (agent_id above).
-        ...(ctx.attachLeaseId ? { attach_lease_id: ctx.attachLeaseId, holder_user_id: ctx.holderUserId, ...(ctx.splinter ? { splinter: ctx.splinter } : {}) } : {}),
-        // QUOXTRUST T1/D1: bind the effective action (content-free) into the receipt.
-        ...(toolActionCommit ? { canonical_action: toolActionCommit } : {}),
+      // MCPB-HARDEN-1c: aocl.run.complete so trace viewer timeline is complete
+      storeAuditEnvelope({
+        type: 'event',
+        from: `agent.${ctx.agentId || 'quox'}`,
+        to: 'system.aocl',
+        intent: 'aocl.run.complete',
+        corr: runStartCorr,
+        payload: {
+          tool_name,
+          agent_id: ctx.agentId,
+          user_id: ctx.userId,
+          org_id: ctx.orgId,
+          duration_ms: durationMs,
+          success: true,
+          source: 'mcp',
+          orgId: ctx.orgId,
+          userId: ctx.userId,
+          agentId: ctx.agentId,
+        }
+      });
+
+      const _goldOkReceipt = storeAuditEnvelope({
+        type: 'event',
+        from: `agent.${ctx.agentId || 'quox'}`,
+        to: 'system.tools',
+        intent: aeeIntent || 'ops.tool.executed',
+        corr: corrId,
+        payload: {
+          tool_name,
+          agent_id: ctx.agentId,
+          user_id: ctx.userId,
+          org_id: ctx.orgId,
+          duration_ms: durationMs,
+          success: true,
+          ...(aoclClassification ? { aocl: aoclClassification } : {}),
+          // QUOXIDENTITY F2b: attach-lease callers only — names the human who
+          // holds the lease alongside the agent that acted (agent_id above).
+          ...(ctx.attachLeaseId ? { attach_lease_id: ctx.attachLeaseId, holder_user_id: ctx.holderUserId, ...(ctx.splinter ? { splinter: ctx.splinter } : {}) } : {}),
+          // QUOXTRUST T1/D1: bind the effective action (content-free) into the receipt.
+          ...(toolActionCommit ? { canonical_action: toolActionCommit } : {}),
+          ...(_outputShape ? { output_shape: _outputShape } : {}),
+        }
+      });
+      // WP4.1b: this route emits its own receipt (choke opted out), so IT settles
+      // the evidence obligation — one owner (agentTools.settleObligationDelivered,
+      // idempotent, owed-only). Without this, gold-path obligations sat 'owed'
+      // forever and became false stale-owed reconciler incidents (live 2026-09-28).
+      if (_goldOkReceipt && _goldOkReceipt.stored && ctx._executionIntentId) {
+        try { require('./lib/agentTools.js').settleObligationDelivered(ctx._executionIntentId, _goldOkReceipt.id); } catch { /* stays owed */ }
       }
-    });
-    // WP4.1b: this route emits its own receipt (choke opted out), so IT settles
-    // the evidence obligation — one owner (agentTools.settleObligationDelivered,
-    // idempotent, owed-only). Without this, gold-path obligations sat 'owed'
-    // forever and became false stale-owed reconciler incidents (live 2026-09-28).
-    if (_goldOkReceipt && _goldOkReceipt.stored && ctx._executionIntentId) {
-      try { require('./lib/agentTools.js').settleObligationDelivered(ctx._executionIntentId, _goldOkReceipt.id); } catch { /* stays owed */ }
+
+
+      // MCP-AUDIT-1c: AOCL layer trace — intent prefixed 'aocl.' so wardHookAOCL fires (line 2322)
+      storeAuditEnvelope({
+        type: 'event',
+        from: `agent.${ctx.agentId || 'quox'}`,
+        to: 'system.aocl',
+        intent: 'aocl.tool.execute',
+        corr: corrId,
+        payload: {
+          tool_name,
+          agent_id: ctx.agentId,
+          user_id: ctx.userId,
+          org_id: ctx.orgId,
+          duration_ms: durationMs,
+          success: true,
+          source: 'mcp',
+          orgId: ctx.orgId,
+          userId: ctx.userId,
+          agentId: ctx.agentId,
+          ...(aoclClassification ? { aocl: aoclClassification } : {}),
+        }
+      });
+
+      recordNocOutcome(tool_name, true, durationMs, { orgId: ctx.orgId, agentId: ctx.agentId, userId: ctx.userId });
     }
-
-
-    // MCP-AUDIT-1c: AOCL layer trace — intent prefixed 'aocl.' so wardHookAOCL fires (line 2322)
-    storeAuditEnvelope({
-      type: 'event',
-      from: `agent.${ctx.agentId || 'quox'}`,
-      to: 'system.aocl',
-      intent: 'aocl.tool.execute',
-      corr: corrId,
-      payload: {
-        tool_name,
-        agent_id: ctx.agentId,
-        user_id: ctx.userId,
-        org_id: ctx.orgId,
-        duration_ms: durationMs,
-        success: true,
-        source: 'mcp',
-        orgId: ctx.orgId,
-        userId: ctx.userId,
-        agentId: ctx.agentId,
-        ...(aoclClassification ? { aocl: aoclClassification } : {}),
-      }
-    });
-
-    recordNocOutcome(tool_name, true, durationMs, { orgId: ctx.orgId, agentId: ctx.agentId, userId: ctx.userId });
-    res.json(result);
+    res.json(require('./lib/toolErrorPlain.js').plainToolResult(tool_name, result)); // QUOXON-ENGINE class 4 (quox#830): the Claude CLI path reads the same plain error
   } catch (err) {
     const durationMs = Date.now() - toolStartTime;
     console.error(`[Tools API] Error executing ${tool_name}:`, err.message);
 
-    // MCP-AUDIT-1b: VOLT failRun
-    voltEmitter.failRun(voltRunId, err);
-
-    // MCPB-HARDEN-1c: aocl.run.failed so trace viewer sees failed MCP tool calls
-    storeAuditEnvelope({
-      type: 'error',
-      from: `agent.${ctx.agentId || 'quox'}`,
-      to: 'system.aocl',
-      intent: 'aocl.run.failed',
-      corr: runStartCorr,
-      payload: {
-        tool_name,
-        agent_id: ctx.agentId,
-        user_id: ctx.userId,
-        org_id: ctx.orgId,
-        duration_ms: durationMs,
-        error: (err.message || '').slice(0, 200),
-        source: 'mcp',
-        orgId: ctx.orgId,
-        userId: ctx.userId,
-        agentId: ctx.agentId,
-      }
-    });
-
-    // AEE-CORE-1: failure path must share the same corr as the success path
-    // so a failed tool call stays chained to its triggering chat/session.
+    // AEE-CORE-1: the failure receipt shares the success path's corr (lib/toolRouteReceipts.js writes it)
     const failCorrId = resolveCorrelationId(req, req.body);
-    const _goldFailReceipt = storeAuditEnvelope({
-      type: 'error',
-      from: `agent.${ctx.agentId || 'quox'}`,
-      to: 'system.tools',
-      intent: aeeIntent ? `${aeeIntent}.failed` : 'ops.tool.failed',
-      corr: failCorrId,
-      payload: {
-        tool_name,
-        agent_id: ctx.agentId,
-        user_id: ctx.userId,
-        org_id: ctx.orgId,
-        duration_ms: durationMs,
-        error: (err.message || '').slice(0, 200),
-        ...(aoclClassification ? { aocl: aoclClassification } : {}),
-        // QUOXIDENTITY F2b: see success-path envelope above.
-        ...(ctx.attachLeaseId ? { attach_lease_id: ctx.attachLeaseId, holder_user_id: ctx.holderUserId, ...(ctx.splinter ? { splinter: ctx.splinter } : {}) } : {}),
-        // QUOXTRUST T1/D1: bind the attempted action (content-free) into the failure receipt too.
-        ...(toolActionCommit ? { canonical_action: toolActionCommit } : {}),
-      }
+    require('./lib/toolRouteReceipts.js').emitToolRouteReceipts({
+      outcome: 'failed', error: err, tool_name, ctx, input, durationMs, runStartCorr, corrId: failCorrId,
+      aeeIntent, aoclClassification, toolActionCommit, voltRunId,
+      storeAuditEnvelope, voltEmitter, recordNocOutcome,
+      settle: (id, envId) => require('./lib/agentTools.js').settleObligationDelivered(id, envId),
     });
-    // WP4.1b: this route emits its own receipt (choke opted out), so IT settles
-    // the evidence obligation — one owner (agentTools.settleObligationDelivered,
-    // idempotent, owed-only). Without this, gold-path obligations sat 'owed'
-    // forever and became false stale-owed reconciler incidents (live 2026-09-28).
-    if (_goldFailReceipt && _goldFailReceipt.stored && ctx._executionIntentId) {
-      try { require('./lib/agentTools.js').settleObligationDelivered(ctx._executionIntentId, _goldFailReceipt.id); } catch { /* stays owed */ }
-    }
-
-
-    // MCP-AUDIT-1c: AOCL failure trace
-    storeAuditEnvelope({
-      type: 'error',
-      from: `agent.${ctx.agentId || 'quox'}`,
-      to: 'system.aocl',
-      intent: 'aocl.tool.execute.failed',
-      corr: failCorrId,
-      payload: {
-        tool_name,
-        agent_id: ctx.agentId,
-        user_id: ctx.userId,
-        org_id: ctx.orgId,
-        duration_ms: durationMs,
-        error: (err.message || '').slice(0, 200),
-        source: 'mcp',
-        orgId: ctx.orgId,
-        userId: ctx.userId,
-        agentId: ctx.agentId,
-        ...(aoclClassification ? { aocl: aoclClassification } : {}),
-      }
-    });
-
-    recordNocOutcome(tool_name, false, durationMs, { orgId: ctx.orgId, agentId: ctx.agentId, userId: ctx.userId, error: err.message });
     res.status(500).json({ success: false, error: sanitizeErrorForUser(err.message) });
   }
 });
@@ -11077,6 +11495,8 @@ app.post('/api/internal/tools/execute', toolLimiter, requireServiceOrUserAuth(),
             authzMode: manifest.authzMode,
             authorizedAgents: manifest.authorizedAgents,
             delegationScoped: manifest.delegationScoped,
+            scopedAgents: manifest.scopedAgents, // CUSTOM-HATS: roster scope for agent_directory + prompts
+            orchestrator: manifest.orchestrator,
             hatKey: manifest.hatKey,
             hatId: manifest.hatId,
             revision: manifest.revision,
@@ -11116,6 +11536,82 @@ app.post('/api/internal/tools/execute', toolLimiter, requireServiceOrUserAuth(),
     // a success receipt for it (was recording denies as ops.tool.executed).
     if (result && result._governanceDenied) {
       return res.status(result.status || 403).json(result);
+    }
+    // Receipts honesty (2026-10-17, as /api/v1/tools/execute): a tool that RETURNED { success:false } is witnessed
+    // with the same .failed receipt as a thrown one, never success:true. A call held for a human is not a failure.
+    // quox#1235: held for a human: its own receipt (status held, the approval id, no success), settled; nothing ran
+    if (require('./lib/toolRouteReceipts.js').classifyRouteResult({ result }) === 'held') {
+      const _r = result || {};
+      const intApprovalId = _r.approvalId || _r.approval_id || (_r._approval && _r._approval.id) || null;
+      const _intHeldReceipt = storeAuditEnvelope({
+        type: 'event',
+        from: `agent.${agentId}`,
+        to: 'system.tools',
+        intent: internalAeeIntent ? `${internalAeeIntent}.held` : 'ops.tool.held',
+        corr: intCorrId,
+        payload: {
+          tool_name: tool,
+          agent_id: agentId,
+          source: 'quoxflow',
+          duration_ms: intDuration,
+          status: 'held',
+          ...(intApprovalId ? { approval_id: intApprovalId } : {}),
+          ...(internalAoclClassification ? { aocl: internalAoclClassification } : {}),
+          ...(internalActionCommit ? { canonical_action: internalActionCommit } : {}),
+        }
+      });
+      if (_intHeldReceipt && _intHeldReceipt.stored && ctx._executionIntentId) {
+        try { require('./lib/agentTools.js').settleObligationDelivered(ctx._executionIntentId, _intHeldReceipt.id); } catch { /* stays owed */ }
+      }
+      return res.json(result);
+    }
+    // still running, no approval (e.g. a delegation past its wait deadline): its own receipt, never success or failed
+    if (require('./lib/toolRouteReceipts.js').classifyRouteResult({ result }) === 'pending') {
+      const _intPendingReceipt = storeAuditEnvelope({
+        type: 'event',
+        from: `agent.${agentId}`,
+        to: 'system.tools',
+        intent: internalAeeIntent ? `${internalAeeIntent}.pending` : 'ops.tool.pending',
+        corr: intCorrId,
+        payload: {
+          tool_name: tool,
+          agent_id: agentId,
+          source: 'quoxflow',
+          duration_ms: intDuration,
+          status: 'pending',
+          ...(result && result.handle ? { handle: result.handle } : {}),
+          ...(internalAoclClassification ? { aocl: internalAoclClassification } : {}),
+          ...(internalActionCommit ? { canonical_action: internalActionCommit } : {}),
+        }
+      });
+      if (_intPendingReceipt && _intPendingReceipt.stored && ctx._executionIntentId) {
+        try { require('./lib/agentTools.js').settleObligationDelivered(ctx._executionIntentId, _intPendingReceipt.id); } catch { /* stays owed */ }
+      }
+      return res.json(result);
+    }
+    if (require('./lib/toolRouteReceipts.js').classifyRouteResult({ result }) === 'failed') {
+      const intErr = String(result.error || result.message || 'failed');
+      const _intRetFailReceipt = storeAuditEnvelope({
+        type: 'error',
+        from: `agent.${agentId}`,
+        to: 'system.tools',
+        intent: internalAeeIntent ? `${internalAeeIntent}.failed` : 'ops.tool.failed',
+        corr: intCorrId,
+        payload: {
+          tool_name: tool,
+          agent_id: agentId,
+          source: 'quoxflow',
+          duration_ms: intDuration,
+          error: intErr.slice(0, 200),
+          ...(internalAoclClassification ? { aocl: internalAoclClassification } : {}),
+          ...(internalActionCommit ? { canonical_action: internalActionCommit } : {}),
+        }
+      });
+      if (_intRetFailReceipt && _intRetFailReceipt.stored && ctx._executionIntentId) {
+        try { require('./lib/agentTools.js').settleObligationDelivered(ctx._executionIntentId, _intRetFailReceipt.id); } catch { /* stays owed */ }
+      }
+      recordNocOutcome(tool, false, intDuration, { agentId, error: intErr });
+      return res.json(result);
     }
     const _intOkReceipt = storeAuditEnvelope({
       type: 'event',
@@ -11186,7 +11682,7 @@ app.post('/api/internal/tools/execute', toolLimiter, requireServiceOrUserAuth(),
 
 async function attemptAnthropicApiInvoke({ candidate, agentId, context, task, apiKey, maxTokens }) {
   const sysPrompt = context || `You are ${agentId.toUpperCase()}, an AI agent.`;
-  const requestedModel = candidate.model || 'claude-sonnet-4-6';
+  const requestedModel = candidate.model || catalogDefaultModel();
   const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' },
@@ -11214,12 +11710,9 @@ async function attemptAnthropicCliInvoke({ candidate, agentId, context, task, cl
   const { execFile } = require('child_process');
   const sysPrompt = context || `You are ${agentId.toUpperCase()}, an AI agent. Output valid JSON only.`;
   const cliRequestedModel = candidate.model || null;
-  const cliArgs = [
-    '--output-format', 'json',
-    '--dangerously-skip-permissions',
-    '--system-prompt', sysPrompt,
-  ];
-  if (cliRequestedModel) cliArgs.push('--model', cliRequestedModel);
+  // NO-TOOLS (2026-10-17): this path is called for no_tools turns; the argv disables every built-in tool and MCP
+  // server (lib/noToolsCliArgs.js). It used to leave Bash on under --dangerously-skip-permissions.
+  const cliArgs = require('./lib/noToolsCliArgs.js').noToolsCliArgs({ sysPrompt, model: cliRequestedModel });
   // BRAIN2 P4a root cause (2026-08-25, caught by the stderr capture below):
   // the task was passed as `-p <task>` argv, and any task STARTING with a
   // dash — e.g. a note body opening with `---` markdown frontmatter, which is
@@ -11227,7 +11720,6 @@ async function attemptAnthropicCliInvoke({ candidate, agentId, context, task, cl
   // "error: unknown option '---'". The prompt now goes via stdin (`-p` with
   // piped input, the canonical headless pattern), which is also immune to
   // argv length limits on huge notes.
-  cliArgs.push('-p');
   // BRAIN2 P4a (2026-08-25): three defects fixed here after QuoxDream belief
   // extraction 502'd on every tick. (1) stderr was discarded, so every failure
   // logged only "Command failed: claude <argv>" with no cause; (2) a stored
@@ -11361,7 +11853,7 @@ async function attemptOpenAiInvoke({ candidate, agentId, context, task, apiKey, 
 // executeWithFailover instead of a fixed Claude-first/OpenAI-fallback order.
 async function attemptAnthropicVisionInvoke({ candidate, agentId, context, task, imageBlocks, apiKey }) {
   const sysPrompt = context || `You are ${agentId.toUpperCase()}, an AI agent. Respond with valid JSON only.`;
-  const requestedModel = candidate.model || 'claude-sonnet-4-6';
+  const requestedModel = candidate.model || catalogDefaultModel();
   const contentBlocks = [...imageBlocks, { type: 'text', text: task }];
   const isOAuthToken = apiKey.startsWith('sk-ant-oat01-');
   const authHeaders = isOAuthToken
@@ -11517,6 +12009,7 @@ app.post('/api/internal/agents/invoke', toolLimiter, requireServiceOrUserAuth(),
   // checkAgentInvokeSafetyGate's doc comment for placement rationale.
   {
     const safetyDenial = checkAgentInvokeSafetyGate({
+      overrideId: (req.headers && req.headers['x-override-id']) || undefined, // QUOXON-STEPUP
       orgId: org_id,
       agentId: agent_id,
       corr: resolveCorrelationId(req, req.body),
@@ -11569,6 +12062,7 @@ app.post('/api/internal/agents/invoke', toolLimiter, requireServiceOrUserAuth(),
           prompt: task,
           loadCognitiveImplants,
           getCollectorMirrorCompact,
+          getOrgMirrorSummary: (o) => require('./lib/orgMirror.js').summaryFor(o),
         });
         const injectedParts = [systemPrompt, selfKnowledgeContext, memoryContext, context].filter(Boolean);
         if (injectedParts.length > 0) contextForFastPath = injectedParts.join('\n\n');
@@ -11618,8 +12112,8 @@ app.post('/api/internal/agents/invoke', toolLimiter, requireServiceOrUserAuth(),
           failoverPlan = resolved.plan;
           candidates = buildCandidateChain({ plan: resolved.plan, policyContext: resolved.policyContext });
         } catch (planErr) {
-          console.warn(`[Internal] Policy resolution failed for ${agent_id}, defaulting to anthropic/claude-sonnet-4-6: ${planErr.message}`);
-          candidates = [{ provider: 'anthropic', model: requestedModelRaw || 'claude-sonnet-4-6', source: 'default' }];
+          console.warn(`[Internal] Policy resolution failed for ${agent_id}, defaulting to anthropic/${catalogDefaultModel()}: ${planErr.message}`);
+          candidates = [{ provider: 'anthropic', model: requestedModelRaw || catalogDefaultModel(), source: 'default' }];
         }
       }
 
@@ -11736,6 +12230,8 @@ app.post('/api/internal/agents/invoke', toolLimiter, requireServiceOrUserAuth(),
         system_prompt: [systemPrompt, context ? `Context: ${context}` : null].filter(Boolean).join('\n\n') || undefined,
         org_id: org_id || undefined,
         user_id: user_id || undefined,
+        // RunActor slice 2 (quox#1274): with no user, the turn's tools run as this system actor.
+        _system_actor: user_id ? undefined : (workflow_id ? `workflow:${workflow_id}` : 'service:invoke'),
         no_tools: req.body.no_tools || false,
         _delegation_depth: 1,
         _max_duration_ms: invokeTimeout
@@ -11822,6 +12318,7 @@ app.post('/api/internal/agents/vision-invoke', toolLimiter, requireServiceOrUser
   // checkAgentInvokeSafetyGate's doc comment for placement rationale.
   {
     const safetyDenial = checkAgentInvokeSafetyGate({
+      overrideId: (req.headers && req.headers['x-override-id']) || undefined, // QUOXON-STEPUP
       orgId: org_id,
       agentId: agent_id,
       corr: resolveCorrelationId(req, req.body),
@@ -11905,7 +12402,7 @@ app.post('/api/internal/agents/vision-invoke', toolLimiter, requireServiceOrUser
       } catch (planErr) {
         console.warn(`[Vision] Policy resolution failed for ${agent_id}, defaulting to anthropic/openai order: ${planErr.message}`);
         candidates = [
-          { provider: 'anthropic', model: 'claude-sonnet-4-6', source: 'default' },
+          { provider: 'anthropic', model: catalogDefaultModel(), source: 'default' },
           { provider: 'openai', model: 'gpt-4o', source: 'default' },
         ];
       }
@@ -11917,7 +12414,7 @@ app.post('/api/internal/agents/vision-invoke', toolLimiter, requireServiceOrUser
       // fall back to the same anthropic/openai order the pre-Phase-2.3
       // handler always used, rather than erroring outright.
       supportedCandidates = [
-        { provider: 'anthropic', model: 'claude-sonnet-4-6', source: 'vision_fallback' },
+        { provider: 'anthropic', model: catalogDefaultModel(), source: 'vision_fallback' },
         { provider: 'openai', model: 'gpt-4o', source: 'vision_fallback' },
       ];
     }
@@ -12080,20 +12577,20 @@ app.delete('/api/v1/images/:id', requireAuth(), (req, res) => {
 // ========================================================================
 // Internal git-scan endpoint (used by QuoxFlow commanderq-devlog workflow)
 // Scans recent commits across all Quox repos, applies noise filters.
-// Container must have /opt/quoxcore:ro volume mount.
+// Container must have ~:ro volume mount.
 // ========================================================================
 const GIT_SCAN_REPOS = [
-  { name: 'quox-website', path: '/opt/quoxcore/quox-website', label: 'Quox Website' },
-  { name: 'quox-dashboard', path: '/opt/quoxcore', label: 'QuoxCORE Dashboard' },
-  { name: 'quoxflow', path: '/opt/quoxcore/quoxflow', label: 'QuoxFlow' },
-  { name: 'QuoxBastion', path: '/opt/quoxcore/QuoxBastion', label: 'QuoxBastion' },
-  { name: 'quoxagent', path: '/opt/quoxcore/quoxagent', label: 'QuoxAgent' },
-  { name: 'quoxmcp', path: '/opt/quoxcore/quoxmcp', label: 'QuoxMCP' },
-  { name: 'quoxterminal', path: '/opt/quoxcore/quoxterminal', label: 'QuoxTerminal' },
-  { name: 'quox-memory', path: '/opt/quoxcore/quox-memory', label: 'Quox Memory' },
-  { name: 'aee', path: '/opt/quoxcore/aee', label: 'AEE Protocol' },
-  { name: 'aocl', path: '/opt/quoxcore/aocl', label: 'AOCL Protocol' },
-  { name: 'volt', path: '/opt/quoxcore/volt', label: 'VOLT Protocol' },
+  { name: 'quox-website', path: hostPath('quox-website'), label: 'Quox Website' },
+  { name: 'quox-dashboard', path: hostPath('quox-dashboard'), label: 'QuoxCORE Dashboard' },
+  { name: 'quoxflow', path: hostPath('quoxflow'), label: 'QuoxFlow' },
+  { name: 'QuoxBastion', path: hostPath('QuoxBastion'), label: 'QuoxBastion' },
+  { name: 'quoxagent', path: hostPath('quoxagent'), label: 'QuoxAgent' },
+  { name: 'quoxmcp', path: hostPath('quoxmcp'), label: 'QuoxMCP' },
+  { name: 'quoxterminal', path: hostPath('quoxterminal'), label: 'QuoxTerminal' },
+  { name: 'quox-memory', path: hostPath('quox-memory'), label: 'Quox Memory' },
+  { name: 'aee', path: hostPath('aee'), label: 'AEE Protocol' },
+  { name: 'aocl', path: hostPath('aocl'), label: 'AOCL Protocol' },
+  { name: 'volt', path: hostPath('volt'), label: 'VOLT Protocol' },
 ];
 
 const GIT_SCAN_NOISE_PATTERNS = [/^Migrate GitHub org/i];
@@ -12419,7 +12916,7 @@ app.post('/api/v1/mikrotik/proxy', requireServiceOrUserAuth(), async (req, res) 
   const orgId = resolveRouterosOrgId(req);
   const { path = '/system/resource', method = 'GET', body: reqBody } = req.body || {};
 
-  if (!isAllowedRouterosRequest(method, path)) {
+  if (!isAllowedRouterosRequest(method, path, reqBody)) {
     return res.status(403).json({ success: false, error: 'method_not_allowed', detail: `${String(method).toUpperCase()} ${path} is not on the RouterOS proxy allowlist` });
   }
 
@@ -12583,63 +13080,10 @@ function getLatestDeployPerHost() {
   }
 }
 
-// Stream WAZ P2.5: per-orgId token cache. Each entry: { token, expiry, host, port }
-const _wazuhTokenCache = new Map();
-
-/**
- * Get a Wazuh API token for the given org, returning { token, host, port }.
- * Vault-first: resolves via resolveCredentialForAgent(orgId, 'argus', 'wazuh')
- * (services/collector/lib/agentTools.js — agent-scoped multi-field resolver,
- * see WazuhSetupGate/services/auth's `wazuh` integration type for the
- * { base_url, username, password } contract this reads) and parses host/port
- * from base_url. Falls back to env vars (WAZUH_HOST / WAZUH_API_PORT /
- * WAZUH_API_USER / WAZUH_API_PASSWORD) ONLY when the vault has nothing —
- * see lib/wazuhCredentials.js's resolveWazuhConnection() for the resolution
- * order (unit tested there; a lease-blocked credential throws instead of
- * silently falling back to env).
- * Token is cached per-orgId for 10 minutes.
- */
-async function getWazuhToken(orgId) {
-  const cacheKey = orgId || 'default';
-  const now = Date.now();
-  const cached = _wazuhTokenCache.get(cacheKey);
-  if (cached && now < cached.expiry) {
-    return { token: cached.token, host: cached.host, port: cached.port };
-  }
-
-  const resolved = await resolveCredentialForAgent(orgId, 'argus', 'wazuh');
-  const { host, port: portNum, user, password } = resolveWazuhConnection(resolved);
-
-  const credentials = Buffer.from(`${user}:${password}`).toString('base64');
-
-  const token = await new Promise((resolve, reject) => {
-    const req = https.request({
-      hostname: host,
-      port: portNum,
-      path: '/security/user/authenticate?raw=true',
-      method: 'POST',
-      headers: { 'Authorization': `Basic ${credentials}`, 'Content-Type': 'application/json' },
-      rejectUnauthorized: false,
-      timeout: 15000,
-    }, (resp) => {
-      let data = '';
-      resp.on('data', chunk => { data += chunk; });
-      resp.on('end', () => {
-        if (resp.statusCode === 200) {
-          resolve(data.trim().replace(/^"|"$/g, ''));
-        } else {
-          reject(new Error(`Wazuh auth failed (${resp.statusCode}): ${data}`));
-        }
-      });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('Wazuh auth timeout')); });
-    req.end();
-  });
-
-  _wazuhTokenCache.set(cacheKey, { token, expiry: now + 10 * 60 * 1000, host, port: portNum });
-  return { token, host, port: portNum };
-}
+// Stream WAZ P2.5: the per-org Wazuh API token cache and getWazuhToken live in lib/wazuhReads.js,
+// shared with the wazuh_* agent tools.
+const wazuhReads = require('./lib/wazuhReads.js');
+const getWazuhToken = wazuhReads.getWazuhToken;
 
 // ── Stream WAZ P2: AEE + HITL helpers ───────────────────────────────────────
 
@@ -12672,6 +13116,15 @@ async function pushWazuhApproval({ orgId, action, title, bodyMd, priority = 'hig
     orgId, title, bodyMd, kind: 'approval', priority, assigneeUserId,
     payload: {
       source: 'wazuh',
+      what: {
+        action: String(action || 'wazuh action').replace(/^wazuh\./, 'wazuh ').replace(/[.-]/g, ' '),
+        target: actionParams?.hostname ? `host ${actionParams.hostname}${actionParams.hostIp ? ` (${actionParams.hostIp})` : ''}`
+          : Array.isArray(actionParams?.hosts) ? `${actionParams.hosts.length} host(s): ${actionParams.hosts.map(x => x && (x.hostname || x.host || x)).filter(Boolean).slice(0, 5).join(', ')}`
+            : Array.isArray(actionParams?.agentList) ? `Wazuh agent(s) ${actionParams.agentList.slice(0, 8).join(', ')}`
+              : actionParams?.agentId ? `Wazuh agent ${actionParams.agentId}` : null,
+        target_none: 'no host or agent named in this Wazuh action',
+        summary: String(title || '').replace(/^Wazuh:\s*/, 'Wazuh: '),
+      },
       action,
       action_params: actionParams,
       callback_url: callbackUrl,
@@ -12952,207 +13405,20 @@ app.post('/api/v1/wazuh/proxy', requireServiceOrUserAuth(), async (req, res) => 
   }
 });
 
+// Wazuh read routes. The logic lives in lib/wazuhReads.js (shared with the wazuh_* agent tools); each route
+// is auth plus that module's handler, which calls the shared read and emits the AEE it returns.
 // GET /api/v1/wazuh/manager/status — Wazuh manager status
-app.get('/api/v1/wazuh/manager/status', requireServiceOrUserAuth(), async (req, res) => {
-  try {
-    const orgId = (req.user && req.user.org_id) || 'system';
-    const { token, host, port } = await getWazuhToken(orgId);
-
-    const result = await new Promise((resolve, reject) => {
-      const request = https.request({
-        hostname: host, port, path: '/manager/status', method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` },
-        rejectUnauthorized: false, timeout: 15000,
-      }, (resp) => {
-        let data = '';
-        resp.on('data', chunk => { data += chunk; });
-        resp.on('end', () => {
-          try { resolve({ success: true, data: JSON.parse(data), status: resp.statusCode }); }
-          catch { resolve({ success: false, data, status: resp.statusCode }); }
-        });
-      });
-      request.on('error', (err) => resolve({ success: false, error: err.message, status: 500 }));
-      request.on('timeout', () => { request.destroy(); resolve({ success: false, error: 'Timeout', status: 500 }); });
-      request.end();
-    });
-
-    emitWazuhAEE(req, { intent: 'quox.wazuh.manager.status', payload: { success: result.success } });
-    res.json(result);
-  } catch (err) {
-    console.error('[Wazuh Manager Status] Error:', err.message);
-    emitWazuhAEE(req, { type: 'error', intent: 'quox.wazuh.manager.status.failed', payload: { error: err.message } });
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+app.get('/api/v1/wazuh/manager/status', requireServiceOrUserAuth(), wazuhReads.managerStatusRoute(emitWazuhAEE));
 
 // GET /api/v1/wazuh/agents — List Wazuh agents (pass query params through)
-app.get('/api/v1/wazuh/agents', requireServiceOrUserAuth(), async (req, res) => {
-  try {
-    const orgId = (req.user && req.user.org_id) || 'system';
-    const { token, host, port } = await getWazuhToken(orgId);
-    const qs = new URLSearchParams(req.query).toString();
-    const path = qs ? `/agents?${qs}` : '/agents';
+app.get('/api/v1/wazuh/agents', requireServiceOrUserAuth(), wazuhReads.agentsRoute(emitWazuhAEE));
 
-    const result = await new Promise((resolve, reject) => {
-      const request = https.request({
-        hostname: host, port, path, method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` },
-        rejectUnauthorized: false, timeout: 15000,
-      }, (resp) => {
-        let data = '';
-        resp.on('data', chunk => { data += chunk; });
-        resp.on('end', () => {
-          try { resolve({ success: true, data: JSON.parse(data), status: resp.statusCode }); }
-          catch { resolve({ success: false, data, status: resp.statusCode }); }
-        });
-      });
-      request.on('error', (err) => resolve({ success: false, error: err.message, status: 500 }));
-      request.on('timeout', () => { request.destroy(); resolve({ success: false, error: 'Timeout', status: 500 }); });
-      request.end();
-    });
+// GET /api/v1/wazuh/alerts — Wazuh Indexer alerts over governed Bastion exec on the wazuh fleet host
+// (FND_01M50XEEKX9ZGBEB2YAT9ZGBEB, SITE-CLI ruling option A; see lib/wazuhIndexerExec.js)
+app.get('/api/v1/wazuh/alerts', requireServiceOrUserAuth(), wazuhReads.alertsRoute(emitWazuhAEE));
 
-    emitWazuhAEE(req, { intent: 'quox.wazuh.agents.list', payload: { query: req.query } });
-    res.json(result);
-  } catch (err) {
-    console.error('[Wazuh Agents] Error:', err.message);
-    emitWazuhAEE(req, { type: 'error', intent: 'quox.wazuh.agents.list.failed', payload: { error: err.message } });
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// GET /api/v1/wazuh/alerts — Query Wazuh Indexer for alerts via SSH tunnel through bastion
-app.get('/api/v1/wazuh/alerts', requireServiceOrUserAuth(), async (req, res) => {
-  const { exec } = require('child_process');
-  const bastionHost = process.env.BASTION_HOST || '';
-  // VAULT-INTEG P3: vault-first (same org 'wazuh' credential resolveWazuhConnection
-  // uses for the Manager API), env vars are the last-resort fallback — see
-  // lib/wazuhCredentials.js's resolveWazuhIndexerConnection().
-  const orgId = (req.user && req.user.org_id) || 'system';
-  let wazuhHost, indexerUser, indexerPassword;
-  try {
-    const resolvedWazuhCred = await resolveCredentialForAgent(orgId, 'argus', 'wazuh');
-    ({ host: wazuhHost, user: indexerUser, password: indexerPassword } = resolveWazuhIndexerConnection(resolvedWazuhCred));
-  } catch (credErr) {
-    console.error('[Wazuh Alerts] Credential resolution error:', credErr.message);
-    return res.status(credErr.leaseBlocked ? 403 : 500).json({ success: false, error: credErr.message });
-  }
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 500);
-  const query = req.query.q || '*';
-
-  // Use match_all or match query to prevent query injection (never use query_string with user input)
-  let esQuery;
-  if (!query || query === '*') {
-    esQuery = { match_all: {} };
-  } else {
-    // Sanitise: only allow alphanumeric, spaces, dots, hyphens
-    const sanitised = query.replace(/[^a-zA-Z0-9\s.\-_]/g, '');
-    esQuery = { multi_match: { query: sanitised, fields: ['rule.description', 'agent.name', 'rule.groups'] } };
-  }
-
-  const searchBody = JSON.stringify({
-    size: limit,
-    sort: [{ 'timestamp': { order: 'desc' } }],
-    query: esQuery,
-  });
-
-  if (!indexerPassword) {
-    return res.status(500).json({ success: false, error: 'WAZUH_INDEXER_PASSWORD env var is not set' });
-  }
-
-  // Two-hop: SSH to bastion → SSH to wazuh host → curl indexer on localhost (indexer binds 127.0.0.1 only)
-  const escapedBody = searchBody.replace(/'/g, "'\\''");
-  const innerCmd = `curl -sk -X POST 'https://127.0.0.1:9200/wazuh-alerts-*/_search' -H 'Content-Type: application/json' -u '${indexerUser}:${indexerPassword}' -d '${escapedBody}'`;
-  const cmd = `ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@${bastionHost} "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 control@${wazuhHost} \\"${innerCmd.replace(/"/g, '\\\\\\"')}\\""`;
-
-
-  exec(cmd, { timeout: 30000 }, (err, stdout, stderr) => {
-    if (err) {
-      console.error('[Wazuh Alerts] SSH/curl error:', err.message);
-      emitWazuhAEE(req, { type: 'error', intent: 'quox.wazuh.alerts.list.failed', payload: { error: 'SSH/curl error' } });
-      return res.status(500).json({ success: false, error: 'Failed to query alerts' });
-    }
-    try {
-      const parsed = JSON.parse(stdout);
-      const hits = parsed.hits?.hits?.map(h => h._source) || [];
-      emitWazuhAEE(req, { intent: 'quox.wazuh.alerts.list', payload: { limit, query, total: parsed.hits?.total?.value || hits.length } });
-      res.json({ success: true, data: hits, total: parsed.hits?.total?.value || hits.length });
-    } catch {
-      emitWazuhAEE(req, { type: 'error', intent: 'quox.wazuh.alerts.list.failed', payload: { error: 'Parse error' } });
-      res.status(500).json({ success: false, error: 'Failed to parse indexer response', raw: stdout.slice(0, 500) });
-    }
-  });
-});
-
-// GET /api/v1/wazuh/vulnerabilities — Query Wazuh Indexer for vulnerability states
-app.get('/api/v1/wazuh/vulnerabilities', requireServiceOrUserAuth(), async (req, res) => {
-  const { exec } = require('child_process');
-  const bastionHost = process.env.BASTION_HOST || '';
-  // VAULT-INTEG P3: vault-first, env fallback — see resolveWazuhIndexerConnection().
-  const orgId = (req.user && req.user.org_id) || 'system';
-  let wazuhHost, indexerUser, indexerPassword;
-  try {
-    const resolvedWazuhCred = await resolveCredentialForAgent(orgId, 'argus', 'wazuh');
-    ({ host: wazuhHost, user: indexerUser, password: indexerPassword } = resolveWazuhIndexerConnection(resolvedWazuhCred));
-  } catch (credErr) {
-    console.error('[Wazuh Vulns] Credential resolution error:', credErr.message);
-    return res.status(credErr.leaseBlocked ? 403 : 500).json({ success: false, error: credErr.message });
-  }
-  const agentId = req.query.agent_id;
-  const agentName = req.query.agent_name;
-  const severity = req.query.severity;
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 1000);
-
-  if (!indexerPassword) {
-    return res.status(500).json({ success: false, error: 'WAZUH_INDEXER_PASSWORD env var is not set' });
-  }
-
-  // Build filter clauses
-  const filters = [];
-  if (agentId) {
-    const sanitised = agentId.replace(/[^a-zA-Z0-9]/g, '');
-    filters.push({ term: { 'agent.id': sanitised } });
-  }
-  if (agentName) {
-    const sanitised = agentName.replace(/[^a-zA-Z0-9._-]/g, '');
-    filters.push({ term: { 'agent.name': sanitised } });
-  }
-  if (severity) {
-    const sanitised = severity.replace(/[^a-zA-Z]/g, '');
-    filters.push({ term: { 'vulnerability.severity': sanitised } });
-  }
-
-  const esQuery = filters.length > 0
-    ? { bool: { filter: filters } }
-    : { match_all: {} };
-
-  const searchBody = JSON.stringify({
-    size: limit,
-    sort: [{ 'vulnerability.score.base': { order: 'desc' } }],
-    query: esQuery,
-  });
-
-  // Two-hop: SSH to bastion → SSH to wazuh host → curl indexer on localhost
-  const escapedBody = searchBody.replace(/'/g, "'\\''");
-  const innerCmd = `curl -sk -X POST 'https://127.0.0.1:9200/wazuh-states-vulnerabilities-*/_search' -H 'Content-Type: application/json' -u '${indexerUser}:${indexerPassword}' -d '${escapedBody}'`;
-  const cmd = `ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@${bastionHost} "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 control@${wazuhHost} \\"${innerCmd.replace(/"/g, '\\\\\\"')}\\""`;
-
-  exec(cmd, { timeout: 30000 }, (err, stdout, stderr) => {
-    if (err) {
-      console.error('[Wazuh Vulns] SSH/curl error:', err.message);
-      emitWazuhAEE(req, { type: 'error', intent: 'quox.wazuh.vulnerability.scan.failed', payload: { error: 'SSH/curl error' } });
-      return res.status(500).json({ success: false, error: 'Failed to query vulnerabilities' });
-    }
-    try {
-      const parsed = JSON.parse(stdout);
-      const hits = parsed.hits?.hits?.map(h => h._source) || [];
-      emitWazuhAEE(req, { intent: 'quox.wazuh.vulnerability.scan', payload: { agentId, agentName, severity, total: parsed.hits?.total?.value || hits.length } });
-      res.json({ success: true, data: hits, total: parsed.hits?.total?.value || hits.length });
-    } catch {
-      emitWazuhAEE(req, { type: 'error', intent: 'quox.wazuh.vulnerability.scan.failed', payload: { error: 'Parse error' } });
-      res.status(500).json({ success: false, error: 'Failed to parse indexer response', raw: stdout.slice(0, 500) });
-    }
-  });
-});
+// GET /api/v1/wazuh/vulnerabilities — Wazuh Indexer vulnerability states
+app.get('/api/v1/wazuh/vulnerabilities', requireServiceOrUserAuth(), wazuhReads.vulnerabilitiesRoute(emitWazuhAEE));
 
 // POST /api/v1/wazuh/deploy-agent — HITL-gated: queue deploy via HITL Inbox approval
 app.post('/api/v1/wazuh/deploy-agent', requireServiceOrUserAuth(), async (req, res) => {
@@ -13390,6 +13656,13 @@ app.post('/api/v1/wazuh/active-response', requireServiceOrUserAuth(), async (req
   const sanitisedAgentList = agentList.map(id => String(id).replace(/[^a-zA-Z0-9]/g, '')).filter(Boolean);
   if (sanitisedAgentList.length === 0) {
     return res.status(400).json({ success: false, error: 'No valid agent IDs after sanitisation' });
+  }
+
+  // quox#1004: an install with no Wazuh connection must refuse here, the way deploy-agent does, rather than
+  // file a high-priority approval card for an action that can only fail after approval.
+  const wazuhReady = await checkWazuhConfigured(orgId, { resolveCredentialForAgent, resolveWazuhConnection });
+  if (!wazuhReady.ok) {
+    return res.status(400).json({ success: false, error: wazuhReady.error, code: 'WAZUH_NOT_CONFIGURED' });
   }
 
   emitWazuhAEE(req, {
@@ -14308,14 +14581,11 @@ async function quoxplanWriteNoteViaProxy(streamId, body, ctx) {
       signal: AbortSignal.timeout(5000),
     });
   } catch (err) {
-    throw new Error(`QuoxPlan governed proxy unreachable (${err.message})`);
+    throw require('./lib/securityReportActions.js').quoxplanUnreachableError(err.message);
   }
   let json = null;
   try { json = await res.json(); } catch { /* body may be empty/non-JSON */ }
-  if (!res.ok) {
-    const detail = json && json.error ? json.error : `${res.status} ${res.statusText}`;
-    throw new Error(`QuoxPlan rejected the note (${res.status}): ${detail}`);
-  }
+  if (!res.ok) throw require('./lib/securityReportActions.js').quoxplanNoteError(res.status, json);
   return json;
 }
 
@@ -14425,7 +14695,9 @@ app.post('/api/v1/security/findings/:findingId/quoxplan', requireServiceOrUserAu
     emitSecurityAEE(req, { intent: 'quox.security.finding.quoxplan_proposed', payload: { finding_id: finding.id, quoxplan_ref: result.ref } });
     res.json({ success: true, ...result });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    // #1073: an unavailable QuoxPlan is a 502/503 the CLI reads as PLUGIN_SERVICE_UNAVAILABLE, never a 400
+    const { status, body } = require('./lib/securityReportActions.js').proposeErrorResponse(err);
+    res.status(status).json(body);
   }
 });
 
@@ -14453,7 +14725,7 @@ app.get('/docker/fleet', async (req, res) => {
     const result = await tools.docker_fleet_scan.execute({});
     const now = new Date().toISOString();
     // Only cache if we actually found hosts
-    if (result.success && result.hosts?.length > 0) {
+    if (require('./lib/dockerCachePolicy').shouldCacheDockerResult(result, 'hosts')) {
       cache.fleet = { data: result, scannedAt: now };
       saveDockerCache(cache);
     }
@@ -14490,7 +14762,7 @@ app.get('/docker/containers', async (req, res) => {
     });
     const now = new Date().toISOString();
     // Only cache if we actually found containers
-    if (result.success && result.containers?.length > 0) {
+    if (require('./lib/dockerCachePolicy').shouldCacheDockerResult(result, 'containers')) {
       cache[cacheKey] = { data: result, scannedAt: now };
       saveDockerCache(cache);
     }
@@ -14516,9 +14788,26 @@ app.get('/docker/containers/:id', async (req, res) => {
       tools.docker_fleet_stats.execute({ host, container_id: req.params.id }),
       tools.docker_fleet_logs.execute({ host, container_id: req.params.id, tail: 50 })
     ]);
+    // DEVFLEET-DOCKER: a refused/failed read is not data; surface it instead of {stats:undefined}.
+    const bad = [stats, logs].find(r => r && r.success === false);
+    if (bad) return res.json({ success: false, ...(bad.refused ? { refused: true, error_code: bad.error_code } : {}), host, container: req.params.id, error: bad.error });
     res.json({ success: true, host, container: req.params.id, stats: stats.stats, logs: logs.logs });
   } catch (err) {
     console.error('[Docker Fleet] Container detail error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /docker/containers/:id/inspect — state + allowlisted health block (?host=xxx)
+app.get('/docker/containers/:id/inspect', async (req, res) => {
+  const host = req.query.host;
+  if (!host) return res.status(400).json({ success: false, error: 'host query param required' });
+  try {
+    const { TOOL_DEFS } = require('./lib/agentTools');
+    const result = await TOOL_DEFS.docker_extended.execute({ host, operation: 'inspect', container: req.params.id });
+    res.json(result);
+  } catch (err) {
+    console.error('[Docker Fleet] Inspect error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -14870,7 +15159,8 @@ app.all('/api/v1/nucleus/*', requireServiceOrUserAuth(), async (req, res) => {
 // same auth posture as the collector default-deny gate (requireServiceOrUserAuth,
 // shadow by default). Add org/license gating alongside RepoBrain's when
 // QuoxPlan reaches multi-tenant phase 5.
-const QUOXPLAN_URL = process.env.QUOXPLAN_URL || 'http://host.docker.internal:3107';
+// PLUGIN-IMG #1012: env first (compose and the plugins overlay set it), dev default otherwise.
+const QUOXPLAN_URL = require('./lib/quoxplanUrl.js').resolveQuoxplanUrl();
 
 // QUOXPLAN-P7: intent mapping for AEE emission at the governed boundary
 // (the proxy, below — the ONLY place these mutations are witnessed, since
@@ -15714,6 +16004,17 @@ app.delete('/api/v1/qlarity-allowlist', requireServiceOrUserAuth(), requireLicen
   }
 });
 
+// quox#1171: agent fetch allowlist admin routes. Authenticated (default-deny
+// gate admits any valid user); writes are human-org-admin only inside the module.
+require('./lib/agentFetchAllowlistRoutes.js').registerAgentFetchAllowlistRoutes(app, {
+  auth: requireServiceOrUserAuth,
+  requireHumanAdmin,
+  store: agentFetchAllowlist,
+  audit: (e) => storeAuditEnvelope(e),
+  // HYPERION NO-GO fix: only an INSTANCE admin may allowlist a private range
+  checkInstanceAdmin: (req) => require('./lib/pluginBackendAdmin.js').checkInstanceAdmin(req, { isHumanAdmin }),
+});
+
 app.all('/api/v1/qlarity/*', requireServiceOrUserAuth(), async (req, res) => {
   const isHealthCheck = req.method === 'GET' && req.path.endsWith('/qlarity/health');
 
@@ -16362,7 +16663,7 @@ app.post('/api/internal/x/approvals/decide', requireServiceOrUserAuth(), async (
 // QuoxChat Widget Endpoints (Stream CW)
 // Extracted to routes/quoxchat.js for parallel-session safety (CW-8.0)
 const quoxchatRoutes = require('./routes/quoxchat');
-quoxchatRoutes.init({ getProviderKeys, getClaudeKeys, storeAuditEnvelope, resolveCredentialById, voltEmitter });
+quoxchatRoutes.init({ getProviderKeys, getClaudeKeys, storeAuditEnvelope, resolveCredentialById, resolveCredentials, voltEmitter });
 app.use('/quoxchat', quoxchatRoutes.router);
 
 // QM-LTM: wire conversationRecall.js to the SAME org-scoped getProviderKeys
@@ -16443,10 +16744,12 @@ app.get('/internal/embed/provider', requireServiceOrUserAuth(), createEmbedProvi
 // Handler logic lives in lib/feedApiHandlers.js (dependency-injected,
 // unit-tested); this just wires auth + mount. Org-scoped throughout — see
 // feedApiHandlers.js's resolveOrgId() for the trust boundary.
-const { createGetSourcesHandler, createPutSourceHandler, createGetStatusHandler, createIngestAiHistoryHandler } = require('./lib/feedApiHandlers');
+const { createGetSourcesHandler, createPutSourceHandler, createGetStatusHandler, createIngestAiHistoryHandler, createSyncNowHandler } = require('./lib/feedApiHandlers');
 app.get('/api/feed/sources', requireServiceOrUserAuth(), createGetSourcesHandler());
 app.put('/api/feed/sources/:sourceType', requireServiceOrUserAuth(), createPutSourceHandler());
 app.get('/api/feed/status', requireServiceOrUserAuth(), createGetStatusHandler());
+// BRAIN2-FABLE11: service-key "sync now" for one org+source (same ingest as the scheduler).
+app.post('/api/feed/sources/:sourceType/sync', requireServiceOrUserAuth(), createSyncNowHandler());
 app.post('/api/feed/ai-history', requireServiceOrUserAuth(), createIngestAiHistoryHandler());
 
 // ═══════════════════════════════════════════════════════════════════
@@ -16737,6 +17040,22 @@ function validateCliCredentials() {
   } catch (e) {
     return { valid: false, reason: 'parse_error', detail: e.message };
   }
+}
+
+/** Deps for lib/cliHopShape.js (the /chat auth resolution and the hint-time dry run of a delegate hop). Late-bound. */
+function hopWarmDeps() {
+  return {
+    getProviderKeys,
+    getClaudeKeys,
+    resolveCliOAuthToken,
+    resolveCollectorPolicyPlan,
+    applyOllamaSelection: require('./lib/ollamaProvider.js').applyOllamaSelection,
+    isNativeWebSearch: require('./lib/nativeWebSearch.js').isNativeWebSearch,
+    aliasAgentId,
+    runtimeHomeDir: RUNTIME_HOME_DIR,
+    runtimeUser: RUNTIME_USER,
+    collectorPort: process.env.COLLECTOR_PORT || 9848,
+  };
 }
 
 /**
@@ -18452,7 +18771,7 @@ app.get('/terminal/shell/my-sessions', requireAuth(), (req, res) => {
 // /app/quoxagent-release (scripts/release/quoxagent/fetch-quoxagent-release.mjs,
 // run by the release build); the dev box keeps serving its live checkout.
 const { resolveQuoxAgentRoot } = require('./lib/quoxagentBinary.js');
-const QuoxAgent_ROOT = resolveQuoxAgentRoot({ env: process.env, hostRoot: '/opt/quoxcore/quoxagent', bakedRoot: path.join(__dirname, 'quoxagent-release') });
+const QuoxAgent_ROOT = resolveQuoxAgentRoot({ env: process.env, hostRoot: hostPath('quoxagent'), bakedRoot: path.join(__dirname, 'quoxagent-release') });
 
 // Install script endpoint
 app.get('/install', (req, res) => {
@@ -18521,7 +18840,7 @@ app.post('/api/v1/quoxagent/install', requireServiceOrUserAuth(), async (req, re
 
   for (const host of hosts) {
     try {
-      const cmd = `curl -sSL ${collectorUrl}/install | sudo ${_shaPrefix}bash -s -- --host-id ${host}`;
+      const cmd = require('./lib/failLoudInstallCommand.js').buildFailLoudInstallCommand({ installerUrl: `${collectorUrl}/install`, envPrefix: _shaPrefix, args: `--host-id ${host}` }); // quox#1223: no curl|bash
       // 55s, not the helper's 30s default: an install curls a 16KB script, pulls
       // a ~25MB binary over the LAN and runs setup. Must stay under QuoxBastion's
       // hardcoded 60s /api/v1/exec cap (known, unfixed, exec.go).
@@ -18923,6 +19242,7 @@ app.post('/aee/sync', requireAeeAuth(), async (req, res) => {
 // live CPU profile), stalling every other collector request. Overview stats do
 // not need sub-minute freshness; longer TTLs cut the block rate ~4-5x.
 const aeeStatusProbeCache = require('./lib/statusProbeCache.js').createTtlCache({ ttlMs: 60000 });
+const AEE_QUERY_TIMEOUT_MS = parseInt(process.env.AEE_QUERY_TIMEOUT_MS, 10) || 10000;
 const aeeQueryAsyncCache = require('./lib/sqliteProbeWorker.js').createAsyncProbeCache({ ttlMs: 60000 });
 app.get('/aee/query', requireAeeAuth(), async (req, res) => {
   if (!aeeDb) {
@@ -18966,28 +19286,25 @@ app.get('/aee/query', requireAeeAuth(), async (req, res) => {
       ? (() => { const { intent: _i, ...rest } = queryParams; return { ...rest, intentLo: intentFilter.lo, intentHi: intentFilter.hi }; })()
       : null;
     const intentOnly = !type && !from && !to && !after && !before && !corr;
-    const runQuery = () => {
-      if (!prefixParams) return aeeStatements.queryOrgScoped.all(queryParams);
-      if (intentOnly) {
-        return aeeStatements.queryOrgIntentPrefixLatest.all({
-          orgId, intentLo: prefixParams.intentLo, intentHi: prefixParams.intentHi, limit: prefixParams.limit,
-        });
-      }
-      return aeeStatements.queryOrgScopedPrefix.all(prefixParams);
-    };
-    // CORTEX-BENCH 2026-10-08: probe-shaped reads (status bar, limit <= 5) run
-    // in the read-only probe worker with stale-while-revalidate, never on the
-    // main event loop (each miss full-scanned envelopes synchronously).
+    // QUOXON-AEE 2026-10-14: ?corr= (and any non-intent filter) ran on the main
+    // thread over a planner-hostile OR-NULL statement and blocked the collector
+    // 781 s. Every read now runs in the read-only probe worker with a hard
+    // timeout (AEE_QUERY_TIMEOUT_MS, default 10 s -> 503), and the non-prefix
+    // SQL carries only the active filters so the planner can use the corr/ts
+    // indexes (lib/statusProbeSql.js buildQueryOrgScoped).
     const probeSpec = () => {
-      if (!prefixParams) return [aeeStatements.queryOrgScoped, queryParams];
-      if (intentOnly) return [aeeStatements.queryOrgIntentPrefixLatest, { orgId, intentLo: prefixParams.intentLo, intentHi: prefixParams.intentHi, limit: prefixParams.limit }];
-      return [aeeStatements.queryOrgScopedPrefix, prefixParams];
+      if (!prefixParams) { const q = statusProbeSql.buildQueryOrgScoped(queryParams); return [q.sql, q.params]; }
+      if (intentOnly) return [statusProbeSql.queryOrgIntentPrefixLatest, { orgId, intentLo: prefixParams.intentLo, intentHi: prefixParams.intentHi, limit: prefixParams.limit }];
+      // quox#1047: prefix + other filters splice only the active predicates (the OR-NULL
+      // queryOrgScopedPrefix shape timed out to 503 on ?intent=aocl.&after=...).
+      const q = statusProbeSql.buildQueryOrgPrefix(prefixParams); return [q.sql, q.params];
     };
+    const runBounded = () => { const [sqlText, params] = probeSpec(); return runProbe(AEE_DB_PATH, sqlText, params, { mode: 'all', timeoutMs: AEE_QUERY_TIMEOUT_MS }); };
     const rows = !orgId
       ? []
       : (queryParams.limit <= 5
-        ? await aeeQueryAsyncCache.get(JSON.stringify(queryParams), () => { const [st, params] = probeSpec(); return runProbe(AEE_DB_PATH, st.source, params, { mode: 'all' }); })
-        : runQuery());
+        ? await aeeQueryAsyncCache.get(JSON.stringify(queryParams), runBounded)
+        : await runBounded());
 
     // Decrypt each envelope, filter out any that failed decryption
     let envelopes = rows
@@ -19057,17 +19374,23 @@ app.get('/aee/query', requireAeeAuth(), async (req, res) => {
       };
       if (!orgId) {
         total = 0;
-      } else if (intentFilter.mode === 'prefix') {
-        const onlyIntent = !type && !from && !to && !after && !before && !corr;
-        total = onlyIntent
-          ? aeeStatements.countOrgIntentPrefix.get({ orgId, intentLo: intentFilter.lo, intentHi: intentFilter.hi }).total
-          : aeeStatements.countOrgScopedPrefix.get({
-              type: countParams.type, from: countParams.from, to: countParams.to, after: countParams.after,
-              before: countParams.before, corr: countParams.corr, orgId,
-              intentLo: intentFilter.lo, intentHi: intentFilter.hi,
-            }).total;
       } else {
-        total = aeeStatements.countOrgScoped.get(countParams).total;
+        let countSql; let countArgs;
+        if (intentFilter.mode === 'prefix') {
+          const onlyIntent = !type && !from && !to && !after && !before && !corr;
+          if (onlyIntent) {
+            countSql = statusProbeSql.countOrgIntentPrefix;
+            countArgs = { orgId, intentLo: intentFilter.lo, intentHi: intentFilter.hi };
+          } else {
+            // quox#1047: spliced, index-served count (see buildCountOrgPrefix).
+            const q = statusProbeSql.buildCountOrgPrefix({ ...countParams, intentLo: intentFilter.lo, intentHi: intentFilter.hi });
+            countSql = q.sql; countArgs = q.params;
+          }
+        } else {
+          const q = statusProbeSql.buildCountOrgScoped(countParams);
+          countSql = q.sql; countArgs = q.params;
+        }
+        total = (await runProbe(AEE_DB_PATH, countSql, countArgs, { mode: 'get', timeoutMs: AEE_QUERY_TIMEOUT_MS })).total;
       }
       if (aeeCountCache.size >= 500) aeeCountCache.clear();
       aeeCountCache.set(countKey, { total, at: Date.now() });
@@ -19075,6 +19398,10 @@ app.get('/aee/query', requireAeeAuth(), async (req, res) => {
 
     res.json({ count: envelopes.length, total, envelopes });
   } catch (err) {
+    if (/probe timeout|probe worker restarted/.test(err && err.message)) {
+      console.error('[AEE] Query timed out (narrow the filters, e.g. add corr/after/before):', err.message);
+      return res.status(503).json({ error: 'AEE query timed out; narrow the filters (corr, after, before, intent)' });
+    }
     console.error('[AEE] Query error:', err);
     res.status(500).json({ error: 'Failed to query envelopes' });
   }
@@ -19381,7 +19708,8 @@ app.get('/aee/stats', requireAeeAuth(), async (req, res) => {
   }
 
   try {
-    const orgId = req.user?.org_id || null;
+    // Trusted service-key callers (the aee_get_stats tool) carry the org as ?org_id=; JWT users never can.
+    const orgId = req.user?.org_id || (req.service ? req.query.org_id : null) || null;
     const cacheKey = orgId || '__no_org__';
     const now = Date.now();
     const cached = aeeStatsCache.get(cacheKey);
@@ -19554,6 +19882,27 @@ app.post('/aee/admin/retention/run', requireServiceOrUserAuth(), async (req, res
 });
 
 const { envelopeRowVisibleToOrg } = require('./lib/aeeOrgReadScope');
+// quox#1013: the VOLT run routes accept the workflow engine execution id a user holds (or a corr),
+// not only a VR_ id. The execution's corr comes from QuoxFlow (indexed lookup); see lib/voltRunResolve.js.
+const { createVoltRunResolver, notFoundMessage: voltRunNotFoundMessage } = require('./lib/voltRunResolve');
+const voltRunResolver = voltDb ? createVoltRunResolver(voltDb) : null;
+async function fetchQuoxflowExecutionForVolt(id, orgId) {
+  const key = process.env.INTERNAL_SERVICE_KEY || '';
+  const r = await fetch(`${process.env.QUOXFLOW_URL || 'http://quoxflow:3200'}/api/executions/${encodeURIComponent(id)}`, {
+    headers: { ...(key ? { 'X-Service-Key': key } : {}), ...(orgId ? { 'X-Org-ID': orgId } : {}) },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (r.status === 404) return null; // QuoxFlow does not know it: not an execution id
+  if (!r.ok) throw new Error(`QuoxFlow ${r.status}`); // could not ask: the resolver falls back
+  const d = await r.json();
+  return d && (d.data || d);
+}
+function resolveVoltRunForOrg(id, orgId) {
+  return voltRunResolver.resolve(id, {
+    visible: (row) => envelopeRowVisibleToOrg(row, orgId),
+    fetchExecution: (execId) => fetchQuoxflowExecutionForVolt(execId, orgId),
+  });
+}
 
 // AEE-ORG-1 (tenant isolation) for corr-addressed conversation reads. Returns
 // the decrypted envelopes for a conversation, scoped to the caller's org:
@@ -20257,7 +20606,7 @@ app.get('/volt/hitl/decisions', requireServiceOrUserAuth(), createGetHitlDecisio
 
 const { getArchivedAnchor } = require('./lib/voltArchivedRun');
 // Get VOLT events for a run
-app.get('/volt/runs/:runId/events', requireServiceOrUserAuth(), (req, res) => {
+app.get('/volt/runs/:runId/events', requireServiceOrUserAuth(), async (req, res) => {
   if (!voltDb || !voltStatements) {
     return res.status(503).json({ error: 'VOLT storage not available' });
   }
@@ -20265,20 +20614,22 @@ app.get('/volt/runs/:runId/events', requireServiceOrUserAuth(), (req, res) => {
     // AEE-ORG-1 (tenant isolation): a run's hash-chain events must not be
     // readable by another org. envelopeRowVisibleToOrg is a generic org-row
     // predicate (own org OR untagged-legacy NULL; never another org; never
-    // anon) reused for the volt_runs row.
+    // anon) reused for the volt_runs row (inside resolveVoltRunForOrg).
     const orgId = req.user?.org_id || (req.service ? req.query.org_id : null) || null;
-    const run = voltStatements.getRun.get(req.params.runId);
-    if (!envelopeRowVisibleToOrg(run, orgId)) return res.status(404).json({ error: 'Run not found' });
-    const events = voltStatements.getRunEvents.all(req.params.runId);
+    // quox#1013: an engine execution id or a corr resolves to its VOLT run.
+    const { run, resolvedFrom } = await resolveVoltRunForOrg(req.params.runId, orgId);
+    if (!run) return res.status(404).json({ error: 'Run not found', hint: voltRunNotFoundMessage(req.params.runId) });
+    const runId = run.run_id;
+    const events = voltStatements.getRunEvents.all(runId);
     if (events.length === 0) {
-      const anchor = getArchivedAnchor(voltDb, req.params.runId);
+      const anchor = getArchivedAnchor(voltDb, runId);
       if (anchor) return res.json({ archived: true, anchor, events: [] });
     }
     // Parse JSON data back to objects
     const parsed = events.map(e => {
       try { return { ...e, data: JSON.parse(e.data) }; } catch { return e; }
     });
-    res.json({ events: parsed });
+    res.json({ run_id: runId, ...(resolvedFrom ? { resolved_from: resolvedFrom } : {}), events: parsed });
   } catch (err) {
     console.error('[VOLT] Query events error:', err);
     res.status(500).json({ error: 'Failed to query VOLT events' });
@@ -20286,23 +20637,25 @@ app.get('/volt/runs/:runId/events', requireServiceOrUserAuth(), (req, res) => {
 });
 
 // Get VOLT bundle for a run
-app.get('/volt/runs/:runId/bundle', requireServiceOrUserAuth(), (req, res) => {
+app.get('/volt/runs/:runId/bundle', requireServiceOrUserAuth(), async (req, res) => {
   if (!voltDb || !voltStatements) {
     return res.status(503).json({ error: 'VOLT storage not available' });
   }
   try {
     // AEE-ORG-1 (tenant isolation): gate the bundle on the run's org.
     const orgId = req.user?.org_id || (req.service ? req.query.org_id : null) || null;
-    const run = voltStatements.getRun.get(req.params.runId);
-    if (!envelopeRowVisibleToOrg(run, orgId)) return res.status(404).json({ error: 'Bundle not found' });
-    const bundle = voltStatements.getRunBundle.get(req.params.runId);
+    // quox#1013: an engine execution id or a corr resolves to its VOLT run.
+    const { run, resolvedFrom } = await resolveVoltRunForOrg(req.params.runId, orgId);
+    if (!run) return res.status(404).json({ error: 'Bundle not found', hint: voltRunNotFoundMessage(req.params.runId) });
+    const runId = run.run_id;
+    const bundle = voltStatements.getRunBundle.get(runId);
     if (!bundle) {
-      const anchor = getArchivedAnchor(voltDb, req.params.runId);
+      const anchor = getArchivedAnchor(voltDb, runId);
       if (anchor) return res.json({ archived: true, anchor });
-      return res.status(404).json({ error: 'Bundle not found' });
+      return res.status(404).json({ error: 'Bundle not found', run_id: runId });
     }
     try { bundle.data = JSON.parse(bundle.data); } catch { /* keep as string */ }
-    res.json({ bundle });
+    res.json({ run_id: runId, ...(resolvedFrom ? { resolved_from: resolvedFrom } : {}), bundle });
   } catch (err) {
     console.error('[VOLT] Query bundle error:', err);
     res.status(500).json({ error: 'Failed to query VOLT bundle' });
@@ -20310,19 +20663,21 @@ app.get('/volt/runs/:runId/bundle', requireServiceOrUserAuth(), (req, res) => {
 });
 
 // CRP-BE-4: Server-side bundle creation — assembles evidence bundle from server data
-app.post('/volt/bundles/create', requireServiceOrUserAuth(), (req, res) => {
+app.post('/volt/bundles/create', requireServiceOrUserAuth(), async (req, res) => {
   if (!voltDb || !voltStatements) {
     return res.status(503).json({ error: 'VOLT storage not available' });
   }
 
-  const { run_id } = req.body;
-  if (!run_id) return res.status(400).json({ error: 'run_id required' });
+  const requestedRunId = req.body.run_id;
+  if (!requestedRunId) return res.status(400).json({ error: 'run_id required' });
 
   try {
     // AEE-ORG-1 (tenant isolation): only bundle a run the caller's org owns.
     const orgId = req.user?.org_id || (req.service ? req.query.org_id : null) || null;
-    const run = voltStatements.getRun.get(run_id);
-    if (!envelopeRowVisibleToOrg(run, orgId)) return res.status(404).json({ error: 'Run not found' });
+    // quox#1013: an engine execution id resolves to its captured VOLT run.
+    const { run, resolvedFrom } = await resolveVoltRunForOrg(requestedRunId, orgId);
+    if (!run) return res.status(404).json({ error: voltRunNotFoundMessage(requestedRunId) });
+    const run_id = run.run_id;
 
     const events = voltStatements.getRunEvents.all(run_id);
     if (events.length === 0) return res.status(404).json({ error: 'No events for this run' });
@@ -20340,6 +20695,8 @@ app.post('/volt/bundles/create', requireServiceOrUserAuth(), (req, res) => {
     res.json({
       ok: true,
       bundle_id: bundleId,
+      run_id,
+      ...(resolvedFrom ? { resolved_from: resolvedFrom } : {}),
       manifest,
       event_count: eventCount,
       download_url: `/volt/bundles/${bundleId}/download`
@@ -20444,17 +20801,20 @@ app.post('/volt/certify', requireServiceOrUserAuth(), async (req, res) => {
   }
 
   try {
-    const { run_id, retention_days, audit_info, compliance_info } = req.body;
+    const { run_id: requestedRunId, retention_days, audit_info, compliance_info } = req.body;
 
-    if (!run_id) {
+    if (!requestedRunId) {
       return res.status(400).json({ error: 'run_id is required' });
     }
 
     // AEE-ORG-1 (tenant isolation): certifying is a mutation — only the org
     // that owns the run may certify it.
     const orgId = req.user?.org_id || (req.service ? req.query.org_id : null) || null;
-    const certRun = voltStatements.getRun.get(run_id);
-    if (!envelopeRowVisibleToOrg(certRun, orgId)) return res.status(404).json({ error: `No events found for run ${run_id}` });
+    // quox#1013: `quox workflow run` prints the ENGINE execution id; resolve it to the VOLT run
+    // that captured it (VR_wf-...) instead of a 404 for the only id the user holds.
+    const { run: certRun, resolvedFrom } = await resolveVoltRunForOrg(requestedRunId, orgId);
+    if (!certRun) return res.status(404).json({ error: voltRunNotFoundMessage(requestedRunId) });
+    const run_id = certRun.run_id;
 
     // Fetch run events from VOLT DB
     const eventRows = voltStatements.getRunEvents.all(run_id);
@@ -20563,7 +20923,7 @@ app.post('/volt/certify', requireServiceOrUserAuth(), async (req, res) => {
     );
 
     auditOp('ops.volt.cert.created', { cert_id: certResult.cert_id });
-    res.json(certResult);
+    res.json(resolvedFrom ? { ...certResult, resolved_from: resolvedFrom } : certResult);
   } catch (err) {
     console.error('[VOLT] Certification error:', err);
     res.status(500).json({ error: `Certification failed: ${err.message}` });
@@ -21339,7 +21699,8 @@ const riskClassStatements = voltDb ? {
   insert: voltDb.prepare(`INSERT INTO risk_classifications (id, org_id, system_name, answers_json, result_json, memo, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`),
   getById: voltDb.prepare('SELECT * FROM risk_classifications WHERE id = ?'),
   getByOrg: voltDb.prepare('SELECT id, org_id, system_name, status, created_at, updated_at FROM risk_classifications WHERE org_id = ? ORDER BY updated_at DESC'),
-  update: voltDb.prepare('UPDATE risk_classifications SET answers_json = ?, result_json = ?, memo = ?, status = ?, updated_at = datetime(\'now\') WHERE id = ?'),
+  // #937 follow-up: system_name is written too (the PUT read it for the memo but never stored it, a silent drop)
+  update: voltDb.prepare('UPDATE risk_classifications SET answers_json = ?, result_json = ?, memo = ?, status = ?, system_name = ?, updated_at = datetime(\'now\') WHERE id = ?'),
 } : null;
 
 app.post('/api/v1/compliance/classification', requireServiceOrUserAuth(), (req, res) => {
@@ -21401,7 +21762,7 @@ app.put('/api/v1/compliance/classification/:id', requireServiceOrUserAuth(), (re
     const result = classifyRisk(newAnswers);
     const memo = generateClassMemo(newAnswers, '', system_name || existing.system_name);
     const status = result.complete ? 'complete' : 'draft';
-    riskClassStatements.update.run(JSON.stringify(newAnswers), JSON.stringify(result), memo, status, req.params.id);
+    riskClassStatements.update.run(JSON.stringify(newAnswers), JSON.stringify(result), memo, status, system_name || existing.system_name, req.params.id);
     const row = riskClassStatements.getById.get(req.params.id);
     row.answers_json = JSON.parse(row.answers_json);
     row.result_json = JSON.parse(row.result_json);
@@ -22596,6 +22957,12 @@ app.post('/api/v1/policies/approvals/:entryId/resolve', requireServiceOrUserAuth
   if (!['approved', 'rejected'].includes(outcome)) {
     return res.status(400).json({ error: "outcome must be 'approved' or 'rejected'" });
   }
+  // QUOXON-STEPUP: a human JWT proves a login, not a person. Approving a policy change needs a live step-up
+  // token (minted by auth after a PIN verify). Rejecting is de-escalation and stays open. The service-key
+  // path (req.service) is left as is: it is not a human and cannot supply a user identity.
+  if (outcome === 'approved' && req.user && req.service !== true) {
+    if (!require('./utils/stepUp.js').requireStepUp(req, res)) return;
+  }
   const approver = req.user?.id || req.user?.email || req.body?.approved_by;
   if (!approver) return res.status(400).json({ error: 'approved_by required (no auth context)' });
   try {
@@ -23059,6 +23426,16 @@ function queryEnvelopesForLeastPrivilege(filter) {
   // Payloads are stored ENCRYPTED (encryptEnvelopeFields at ingest); raw rows
   // parse to nothing and every tool_name reads null — which rendered a live
   // agent as "0/24 used" on 2026-09-20. Decrypt exactly like /aee/query does.
+  // #923: the generic queryOrgScoped shape walked the org's whole history for one agent; this read is
+  // always one agent since a window start, so it uses the pinned ("from", ts) statement.
+  if (filter.from && filter.after) {
+    return aeeStatements.queryAgentEnvelopesSince.all({
+      from: filter.from,
+      after: filter.after,
+      orgId: filter.orgId,
+      limit: filter.limit ?? 5000,
+    }).map((r) => decryptEnvelopeRow(r)).filter(Boolean);
+  }
   return aeeStatements.queryOrgScoped.all({
     type: null,
     intent: null,
@@ -23364,6 +23741,11 @@ app.use('/tiktok', requireServiceOrUserAuth(), requirePluginEntitlement('tiktok'
 safetyGateRoutes.init({ voltDb, resolveRequestOrgId, auditOp });
 app.use('/api/v1/safety', requireServiceOrUserAuth(), safetyGateRoutes.router);
 
+// QUOXON-STEPUP part B: human override of one policy block (step-up token, scope override).
+const policyOverrideRoutes = require('./routes/overrides');
+policyOverrideRoutes.init({ voltDb, resolveRequestOrgId, auditOp });
+app.use('/api/v1/overrides', requireServiceOrUserAuth(), policyOverrideRoutes.router);
+
 // ============================================================
 // SEO-MOAT: acceptance verdicts (routes/runAcceptance.js)
 // ============================================================
@@ -23513,24 +23895,29 @@ function startGovernanceBaselineRunner() {
 
   // Catch-up pass: delayed (not at boot) and chunked/yielding so a restart never
   // freezes the event loop (was ~26 s synchronous at boot, 2026-10-11).
-  const baselineCatchupTimer = setTimeout(async () => {
-    const t0 = Date.now();
+  // The daily run takes the same yielding path: the sync version froze the loop once
+  // a day too (WORKER7 2026-10-15). baselineRunning keeps a slow run from overlapping.
+  let baselineRunning = false;
+  const runBaseline = async (label) => {
+    if (baselineRunning) return;
+    baselineRunning = true;
     try {
+      // Deferred (bounded) while the host is saturated; every deploy re-fires the catch-up.
+      const wait = await require('./lib/bootYield.js').waitForQuietHost();
+      const t0 = Date.now();
       const rows = await computeAgentBaselinesAsync(voltDb);
-      if (rows.length) console.log(`[MON-GOV] baseline catch-up: ${rows.length} summaries computed (${Date.now() - t0}ms)`);
+      if (rows.length) console.log(`[MON-GOV] ${label}: ${rows.length} summaries computed (${Date.now() - t0}ms${wait.waitedMs ? `, after waiting ${Math.round(wait.waitedMs / 60000)}m for load${wait.quiet ? '' : ' (still loaded)'}` : ''})`);
     } catch (err) {
-      console.warn('[MON-GOV] baseline catch-up failed:', err.message);
+      console.warn(`[MON-GOV] ${label} failed:`, err.message);
+    } finally {
+      baselineRunning = false;
     }
-  }, 180000);
+  };
+  const baselineCatchupTimer = setTimeout(() => runBaseline('baseline catch-up'), 180000);
   baselineCatchupTimer.unref?.();
 
-  governanceBaselineRunner = setInterval(() => {
-    try {
-      const rows = computeAgentBaselines(voltDb);
-      if (rows.length) console.log(`[MON-GOV] daily baseline: ${rows.length} summaries updated`);
-    } catch (err) {
-      console.warn('[MON-GOV] baseline run failed:', err.message);
-    }
+  governanceBaselineRunner = setInterval(async () => {
+    await runBaseline('daily baseline');
   }, 24 * 60 * 60 * 1000);
   governanceBaselineRunner.unref?.();
 
@@ -23950,14 +24337,14 @@ app.delete('/api/v1/users/:userId/data', async (req, res) => {
     console.warn(`[GDPR] conversation lookup for brain erasure failed: ${convErr.message}`);
   }
   const cascade = await gdprCascade.runErasureCascade(userId, { conversations: gdprCascade.conversationsFromRows(convRows) });
-  if (!cascade.complete) console.error(`[GDPR] erasure cascade INCOMPLETE for user ${userId}: memory=${cascade.memory.ok ? 'ok' : cascade.memory.error} brain=${cascade.brain.ok ? 'ok' : cascade.brain.error}`);
-  const cascadeOut = { complete: cascade.complete, memory: cascade.memory, brain: cascade.brain };
+  if (!cascade.complete) console.error(`[GDPR] erasure cascade INCOMPLETE for user ${userId}: memory=${cascade.memory.ok ? 'ok' : cascade.memory.error} brain=${cascade.brain.ok ? 'ok' : cascade.brain.error} tasks=${cascade.tasks.ok ? 'ok' : cascade.tasks.error}`);
+  const cascadeOut = { complete: cascade.complete, memory: cascade.memory, brain: cascade.brain, tasks: cascade.tasks };
   // A failed leg is retried durably (gdprErasureOutbox), with the conversation
   // relPaths stored now because the envelopes are purged just below.
   if (!cascade.complete && aeeDb) {
     try {
       gdprErasureOutbox.ensureTable(aeeDb);
-      gdprErasureOutbox.enqueue(aeeDb, userId, gdprCascade.conversationsFromRows(convRows), `memory=${cascade.memory.ok ? 'ok' : cascade.memory.error} brain=${cascade.brain.ok ? 'ok' : cascade.brain.error}`);
+      gdprErasureOutbox.enqueue(aeeDb, userId, gdprCascade.conversationsFromRows(convRows), `memory=${cascade.memory.ok ? 'ok' : cascade.memory.error} brain=${cascade.brain.ok ? 'ok' : cascade.brain.error} tasks=${cascade.tasks.ok ? 'ok' : cascade.tasks.error}`);
       cascadeOut.retryQueued = true;
     } catch (qErr) {
       console.error(`[GDPR] could not queue erasure retry for user ${userId}: ${qErr.message}`);
@@ -24408,6 +24795,8 @@ async function chatStreamHandler(req, res) {
   // QUOXON A2: per-turn latency breakdown, logged as one [TurnTiming] line at dispatch
   // and one when the CLI returns. Times are ms from this line (the turn's start here).
   const _turnTiming = { t0: Date.now(), connector_tools_ms: null, connector_cache: null };
+  // 2026-10-16: per-step ms for the dispatch [TurnTiming] line (the first turn after boot took ~32 s, unnamed)
+  const _turnPhases = require('./lib/turnPhases.js').createTurnPhases({ t0: _turnTiming.t0 });
 
   // AOCL-FULL-2: run identity + policy gates BEFORE sending any SSE frames.
   // If L1/L3 reject, we return a plain HTTP error (not a partial SSE response)
@@ -24437,6 +24826,8 @@ async function chatStreamHandler(req, res) {
         message: preflight.errorMessage,
         deniedAtLayer: preflight.deniedAtLayer,
         matchedPolicies: preflight.matchedPolicies,
+        // TUI-DIVIDER: the layers this refusal really evaluated (id, name, result, ms), up to the one that refused.
+        aocl_layers: aoclTurn.layerEvents(),
       });
     }
     // Stash aoclCtx on req for downstream use during the stream.
@@ -24451,6 +24842,7 @@ async function chatStreamHandler(req, res) {
     // same "plain HTTP error, not a partial SSE response" posture as the
     // AOCL gates immediately above.
     const safetyDenial = checkAgentInvokeSafetyGate({
+      overrideId: (req.headers && req.headers['x-override-id']) || undefined, // QUOXON-STEPUP
       orgId: setup.aoclCtx?.orgId,
       agentId: setup.aoclCtx?.agentId,
       corr: query_id,
@@ -24519,7 +24911,9 @@ async function chatStreamHandler(req, res) {
   // Helper to send SSE events. Existing event types pass through unchanged
   // (plus their `seq`); turnStream adds text.delta, turn.started and turn.finished alongside them.
   // After a disconnect the sink stops writing frames but keeps logging, so a replay ends honestly.
-  const writeRaw = (data) => turnSink.write(data);
+  // QUOXON-LATENCY: every frame feeds the turn's timing record (turn.timing before turn.finished).
+  const turnTiming = require('./lib/turnTiming.js').createTurnTiming({ t0: _turnTiming.t0 });
+  const writeRaw = (data) => { turnTiming.observe(data); return turnSink.write(data); };
 
   // Send initial connected event
   writeRaw({ type: 'connected', query_id });
@@ -24527,6 +24921,7 @@ async function chatStreamHandler(req, res) {
     turnId: turnIdentity.turnId,
     conversationId: turnIdentity.conversationId,
     write: writeRaw,
+    timing: turnTiming,
   });
   const send = (data) => turnStream.send(data); // QUOXON-AOCL: late-bound so the done/chunk observer below sees every event
   // The turn's own success envelope, plus a `trace` event naming it (only if it was really stored).
@@ -24542,6 +24937,53 @@ async function chatStreamHandler(req, res) {
   // precede the close on each of them, so hook the close once here.
   const resEnd = res.end.bind(res);
   let turnEntry = null; // set once the authenticated org/user are known (see turn registration)
+  // quox#1044: a specialist's list/table answer streams to the user verbatim the moment the
+  // delegation returns, and the outer model adds at most one framing line (lib/delegatePassthrough.js).
+  // A delegation that breached its wait is flagged partial when the answer does not say so, and the
+  // turn waits (bounded, LATE_WAIT_MS) for the late specialist answer and shows it verbatim, so the
+  // TUI, `quox -p` and the legacy `quox chat` chunk stream all get it in the same turn.
+  // Every POST turn with a verified org takes part; a client that does not render text.delta gets
+  // the same text in its final chunk (composeFinal / composeBatch). The legacy GET route is left
+  // out: quox-voice speaks over it, where a table read aloud or a 60 s wait is dead air.
+  const passGate = require('./lib/delegatePassthrough.js').createPassthroughGate();
+  let handoffConvKey = null; // QUOXON handoff offer: the conversation key this turn's tools run under (historySessionId)
+  const LATE_WAIT_MS = 60000;
+  // The late specialist's own tool calls reach the turn's evidence (proof engine, TUI, graders).
+  passGate.onLate((ev) => { try { turnStream.emit('delegation.late', ev); } catch { /* client write only */ } });
+  const passDeadline = {}; // the Claude CLI dispatcher sets passDeadline.extend(ms) (lib/cliKillTimer.js)
+  let passRelease = () => {};
+  const bindPassthrough = ({ orgId, agentId, conversationIds }) => {
+    if (!orgId || req.method !== 'POST') return null;
+    passRelease = require('./lib/delegatePassthrough.js').registerLiveTurn({ orgId, agentId, conversationIds, show: passGate.show,
+      // QUOXON 2026-10-17: a specialist's real tool calls name what the waiting spinner is waiting on.
+      progress: (ev) => { try { turnStream.emit('delegation.progress', ev); return true; } catch { return false; } },
+      breach: (b) => {
+      const took = passGate.noteBreach(b);
+      // quox#1044: the outer CLI's kill timer makes room for the late-answer wait.
+      if (took && b && b.late && typeof passDeadline.extend === 'function') {
+        const added = passDeadline.extend(LATE_WAIT_MS);
+        if (added) console.log(`[Delegation] #1044 breach: outer CLI kill extended by ${Math.round(added / 1000)} s`);
+      }
+      return took;
+    } });
+    return passGate;
+  };
+  // The breach tail of an answer: the partial flag (if the text does not disclose it), then the late
+  // answer(s) or where they will land. emit writes each piece to the stream as it is known.
+  const breachTail = async (answerText, emit) => {
+    let tail = '';
+    const flag = passGate.partialFlag(answerText);
+    if (flag) {
+      tail += flag;
+      try { emit(flag); } catch { /* client write only */ }
+      console.log(`[Delegation] #1044 partial answer flagged turn=${turnIdentity.turnId || '-'}`);
+    }
+    if (passGate.lateWaiting()) {
+      try { turnStream.emit('turn.note', { kind: 'delegation_wait', message: `Waiting up to ${Math.round(LATE_WAIT_MS / 1000)} s for the specialist's full answer.` }); } catch { /* client write only */ }
+      tail += await passGate.awaitLate({ ms: LATE_WAIT_MS, conversationId: turnIdentity.conversationId || session_id || null, emit, signal: turnEntry ? AbortSignal.any([clientAbort.signal, turnEntry.signal]) : clientAbort.signal });
+    }
+    return tail;
+  };
   // QUOXON-AOCL: post-stream layers (L5-L10, L8 on the final text) run once when the
   // turn closes, then ONE aocl.summary event (and an aocl.verdict when L8 flags the
   // already-delivered text) goes out BEFORE turn.finished. turn.finished and the close
@@ -24552,6 +24994,18 @@ async function chatStreamHandler(req, res) {
     if (resEnding) return res;
     resEnding = true;
     const closeAll = () => {
+      try { passRelease(); passGate.close(); } catch { /* never block close */ }
+      // QUOXON handoff offer (2026-10-17): an attached specialist that lacks the tools this ask needs (from the turn's
+      // tool selection, never the answer text) offers the human a one-turn handoff to CommanderQ. Completed turns only.
+      try {
+        if (turnStream.state.started && !turnStream.state.failed && !turnStream.state.interrupted) {
+          const hs = require('./lib/handoffSuggest.js');
+          const hOrg = [req._aoclCtx?.orgId, req.user?.org_id].find((o) => o && o !== '__default__') || 'guard';
+          // a role-scope refusal recorded during this turn (lib/agentTools.js not_granted) makes the card certain
+          const refused = handoffConvKey ? hs.takeScopeRefusal(handoffConvKey, hOrg, assistant || '') : [];
+          turnStream.suggestHandoff(hs.suggestHandoff({ agent: assistant || '', message: prompt || '', orgId: hOrg, refused }));
+        }
+      } catch { /* a suggestion only; never block close */ }
       try { turnStream.finish(); } catch { /* never block close */ }
       try { conversationTurnRegistry.finish(turnEntry); } catch { /* never block close */ }
       try { turnSink.finish(); } catch { /* never block close */ }
@@ -24572,6 +25026,35 @@ async function chatStreamHandler(req, res) {
       logSanitizationAudit(sanitizationResult, query_id);
     }
     parsedContext = sanitizationResult.sanitized;
+
+    // QUOXON-MIRROR: the same [SELF-KNOWLEDGE] (with this org's server Mirror) POST /chat injects.
+    _turnPhases.mark('sse_setup');
+    parsedContext = await require('./lib/streamSelfKnowledge.js').injectStreamSelfKnowledge({
+      context: parsedContext,
+      orgId: [req._aoclCtx?.orgId, req.user?.org_id].find((o) => o && o !== '__default__') || '',
+      agentId: (assistant || 'quox').toLowerCase(),
+      body: req.body,
+      // QUOXMIND #1110: [CURRENT FOCUS] (the person's working set) beside [SELF-KNOWLEDGE],
+      // built in parallel under its own hard deadline.
+      build: async ({ orgId, agentId }) => {
+        const streamUserId = req._aoclCtx?.userId || '';
+        const fi = require('./lib/focusImplant.js');
+        const [sk, focus] = await Promise.all([
+          require('./lib/quoxSelfKnowledgeImplant.js').buildSelfKnowledgeImplant({
+            agentId, orgId,
+            loadCognitiveImplants: require('./lib/agentTools.js').loadCognitiveImplants,
+            getCollectorMirrorCompact,
+            getOrgMirrorSummary: (o) => require('./lib/orgMirror.js').summaryFor(o),
+          }),
+          streamUserId && streamUserId !== 'unknown' && !req._aoclCtx?.serviceAuth
+            ? fi.buildFocusImplant({ orgId, userId: streamUserId, agentId, prompt: decodedPrompt,
+              getOrgConcerns: require('./lib/signalAggregator.js').getConcernsForOrg })
+            : Promise.resolve(''),
+        ]);
+        return fi.joinBlocks(sk, focus, presenceContextBlock(orgId)); // PRESENCE: [OWNER PRESENCE] when a human is away
+      },
+    });
+    _turnPhases.mark('self_knowledge_focus');
 
     // ========== ROUTING DECISION ==========
     const agentLower = (assistant || 'cipher').toLowerCase();
@@ -24644,6 +25127,7 @@ async function chatStreamHandler(req, res) {
     let streamJwtOrgId = '';
     let streamJwtUserId = '';
     let streamHumanLogin = false;
+    let streamJwtRole = '';
     if (streamUserAccessToken) {
       const decoded = verifyToken(streamUserAccessToken);
       if (decoded.valid) {
@@ -24652,13 +25136,31 @@ async function chatStreamHandler(req, res) {
         // Same predicate as POST /chat: a human login (no actor_type, carries a
         // login session_id). Residents and agents carry actor_type.
         streamHumanLogin = !decoded.payload.actor_type && !!decoded.payload.session_id;
+        streamJwtRole = decoded.payload.role || '';
       }
     }
     const streamOrgId = streamJwtOrgId || undefined;
+    // quox#1266: record the human's turn for this conversation, as handleCollectorChat does on /chat/claude, so an
+    // approval minted later in the turn (or in a delegated hop, which runs under the same conversation key) can say on
+    // whose behalf and why. Keyed on historySessionId, the id this turn's tools run under. Display context only.
+    if (streamJwtOrgId && streamJwtUserId) {
+      try {
+        handoffConvKey = historySessionId;
+        require('./lib/approvalTurnContext.js').noteTurn(historySessionId, {
+          userId: streamJwtUserId,
+          orgId: streamJwtOrgId,
+          userName: (req.user && (req.user.name || req.user.email)) || null,
+          text: decodedPrompt,
+          surface: req.headers['x-quox-client'] === 'cli' ? 'cli' : 'stream',
+          agentId: assistant || 'quox',
+        });
+      } catch { /* context is best-effort */ }
+    }
 
     // quox#706: server-side history for the streaming route (what `quox chat`
     // calls by default). Scoped to the authenticated org + user; the stream
     // route has no client history, so a session id from elsewhere hydrates nothing.
+    _turnPhases.mark('routing');
     const chatSessionHistory = require('./lib/chatSessionHistory.js');
     const streamHistory = (() => {
       const h = chatSessionHistory.hydrateHistory({
@@ -24667,6 +25169,7 @@ async function chatStreamHandler(req, res) {
       if (h.hydrated > 0) console.log(`[Chat] hydrated ${h.hydrated} turn(s) for session ${String(historySessionId).slice(0, 8)}`);
       return h.history;
     })();
+    _turnPhases.mark('history');
     // QUOXON-REVIEW (finding 148f215f2879): approvals the user resolved for THIS conversation since
     // the last stored reply (e.g. a hat switch rejected between turns) reach the model as an
     // authoritative note, so it never calls a decided approval "still waiting". A failed inbox read
@@ -24686,11 +25189,72 @@ async function chatStreamHandler(req, res) {
         console.warn(`[Chat] out-of-band approvals failed (note skipped): ${oobErr && oobErr.message}`);
       }
     }
+    _turnPhases.mark('oob_approvals');
+    // SCREEN-CONTEXT: what the user's terminal shows right now, bounded and re-sanitised, for this turn only.
+    // A TUI turn (it sends terminal context or scope) is always offered terminal_suggest_command (owner 2026-10-15).
+    const fromTerminal = Boolean(streamJwtOrgId && parsedContext && (typeof parsedContext.terminal === 'string' || typeof parsedContext.scope === 'string'));
+    parsedContext = require('./lib/terminalContext.js').withTerminalContext(parsedContext, { orgId: streamJwtOrgId });
+    _turnPhases.mark('terminal');
+    // QUOXMIND #1111: the server memory implant on the STREAM route too (the CLI
+    // and the dashboard both chat here; before this only POST /chat got it, so
+    // [MEMORY CONTEXT] never reached a real turn). Org core set + cited
+    // cross-agent recall, budgeted; supersedes any client memory_context; a
+    // memory or auth outage degrades to no block, never fails the turn.
+    // 2026-10-17: the two implants run concurrently (lib/turnImplants.js): neither reads the other, and in
+    // sequence they cost memory 0.5-2.0s + brain 1.6-4.0s per warm turn. Each keeps its own budget and degrades
+    // on its own; a failed build applies nothing for that block (as before) and is logged as a failure.
+    if (streamJwtOrgId && streamJwtUserId) {
+      const memImplant = require('./lib/memoryImplant.js');
+      const { buildBrainImplant, applyBrainImplant } = require('./lib/brainImplant.js');
+      const started = require('./lib/turnImplants.js').startTurnImplants({
+        // QUOXMIND #1111: the server memory implant on the STREAM route too (the CLI and the dashboard both chat
+        // here). Org core set + cited cross-agent recall, budgeted; supersedes any client memory_context.
+        memory: () => memImplant.buildMemoryImplant({ orgId: streamJwtOrgId, userId: streamJwtUserId, agentId: assistant || 'quox', prompt: decodedPrompt }),
+        // quox#1108: the knowledge-brain implant on the STREAM route too. Same flag, allowlist and budget as POST /chat.
+        brain: () => buildBrainImplant({ orgId: streamJwtOrgId, userId: streamJwtUserId, query: decodedPrompt, corrKey: historySessionId,
+          resolveSetting: (o) => {
+            const f = platformSettingsStore.getEffectiveFlag(voltDb, o, 'QUOXBRAIN_IMPLANT_ENABLED');
+            return f && f.source === 'setting' ? !!f.on : null;
+          } }),
+      });
+      const mem = await started.memory;
+      if (mem.error) console.error(`[MemoryImplant] stream injection failed, proceeding without it: ${mem.error}`);
+      else {
+        const memBlock = mem.block;
+        try { parsedContext = memImplant.applyMemoryImplant(parsedContext, memBlock); } catch (memErr) {
+          console.error(`[MemoryImplant] stream injection failed, proceeding without it: ${memErr && memErr.message}`);
+        }
+      }
+      // with both running, memory_implant is the wait until memory is in and brain_implant the extra wait for
+      // brain beyond it (the sequential phases still sum to the turn); each one's own duration is noted *_par
+      _turnPhases.mark('memory_implant');
+      const brn = await started.brain;
+      if (brn.error) console.error(`[BrainImplant] stream injection failed, proceeding without it: ${brn.error}`);
+      else {
+        const knowledgeBlock = brn.block;
+        try { parsedContext = applyBrainImplant(parsedContext, knowledgeBlock); } catch (brainErr) {
+          console.error(`[BrainImplant] stream injection failed, proceeding without it: ${brainErr && brainErr.message}`);
+        }
+      }
+      _turnPhases.mark('brain_implant');
+      _turnPhases.note('memory_implant_par', mem.ms);
+      _turnPhases.note('brain_implant_par', brn.ms);
+    } else {
+      _turnPhases.mark('memory_implant');
+      _turnPhases.mark('brain_implant');
+    }
+    // PLAN MODE (owner 2026-10-16): the TUI's /mode plan. Enforced on the tool offer, at dispatch and on the CLI
+    // path's turn token (lib/planMode.js), and told to the model in context.
+    const planTurn = require('./lib/planMode.js').isPlanMode(sp.mode);
+    if (planTurn) parsedContext = require('./lib/planMode.js').withPlanNote(parsedContext);
     const recordStreamTurn = (reply, activity) => {
       try {
         if (!streamJwtOrgId || !historySessionId || !reply) return;
         if (platformSettingsStore.getEffectiveFlag(voltDb, streamJwtOrgId, 'DISABLE_TRANSCRIPT_STORAGE').on) return;
         const steers = (turnEntry && turnEntry.appliedSteers) || [];
+        // QUOXON 2026-10-19: a handed-off turn is stored as a labelled context entry for the attached agent (lib/handoffHistory.js)
+        const hoLabel = require('./lib/handoffHistory.js').labelHandoffExchange({ fromAgent: sp.handoff_from, targetAgent: assistant, turnId: turnIdentity.turnId, prompt: decodedPrompt, reply, activity });
+        if (hoLabel) { chatSessionHistory.recordExchange({ orgId: streamJwtOrgId, userId: streamJwtUserId, sessionId: historySessionId, prompt: hoLabel.prompt, reply: hoLabel.reply, turnId: turnIdentity.turnId, agentId: assistant || 'quox', provider: effectiveProvider, model: effectiveModel }); return; }
         chatSessionHistory.recordExchange({ orgId: streamJwtOrgId, userId: streamJwtUserId, sessionId: historySessionId, prompt: steers.length ? decodedPrompt + steers.map((t) => `\n\n[steer] ${t}`).join('') : decodedPrompt, reply, turnId: turnIdentity.turnId, agentId: assistant || 'cipher', provider: effectiveProvider, model: effectiveModel, ...(activity ? { activity } : {}) });
       } catch (histErr) {
         console.warn(`[Chat] history record skipped (non-fatal): ${histErr && histErr.message}`);
@@ -24701,6 +25265,7 @@ async function chatStreamHandler(req, res) {
     // OAuth/CLI subscription token via the SAME resolveCliOAuthToken() helper
     // /chat/claude (handleCollectorChat) uses, instead of erroring whenever no
     // raw Anthropic API key is configured.
+    _turnPhases.mark('context');
     const claudeKeys = await getClaudeKeys(streamOrgId);
     const providerKeys = await getProviderKeys(streamOrgId);
     const anthropicApiKey = claudeKeys.anthropic_api_key || process.env.ANTHROPIC_API_KEY || '';
@@ -24823,6 +25388,10 @@ async function chatStreamHandler(req, res) {
     // these per-layer traces (L1, L3) are kept for existing clients. The whole turn's
     // 11 layers arrive as ONE aocl.summary event just before turn.finished.
     for (const t of require('./lib/conversationTrace.js').aoclPreLlmTraces(req._aoclCtx)) turnStream.trace(t);
+    // TUI-DIVIDER: one aocl.layer event per layer as it is really recorded. L0-L4 replay here
+    // (they ran before the stream opened); L5-L10 stream from runPost before aocl.summary.
+    // A layer that never ran sends nothing.
+    if (req._aoclTurn) req._aoclTurn.onLayer((e) => turnStream.emit('aocl.layer', e));
 
     const startTime = Date.now();
 
@@ -24836,6 +25405,7 @@ async function chatStreamHandler(req, res) {
     // The agent's own identity prompt on every branch; its tool catalogue on the
     // Claude CLI branch, where calls run through `quox tool exec` (Tools API +
     // QuoxHat authz). The OpenAI stream loop still sends no tools.
+    _turnPhases.mark('keys_model');
     const streamAgentCtx = await require('./lib/streamAgentContext.js').resolveStreamAgentContext(
       { agent: assistant || 'cipher', orgId: streamJwtOrgId || null, withTools: (effectiveProvider === 'anthropic' && !anthropicApiKey && !!cliOAuthToken), },
       { getAssistantPrompt, getToolsWithConnectors: async (a, o) => {
@@ -24855,13 +25425,13 @@ async function chatStreamHandler(req, res) {
     // toolVoltRunId, loopSignal, loopControl }.
     // D3: per-turn tool offer + prompt profile for the API loops (lib/turnToolSelection.js).
     const streamPromptProfile = (provider) => require('./lib/streamAgentContext.js').resolvePromptProfile(sp.prompt_profile, provider);
-    const buildStreamToolOffer = ({ provider, pool, history }) => require('./lib/turnToolSelection.js').buildStreamToolOffer({ provider, pool, history, message: decodedPrompt, agent: assistant || 'cipher', trace: turnStream.trace, turnId: turnIdentity.turnId, profile: streamPromptProfile(provider) });
-    const runGovernedStreamTurn = async ({ provider, pathLabel, streamConvId, runLoop, normalizeUsage, mapError }) => {
+    const buildStreamToolOffer = ({ provider, pool, history, hatManifest: offerHm }) => require('./lib/turnToolSelection.js').buildStreamToolOffer({ agentScope: (require('./lib/delegationRoster.js').hatAgentScope(offerHm) || {}).agents || null, provider, pool, history, message: decodedPrompt, agent: assistant || 'cipher', trace: turnStream.trace, turnId: turnIdentity.turnId, profile: streamPromptProfile(provider), slotNames: require('./lib/slotTools.js').slotNamesForOrg(streamJwtOrgId), terminal: fromTerminal, plan: planTurn }); // QUOXON-ENGINE: a message to a slot routes to slot_say
+    const runGovernedStreamTurn = async ({ provider, pathLabel, streamConvId, runLoop, normalizeUsage, mapError, toolPool, hatManifest: turnHatManifest, fallbackReason }) => {
       const { createToolEventBridge } = require('./lib/conversationToolEvents.js');
       const dashboardOrigin = process.env.QUOX_PUBLIC_URL
         || (req.headers.host ? `${String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim()}://${String(req.headers['x-forwarded-host'] || req.headers.host).split(',')[0].trim()}` : '');
       if (streamHumanLogin && streamJwtUserId && streamJwtOrgId) {
-        require('./lib/directRequestRegistry.js').markDirectRequest(streamConvId, { userId: streamJwtUserId, orgId: streamJwtOrgId });
+        require('./lib/directRequestRegistry.js').markDirectRequest(streamConvId, { userId: streamJwtUserId, orgId: streamJwtOrgId, role: streamJwtRole, ask: directAskWithContext(decodedPrompt, streamJwtOrgId, streamJwtUserId, historySessionId), agentId: assistant || null, heldSlot: sp.held_slot }); // J2: + agent; QUOXON-MESH: slot_say signs as the window's held slot
       }
       if (turnEntry) turnEntry.supportsSteer = true;
       const toolVoltRunId = voltEmitter.startRun(streamConvId, { org_id: streamJwtOrgId, user_id: streamJwtUserId, agent_id: assistant || 'cipher', path: pathLabel });
@@ -24871,6 +25441,7 @@ async function chatStreamHandler(req, res) {
         turnStream,
         bridge: createToolEventBridge({ emit: turnStream.emit, trace: turnStream.trace, corr: turnIdentity.explicit ? turnIdentity.turnId : streamConvId, dashboardOrigin }),
         orgId: streamJwtOrgId || null,
+        passthrough: bindPassthrough({ orgId: streamJwtOrgId, agentId: assistant || 'cipher', conversationIds: [streamConvId, turnIdentity.conversationId, session_id, validSessionId] }), // quox#1044
       });
       // The legacy chunk: written raw once text already streamed (a mirror would repeat
       // the whole answer as another text.delta); otherwise sent and mirrored once.
@@ -24886,25 +25457,83 @@ async function chatStreamHandler(req, res) {
         orgId: streamJwtOrgId, userId: streamJwtUserId, sessionId: historySessionId, clientHistory: [], includeActivity: true,
       }).history;
       try {
-        const govResult = await runLoop({
-          govHooks, govHistory, toolVoltRunId,
+        // Z2H-7B: live data asked for, tool unusable this turn (licence, plan mode, not held): a FIXED
+        // reply and no model call, so no provider can free-write facts (lib/toolAvailability.js).
+        const noTool = Array.isArray(toolPool) ? await require('./lib/toolAvailability.js').unavailableLiveDataReply(
+          { message: decodedPrompt, pool: toolPool, plan: planTurn, orgId: streamJwtOrgId || null },
+          { liveDataNeeds: require('./lib/turnToolSelection.js').liveDataNeeds, isPlanBlocked: require('./lib/planMode.js').isPlanBlocked, licenseVerdict: licenseVerdictForOrg, gateFor: (plugin) => (plugin === 'bastion-fleet' ? requireFleetAllowance(plugin) : null) },
+        ).catch((e) => { console.warn(`[NoTool] availability check failed, turn continues: ${e && e.message}`); return null; }) : null;
+        if (noTool) {
+          try { turnStream.trace({ protocol: 'volt', label: `no tool: ${noTool.need} ${noTool.reason}`, ref: null, detail: 'fixed reply, no model call' }); } catch { /* telemetry only */ }
+          console.log(`[NoTool] turn=${turnIdentity.turnId || '-'} agent=${assistant || '-'} provider=${provider} need=${noTool.need} reason=${noTool.reason} (fixed reply, no model call)`);
+        }
+        // Z2H-7B2: the turn needs live data and the tool IS usable: the server reads it itself, before the
+        // model call, on every provider (lib/liveDataPrefetch.js). A failed read is shown to the model as failed.
+        const livePrefetch = (!noTool && Array.isArray(toolPool)) ? await require('./lib/liveDataPrefetch.js').prefetchLiveData({
+          message: decodedPrompt, pool: toolPool, plan: planTurn,
+          liveDataNeeds: require('./lib/turnToolSelection.js').liveDataNeeds, isPlanBlocked: require('./lib/planMode.js').isPlanBlocked,
+          getFleetRegistry: require('./lib/agentTools.js').getFleetRegistryLocal,
+          toolCtx: require('./lib/governedToolDispatch.js').buildGovernedToolCtx(req, {
+            selected_agent: assistant || 'cipher', userId: streamJwtUserId || undefined, orgId: streamJwtOrgId || undefined, userAccessToken: streamUserAccessToken,
+            memory_context: parsedContext.memory_context || '', quox_context: parsedContext.quox_context || '', conversation_history: govHistory,
+            session_id: streamConvId, effectiveSessionId: streamConvId, hatManifest: turnHatManifest,
+          }),
+          deps: openaiToolLoopDeps(), emitEvent: govHooks.onEvent, selectedAgent: assistant || 'cipher', providerLabel: provider, voltRunId: toolVoltRunId,
+          evidenceCorrId: turnIdentity.explicit ? turnIdentity.turnId : undefined,
+        }).catch((e) => { console.warn(`[LivePrefetch] read failed, turn continues with the tool offered: ${e && e.message}`); return null; }) : null;
+        if (livePrefetch) console.log(`[LivePrefetch] turn=${turnIdentity.turnId || '-'} agent=${assistant || '-'} provider=${provider} tools=${livePrefetch.toolsUsed.join(',')} (server-run before the model call)`);
+        // Z2H-7B3: a pure live-data lookup on a LOCAL provider is answered from the real tool result, no model call
+        // (lib/liveDataAnswer.js, rule fleet-roster-lookup). Hosted providers keep the model.
+        const directReply = (!noTool && livePrefetch) ? require('./lib/liveDataAnswer.js').directAnswer({ message: decodedPrompt, prefetch: livePrefetch, provider }) : null;
+        if (directReply) {
+          try { turnStream.trace({ protocol: 'volt', label: `direct answer: ${directReply.intent}`, ref: null, detail: 'answered from the tool result, no model call' }); } catch { /* telemetry only */ }
+          console.log(`[DirectAnswer] turn=${turnIdentity.turnId || '-'} agent=${assistant || '-'} provider=${provider} intent=${directReply.intent} (no model call)`);
+        }
+        const fixedReply = noTool ? noTool.reply : (directReply ? directReply.text : null);
+        let serverAnswered = Boolean(directReply);
+        const runModelLoop = () => runLoop({
+          govHooks, govHistory, toolVoltRunId, livePrefetch,
           loopSignal: turnEntry ? AbortSignal.any([clientAbort.signal, turnEntry.signal]) : clientAbort.signal,
           // interrupt/steer: checked at model and tool-dispatch boundaries only.
           loopControl: {
-            shouldStop: () => (aborted ? 'client_disconnect' : (turnEntry && turnEntry.interrupted ? 'interrupted' : null)),
+            // quox#1044: the late specialist answer was shown mid-turn: stop at the next boundary.
+            shouldStop: () => (aborted ? 'client_disconnect' : (turnEntry && turnEntry.interrupted ? 'interrupted' : (passGate.stopRequested() ? 'late_answer' : null))),
             drainSteer: () => (turnEntry ? conversationTurnRegistry.drainSteer(turnEntry) : []),
             hasSteer: () => (turnEntry ? conversationTurnRegistry.hasSteer(turnEntry) : false),
             drainNotes: govHooks.drainNotes,
           },
         });
+        let govResult;
+        if (fixedReply) govResult = { fullText: fixedReply, content: fixedReply, toolsUsed: [], usage: null };
+        else {
+          try { govResult = await runModelLoop(); } catch (loopErr) {
+            // Z2H-7B3: live data was pre-read and the model then failed or ran out its budget: the user still gets the
+            // real result, summarised by the server alone (no model text), labelled. A cancel by the user is not a failure.
+            const userStopped = aborted || (turnEntry && turnEntry.interrupted);
+            const fb = (!userStopped && livePrefetch) ? require('./lib/liveDataAnswer.js').fallbackAnswer({
+              prefetch: livePrefetch, message: decodedPrompt,
+              reason: (typeof fallbackReason === 'function' && fallbackReason(loopErr)) || `the model call failed (${sanitizeErrorForUser(loopErr && loopErr.message)})`,
+            }) : null;
+            if (!fb) throw loopErr;
+            console.warn(`[LivePrefetch] model failed after the pre-read, answering from the tool result: ${loopErr && loopErr.message}`);
+            serverAnswered = true;
+            // proof engine (quox#1246): a server-authored marker, so no consumer has to guess from wording a model could imitate
+            try { turnStream.trace({ protocol: 'volt', label: `server fallback${fb.answered === false ? ' (not answered)' : ''}: ${fb.why}`, ref: null, detail: fb.answered === false ? 'the model did not answer; the reply is a server notice, not an answer' : 'the model failed; the reply is the real tool result summarised by the server' }); } catch { /* telemetry only */ }
+            govResult = { fullText: fb.text, content: fb.text, toolsUsed: [], usage: null };
+          }
+        }
+        if (livePrefetch && govResult && Array.isArray(govResult.toolsUsed)) govResult.toolsUsed = [...livePrefetch.toolsUsed, ...govResult.toolsUsed];
         voltEmitter.completeRun(toolVoltRunId);
         // R1 #36: every round's text (intermediate answers included), as streamed.
-        let toolText = govResult.fullText || govResult.content || '';
+        // quox#1044: after a passthrough, the answer is exactly what the user was shown.
+        govHooks.flush();
+        let toolText = passGate.composeFinal(govResult.fullText || govResult.content || '');
         // Real provider tokens summed over the rounds (QUOX-MODEL for OpenAI, B2 for Anthropic);
         // the caller's normalizeUsage shapes them (OpenAI: cost only from an exact pricing row).
         const govUsage = typeof normalizeUsage === 'function' ? normalizeUsage(govResult.usage) : (govResult.usage || null);
         if (govUsage) turnStream.setUsage(govUsage);
-        if (govResult.stopped) {
+        // quox#1044: 'late_answer' is a normal finish (the specialist's full answer was shown).
+        if (govResult.stopped && govResult.stopped !== 'late_answer') {
           const stoppedElapsed = Date.now() - startTime;
           if (govResult.stopped === 'interrupted') {
             turnStream.markInterrupted();
@@ -24929,10 +25558,20 @@ async function chatStreamHandler(req, res) {
         try {
           const histText = (Array.isArray(govHistory) ? govHistory : []).map((m) => (m && typeof m.content === 'string' ? m.content : JSON.stringify((m && m.content) || ''))).join('\n');
           const groundingEvidence = [govHooks.evidenceText(), decodedPrompt, parsedContext.quox_context || '', parsedContext.memory_context || '', histText].join('\n');
-          const gr = require('./lib/answerGrounding.js').checkAnswerGrounding({ answer: toolText, evidence: groundingEvidence });
+          // QUOXON-ENGINE classes 2 + 5: the grounding contract (lib/groundingContract.js), the
+          // same check every answer path runs: + totals, dates, slash commands, safety and
+          // approval claims, stale notes as live, and the real command for a "can't".
+          const gr = (noTool || serverAnswered) ? { note: '' } : require('./lib/groundingContract.js').checkGroundingContract({
+            answer: toolText, evidence: groundingEvidence, toolResults: typeof govHooks.evidenceItems === 'function' ? govHooks.evidenceItems() : undefined, userMessage: decodedPrompt,
+          });
           if (gr.note) {
-            groundingFlags = { commands: gr.flags.commands.map((c) => c.mention), ids: gr.flags.ids, quantities: gr.flags.quantities };
-            if (govHooks.deltaCount() > 0) govHooks.onTextDelta(gr.note);
+            groundingFlags = require('./lib/groundingContract.js').compactFlags(gr.flags);
+            if (govHooks.deltaCount() > 0) govHooks.noteDelta(gr.note);
+            // Z2H-7B2: lines the model wrote in the collector's tool-record voice for tools that never ran are cut from the stored answer.
+            if (gr.flags && ((gr.flags.fakeActivity && gr.flags.fakeActivity.length) || (gr.flags.serverLabels && gr.flags.serverLabels.length))) {
+              const stripped = require('./lib/groundingContract.js').stripFakeToolActivity(toolText, typeof govHooks.evidenceItems === 'function' ? govHooks.evidenceItems() : []);
+              if (stripped.text.trim()) toolText = stripped.text;
+            }
             toolText += gr.note;
             try { turnStream.trace({ protocol: 'volt', label: 'grounding: unverified claims flagged', ref: null, detail: JSON.stringify(groundingFlags).slice(0, 500) }); } catch { /* telemetry only */ }
             console.log(`[Grounding] turn=${turnIdentity.turnId || '-'} agent=${assistant || '-'} provider=${provider} flags=${JSON.stringify(groundingFlags).slice(0, 300)}`);
@@ -24940,6 +25579,8 @@ async function chatStreamHandler(req, res) {
         } catch (gErr) {
           console.warn(`[Grounding] check failed, answer unchanged: ${gErr && gErr.message}`);
         }
+        // quox#1044: a breached delegation: partial flag + the late specialist answer (bounded wait).
+        toolText += await breachTail(toolText, (t) => { if (govHooks.deltaCount() > 0) govHooks.noteDelta(t); });
         govSendChunk(toolText);
         const toolElapsed = Date.now() - startTime;
         send({
@@ -24953,9 +25594,10 @@ async function chatStreamHandler(req, res) {
           delta_count: govDeltaCount(),
           tools_used: govResult.toolsUsed,
           ...(govUsage ? { usage: govUsage } : {}),
+          ...(groundingFlags ? { grounding_flags: groundingFlags } : {}), // QUOXON-ENGINE: AOCL L8 records it
           routing: { ...routingDecision, completed_at: new Date().toISOString(), elapsed_ms: toolElapsed },
         });
-        recordStreamTurn(toolText, govHooks.activitySummary());
+        passGate.commit(); recordStreamTurn(toolText, govHooks.activitySummary());
         storeAuditEnvelopeTraced({
           type: 'event',
           from: `agent.${assistant || 'unknown'}`,
@@ -25016,6 +25658,7 @@ async function chatStreamHandler(req, res) {
       const nonAnthropicCtxParts = [];
       if (parsedContext.quox_context) nonAnthropicCtxParts.push('Context: ' + parsedContext.quox_context);
       if (parsedContext.memory_context) nonAnthropicCtxParts.push('Memory: ' + parsedContext.memory_context);
+      if (parsedContext.knowledge_context) nonAnthropicCtxParts.push('Knowledge: ' + parsedContext.knowledge_context);
       if (nonAnthropicCtxParts.length > 0) nonAnthropicUserMsg = nonAnthropicCtxParts.join('\n') + '\n\nQuery: ' + decodedPrompt;
 
       if (effectiveProvider === 'openai') {
@@ -25060,20 +25703,20 @@ async function chatStreamHandler(req, res) {
         }) : { tools: [], hatManifest: null };
         // The prompt follows the RESOLVED tool set: no tools means the "do not claim actions" note.
         const openaiSystemPrompt = governedToolsOptIn
-          ? require('./lib/streamAgentContext.js').applyToolHonesty(nonAnthropicSystemPrompt, streamToolSet.tools.length)
+          ? require('./lib/streamAgentContext.js').applyToolHonesty(nonAnthropicSystemPrompt, streamToolSet.tools.length) + require('./lib/hatSwitchNote.js').hatSwitchBlock(streamToolSet.hatSwitchNote) // CUSTOM-HATS: one-turn "hat changed" note
           : nonAnthropicSystemPrompt;
         if (streamToolSet.tools.length > 0) {
           await runGovernedStreamTurn({
-            provider: 'openai', pathLabel: 'stream_openai_tools', streamConvId,
+            provider: 'openai', pathLabel: 'stream_openai_tools', streamConvId, toolPool: governedToolsOptIn ? streamToolSet.tools : undefined, hatManifest: streamToolSet.hatManifest || undefined,
             // QUOX-MODEL: real provider tokens (all rounds); cost only from an exact pricing row.
             normalizeUsage: (u) => require('./lib/openaiTurnUsage.js').openaiTurnUsage(u, effectiveModel || 'gpt-5.4'),
-            runLoop: ({ govHooks, govHistory, toolVoltRunId, loopSignal, loopControl }) => executeOpenAICompatibleToolLoop(req, {
+            runLoop: ({ govHooks, govHistory, toolVoltRunId, loopSignal, loopControl, livePrefetch }) => executeOpenAICompatibleToolLoop(req, {
               apiUrl: 'https://api.openai.com/v1/chat/completions',
               headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
               model: effectiveModel || 'gpt-5.4',
               systemPrompt: require('./lib/streamAgentContext.js').buildTurnSystemPrompt({ agent: assistant || 'cipher', fullPrompt: nonAnthropicSystemPrompt, profile: streamPromptProfile('openai'), toolCount: streamToolSet.tools.length }),
-              toolOffer: buildStreamToolOffer({ provider: 'openai', pool: streamToolSet.tools, history: govHistory }),
-              userMessage: nonAnthropicUserMsg,
+              toolOffer: buildStreamToolOffer({ provider: 'openai', pool: streamToolSet.tools, history: govHistory, hatManifest: streamToolSet.hatManifest }),
+              userMessage: require('./lib/liveDataPrefetch.js').withLiveData(nonAnthropicUserMsg, livePrefetch),
               selected_agent: assistant || 'cipher',
               session_id: streamConvId,
               effectiveSessionId: streamConvId,
@@ -25217,14 +25860,18 @@ async function chatStreamHandler(req, res) {
         const ollamaProfile = streamPromptProfile('ollama');
         const ollamaModelTurn = ollamaTurn.modelTurn || null;
         const ollamaPromptFor = (n) => (governedToolsOptIn
-          ? require('./lib/streamAgentContext.js').buildTurnSystemPrompt({ agent: assistant || 'cipher', fullPrompt: nonAnthropicSystemPrompt, profile: ollamaProfile, toolCount: n })
+          ? require('./lib/streamAgentContext.js').buildTurnSystemPrompt({ agent: assistant || 'cipher', fullPrompt: nonAnthropicSystemPrompt, profile: ollamaProfile, toolCount: n }) + require('./lib/hatSwitchNote.js').hatSwitchBlock(ollamaToolSet.hatSwitchNote)
           : (ollamaProfile === 'compact' ? (require('./lib/entityAssistantLoader.js').getAssistantPromptCompact(String(assistant || 'cipher').toLowerCase()) || nonAnthropicSystemPrompt) : nonAnthropicSystemPrompt));
+        let ollamaBudget = null; let ollamaToolsRan = [];
         await runGovernedStreamTurn({
-          provider: 'ollama', pathLabel: ollamaToolSet.tools.length > 0 ? 'stream_ollama_tools' : 'stream_ollama', streamConvId,
+          provider: 'ollama', pathLabel: ollamaToolSet.tools.length > 0 ? 'stream_ollama_tools' : 'stream_ollama', streamConvId, toolPool: governedToolsOptIn ? ollamaToolSet.tools : undefined, hatManifest: ollamaToolSet.hatManifest || undefined,
           normalizeUsage: ollamaLib.ollamaTurnUsage,
           // Z2H-3B: a timed-out local model gets a plain message, not "This operation was aborted".
-          mapError: (e) => (ollamaLib.isOllamaTimeoutError(e) ? ollamaLib.ollamaTimeoutMessage({ model: effectiveModel, host: ollamaTurn.host, timeoutMs: ollamaLib.ollamaTurnTimeoutMs() }) : null),
-          runLoop: ({ govHooks, govHistory, toolVoltRunId, loopSignal, loopControl }) => ollamaLib.runWithToolsFallback(
+          // Z2H-7B3: after a pre-read, a budget expiry or timeout is answered from the real tool result (fallbackReason).
+          fallbackReason: (e) => (ollamaBudget && ollamaBudget.expired() ? `the local model did not finish in ${Math.round(ollamaBudget.budgetMs / 1000)} s` : (ollamaLib.isOllamaTimeoutError(e) ? 'the local model timed out' : null)),
+          // Z2H-7B2: a whole-turn wall-clock budget (lib/localTurnBudget.js) answers first, with what ran.
+          mapError: (e) => (ollamaBudget && ollamaBudget.expired() ? require('./lib/localTurnBudget.js').budgetExpiredMessage({ model: effectiveModel, host: ollamaTurn.host, budgetMs: ollamaBudget.budgetMs, toolsRan: ollamaToolsRan }) : null) || (ollamaLib.isOllamaTimeoutError(e) ? ollamaLib.ollamaTimeoutMessage({ model: effectiveModel, host: ollamaTurn.host, timeoutMs: ollamaLib.ollamaTurnTimeoutMs() }) : null),
+          runLoop: async ({ govHooks, govHistory, toolVoltRunId, loopSignal: parentSignal, loopControl, livePrefetch }) => { const tb = require('./lib/localTurnBudget.js'); ollamaBudget = tb.createTurnBudget({ parent: parentSignal }); const loopSignal = ollamaBudget.signal; ollamaToolsRan = livePrefetch ? livePrefetch.toolsUsed.slice() : []; try { return await ollamaLib.runWithToolsFallback(
             (tools) => executeOpenAICompatibleToolLoop(req, {
               apiUrl: ollamaTurn.chatUrl,
               headers: { 'Content-Type': 'application/json' },
@@ -25233,8 +25880,8 @@ async function chatStreamHandler(req, res) {
               onReasoning: (text, meta) => { const ev = require('./lib/modelOptions.js').reasoningStageEvent(text, { agent: assistant || 'CIPHER', round: meta && meta.round }); if (ev) send(ev); },
               model: effectiveModel,
               systemPrompt: require('./lib/modelOptions.js').withSystemSuffix(ollamaPromptFor(tools.length), ollamaModelTurn && ollamaModelTurn.systemSuffix),
-              toolOffer: tools.length > 0 ? buildStreamToolOffer({ provider: 'ollama', pool: tools, history: govHistory }) : undefined,
-              userMessage: nonAnthropicUserMsg,
+              toolOffer: tools.length > 0 ? buildStreamToolOffer({ provider: 'ollama', pool: tools, history: govHistory, hatManifest: ollamaToolSet.hatManifest }) : undefined,
+              userMessage: require('./lib/liveDataPrefetch.js').withLiveData(nonAnthropicUserMsg, livePrefetch),
               selected_agent: assistant || 'cipher',
               session_id: streamConvId,
               effectiveSessionId: streamConvId,
@@ -25257,7 +25904,7 @@ async function chatStreamHandler(req, res) {
             }, { ...openaiToolLoopDeps(), fetchFn: ollamaLib.noRedirectFetch(fetchWithTimeout) }),
             ollamaModelTurn && ollamaModelTurn.toolsOff ? [] : ollamaToolSet.tools,
             { model: effectiveModel, onNote: (m) => send({ type: 'thinking', agent: assistant || 'CIPHER', message: m, stage: 'provider_note' }) },
-          ),
+          ); } finally { ollamaBudget.clear(); } },
         });
         return;
       }
@@ -25294,12 +25941,12 @@ async function chatStreamHandler(req, res) {
         // D3: same offer/profile rules as Ollama; self-hosted presets (lmstudio, vllm) default to compact.
         const compatProfile = streamPromptProfile(compatTurn.preset);
         const compatPromptFor = (n) => (governedToolsOptIn
-          ? require('./lib/streamAgentContext.js').buildTurnSystemPrompt({ agent: assistant || 'cipher', fullPrompt: nonAnthropicSystemPrompt, profile: compatProfile, toolCount: n })
+          ? require('./lib/streamAgentContext.js').buildTurnSystemPrompt({ agent: assistant || 'cipher', fullPrompt: nonAnthropicSystemPrompt, profile: compatProfile, toolCount: n }) + require('./lib/hatSwitchNote.js').hatSwitchBlock(compatToolSet.hatSwitchNote)
           : (compatProfile === 'compact' ? (require('./lib/entityAssistantLoader.js').getAssistantPromptCompact(String(assistant || 'cipher').toLowerCase()) || nonAnthropicSystemPrompt) : nonAnthropicSystemPrompt));
         await runGovernedStreamTurn({
-          provider: compatTurn.preset, pathLabel: compatToolSet.tools.length > 0 ? `stream_${compatTurn.preset}_tools` : `stream_${compatTurn.preset}`, streamConvId,
+          provider: compatTurn.preset, pathLabel: compatToolSet.tools.length > 0 ? `stream_${compatTurn.preset}_tools` : `stream_${compatTurn.preset}`, streamConvId, toolPool: governedToolsOptIn ? compatToolSet.tools : undefined, hatManifest: compatToolSet.hatManifest || undefined,
           normalizeUsage: compatLib.compatTurnUsage(compatTurn.preset),
-          runLoop: ({ govHooks, govHistory, toolVoltRunId, loopSignal, loopControl }) => compatLib.runWithToolsFallback(
+          runLoop: ({ govHooks, govHistory, toolVoltRunId, loopSignal, loopControl, livePrefetch }) => compatLib.runWithToolsFallback(
             (tools) => executeOpenAICompatibleToolLoop(req, {
               apiUrl: compatTurn.chatUrl,
               headers: compatTurn.headers,
@@ -25308,8 +25955,8 @@ async function chatStreamHandler(req, res) {
               model: effectiveModel,
               // QUOXON: LM Studio qwen3 gets the documented /no_think soft switch (lib/modelOptions.js).
               systemPrompt: require('./lib/modelOptions.js').withSystemSuffix(compatPromptFor(tools.length), compatTurn.modelTurn && compatTurn.modelTurn.systemSuffix),
-              toolOffer: tools.length > 0 ? buildStreamToolOffer({ provider: compatTurn.preset, pool: tools, history: govHistory }) : undefined,
-              userMessage: nonAnthropicUserMsg,
+              toolOffer: tools.length > 0 ? buildStreamToolOffer({ provider: compatTurn.preset, pool: tools, history: govHistory, hatManifest: compatToolSet.hatManifest }) : undefined,
+              userMessage: require('./lib/liveDataPrefetch.js').withLiveData(nonAnthropicUserMsg, livePrefetch),
               selected_agent: assistant || 'cipher',
               session_id: streamConvId,
               effectiveSessionId: streamConvId,
@@ -25377,6 +26024,7 @@ async function chatStreamHandler(req, res) {
     const ctxParts = [];
     if (parsedContext.quox_context) ctxParts.push('Context: ' + parsedContext.quox_context);
     if (parsedContext.memory_context) ctxParts.push('Memory: ' + parsedContext.memory_context);
+    if (parsedContext.knowledge_context) ctxParts.push('Knowledge: ' + parsedContext.knowledge_context);
     if (ctxParts.length > 0) userMsg = ctxParts.join('\n') + '\n\nQuery: ' + decodedPrompt;
     // Current date/time in the user turn only (system prefix stays cacheable).
     userMsg = require('./lib/nowContext.js').withNowContext(userMsg, {
@@ -25397,7 +26045,7 @@ async function chatStreamHandler(req, res) {
       // APPROVAL-SPAM 4/6 on the stream route too (`quox chat` default): a verified
       // human typing here IS the authorization for safe actions this turn asks for.
       if (streamHumanLogin && streamJwtUserId && streamJwtOrgId) {
-        require('./lib/directRequestRegistry.js').markDirectRequest(effectiveStreamSessionId, { userId: streamJwtUserId, orgId: streamJwtOrgId });
+        require('./lib/directRequestRegistry.js').markDirectRequest(effectiveStreamSessionId, { userId: streamJwtUserId, orgId: streamJwtOrgId, role: streamJwtRole, ask: directAskWithContext(decodedPrompt, streamJwtOrgId, streamJwtUserId, historySessionId), agentId: assistant || 'quox', heldSlot: sp.held_slot }); // J2: + agent; QUOXON-MESH: slot_say signs as the window's held slot
       }
 
       // CLI-QUOX (docs/QUOXON_EVENTS_v1.md): progressive text.delta, tool.started/finished and
@@ -25407,8 +26055,18 @@ async function chatStreamHandler(req, res) {
       // so turnEntry.supportsSteer stays false and the steer route answers 409
       // steer_unsupported while the turn runs. Interrupt still kills the process.
       const cliStreamOptIn = turnIdentity.explicit === true;
+      // quox#1044: bound for every turn; the one-shot (non-streamed) CLI turn records without emitting.
+      const cliPass = bindPassthrough({ orgId: streamJwtOrgId, agentId: assistant || 'quox', conversationIds: [validSessionId, session_id, turnIdentity.conversationId] });
+      if (cliPass && !cliStreamOptIn) cliPass.attach(() => {});
       const cliBridge = cliStreamOptIn ? require('./lib/cliStreamJson.js').createCliTurnBridge({
         emit: turnStream.emit, trace: turnStream.trace, corr: turnIdentity.turnId,
+        // quox#1090: a call the #970 bash guard denied is logged and witnessed (hash + redacted preview).
+        onBashDenied: (rec) => {
+          console.warn(`[CLI-TOOLS] bash guard denied turn=${rec.turn_id} tool_use=${rec.tool_use_id} sha256=${rec.command_sha256.slice(0, 12)} cmd=${rec.preview}`);
+          try { storeAuditEnvelope({ type: 'event', from: `agent.${assistant || 'quox'}`, to: 'audit.system', intent: 'quox.cli_tools.bash_denied', corr: rec.turn_id || `BASHDENY_${Date.now()}`, org_id: streamJwtOrgId || null, payload: rec }); } catch { /* evidence is best-effort */ }
+        },
+        // quox#1044: the CLI's delegate_to_agent runs via /api/v1/tools/execute, whose turn token pins this conversation.
+        passthrough: cliPass,
         dashboardOrigin: process.env.QUOX_PUBLIC_URL
           || (req.headers.host ? `${String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim()}://${String(req.headers['x-forwarded-host'] || req.headers.host).split(',')[0].trim()}` : ''),
       }) : null;
@@ -25427,6 +26085,7 @@ async function chatStreamHandler(req, res) {
       // record the CLI session. A second concurrent turn waits briefly, then runs fresh
       // with the history block and records nothing (lib/cliConversationLock.js says why).
       const cliLockKey = { orgId: streamJwtOrgId, userId: streamJwtUserId, conversationId: historySessionId, agentId: cliAgentId };
+      _turnPhases.mark('agent_ctx_branch');
       const cliLock = cliStreamOptIn
         ? await require('./lib/cliConversationLock.js').acquire(cliLockKey)
         : { acquired: false, reason: 'not_opted_in', release() {} };
@@ -25459,12 +26118,16 @@ async function chatStreamHandler(req, res) {
 
       // QUOXON-PARITY: the same candidate pool (grant -> QuoxHat manifest, no provider pre-cap)
       // and the same eligibility policy as the API loops (lib/turnToolSelection.js
-      // selectCatalogueTools), reported with the same `tools offered: N of M` trace. This path
-      // lists its tools in the prompt and has no per-round offer, so the catalogue is every
-      // eligible tool: exactly what an API offer reaches through more_tools.
+      // selectTurnTools), reported with the same `tools offered: N of M` trace. This path
+      // lists its tools in the prompt and has no per-round offer, so the other eligible tools
+      // ride as a name + argument index: exactly what an API offer reaches through more_tools.
       let cliCatalogueTools = streamAgentCtx.tools;
+      let cliToolIndex = null;
+      let cliHatSwitchNote = null; // CUSTOM-HATS: one-turn "hat changed" note (null = none)
+      let cliHatAgentScope = null; // CUSTOM-HATS: the enforced hat's agent roster for this turn (null = unscoped)
       if (Array.isArray(streamAgentCtx.tools) && streamAgentCtx.tools.length > 0) {
         try {
+          _turnPhases.mark('cli_lock');
           const cliPool = await require('./lib/streamToolSet.js').resolveStreamToolSet({
             agent: cliAgentId, orgId: streamJwtOrgId || null, userId: streamJwtUserId || null,
             conversationId: effectiveStreamSessionId, prompt: decodedPrompt, provider: 'anthropic', providerKeys, offerBounded: true,
@@ -25473,14 +26136,50 @@ async function chatStreamHandler(req, res) {
             applySmartToolCap, checkManifestCompat: require('./lib/providerCompat').checkManifestCompat,
             storeAuditEnvelope, searchToolsFn: toolIndexSearchTools, embedText: quoxchatRoutes.embedText,
           });
-          cliCatalogueTools = require('./lib/turnToolSelection.js').buildCatalogueTools({
-            provider: 'anthropic', pool: cliPool.tools, message: decodedPrompt, agent: cliAgentId,
-            trace: turnStream.trace, turnId: turnIdentity.turnId,
+          // QUOXON-LATENCY + parity: the SAME D3 offer as the API paths, plus an index of
+          // the other eligible tools (this path's more_tools), not every tool in full.
+          cliHatAgentScope = require('./lib/delegationRoster.js').hatAgentScope(cliPool.hatManifest);
+          cliHatSwitchNote = cliPool.hatSwitchNote || null;
+          const cliOffer = require('./lib/cliToolOffer.js').buildCliToolOffer({
+            agentScope: cliHatAgentScope ? cliHatAgentScope.agents : null,
+            provider: 'anthropic', pool: cliPool.tools, message: decodedPrompt, history: streamHistory, agent: cliAgentId,
+            trace: turnStream.trace, turnId: turnIdentity.turnId, slotNames: require('./lib/slotTools.js').slotNamesForOrg(streamJwtOrgId), terminal: fromTerminal, plan: planTurn,
           });
+          cliCatalogueTools = cliOffer.offered;
+          cliToolIndex = cliOffer.index;
+          // Per-agent pre-warm (QUOXON 2026-10-17): the agents this offer names as delegate holders get a warm spare
+          // for this user now, so the hop the model makes a few seconds later does not boot cold. Identity stays in
+          // the spare key (a spare for agent A never serves B); within the pool cap and LRU.
+          if (cliWarmPool && cliWarmPool.enabled && (cliOffer.delegationHints || []).length) {
+            setImmediate(() => {
+              try {
+                // No recipe (the first hop to an agent after a boot): a DRY RUN of the dispatcher's own hop builder
+                // gives the exact args/env; unresolvable = no spare. Nothing is persisted.
+                const pw = require('./lib/cliWarmPool.js').prewarmHintedAgents(cliWarmPool, { orgId: streamJwtOrgId, userId: streamJwtUserId, self: cliAgentId, hints: cliOffer.delegationHints,
+                  resolveShape: (agentId) => require('./lib/cliHopShape.js').resolveHopShape(hopWarmDeps(), { agentId, orgId: streamJwtOrgId, userId: streamJwtUserId, userAccessToken: streamUserAccessToken, keys: { providerKeys, claudeKeys } }),
+                  onShape: (x) => console.log(`[CLI-WARM] agent prewarm (dry shape) turn=${turnIdentity.turnId} ${x.agentId}:${x.reason}`) });
+                if (pw.length) console.log(`[CLI-WARM] agent prewarm turn=${turnIdentity.turnId} ${pw.map((x) => `${x.agentId}:${x.reason}`).join(' ')}`);
+              } catch { /* latency only, never the turn */ }
+            });
+          }
         } catch (catErr) {
           console.warn(`[ToolOffer] catalogue policy failed, the grant list stands (exec stays gated): ${catErr && catErr.message}`);
         }
       }
+
+      // QUOXON first-text (2026-10-19): an attached agent that lacks the tools this ask needs is told BEFORE dispatch,
+      // so it answers in one model hop instead of a refused call plus a second hop (~10 s). The predicted gap is
+      // recorded as a refusal would be, so the end-of-turn handoff card (same suggestHandoff) stays certain.
+      let cliHandoffGapNote = '';
+      try {
+        const hs = require('./lib/handoffSuggest.js');
+        const gOrg = [req._aoclCtx?.orgId, req.user?.org_id].find((o) => o && o !== '__default__') || 'guard';
+        const gap = hs.suggestHandoff({ agent: cliAgentId || '', message: decodedPrompt || '', orgId: gOrg, hosts: knownFleetHostNames() });
+        if (gap && handoffConvKey && hs.notePredictedGap(handoffConvKey, gOrg, cliAgentId || '', gap.tools)) {
+          cliHandoffGapNote = hs.gapPromptNote(gap);
+          console.log(`[HandoffGap] turn=${turnIdentity.turnId} agent=${cliAgentId} predicted=${gap.tools.join(',')}`);
+        }
+      } catch { /* a latency hint only; the refusal path still covers the turn */ }
 
       let cliResult = null;
       let cliThrown = null;
@@ -25488,10 +26187,14 @@ async function chatStreamHandler(req, res) {
       // event and first text are timed from dispatch, so they hold CLI spawn + init +
       // model time to first token. (cli_spawn_ms itself lives in claudeCliDispatcher.js.)
       const _tDispatch = Date.now();
-      console.log(`[TurnTiming] turn=${turnIdentity.turnId} agent=${cliAgentId} phase=dispatch prompt_build_ms=${_tDispatch - _turnTiming.t0} connector_tools_ms=${_turnTiming.connector_tools_ms ?? 'n/a'} connector_cache=${_turnTiming.connector_cache || 'n/a'} sys_prompt_chars=${String(systemPrompt || '').length}`);
+      turnTiming.mark('dispatch');
+      turnTiming.set({ path: 'cli-tools' });
+      console.log(`[TurnTiming] turn=${turnIdentity.turnId} agent=${cliAgentId} phase=dispatch prompt_build_ms=${_tDispatch - _turnTiming.t0} connector_tools_ms=${_turnTiming.connector_tools_ms ?? 'n/a'} connector_cache=${_turnTiming.connector_cache || 'n/a'} sys_prompt_chars=${String(systemPrompt || '').length} ${(_turnPhases.mark('tool_set'), _turnPhases.field())} first_after_boot=${require('./lib/turnPhases.js').takeFirstAfterBoot() ? 1 : 0}`);
       let _firstEventMs = null;
       let _firstTextMs = null;
       const _timedOnStreamEvent = cliBridge ? (e) => {
+        if (e && e.kind === 'init') { turnTiming.mark('cli_init'); return undefined; }
+        if (e && e.kind === 'message_start') turnTiming.mark('model_first_byte');
         if (_firstEventMs === null) _firstEventMs = Date.now() - _tDispatch;
         if (_firstTextMs === null && e && e.kind === 'text' && e.delta) _firstTextMs = Date.now() - _tDispatch;
         return cliBridge.onParsed(e);
@@ -25506,6 +26209,10 @@ async function chatStreamHandler(req, res) {
         effectiveSessionId: effectiveStreamSessionId,
         selected_agent: cliAgentId,
         agentTools: cliCatalogueTools,
+        agentToolIndex: cliToolIndex,
+        hatAgentScope: cliHatAgentScope, // CUSTOM-HATS: the prompt names only the hat's agents
+        hatSwitchNote: cliHatSwitchNote, // CUSTOM-HATS: the hat changed since the last turn (resumed session)
+        handoffGapNote: cliHandoffGapNote, // QUOXON first-text: role gap told up front
         model: startedModel, // QUOXON-PARITY: --model, so turn.started names what runs
         cliOAuthToken,
         userAccessToken: streamUserAccessToken,
@@ -25518,12 +26225,23 @@ async function chatStreamHandler(req, res) {
         orgId: streamJwtOrgId || null,
         noToolsRequested: false,
         maxDurationMs: null,
+        // quox#1090: a caller that states its turn budget (quox --print --timeout) lets a delegation hop
+        // use it. It never lengthens the turn token or the held bearer (SITE-CLI tightening).
+        turnBudgetMs: require('./lib/turnBudget.js').clampTurnBudgetMs(sp.turn_budget_ms),
+        turnMode: planTurn ? 'plan' : null, // PLAN MODE: the turn token carries it; tools/execute refuses writes
         nativeWebSearch: routingDecision.features.web_search === true,
-        clientDisconnected: () => aborted || !!(turnEntry && turnEntry.interrupted),
+        // quox#1044: the late specialist answer was shown mid-turn: stop the outer CLI (no re-derivation).
+        clientDisconnected: () => aborted || !!(turnEntry && turnEntry.interrupted) || passGate.stopRequested(),
+        deadlineControl: passDeadline,
         onStreamEvent: _timedOnStreamEvent,
+        // CLI-WARM (2026-10-17): a turn without turn_id (plain `quox chat`) has no bridge, so it ran one-shot
+        // json and never took or refilled a warm spare (story-a: 50/50 misses). Run it stream-json internally;
+        // the client still gets the one-shot reply. QUOX_CLI_WARM_ONESHOT=0 = the old path.
+        warmOneShot: !cliBridge && process.env.QUOX_CLI_WARM_ONESHOT !== '0',
         cliContinuity: cliContinuityOpts,
       }, {
         spawnFn: spawn,
+        cliWarmPool,
         fetchFn: fetch,
         fsWriteFile: fsMod.writeFileSync.bind(fsMod),
         fsUnlink: (p) => { try { fsMod.unlinkSync(p); } catch {} },
@@ -25561,6 +26279,8 @@ async function chatStreamHandler(req, res) {
         // rejects; keep it so an interrupt-caused kill is not reported as a crash.
         cliThrown = e;
       }
+      turnTiming.set({ cli_warm: (cliResult && cliResult.cliWarm) || (cliThrown && cliThrown._cliWarm) || 'n/a' });
+      try { turnTiming.set({ cli_warm_pool: cliWarmPool.stats() }); } catch { /* stats are diagnostic only */ }
       console.log(`[TurnTiming] turn=${turnIdentity.turnId} agent=${cliAgentId} phase=cli_done first_stream_event_ms=${_firstEventMs ?? 'n/a'} first_text_ms=${_firstTextMs ?? 'n/a'} cli_total_ms=${Date.now() - _tDispatch} turn_total_ms=${Date.now() - _turnTiming.t0}${cliThrown ? ' thrown=1' : ''}`);
 
       // D2: tag the CLI session file with its org + user, on every end (an interrupted
@@ -25613,6 +26333,31 @@ async function chatStreamHandler(req, res) {
         return;
       }
 
+      // quox#1044 (WORKER1 CLI_1792137143765_3szs6r): a failed CLI end after the user was shown an
+      // answer (the late specialist answer, or streamed text before a timeout kill) finishes with that
+      // answer, never a bare "CLI exited with code 143".
+      let cliSalvageNote = null;
+      if (cliEnd === 'failed') {
+        const sv = require('./lib/cliEndClassifier.js').salvageCliEnd({
+          end: cliEnd, shownText: passGate.shownText(), lateEnded: passGate.stopRequested(),
+          reason: (cliThrown && cliThrown.message) || (cliResult && cliResult.text) || '',
+        });
+        if (sv.salvaged) {
+          console.warn(`[SSE] #1044 CLI ended '${(cliThrown && cliThrown.message) || 'failed'}' after an answer was shown; finishing with it (late_answer=${passGate.stopRequested()})`);
+          recordCliContinuityAfterFailure();
+          cliThrown = null;
+          cliResult = { ...(cliResult || {}), outcome: 'success', text: sv.text, cliSessionId: (cliResult && cliResult.cliSessionId) || null, salvaged: true };
+          cliSalvageNote = sv.note || null;
+        } else if (sv.refusal) {
+          // A provider refusal ends the turn FAILED with its code (never an answer, never stream_success).
+          console.warn(`[SSE] CLI turn refused by the provider: ${sv.refusal.code}${sv.refusal.resets_at ? ` (resets ${sv.refusal.resets_at})` : ''}`);
+          if (!cliThrown) cliThrown = new Error(sv.refusal.message);
+          cliThrown.code = sv.refusal.code;
+          if (sv.refusal.resets_at) cliThrown.resets_at = sv.refusal.resets_at;
+          if (sv.refusal.kind) cliThrown.kind = sv.refusal.kind;
+        }
+      }
+
       if (cliThrown) { recordCliContinuityAfterFailure(); throw cliThrown; }
 
       if (cliResult.outcome !== 'success') {
@@ -25632,7 +26377,35 @@ async function chatStreamHandler(req, res) {
 
       // House voice: the same em-dash scrub the widget stream applies (deltas were
       // scrubbed progressively by the bridge).
-      const cliFinalText = scrubCliEmDashes(cliResult.text);
+      // QUOXON-ENGINE classes 2 + 5: the same grounding contract as the API paths. With the
+      // stream bridge the turn's tool results are the evidence; without it (legacy callers)
+      // only the evidence-free checks run (commands, slash commands, the real command for a "can't").
+      // quox#1044: after a passthrough, the answer is exactly what the user was shown.
+      if (cliResult.salvaged) { /* already exactly what was shown */ }
+      else if (passGate.used()) cliResult.text = cliBridge ? passGate.composeFinal(cliResult.text) : passGate.composeBatch(cliResult.text);
+      if (cliSalvageNote) {
+        cliResult.text += cliSalvageNote;
+        if (cliBridge && cliBridge.streamedChars() > 0) { try { turnStream.emit('text.delta', { content: cliSalvageNote }); } catch { /* client write only */ } }
+      }
+      let cliGroundingFlags = null;
+      {
+        const gc = require('./lib/groundingContract.js').applyGroundingContract({ stripFakeActivity: true,
+          answer: cliResult.text,
+          evidence: [cliBridge ? cliBridge.evidenceText() : '', decodedPrompt, parsedContext.quox_context || '', parsedContext.memory_context || ''].join('\n'),
+          toolResults: cliBridge ? cliBridge.evidenceItems() : undefined,
+          userMessage: decodedPrompt, evidenceAvailable: !!cliBridge,
+          tag: `turn=${turnIdentity.turnId || '-'} agent=${cliAgentId || '-'} provider=claude-cli`,
+        });
+        if (gc.note) {
+          cliGroundingFlags = gc.flags;
+          if (cliBridge && cliBridge.streamedChars() > 0) { try { turnStream.emit('text.delta', { content: gc.note }); } catch { /* client write only */ } }
+          try { turnStream.trace({ protocol: 'volt', label: 'grounding: unverified claims flagged', ref: null, detail: JSON.stringify(gc.flags).slice(0, 500) }); } catch { /* telemetry only */ }
+          cliResult.text = gc.text;
+        }
+      }
+      // quox#1044: a breached delegation: partial flag + the late specialist answer (verbatim, unscrubbed).
+      const cliFinalText = scrubCliEmDashes(cliResult.text)
+        + await breachTail(cliResult.text, (t) => { if (cliBridge && cliBridge.streamedChars() > 0) { try { turnStream.emit('text.delta', { content: t }); } catch { /* client write only */ } } });
       // Legacy clients get the full answer as ONE chunk, as before. When the text
       // already streamed as text.delta, the chunk is written raw: mirroring it would
       // repeat the whole answer as a second text.delta. Nothing streamed (e.g. a
@@ -25643,6 +26416,7 @@ async function chatStreamHandler(req, res) {
       send({
         type: 'done',
         full_response: cliFinalText,
+        ...(cliGroundingFlags ? { grounding_flags: cliGroundingFlags } : {}), // QUOXON-ENGINE: AOCL L8 records it
         session_id: turnIdentity.conversationId,
         cli_session_id: cliResult.cliSessionId || null,
         ...(cliContinuityOpts ? { cli_resumed: cliResult.resumed === true, ...(cliResult.resumeFallback ? { cli_resume_fallback: cliResult.resumeFallback } : {}) } : {}),
@@ -25659,10 +26433,11 @@ async function chatStreamHandler(req, res) {
         }
       });
 
-      recordStreamTurn(cliFinalText);
+      // QUOXON lane S: store this turn's tool activity too, so a next turn on another provider sees it.
+      passGate.commit(); recordStreamTurn(cliFinalText, cliBridge ? cliBridge.activitySummary() : undefined);
       // After the exchange is stored, so last_msg_id covers this turn. Only the lock
       // owner records: a busy (unlocked) fresh turn never replaces the session.
-      if (cliContinuityOpts && cliOwnsContinuity) {
+      if (cliContinuityOpts && cliOwnsContinuity && !cliResult.salvaged) {
         try {
           cliContinuityLib.recordCliContinuity({ orgId: streamJwtOrgId, userId: streamJwtUserId, conversationId: historySessionId, agentId: cliAgentId, result: cliResult });
         } catch (contErr) {
@@ -25677,7 +26452,7 @@ async function chatStreamHandler(req, res) {
         to: 'audit.system',
         intent: 'quox.chat.stream_success',
         corr: corrFor(cliResult.cliSessionId || effectiveStreamSessionId || query_id || `STREAM_${Date.now()}`),
-        payload: { agent: assistant, path: 'stream_oauth_cli', elapsed_ms: cliElapsed, chunk_count: 1, streamed: !!cliBridge, delta_count: cliDeltaCount, response_length: cliFinalText.length }
+        payload: { agent: assistant, path: 'stream_oauth_cli', elapsed_ms: cliElapsed, chunk_count: 1, streamed: !!cliBridge, delta_count: cliDeltaCount, response_length: cliFinalText.length, ...(cliGroundingFlags ? { grounding_flags: cliGroundingFlags } : {}) }
       });
 
       clearInterval(pingInterval);
@@ -25710,13 +26485,13 @@ async function chatStreamHandler(req, res) {
           ? { 'Authorization': `Bearer ${anthropicApiKey}` }
           : { 'x-api-key': anthropicApiKey };
         await runGovernedStreamTurn({
-          provider: 'anthropic', pathLabel: 'stream_anthropic_tools', streamConvId: anthStreamConvId,
-          runLoop: ({ govHooks, govHistory, toolVoltRunId, loopSignal, loopControl }) => executeAnthropicToolLoop(req, {
+          provider: 'anthropic', pathLabel: 'stream_anthropic_tools', streamConvId: anthStreamConvId, toolPool: anthStreamToolSet.tools, hatManifest: anthStreamToolSet.hatManifest || undefined,
+          runLoop: ({ govHooks, govHistory, toolVoltRunId, loopSignal, loopControl, livePrefetch }) => executeAnthropicToolLoop(req, {
             headers: { ...anthAuthHeaders, 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' },
             model: effectiveModel || 'claude-sonnet-5-5',
-            systemPrompt: require('./lib/streamAgentContext.js').buildTurnSystemPrompt({ agent: assistant || 'cipher', fullPrompt: systemPrompt, profile: streamPromptProfile('anthropic'), toolCount: anthStreamToolSet.tools.length }),
-            toolOffer: buildStreamToolOffer({ provider: 'anthropic', pool: anthStreamToolSet.tools, history: govHistory }),
-            userMessage: userMsg,
+            systemPrompt: require('./lib/streamAgentContext.js').buildTurnSystemPrompt({ agent: assistant || 'cipher', fullPrompt: systemPrompt, profile: streamPromptProfile('anthropic'), toolCount: anthStreamToolSet.tools.length }) + require('./lib/hatSwitchNote.js').hatSwitchBlock(anthStreamToolSet.hatSwitchNote),
+            toolOffer: buildStreamToolOffer({ provider: 'anthropic', pool: anthStreamToolSet.tools, history: govHistory, hatManifest: anthStreamToolSet.hatManifest }),
+            userMessage: require('./lib/liveDataPrefetch.js').withLiveData(userMsg, livePrefetch),
             selected_agent: assistant || 'cipher',
             session_id: anthStreamConvId,
             effectiveSessionId: anthStreamConvId,
@@ -25848,9 +26623,9 @@ async function chatStreamHandler(req, res) {
       to: 'audit.system',
       intent: 'quox.chat.stream_error',
       corr: corrFor(query_id || `ERR_${Date.now()}`),
-      payload: { error: sanitizeErrorForUser(err.message), query_id }
+      payload: { error: sanitizeErrorForUser(err.message), query_id, ...providerErrorFields(err) }
     });
-    send({ type: 'error', error: sanitizeErrorForUser(err.message) });
+    send({ type: 'error', error: sanitizeErrorForUser(err.message), ...providerErrorFields(err) });
   } finally {
     clearInterval(pingInterval);
     // turn.finished BEFORE the response is closed, on every exit path.
@@ -26195,7 +26970,15 @@ require('./lib/quoxonProofReadTools.js').configureProofReads({
 
 app.get('/chat/status', async (req, res) => {
   try {
-    res.json(await buildChatStatus(resolveRequestOrgId(req)));
+    const orgId = resolveRequestOrgId(req);
+    const status = await buildChatStatus(orgId);
+    // #904 part 3: a provider that is refusing turns (weekly limit, no credits) is said here,
+    // so the TUI status line, quox chat-status and the proof canary see it before a turn fails.
+    const health = require('./lib/providerHealth.js');
+    const limits = health.getProviderHealth(orgId);
+    status.provider_health = limits.map((e) => ({ ...e, line: health.healthLine(e) }));
+    if (limits.length) status.degraded = true;
+    res.json(status);
   } catch (err) {
     console.error('[Chat Status] Error checking auth:', err.message);
     res.json({
@@ -26391,6 +27174,8 @@ async function handleCollectorChat(req, res) {
   // Derive org_id and user_id from JWT (server-side — doesn't depend on frontend)
   let jwtOrgId = '';
   let jwtUserId = '';
+  // RunActor slice 2: set only on the service-key, org-only path below; a human or JWT turn never has one.
+  let systemActor;
   // APPROVAL-SPAM 4/6: true only for a verified HUMAN login token (no
   // actor_type: agents/residents carry actor_type 'agent'; carries a login
   // session_id), never for a service-key caller.
@@ -26405,6 +27190,7 @@ async function handleCollectorChat(req, res) {
   // the org; user stays empty (system-scope actor within the org).
   if (serviceAuth && req.body.org_id && !req.body.user_id) {
     jwtOrgId = req.body.org_id;
+    systemActor = require('./lib/systemActor.js').isValidSystemActor(req.body._system_actor) ? req.body._system_actor : 'service:invoke';
     console.log(`[Chat] Service-key auth (org-scoped, no user): org=${jwtOrgId}`);
   }
   if (serviceAuth && req.body.org_id && req.body.user_id) {
@@ -26422,6 +27208,9 @@ async function handleCollectorChat(req, res) {
     // never reachable by external MCP-token callers — so it cannot be used to impersonate a
     // user. The gate stays fully in force for every real body-supplied (org, user) pair.
     const internalDelegation = req.body._internal_delegation === true;
+    // quox#1090 ruling (b): mark a verified internal delegation hop (loopback service key + flag), so the
+    // sub-turn caps its held bearer at the parent's expiry (_bearer_hold_until).
+    req._delegatedHop = internalDelegation;
     // verifyOrgUserMembership is tri-state ('member'/'not_member'/'unavailable');
     // 'unavailable' is an auth outage, not a verdict — fail closed with a
     // retryable 503 so agents don't narrate it as an authorization fact.
@@ -26537,7 +27326,7 @@ async function handleCollectorChat(req, res) {
   // whichever dispatch path then runs the tools. Telephony conversations are
   // excluded until the voice side attests a PIN-verified caller per call.
   if (humanLoginToken && jwtUserId && jwtOrgId && !String(effectiveSessionId).startsWith('tel_')) {
-    require('./lib/directRequestRegistry.js').markDirectRequest(effectiveSessionId, { userId: jwtUserId, orgId: jwtOrgId });
+    require('./lib/directRequestRegistry.js').markDirectRequest(effectiveSessionId, { userId: jwtUserId, orgId: jwtOrgId, agentId: selected_agent || null, message: typeof prompt === 'string' ? prompt : null }); // J2: agent + own words
   }
 
   // HITL-CONTEXT (owner 2026-10-07): remember the human's request on this
@@ -26582,6 +27371,7 @@ async function handleCollectorChat(req, res) {
   // concept and does not apply to a human actively typing in a chat window.
   if (jwtOrgId) {
     const safetyDenial = checkAgentInvokeSafetyGate({
+      overrideId: (req.headers && req.headers['x-override-id']) || undefined, // QUOXON-STEPUP
       orgId: jwtOrgId,
       agentId: selected_agent,
       corr: effectiveSessionId,
@@ -26907,16 +27697,23 @@ async function handleCollectorChat(req, res) {
       const { applyMemoryImplant } = require('./lib/memoryImplant.js');
       const { applySelfKnowledgeImplant } = require('./lib/quoxSelfKnowledgeImplant.js');
       const { loadCognitiveImplants } = require('./lib/agentTools.js');
-      const { memoryContext, selfKnowledgeContext } = await assembleServerContext({
+      const { memoryContext, selfKnowledgeContext, focusContext } = await assembleServerContext({
         orgId: jwtOrgId,
         userId: jwtUserId,
         agentId: selected_agent,
         prompt,
         loadCognitiveImplants,
         getCollectorMirrorCompact,
+        getOrgMirrorSummary: (o) => require('./lib/orgMirror.js').summaryFor(o),
+        // QUOXMIND #1110: the working set, for a person's own turn only (not service-key
+        // delegation or plugin principals, which are automated hops).
+        focus: (!serviceAuth && !req.pluginAuth && jwtOrgId && jwtUserId)
+          ? { getOrgConcerns: require('./lib/signalAggregator.js').getConcernsForOrg }
+          : null,
       });
       sanitizationResult.sanitized = applyMemoryImplant(sanitizationResult.sanitized, memoryContext);
-      sanitizationResult.sanitized = applySelfKnowledgeImplant(sanitizationResult.sanitized, selfKnowledgeContext);
+      sanitizationResult.sanitized = applySelfKnowledgeImplant(sanitizationResult.sanitized,
+        require('./lib/focusImplant.js').joinBlocks(selfKnowledgeContext, focusContext, presenceContextBlock(jwtOrgId))); // PRESENCE
     } catch (err) {
       console.error(`[Chat] Server context injection failed, proceeding without it: ${err.message}`);
     }
@@ -27009,6 +27806,8 @@ Always identify yourself as QuoxCORE or QUOX.`;
               authzMode: manifest.authzMode,
               authorizedAgents: manifest.authorizedAgents,
               delegationScoped: manifest.delegationScoped,
+              scopedAgents: manifest.scopedAgents, // CUSTOM-HATS: roster scope for agent_directory + prompts
+              orchestrator: manifest.orchestrator,
               hatKey: manifest.hatKey,
               hatId: manifest.hatId,
               revision: manifest.revision,
@@ -27093,7 +27892,8 @@ Always identify yourself as QuoxCORE or QUOX.`;
       try {
         const authBase = process.env.AUTH_SERVICE_URL || 'http://quox-auth:3101';
         const svcKey = process.env.INTERNAL_SERVICE_KEY || '';
-        const promptResp = await fetch(`${authBase}/internal/agents/${selected_agent.toLowerCase()}/prompt`, {
+        // ASSAY audit 2026-10-16: name the org; auth resolves a custom agent only inside it
+        const promptResp = await fetch(require('./lib/customAgentPrompt.js').customAgentPromptUrl(authBase, selected_agent, jwtOrgId || null), {
           headers: svcKey ? { 'X-Service-Key': svcKey } : {},
           signal: AbortSignal.timeout(5000)
         });
@@ -27205,57 +28005,40 @@ Always identify yourself as QuoxCORE or QUOX.`;
       }
     }
 
-    // Fetch provider/auth keys before canonical policy resolution
-    const providerKeys = await getProviderKeys(jwtOrgId || req.body?.org_id);
-    const claudeKeys = await getClaudeKeys(jwtOrgId || req.body?.org_id);
-    const baseAnthropicApiKey = (vaultCredential?.provider === 'anthropic' && vaultCredential?.key)
-      ? vaultCredential.key
-      : (claudeKeys.anthropic_api_key || process.env.ANTHROPIC_API_KEY || '');
-
+    // Fetch provider/auth keys, resolve the canonical policy plan and the OAuth token. ONE resolution
+    // (lib/cliHopShape.js resolveChatLlmAuth), shared with the hint-time dry run of a delegate hop
+    // (hopWarmDeps below), so a pre-warmed spare for an agent has the real hop's exact key.
     // Read OAuth token — try vault/instance_config first, then CLI credentials file.
     // GAP-1: shared with /chat/stream via resolveCliOAuthToken() so both entry
     // points authenticate OAuth/CLI users the exact same way.
-    let cliOAuthToken = resolveCliOAuthToken(claudeKeys);
-
     const localSource = (req.body?.local_source_id || req.body?.source_id)
       // SEC-LOCAL-INF-ORG-CHAT (quox#599): org-scoped, same jwtOrgId source
       // as providerKeys/claudeKeys/vaultCredential just above.
       ? resolveLocalSource(req.body?.local_source_id || req.body?.source_id, req.body, jwtOrgId || req.body?.org_id)
       : null;
-
-    const { plan: resolvedCollectorPlan, policyPayload, policyContext } = await resolveCollectorPolicyPlan({
+    const chatLlmAuthCore = await require('./lib/cliHopShape.js').resolveChatLlmAuth(hopWarmDeps(), {
       orgId: jwtOrgId || req.body?.org_id,
       userAccessToken,
       selectedAgent: selected_agent,
       requestedProvider,
       requestedModel,
       requestedCredentialId,
-      credentialMeta: vaultCredential ? {
-        id: requestedCredentialId || null,
-        provider: vaultCredential.provider,
-        label: vaultCredential.label,
-      } : null,
-      anthropicApiKey: baseAnthropicApiKey,
-      cliOAuthToken,
-      providerKeys,
+      vaultCredential,
       localSource,
+      applyOllama: false,
     });
-    // Z2H-R4: as on /chat/stream, an explicit `provider: "ollama"` survives the shared resolver (which does
-    // not know ollama and would swap in the default); the policy still wins when it blocked the override.
+    const { resolvedCollectorPlan } = chatLlmAuthCore;
+    // Z2H-R4: as on /chat/stream, an explicit `provider: "ollama"` survives the shared resolver (which does not know
+    // ollama and would swap in the default); the policy still wins when it blocked the override.
     const collectorPlan = require('./lib/ollamaProvider.js').applyOllamaSelection(resolvedCollectorPlan, { requestedProvider, requestedModel });
-
-    // LLM-CHOICE Phase 1: no_oauth policy flag. When the resolved plan
-    // disallows OAuth/CLI credentials, treat cliOAuthToken as absent for the
-    // rest of this request — the auth-required check below and every
-    // downstream dispatch (stackModeDispatch, PATH 2 CLI branch) then
-    // naturally refuse the CLI path instead of silently using it.
-    const allowOAuthCredentials = collectorPlan.credentialConstraints?.allowOAuth !== false;
+    const chatLlmAuth = require('./lib/cliHopShape.js').finalizeChatLlmAuth(hopWarmDeps(), chatLlmAuthCore, collectorPlan);
+    const { providerKeys, claudeKeys, baseAnthropicApiKey, policyPayload, policyContext, allowOAuthCredentials, nativeWebSearch } = chatLlmAuth;
+    // LLM-CHOICE Phase 1: no_oauth policy flag. When the resolved plan disallows OAuth/CLI credentials,
+    // the token is already blank in chatLlmAuth, so the auth-required check below and every downstream
+    // dispatch (stackModeDispatch, PATH 2 CLI branch) naturally refuse the CLI path.
     // Research capability (SCHOLAR) uses the model's own web search where the leg has one.
-    const nativeWebSearch = require('./lib/nativeWebSearch.js').isNativeWebSearch({ plan: collectorPlan });
+    let cliOAuthToken = chatLlmAuth.cliOAuthToken;
     console.log(`[Chat] capability=${collectorPlan?.capability || 'none'} nativeWebSearch=${nativeWebSearch} agent=${selected_agent}`);
-    if (!allowOAuthCredentials) {
-      cliOAuthToken = '';
-    }
 
     const effectiveProvider = collectorPlan.provider;
     const effectiveModel = collectorPlan.model;
@@ -27641,10 +28424,21 @@ Always identify yourself as QuoxCORE or QUOX.`;
         }, messagesDeps);
         // AUDIT-REAL-4b triage: decisionEvidence was dropped here, so
         // stackModeDispatch's c5.decisionEvidence check never saw it.
-        return { text: r.text, tokensUsed: r.tokensUsed, toolsUsed: r.toolsUsed, toolOutcomes: r.toolOutcomes, model: r.model, path: r.path, decisionEvidence: r.decisionEvidence }; // #889
+        // QUOXON-ENGINE classes 2 + 5: the grounding contract on the non-stream Anthropic path.
+        const rEv = require('./lib/groundingContract.js').evidenceFromExecutions(r.toolExecutions);
+        const rG = require('./lib/groundingContract.js').applyGroundingContract({ stripFakeActivity: true,
+          answer: r.text, userMessage: prompt || userMessage, toolResults: rEv.items, evidenceAvailable: rEv.available,
+          evidence: [rEv.text, prompt || '', userMessage || '', sanitizationResult.sanitized.quox_context || '', sanitizationResult.sanitized.memory_context || ''].join('\n'),
+          tag: `path=anthropic-nonstream agent=${selected_agent}`,
+        });
+        return { text: rG.text, tokensUsed: r.tokensUsed, toolsUsed: r.toolsUsed, toolOutcomes: r.toolOutcomes, model: r.model, path: r.path, decisionEvidence: r.decisionEvidence, ...(rG.flagged ? { groundingFlags: rG.flags } : {}) }; // #889
       };
 
+      // QUOXON-LATENCY: this is the real /chat/claude (delegate_to_agent hop) CLI path. Run stream-json
+      // with a no-op listener so the hop can take a warm spare keyed by agent (QUOX_CLI_WARM_DELEGATE=0 = old path).
+      const warmDelegate = process.env.QUOX_CLI_WARM_DELEGATE !== '0';
       const cliDeps = {
+        ...(warmDelegate ? { cliWarmPool } : {}),
         spawnFn: require('child_process').spawn,
         fetchFn: fetch,
         fsWriteFile: require('fs').writeFileSync,
@@ -27694,10 +28488,12 @@ Always identify yourself as QuoxCORE or QUOX.`;
           effectiveSessionId,
           selected_agent,
           agentTools,
+          hatAgentScope: require('./lib/delegationRoster.js').hatAgentScope(hatManifestCtx), // CUSTOM-HATS
           cliOAuthToken,
           userAccessToken,
           jwtOrgId,
           jwtUserId,
+          systemActor,
           conversation_history,
           memory_context: sanitizationResult.sanitized.memory_context,
           quox_context: sanitizationResult.sanitized.quox_context,
@@ -27711,16 +28507,30 @@ Always identify yourself as QuoxCORE or QUOX.`;
           // dispatcher steers CommanderQ to call its OWN tools directly instead of
           // delegate-first (each delegate_to_agent hop is audible dead air on a call).
           isVoice: req.body?.voice === true || req.body?.voice === 'true',
+          ...(warmDelegate ? { onStreamEvent: () => {}, warmKind: 'delegate' } : {}),
           maxDurationMs: typeof req.body?._max_duration_ms === 'number' ? req.body._max_duration_ms : null,
           clientDisconnected: () => !!(req._clientDisconnected && req._clientDisconnected()),
           aoclCtx: _cliCtx,
           nativeWebSearch,
         }, cliDeps);
+        // per-agent pre-warm measurement: a delegate hop names its agent and whether it took a warm spare
+        if (warmDelegate) { try { console.log(`[CLI-WARM] hop agent=${selected_agent} cli_warm=${(r && r.cliWarm) || 'n/a'} pool=${cliWarmPool.stats()}`); } catch { /* telemetry only */ } }
         // D2: tag the CLI session file with its org + user (GDPR purge, TTL prune).
         require('./lib/chatSessionHistory.js').recordCliSessionFile({ orgId: jwtOrgId || req.body?.org_id, userId: jwtUserId || req.body?.user_id, cliSessionId: r && r.cliSessionId });
         // LLM-FAILOVER P1: pass outcome through so the failover walk can
         // recognise structured CLI failures (outcome: 'cli_error') that the
         // dispatcher reports as a result instead of a throw.
+        // QUOXON-ENGINE classes 2 + 5: the grounding contract on the non-stream Claude CLI path
+        // (a failed CLI outcome is an error text, not an answer: left as is for the failover walk).
+        if (r && r.outcome !== 'cli_error' && typeof r.text === 'string') {
+          const cEv = require('./lib/groundingContract.js').evidenceFromExecutions(r.toolExecutions);
+          const cG = require('./lib/groundingContract.js').applyGroundingContract({ stripFakeActivity: true,
+            answer: r.text, userMessage: prompt || userMessage, toolResults: cEv.items, evidenceAvailable: cEv.available,
+            evidence: [cEv.text, prompt || '', userMessage || '', sanitizationResult.sanitized.quox_context || '', sanitizationResult.sanitized.memory_context || ''].join('\n'),
+            tag: `path=claude-cli-nonstream agent=${selected_agent}`,
+          });
+          return { text: cG.text, tokensUsed: r.tokensUsed, toolsUsed: r.toolsUsed, toolOutcomes: r.toolOutcomes, model: r.model, path: r.path, outcome: r.outcome, decisionEvidence: r.decisionEvidence, ...(cG.flagged ? { groundingFlags: cG.flags } : {}) }; // #889
+        }
         return { text: r.text, tokensUsed: r.tokensUsed, toolsUsed: r.toolsUsed, toolOutcomes: r.toolOutcomes, model: r.model, path: r.path, outcome: r.outcome, decisionEvidence: r.decisionEvidence }; // #889
       };
 
@@ -28381,6 +29191,68 @@ app.delete('/api/v1/awareness/:key', requireServiceOrUserAuth(), (req, res) => {
   } catch (err) { awarenessErr(res, err); }
 });
 
+// QuoxMind cognitive implants (read-only): `quox mind implants|implant|health`.
+// Registry facts via loadCognitiveImplants (same source as execution_intelligence),
+// live status from tasks /api/engine/<implant>/stats, org-scoped. Behind the
+// default-deny gate (authenticated user or service key); no allowlist entry.
+async function mindContext(req, res) {
+  const orgId = resolveSlotOrgId(req);
+  if (!orgId) { res.status(400).json({ error: 'org could not be resolved' }); return null; }
+  const { loadCognitiveImplants } = require('./lib/agentTools.js');
+  const registry = await loadCognitiveImplants();
+  if (!registry || !Object.keys(registry).length) { res.status(503).json({ error: 'implant registry unavailable' }); return null; }
+  return {
+    orgId, registry,
+    // Qortex counts the asking user's personal notes too (proof qortex/brain-note-count).
+    userId: req.user?.id || null,
+    tasksUrl: `http://${process.env.TASKS_HOST || 'tasks'}:${process.env.TASKS_PORT || '3104'}`,
+    serviceKey: process.env.INTERNAL_SERVICE_KEY || '',
+  };
+}
+
+app.get('/api/v1/mind/implants', requireServiceOrUserAuth(), async (req, res) => {
+  try {
+    const c = await mindContext(req, res); if (!c) return;
+    const implants = await require('./lib/mindImplants.js').listImplants(c);
+    res.json({ count: implants.length, implants });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/v1/mind/health', requireServiceOrUserAuth(), async (req, res) => {
+  try {
+    const c = await mindContext(req, res); if (!c) return;
+    const mi = require('./lib/mindImplants.js');
+    const implants = await mi.listImplants(c);
+    res.json({ ...mi.summarizeHealth(implants), implants: implants.map((e) => ({ id: e.id, short: e.short, status: e.status, health_score: e.health_score, last_fired: e.last_fired, fired_7d: e.fired_7d })) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// The Mirror as CommanderQ sees it (QUOXON-MIRROR): this org's Mirror, built server-side from each
+// owning service (lib/mirrorBuilder.js via lib/orgMirror.js), the same object injected into
+// CommanderQ's [SELF-KNOWLEDGE] and shown by the TUI /mirror and the dashboard Mirror tab. Read-only;
+// a user is locked to their own org (resolveSlotOrgId), a service caller names one.
+app.get('/api/v1/mind/mirror', requireServiceOrUserAuth(), async (req, res) => {
+  const orgId = resolveSlotOrgId(req);
+  if (!orgId) return res.status(400).json({ error: 'org could not be resolved' });
+  try {
+    const om = require('./lib/orgMirror.js');
+    const r = await om.get(orgId);
+    res.json({ org_id: orgId, available: true, age_ms: r.age_ms, fresh: r.fresh, refreshed_at: r.refreshed_at, refresh_ms: r.refresh_ms,
+      injected_as: '[SELF-KNOWLEDGE] ## QuoxMind Mirror', summary: om.mirrorSummary(r.mirror), mirror: r.mirror });
+  } catch (err) {
+    res.status(503).json({ error: err.message, code: err.code || 'MIRROR_BUILD_FAILED' });
+  }
+});
+
+app.get('/api/v1/mind/implants/:id', requireServiceOrUserAuth(), async (req, res) => {
+  try {
+    const c = await mindContext(req, res); if (!c) return;
+    const d = await require('./lib/mindImplants.js').implantDetail({ ...c, implantId: req.params.id });
+    if (!d) return res.status(404).json({ error: `unknown implant: ${req.params.id}`, valid: Object.keys(c.registry) });
+    res.json(d);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Internal summary for a service-key reader that already knows its org (the voice bridge
 // injects this into a PIN-verified caller's context). Service-key only, org_id explicit in
 // the query since a pure service call carries no org to resolve.
@@ -28786,7 +29658,7 @@ async function handleMessagesApi(req, res, opts) {
     voice_summary: result.voiceSummary,
     session_id: opts.effectiveSessionId,
     cost_usd: 0,
-    model: opts.requestedModel || 'claude-sonnet-4-6',
+    model: opts.requestedModel || catalogDefaultModel(),
     provider: opts.requestedProvider || 'anthropic',
     agent_used: opts.selected_agent,
     tools_used: result.toolsUsed,
@@ -28844,17 +29716,24 @@ async function handleClaudeCliWithTools(req, res, opts) {
     setActiveChatSession(chatSessionForCapture);
   } catch { /* never block */ }
 
+  // QUOXON-LATENCY: delegated specialist hops (and any /chat/claude turn) run stream-json with a
+  // no-op listener so they can use a warm spare keyed by agent. QUOX_CLI_WARM_DELEGATE=0 = old path.
+  const warmDelegate = process.env.QUOX_CLI_WARM_DELEGATE !== '0' && typeof opts.onStreamEvent !== 'function';
   const result = await dispatchClaudeCli(
     {
       ...opts,
+      ...(warmDelegate ? { onStreamEvent: () => {}, warmKind: 'delegate' } : {}),
       userId: req.body?.user_id,
       orgId: req.body?.org_id,
       noToolsRequested: req.body?.no_tools === true || req.body?.no_tools === 'true',
       maxDurationMs: typeof req.body?._max_duration_ms === 'number' ? req.body._max_duration_ms : null,
+      // quox#1090 ruling (b): a delegated sub-turn never holds the bearer past its parent's hold.
+      bearerHoldUntil: req._delegatedHop === true ? (Number(req.body._bearer_hold_until) || null) : null,
       clientDisconnected: () => !!(req._clientDisconnected && req._clientDisconnected()),
     },
     {
       spawnFn: spawn,
+      ...(warmDelegate ? { cliWarmPool } : {}),
       fetchFn: fetch,
       fsWriteFile: fs.writeFileSync.bind(fs),
       fsUnlink: (p) => { try { fs.unlinkSync(p); } catch {} },
@@ -28981,7 +29860,7 @@ async function handleClaudeCliWithTools(req, res, opts) {
       // multi-turn `--resume` on the next request.
       session_id: result.cliSessionId || opts.effectiveSessionId,
       cost_usd: result.cost_usd,
-      model: 'claude-sonnet-4-6',
+      model: catalogDefaultModel(),
       provider: 'anthropic',
       agent_used: selectedAgent,
       tools_used: result.toolsUsed,
@@ -29152,6 +30031,18 @@ function clearTrackedTools(sessionId) {
 // Follow-up resolver: short prompts ("yes", "do it", "go ahead") are resolved
 // using conversation history to determine the actual intent
 // ============================================================================
+
+// approvals-glitch: a short human yes ("do that") is read with the agent's last message (lib/quoxCli/directIntent.js confirmedAsk).
+function directAskWithContext(message, orgId, userId, sessionId) {
+  try {
+    const { isAffirmation, confirmedAsk } = require('./lib/quoxCli/directIntent.js');
+    if (!isAffirmation(message)) return message;
+    const hist = require('./lib/chatSessionHistory.js').hydrateHistory({ orgId, userId, sessionId, clientHistory: [], includeActivity: false }).history || [];
+    const last = [...hist].reverse().find((m) => m && m.role === 'assistant' && typeof m.content === 'string');
+    return confirmedAsk(message, last ? last.content : '');
+  } catch { return message; }
+}
+
 function resolveFollowUp(prompt, conversationHistory) {
   const trimmed = prompt.trim();
 
@@ -30705,10 +31596,12 @@ function ensureCodebaseDb() {
  * Body: { path: string, projectName?: string, orgId?: string }
  */
 app.post('/api/v1/codebase/scan', scanLimiter, requireServiceOrUserAuth(), async (req, res) => {
-  const { path: projectPath, projectName, orgId = 'default' } = req.body;
-  if (!projectPath) {
+  const { path: rawPath, projectName, orgId = 'default' } = req.body;
+  if (!rawPath) {
     return res.status(400).json({ success: false, error: 'path is required' });
   }
+  // #1021: the dashboard sends '~/<repo>' (it cannot know the host's home); expand it here.
+  const projectPath = /^~(\/|$)/.test(String(rawPath)) ? hostPath(String(rawPath).replace(/^~\/?/, '')) : rawPath;
 
   try {
     ensureCodebaseDb();
@@ -31246,6 +32139,17 @@ const { grafanaFetch: _grafanaFetch, grafanaPost: _grafanaPost, getGrafanaUrl, s
  * GET /api/v1/grafana/config
  * Returns the Grafana base URL for iframe embedding (no API key exposed).
  */
+// FND_...TX95 (WORKER2 2026-10-19): the monitoring/grafana config WRITE routes persist an INSTANCE-GLOBAL file, so a
+// single tenant could repoint Prometheus/Grafana for every org (proven: a second-org non-admin PUT wrote it). Writes
+// are INSTANCE-ADMIN only. requireAuth({required:true}) first (401 if unauthenticated), then this (403 if not instance admin).
+async function requireInstanceAdminMw(req, res, next) {
+  try {
+    const verdict = await require('./lib/pluginBackendAdmin.js').checkInstanceAdmin(req, { isHumanAdmin });
+    if (verdict === 'yes') return next();
+    if (verdict === 'unavailable') return res.status(503).json({ success: false, error: 'instance-admin check unavailable' });
+    return res.status(403).json({ success: false, error: 'instance admin required' });
+  } catch { return res.status(403).json({ success: false, error: 'instance admin required' }); }
+}
 app.get('/api/v1/grafana/config', requireServiceOrUserAuth(), (req, res) => {
   res.json({ success: true, url: getGrafanaUrl() });
 });
@@ -31254,7 +32158,7 @@ app.get('/api/v1/grafana/config', requireServiceOrUserAuth(), (req, res) => {
  * PUT /api/v1/grafana/config
  * Save a new Grafana URL. Persisted to disk so it survives container restarts.
  */
-app.put('/api/v1/grafana/config', requireServiceOrUserAuth(), (req, res) => {
+app.put('/api/v1/grafana/config', requireAuth({ required: true }), requireInstanceAdminMw, (req, res) => {
   const { url } = req.body;
   if (!url || typeof url !== 'string') return res.status(400).json({ success: false, error: 'url is required' });
   // Basic URL validation
@@ -31508,8 +32412,8 @@ const MONITORING_DEFAULTS = {
 async function resolveProxmoxCredentialDefaults(orgId) {
   try {
     const resolved = await resolveCredentialForAgent(orgId, 'atlas', 'proxmox');
-    const { url, token } = resolveProxmoxConnection(resolved);
-    return { url: url || MONITORING_DEFAULTS.proxmox.url, token: token || MONITORING_DEFAULTS.proxmox.token };
+    const { url, token, tlsFingerprint } = resolveProxmoxConnection(resolved);
+    return { url: url || MONITORING_DEFAULTS.proxmox.url, token: token || MONITORING_DEFAULTS.proxmox.token, tlsFingerprint };
   } catch (err) {
     console.warn('[Monitoring] Proxmox vault credential resolution failed, using env fallback:', err.message);
     return { url: MONITORING_DEFAULTS.proxmox.url, token: MONITORING_DEFAULTS.proxmox.token };
@@ -31543,7 +32447,7 @@ app.get('/api/v1/monitoring/config', requireAuth({ required: false }), (req, res
  * PUT /api/v1/monitoring/config/:service
  * Save a monitoring service URL. Persisted to disk.
  */
-app.put('/api/v1/monitoring/config/:service', requireAuth({ required: false }), (req, res) => {
+app.put('/api/v1/monitoring/config/:service', requireAuth({ required: true }), requireInstanceAdminMw, (req, res) => {
   const { service } = req.params;
   const { url } = req.body;
   if (!url || typeof url !== 'string') return res.status(400).json({ success: false, error: 'url is required' });
@@ -31584,7 +32488,7 @@ app.put('/api/v1/monitoring/config/:service', requireAuth({ required: false }), 
  * DELETE /api/v1/monitoring/config/:service/status-page/:slug
  * Remove a status page from the Uptime Kuma config.
  */
-app.delete('/api/v1/monitoring/config/:service/status-page/:slug', requireAuth({ required: false }), (req, res) => {
+app.delete('/api/v1/monitoring/config/:service/status-page/:slug', requireAuth({ required: true }), requireInstanceAdminMw, (req, res) => {
   const { service, slug } = req.params;
   const config = loadMonitoringConfig();
   if (!config[service]?.statusPages) return res.status(404).json({ success: false, error: 'No status pages configured' });
@@ -31615,6 +32519,8 @@ app.post('/api/v1/monitoring/discover', requireAuth({ required: false }), async 
       if (healthUrl.startsWith('https:')) {
         const apiToken = saved[svc]?.token || defaults.token || '';
         const httpsOpts = { rejectUnauthorized: false, timeout: 5000 };
+        // DEVFLEET-A2: proxmox shares the pinned agent with the REST read client.
+        if (svc === 'proxmox') httpsOpts.agent = require('./lib/proxmoxApi.js').getPveAgent(defaults.tlsFingerprint);
         if (apiToken) httpsOpts.headers = { Authorization: `PVEAPIToken=${apiToken}` };
         const data = await new Promise((resolve, reject) => {
           const req = https.get(healthUrl, httpsOpts, (resp) => {
@@ -31766,6 +32672,7 @@ app.all('/api/v1/monitoring/proxy/:service/*', requireServiceOrUserAuth(), async
       const data = await new Promise((resolve, reject) => {
         const opts = require('url').parse(targetUrl);
         opts.rejectUnauthorized = false;
+        if (service === 'proxmox') opts.agent = require('./lib/proxmoxApi.js').getPveAgent(defaults?.tlsFingerprint);
         opts.timeout = 15000;
         opts.method = req.method;
         opts.headers = { Accept: 'application/json' };
@@ -31801,6 +32708,34 @@ app.all('/api/v1/monitoring/proxy/:service/*', requireServiceOrUserAuth(), async
     }
   } catch (err) {
     res.status(502).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/v1/proxmox/resolve?name=<vm name>   (DEVFLEET-A2)
+ * Name -> {vmid,node,type,status} from the live /cluster/resources, over the
+ * Proxmox REST API with the caller's org vault credential. Authed (default-deny
+ * gate + requireAuth); org always comes from the verified caller, never from
+ * the query. Errors are errors: not configured 503, upstream failure 502,
+ * unknown name 404, ambiguous 409 with candidates.
+ */
+app.get('/api/v1/proxmox/resolve', requireAuth(), async (req, res) => {
+  const name = typeof req.query.name === 'string' ? req.query.name.trim() : '';
+  if (!name) return res.status(400).json({ success: false, error: 'missing_name' });
+  const orgId = req.user && req.user.org_id;
+  if (!orgId) return res.status(403).json({ success: false, error: 'org_required' });
+  try {
+    const { pveGet } = require('./lib/proxmoxApi.js');
+    const { resolveVmFromResources } = require('./lib/toolExecutors/proxmox.js');
+    const resources = await pveGet('/cluster/resources', { type: 'vm' }, { orgId });
+    const out = resolveVmFromResources(resources, name);
+    if (out.success) return res.json(out);
+    return res.status(out.error === 'ambiguous' ? 409 : 404).json(out);
+  } catch (err) {
+    const code = err && err.code;
+    if (code === 'not_configured') return res.status(503).json({ success: false, error: 'proxmox_not_configured' });
+    if (code === 'lease_blocked') return res.status(403).json({ success: false, error: 'lease_blocked' });
+    return res.status(502).json({ success: false, error: code || 'proxmox_error', detail: err && err.message });
   }
 });
 
@@ -32015,6 +32950,61 @@ app.post('/api/v1/ward/witness', toolLimiter, requireServiceOrUserAuth(), async 
   } catch (err) {
     res.status(500).json({ error: 'witness_failed', detail: err.message });
   }
+});
+
+// F01 A': quarantined legacy files are assigned to an org only by a human instance admin (lib/filesQuarantineAdmin.js).
+{
+  const filesCall = async (method, p, body) => {
+    const r = await fetch(`${process.env.FILES_SERVICE_URL || 'http://files:3102'}${p}`, {
+      method, headers: { 'Content-Type': 'application/json', 'X-Service-Key': process.env.INTERNAL_SERVICE_KEY || '' },
+      ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(15000),
+    });
+    let json = null; try { json = await r.json(); } catch { json = null; }
+    return { status: r.status, json };
+  };
+  const fq = require('./lib/filesQuarantineAdmin.js').makeFilesQuarantineHandlers({
+    checkInstanceAdmin: (req) => require('./lib/pluginBackendAdmin.js').checkInstanceAdmin(req, { isHumanAdmin }),
+    filesCall,
+    audit: (e) => storeAuditEnvelope({ type: 'event', from: `human.${e.payload.actor_user_id}`, to: 'audit.system', corr: `F01_ASSIGN_${e.payload.file_id}`, ...e }),
+  });
+  app.get('/api/v1/admin/files/quarantine', requireServiceOrUserAuth(), (req, res) => fq.list(req, res));
+  app.post('/api/v1/admin/files/assign', requireServiceOrUserAuth(), (req, res) => fq.assign(req, res));
+}
+
+// #1078: the ONE writer for auth audit witnesses (lib/authAuditWitness.js). Not allowlisted: collectorAuthGate's
+// default-deny admits only the service key or a JWT, and the handler then refuses anything but the service key.
+app.post('/api/internal/ward/auth-audit', async (req, res) => {
+  let ward = null;
+  try { ward = await wardApiModule.getWardService?.(); } catch { ward = null; }
+  if (!ward) return res.status(503).json({ success: false, error: 'ward_unavailable' });
+  return require('./lib/authAuditWitness.js').makeAuthAuditWitnessHandler({
+    wardHookAOCL: (env) => ward.wardHookAOCL(env),
+    getHookChainId: () => ward.getHookChainId(),
+    getEntryBySource: (chainId, kind, id) => ward.getEntryBySource(chainId, kind, id),
+  })(req, res);
+});
+
+// #1081: auth approval_events witnesses (AUDIT-REAL-1), same single writer and guards as the audit route.
+app.post('/api/internal/ward/approval-event', async (req, res) => {
+  let ward = null;
+  try { ward = await wardApiModule.getWardService?.(); } catch { ward = null; }
+  if (!ward) return res.status(503).json({ success: false, error: 'ward_unavailable' });
+  return require('./lib/authAuditWitness.js').makeApprovalEventWitnessHandler({
+    wardHookApproval: (e) => ward.wardHookApproval(e),
+    getHookChainId: () => ward.getHookChainId(),
+    getEntryBySource: (chainId, kind, id) => ward.getEntryBySource(chainId, kind, id),
+  })(req, res);
+});
+
+app.get('/api/internal/ward/auth-audit/entries', async (req, res) => {
+  let ward = null;
+  try { ward = await wardApiModule.getWardService?.(); } catch { ward = null; }
+  if (!ward) return res.status(503).json({ success: false, error: 'ward_unavailable' });
+  return require('./lib/authAuditWitness.js').makeAuthAuditEntriesHandler({
+    getHookChainId: () => ward.getHookChainId(),
+    getHead: () => ward.getChain(ward.getHookChainId())?.head_seq || 0,
+    getEntriesRange: (chainId, from, to) => ward.getEntriesRange(chainId, from, to),
+  })(req, res);
 });
 
 app.post('/api/v1/admin/plugins/:pluginId/tools', requireServiceOrUserAuth(), _pluginBackendHandlers.tools);
@@ -33002,10 +33992,47 @@ app.use((err, req, res, next) => {
 // mid-flight and VOLT runs stayed 'active' forever. ~10K such stale runs
 // accumulated in production prior to this fix.
 let shuttingDown = false;
+// QUOXON-LATENCY L2: warm `claude` spares for the CLI-tools turn path (lib/cliWarmPool.js).
+// One spare per active conversation, single use, idle TTL, capped. QUOX_CLI_WARM=0 turns it
+// off (every turn cold, exactly the old path). State shows per turn as cli_warm in
+// [TurnTiming] phase=summary (hit | miss | fallback:<reason>).
+const cliWarmPool = require('./lib/cliWarmPool.js').createCliWarmPool({
+  spawnFn: (...a) => require('child_process').spawn(...a),
+  enabled: process.env.QUOX_CLI_WARM !== '0',
+  ttlMs: Number(process.env.QUOX_CLI_WARM_TTL_MS) > 0 ? Number(process.env.QUOX_CLI_WARM_TTL_MS) : undefined,
+  maxSpares: Number(process.env.QUOX_CLI_WARM_MAX) > 0 ? Number(process.env.QUOX_CLI_WARM_MAX) : undefined,
+  // quox#1151: remember conversation spares durably so a restart can re-warm them.
+  recipeStore: process.env.QUOX_CLI_WARM !== '0'
+    ? require('./lib/cliWarmBoot.js').createWarmRecipeStore({ file: process.env.QUOX_CLI_WARM_RECIPES_PATH || undefined })
+    : null,
+});
+// quox#1151: a restart used to leave pool=0/8, so the first turn per user+agent after a deploy
+// booted `claude` cold. After a settle delay (boot is not slowed), re-warm the pairs active in
+// the TTL window before the restart: one spare at a time, capped, skipped under load.
+if (cliWarmPool.enabled) {
+  const cliWarmBootAt = Date.now();
+  const envNum = (k, d) => (Number(process.env[k]) >= 0 && process.env[k] !== undefined && process.env[k] !== '' ? Number(process.env[k]) : d);
+  const t = setTimeout(() => {
+    if (shuttingDown) return;
+    const { bootPrewarm, createWarmRecipeStore } = require('./lib/cliWarmBoot.js');
+    bootPrewarm({
+      pool: cliWarmPool,
+      store: createWarmRecipeStore({ file: process.env.QUOX_CLI_WARM_RECIPES_PATH || undefined }),
+      bootAt: cliWarmBootAt,
+      windowMs: Number(process.env.QUOX_CLI_WARM_TTL_MS) > 0 ? Number(process.env.QUOX_CLI_WARM_TTL_MS) : require('./lib/cliWarmPool.js').DEFAULT_TTL_MS,
+      staggerMs: envNum('QUOX_CLI_WARM_BOOT_STAGGER_MS', 5000),
+      maxLoad: envNum('QUOX_CLI_WARM_BOOT_MAX_LOAD', 20),
+    }).catch((e) => console.warn(`[CLI-WARM] boot prewarm failed: ${e.message}`));
+  }, envNum('QUOX_CLI_WARM_BOOT_DELAY_MS', 20000));
+  if (t && typeof t.unref === 'function') t.unref();
+}
+
 async function gracefulShutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`[Server] ${signal} received — graceful shutdown starting`);
+  // QUOXON-LATENCY L2: no warm `claude` spare outlives the collector.
+  try { cliWarmPool.killAll(`shutdown:${signal.toLowerCase()}`); } catch (err) { console.warn('[Server] CLI warm pool close error:', err.message); }
   try {
     if (voltEmitter && typeof voltEmitter.flushActiveRuns === 'function') {
       const flushed = voltEmitter.flushActiveRuns(`shutdown:${signal.toLowerCase()}`);
@@ -33021,16 +34048,22 @@ async function gracefulShutdown(signal) {
   } catch (err) {
     console.warn('[Server] persona watcher close error:', err.message);
   }
-  try {
-    if (typeof closeWardHooks === 'function') await closeWardHooks();
-  } catch (err) {
-    console.warn('[Server] WARD close error:', err.message);
-  }
-  // Give SQLite 2s to finish writes, then exit
-  setTimeout(() => process.exit(0), 2000);
+  // Give SQLite 2s to finish writes, then close WARD and exit. #1046: WARD closes at
+  // the END of the grace window, not the start: the process keeps serving HTTP for these
+  // 2s, and closing the store first made every in-flight WARD read (chat ward_verify, the
+  // /ward routes) fail "WARD store not initialised" during each redeploy.
+  setTimeout(async () => {
+    try {
+      if (typeof closeWardHooks === 'function') await closeWardHooks();
+    } catch (err) {
+      console.warn('[Server] WARD close error:', err.message);
+    }
+    process.exit(0);
+  }, 2000);
 }
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('exit', () => { try { cliWarmPool.killAll('exit'); } catch { /* exiting */ } });
 
 // CLI-PARITY WP1.1: GET /__routes — fully-resolved route table for the CLI's
 // live-vs-static endpoint diff. Mounted LAST (after every app.use/route,
@@ -33296,6 +34329,28 @@ server.listen(PORT, '0.0.0.0', () => {
   // MR-7: Start collector-side mirror cache refresh
   refreshCollectorMirror();
   const collectorMirrorTimer = setInterval(refreshCollectorMirror, MIRROR_CACHE_TTL);
+  // QUOXON-MIRROR: the org-scoped Mirror (built on demand per org, cached 30s; no timer).
+  try {
+    const loader = require('./lib/entityAssistantLoader.js');
+    const at = require('./lib/agentTools.js');
+    require('./lib/orgMirror.js').configure(require('./lib/mirrorReaders.js').createMirrorReaders({
+      checkServiceHealth: require('./lib/aggregateHealth.js').checkServiceHealth,
+      toolDefs: TOOL_DEFS,
+      listToolMetas: (o) => require('./lib/toolDefinitionsStore.js').listToolMetas(o),
+      loadCognitiveImplants: at.loadCognitiveImplants,
+      listImplants: require('./lib/mindImplants.js').listImplants,
+      buildAgentRegistryList: require('./lib/agentRegistryList.js').buildAgentRegistryList,
+      listAssistants: () => loader.listAssistants().map((id) => loader.getAssistant(id)).filter(Boolean),
+      agentTools: AGENT_TOOLS,
+      governed: at.AGENT_REQUIRES_PLUGIN || {},
+      checkPluginLicense: require('./lib/licenseGate.js').checkPluginLicense,
+      isPluginLicensedForOrg,
+      resolveRepoBrainBackend,
+      listCodebaseProjects: (o) => { ensureCodebaseDb(); return listProjects(o); },
+    }));
+  } catch (err) {
+    console.error('[Mirror] org Mirror not configured:', err.message);
+  }
   if (collectorMirrorTimer.unref) collectorMirrorTimer.unref();
 
   // QMD-A: Start response enrichment pipeline (session journals + quality scoring)
@@ -33311,6 +34366,8 @@ server.listen(PORT, '0.0.0.0', () => {
   // env-configurable via REFLECTION_MINING_INTERVAL_MS (default 5m).
   // Replaces the last browser setInterval cycle in reflectionLoop.js.
   startReflectionMiningScheduler({
+    // 2026-10-16: wait 10 min after boot (it ran in the boot rush and blocked the loop 69 s + 49 s)
+    initialDelayMs: 10 * 60 * 1000,
     listIdleConversationsFn: reflectionMiningListIdleConversations,
     getConversationEnvelopesFn: reflectionMiningGetConversationEnvelopes,
     queryRecentEnvelopesFn: reflectionMiningQueryRecentEnvelopes,
@@ -33321,6 +34378,15 @@ server.listen(PORT, '0.0.0.0', () => {
       if (!voltDb) return true;
       return platformSettingsStore.getEffectiveFlag(voltDb, orgId, 'REFLECTION_MINING_ENABLED').on !== false;
     },
+    // BRAIN2-FABLE11 quox#1193: opt-in chat mining into each member's PERSONAL memory.
+    // Fails CLOSED: a resolver error or anything but exactly true = no chat mining.
+    isChatMiningEnabledFn: async (orgId) => {
+      try {
+        return platformSettingsStore.getEffectiveFlag(voltDb, orgId, 'REFLECTION_MINING_CHATS_ENABLED').on === true;
+      } catch { return false; }
+    },
+    listChatSessionsFn: ({ orgId, after, limit }) => require('./lib/chatSessionHistory.js').listOrgSessionsSince({ orgId, after, limit }),
+    listChatTurnsFn: (args) => require('./lib/chatSessionHistory.js').listSessionTurnsSince(args),
   });
 
   // The Feed (WP2): collector-side autopilot ingestion scheduler — dark

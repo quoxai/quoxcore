@@ -46,6 +46,7 @@
  * one that did, so nothing here collapses an upstream error into a 500.
  */
 
+import { hostPath } from '../utils/hostPaths.js';
 import { Router } from 'express';
 import { existsSync, createReadStream, statSync } from 'fs';
 import * as path from 'path';
@@ -72,7 +73,7 @@ const COLLECTOR_TIMEOUT_MS = 20000;
 // lane (backups.js:47) freezes it at import time; that is a deliberate
 // difference, not an oversight.
 function backupRoot() {
-    return process.env.BACKUP_ROOT || '/opt/quoxcore/backups';
+    return process.env.BACKUP_ROOT || hostPath('backups');
 }
 
 function collectorBaseUrl() {

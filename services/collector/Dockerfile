@@ -175,6 +175,10 @@ COPY VERSION BUILD_COMMI[T] /app/
 
 # Set HOME for Claude CLI config storage
 ENV HOME=/home/quox
+# #905: a server must never update its own CLI. An interactive `claude` run inside the
+# container (e.g. a hand sign-in) ran the auto-updater as root, removed the global
+# install and left chat answering "Claude CLI is not installed". The image pins the version.
+ENV DISABLE_AUTOUPDATER=1
 
 EXPOSE 9848
 

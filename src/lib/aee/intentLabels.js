@@ -43,6 +43,14 @@ const STATIC_LABELS = {
   'ops.approval.grant': 'Approval granted',
   'ops.approval.deny': 'Approval denied',
   'ops.tool.failed': 'Tool failed',
+  // quox#1235: a tool call held for a human (nothing ran yet; the approval decides)
+  'aocl.run.held': 'Run held for approval',
+  'ops.tool.held': 'Tool held for approval',
+  'aocl.tool.execute.held': 'Tool held for approval',
+  // a call still running past its wait (e.g. a delegation): no approval involved, the answer lands later
+  'aocl.run.pending': 'Run still in progress',
+  'ops.tool.pending': 'Tool still running',
+  'aocl.tool.execute.pending': 'Tool still running',
   'quox.agent.thinking': 'Agent thinking',
   'quox.agent.message': 'Agent message',
   'quox.agent.delegate': 'Task delegated',

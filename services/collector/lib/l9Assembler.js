@@ -39,7 +39,11 @@ function applyToolSuffix(response, toolsUsed) {
     .map(t => (typeof t === 'string' ? t : t?.name))
     .filter(Boolean);
   if (names.length === 0) return response;
-  return `${response}\n\n_Tools used: ${names.join(', ')}_`;
+  // QUOXON 2026-10-17: repeats collapse ("proxmox_read ×3"), first-seen order.
+  const counts = new Map();
+  for (const n of names) counts.set(n, (counts.get(n) || 0) + 1);
+  const shown = [...counts].map(([n, c]) => (c > 1 ? `${n} ×${c}` : n));
+  return `${response}\n\n_Tools used: ${shown.join(', ')}_`;
 }
 
 /** Produce a denial message when ctx.status === 'denied'. */

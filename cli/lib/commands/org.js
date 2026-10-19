@@ -3,7 +3,8 @@
  */
 
 import { QuoxError } from '../core/errors.js';
-import { formatOutput, formatDetail, printSuccess } from '../core/output.js';
+import { formatOutput, formatDetail, printSuccess, printWarning } from '../core/output.js';
+import { otherProfileUsers, listProcs } from '../core/profileUsers.js';
 import { resolveOrgId } from './helpers.js';
 import { resolveEndpoint } from '../api/endpoints.js';
 
@@ -120,6 +121,15 @@ export function registerOrgCommands(program, ctx) {
       config.setAuth(authData);
 
       printSuccess(`Switched to ${data.org?.name || orgId}`);
+      // #1034: this changed the SHARED profile. Name the other live sessions that will follow it.
+      try {
+        const name = config.getActiveProfileName?.();
+        const others = name ? otherProfileUsers({ profile: name, defaultProfile: config._data?.activeProfile, procs: listProcs(), selfPids: [process.pid, process.ppid] }) : [];
+        if (others.length) {
+          printWarning(`${others.length} other quox session${others.length === 1 ? '' : 's'} use profile "${name}" (pid ${others.map(p => p.pid).join(', ')}). `
+            + 'They follow this org on their next token refresh or restart. To move one window only, use /org switch inside it.');
+        }
+      } catch { /* best effort: never fail the switch over the warning */ }
     });
 
   // Members subcommands

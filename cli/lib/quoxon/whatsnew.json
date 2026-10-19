@@ -1,0 +1,703 @@
+[
+ {
+  "id": "bang-tty",
+  "date": "2026-10-16T16:00:00Z",
+  "title": "! hands over the terminal when a command needs it",
+  "text": "!quox lucid deck, !vim, !top, !less, !ssh host and other interactive commands now get the real terminal; quit them to come back. A ! command that fails for want of a terminal is re-run handed over. Everything else is still captured, so /share works.",
+  "since": "0.3.0",
+  "shell": "quox lucid deck"
+ },
+ {
+  "id": "fw12-demo",
+  "date": "2026-10-13T16:00:00Z",
+  "title": "Play the demo",
+  "text": "See a short guided run of Quox without touching your real setup.",
+  "since": "0.3.0",
+  "try": "/demo"
+ },
+ {
+  "id": "fw12-lan-ollama",
+  "date": "2026-10-13T16:30:00Z",
+  "title": "Connect a model on your network",
+  "text": "Connect an Ollama server on another machine on your network. Quox asks first, and you confirm with /connect yes.",
+  "since": "0.3.0",
+  "try": "/connect"
+ },
+ {
+  "id": "engine-chat-actions",
+  "date": "2026-10-13T17:00:00Z",
+  "title": "Chat can do things for you",
+  "text": "Ask in plain words and chat can create a slot or run a quox command for you. This is rolling out, so it may not be on your server yet.",
+  "since": "0.3.0"
+ },
+ {
+  "id": "fw13-attach-message",
+  "date": "2026-10-13T17:30:00Z",
+  "title": "Attach and speak in one go",
+  "text": "Attach to an agent by name and send it a message in the same line.",
+  "since": "0.3.0",
+  "try": "/attach"
+ },
+ {
+  "id": "fw13-one-dragon",
+  "date": "2026-10-13T18:00:00Z",
+  "title": "One dragon everywhere",
+  "text": "The dragon is the same everywhere in Quox now. The old eye is retired.",
+  "since": "0.3.0",
+  "try": "/dragon"
+ },
+ {
+  "id": "fw13-aocl-line",
+  "date": "2026-10-13T18:30:00Z",
+  "title": "One AOCL line per turn",
+  "text": "Each turn ends with a single AOCL line. Open the full table whenever you want it.",
+  "since": "0.3.0",
+  "try": "/aocl"
+ },
+ {
+  "id": "fw13-calmer-screen",
+  "date": "2026-10-13T19:00:00Z",
+  "title": "A calmer screen",
+  "text": "Each role gets one colour, history has more room, and protocol lines are hidden until you ask for them.",
+  "since": "0.3.0",
+  "try": "/verbose on"
+ },
+ {
+  "id": "fw14-slots-survive",
+  "date": "2026-10-13T19:30:00Z",
+  "title": "Your slot survives a restart",
+  "text": "Restarting keeps the slot you hold, and renaming the session renames the slot.",
+  "since": "0.3.0",
+  "try": "/restart"
+ },
+ {
+  "id": "fw12-login-in-place",
+  "date": "2026-10-13T20:00:00Z",
+  "title": "Sign in without leaving",
+  "text": "Sign in again right where you are. CLI sign-ins now last 30 days.",
+  "since": "0.3.0",
+  "try": "/login"
+ },
+ {
+  "id": "fw13-tips-search",
+  "date": "2026-10-13T20:30:00Z",
+  "title": "Search the tips",
+  "text": "Tips now come in a frame, and you can search them by topic or by what you want to do.",
+  "since": "0.3.0",
+  "try": "/tips"
+ },
+ {
+  "id": "fw14-shell-share",
+  "date": "2026-10-13T21:00:00Z",
+  "title": "Run shell commands, share the output",
+  "text": "Start a line with ! to run a shell command here, then attach its output to your next message.",
+  "since": "0.3.0",
+  "try": "/share"
+ },
+ {
+  "id": "fw14-tab-suggestions",
+  "date": "2026-10-13T21:30:00Z",
+  "title": "Tab suggests arguments",
+  "text": "After a command and a space, press Tab to see what can come next.",
+  "since": "0.3.0",
+  "try": "/model"
+ },
+ {
+  "id": "fw14-model-chooser",
+  "date": "2026-10-13T22:00:00Z",
+  "title": "Model chooser with favourites",
+  "text": "Pick a model from what is connected, star your favourites and set the one new sessions start on.",
+  "since": "0.3.0",
+  "try": "/model"
+ },
+ {
+  "id": "fw15-approve-many",
+  "date": "2026-10-13T22:30:00Z",
+  "title": "Approve several at once",
+  "text": "Approve more than one request in a single line, or all of them.",
+  "since": "0.3.0",
+  "try": "/approve all"
+ },
+ {
+  "id": "fw15-yn-approvals",
+  "date": "2026-10-13T23:00:00Z",
+  "title": "Answer approvals with y or n",
+  "text": "With an empty composer, y or n answers the approval card you can see. Privileged actions need y twice.",
+  "since": "0.3.0",
+  "try": "/approvals"
+ },
+ {
+  "id": "fw16-whatsnew",
+  "date": "2026-10-14T00:00:00Z",
+  "title": "What's new",
+  "text": "Quox now tells you what changed since you last ran it, once, when you start it.",
+  "since": "0.3.0",
+  "try": "/whatsnew"
+ },
+ {
+  "id": "history-across-runs",
+  "date": "2026-10-15T16:00:00Z",
+  "title": "Up recalls what you typed",
+  "text": "Up steps back through your earlier prompts and commands, most recent first, including ones from earlier runs. /say also takes a session name now: /say SITE-CLI reaches the slot that session holds.",
+  "since": "0.3.0",
+  "try": "/say SITE-CLI hello"
+ },
+ {
+  "id": "say-many-bell",
+  "date": "2026-10-15T16:30:00Z",
+  "title": "Message several sessions at once",
+  "text": "/say a,b,c <text> sends each one a copy that starts with who else it went to. Incoming slot messages now ring the terminal bell; /settings turns it off.",
+  "since": "0.3.0",
+  "try": "/say cli-site,provisioner hello"
+ },
+ {
+  "id": "reconnect-restart",
+  "date": "2026-10-15T19:46:21Z",
+  "title": "Calm reconnect when the server restarts",
+  "text": "If the Quox server restarts, the TUI says it is reconnecting and carries on; nothing is lost.",
+  "since": "0.3.0"
+ },
+ {
+  "id": "restart-keeps-agent",
+  "date": "2026-10-15T21:17:49Z",
+  "title": "/restart keeps your agent and slot",
+  "text": "Restart and you come back attached to the same agent, still holding the same slot.",
+  "since": "0.3.0",
+  "try": "/restart"
+ },
+ {
+  "id": "poke-wake",
+  "date": "2026-10-15T22:33:32Z",
+  "title": "/poke and /wake really wake a session",
+  "text": "An idle session holding a slot is woken to read its messages, and a draft you are typing is never typed over.",
+  "since": "0.3.0",
+  "try": "/wake <slot>"
+ },
+ {
+  "id": "health-card",
+  "date": "2026-10-15T23:05:16Z",
+  "title": "/health shows a Core summary card",
+  "text": "Services, computers, agents, approvals and missions, all in one card.",
+  "since": "0.3.0",
+  "try": "/health"
+ },
+ {
+  "id": "late-answers",
+  "date": "2026-10-16T02:19:16Z",
+  "title": "Late answers still reach you",
+  "text": "When a helper agent answers after the wait, its answer is delivered in the same turn instead of being lost.",
+  "since": "0.3.0"
+ },
+ {
+  "id": "slots-columns",
+  "date": "2026-10-16T02:21:38Z",
+  "title": "/slots in tidy columns",
+  "text": "Every slot with who holds it and when it was last used, yours first.",
+  "since": "0.3.0",
+  "try": "/slots"
+ },
+ {
+  "id": "sleep-cmd",
+  "date": "2026-10-16T02:37:50Z",
+  "title": "/sleep",
+  "text": "The dragon curls up and sleeps.",
+  "since": "0.3.0",
+  "try": "/sleep"
+ },
+ {
+  "id": "mirror-real",
+  "date": "2026-10-16T03:06:04Z",
+  "title": "/mirror shows the real Mirror",
+  "text": "See what CommanderQ sees about your org: identity, health, plugins and memory, with how old it is.",
+  "since": "0.3.0",
+  "try": "/mirror"
+ },
+ {
+  "id": "status-two-rows",
+  "date": "2026-10-16T03:08:06Z",
+  "title": "A two-row status line with labels",
+  "text": "Profile, org, mode, agent, slot and groups each have a label, and the model sits on the line above where you type.",
+  "since": "0.3.0",
+  "try": "/groups"
+ },
+ {
+  "id": "update-cmd",
+  "date": "2026-10-16T03:11:38Z",
+  "title": "/update and quox update",
+  "text": "Update Quox to the latest version from inside the TUI or from your shell, then restart.",
+  "since": "0.3.0",
+  "try": "/update"
+ },
+ {
+  "id": "run-requests",
+  "date": "2026-10-16T03:18:53Z",
+  "title": "Run requests in messages",
+  "text": "A slot message can ask you to run a command here; you see the whole command first and answer y, N or c.",
+  "since": "0.3.0",
+  "shell": "quox slot say <slot> --run \"<command>\" \"<why>\""
+ },
+ {
+  "id": "triage-q-queue",
+  "date": "2026-10-16T04:35:00Z",
+  "title": "TRIAGE-Q works your approvals queue",
+  "text": "TRIAGE-Q pages through the whole queue, opens items, and snoozes, assigns or dismisses them one at a time.",
+  "since": "0.3.0",
+  "try": "/attach triage-q"
+ },
+ {
+  "id": "asks-are-cards",
+  "date": "2026-10-16T04:37:48Z",
+  "title": "Every question is an approval card",
+  "text": "Questions and approvals share one card that says what will happen and why; answer y, N, or c to talk it through.",
+  "since": "0.3.0",
+  "try": "/approvals"
+ },
+ {
+  "id": "ask-session",
+  "date": "2026-10-16T05:11:59Z",
+  "title": "/ask a session a question",
+  "text": "/ask <slot> <question> sends your question straight to that session, like /say.",
+  "since": "0.3.0",
+  "try": "/ask <slot> <question>"
+ },
+ {
+  "id": "org-window-back",
+  "date": "2026-10-16T05:38:46Z",
+  "title": "/org switch stays in this window, /org back returns",
+  "text": "Switching org in one window no longer moves your other windows, and /org back takes you to the org you were in.",
+  "since": "0.3.0",
+  "try": "/org back"
+ },
+ {
+  "id": "memory-core",
+  "date": "2026-10-16T05:44:08Z",
+  "title": "Memory core, pin and recall",
+  "text": "Pin the facts that matter into your org core memory, and chat recalls them with where they came from.",
+  "since": "0.3.0",
+  "shell": "quox memory core"
+ },
+ {
+  "id": "mouse-cmd",
+  "date": "2026-10-16T05:59:04Z",
+  "title": "/mouse turns on clicks",
+  "text": "Click a sender to reply, or y, n or c on a card to answer; hold Shift to copy text.",
+  "since": "0.3.0",
+  "try": "/mouse on"
+ },
+ {
+  "id": "org-slugs",
+  "date": "2026-10-16T07:05:41Z",
+  "title": "--org takes the org short name",
+  "text": "quox --org <slug> works with the org short name, not only its ID.",
+  "since": "0.3.0",
+  "shell": "quox --org <slug> whoami"
+ },
+ {
+  "id": "mode-plan",
+  "date": "2026-10-16T07:21:11Z",
+  "title": "/mode plan: plan without changing anything",
+  "text": "In plan mode Quox investigates and proposes, the server refuses changes, and you say y to run the plan.",
+  "since": "0.3.0",
+  "try": "/mode plan"
+ },
+ {
+  "id": "partial-says-partial",
+  "date": "2026-10-16T07:58:19Z",
+  "title": "Partial answers say partial",
+  "text": "When a turn could only finish part of the job, the answer says so instead of claiming it is complete.",
+  "since": "0.3.0"
+ },
+ {
+  "id": "current-focus",
+  "date": "2026-10-16T09:34:27Z",
+  "title": "Chat knows your current focus",
+  "text": "Each chat turn now carries your open objectives and recent asks, so answers stay on what you are working on.",
+  "since": "0.3.0"
+ },
+ {
+  "id": "whatsnew-derived",
+  "date": "2026-10-16T15:15:00Z",
+  "title": "What's new shows only what changed",
+  "text": "/whatsnew lists what is new since you last looked, then marks it seen; when there is nothing new it says so.",
+  "since": "0.3.0",
+  "try": "/whatsnew"
+ },
+ {
+  "id": "profile-switch",
+  "date": "2026-10-16T15:10:00Z",
+  "title": "Switch profile without quitting",
+  "text": "An agent-login window that hits approvals or a step-up now offers your signed-in login as a y/N card: y switches this window, same conversation, attach, slot and groups. /profile <name> switches directly. A /slot name that does not exist asks to create it.",
+  "since": "0.3.0",
+  "try": "/profile"
+ },
+ {
+  "id": "restore-tui-fixes",
+  "date": "2026-10-16T18:00:00Z",
+  "title": "Tab answers the approval card again",
+  "text": "With a draft in the composer, Tab focuses the approval card (your draft is kept, Esc returns to it) instead of sending the draft. /dragon-fly now fits short terminals, the background-agents line shows again, and streamed text is never cut.",
+  "since": "0.3.0",
+  "try": "/approvals"
+ },
+ {
+  "id": "presence-afk-sleep",
+  "date": "2026-10-16T16:40:00Z",
+  "title": "/afk and /sleep tell your sessions",
+  "text": "/afk [note] and /sleep mark you away or sleeping on the server, so sessions saying into hitl or your slot see \"owner away since 15:54 UTC: approvals will queue\" (quox ask and quox slot list too). Nothing is approved while you are away; /back or any message marks you present. quox presence shows who is away; /observe <text> sends a note to the observer.",
+  "since": "0.3.0",
+  "try": "/afk lunch"
+ },
+ {
+  "id": "answer-pairs-yestoall-pin",
+  "date": "2026-10-16T21:00:00Z",
+  "title": "Answer many at once: /approve 1 y 2 n",
+  "text": "/approve and /answer take pairs: 1 y 2 n, 1 y, 2 n or 1y 2n, mixed yes and no, all checked first, and the PIN is asked once if any yes is high risk (a no never needs it). /yestoall now shows one card for every yes/no question instead of one per item, and a yes on a high-risk ask needs your PIN.",
+  "since": "0.3.0",
+  "try": "/approve 1 y 2 n"
+ },
+ {
+  "id": "hat-command",
+  "date": "2026-10-16T19:20:00Z",
+  "title": "/hat changes hat without asking the AI",
+  "text": "/hat lists your hats with the current one marked. /hat DevOps (the key, the name, or a unique start of it) switches this conversation straight away, recorded on the server; a privileged hat asks y/N first. Works with any model, including small local ones.",
+  "since": "0.3.0",
+  "try": "/hat"
+ },
+ {
+  "id": "approval-wwwh",
+  "date": "2026-10-16T21:50:00Z",
+  "title": "Approval cards say what, where, who and why",
+  "text": "Every approval card, /approvals row and /approvals N detail now shows the exact command (verbatim, cut only with a visible count), the host count and names, the delegation chain and the human it acts for, the reason, your original request and the time, and whether the server judged it read-only. New items also keep your request text when the turn registry lost it.",
+  "since": "0.3.0",
+  "try": "/approvals"
+ },
+ {
+  "id": "slot-reply-path",
+  "date": "2026-10-17T00:45:00Z",
+  "title": "Replies to your /say now reach you",
+  "text": "A /say, @slot or /send from a window that holds a slot is now stamped with that slot by the server, so the other side replies to you. After you say into a slot, the window also shows that slot's holder's lines arriving in it for 30 minutes, and the \"no reply yet\" nudge no longer fires for a reply that showed.",
+  "since": "0.3.0",
+  "try": "/say lucid sitrep"
+ },
+ {
+  "id": "wake-real",
+  "date": "2026-10-17T01:15:00Z",
+  "title": "/wake really wakes",
+  "text": "/poke, /wake and /slap now make an idle session start a turn: the keeper checks the wake line left the prompt box and presses Enter again if Claude Code swallowed it. You are told whether the session was woken or, mid-turn, queued until its turn ends.",
+  "since": "0.3.0",
+  "try": "/poke <slot>"
+ },
+ {
+  "id": "ask-settle",
+  "date": "2026-10-17T01:15:00Z",
+  "title": "Answered questions go away",
+  "text": "A y/N/c question (Wake it now?, Run it?, Switch?, and the rest) now stays a live card only while it is open. Once you answer, it expires or it is no longer open, the card goes and one line stays, such as ✔ Wake it now? yes (00:44).",
+  "since": "0.3.0",
+  "try": "/poke <slot>"
+ },
+ {
+  "id": "active-and-hints",
+  "date": "2026-10-17T09:00:00Z",
+  "title": "/active: who is doing what",
+  "text": "/active (and quox active) is one short summary of every active worker, grouped Working, Waiting on you and Idle, newest first, with what each is doing and since when; /active sessions, slots and agents filter it. A mistyped command now names the 1-3 nearest real commands, by spelling and by what they do, and a single strong match is a y/N card that runs it.",
+  "since": "0.3.0",
+  "try": "/active"
+ },
+ {
+  "id": "restart-no-pileup",
+  "date": "2026-10-17T10:00:00Z",
+  "title": "/restart no longer piles up old windows",
+  "text": "/restart, /update and auto-restart now replace the running client instead of starting a new one inside it, so a terminal keeps exactly one Quox client however many times you restart, and old ones no longer sit in memory.",
+  "since": "0.3.0",
+  "try": "/restart"
+ },
+ {
+  "id": "decision-labels",
+  "date": "2026-10-17T10:00:00Z",
+  "title": "Questions one at a time, in words",
+  "text": "When several questions are waiting, /approvals now walks you through them one at a time: what it is, what I would do in plain words, then just say yes, no or the option. /answer and /deny notes keep their full text, even with an unclosed quote or a line break.",
+  "since": "0.3.0",
+  "try": "/approvals"
+ },
+ {
+  "id": "bulk-yes-never-risky",
+  "date": "2026-10-17T09:00:00Z",
+  "title": "A bulk yes never covers a risky ask",
+  "text": "/yestoall and number ranges now answer only the low-risk questions; high-risk, test-changing and restart asks come one at a time with their full text, and a typed number is refused if the list moved.",
+  "since": "0.3.0",
+  "try": "/yestoall"
+ },
+ {
+  "id": "walkthrough-esc-summary",
+  "date": "2026-10-17T10:30:00Z",
+  "title": "Walkthrough: Esc exits with a summary",
+  "text": "Esc now leaves /walkthrough with a summary. It shows one card at a time, keeps every answer, and answered questions never come back.",
+  "since": "0.3.0",
+  "try": "/walkthrough"
+ },
+ {
+  "id": "walkthrough-yesno-only",
+  "date": "2026-10-17T14:30:00Z",
+  "title": "Walkthrough: yes/no only answers yes/no questions",
+  "text": "On a numbered question, typing yes or no no longer picks anything. The walkthrough shows the choices in words and never picks the asker's favourite for you.",
+  "since": "0.3.0",
+  "try": "/walkthrough"
+ },
+ {
+  "id": "custom-hats",
+  "date": "2026-10-17T16:00:00Z",
+  "title": "Make your own hats",
+  "text": "/hat new walks you through a hat of your own: name it, pick a starting hat and the agents it includes. Under it a turn carries only those agents. /hat edit and /hat delete change or remove one.",
+  "since": "0.3.0",
+  "try": "/hat new"
+ },
+ {
+  "id": "recommended-first",
+  "date": "2026-10-17T17:00:00Z",
+  "title": "Recommended option shown first",
+  "text": "On a decision card, the option the asker recommends is listed first in bold with a star and who recommends it. Keys do not change, and a card with no recommendation shows none.",
+  "since": "0.3.0",
+  "try": "/walkthrough"
+ },
+ {
+  "id": "pin-card-big",
+  "date": "2026-10-17T18:30:00Z",
+  "title": "A bigger PIN card",
+  "text": "The approval PIN card now shows six large slots that light up as you type, a shimmer while it checks, a green tick when authorised and a red flash on a wrong PIN. The full decision title is shown, wrapped.",
+  "since": "0.3.0",
+  "try": "/authenticate"
+ },
+ {
+  "id": "tui-render-fixes",
+  "date": "2026-10-17T18:30:00Z",
+  "title": "Tables, /help and /slots fit your terminal",
+  "text": "Chat tables wrap long cells instead of cutting them with an ellipsis. /help keeps usage and description apart. /slots shows held slots first and folds free ones into +N free (/slots all lists them). Tall cards and the dragon no longer leave garbled frames in a short terminal.",
+  "since": "0.3.0",
+  "try": "/slots"
+ },
+ {
+  "id": "status-rows",
+  "date": "2026-10-17T19:00:00Z",
+  "title": "Make your own status rows",
+  "text": "/row new walks you through a live line above the status bar and shows what it will say before saving: approvals waiting, hosts up, a plugin status or your own script. quox rows does the same from a shell, and a row can now carry a label, a tone colour, a value and a trend.",
+  "since": "0.3.0",
+  "try": "/row new"
+ },
+ {
+  "id": "cli-errors-plain",
+  "date": "2026-10-17T19:05:00Z",
+  "title": "Plainer error messages",
+  "text": "Errors now lead with what happened and why, then one next step, instead of \"Request failed with status 404\". Approving something that was already approved says who approved it and when, and exits 0. Add --verbose to see the HTTP status and server code.",
+  "since": "0.3.0",
+  "shell": "quox inbox respond <id> --action approve"
+ },
+ {
+  "id": "delegation-progress",
+  "date": "2026-10-17T20:30:00Z",
+  "title": "See what a specialist is doing while you wait",
+  "text": "When Quox hands a job to a specialist, the waiting line now names each real step it takes, for example Delegating HYPERION · proxmox_read (vm), instead of sitting silent. Tool footers fold repeats (proxmox_read ×3).",
+  "since": "0.3.0",
+  "shell": "quox chat \"which VMs use the most memory\""
+ },
+ {
+  "id": "ux-interaction-fixes",
+  "date": "2026-10-17T20:00:00Z",
+  "title": "Simpler cards and choosers",
+  "text": "Approval cards say each thing once and wrap cleanly. /hat, /org and /mode open the same arrow-key chooser as /model. A typo offers a Run /command? card. /sleep no longer swallows a slash command, and an offer you move on from closes itself.",
+  "since": "0.3.0",
+  "try": "/hat"
+ },
+ {
+  "id": "ask-single-key",
+  "date": "2026-10-17T21:00:00Z",
+  "title": "y, n or c answer a question straight away",
+  "text": "y, n or c now answer an open question straight away, and a stray letter no longer sticks to your next command. Pressing Enter right after is ignored, and sending the same queued message twice says it is already queued.",
+  "since": "0.3.0"
+ },
+ {
+  "id": "tidy-footer",
+  "date": "2026-10-17T20:30:00Z",
+  "title": "A tidier bottom bar",
+  "text": "The status under the input box is now one line that wraps onto a second or third row only when needed, at the same left edge, with no big gaps. It says agent: none when nothing is attached, and the key hints sit on their own row.",
+  "since": "0.3.0",
+  "try": "/help status"
+ },
+ {
+  "id": "handoff-offer",
+  "date": "2026-10-17T21:30:00Z",
+  "title": "Attached agents offer to hand a question to CommanderQ",
+  "text": "When the agent you are attached to has no tools for a question (TRIAGE-Q asked about VM CPU), a card asks: Hand this question to CommanderQ? y asks CommanderQ that one question and you stay attached; n does nothing. quox --print names the same one-turn command.",
+  "since": "0.3.0",
+  "try": "/attach triage-q"
+ },
+ {
+  "id": "divider-aocl",
+  "date": "2026-10-17T21:00:00Z",
+  "title": "Watch the governance layers light up",
+  "text": "After you send, the line under your message shows one mark per AOCL governance layer that lights up as the server reports it, then the model name shimmers while it thinks and turns green when the reply is done, or red with the blocking layer marked.",
+  "since": "0.3.0",
+  "try": "/aocl"
+ },
+ {
+  "id": "approvals-card-first",
+  "date": "2026-10-17T22:00:00Z",
+  "title": "Approvals open on the card",
+  "text": "A plain /approvals now opens straight on the one-at-a-time card. An answer with a note asks you to confirm it first, and a question that has expired says so and moves on.",
+  "since": "0.3.1",
+  "try": "/approvals"
+ },
+ {
+  "id": "welcome-cmd",
+  "date": "2026-10-17T21:45:00Z",
+  "title": "Replay the welcome screen",
+  "text": "/welcome shows the welcome screen again on demand, with the Q, the notice and the dragon greeting on a tall terminal. It changes no setup or config. quox welcome prints the same notice from the shell.",
+  "since": "0.3.0",
+  "try": "/welcome"
+ },
+ {
+  "id": "restart-countdown",
+  "date": "2026-10-17T22:30:00Z",
+  "title": "Auto-restart counts down and Esc cancels",
+  "text": "When /restart auto is on and a newer quox is installed, a line counts down 10 seconds before the restart. Esc stays on this version, Enter restarts now. It waits while a turn runs or you have a draft. QUOX_RESTART_COUNTDOWN sets the seconds (0 restarts at once).",
+  "since": "0.3.1",
+  "try": "/restart auto"
+ },
+ {
+  "id": "active-rows",
+  "date": "2026-10-17T22:45:00Z",
+  "title": "/active is one clean row per session",
+  "text": "Each session shows once, with a status glyph, a readable name, what it needs from you in plain words and its age. Long rows wrap instead of being cut off.",
+  "since": "0.3.0",
+  "try": "/active"
+ },
+ {
+  "id": "no-hint-row",
+  "date": "2026-10-17T22:30:00Z",
+  "title": "No more Enter send · /help row",
+  "text": "The permanent key-hint row under the status line is gone, so the status line ends the screen. While Quox is working you still see how to steer, queue or stop.",
+  "since": "0.3.0",
+  "try": "/help"
+ },
+ {
+  "id": "active-cli-rows",
+  "date": "2026-10-17T23:10:00Z",
+  "title": "quox active matches the window",
+  "text": "quox active now prints the same clean rows as /active, with the unread message count per session. --lines keeps the older layout.",
+  "since": "0.3.0",
+  "shell": "quox active"
+ },
+ {
+  "id": "composer-edit",
+  "date": "2026-10-17T22:30:00Z",
+  "title": "Edit your draft anywhere, like Claude Code",
+  "text": "Move into the middle of your draft and edit there: Ctrl+Left/Right or Alt+B/F jump by word, Ctrl+W or Alt+Backspace delete the word before the cursor, Alt+D the word after, Ctrl+U and Ctrl+K cut to the start or end of the line, and Up/Down move through wrapped lines. Shift with the arrows, Home or End selects text: typing replaces it, Backspace deletes it, and it is copied to your clipboard (OSC 52, works over SSH where the terminal allows it). Your terminal's own mouse selection and copy keep working as usual.",
+  "since": "0.3.1"
+ },
+ {
+  "id": "peek-id",
+  "date": "2026-10-17T22:30:00Z",
+  "title": "Look up any id with /peek",
+  "text": "/peek <id> works out whether an id is an envelope, inbox item, objective, workflow run, WARD receipt or agent and shows a short card; when nothing matches it says what it tried. Also quox peek <id>.",
+  "since": "0.3.0",
+  "try": "/peek atlas"
+ },
+ {
+  "id": "aside-q",
+  "date": "2026-10-17T22:31:00Z",
+  "title": "Ask a side question with /aside",
+  "text": "/aside <question> asks with no tools and outside the conversation, so it cannot change anything and your next message carries on as if it never happened. The answer shows in its own block marked read only. Also quox aside.",
+  "since": "0.3.0",
+  "try": "/aside what does a WARD receipt prove?"
+ },
+ {
+  "id": "profile-chooser",
+  "date": "2026-10-17T22:32:00Z",
+  "title": "Switch profile or org from one list",
+  "text": "/profile opens a list of your profiles and this login's orgs. Pick one with the arrows and Enter; it changes this window only, never the default your other windows use.",
+  "since": "0.3.0",
+  "try": "/profile"
+ },
+ {
+  "id": "at-mentions",
+  "date": "2026-10-17T22:33:00Z",
+  "title": "@ completes agents, hosts, tasks and receipts",
+  "text": "Type @ in a message to pick an agent, fleet host, task or a receipt from this session; Tab or Enter puts it in. The lists load once per session, so typing never waits on the server.",
+  "since": "0.3.0",
+  "try": "/help @mention"
+ },
+ {
+  "id": "guide-fixes-docker",
+  "date": "2026-10-19T06:15:00Z",
+  "title": "Getting started can install Docker for you",
+  "text": "On Linux, when Docker is missing or your user is not in the docker group, the setup guide offers to fix it (y/N, the exact command shown) and carries on without logging out. A failed install now says why in one line.",
+  "since": "0.3.1",
+  "shell": "quox"
+ },
+ {
+  "id": "roster-chat-started-runs",
+  "date": "2026-10-19T07:20:00Z",
+  "title": "Workflows you start from chat show as yours",
+  "text": "When you ask Quox to run a workflow, the run is now recorded as started by you, so it appears in your roster and in the away digest instead of being hidden as background work. Scheduled and webhook runs still show as background.",
+  "since": "0.3.1",
+  "try": "/roster"
+ },
+ {
+  "id": "stale-signin-recover",
+  "date": "2026-10-19T05:30:00Z",
+  "title": "An open window picks up a new sign-in",
+  "text": "If you sign in again in another window or with quox login, this window now notices and carries on instead of saying it is signed out.",
+  "since": "0.3.1",
+  "try": "/login"
+ },
+ {
+  "id": "presence-auto-clear",
+  "date": "2026-10-19T05:30:00Z",
+  "title": "Away clears when you are back",
+  "text": "If you set /afk and forget /back, your first real action in the terminal (a message, any slash command, or a PIN approval) clears it and says how long you were away. Scripts, --print runs and agents never clear it.",
+  "since": "0.3.1",
+  "try": "/afk"
+ },
+ {
+  "id": "polish5-quiet",
+  "date": "2026-10-18T09:00:00Z",
+  "title": "Quieter, shorter, truer",
+  "text": "Palette descriptions fit one row and /luc finds LUCID first. Waiting approvals collapse to a single row. Your own broadcast no longer echoes back, the org shows by name, and a finished walkthrough leaves no stray line.",
+  "since": "0.3.0",
+  "try": "/approvals"
+ },
+ {
+  "id": "ollama-private-address",
+  "date": "2026-10-19T08:00:00Z",
+  "title": "Connect your own Ollama on your network",
+  "text": "/connect ollama http://<lan-ip>:11434 now asks \"It's on your private network. Connect to it?\" y/N. Say yes (org admins) and Quox checks it answers as Ollama, then allows only that address. No server-wide switch needed.",
+  "since": "0.3.1",
+  "try": "/connect ollama"
+ },
+ {
+  "id": "restart-settle",
+  "date": "2026-10-19T09:00:00Z",
+  "title": "One restart for back-to-back builds",
+  "text": "When several new builds land minutes apart, the restart offer now waits until the installed build has stayed unchanged for 2 minutes, so you get one restart instead of two.",
+  "since": "0.3.1"
+ },
+ {
+  "id": "footer-tool-count",
+  "date": "2026-10-19T12:00:00Z",
+  "title": "Turn footer counts tools properly",
+  "text": "The line under an answer now reads 1 tool or 3 tools. Some builds printed [object Object]1 tools after a turn that used a tool.",
+  "since": "0.3.1"
+ },
+ {
+  "id": "cancelled-reads-cancelled",
+  "date": "2026-10-19T14:00:00Z",
+  "title": "Cancelled reads cancelled",
+  "text": "A stopped objective in the activity list now says cancelled (a neutral circle), not failed. Expired and rejected say their own word too, and an empty question no longer draws a stray rule above the composer.",
+  "since": "0.3.1"
+ },
+ {
+  "id": "one-rule-above-composer",
+  "date": "2026-10-19T15:00:00Z",
+  "title": "One rule above the composer",
+  "text": "Under an approval card the composer no longer draws a blank line and a second rule: the card's closing rule is the only one.",
+  "since": "0.3.1"
+ }
+]

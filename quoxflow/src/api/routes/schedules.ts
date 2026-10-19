@@ -69,7 +69,7 @@ function success(c: { json: (data: unknown, status?: number) => Response; get: (
  * threaded into the workflowStore lookup instead of the WP3 SYSTEM_SCOPE
  * stopgap — real org threading, not cross-org.
  */
-function buildScheduleCallback(
+export function buildScheduleCallback(
   config: ScheduleRoutesConfig,
   workflowId: string,
   nodeId: string,
@@ -95,7 +95,9 @@ function buildScheduleCallback(
         firedAt: new Date().toISOString(),
         expression,
       }, {
-        triggeredBy: `schedule:${nodeId}`,
+        // FND_01M55X6TRMDS63SDZK3TDS63SD: a cron fire runs as a named system actor, never as a user.
+        actor: { kind: 'system', id: `schedule:${nodeId}` },
+        triggeredBy: `system:schedule:${nodeId}`,
         orgId,
       }).catch(err => {
         console.error(`[Schedule] Execution failed for ${workflowId}:`, err instanceof Error ? err.message : err);

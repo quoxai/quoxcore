@@ -149,7 +149,7 @@ const NOTESQ_TOOLS = {
 
   notesq_list: {
     name: 'notesq_list',
-    description: 'List recent notes, newest first (pinned first), optionally filtered by scope, collection, tag or pinned. Read-only.',
+    description: 'List recent notes, newest first (pinned first), optionally filtered by scope, collection, tag or pinned. Returns total (all matching notes, not the page). Set facets:true for the collection and tag COUNTS (which collections exist, how many notes in each, the most used tags, sorted by count): use it for any "which collections / how many in <collection> / most used tag" question, never count a page. Read-only.',
     input_schema: {
       type: 'object',
       properties: {
@@ -157,10 +157,19 @@ const NOTESQ_TOOLS = {
         collection: { type: 'string' },
         tag: { type: 'string' },
         pinned: { type: 'boolean' },
+        facets: { type: 'boolean', description: 'Also return collections [{name,count}] and tags [{tag,count}] across all notes (same as `quox notes facets`).' },
         limit: { type: 'number', description: 'Max 25, default 10.' },
       },
     },
-    execute: async (input, ctx) => listOrSearch(input, ctx, false),
+    execute: async (input, ctx) => {
+      const listed = await listOrSearch(input, ctx, false);
+      if (!input || !input.facets || !listed.success) return listed;
+      const scope = input.scope && SCOPES.includes(input.scope) ? input.scope : 'all';
+      const res = await call(ctx, { method: 'GET', path: '/notesq/facets', query: { scope }, scope });
+      if (res.status !== 200) return failure(res);
+      const f = res.json || {};
+      return { ...listed, collections: f.collections || [], tags: f.tags || [] };
+    },
   },
 
   notesq_read: {
@@ -256,6 +265,10 @@ const NOTESQ_TOOLS = {
         let md = markdown !== undefined ? markdown : cur.markdown || '';
         if (append) md = `${md.replace(/\s+$/, '')}\n\n${append}`;
         const props = { ...stripProps(cur.properties), ...(properties && typeof properties === 'object' ? properties : {}) };
+        // #910: the brain takes a note's title from a title property, else its first '# heading', else the
+        // file name (a UUID). A replacement with no heading and no title of its own would rename the note to
+        // that UUID, so keep the title the user sees.
+        if (markdown !== undefined && !/^#[ \t]+\S/m.test(md) && !props.title && cur.title) props.title = cur.title;
         return { markdown: md, properties: props };
       }, baseHash);
     },

@@ -30,6 +30,7 @@ function createResearchTools({ getToolDefs, getProviderKeys }) {
   const mkDeps = (ctx) => ({
     getProviderKeys,
     emit: ctx && ctx.emitEnvelope ? ctx.emitEnvelope : null,
+    agentId: (ctx && ctx.agentId) || null, // for the audit-sink receipt (FND_01M5AE7GAQBRAPE798VNYAFS39)
   });
 
   return {
@@ -55,7 +56,7 @@ function createResearchTools({ getToolDefs, getProviderKeys }) {
         properties: { url: { type: 'string', description: 'A public http or https URL' } },
         required: ['url'],
       },
-      execute: async (input, ctx = {}) => webRead({ url: input && input.url }, { deps: mkDeps(ctx) }),
+      execute: async (input, ctx = {}) => webRead({ url: input && input.url }, { orgId: ctx.orgId, deps: mkDeps(ctx) }),
     },
 
     notesq_research: {

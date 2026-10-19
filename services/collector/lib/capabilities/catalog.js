@@ -307,7 +307,7 @@ const BASE_CATALOG = [
     ],
   },
   {
-    id: 'actions', name: 'Action tracker', interfaces: ['dashboard'],
+    id: 'actions', name: 'Action tracker', interfaces: ['cli', 'dashboard'], // cli: `quox actions list|get` (read-only), driven 2026-10-15
     intent: 'Track actions and follow-ups that came out of your work.',
     evidence: 'Each action keeps its source and status changes.',
     requires: [
@@ -440,10 +440,22 @@ const BASE_CATALOG = [
   },
   {
     id: 'install', name: 'Your install', interfaces: ['conversation', 'cli'],
-    cli: ['server', 'setup', 'doctor', 'onboard', 'status', 'service', 'health', 'licence', 'license'],
+    cli: ['server', 'update', 'setup', 'doctor', 'onboard', 'status', 'service', 'health', 'licence', 'license'],
     intent: 'Check, update and roll back this self-hosted Quox, and see its licence and health.',
     evidence: 'Health and licence answers come from the running services, not a cached claim.',
     requires: [{ check: 'collectorCore', fail: 'This QuoxCORE is not answering' }],
+  },
+  {
+    id: 'mind', name: 'QuoxMind (cognitive implants)', interfaces: ['conversation', 'cli'],
+    intent: 'See what each QuoxMind implant is for, whether it is healthy and what it did recently.',
+    evidence: 'Read-only: status and activity come from the running implants; asking changes nothing.',
+    requires: [{ check: 'collectorCore', fail: 'This QuoxCORE is not answering' }],
+  },
+  {
+    id: 'rows', name: 'Status rows', interfaces: ['cli'], cli: ['rows'],
+    intent: 'Put up to 3 live lines above the quox window\'s status bar: approvals waiting, hosts up, a plugin\'s status, your own script.',
+    evidence: 'url, quox and plugin rows sync to your account; command rows stay on the machine that made them, are never shared, and a conversation can read rows but never add one.',
+    requires: [],
   },
   // ---- planned (product statement, not install state) -----------------------------------
   {
@@ -459,10 +471,12 @@ const BASE_CATALOG = [
  * beside the entries, merged in below, so the drift test reads one catalogue.
  */
 const CLAIMS = {
-  chat: { cli: ['chat', 'chat-status', 'conversation', 'llm', 'llm-policy'] },
+  chat: { cli: ['chat', 'chat-status', 'conversation', 'llm', 'llm-policy', 'peek', 'aside'] }, // peek, aside: id lookup and the no-tools side question
   memory: { cli: ['memory', 'entity'], plugins: ['advanced-memory'] },
   qortex: { cli: ['brain'], plugins: ['quox-brain2'] },
-  approvals: { cli: ['approvals', 'inbox'] },
+  approvals: { cli: ['approvals', 'inbox', 'ask', 'presence'] }, // ask: a session puts a decision in the Approvals inbox (quox ask); presence: is the human away (approvals queue)
+  actions: { cli: ['actions'] },
+  mind: { cli: ['mind'] },
   receipts: { cli: ['aee', 'volt', 'trace', 'done'], plugins: ['decision-evidence'] },
   vault: { cli: ['vault', 'integration'] },
   agents: { cli: ['agent', 'assistant', 'tool', 'powers', 'prompt'], plugins: ['prompts-library'] },
@@ -477,12 +491,14 @@ const CLAIMS = {
   plan: { cli: ['plan'] },
   qlarity: { cli: ['qlarity'], plugins: ['browser-q'] },
   voice: { cli: ['voice'], plugins: ['advanced-voice'] },
-  slots: { cli: ['slot', 'claude', 'codex', 'gemini', 'wrap', 'sessions'] },
+  slots: { cli: ['slot', 'claude', 'codex', 'gemini', 'wrap', 'sessions', 'active'] }, // active: who is doing what across sessions, slots and agents
   fleet: {
-    cli: ['fleet', 'quoxbox', 'backup', 'monitoring', 'mon', 'watch'],
+    // vm: Proxmox VMs + the disposable VM pool (HYPERION); offload: run a heavy command on a pool VM;
+    // hyperion: HYPERION's VM activity view; router: MikroTik RouterOS read-only views via NETWATCH.
+    cli: ['fleet', 'quoxbox', 'backup', 'monitoring', 'mon', 'watch', 'vm', 'offload', 'hyperion', 'router'],
     plugins: ['quoxagent-fleet', 'docker-fleet', 'proxmox', 'mikrotik-routeros', 'tailscale', 'wazuh', 'grafana', 'prometheus', 'uptime-kuma', 'backup-restore', 'system-maintenance'],
   },
-  safety: { cli: ['safety', 'governance', 'policy', 'reach', 'inventory'] },
+  safety: { cli: ['safety', 'governance', 'policy', 'reach', 'inventory', 'fetch'] }, // fetch: the governed agent fetch allowlist
   hats: { cli: ['hat'] },
   contacts: { cli: ['contacts'] },
   notes: { cli: ['notes'] },
@@ -506,6 +522,7 @@ const CAPABILITY_EXEMPT_CLI = {
   capabilities: 'this very report',
   dashboard: 'opens the web dashboard signed in; a launcher, not a domain',
   config: 'local CLI profile and config, not an org capability',
+  welcome: 'shows the welcome screen again; a convenience, not a domain',
 };
 
 /** Shipped plugin ids no capability covers yet, with why. */

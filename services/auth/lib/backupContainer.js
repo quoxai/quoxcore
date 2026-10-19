@@ -19,6 +19,7 @@
  * Every docker call goes through an injectable runner so tests never need docker.
  */
 
+import { hostHome } from '../utils/hostPaths.js';
 import { execFile } from 'child_process';
 import { existsSync } from 'fs';
 import * as fsp from 'fs/promises';
@@ -119,12 +120,12 @@ export async function startBackupContainer(opts, deps = {}) {
         '--label', `${BACKUP_LABEL}.mode=${safeLabel(mode)}`,
         '--label', `${BACKUP_LABEL}.started=${startedAt}`,
         '--label', `${BACKUP_LABEL}.deadline=${deadline}`,
-        '-w', '/opt/quoxcore',
+        '-w', hostHome(),
     ];
     const user = self.Config && self.Config.User;
     if (user) args.push('--user', user);
     for (const g of (self.HostConfig && self.HostConfig.GroupAdd) || []) args.push('--group-add', String(g));
-    // Bind mounts only (docker.sock, /opt/quoxcore, backups dir, project root), by
+    // Bind mounts only (docker.sock, ~, backups dir, project root), by
     // the real host Source docker reports, so symlinked host paths resolve. Named
     // volumes are deliberately NOT mounted: the script reaches databases via docker exec/cp.
     for (const m of self.Mounts || []) {

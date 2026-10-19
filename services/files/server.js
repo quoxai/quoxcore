@@ -168,6 +168,61 @@ app.use((err, req, res, next) => {
 
 app.use(express.json({ limit: '50mb' })) // Issue 1.4: Reasonable JSON body limit (was 10gb)
 
+// F01 A' (SITE-CLI audit ENG_01M4Z02S830K0X3K61W50K0X3K): every data route acts for the caller's VERIFIED org
+// (fileTenancy.js). Only /health and /__routes (its own service-key check) stay open; anything else without a
+// verified org is 401. A file with no owner record is quarantined: no org can see, read or delete it.
+const tenancy = require('./fileTenancy.js')
+// F01 A': quarantine admin, for the collector only (service key, NO org). The collector decides who may ask (a human
+// instance admin) and witnesses it; this service only ever assigns a QUARANTINED file and never re-assigns one.
+function adminOnly(req, res, next) {
+  const key = req.headers['x-service-key']
+  const want = process.env.INTERNAL_SERVICE_KEY
+  if (!want || !key || String(key).length !== want.length || !require('crypto').timingSafeEqual(Buffer.from(String(key)), Buffer.from(want))) {
+    return res.status(401).json({ error: 'service_key_required' })
+  }
+  next()
+}
+app.get('/admin/quarantine', adminOnly, async (req, res) => {
+  try {
+    const meta = await loadMetadata()
+    const owned = new Set(meta.filter(m => m && m.orgId).map(m => m.id))
+    const byId = new Map(meta.map(m => [m && m.id, m]))
+    const files = []
+    for (const f of await fs.readdir(FILES_DIR)) {
+      const id = path.basename(f, path.extname(f))
+      if (owned.has(id)) continue
+      const st = await fs.stat(path.join(FILES_DIR, f))
+      files.push({ id, name: (byId.get(id) || {}).name || f, size: st.size, mtime: st.mtime })
+    }
+    res.json({ files })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+app.post('/admin/assign', adminOnly, async (req, res) => {
+  try {
+    const { fileId, orgId, actor } = req.body || {}
+    if (!validFileId(fileId) || typeof orgId !== 'string' || !orgId || orgId.length > 80) return res.status(400).json({ error: 'fileId and orgId required' })
+    const file = exactFile(await fs.readdir(FILES_DIR), fileId)
+    if (!file) return res.status(404).json({ error: 'File not found' })
+    const meta = await loadMetadata()
+    const rec = meta.find(m => m && m.id === fileId)
+    if (rec && rec.orgId) return res.status(409).json({ error: 'already_owned', orgId: rec.orgId })
+    const next = rec ? meta.map(m => (m && m.id === fileId ? { ...m, orgId } : m)) : [...meta, { id: fileId, name: file, orgId, assignedAt: new Date().toISOString() }]
+    await saveMetadata(next)
+    auditEnvelope('quox.files.quarantine_assigned', { fileId, orgId, actor: actor || null })
+    res.json({ success: true, fileId, orgId })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.use((req, res, next) => {
+  if (req.path === '/health' || req.path === '/__routes' || req.path.startsWith('/admin/')) return next()
+  const caller = tenancy.resolveCaller(req, { jwtSecret: process.env.JWT_SECRET, serviceKey: process.env.INTERNAL_SERVICE_KEY })
+  if (!caller) return res.status(401).json({ error: 'authentication_required' })
+  req.callerOrgId = caller.orgId
+  next()
+})
+const validFileId = (id) => typeof id === 'string' && id.length > 0 && id.length <= 200 && !id.includes('..') && !id.includes('/') && !id.includes('\\')
+const exactFile = (files, id) => files.find(f => f === id || f.startsWith(id + '.'))
+
 // Storage directory
 const STORAGE_DIR = process.env.STORAGE_DIR || path.join(__dirname, 'data')
 const FILES_DIR = path.join(STORAGE_DIR, 'files')
@@ -278,7 +333,9 @@ app.post('/upload', upload.array('files', 100), async (req, res) => {
     if (results.length > 0) {
       try {
         const existingMetadata = await loadMetadata()
-        await saveMetadata(mergeUploadMetadata(existingMetadata, results))
+        const uploadedIds = new Set(results.map(r => r.id))
+        const merged = mergeUploadMetadata(existingMetadata, results).map(r => (uploadedIds.has(r.id) ? { ...r, orgId: req.callerOrgId } : r))
+        await saveMetadata(merged)
       } catch (metaErr) {
         console.warn('[Files] Failed to persist upload metadata:', metaErr.message)
       }
@@ -311,6 +368,15 @@ app.post('/upload-base64', async (req, res) => {
     const base64Data = data.replace(/^data:[^;]+;base64,/, '')
     let buffer = Buffer.from(base64Data, 'base64')
 
+    // F01: the id is client-chosen. It may name a NEW file or one this org already owns, never another org's file
+    // or a quarantined one (that was an overwrite of any org's file by id).
+    const existingMeta = await loadMetadata()
+    const owned = tenancy.ownsFile(existingMeta, fileId, req.callerOrgId)
+    const onDisk = exactFile(await fs.readdir(FILES_DIR), fileId)
+    if (!owned && (onDisk || existingMeta.some(m => m && m.id === fileId))) {
+      return res.status(409).json({ error: 'file_id_taken' })
+    }
+
     const ext = filename ? path.extname(filename) : ''
     const filepath = path.join(FILES_DIR, `${fileId}${ext}`)
 
@@ -326,6 +392,10 @@ app.post('/upload-base64', async (req, res) => {
     }
 
     await fs.writeFile(filepath, buffer)
+    await saveMetadata(tenancy.mergeOrgMetadata(existingMeta, [
+      ...tenancy.visibleRecords(existingMeta, req.callerOrgId).filter(m => m.id !== fileId),
+      { ...(existingMeta.find(m => m && m.id === fileId) || {}), id: fileId, name: filename || fileId, type: mimetype || null, size: buffer.length, uploadedAt: new Date().toISOString() },
+    ], req.callerOrgId))
 
     auditEnvelope('quox.files.uploaded_base64', { fileId, size: buffer.length })
     res.json({
@@ -355,7 +425,8 @@ app.get('/file/:id', async (req, res) => {
     // Issue 1.10: Exact match - file must be exactly the ID or ID with extension
     const file = files.find(f => f === fileId || f.startsWith(fileId + '.'))
 
-    if (!file) {
+    // F01: another org's file and a quarantined file answer exactly like a missing one (no existence oracle)
+    if (!file || !tenancy.ownsFile(await loadMetadata(), fileId, req.callerOrgId)) {
       return res.status(404).json({ error: 'File not found' })
     }
 
@@ -405,7 +476,8 @@ app.get('/file/:id/base64', async (req, res) => {
     // Issue 1.10: Exact match with extension
     const file = files.find(f => f === fileId || f.startsWith(fileId + '.'))
 
-    if (!file) {
+    // F01: another org's file and a quarantined file answer exactly like a missing one (no existence oracle)
+    if (!file || !tenancy.ownsFile(await loadMetadata(), fileId, req.callerOrgId)) {
       return res.status(404).json({ error: 'File not found' })
     }
 
@@ -431,14 +503,17 @@ app.get('/file/:id/base64', async (req, res) => {
 // Delete file
 app.delete('/file/:id', async (req, res) => {
   try {
+    const fileId = req.params.id
+    if (!validFileId(fileId)) return res.status(400).json({ error: 'Invalid file ID' })
     const files = await fs.readdir(FILES_DIR)
-    const file = files.find(f => f.startsWith(req.params.id))
-
-    if (!file) {
+    // F01: the EXACT id (startsWith(id) let a short id delete whichever file began with it), owned by the caller org
+    const file = exactFile(files, fileId)
+    const metadata = await loadMetadata()
+    if (!file || !tenancy.ownsFile(metadata, fileId, req.callerOrgId)) {
       return res.status(404).json({ error: 'File not found' })
     }
-
     await fs.unlink(path.join(FILES_DIR, file))
+    await saveMetadata(metadata.filter(m => !(m && m.id === fileId)))
     auditEnvelope('quox.files.deleted', { fileId: req.params.id })
     res.json({ success: true })
   } catch (err) {
@@ -459,7 +534,9 @@ app.get('/list', async (req, res) => {
       const stat = await fs.stat(path.join(FILES_DIR, f))
       return { filename: f, id: path.basename(f, path.extname(f)), size: stat.size, mtime: stat.mtime }
     }))
-    res.json({ files: joinFileListMetadata(diskFiles, metadata) })
+    // F01: only the caller org's files; unowned (quarantined) files are never listed
+    const mine = new Set(tenancy.visibleRecords(metadata, req.callerOrgId).map(m => m.id))
+    res.json({ files: joinFileListMetadata(diskFiles.filter(f => mine.has(f.id)), metadata) })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -468,8 +545,7 @@ app.get('/list', async (req, res) => {
 // Get all metadata
 app.get('/metadata', async (req, res) => {
   try {
-    const metadata = await loadMetadata()
-    res.json(metadata)
+    res.json(tenancy.visibleRecords(await loadMetadata(), req.callerOrgId))
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -478,7 +554,8 @@ app.get('/metadata', async (req, res) => {
 // Save all metadata
 app.post('/metadata', async (req, res) => {
   try {
-    await saveMetadata(req.body)
+    // F01: the caller org's records replace only its own; another org's (and quarantined) records cannot be touched
+    await saveMetadata(tenancy.mergeOrgMetadata(await loadMetadata(), Array.isArray(req.body) ? req.body : [], req.callerOrgId))
     auditEnvelope('quox.files.metadata_saved', { count: Array.isArray(req.body) ? req.body.length : 0 })
     res.json({ success: true })
   } catch (err) {
@@ -489,8 +566,7 @@ app.post('/metadata', async (req, res) => {
 // Get folders
 app.get('/folders', async (req, res) => {
   try {
-    const folders = await loadFolders()
-    res.json(folders)
+    res.json(tenancy.orgFolders(await loadFolders(), req.callerOrgId))
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -499,7 +575,7 @@ app.get('/folders', async (req, res) => {
 // Save folders
 app.post('/folders', async (req, res) => {
   try {
-    await saveFolders(req.body)
+    await saveFolders(tenancy.setOrgFolders(await loadFolders(), req.callerOrgId, req.body))
     auditEnvelope('quox.files.folders_saved', { count: Array.isArray(req.body) ? req.body.length : 0 })
     res.json({ success: true })
   } catch (err) {
@@ -510,7 +586,8 @@ app.post('/folders', async (req, res) => {
 // Storage stats
 app.get('/stats', async (req, res) => {
   try {
-    const files = await fs.readdir(FILES_DIR)
+    const mine = new Set(tenancy.visibleRecords(await loadMetadata(), req.callerOrgId).map(m => m.id))
+    const files = (await fs.readdir(FILES_DIR)).filter(f => mine.has(path.basename(f, path.extname(f))))
     let totalSize = 0
 
     for (const f of files) {

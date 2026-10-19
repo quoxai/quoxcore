@@ -7,7 +7,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { buildAllowedUrls, normaliseUrl } = require('./quoxchatGrounding');
+const { buildAllowedUrls, normaliseUrl, figuresIn, isArchivedText } = require('./quoxchatGrounding');
 
 const SITE_ORIGIN = 'https://quox.ai';
 
@@ -144,9 +144,11 @@ function buildPublicSources(chunks, { siteLinks, titleFn, limit = 3 } = {}) {
 const GENERIC_CITE_WORDS = new Set(['service', 'servic', 'customer', 'support', 'inform', 'information', 'contact', 'team', 'offer', 'price', 'cost', 'call', 'help', 'hour', 'open', 'year', 'month', 'week', 'day', 'time', 'includ', 'include', 'available', 'avail', 'pleas', 'please', 'visit', 'work', 'provid', 'provide', 'quot', 'detail', 'question', 'enquiri', 'enquiry', 'compani', 'company', 'busi', 'business', 'need', 'make', 'also', 'anyth', 'check', 'confirm', 'appoint', 'book']);
 const SUPERSEDED_NAME_RE = /(?:^|[^a-z])(old|archive|archived|replaced|superseded|deprecated|outdated|legacy)(?:[^a-z]|$)/i;
 const CITE_MIN_SCORE = 0.35;
+// Wave 15: a cited chunk must score within this fraction of the best retrieved chunk.
+const CITE_REL_FLOOR = 0.75;
 
 function isSupersededSuggested(c) {
-  return Boolean(c && (c.superseded === true || SUPERSEDED_NAME_RE.test(`${c.source || ''} ${c.title || ''} ${c.section || ''}`)));
+  return Boolean(c && (c.superseded === true || c.history === true || SUPERSEDED_NAME_RE.test(`${c.source || ''} ${c.title || ''} ${c.section || ''}`)));
 }
 
 /**
@@ -159,14 +161,17 @@ function isSupersededSuggested(c) {
  * which knowledge items supported a reply, so lexical overlap is the evidence.
  * Order (retrieval rank) is preserved; an answer with no support cites nothing.
  */
-function selectCitedChunks(chunks, answer, { limit = 3 } = {}) {
+function selectCitedChunks(chunks, answer, { limit = 3, keepOutdated = false } = {}) {
   const { tokenize } = require('./quoxchatLexical');
   const ans = new Set(tokenize(answer));
   if (ans.size === 0) return [];
   const seen = new Set();
   const out = [];
+  const scores = (Array.isArray(chunks) ? chunks : []).map((c) => c && c.score).filter((x) => typeof x === 'number');
+  const topScore = scores.length ? Math.max(...scores) : null;
   for (const c of Array.isArray(chunks) ? chunks : []) {
     if (typeof (c && c.score) === 'number' && c.score < CITE_MIN_SCORE) continue;
+    if (topScore !== null && typeof (c && c.score) === 'number' && c.score < CITE_REL_FLOOR * topScore) continue;
     const toks = new Set(tokenize(`${c && c.text ? c.text : ''} ${c && c.answer ? c.answer : ''}`));
     let shared = 0;
     let numeric = false;
@@ -184,8 +189,26 @@ function selectCitedChunks(chunks, answer, { limit = 3 } = {}) {
     seen.add(key);
     out.push(c);
   }
+  if (keepOutdated) return out.slice(0, limit);
   const current = out.filter((c) => !isSupersededSuggested(c));
   return (current.length > 0 ? current : out).slice(0, limit);
 }
 
-module.exports = { selectCitedChunks, buildPublicSources, SITE_ORIGIN, parseImports, buildRouteIndex, resolveSourceUrl, firstWebsiteSourceFile, loadRouteIndex, extractFaqSources, isPublicRoute };
+/**
+ * W16: true when any chunk behind the reply came from a superseded, suggested-
+ * superseded or arbiter-demoted (history) source, even if a current source was
+ * cited in its place.
+ */
+function usedOutdatedSource(chunks, answer) {
+  const isOld = (c) => isSupersededSuggested(c) || /^\(superseded: replaced by a newer dated version/.test(String(c && c.text || '')) || isArchivedText(c && c.text);
+  if (selectCitedChunks(chunks, answer, { limit: 50, keepOutdated: true }).some((c) => isSupersededSuggested(c) || /^\(superseded: replaced by a newer dated version/.test(String(c && c.text || '')))) return true;
+  // QC-W17b: figure-to-source attribution. A money / percent figure in the SERVED
+  // reply that only history chunks carry (no current chunk has it) was taken from an outdated source.
+  const list = Array.isArray(chunks) ? chunks : [];
+  const figs = figuresIn(answer).filter((f) => f.kind === 'money' || f.kind === 'percent');
+  if (!figs.length) return false;
+  const has = (c, base) => figuresIn(c && c.text).some((x) => x.base === base);
+  return figs.some((f) => list.some((c) => isOld(c) && has(c, f.base)) && !list.some((c) => !isOld(c) && has(c, f.base)));
+}
+
+module.exports = { usedOutdatedSource, isSupersededSuggested, selectCitedChunks, buildPublicSources, SITE_ORIGIN, parseImports, buildRouteIndex, resolveSourceUrl, firstWebsiteSourceFile, loadRouteIndex, extractFaqSources, isPublicRoute };

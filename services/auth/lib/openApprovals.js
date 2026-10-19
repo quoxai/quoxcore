@@ -15,6 +15,30 @@ import { prepare } from '../db/index.js';
 
 export const ACTIVE_STATUSES = ['open', 'in_progress', 'waiting'];
 
+/**
+ * A decision request (quox ask) is an inbox item of kind 'question' whose payload says type 'decision'
+ * (the inbox_items kind CHECK cannot take a new value without a table rebuild). It is a HITL request a
+ * human must answer, so it is counted and listed with approvals and can never be hidden from them
+ * (quox#1052). One SQL fragment so the list, stats and the org-wide count cannot drift.
+ */
+export const APPROVAL_OR_DECISION_SQL = `(ii.kind = 'approval' OR (ii.kind = 'question' AND ii.payload_json LIKE '%"type":"decision"%'))`;
+
+export function isDecisionRow(row) {
+  if (!row || row.kind !== 'question') return false;
+  try { return JSON.parse(row.payload_json || '{}').type === 'decision'; } catch { return false; }
+}
+
+/** Mark every active decision whose expiry has passed as expired (lazy: runs before any read of the set). */
+export function expireDueDecisions(orgId, prepareFn = prepare) {
+  const st = prepareFn(`
+    UPDATE inbox_items SET status = 'expired', updated_at = datetime('now'),
+      response_json = COALESCE(response_json, '{"outcome":"expired"}')
+    WHERE org_id = ? AND kind = 'question' AND payload_json LIKE '%"type":"decision"%'
+    AND status IN ('open', 'in_progress', 'waiting') AND due_at IS NOT NULL AND due_at < ?
+  `);
+  return typeof st?.run === 'function' ? st.run(orgId, new Date().toISOString()).changes : 0; // a read-only prepareFn (tests) cannot write
+}
+
 /** Row visibility: owners/admins see every org item; members see their own inbox, items assigned to or filed by them. */
 export function visibilityClause({ isOrgAdmin, personalInboxId, userId }) {
   if (isOrgAdmin) return { sql: '', params: [] };
@@ -36,6 +60,7 @@ export function visibilityClause({ isOrgAdmin, personalInboxId, userId }) {
 /** Which approval source filed this card. */
 export function approvalSource(row, payload) {
   const p = payload || {};
+  if (p.type === 'decision') return 'decision';
   if (p.type === 'native_tool_approval' || p.approval_id) return 'tool';
   if (row.run_id) return 'workflow';
   if (p.source && typeof p.source === 'string') return p.source;
@@ -55,11 +80,12 @@ export function isPrivilegedPayload(payload) {
 export function openApprovals({ orgId, userId = null, isOrgAdmin = false, personalInboxId = null, prepareFn = prepare }) {
   if (!orgId) throw new Error('openApprovals: orgId required');
   const vis = visibilityClause({ isOrgAdmin, personalInboxId, userId });
+  expireDueDecisions(orgId, prepareFn);
   const rows = prepareFn(`
     SELECT ii.*, ib.name AS inbox_name, ib.inbox_type
     FROM inbox_items ii
     LEFT JOIN inboxes ib ON ii.inbox_id = ib.id
-    WHERE ii.org_id = ? AND ii.deleted_at IS NULL AND ii.kind = 'approval'
+    WHERE ii.org_id = ? AND ii.deleted_at IS NULL AND ${APPROVAL_OR_DECISION_SQL}
     AND ii.status IN ('open', 'in_progress', 'waiting')
     ${vis.sql}
     ORDER BY ii.created_at DESC

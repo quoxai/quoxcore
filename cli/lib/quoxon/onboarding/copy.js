@@ -5,6 +5,7 @@
  *
  * Functions take the facts they print (a URL, a size, a provider name); nothing here computes anything.
  */
+import { askText } from '../ask.js';
 
 export const LABEL = 'Getting started';
 export const LABEL_SUB = 'setup guide · no AI yet, every line here is scripted';
@@ -32,7 +33,7 @@ export const DEFERRAL = 'I can answer that properly once your Quox is running.';
 
 // The install time is NOT promised as a number until it has been measured on a clean machine (C2 exit).
 export const OFFER = "To do that I need a QuoxCORE, the engine your agents run in. It runs here in Docker, it's free for your own use, and the first install builds from source, so it takes a while.";
-export const OFFER_ASK = 'Set it up now? (Y/n)';
+export const OFFER_ASK = askText('Set it up now?', { keys: '(Y/n)', who: 'Quox', action: 'connect an AI and install the Quox server, step by step' });
 export const ALREADY = 'Already have one? /connect server <url>';
 export const DECLINED = 'No problem. Run quox any time and we will pick up here.';
 export const DECLINED_HINT = 'Type yes to set up now, /connect server <url> to use one you have, or /exit.';
@@ -45,10 +46,22 @@ export const CONNECT_USAGE = 'Usage: /connect server <url>   for example /connec
 export const connectBadUrl = (u) => `That does not look like a server address: ${u}. Use the full URL, starting with https://`;
 export const connectHandoff = (url) => `Connecting to ${url}. Sign in with your QuoxCORE email and password.`;
 export const CONNECT_DONE = 'Signed in. Starting Quox.';
+export const connectChecking = (url) => `Checking ${url} is a QuoxCORE server...`;
+export const CONNECT_CANCELLED = 'Cancelled. Nothing was saved: the previous server address is back.';
 export const connectFailed = (url) => `Sign-in to ${url} did not complete. Check the address, then try /connect server again.`;
 export const CONNECT_INTENT_LINE = 'Great. Point me at it with /connect server <url> and sign in, and we go straight to your agents.';
 
 // ---- preflight ---------------------------------------------------------------------------------
+// FIRSTRUN: the guide offers to fix Docker itself (dockerOffer.js), so nobody has to leave it to do so.
+export const DOCKER_OFFER_QUESTION = {
+  install: 'Install Docker for you now?',
+  group: 'Add you to the docker group now?',
+  relaunch: 'Carry on now with the docker group, without logging out?'
+};
+export const DOCKER_OFFER_HINT = 'y yes · r check again · q stop';
+export const DOCKER_OFFER_RUNNING = 'Running (sudo may ask for your password):';
+export const DOCKER_OFFER_FAILED = 'That did not finish. Fix what it said, then run quox to pick up where you left off.';
+export const DOCKER_OFFER_RELAUNCH = 'Starting quox again with the docker group.';
 export const PREFLIGHT_TITLE = 'Checking this machine';
 export const PREFLIGHT_RETRY = 'r to check again · q to stop';
 export const PREFLIGHT_RETRY_DRY = 'r to check again · c to continue anyway (dry run) · q to stop';
@@ -66,6 +79,8 @@ export const CHECK = {
     missingLink: 'https://docs.docker.com/get-docker/',
     perm: 'Docker is installed, but this user cannot reach the daemon',
     permFix: 'Run: sudo usermod -aG docker $USER && newgrp docker   then press r.',
+    permStale: 'Docker is installed, and you are in the docker group, but this terminal started before that',
+    permStaleFix: 'Pressing r cannot fix this: a running terminal never gains a new group. Run: newgrp docker   (or open a new terminal), then run: quox',
     down: 'Docker is installed, but the daemon is not running',
     downFix: 'Start Docker (Docker Desktop, or: sudo systemctl start docker), then press r.',
     link: 'https://docs.docker.com/engine/install/'
@@ -128,7 +143,12 @@ export const CRED_OPTIONS = {
 export const credPrompt = (label) => `Paste your ${label}. It stays in memory only: never written to disk, history or the transcript.`;
 export const CRED_INPUT_HINT = 'Enter to use it · Esc to go back';
 export const credHeld = (label, fp) => `${label} held in memory (fingerprint ${fp}). It is stored in your Quox vault after install, never on disk here.`;
-export const credConsent = (label) => `${label} is a cloud AI: your messages and tool results are sent to it, so Quox needs your OK once. After install, /consent grant openai records it (or Settings > Privacy in the dashboard). A local model (Ollama) needs no consent.`;
+export const credConsent = (label) => `${label} is a cloud AI: your messages and tool results are sent to it, so Quox needs your OK once. Say no and nothing goes to it until you give it later with /consent grant openai (or Settings > Privacy in the dashboard). A local model (Ollama) needs no consent.`;
+// QUOXON-Z2H lane R: the one consent question at the credential step. Default No: cloud processing stays opt-in.
+export const credConsentAsk = (who) => askText(`Allow Quox to send your conversations to ${who}?`, { keys: 'y/N', who: 'Quox', action: `send your messages and any tool results to ${who}, a third party, when it answers` });
+export const CRED_CONSENT_HINT = 'y yes · n or Enter no';
+export const credConsentYes = (who) => `Yes. Your OK for ${who} is recorded as soon as your owner account exists. Withdraw it any time in Settings > Privacy.`;
+export const credConsentNo = (who, provider) => `No. ${who} receives nothing until you give your OK: /consent grant ${provider}, or Settings > Privacy in the dashboard.`;
 export const CRED_EMPTY = 'Nothing was pasted. Paste the key, or Esc to choose again.';
 export const CRED_OLLAMA = 'Ollama it is. The Quox server runs in Docker and cannot reach "localhost", so after install connect it by this machine\'s LAN address: start Ollama with OLLAMA_HOST=0.0.0.0, then /connect ollama http://<lan-ip>:11434';
 export const OLLAMA_URL_PROMPT = 'The Ollama URL on your network, for example http://<lan-ip>:11434. Not a secret. On that machine, start Ollama with OLLAMA_HOST=0.0.0.0 and allow port 11434.';
@@ -161,7 +181,7 @@ export const INSTALL_KEY_GONE = 'Your key was not kept: it only ever lived in me
 export const installWhere = (dir) => `Installing into ${dir}`;
 export const installScriptLead = (url, bytes) => `Installer ${url} (${Math.max(1, Math.round(bytes / 1024))} KB), SHA256`;
 export const installScript = (url, sha, bytes) => `${installScriptLead(url, bytes)} ${sha}`;
-export const INSTALL_STOP_ASK = 'Stop the install? You can pick it up next time. (y/N)';
+export const INSTALL_STOP_ASK = askText('Stop the install?', { reason: 'You can pick it up next time.', keys: 'y/N' });
 export const INSTALL_STOP_KEEP = 'Carrying on.';
 export const INSTALL_STOPPED = 'Install stopped. Run quox to pick up where you left off.';
 export const INSTALL_EARLIER = 'done earlier';
@@ -189,6 +209,7 @@ export const FIN = {
     name: 'AI KEY', running: (label) => `testing your ${label}, then storing it in your vault`,
     skipped: 'no key to store', ollama: 'Ollama: add it to your vault with quox vault create --type ollama'
   },
+  consent: { name: 'CONSENT', running: (who) => `recording your OK for ${who}`, ok: (who) => `OK recorded for ${who}`, fail: (e, provider) => `not recorded (${e}), later: /consent grant ${provider}` },
   link: { name: 'DASHBOARD', running: 'making your one-time sign-in link', ok: 'one-time link ready (10 minutes, single use)', fail: (e) => `no link (${e}), sign in with your owner account instead` }
 };
 export const KEY_GONE_AFTER = 'The key is gone from this terminal\'s memory now.';
@@ -226,6 +247,7 @@ export const K2 = {
   explore: 'Want your agents to do more? /connect shows what is connected and what you can add.'
 };
 K2.offscript = K2.explore;
+export const K2_SERVERS_NO_INSTALLER = 'You said you want to watch your servers. None are connected yet, and this install cannot enrol hosts yet because its host installer is not available.';
 export const k2NoAi = (provider) => `Your agents have no AI yet, so they cannot answer for themselves. Connect one now? /connect ${provider}`;
 export const FINALE_EXIT = 'Enter to start talking to your Quox';
 export const FINALE_EXIT_DRY = 'Enter to finish';

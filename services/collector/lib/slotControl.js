@@ -16,7 +16,8 @@ const { isSlotVoice } = require('./devSlotsStore.js');
 const { deriveActorType } = require('../utils/actorType.js');
 const { callerFromReq } = require('./slotSplinter.js');
 
-const CONTROL_COMMANDS = ['compact', 'status'];
+// POKE-WAKE: wake = the keeper types one fixed "read your slot" line into an idle session's prompt.
+const CONTROL_COMMANDS = ['compact', 'status', 'wake'];
 const SETTING_KEY = 'QUOX_SLOT_CONTROL_DISCORD_IDS';
 // Owner decision 2026-10-05 (option A): the Discord daemon authenticates with
 // an MCP token, which deriveActorType reads as an agent. Only MCP tokens whose
@@ -97,6 +98,12 @@ function createSlotControlHandlers({ devSlots, store, resolveOrgId, getSetting, 
       const relayId = actor === 'service' ? null : relayTokenId(req);
       if (!CONTROL_COMMANDS.includes(body.command)) {
         return res.status(400).json({ error: 'unknown command', allowed: CONTROL_COMMANDS });
+      }
+      // FORCE-WAKE: `force` is a wake option only. Every human wake already sets a draft aside and puts it back
+      // unsent (the keeper keys that on requested_via, which only the human/allowlist gates above can set), so
+      // force is accepted as a no-op; agents never reach this line.
+      if (body.force !== undefined && body.command !== 'wake') {
+        return res.status(400).json({ error: 'force applies to wake only' });
       }
       const slot = findSlot(req);
       if (!slot) return res.status(404).json({ error: 'unknown slot' });

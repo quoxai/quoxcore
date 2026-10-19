@@ -22,6 +22,7 @@ export function settingsList({ sound = true } = {}) {
     { id: 'motion', label: 'Motion', values: LEVELS, def: DEFAULT_LEVEL, help: 'quiet stills it all; expressive adds glows; cinematic adds the dragon' },
     ...(sound ? [{ id: 'sound', label: 'Sound', values: PROFILE_IDS, def: 'minimal', help: 'same as /sound; saved to your account' }] : []),
     { id: 'verbose', label: 'Verbose', values: ['off', 'on', 'full'], def: 'on', help: 'protocol lines in turns' },
+    { id: 'slotBell', label: 'Slot bell', values: ['off', 'on'], def: 'on', help: 'a terminal bell when a slot message arrives' },
     { id: 'model', label: 'Model', action: 'model', help: 'Enter opens /model' }
   ];
 }

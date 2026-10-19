@@ -606,9 +606,9 @@ router.put('/orgs/:orgId/workflows/:workflowId/steps', requireOrgMembership, asy
             for (let i = 0; i < normalised.length; i++) {
                 const step = normalised[i];
                 prepare(`
-                    INSERT INTO workflow_steps (id, workflow_id, idx, step_type, ref_id, config_json)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                `).run(ulid(), workflowId, i, step.step_type, step.ref_id || null, JSON.stringify(step.config || {}));
+                    INSERT INTO workflow_steps (id, workflow_id, idx, step_type, ref_id, label, config_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `).run(ulid(), workflowId, i, step.step_type, step.ref_id || null, step.label ?? null, JSON.stringify(step.config || {}));
             }
         });
 

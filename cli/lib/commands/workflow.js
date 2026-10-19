@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { extname } from 'node:path';
 import yaml from 'js-yaml';
-import { formatOutput, formatDetail, printWarning, printInfo } from '../core/output.js';
+import { formatOutput, formatDetail, printWarning, printInfo, getOutputFormat } from '../core/output.js';
 import { events, printEvent, line as glyphLine } from '../core/quoxglyph.js';
 import { resolveOrgId, parseJSON } from './helpers.js';
 import { resolveEndpoint } from '../api/endpoints.js';
@@ -77,6 +77,33 @@ function printApplyDiff(workflowId, changes) {
   console.log('');
 }
 
+// Read one engine workflow by id, or by its exact name when no id matches (proof cases and people know
+// names; engine ids are wf-<ms>-<6>). An ambiguous name is refused with the matching ids, never guessed.
+async function getEngineWorkflow(client, ref) {
+  const ep = resolveEndpoint('workflows.applyGet', { workflowId: ref });
+  try {
+    const res = await client.get(ep.path, { service: ep.service });
+    return res.data || res;
+  } catch (err) {
+    if (err.status !== 404) throw err;
+    const listEp = resolveEndpoint('workflows.applyList');
+    const matches = [];
+    for (let offset = 0, guard = 0; guard < 200; guard++) {
+      const data = await client.get(listEp.path, { service: listEp.service, query: { limit: 100, offset } });
+      const items = data.data || data.items || data.workflows || (Array.isArray(data) ? data : []);
+      for (const w of items) if (w && w.name === ref) matches.push(w);
+      offset += items.length;
+      const pg = data.pagination;
+      if (!pg || !items.length || !(offset < pg.total)) break;
+    }
+    if (matches.length > 1) throw new Error(`Workflow name "${ref}" matches ${matches.length} workflows (${matches.map((m) => m.id).join(', ')}); give the id instead.`);
+    if (!matches.length) throw err;
+    const byId = resolveEndpoint('workflows.applyGet', { workflowId: matches[0].id });
+    const res = await client.get(byId.path, { service: byId.service });
+    return res.data || res;
+  }
+}
+
 export function registerWorkflowCommands(program, ctx) {
   const { client, auth } = ctx;
 
@@ -105,9 +132,17 @@ export function registerWorkflowCommands(program, ctx) {
 
       try {
         const ep = resolveEndpoint('workflows.applyList');
-        const data = await client.get(ep.path, { service: ep.service });
-        const items = data.data || data.items || data.workflows || (Array.isArray(data) ? data : []);
-        for (const item of items) rows.push({ ...item, source: 'engine' });
+        // The engine pages (default 20, max 100). Walk every page so the list is the
+        // whole store, not the first page (121 workflows read as 20 before).
+        const PAGE = 100;
+        for (let offset = 0, guard = 0; guard < 200; guard++) {
+          const data = await client.get(ep.path, { service: ep.service, query: { limit: PAGE, offset } });
+          const items = data.data || data.items || data.workflows || (Array.isArray(data) ? data : []);
+          for (const item of items) rows.push({ ...item, source: 'engine' });
+          const pg = data.pagination;
+          offset += items.length;
+          if (!pg || !items.length || !(offset < pg.total)) break;
+        }
       } catch (err) {
         printWarning(`Engine (quoxflow) workflow list failed: ${err.message}`);
       }
@@ -131,16 +166,14 @@ export function registerWorkflowCommands(program, ctx) {
   workflow
     .command('get')
     .description('Get workflow details')
-    .argument('<workflowId>', 'workflow ID')
+    .argument('<workflowId>', 'workflow ID or exact name')
     .action(async (workflowId) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
 
       let data, source;
       try {
-        const ep = resolveEndpoint('workflows.applyGet', { workflowId });
-        const res = await client.get(ep.path, { service: ep.service });
-        data = res.data || res;
+        data = await getEngineWorkflow(client, workflowId);
         source = 'engine';
       } catch (err) {
         if (err.status !== 404) throw err;
@@ -160,20 +193,85 @@ export function registerWorkflowCommands(program, ctx) {
       formatDetail({ ...data, source }, { format: program.opts().output, title: data.name });
     });
 
+  // ── workflow schedule <id> ──────────────────────────────────────────────────
+  // Is the schedule REALLY registered, and when does it fire next? Read from the live scheduler
+  // (GET /api/triggers/schedules), never inferred from the saved config (SITE-CLI 2026-10-17).
+  workflow
+    .command('schedule')
+    .description('Show whether a workflow\'s schedule trigger is registered with the live scheduler, and its next fire time')
+    .argument('<workflowId>', 'workflow ID or exact name')
+    .action(async (workflowId) => {
+      auth.requireAuth();
+      const wf = await getEngineWorkflow(client, workflowId);
+      const id = wf.id || workflowId;
+      const nodes = (wf.definition && wf.definition.nodes) || wf.nodes || [];
+      const schedNodes = nodes.filter((n) => n && n.type === 'trigger:schedule');
+
+      const liveEp = resolveEndpoint('triggers.schedules');
+      const liveRes = await client.get(liveEp.path, { service: liveEp.service });
+      const live = liveRes.data || liveRes;
+      const ownedByTasks = live.owned_by === 'tasks';
+      const rows = (live.schedules || []).filter((r) => r.workflowId === id);
+
+      const schedules = schedNodes.map((n) => {
+        const cfg = n.config || {};
+        const saved = cfg.expression || cfg.cron || null;
+        const reg = rows.find((r) => r.nodeId === n.id);
+        if (ownedByTasks) {
+          return { nodeId: n.id, registered: null, state: 'unknown', saved, expression: null, timezone: cfg.timezone || 'UTC', nextFireAt: null,
+            reason: 'Scheduling is owned by the tasks service on this instance; the workflow engine cannot see registrations.' };
+        }
+        if (!reg) {
+          return { nodeId: n.id, registered: false, state: 'not registered', saved, expression: null, timezone: cfg.timezone || 'UTC', nextFireAt: null,
+            reason: wf.active === false ? 'The workflow is not active, so its schedule is not registered. Activate it to register.' : 'Not registered with the scheduler.' };
+        }
+        return { nodeId: n.id, registered: true, state: reg.active ? 'active' : 'paused', saved, expression: reg.expression, timezone: reg.timezone || 'UTC', nextFireAt: reg.nextFireAt || null };
+      });
+
+      const result = { workflowId: id, name: wf.name, active: wf.active, ...(live.owned_by ? { owned_by: live.owned_by } : {}), schedules,
+        ...(schedNodes.length ? {} : { note: 'This workflow has no schedule trigger.' }) };
+      if (getOutputFormat() === 'json' || program.opts().output === 'json') { formatDetail(result, { format: 'json' }); return; }
+      if (!schedNodes.length) { printInfo(`${id}: ${result.note}`); return; }
+      if (ownedByTasks) printInfo(live.note || 'Schedules are managed by the tasks service.');
+      formatOutput({
+        columns: ['nodeId', 'registeredLabel', 'state', 'expression', 'timezone', 'nextFireAt', 'reason'],
+        headers: ['Node', 'Registered', 'State', 'Cron (live)', 'Timezone', 'Next Fire', 'Note'],
+        rows: schedules.map((r) => ({ ...r, registeredLabel: r.registered === true ? 'yes' : r.registered === false ? 'no' : 'unknown', expression: r.expression || '-', nextFireAt: r.nextFireAt || '-', reason: r.reason || '' })),
+      }, { format: program.opts().output });
+    });
+
   workflow
     .command('create')
-    .description('Create a new workflow')
+    .description('Create a new workflow in the workflow engine (quoxflow). --steps takes a JSON array of nodes (chained in order) or an object with nodes and optional edges')
     .requiredOption('--name <name>', 'workflow name')
     .option('--description <desc>', 'description')
-    .option('--steps <json>', 'workflow steps as JSON')
+    .option('--steps <json>', 'nodes as a JSON array (chained sequentially), or {"nodes":[...],"edges":[...]}')
     .action(async (options) => {
       auth.requireAuth();
-      const orgId = resolveOrgId(auth, program);
-      const body = { name: options.name };
+      // #1190: the engine is the one workflow store. Same id shape as `workflow apply`.
+      const id = `wf-${Date.now()}-${Math.random().toString(36).slice(2, 8).padEnd(6, '0')}`;
+      let nodes = [];
+      let edges = [];
+      if (options.steps) {
+        const steps = parseJSON(options.steps, '--steps');
+        if (Array.isArray(steps)) {
+          nodes = steps;
+          edges = steps.slice(1).map((n, i) => ({ id: `e${i + 1}`, source: steps[i].id ?? `n${i}`, target: n.id ?? `n${i + 1}` }));
+        } else if (steps && typeof steps === 'object' && Array.isArray(steps.nodes)) {
+          nodes = steps.nodes;
+          edges = Array.isArray(steps.edges) ? steps.edges : [];
+        } else {
+          throw new Error('--steps must be a JSON array of nodes, or an object with a "nodes" array (and optional "edges").');
+        }
+      }
+      const body = { id, name: options.name, nodes, edges };
       if (options.description) body.description = options.description;
-      if (options.steps) body.steps = parseJSON(options.steps, '--steps');
-      await client.post(resolveEndpoint('workflows.create', { orgId }).path, { service: resolveEndpoint('workflows.create', { orgId }).service, body });
-      printEvent(events.created('quox', 'workflow', options.name));
+      const ep = resolveEndpoint('workflows.applyCreate');
+      const res = await client.post(ep.path, { service: ep.service, body });
+      const created = res?.data || res;
+      printEvent(events.created('quox', 'workflow', `${options.name} (quoxflow) id:${created.id || id}`));
+      // #1000: --json gets the saved workflow (the event line is suppressed in json mode, which left nothing)
+      if (getOutputFormat() === 'json') formatDetail(created, { format: 'json' });
     });
 
   workflow
@@ -190,8 +288,9 @@ export function registerWorkflowCommands(program, ctx) {
       if (options.name) body.name = options.name;
       if (options.description) body.description = options.description;
       if (options.status) body.status = options.status;
-      await client.patch(resolveEndpoint('workflows.update', { orgId, workflowId }).path, { service: resolveEndpoint('workflows.update', { orgId, workflowId }).service, body });
+      const data = await client.patch(resolveEndpoint('workflows.update', { orgId, workflowId }).path, { service: resolveEndpoint('workflows.update', { orgId, workflowId }).service, body });
       printEvent(events.updated('quox', 'workflow', workflowId));
+      if (getOutputFormat() === 'json') formatDetail(data?.workflow || data, { format: 'json' });
     });
 
   workflow
@@ -201,8 +300,17 @@ export function registerWorkflowCommands(program, ctx) {
     .action(async (workflowId) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
-      await client.delete(resolveEndpoint('workflows.delete', { orgId, workflowId }).path, { service: resolveEndpoint('workflows.delete', { orgId, workflowId }).service });
-      printEvent(glyphLine('quox', 'workflow deleted', { result: workflowId, status: 'ok' }));
+      // #997: engine (quoxflow) first, the auth store only on an engine 404 (same order as `workflow get`)
+      let source = 'engine';
+      try {
+        const ep = resolveEndpoint('workflows.applyDelete', { workflowId });
+        await client.delete(ep.path, { service: ep.service });
+      } catch (err) {
+        if (err.status !== 404) throw err;
+        source = 'auth';
+        await client.delete(resolveEndpoint('workflows.delete', { orgId, workflowId }).path, { service: resolveEndpoint('workflows.delete', { orgId, workflowId }).service });
+      }
+      printEvent(glyphLine('quox', 'workflow deleted', { result: `${workflowId} (${source})`, status: 'ok' }));
     });
 
   workflow
@@ -232,7 +340,8 @@ export function registerWorkflowCommands(program, ctx) {
           }
           if (engineExists) {
             const exEp = resolveEndpoint('workflows.applyExecute', { workflowId });
-            const run = await client.post(exEp.path, { service: exEp.service, body: body.context || {} });
+            // #1029: the engine reads triggerData (a bare body lost --input), and async returns the run id at once
+            const run = await client.post(exEp.path, { service: exEp.service, body: { triggerData: body.context || {}, async: true } });
             const runId = run.executionId || run.execution_id || run.runId || run.run_id || run.id || run.execution?.id || 'ok';
             const st = run.status || run.execution?.status;
             printEvent(glyphLine('quox', 'workflow run', { result: `${workflowId} (quoxflow) -> run ${runId}${st ? ` [${st}]` : ''}`, status: 'ok' }));
@@ -299,15 +408,27 @@ export function registerWorkflowCommands(program, ctx) {
     .action(async (workflowId) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
-      // No dedicated GET .../steps route exists — steps are a field on the
-      // workflow object itself.
-      const data = await client.get(resolveEndpoint('workflows.get', { orgId, workflowId }).path, { service: resolveEndpoint('workflows.get', { orgId, workflowId }).service });
-      const workflow = data.workflow || data;
+      // No dedicated GET .../steps route exists: steps are a field on the
+      // workflow object itself. quox#928: look in the same stores `workflow get`
+      // does, engine (quoxflow) first, so engine workflows (wf-obj-*) resolve too.
+      let rows;
+      try {
+        const ep = resolveEndpoint('workflows.applyGet', { workflowId });
+        const res = await client.get(ep.path, { service: ep.service });
+        const wf = res.data || res;
+        const nodes = wf?.definition?.nodes || wf?.nodes;
+        if (!Array.isArray(nodes)) throw Object.assign(new Error('not an engine workflow'), { status: 404 });
+        rows = nodes.map((n, idx) => ({ idx, label: n.name || n.id, step_type: n.type, ref_id: n.config?.tool || n.config?.toolName || '-' }));
+      } catch (err) {
+        if (err.status !== 404) throw err;
+        const data = await client.get(resolveEndpoint('workflows.get', { orgId, workflowId }).path, { service: resolveEndpoint('workflows.get', { orgId, workflowId }).service });
+        rows = (data.workflow || data).steps || [];
+      }
       formatOutput({
         // fleet #392: workflow_steps columns are idx/label/step_type/ref_id.
         columns: ['idx', 'label', 'step_type', 'ref_id'],
         headers: ['#', 'Name', 'Type', 'Tool'],
-        rows: workflow.steps || [],
+        rows,
       }, { format: program.opts().output });
     });
 
@@ -319,10 +440,35 @@ export function registerWorkflowCommands(program, ctx) {
     .action(async (workflowId, options) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
-      await client.put(resolveEndpoint('workflows.steps', { orgId, workflowId }).path, {
-        service: resolveEndpoint('workflows.steps', { orgId, workflowId }).service,
-        body: { steps: parseJSON(options.steps, '--steps') },
-      });
+      const stepList = parseJSON(options.steps, '--steps');
+      try {
+        await client.put(resolveEndpoint('workflows.steps', { orgId, workflowId }).path, {
+          service: resolveEndpoint('workflows.steps', { orgId, workflowId }).service,
+          body: { steps: stepList },
+        });
+      } catch (err) {
+        if (err.status !== 404) throw err;
+        // #997: `steps list` reads engine workflows too, so an engine id 404'd here with a bare 'Workflow not found'.
+        // An engine workflow is a node/edge graph, not a step list: refuse it by name, like `workflow publish`.
+        let engineExists = false;
+        try {
+          const getEp = resolveEndpoint('workflows.applyGet', { workflowId });
+          await client.get(getEp.path, { service: getEp.service });
+          engineExists = true;
+        } catch (engineErr) {
+          if (engineErr.status !== 404) throw engineErr;
+        }
+        if (engineExists) {
+          throw new Error(
+            `Workflow "${workflowId}" lives in the engine (quoxflow) store, where it is a graph of nodes and edges, `
+            + 'not the step list `workflow steps set` replaces. Edit it with `quox workflow apply -f <file>` '
+            + `(start from \`quox -o json workflow get ${workflowId}\`).`
+          );
+        }
+        throw new Error(
+          `Workflow "${workflowId}" was not found in either the engine (quoxflow) or auth-service workflow store.`
+        );
+      }
       printEvent(events.updated('quox', 'workflow steps', workflowId));
     });
 
@@ -390,7 +536,10 @@ export function registerWorkflowCommands(program, ctx) {
       }
 
       const createEp = resolveEndpoint('workflows.applyCreate');
-      const data = await client.post(createEp.path, { service: createEp.service, body: wf });
+      // #1000: quoxflow's WorkflowSchema requires an id, so "no id = create" 400'd. Mint one in the
+      // engine's own wf-<ms>-<6> shape; the created id is printed, so the file can be given it to update later.
+      const body = wf.id ? wf : { ...wf, id: `wf-${Date.now()}-${Math.random().toString(36).slice(2, 8).padEnd(6, '0')}` };
+      const data = await client.post(createEp.path, { service: createEp.service, body });
       const created = data.data || data;
       printEvent(events.created('quox', 'workflow', `${created.name || wf.name || created.id} (quoxflow) id:${created.id}`));
       formatDetail(created, { format: program.opts().output });
@@ -421,10 +570,18 @@ export function registerWorkflowCommands(program, ctx) {
         try {
           await client.get(getEp.path, { service: getEp.service });
         } catch (err) {
-          if (err.status === 404) {
-            throw new Error(`Workflow "${workflowId}" was not found on the read path \`quox workflow get\` uses. Use -f <file> to validate a local file instead.`);
+          if (err.status !== 404) throw err;
+          // `workflow get` also reads the engine (quoxflow) store; engine-only workflows
+          // (most of them) are not in the auth store, so fall back the same way.
+          try {
+            const engEp = resolveEndpoint('workflows.applyGet', { workflowId });
+            await client.get(engEp.path, { service: engEp.service });
+          } catch (err2) {
+            if (err2.status === 404) {
+              throw new Error(`Workflow "${workflowId}" was not found on the read path \`quox workflow get\` uses. Use -f <file> to validate a local file instead.`);
+            }
+            throw err2;
           }
-          throw err;
         }
         targetId = workflowId;
       } else {

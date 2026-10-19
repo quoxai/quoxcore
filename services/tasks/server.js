@@ -10,12 +10,14 @@ import helmet from 'helmet'
 import { ulid } from 'ulid'
 
 import { initDatabase, getDatabase, closeDatabase } from './db/index.js'
-import { authenticate, requireHumanApprover, requireHumanApproverUnlessSandbox } from './middleware/auth.js'
+import { isRecognisedLoopBackend, normalizeLoopBackend, availableBackendsPhrase } from './lib/loopProviders.js'
+import { authenticate, requireHumanApprover, requireHumanApproverUnlessSandbox, requireStepUpApprove } from './middleware/auth.js'
 import { decomposeObjective } from './lib/decomposer.js'
 import { computeDAG, checkObjectiveCompletion } from './lib/dagUtils.js'
 import { dispatchObjective } from './lib/objectiveDispatch.js'
 import { runBootReconciler, startReaper, stopReaper } from './lib/objectiveReconciler.js'
 import { checkBudget } from './lib/budget.js'
+import { validateExitPredicate } from './lib/exitPredicate.js'
 import { subscribe, emitProgress } from './lib/progress.js'
 import { validateTeamManifest, installTeam, uninstallTeam, getTeamDefinition, listTeamDefinitions, createTeamInstance, getTeamInstance, updateTeamInstanceStatus, getTeamContext, updateTeamContext } from './lib/teamLoader.js'
 import { installPack as installPackFromManifest, exportTeam } from './lib/packLoader.js'
@@ -32,7 +34,9 @@ import { isValidCron, getNextCronRun } from './lib/cronParser.js'
 import { getObjectiveFailureReason } from './lib/failureReason.js'
 import { computeTemporalStats } from './lib/temporalStats.js'
 import { computePredictStats } from './lib/predictStats.js'
+import { createMindRetirementScheduler } from './lib/mindRetirementScheduler.js'
 import { computeReflectStats } from './lib/reflectStats.js'
+import { computeImplantActivity } from './lib/implantActivity.js'
 import { computeLearnStats } from './lib/learnStats.js'
 import { computeExecutiveStats } from './lib/executiveStats.js'
 import { computeSenseStats } from './lib/senseStats.js'
@@ -42,8 +46,23 @@ import { computeInsightStats } from './lib/insightStats.js'
 import { computeFocusStats } from './lib/focusStats.js'
 import { setCurrentFocus, clearCurrentFocus, getCurrentFocus, addOpenLoop, listOpenLoops, resolveOpenLoop, touchEntity, listRecentEntities } from './lib/wsmStore.js'
 import { listPendingCheckpoints } from './lib/pendingCheckpoints.js'
+import { raiseCheckpointInboxItem, closeCheckpointInboxItem, startCheckpointInboxReconciler } from './lib/checkpointInbox.js'
+
+// quox#896: the Approvals card mirroring a checkpoint closes when the checkpoint
+// is decided here. A decision forwarded FROM that card (auth respond) carries
+// x-quox-inbox-item: auth resolves the card itself, so only mark it closed.
+function settleCheckpointInbox(db, cpId, req, action) {
+  if (req.headers['x-quox-inbox-item']) {
+    db.prepare("UPDATE checkpoints SET inbox_closed_at = datetime('now') WHERE id = ? AND inbox_closed_at IS NULL").run(cpId)
+    return
+  }
+  closeCheckpointInboxItem(db, cpId, { action, actorType: 'human', actorId: req.user_id })
+    .then((r) => { if (!r.ok) console.warn(`[CheckpointInbox] close failed for ${cpId}: ${r.error || r.status} (reconciler retries)`) })
+    .catch((e) => console.warn(`[CheckpointInbox] close error for ${cpId}: ${e.message} (reconciler retries)`))
+}
 import { isLoopCheckpointType, recordLoopCheckpointApproval, denyLoopCheckpoint, haltLoopObjective } from './lib/loopCheckpoints.js'
 import { isPluginLicensed } from './lib/licenseGate.js'
+import { recordTurnAndReadFocus, eraseUserWorkingSet } from './lib/turnFocus.js'
 import { implantStatsResponse, implantStatsCollecting, implantStatsUnreachable, implantStatsLicenseRequired } from './lib/implantStats.js'
 import { createTaskEnvelope, TASK_INTENTS } from './lib/envelopes.js'
 
@@ -185,8 +204,8 @@ function validateObjectiveInput(body) {
     }
   }
   if (body.loop_backend !== undefined) {
-    if (body.loop_backend !== 'claude' && body.loop_backend !== 'codex') {
-      errors.loop_backend = "loop_backend must be 'claude' or 'codex'"
+    if (!isRecognisedLoopBackend(body.loop_backend)) {
+      errors.loop_backend = `loop_backend must be ${availableBackendsPhrase()}`
     }
   }
   if (body.capability_scope !== undefined && body.capability_scope !== null) {
@@ -194,6 +213,12 @@ function validateObjectiveInput(body) {
     if (!Array.isArray(scope) || scope.length > 200 || scope.some(t => typeof t !== 'string' || !t.trim() || t.length > 100)) {
       errors.capability_scope = 'capability_scope must be an array of up to 200 non-empty tool-name strings'
     }
+  }
+  // QLOOP-ENGINE P1: a malformed exit_predicate must be refused loudly, not
+  // silently ignored (an ignored predicate = a loop that never exits on truth).
+  if (body.metadata && typeof body.metadata === 'object' && body.metadata.exit_predicate !== undefined) {
+    const v = validateExitPredicate(body.metadata.exit_predicate)
+    if (!v.ok) errors.exit_predicate = v.error
   }
   return Object.keys(errors).length > 0 ? errors : null
 }
@@ -435,6 +460,11 @@ app.get('/api/engine/predict/stats', authenticate, (req, res) => {
         tentativeCount: stats.tentativeCount,
         recentWisdom24h: stats.recentWisdom24h,
         lastWisdomAt: stats.lastWisdomAt,
+        // #1112: event logs counted apart; consumption and retirement visible.
+        eventLogCount: stats.eventLogCount,
+        injectedWisdomCount: stats.injectedWisdomCount,
+        lastInjectedAt: stats.lastInjectedAt,
+        retirement: mindRetirement.status(),
       },
     }))
   } catch (err) {
@@ -475,6 +505,17 @@ app.get('/api/engine/reflect/stats', authenticate, (req, res) => {
     }))
   } catch (err) {
     return res.status(500).json(implantStatsUnreachable('quox-reflect', 'tasks-db', err))
+  }
+})
+
+// QUOXMIND-PROOF: per-implant firing evidence (last fired + 7-day count) for
+// `quox mind` and the TUI's /mind. Org-scoped; a failing source reports its
+// error per implant rather than failing the whole read.
+app.get('/api/engine/activity', authenticate, (req, res) => {
+  try {
+    res.json({ orgId: req.org_id, window_days: 7, implants: computeImplantActivity(getDatabase(), { orgId: req.org_id }), generatedAt: new Date().toISOString() })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
   }
 })
 
@@ -781,6 +822,61 @@ app.post('/api/engine/focus/state', authenticate, async (req, res) => {
   }
 })
 
+// QUOXMIND #1110: one call per HUMAN chat turn from the collector. Records the
+// ask (QuoxFocus fires), lets QuoxSense perceive trouble once, and returns the
+// compact working set (focus + executive + temporal + notable now) the
+// collector injects as [CURRENT FOCUS]. Service-key only; org and user come
+// from the collector's authenticated turn, never from an end user. Open loops
+// are a QuoxMind Pro feature: the licence check is cached and bounded to
+// 150 ms, and a slow or failed check omits loops rather than delaying the turn.
+app.post('/api/internal/focus/turn', async (req, res) => {
+  const key = req.headers['x-service-key']
+  if (!key || key !== process.env.INTERNAL_SERVICE_KEY) {
+    return res.status(401).json({ error: 'Invalid service key' })
+  }
+  const { org_id: orgId, user_id: userId, prompt, concerns } = req.body || {}
+  if (typeof orgId !== 'string' || !orgId || typeof userId !== 'string' || !userId) {
+    return res.status(400).json({ error: 'org_id and user_id are required' })
+  }
+  try {
+    let includeOpenLoops = false
+    try {
+      includeOpenLoops = await Promise.race([
+        isPluginLicensed(orgId, 'quoxmind-pro'),
+        new Promise((resolve) => setTimeout(() => resolve(false), 150)),
+      ])
+    } catch { includeOpenLoops = false }
+    const out = recordTurnAndReadFocus(getDatabase(), {
+      orgId, userId,
+      prompt: typeof prompt === 'string' ? prompt : '',
+      includeOpenLoops: includeOpenLoops === true,
+      concerns: Array.isArray(concerns) ? concerns : [],
+    })
+    res.json(out)
+  } catch (err) {
+    console.error(`[Tasks] focus/turn failed for org=${orgId}: ${err.message}`)
+    res.status(500).json({ error: 'focus_turn_failed' })
+  }
+})
+
+// GDPR erasure leg (collector gdprErasureCascade): deletes the user's stored
+// focus asks, focus and open loops in every org. Service-key only.
+app.post('/internal/erase-user', (req, res) => {
+  const key = req.headers['x-service-key']
+  if (!key || key !== process.env.INTERNAL_SERVICE_KEY) {
+    return res.status(401).json({ error: 'Invalid service key' })
+  }
+  const userId = req.body && req.body.userId
+  if (typeof userId !== 'string' || !userId) return res.status(400).json({ error: 'userId is required' })
+  try {
+    const { n } = eraseUserWorkingSet(getDatabase(), { userId })
+    res.json({ erased: true, n })
+  } catch (err) {
+    console.error(`[Tasks] erase-user failed: ${err.message}`)
+    res.status(500).json({ error: 'erase_failed' })
+  }
+})
+
 // ==========================================
 // P6.B: User UI preferences (server-side)
 // Replaces localStorage for template var history and PRISM collapse state.
@@ -946,7 +1042,7 @@ app.post('/api/objectives', authenticate, writeRateLimit, (req, res) => {
     // fails closed on malformed JSON.
     const effectiveMode = execution_mode === 'loop' ? 'loop' : 'dag'
     if (effectiveMode === 'loop') effectiveApproval = 1
-    const effectiveLoopBackend = loop_backend === 'codex' ? 'codex' : 'claude'
+    const effectiveLoopBackend = normalizeLoopBackend(loop_backend)
     const capabilityScopeJson = Array.isArray(capability_scope)
       ? JSON.stringify(capability_scope.map(t => t.trim()))
       : null
@@ -1195,6 +1291,18 @@ app.post('/api/objectives/:id/start', authenticate, writeRateLimit, async (req, 
         VALUES (?, ?, 'before_start', 'pending', 'Pre-start approval', 'Approve to begin task decomposition', datetime('now'))
       `).run(cpId, objective.id)
       emitProgress(objective.id, { type: 'checkpoint_created', checkpoint_id: cpId, checkpoint_type: 'before_start' })
+      // quox#896: the human waiting point lands in the Approvals inbox now (the reconciler backfills any raise that
+      // fails here). Journey story-a 2026-10-17: AWAITED, bounded, so the caller gets the item id in this response and
+      // the gate exists when the agent's turn reports it.
+      let inboxItemId = null
+      try {
+        const raised = await Promise.race([
+          (async () => await raiseCheckpointInboxItem(db, cpId))(),
+          new Promise((resolve) => setTimeout(() => resolve({ ok: false, error: 'raise_timeout' }), 8000)),
+        ])
+        if (raised && raised.ok) inboxItemId = raised.itemId || null
+        else console.warn(`[CheckpointInbox] raise failed for ${cpId}: ${(raised && (raised.error || raised.status)) || 'unknown'} (reconciler retries)`)
+      } catch (e) { console.warn(`[CheckpointInbox] raise error for ${cpId}: ${e.message} (reconciler retries)`) }
       // AEE-CHECKPOINT-EVIDENCE (quox#480): the pre-start human gate is an
       // evidence-bearing act and has never emitted an envelope.
       createTaskEnvelope({
@@ -1209,7 +1317,7 @@ app.post('/api/objectives/:id/start', authenticate, writeRateLimit, async (req, 
         },
         corrId: objective.corr_id, objectiveId: objective.id,
       })
-      return res.json({ status: 'awaiting_approval', checkpoint_id: cpId, message: 'Pre-start approval required' })
+      return res.json({ status: 'awaiting_approval', checkpoint_id: cpId, inbox_item_id: inboxItemId, message: 'Pre-start approval required' })
     }
 
     // DEVSUITE-DEVMODE 5c: a loop objective has no plan to decompose — after
@@ -1258,7 +1366,7 @@ app.post('/api/objectives/:id/start', authenticate, writeRateLimit, async (req, 
 })
 
 // Step 11: Approve plan — transitions decomposed → running
-app.post('/api/objectives/:id/approve-plan', authenticate, requireHumanApproverUnlessSandbox, writeRateLimit, async (req, res) => {
+app.post('/api/objectives/:id/approve-plan', authenticate, requireHumanApproverUnlessSandbox, requireStepUpApprove, writeRateLimit, async (req, res) => {
   try {
     const db = getDatabase()
     const objective = db.prepare('SELECT * FROM objectives WHERE id = ?').get(req.params.id)
@@ -1385,7 +1493,7 @@ app.post('/api/templates/:id/instantiate', authenticate, writeRateLimit, async (
 // HITL checkpoints created by checkpoint_after_each_task can be resolved here.
 // Transitions the checkpoint status and emits an SSE event so the UI refreshes.
 
-app.post('/api/objectives/:id/checkpoints/:cpid/approve', authenticate, requireHumanApprover, writeRateLimit, async (req, res) => {
+app.post('/api/objectives/:id/checkpoints/:cpid/approve', authenticate, requireHumanApprover, requireStepUpApprove, writeRateLimit, async (req, res) => {
   try {
     const db = getDatabase()
     const objective = db.prepare('SELECT * FROM objectives WHERE id = ?').get(req.params.id)
@@ -1409,6 +1517,7 @@ app.post('/api/objectives/:id/checkpoints/:cpid/approve', authenticate, requireH
       checkpoint_id: req.params.cpid,
       reviewed_by: req.user_id,
     })
+    settleCheckpointInbox(db, req.params.cpid, req, 'approve')
 
     // AEE-CHECKPOINT-EVIDENCE (quox#480): a human approval is the single most
     // evidence-bearing act on this service and had no envelope at all. `from`
@@ -1515,6 +1624,7 @@ app.post('/api/objectives/:id/checkpoints/:cpid/reject', authenticate, requireHu
       checkpoint_id: req.params.cpid,
       reviewed_by: req.user_id,
     })
+    settleCheckpointInbox(db, req.params.cpid, req, 'deny')
 
     // AEE-CHECKPOINT-EVIDENCE (quox#480): see the approve route above.
     createTaskEnvelope({
@@ -2756,6 +2866,13 @@ app.use((err, req, res, next) => {
 // Initialize and start
 initDatabase(DB_PATH)
 
+// QUOXMIND #1112: retire stale/duplicate wisdom, decay unseen wisdom and
+// cancel pending tasks of terminal objectives on a bounded, backed-off
+// schedule. Always on (no env flag); its status is in predict stats fields.
+// REPORT-ONLY until the owner approves destructive retirement (2026-10-16):
+// it logs candidate counts and changes no data. Install-wide, not org-scoped.
+const mindRetirement = createMindRetirementScheduler({ getDb: getDatabase, mode: 'report' })
+
 // Under vitest the app is imported by supertest suites (e.g.
 // loopCreationApi.test.js) — never bind the port or start schedulers there.
 const server = process.env.VITEST ? null : app.listen(PORT, '0.0.0.0', async () => {
@@ -2766,8 +2883,12 @@ const server = process.env.VITEST ? null : app.listen(PORT, '0.0.0.0', async () 
   // QE2: Execution is handled by QuoxFlow — no scheduler needed
   startTeamScheduler()
   startAgentScheduler()
+  // quox#896: backfill + keep checkpoint Approvals cards in step (loop and
+  // wake checkpoints are raised here within a minute; bounded, backs off).
+  startCheckpointInboxReconciler(getDatabase, { baseMs: 60 * 1000 })
   startCalendarReminderPoller()
   startDreamCycle()
+  mindRetirement.start()
   console.log(`[Task Service] Engine: QuoxFlow (${process.env.QUOXFLOW_URL || 'http://quoxflow:3200'})`)
 
   // TRUST-GATE 1.2: reconcile any objective left `running` by a previous
@@ -2788,6 +2909,7 @@ async function shutdown(signal) {
   stopAgentScheduler()
   stopCalendarReminderPoller()
   stopReaper()
+  mindRetirement.stop()
   if (!server) {
     closeDatabase()
     process.exit(0)

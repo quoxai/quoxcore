@@ -13,15 +13,18 @@ const PANELS = [
 function PANEL_RULES() { return PANELS.map(([re, cmd]) => [re, () => cmd]); }
 
 const RULES = [
-  [new RegExp(`^attach(?: me)?(?: to)? ${WORD}$`, 'i'), (m) => `/attach ${m[1]}`],
+  // owner 2026-10-15: "attach to TRIAGE-Q agent" / "reattach to ..." took four turns; the tip must catch them
+  [new RegExp(`^(?:please )?(?:re)?attach(?: me)?(?: to)?(?: the)? ${WORD}(?: agent)?(?: please)?$`, 'i'), (m) => `/attach ${m[1].toLowerCase()}`],
   [/^rename (?:this|the|my) (?:session|conversation|chat) (?:to|as) ([\w.-]+(?: [\w.-]+){0,2})$/i, (m) => m[1].split(' ').some(w => /^(and|then|but|so|please)$/i.test(w)) ? null : `/rename ${m[1]}`],
   [/^(?:what(?:'s| is) running|what is running now)$/i, () => '/roster'],
   [/^(?:show|list|open) (?:my |the )?(?:pending )?approvals$/i, () => '/approvals'],
   [/^(?:what(?:'s| is)|show me what(?:'s| is)) (?:waiting|pending) (?:for )?(?:my )?approval$/i, () => '/approvals'],
   [/^(?:so )?(?:what (?:did i miss|have i missed)(?: (?:while|when) i was (?:away|out|gone|offline))?|what (?:happened|changed) (?:while|when) i was (?:away|out|gone|offline)|(?:did )?anything happen(?:ed)? while i was (?:away|out|gone|offline)|catch me up)$/i, () => '/away'],
   [/^(?:(?:give me |show me |can i get )?(?:a |the )?sit ?rep(?: please)?|what(?:'s| is) the situation(?: now)?|situation report(?: please)?)$/i, () => '/sitrep'],
+  [/^(?:how(?:'s| is) (?:the |my |our )?fleet(?: doing)?|(?:show|list) (?:me )?(?:the |my |our )?fleet|fleet (?:status|health)|what(?:'s| is) (?:the )?(?:state|health) of (?:the |my |our )?(?:fleet|computers|servers))$/i, () => '/fleet'],
   [/^(?:open|show|take me to|go to) (?:me )?(?:to )?(?:the |my )?(?:quox )?(?:web )?dashboard$/i, () => '/dashboard'],
   [/^detach(?: from (?:the )?agent)?$/i, () => '/detach'],
+  [/^(?:clear|cls|clear (?:the )?screen)$/i, () => '/clear'], // owner typed bare "clear" (2026-10-15)
   [/^(?:start )?(?:a )?new conversation$/i, () => '/new'],
   [/^(?:please )?(?:compact|summari[sz]e and compact|compress) (?:this|the|our|my) (?:conversation|chat|session|context)(?: please)?$/i, () => '/compact'],
   [/^(?:please )?(?:update|upgrade) (?:the |my |this )?(?:quox )?(?:server|install|instance|quox)(?: (?:to (?:the )?latest|please))?$/i, () => 'quox server update --dry-run (in a terminal; shows the plan first)'],

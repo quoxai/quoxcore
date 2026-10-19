@@ -31,7 +31,7 @@ export function computeExecutiveStats(db, { orgId } = {}) {
     SELECT
       COUNT(*)                                                                 AS total,
       SUM(CASE WHEN status IN (${placeholders}) THEN 1 ELSE 0 END)              AS in_flight,
-      SUM(CASE WHEN status = 'success' AND completed_at IS NOT NULL
+      SUM(CASE WHEN status IN ('success', 'completed') AND completed_at IS NOT NULL
                 AND completed_at >= datetime('now', '-1 day') THEN 1 ELSE 0 END) AS completed_24h,
       SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END)                        AS failed_total,
       AVG(task_count)                                                            AS avg_tasks_per_objective,

@@ -30,6 +30,7 @@ const VALID_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const { buildInternalServiceHeaders } = require('./internalServiceHeaders.js');
+const { credentialUnavailableResult } = require('./providerKeys.js');
 
 /**
  * Resolve model alias to full model ID.
@@ -59,13 +60,14 @@ const AUTH_BASE_URL = `http://${process.env.AUTH_HOST || 'auth'}:${process.env.A
  */
 async function resolveApiKey(ctx) {
   // Try vault first if we have an org context
+  let vaultUnavailable = false;
   if (ctx?.orgId) {
     try {
       const resp = await fetch(`${AUTH_BASE_URL}/api/setup/internal/resolve`, {
         method: 'POST',
         headers: buildInternalServiceHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ org_id: ctx.orgId, providers: ['gemini'] }),
-        signal: AbortSignal.timeout(3000)
+        signal: AbortSignal.timeout(5000)
       });
       if (resp.ok) {
         const data = await resp.json();
@@ -77,13 +79,17 @@ async function resolveApiKey(ctx) {
         // Vault reachable, answered normally, but no default gemini key.
         return { key: process.env.GEMINI_API_KEY || '', vaultCheckedNoDefault: !process.env.GEMINI_API_KEY };
       }
+      vaultUnavailable = true; // non-2xx: the credential service did not give an answer
     } catch (err) {
-      // Vault unavailable — fall through to env var
+      // Vault unavailable (timeout/network) — fall through to env var, but
+      // remember it so a missing key is reported as unavailable, not absent.
+      vaultUnavailable = true;
     }
   }
 
   // Fallback to environment variable
-  return { key: process.env.GEMINI_API_KEY || '', vaultCheckedNoDefault: false };
+  const envKey = process.env.GEMINI_API_KEY || '';
+  return { key: envKey, vaultCheckedNoDefault: false, vaultUnavailable: !envKey && vaultUnavailable };
 }
 
 /**
@@ -350,10 +356,22 @@ async function executeEdit(input) {
   }
 }
 
+// SDK-TEAM finding (ev_mvf2e9jj_f38d98, 2026-10-19): Google refused a describe (402, credits depleted) and the answer
+// still offered "a guess from general knowledge" of what the picture shows. A describe that did not read the image
+// says so, and tells the model how to answer.
+const DESCRIBE_NOT_READ_RULE = 'The image was not read. Say plainly that it could not be read and why (the error above), '
+  + 'and offer to retry later or use another provider. Never describe, guess or infer what the image shows: not from the '
+  + 'URL, the filename or general knowledge, not even labelled as a guess.';
+
 /**
- * Execute a describe (vision) request.
+ * Execute a describe (vision) request. Any failure carries image_read:false and the answer rule.
  */
 async function executeDescribe(input) {
+  const r = await describeImage(input);
+  return r && r.success === false ? { ...r, image_read: false, answer_rule: DESCRIBE_NOT_READ_RULE } : r;
+}
+
+async function describeImage(input) {
   const apiKey = input._resolvedApiKey || getApiKey();
   if (!apiKey) {
     return { success: false, error: buildMissingKeyError(input._vaultCheckedNoDefault) };
@@ -395,8 +413,9 @@ async function executeDescribe(input) {
 
   const describePrompt = prompt || 'Describe this image in detail.';
 
-  // Use flash for vision (fast + cheap)
-  const modelId = 'gemini-2.0-flash';
+  // Use flash for vision (fast + cheap). quox#1122: gemini-2.0-flash was retired by Google
+  // ("no longer available"), which failed every describe.
+  const modelId = 'gemini-2.5-flash';
   const url = buildApiUrl(modelId, apiKey);
 
   const body = {
@@ -487,7 +506,10 @@ function extractImages(data) {
 async function execute(toolId, input, ctx) {
   // Resolve API key from vault before executing image tools
   if (toolId !== 'gemini_image.models') {
-    const { key, vaultCheckedNoDefault } = await resolveApiKey(ctx);
+    const { key, vaultCheckedNoDefault, vaultUnavailable } = await resolveApiKey(ctx);
+    if (!key && vaultUnavailable) {
+      return credentialUnavailableResult('Gemini');
+    }
     if (key) {
       // Inject the resolved key so handlers use it. A successful resolution
       // still hands handlers a plain string — they do `input._resolvedApiKey

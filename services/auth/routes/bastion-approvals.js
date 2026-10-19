@@ -9,7 +9,9 @@
  * - Approve/deny with HMAC execution tokens
  */
 
+import { requireStepUpAlways } from '../lib/stepUp.js';
 import { Router } from 'express';
+import { createHash } from 'crypto';
 import crypto from 'crypto';
 import { prepare, transaction, getDb } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -38,6 +40,8 @@ function recordApprovalEvent({ orgId, approvalId, action, actorId, payload }) {
 }
 
 const router = Router();
+// #1092: every bastion route sees a table with all the columns it uses, whichever shape this install has.
+router.use('/orgs/:orgId/bastion', (req, res, next) => { try { ensureApprovalTable(); } catch (err) { return next(err); } next(); });
 
 router.use(requireAuth);
 
@@ -312,7 +316,26 @@ function validateCommand(command) {
 /**
  * Ensure the pending_command_approvals table exists
  */
+// #1092: two shapes of this table exist. 000-baseline.sql creates the older one (command_hash/severity NOT NULL,
+// responded_by, source_context, ...) on every fresh install; the CREATE below only ran on installs that predate the
+// baseline. Every column this route reads or writes is ensured on EITHER shape (added nullable when missing; SQLite
+// cannot add NOT NULL without a constant default), and the INSERT supplies the baseline's NOT NULL command_hash and
+// severity. Memoised per process; the bastion router calls it before every route.
+const APPROVAL_ROUTE_COLUMNS = [
+    ['context_json', "TEXT DEFAULT '{}'"], ['requested_at', 'TEXT'], ['reviewed_by', 'TEXT'], ['reviewed_at', 'TEXT'],
+    ['review_comment', 'TEXT'], ['denial_reason', 'TEXT'], ['execution_token_hash', 'TEXT'], ['token_expires_at', 'TEXT'],
+    ['token_used_at', 'TEXT'], ['updated_at', 'TEXT'], ['command_hash', 'TEXT'], ['severity', 'TEXT'],
+];
+let _approvalTableReady = false;
+function healApprovalTableColumns(db) {
+    const have = new Set(db.prepare('PRAGMA table_info(pending_command_approvals)').all().map((c) => c.name));
+    for (const [name, type] of APPROVAL_ROUTE_COLUMNS) {
+        if (!have.has(name)) db.exec(`ALTER TABLE pending_command_approvals ADD COLUMN ${name} ${type}`);
+    }
+}
+
 function ensureApprovalTable() {
+    if (_approvalTableReady) return;
     const db = getDb();
 
     // Check if table exists
@@ -368,6 +391,8 @@ function ensureApprovalTable() {
         `);
         console.log('pending_command_approvals table created');
     }
+    healApprovalTableColumns(db);
+    _approvalTableReady = true;
 }
 
 /**
@@ -546,6 +571,12 @@ router.post('/orgs/:orgId/bastion/request-approval', requireOrgMembership, async
                 itemKind, priority, title, body,
                 JSON.stringify({
                     type: 'bastion_approval',
+                    // APPROVAL-WHAT: action, target and one human line, so the item is identifiable anywhere it shows.
+                    what: {
+                        action: 'run shell command',
+                        target: `host ${host_name || host_id}`,
+                        summary: `run on ${host_name || host_id}: ${String(command).replace(/\s+/g, ' ').slice(0, 200)}`,
+                    },
                     approval_id: approvalId,
                     command,
                     host_id,
@@ -568,11 +599,14 @@ router.post('/orgs/:orgId/bastion/request-approval', requireOrgMembership, async
             prepare(`
                 INSERT INTO pending_command_approvals (
                     id, org_id, inbox_item_id, command, host_id, host_name,
-                    context_json, requested_by, expires_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    context_json, requested_by, expires_at,
+                    command_hash, severity, requested_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
                 approvalId, orgId, inboxItemId, command, host_id, host_name,
-                JSON.stringify(context || {}), userId, expiresAt
+                JSON.stringify(context || {}), userId, expiresAt,
+                // #1092: the baseline shape requires command_hash and severity (NOT NULL, no default)
+                createHash('sha256').update(String(command)).digest('hex'), validation.severity || 'UNKNOWN', new Date().toISOString()
             );
         });
 
@@ -826,6 +860,9 @@ router.post('/orgs/:orgId/bastion/approvals/:id/approve', requireOrgMembership, 
 
             return res.status(400).json({ error: 'Approval has expired' });
         }
+
+        // QUOXON-STEPUP: command approvals are agent-requested; a human JWT alone is not a person.
+        if (!requireStepUpAlways(req, res, { orgId, requesterUserId: approval.requested_by })) return;
 
         // Generate execution token
         const { token, hash, expiresAt } = generateExecutionToken(

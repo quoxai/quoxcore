@@ -5,39 +5,52 @@
 import { formatOutput, formatDetail, printSuccess } from '../core/output.js';
 import { resolveOrgId } from './helpers.js';
 import { resolveEndpoint } from '../api/endpoints.js';
+import { attachWalkthrough } from './walkthrough.js';
 import { getApprovalContext, formatApprovalContext, approvalListColumns } from '../core/approvalContext.js';
+import { QuoxUserError } from '../core/errors.js';
+import { resolutionFromItem, alreadyResolvedError } from '../core/inboxResolution.js';
+import chalk from 'chalk';
 
 export function registerInboxCommands(program, ctx) {
   const { client, auth } = ctx;
 
-  // An agent hands back a tool approvalId (tool_approvals.approval_id), which is
-  // stored on the inbox card as aee_correlation_id, not its item id. No server
-  // lookup-by-correlation route exists, so on a 404 we scan the org's approval
-  // cards (all statuses) client-side. Falls back to the id as given.
+  // An agent hands back a tool approvalId (tool_approvals.approval_id), stored on the card as
+  // aee_correlation_id. The server now resolves it on GET and respond (CLI-ERRORS); this client-side
+  // scan stays as the fallback for an older server. A failed scan is reported, never read as "no card".
+  async function findByApprovalId(orgId, id) {
+    const list = resolveEndpoint('inbox.list', { orgId });
+    const data = await client.get(list.path, { service: list.service, query: { status: 'all', kind: 'approval', limit: 200 } });
+    const items = (data && (data.items || data)) || [];
+    const hit = Array.isArray(items) && items.find((it) => it.aee_correlation_id === id || (it.payload && it.payload.approval_id === id));
+    return hit ? hit.id : null;
+  }
+
+  function notFound(id, cause) {
+    const err = new QuoxUserError(`No inbox item or approval with id ${id} in this org, open or resolved.`, {
+      next: "if it came from another org, switch with `quox org switch <org>`; `quox inbox list --status all` lists this org's items.",
+      exitCode: 5, code: 'not_found', status: 404, body: cause?.body,
+    });
+    return err;
+  }
+
   async function resolveItemId(orgId, id) {
     const direct = resolveEndpoint('inbox.get', { orgId, itemId: id });
     try {
-      await client.get(direct.path, { service: direct.service });
-      return id;
+      const data = await client.get(direct.path, { service: direct.service });
+      // the server resolves an approvalId to its card; post to the card's own id
+      return (data && data.item && data.item.id) || id;
     } catch (err) {
       if (!err || err.status !== 404) throw err;
-      const list = resolveEndpoint('inbox.list', { orgId });
-      let data;
-      try {
-        data = await client.get(list.path, { service: list.service, query: { status: 'all', kind: 'approval', limit: 200 } });
-      } catch { data = null; }
-      const items = (data && (data.items || data)) || [];
-      const hit = Array.isArray(items) && items.find((it) => it.aee_correlation_id === id || (it.payload && it.payload.approval_id === id));
-      if (hit) return hit.id;
-      err.message += `\nHint: ${id} is not an inbox item id, and no approval card in your recent approvals carries it as an approvalId. `
-        + 'Try `quox inbox list --status all` to find the card.';
-      throw err;
+      const hit = await findByApprovalId(orgId, id);
+      if (hit) return hit;
+      throw notFound(id, err);
     }
   }
 
   const inbox = program
     .command('inbox')
     .description('Manage inbox and approval requests');
+  attachWalkthrough(inbox, ctx, program);
 
   inbox
     .command('list')
@@ -102,13 +115,51 @@ export function registerInboxCommands(program, ctx) {
     .action(async (givenId, options) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
-      const itemId = await resolveItemId(orgId, givenId);
-      await client.post(resolveEndpoint('inbox.respond', { orgId, itemId }).path, {
-        service: resolveEndpoint('inbox.respond', { orgId, itemId }).service,
-        body: { action: options.action, comment: options.comment },
-      });
-      printSuccess(`Item ${options.action}ed.`);
+      const format = program.opts().output;
+      const post = (itemId) => {
+        const ep = resolveEndpoint('inbox.respond', { orgId, itemId });
+        return client.post(ep.path, { service: ep.service, body: { action: options.action, comment: options.comment } });
+      };
+      // Resolve an approvalId to its card (server-side on a current server, else the client scan). When
+      // this profile cannot see the card, still ask the server: it knows WHY (an agent login, another
+      // org, already decided) and says so, where "not found" would hide it.
+      let itemId = givenId;
+      try { itemId = await resolveItemId(orgId, givenId); } catch (err) { if (err?.code !== 'not_found') throw err; }
+      let result;
+      try {
+        result = await post(itemId);
+      } catch (err) {
+        if (err?.status === 404) throw notFound(givenId, err);
+        if (!result) {
+          const resolution = await alreadyResolvedFrom(err, orgId, itemId, options.action);
+          if (!resolution) throw err;
+          if (!resolution.matches) throw alreadyResolvedError(resolution, err);
+          if (format === 'json') console.log(JSON.stringify({ success: true, already_resolved: true, ...resolution }));
+          else if (format !== 'quiet') console.log(chalk.green(`✔ ${resolution.message}`));
+          return;
+        }
+      }
+      if (result?.item?.status === 'expired') {
+        throw new QuoxUserError(result.message || 'This approval had expired, so nothing ran.', {
+          next: 're-run the original command to ask for a fresh approval.', exitCode: 1, code: 'approval_expired',
+        });
+      }
+      const PAST = { approve: 'approved', reject: 'rejected', deny: 'denied', defer: 'deferred', resolve: 'resolved', answer: 'answered' };
+      printSuccess(`Item ${PAST[options.action] || `${options.action} recorded`}.`);
     });
+
+  // A respond on a closed card: the server's structured answer, else (older server) read the card.
+  async function alreadyResolvedFrom(err, orgId, givenId, action) {
+    if (!err || err.status !== 400) return null;
+    const body = err.body || {};
+    if (body.code === 'already_resolved' && body.resolution) return { ...body.resolution, message: body.message };
+    if (!/not open for response/i.test(`${body.error || ''} ${err.message || ''}`)) return null;
+    try {
+      const ep = resolveEndpoint('inbox.get', { orgId, itemId: givenId });
+      const data = await client.get(ep.path, { service: ep.service });
+      return resolutionFromItem(data.item || data, action);
+    } catch { return null; }
+  }
 
   inbox
     .command('stats')

@@ -101,6 +101,14 @@ export const resetDragon = () => { dragonNow = null; };
  * live region and never enters history. Short terminals (under 32 rows) get the compact dragon. Reduced
  * motion or NO_COLOR: the static dragon (shapes only under NO_COLOR) for two seconds.
  */
+/**
+ * TUI-UX #5 (shared with the /mirror guard): the full dragon is 25 rows and the live region also carries the margin, caption,
+ * composer and status rows (about 12). When that total reaches the terminal height Ink wipes the whole screen on every frame,
+ * so the dragon only goes full size when it clearly fits; otherwise the 15-row dragon plays.
+ */
+export const DRAGON_FULL_MIN_ROWS = 40;
+export const dragonTall = (rows) => rows >= DRAGON_FULL_MIN_ROWS;
+
 export function DragonLive({ cols, rows }) {
   const { stdout } = useStdout();
   const onClock = React.useContext(FrameContext) != null;
@@ -115,7 +123,7 @@ export function DragonLive({ cols, rows }) {
     return () => clearInterval(id);
   }, [Boolean(p), p?.still, onClock]);
   if (!p) return null;
-  const tall = (rows ?? termRows(stdout) ?? 40) >= 32;
+  const tall = dragonTall(rows ?? termRows(stdout) ?? 40);
   const cells = clipCells(p.clip, p.t, { cols, theme: isLight() ? 'light' : 'dark', mono: mono(), still: p.still, size: tall ? undefined : 'mid' });
   const caption = p.still ? 'the dragon' : clipCaption(p.clip, p.t);
   return h(Box, { flexDirection: 'column', marginTop: 1 },

@@ -7,6 +7,16 @@ import { formatDetail, printSuccess, printInfo } from '../core/output.js';
 import { resolveEndpoint } from '../api/endpoints.js';
 import { QuoxApiError, QuoxValidationError } from '../core/errors.js';
 import { confirmDestructive } from '../core/confirm.js';
+import { passwordProblem } from '../quoxon/onboarding/finish.js';
+
+// The auth service's rule (services/auth/utils/passwordValidation.js), said up front.
+export const PASSWORD_POLICY = 'Passwords need at least 12 characters, with an uppercase letter, a lowercase letter, a number and a special character (for example - or !).';
+
+async function readStdinText() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  return Buffer.concat(chunks).toString('utf8');
+}
 
 /**
  * LICENSE-LAUNCH LL-8: read a license-key-v2 JSON object from a file or
@@ -183,10 +193,22 @@ export function registerSetupCommands(program, ctx) {
     .command('admin')
     .description('Create the initial admin account')
     .option('--email <email>', 'admin email')
-    .option('--password <password>', 'admin password')
+    .option('--password <password>', 'admin password (visible in the process list; prefer --password-stdin)')
+    .option('--password-stdin', 'read the admin password from stdin (first line), never argv')
     .option('--name <name>', 'admin display name')
     .action(async (options) => {
       let { email, password, name } = options;
+
+      // QUOXON-Z2H lane R: argv is visible in ps and shell history, so a
+      // script pipes the password in, same as `quox login --password-stdin`.
+      if (options.password && options.passwordStdin) {
+        throw new QuoxValidationError('Pass the password with --password or --password-stdin, not both.');
+      }
+      if (options.passwordStdin) {
+        const text = await (ctx.readStdin || readStdinText)();
+        password = String(text || '').split('\n')[0].replace(/\r$/, '');
+        if (!password) throw new QuoxValidationError('--password-stdin given but stdin was empty.');
+      }
 
       if (!email || !password || !name) {
         const { default: inquirer } = await import('inquirer');
@@ -206,18 +228,22 @@ export function registerSetupCommands(program, ctx) {
         }
         if (!password) {
           const ans = await inquirer.prompt([{
-            type: 'password', name: 'password', message: 'Password:', mask: '*',
+            type: 'password', name: 'password', message: `Password (${PASSWORD_POLICY}):`, mask: '*',
+            validate: (v) => { const bad = passwordProblem(v); return bad ? `${bad} ${PASSWORD_POLICY}` : true; },
           }]);
           password = ans.password;
         }
       }
 
+      // The policy is the FIRST thing a weak password meets, before any
+      // server call (the server enforces the same rule; this only says it sooner).
+      const problem = passwordProblem(password);
+      if (problem) throw new QuoxValidationError(`${PASSWORD_POLICY} ${problem} Nothing was sent to the server.`);
+
       // services/auth/routes/setup.js POST /admin destructures `name` (not
-      // `display_name`) from req.body — sending only display_name silently
-      // dropped the admin's name (fell back to 'Admin'). Send both: `name`
-      // is what the endpoint actually reads; `display_name` is kept for
-      // forward-compat / any other consumer that expects it.
-      const data = await client.post(resolveEndpoint('setup.admin').path, {
+      // `display_name`) from req.body. Send both: `name` is what the endpoint
+      // reads; `display_name` is kept for forward-compat.
+      await client.post(resolveEndpoint('setup.admin').path, {
         service: resolveEndpoint('setup.admin').service,
         body: { email, password, name, display_name: name },
         noAuth: true,

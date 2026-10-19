@@ -1,0 +1,92 @@
+{
+  "$schema": "../schemas/tool.v2.schema.json",
+  "v": "2.0",
+  "type": "tool",
+  "id": "agent-basics",
+  "name": "Agent Basics",
+  "description": "Built-in tools a user can give their own agent (quox agent create): save a memory in its own org, post into the slot an admin bound it to, read a URL an org admin allowlisted, and (operator org only) read the proof board. quox#1171.",
+  "category": "agents",
+  "subcategory": "basics",
+  "provider": "quox",
+  "version": "1.0.0",
+  "risk_level": "low",
+  "sandbox_profile": "standard",
+  "requires_license": null,
+  "tools": [
+    {
+      "id": "memory.save",
+      "name": "Save Memory",
+      "description": "Save a fact, decision or preference for later recall, in the agent's own org only.",
+      "accessLevel": "all",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "type": {
+          "type": "string",
+          "required": true,
+          "description": "fact, preference, decision, constraint or note"
+        },
+        "content": {
+          "type": "string",
+          "required": true,
+          "description": "What to remember"
+        }
+      }
+    },
+    {
+      "id": "slot.say",
+      "name": "Post To Bound Slot",
+      "description": "Post a message into the slot an org admin bound this agent to (quox agent bind-slot). Any other slot is refused.",
+      "accessLevel": "all",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "name": {
+          "type": "string",
+          "required": true,
+          "description": "The bound slot's name"
+        },
+        "text": {
+          "type": "string",
+          "required": true,
+          "description": "The message"
+        }
+      }
+    },
+    {
+      "id": "web.fetch_allowlisted",
+      "name": "Fetch Allowlisted URL",
+      "description": "HTTP GET a URL under a prefix an org admin allowlisted (quox fetch allow add). Redirects refused, loopback and metadata addresses refused, body capped at 256 KB and returned as untrusted text; every attempt leaves a receipt.",
+      "accessLevel": "all",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "url": {
+          "type": "string",
+          "required": true,
+          "description": "Absolute http(s) URL inside an allowlisted prefix"
+        }
+      }
+    },
+    {
+      "id": "proof.status",
+      "name": "Proof Board Status",
+      "description": "Read the instance operator's proof board: strict headline pass/of, release-proven jobs, freshness, regressions, per-domain counts. Operator-only: it can be given only to an agent in the operator's org, or by an instance admin.",
+      "accessLevel": "all",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "domain": {
+          "type": "string",
+          "required": false,
+          "description": "One proof domain to list its cases"
+        },
+        "verdict": {
+          "type": "string",
+          "required": false,
+          "description": "pass, partial or fail"
+        }
+      }
+    }
+  ]
+}

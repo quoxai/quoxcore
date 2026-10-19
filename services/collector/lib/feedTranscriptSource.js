@@ -29,6 +29,7 @@
 
 'use strict';
 
+const { claudeProjectDir } = require('../utils/runtimePaths.js');
 const path = require('path');
 const readline = require('readline');
 const realFs = require('fs');
@@ -42,7 +43,7 @@ const crypto = require('crypto');
 
 const SOURCE_TYPE = 'transcript';
 const VAULT_NAME = 'Dev Sessions';
-const DEFAULT_TRANSCRIPT_DIR = '/opt/quoxcore/.claude/projects/-opt-quoxcore';
+const DEFAULT_TRANSCRIPT_DIR = claudeProjectDir();
 const DEFAULT_MAX_SESSIONS = 20;
 // Deletion brake: a live listing under half the manifest, with more than this
 // many manifest entries, is treated as a bad listing, not a mass deletion.

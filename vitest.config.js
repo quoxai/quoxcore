@@ -41,6 +41,15 @@ export default defineConfig({
       // quoxbrain uses node:test suites too, run via `npm run test:quoxbrain`
       // (mirrors memory/collector above), not vitest.
       '**/services/quoxbrain/test/**',
+      // more node:test suites (they import node:test, which vite cannot bundle), run via
+      // `npm run test:nodetest` in the test job, not vitest.
+      '**/scripts/doneengine/quox-board-snapshot.test.mjs',
+      '**/scripts/builder/test/**',
+      '**/scripts/ops/filesBackfill.test.mjs',
+      '**/scripts/release/quoxagent/test/quoxagentRelease.test.mjs',
+      // the proof-engine evaluator tests are node:test suites, run via `npm run test:matrix`
+      // (same pattern as quoxbrain above); they live beside the standalone matrix CLI.
+      '**/scripts/matrix/**',
       '**/services/auth/**',
       '**/services/screencap/test/**',
       '**/services/ward/test/**',

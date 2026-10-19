@@ -8,8 +8,15 @@
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'fs'
 import { join } from 'path'
+import { homedir } from 'node:os'
+import { join as pathJoin } from 'node:path'
 
-export const DEFAULT_MEMORY_DIR = '/opt/quoxcore/.claude/projects/-opt-quoxcore/memory'
+// #1021: Claude project dir for the host user. Claude names a project dir by its
+// path with separators turned into '-'. QUOX_HOST_HOME wins, else the running user.
+const hostHome = process.env.QUOX_HOST_HOME || homedir()
+const claudeProjectDir = pathJoin(hostHome, '.claude', 'projects', hostHome.replace(/[\\/]/g, '-'))
+
+export const DEFAULT_MEMORY_DIR = join(claudeProjectDir, 'memory')
 export const VAULT_NAME = 'Agent Memory'
 
 function listMarkdownFiles(dir) {

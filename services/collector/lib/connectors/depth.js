@@ -26,7 +26,7 @@
  */
 
 const AGENT_OWNERS = {
-  github: ['forge', 'gripe', 'bob'],
+  github: ['forge', 'gripe', 'bob', 'gitq'],
   linkedin: ['linkedin'],
   twitter: ['xtwitter'],
   youtube: ['youtube'],

@@ -15,8 +15,11 @@ import { recordOutcome as recordObjectiveOutcome } from './wisdomStore.js'
 import { recordCleanCompletion, resolveTaskClass } from './agentStanding.js'
 import { reflectOnOutcome } from './dreamCycle.js'
 import { evaluateGoal } from './goalEvaluator.js'
+import { getExitPredicate, evaluateExitPredicate } from './exitPredicate.js'
 import { checkBudget } from './budget.js'
 import { runCoordinatorStep } from './coordinatorStep.js'
+import { observeCompletedRun } from './learningObserver.js'
+import { buildLearningRun, emitLearningCandidate } from './learningSink.js'
 
 // MACH-FOLLOWUP WI-C: sentinel value used to atomically claim the
 // coordinator-step slot on an objective (see checkObjectiveCompletion).
@@ -157,7 +160,7 @@ export function shouldReObserve(objective, candidateStatus, eval_, opts = {}) {
  * because of the LLM call to the evaluator; the only call site
  * (quoxflowBridge.pollExecutionStatus) was already fire-and-forget.
  */
-export async function checkObjectiveCompletion(objectiveId) {
+export async function checkObjectiveCompletion(objectiveId, opts = {}) {
   const db = getDatabase()
 
   const objective = db.prepare('SELECT * FROM objectives WHERE id = ?').get(objectiveId)
@@ -210,7 +213,12 @@ export async function checkObjectiveCompletion(objectiveId) {
     const completedTasks = tasks.filter(t => t.status === 'completed')
     let evalResult
     try {
-      evalResult = await evaluateGoal(objective, completedTasks)
+      // QLOOP-ENGINE P1: a configured exit predicate (external observable)
+      // decides; the LLM evaluator is its kind=llm fallback and the default
+      // when no predicate is configured.
+      evalResult = getExitPredicate(objective)
+        ? await evaluateExitPredicate(objective, completedTasks, opts.exitPredicateDeps || {})
+        : await evaluateGoal(objective, completedTasks)
     } catch (err) {
       console.warn('[Tasks][R3] Goal evaluator threw:', err.message)
       evalResult = { met: false, reason: `evaluator threw: ${err.message}` }
@@ -479,6 +487,19 @@ export async function checkObjectiveCompletion(objectiveId) {
     } catch (schedErr) {
       console.error(`[Tasks] Schedule tracking error: ${schedErr.message}`)
     }
+  }
+
+  // QLOOP-ENGINE P3 (step a): read-only learning observer. Flag-gated OFF by
+  // default (observeCompletedRun no-ops unless LEARNING_OBSERVER=1) and fires
+  // only on a clean 'completed' that is witnessed (bundleId). Best-effort:
+  // the learning layer must never affect objective finalisation.
+  try {
+    observeCompletedRun(
+      buildLearningRun({ kind: 'objective', objective, tasks, status: newStatus, witnessedRef: bundleId, tokensUsed: totalTokens }),
+      { emit: emitLearningCandidate },
+    )
+  } catch (err) {
+    console.warn('[LearningObserver] objective observe failed (non-fatal):', err.message)
   }
 
   return true

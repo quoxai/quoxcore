@@ -11,6 +11,9 @@ import { generateId } from '../utils/crypto.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin, requireRole, requireOrgScope } from '../middleware/authorize.js';
 import { OrgRoles } from '../utils/policy.js';
+import { checkInstanceAdmin } from '../middleware/instanceAdmin.js';
+import { hasValidInternalServiceKey } from '../utils/internalServiceAuth.js';
+import { isNonHumanPrincipal } from '../utils/principal.js';
 import { logAudit, AuditActions } from '../utils/audit.js';
 import {
     getInstanceRetentionConfig,
@@ -123,37 +126,115 @@ router.patch('/admin/retention/config/:key', requireAuth, requireAdmin(), (req, 
  * Trigger a manual cleanup
  * Requires: instance admin
  */
-router.post('/admin/retention/cleanup', requireAuth, requireAdmin(), async (req, res) => {
-    const { scope = 'full' } = req.body; // 'full', 'instance', 'orgs'
+// quox#1085: the instance owner is a HUMAN instance_admins superadmin. An
+// agent token carrying the owner's user id is not the owner.
+function isHumanInstanceOwner(req) {
+    if (!req.user || isNonHumanPrincipal(req)) return false;
+    const { isAdmin, role } = checkInstanceAdmin(req.user.id);
+    return isAdmin && role === 'superadmin';
+}
+
+// An internal service caller (X-Service-Key == INTERNAL_SERVICE_KEY, strict,
+// no loopback fallback) is trusted instance-wide and skips user auth. Everyone
+// else needs a user token; the instance owner passes even without an org admin
+// role, anyone else must be an org admin.
+function cleanupCaller(req, res, next) {
+    if (hasValidInternalServiceKey(req)) {
+        req.service = { type: 'internal_service' };
+        return next();
+    }
+    return requireAuth(req, res, (err) => {
+        if (err) return next(err);
+        if (isHumanInstanceOwner(req)) {
+            req.retentionInstanceOwner = true;
+            return next();
+        }
+        return requireAdmin()(req, res, next);
+    });
+}
+
+router.post('/admin/retention/cleanup', cleanupCaller, async (req, res) => {
+    const body = req.body || {};
+    const { scope = 'full' } = body; // 'full', 'instance', 'orgs'
+    const rawDryRun = body.dry_run;
+
+    // quox#1085: authorise the scope BEFORE anything runs, dry run or not.
+    // 'full' and 'instance' (and any unknown scope, which falls through to
+    // 'full') purge rows across EVERY org, so only the instance owner or a
+    // service key may run them. An org admin may run 'orgs' for the org in its
+    // verified token only; an org id named in the body or query that is not
+    // that org is refused, never trusted.
+    const instanceWide = !!req.service || req.retentionInstanceOwner === true;
+    const namedOrg = body.org_id ?? body.orgId ?? req.query?.org_id ?? req.query?.orgId ?? null;
+    let cleanupOrgId = null;
+    if (scope !== 'orgs') {
+        if (!instanceWide) {
+            return res.status(403).json({
+                error: 'instance_owner_required',
+                message: `Retention cleanup scope '${scope}' affects every organisation and needs the instance owner or a service key. An org admin can run scope 'orgs' for their own organisation. Nothing was cleaned.`
+            });
+        }
+    } else if (instanceWide) {
+        cleanupOrgId = namedOrg || null;
+    } else {
+        const ownOrgId = req.org?.id || null;
+        if (!ownOrgId) {
+            return res.status(403).json({
+                error: 'no_org_membership',
+                message: 'Retention cleanup for an organisation needs a verified organisation context. Nothing was cleaned.'
+            });
+        }
+        if (namedOrg && namedOrg !== ownOrgId) {
+            return res.status(403).json({
+                error: 'cross_org_access',
+                message: 'You can only run retention cleanup for your own organisation. Nothing was cleaned.'
+            });
+        }
+        cleanupOrgId = ownOrgId;
+    }
+
+    // quox#1084: dry_run used to be ignored, so `--dry-run` deleted for real.
+    // Boolean only, like admin-backups.js: a string "true" or "yes" is refused
+    // rather than coerced, because guessing wrong here destroys data.
+    if (rawDryRun !== undefined && typeof rawDryRun !== 'boolean') {
+        return res.status(400).json({
+            error: 'invalid_dry_run',
+            message: 'dry_run must be a boolean (true or false) when supplied. Nothing was cleaned.'
+        });
+    }
+    const dryRun = rawDryRun === true;
 
     try {
-        console.log(`[Retention] Manual cleanup triggered by admin ${req.user.id}`);
+        const actorId = req.user?.id || 'internal_service';
+        console.log(`[Retention] Manual cleanup${dryRun ? ' preview (dry run)' : ''} (scope ${scope}${cleanupOrgId ? `, org ${cleanupOrgId}` : ''}) triggered by ${req.service ? 'service key' : `user ${actorId}`}`);
 
         let results;
         switch (scope) {
             case 'instance':
-                results = runInstanceCleanup('admin');
+                results = runInstanceCleanup('admin', { dryRun });
                 break;
             case 'orgs':
-                results = runAllOrgsCleanup('admin');
+                results = runAllOrgsCleanup('admin', { dryRun, orgId: cleanupOrgId });
                 break;
             case 'full':
             default:
-                results = runFullCleanup('admin');
+                results = runFullCleanup('admin', { dryRun });
         }
 
         logAudit({
-            action: 'retention.cleanup.manual',
-            actor: { type: 'user', id: req.user.id },
+            action: dryRun ? 'retention.cleanup.dry_run' : 'retention.cleanup.manual',
+            actor: req.service ? { type: 'service', id: 'internal_service' } : { type: 'user', id: actorId },
+            ...(cleanupOrgId ? { orgId: cleanupOrgId } : {}),
             status: 'success',
             request: req,
-            metadata: { scope, totalCleaned: results.totalCleaned || results.total }
+            metadata: dryRun
+                ? { scope, dry_run: true, wouldDelete: results.totalWouldDelete ?? results.would_delete ?? results.results?.would_delete ?? 0 }
+                : { scope, totalCleaned: results.totalCleaned || results.total }
         });
 
-        res.json({
-            success: true,
-            results
-        });
+        res.json(dryRun
+            ? { success: true, dry_run: true, results }
+            : { success: true, results });
 
     } catch (error) {
         console.error('Manual cleanup error:', error);

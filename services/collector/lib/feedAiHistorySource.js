@@ -45,6 +45,10 @@
 
 const brainFeedClient = require('./brainFeedClient.js');
 
+// BRAIN2-FABLE11 (deliberately no deletion propagation): each call is a one-shot
+// user-supplied export (possibly partial or overlapping), so a conversation
+// absent from a later upload is not evidence it was deleted at the provider;
+// tombstoning on that basis would erase history the user chose to import.
 const SOURCE_TYPE = 'ai_history';
 const VAULT_NAME = 'AI History';
 const DEFAULT_MAX_ITEMS = 500;
@@ -74,6 +78,18 @@ const SECRET_PATTERNS = [
   /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/gi,
   // PEM private key blocks
   /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+  // Hardening (BRAIN2-FABLE12): JWTs (header always starts eyJ)
+  /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}/g,
+  // Stripe secret/restricted keys and webhook signing secrets
+  /\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{10,}\b/g,
+  /\bwhsec_[A-Za-z0-9]{10,}\b/g,
+  // Twilio account SIDs (AC), API keys (SK) and auth_token assignments (32 hex)
+  /\b(?:AC|SK)[0-9a-f]{32}\b/g,
+  /auth_?token\s*[:=]\s*["']?[0-9a-f]{32}\b["']?/gi,
+  // Credentials embedded in connection URLs: mask only the password, keep scheme/user/host
+  /(?<=\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|rediss?|amqps?):\/\/[^\s:@\/]+:)[^\s@\/]+(?=@)/gi,
+  // PGP private key blocks (OpenSSH blocks are already covered by the PEM pattern)
+  /-----BEGIN PGP PRIVATE KEY BLOCK-----[\s\S]*?-----END PGP PRIVATE KEY BLOCK-----/g,
 ];
 
 /**

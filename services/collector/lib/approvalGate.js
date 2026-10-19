@@ -18,7 +18,8 @@ const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://quox-auth:3101'
 // GOV-4: Policy store integration
 const { listPolicies } = require('./policyStore.js');
 const { mintInboxItem } = require('./inboxMint.js');
-const { buildApprovalContext, buildContextTitle, renderContextMarkdown } = require('./approvalContext.js');
+const { checkWhat } = require('./approvalWhat.js');
+const { buildApprovalContext, buildContextTitle, renderContextMarkdown, describeApprovalWhat } = require('./approvalContext.js');
 const { resolveUserDisplayName } = require('./userDisplayName.js');
 const approvalTurnContext = require('./approvalTurnContext.js');
 const { evaluateCondition, buildToolContext } = require('./conditionEvaluator.js');
@@ -371,10 +372,6 @@ const AGENT_GATED_TOOLS = {
 // backup_run/keeper_backup_create/deploy_template were already wrapped in
 // tool.externalEffect for ledger purposes but never gated. Same lever as
 // email_send/ssh_exec above: unconditional, no org policy required.
-// QUOXTRUST v1.8 RB2 (resource/spend bounds): gemini_generate + perplexity_research
-// are pay-per-call APIs with NO per-org cost-budget gate (MF-2(b) debt). Until a real
-// spend-ceiling exists, force them to propose-first (human default-approval) so a
-// looping/compromised agent cannot run up unbounded paid-API spend unseen.
 // QUOXHAT #657 P-E: system_admin + proxmox_vm_action added. These are
 // unambiguous PRIVILEGED INFRA WRITES that were only ever "gated" by sitting in
 // a hat's active-ops/change BUNDLE — but P-B established that bundle loading is
@@ -394,11 +391,14 @@ const AGENT_GATED_TOOLS = {
 // never contingent on an org having configured a matching GOV-4 policy.
 // quox#590-shape bypass is pinned directly in
 // test/calendarqApprovalMediation.test.js.
-const AGENT_ALWAYS_PROPOSE_TOOLS = new Set(['loop_halt', 'slot_assign', 'bob_dispatch_build', 'email_send', 'send_notification', 'remote_ssh', 'ssh_exec', 'db_query', 'alerts_manage', 'backup_run', 'keeper_backup_create', 'deploy_template', 'gemini_generate', 'perplexity_research', 'system_admin', 'proxmox_vm_action', 'calendar_event_create', 'contacts_dial', 'contacts_send', 'contacts_context', 'contacts_dial_batch', 'contacts_send_batch', 'brain_garden_apply',
-  // QUOXON-ASK lane J: a quox CLI write run for the caller. Deliberately NOT in
-  // DIRECT_REQUEST_OK_TOOLS: any CLI write files a card naming the exact command line,
-  // even when the human asked (owner spec 2026-10-14). See lib/quoxCliTools.js.
-  'quox_cli_write']);
+const AGENT_ALWAYS_PROPOSE_TOOLS = new Set(['loop_halt', 'slot_assign', 'bob_dispatch_build', 'email_send', 'send_notification', 'remote_ssh', 'ssh_exec', 'db_query', 'alerts_manage', 'backup_run', 'keeper_backup_create', 'deploy_template', 'system_admin', 'proxmox_vm_action', 'proxmox_vm_clone', 'proxmox_vm_snapshot', 'proxmox_pool_configure', 'proxmox_pool_lease', 'proxmox_pool_release', 'docker_fleet_container_action', 'calendar_event_create', 'contacts_dial', 'contacts_send', 'contacts_context', 'contacts_dial_batch', 'contacts_send_batch', 'brain_garden_apply', 'proxmox_rehearse',
+  // QUOXON-ASK lane J: a quox CLI write run for the caller. Not in DIRECT_REQUEST_OK_TOOLS;
+  // superseded owner policy (J2, quox#852): a direct human ask for THIS change runs without
+  // a card (quoxCliDirectAuthorizes); every other caller still gets the card.
+  'quox_cli_write',
+  // TRIAGE-TOOLS (2026-10-16): a mass dismiss of HITL info items. Never in DIRECT_REQUEST_OK_TOOLS:
+  // an agent cannot silently mass-dismiss, and the auth route re-checks the approval id.
+  'hitl_bulk_dismiss']);
 
 // AQ-9D P3 approval mode: NotesQ write tools are agent-gated ONLY when the org's
 // NOTESQ_AGENT_EDIT_POLICY is 'propose'. lib/notesqTools.js resolves that setting
@@ -408,10 +408,10 @@ const AGENT_ALWAYS_PROPOSE_TOOLS = new Set(['loop_halt', 'slot_assign', 'bob_dis
 const { NOTESQ_PROPOSE_TOOLS } = require('./notesqProposeTools.js');
 const isNotesqPropose = (toolName, ctx) => !!(ctx && ctx._notesqPropose === true && NOTESQ_PROPOSE_TOOLS.has(toolName));
 
-// CONTACTSQ P1: outward contact tools. Unconditionally agent-gated like the rest of
-// AGENT_ALWAYS_PROPOSE_TOOLS, and deliberately NOT in DIRECT_REQUEST_OK_TOOLS (a human
-// asking in chat does not skip the ask for an outward call/message). The ONE no-ask
-// path is a human-created STANDING GRANT, consulted in checkApproval below.
+// CONTACTSQ P1: the lease tools. Agent-gated like the rest of AGENT_ALWAYS_PROPOSE_TOOLS. The
+// outward ones (dial, send, batches) are deliberately NOT in DIRECT_REQUEST_OK_TOOLS (a human asking
+// in chat does not skip the ask for an outward call/message); contacts_context is, since #1067 (a
+// read for the asker). The other no-ask path is a human-created STANDING GRANT, consulted below.
 const CONTACTSQ_LEASE_TOOLS = new Set(['contacts_dial', 'contacts_send', 'contacts_context', 'contacts_dial_batch', 'contacts_send_batch']);
 
 // SEC-AUDIT (2026-08-11): AGENT_GATED_TOOLS is keyed by LOWERCASE agent id
@@ -450,14 +450,19 @@ function isAgentGated(toolName, ctx = {}) {
 const DIRECT_REQUEST_OK_TOOLS = new Set([
   'ssh_exec', 'remote_ssh', 'db_query', 'proxmox_vm_action',
   'alerts_manage', 'backup_run', 'keeper_backup_create', 'loop_halt', 'slot_assign',
-  'bob_dispatch_build', 'gemini_generate', 'perplexity_research',
+  'bob_dispatch_build', 'docker_fleet_container_action',
   // AQ-9D: in NotesQ approval mode the person asking IS the approval for their own
   // request; an agent acting unprompted still files a diff. Delete is not here, so
   // a delete always asks.
   'notesq_create', 'notesq_update', 'notesq_tag', 'notesq_restore',
+  // quox#1067: contacts_context only READS human-confirmed facts and summaries for the person asking
+  // ("get me ready for my call with X"), so their direct ask is the authorization. The outward lease
+  // tools (dial, send and their batches) are NOT here: they still ask even when the human asked.
+  'contacts_context',
 ]);
 // Any match means "still ask". Deliberately broad: when in doubt, it asks.
-const DESTRUCTIVE_SHELL = /(^|[\s;&|(])(sudo\s+)?(rm|rmdir|mkfs(\.\w+)?|dd|shred|wipefs|fdisk|parted|sgdisk|reboot|shutdown|poweroff|halt|kill|killall|pkill|userdel|groupdel|truncate|zpool)(\s|$)|crontab\s+-r|zfs\s+destroy|iptables\s+-[FX]|nft\s+flush|systemctl\s+(stop|disable|mask|kill|poweroff|reboot|halt|isolate)|docker\s+(rm|rmi|kill|stop|prune|system\s+prune|volume\s+rm|network\s+rm)|\b(qm|pct)\s+(stop|destroy|shutdown|reset|rollback)|\binit\s+[06]\b|>\s*\/(etc|boot|dev|usr|var|bin|sbin|lib)|chmod\s+-R|chown\s+-R|drop\s+(table|database|schema)|\bdelete\s+from\b|\btruncate\s+table\b/i;
+// #1071: a redirect to /dev/null, /dev/stdout or /dev/stderr is not a write; any other /dev target (a disk) is.
+const DESTRUCTIVE_SHELL = /(^|[\s;&|(])(sudo\s+)?(rm|rmdir|mkfs(\.\w+)?|dd|shred|wipefs|fdisk|parted|sgdisk|reboot|shutdown|poweroff|halt|kill|killall|pkill|userdel|groupdel|truncate|zpool)(\s|$)|crontab\s+-r|zfs\s+destroy|iptables\s+-[FX]|nft\s+flush|systemctl\s+(stop|disable|mask|kill|poweroff|reboot|halt|isolate)|docker\s+(rm|rmi|kill|stop|prune|system\s+prune|volume\s+rm|network\s+rm)|\b(qm|pct)\s+(stop|destroy|shutdown|reset|rollback)|\binit\s+[06]\b|>\s*\/(etc|boot|usr|var|bin|sbin|lib)|>\s*\/dev\/(?!(null|stdout|stderr)\b)|chmod\s+-R|chown\s+-R|drop\s+(table|database|schema)|\bdelete\s+from\b|\btruncate\s+table\b/i;
 const READ_ONLY_SQL = /^\s*(select|show|explain|describe|desc|with)\b/i;
 const WRITE_SQL = /\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|replace|merge|attach|detach|vacuum|pragma)\b/i;
 
@@ -477,7 +482,83 @@ function isDestructiveForDirectRequest(toolName, input = {}) {
   return false;
 }
 
+/**
+ * QUOXON-ASK J2 (quox#852), owner policy: a quox CLI write the human asked for directly runs
+ * at once, as them, witnessed, with no card. All must hold: a verified human is driving this
+ * conversation (untainted) and the call is theirs; it comes from the agent they are talking
+ * to (not a delegated specialist: API paths carry _delegationDepth, the CLI path differs by
+ * agent); their own message asks for THIS change (lib/quoxCli/directIntent.js); the input
+ * validates (never-class leaves are refused before the gate). Otherwise: the card.
+ */
+function quoxCliDirectAuthorizes(input, ctx = {}) {
+  const human = directRequestRegistry.isDirectRequest(ctx.conversationId || ctx.session_id, ctx.orgId);
+  if (!human || !ctx.userId || String(ctx.userId) !== human.userId) return null;
+  if (Number(ctx._delegationDepth) > 0) return null;
+  const agent = String(ctx.agentId || '').trim().toLowerCase();
+  if (human.agentId && agent && agent !== human.agentId) return null;
+  try {
+    const plan = require('./quoxCliTools.js').planCall(input || {});
+    if (!plan.ok || plan.cls.class === 'never') return null;
+    if (!require('./quoxCli/directIntent.js').askMatchesLeaf(human.message, plan.built, plan.argv)) return null;
+  } catch { return null; }
+  return human;
+}
+
+// SITE-CLI ruling (c): a DELEGATED specialist carries the human's direct request only for the tool
+// whose action the ask names. A DIRECT_REQUEST_OK tool not in this map does not carry over.
+// A note-write ask, judged per SENTENCE (split at . ! ? ; before a space or the end): <verb> then a NOTE object
+// (a/an/my/the/this/that/new [up to 2 plain words] note(s)), with no negator anywhere earlier in that sentence. A
+// pronoun object (it / its / them) counts only when the SAME sentence names a note that way ("Create a note titled
+// X, then tag it"). A bare quote binds to nothing, so it never counts. HYPERION review 2026-10-17.
+const RETRACT_PHRASE = /\b(?:actually,?\s+no|no,?\s+wait|wait,?\s+no|never\s?mind|cancel\s+that|scratch\s+that|forget\s+(?:it|that)|on\s+second\s+thoughts?|ignore\s+that|undo\s+that|(?:don'?t|do\s+not)\s+do\s+(?:it|that|this)|nah|belay\s+that|scrap\s+(?:it|that)|hold\s+off|not\s+now)\b/i;
+const RETRACT_CLAUSE = /(?:^|[.!?;,]|\s[-\u2013\u2014])\s*(?:no|don'?t|do\s+not|never|cancel|stop)\b(?!\s+(?:the|my|a|an|this|that)\s+\w)/i;
+const NOTE_OBJECT = '(?:a|an|my|the|this|that|new|another)\\s+(?:[a-z0-9]+\\s+){0,2}notes?\\b';
+function noteWriteAsk(verbs) {
+  // HYPERION follow-up: "change the text of my note X" names the note through "the text/contents/body/title of".
+  const named = new RegExp(`\\b(?:${verbs})\\b\\s+(?:(?:the\\s+)?(?:text|contents?|body|title)\\s+of\\s+)?${NOTE_OBJECT}`, 'gi');
+  const pronoun = new RegExp(`\\b(?:${verbs})\\b\\s+(?:it|its|them)\\b`, 'gi');
+  const namesANote = new RegExp(`\\b${NOTE_OBJECT}`, 'i');
+  const NEG = /\b(?:don'?t|do\s+not|never|no|not|stop|avoid|without)\b/i;
+  const unnegated = (sent, re) => { for (const m of sent.matchAll(re)) if (!NEG.test(sent.slice(0, m.index))) return true; return false; };
+  // HYPERION follow-up: a sentence ending in "?" is a question, never a request ("Make a note? No."), unless it is the
+  // polite form of a request ("Could you create a note titled X?").
+  const POLITE_ASK = /^\s*(?:(?:please|pls|hey|hi|quox)[,\s]+)*(?:can|could|would|will)\s+you\b|^\s*please\b/i;
+  const sentences = (t) => {
+    const p = t.split(/([.!?;])(?=\s|$)/); const out = []; let off = 0;
+    for (let i = 0; i < p.length; i += 2) { out.push({ s: p[i], at: off, q: p[i + 1] === '?' && !POLITE_ASK.test(p[i]) }); off += p[i].length + (p[i + 1] || '').length; }
+    return out;
+  };
+  // the END offset (in the whole ask) of the last unnegated match in one sentence, or -1
+  const lastEnd = (sent, re) => { let e = -1; for (const m of sent.matchAll(re)) if (!NEG.test(sent.slice(0, m.index))) e = m.index + m[0].length; return e; };
+  // SITE-CLI 2026-10-17: a retraction AFTER the authorizing verb (same sentence or later) means no authorization.
+  // Quoted text is the note's own words, never a retraction; a bare negator retracts only when it opens a clause.
+  const retracted = (rest) => {
+    const r = rest.replace(/"[^"]*"|\u201c[^\u201d]*\u201d/g, ' ');
+    return RETRACT_PHRASE.test(r) || RETRACT_CLAUSE.test(r);
+  };
+  return { test: (ask) => {
+    const t = String(ask || ''); let end = -1;
+    for (const { s: sent, at, q } of sentences(t)) {
+      if (q) continue;
+      let e = lastEnd(sent, named);
+      if (namesANote.test(sent)) e = Math.max(e, lastEnd(sent, pronoun));
+      if (e >= 0) end = at + e;
+    }
+    return end >= 0 && !retracted(t.slice(end));
+  } };
+}
+const DELEGATED_TOOL_ASK = {
+  // 2026-10-17 (proof notes/note-*): the note write the human's own words name. Delete is deliberately absent
+  // (not in DIRECT_REQUEST_OK_TOOLS either), so a delete always asks. HYPERION review: the verb must take a NOTE as
+  // its object (a/my/the/this note), and a negated ask ("do not create a note") never authorizes.
+  notesq_create: noteWriteAsk('create|make|add|write|save|start'),
+  notesq_update: noteWriteAsk('update|edit|change|append(?:\\s+to)?|rewrite|amend'),
+  notesq_tag: noteWriteAsk('tag'),
+  notesq_restore: noteWriteAsk('restore|undelete|recover|bring\\s+back'),
+};
+
 function directRequestAuthorizes(toolName, input, ctx = {}) {
+  if (toolName === 'quox_cli_write') return quoxCliDirectAuthorizes(input, ctx);
   if (!DIRECT_REQUEST_OK_TOOLS.has(toolName)) return null;
   const human = directRequestRegistry.isDirectRequest(ctx.conversationId || ctx.session_id, ctx.orgId);
   if (!human) return null;
@@ -485,6 +566,24 @@ function directRequestAuthorizes(toolName, input, ctx = {}) {
   // body-supplied session_id, so another member or an agent that learned the
   // conversation id must not inherit it.
   if (!ctx.userId || String(ctx.userId) !== human.userId) return null;
+  // SITE-CLI ruling: a DELEGATED specialist (nested hop, or an agent other than the one the human is
+  // talking to), whether it shares the parent's entry or was aliased, rides the direct request only when
+  // the human's own words name it AND the tool is one the ask names. The entry is already untainted here.
+  // The human's own agent is unchanged. Depth is set on the API dispatchers' tool ctx; the CLI
+  // tools/execute ctx carries no depth, so the agent mismatch is what catches it there.
+  const agent = String(ctx.agentId || '').trim().toLowerCase();
+  // A human turn with no agent recorded (selected_agent null) talked to the default, quox: fail closed,
+  // so a CLI specialist (no depth on that ctx) is never mistaken for the human's own agent.
+  const humanAgent = human.agentId || 'quox';
+  const delegated = Number(ctx._delegationDepth) > 0 || !!(agent && agent !== humanAgent);
+  if (delegated) {
+    const verb = DELEGATED_TOOL_ASK[toolName];
+    if (!verb || !agent || !verb.test(human.ask || '')) return null;
+    if (human.delegatedTo && agent !== human.delegatedTo) return null;
+    let names = [agent];
+    try { const a = require('./entityAssistantLoader').getAssistant(agent); names = [agent, a?.identity?.name, a?.identity?.shortName]; } catch { /* id alone */ }
+    if (!directRequestRegistry.askNamesAgent(human.ask, directRequestRegistry.specialistNames(agent, names))) return null;
+  }
   if (isDestructiveForDirectRequest(toolName, input)) return null;
   return human;
 }
@@ -535,6 +634,23 @@ function appendRequestContext(bodyMd, input) {
   if (reason) block += `\n**Why the agent asked:** ${reason}`;
   if (related) block += `\n**Related to:** ${related}`;
   return `${bodyMd}${block}`;
+}
+
+/**
+ * DEVFLEET-P15 (rehearsal twins, "approve with proof"): when the proposal cites a rehearsal_id,
+ * show its verdict on the card. Org-scoped lookup (ctx.orgId only), so a card can never surface
+ * another org's rehearsal; an unknown/foreign id renders nothing rather than guessing. Additive,
+ * never throws.
+ */
+function appendRehearsalContext(bodyMd, input, ctx = {}) {
+  const id = input && typeof input.rehearsal_id === 'string' ? input.rehearsal_id.trim() : '';
+  if (!id || !/^RH_[0-9A-F]{16}$/.test(id) || !ctx || !ctx.orgId) return bodyMd;
+  try {
+    const store = require('./proxmoxRehearseStore.js');
+    const rec = store.get(ctx.orgId, id);
+    if (!rec) return bodyMd;
+    return `${bodyMd}\n\n**${store.summaryLine(rec)}** (rehearsal \`${rec.id}\`, twin of VM ${rec.vmid} on ${rec.node}). Command rehearsed: \`${String(rec.command || '').replace(/[`\r\n]/g, ' ').slice(0, 200)}\`. Check it is the same change as below.`;
+  } catch { return bodyMd; }
 }
 
 // AQ-9B audit fix 3: calendar_event_create's proposal.title/attendee emails/
@@ -733,6 +849,20 @@ function buildAgentGateProposal(toolName, input, ctx) {
     return { targetId, reason, title, bodyMd };
   }
 
+  // hitl_bulk_dismiss (TRIAGE-TOOLS) — input is {title?, item_ids?, reason?}. Name what would be
+  // dismissed (the exact title, or how many ids) so the human knows the batch; info items only.
+  if (toolName === 'hitl_bulk_dismiss') {
+    const ids = Array.isArray(input.item_ids) ? input.item_ids : [];
+    const what = ids.length ? `${ids.length} listed info item${ids.length === 1 ? '' : 's'}` : `every open info item titled "${String(input.title || '').slice(0, 160)}"`;
+    const reason = input.reason ? String(input.reason).slice(0, 300) : '';
+    const title = `${agentLabel} proposes: dismiss ${ids.length ? `${ids.length} info items` : 'an info batch'}`;
+    const bodyMd = `**${agentLabel}** proposes to **dismiss** ${what} in the HITL inbox.\n\n` +
+      (reason ? `Reason given: ${reason}\n\n` : '') +
+      `Only info items are touched: approvals, questions, incidents and tasks in the list are skipped. Dismissed items are marked cancelled, not deleted. ` +
+      `Confirm this proposal to dismiss them, or deny it to leave the inbox unchanged.`;
+    return { targetId: ids.length ? `${ids.length} items` : String(input.title || 'info batch').slice(0, 80), reason, title, bodyMd };
+  }
+
   // slot_assign (DEVSUITE-SLOTS) — input is {name, session}. Curating the slot
   // pool is an org-admin action; name the slot and the session it would be
   // assigned to (or cleared) so the human can evaluate the change.
@@ -804,21 +934,46 @@ function buildAgentGateProposal(toolName, input, ctx) {
     return { targetId: recipient, reason: msgTitle || channel, title, bodyMd };
   }
 
+  // DEVFLEET-P15 (rehearsal twins): the card shows the FULL deterministic plan (every host command),
+  // read from the server-side record (org-scoped), because approving mints a grant for exactly them.
+  if (toolName === 'proxmox_rehearse') {
+    let stored = null;
+    try { stored = require('./proxmoxRehearseStore.js').getPlan(ctx.orgId, input.rehearsal_id); } catch { stored = null; }
+    const clip = (v, n) => { const t = String(v ?? ''); return t.length > n ? `${t.slice(0, n)}...` : t; };
+    const vmid = Number(input.vmid); const node = String(input.node || '');
+    if (!stored) {
+      const title = `${agentLabel} proposes: rehearse a change on VM ${vmid} (plan unavailable)`;
+      return { targetId: String(vmid), reason: '', title, bodyMd: `**${agentLabel}** proposes a rehearsal on VM ${vmid} (${node}) but its stored plan could not be loaded. Deny this and ask again.` };
+    }
+    const pr = stored.plan.params;
+    const name = pr.name ? `**${escapeCalendarQMarkdown(pr.name)}** ` : '';
+    const cmds = stored.plan.commands.map((c) => clip(c, 1500)).join('\n');
+    const title = `${agentLabel} proposes: rehearse a change on VM ${vmid} in an isolated twin`;
+    const bodyMd = `**${agentLabel}** asks to rehearse this command on ${name}(vmid ${vmid} @ ${node}) in an isolated twin (a full clone with every network link down, destroyed afterwards):\n\n` +
+      `\`\`\`\n${clip(pr.command, 1500)}\n\`\`\`\n\n` +
+      `**Approving creates a ${60}-minute grant for exactly these ${stored.plan.commands.length} commands on \`${node}\`** (VM ${vmid} and twin ${pr.twin} only, at most ${stored.plan.max_uses} uses, revoked when the rehearsal ends). Nothing else can run under it; anything outside this list asks again.\n\n` +
+      `**Commands:**\n\n\`\`\`\n${cmds}\n\`\`\`\n\n` +
+      `Plan hash \`${String(stored.plan_sha256).slice(0, 16)}\`, rehearsal \`${input.rehearsal_id}\`.`;
+    return { targetId: String(vmid), reason: clip(pr.command, 200), title, bodyMd };
+  }
+
   // QUOXTRUST T4/T5/T9 (FND_01M3SF9C): remote_ssh / ssh_exec run an arbitrary shell command
   // on a remote/fleet host. The read-only allowlist path never reaches this gate (agentTools
   // returns direct); only a NON-read command is held here, so the approver MUST see the exact
   // host and command — never a blind shell approval.
   if (toolName === 'remote_ssh' || toolName === 'ssh_exec') {
-    const host = input.host || (input.credential_id ? `(credential ${input.credential_id})` : 'unknown host');
+    const multiHosts = Array.isArray(input.hosts) && input.hosts.length ? input.hosts.map(String) : null;
+    const hostNames = input.host_names && typeof input.host_names === 'object' && !Array.isArray(input.host_names) ? input.host_names : null;
+    const host = multiHosts ? `${multiHosts.length} hosts: ${multiHosts.join(', ')}` : (input.host || (input.credential_id ? `(credential ${input.credential_id})` : 'unknown host'));
     const command = String(input.command || '');
     const preview = command.length > 1200 ? command.slice(0, 1200) + '…' : command;
     const via = toolName === 'remote_ssh' ? 'direct SSH via a vault key' : 'bastion SSH';
     const title = `${agentLabel} proposes: run a shell command on ${host}`;
-    const bodyMd = `**${agentLabel}** proposes to run a shell command on \`${host}\` (${via}).\n\n` +
+    const bodyMd = `**${agentLabel}** proposes to run a shell command on ${multiHosts ? `**${multiHosts.length} target${multiHosts.length === 1 ? '' : 's'}**:\n\n${(hostNames ? Object.entries(hostNames).sort((a, b) => (a[1] + a[0]).localeCompare(b[1] + b[0])).map(([n, id]) => `- \`${n} \u2192 ${id}\``) : multiHosts.map((h) => `- \`${h}\``)).join('\n')}\n\n${hostNames && Object.keys(hostNames).length > multiHosts.length ? `(${Object.keys(hostNames).length} names collapsed to ${multiHosts.length} target${multiHosts.length === 1 ? '' : 's'}) ` : ''}the SAME command on each, in ONE call` : `\`${host}\``} (${via}).\n\n` +
       `**Command:**\n\n\`\`\`\n${preview || '(empty)'}\n\`\`\`\n\n` +
       `This command is NOT on the read-only allowlist, so it is held for approval. ` +
-      `Confirm to run exactly this on \`${host}\`, or deny to stop it.`;
-    return { targetId: host, reason: preview.slice(0, 200), title, bodyMd };
+      `Confirm to run exactly this on ${multiHosts ? 'exactly these hosts' : `\`${host}\``}, or deny to stop it.`;
+    return { targetId: multiHosts ? multiHosts.join(',') : host, reason: preview.slice(0, 200), title, bodyMd };
   }
 
   // QUOXTRUST T4/T5/T9 (FND_01M3SF9C): db_query with allow_write runs a mutating SQL statement
@@ -1189,7 +1344,7 @@ async function checkApproval(toolName, input, ctx = {}) {
     const proposal = buildAgentGateProposal(toolName, input, ctx);
     // #625: fold the caller's reason/related-to into the card body so no human
     // approves blind, uniformly across every gated tool.
-    proposal.bodyMd = appendRequestContext(proposal.bodyMd, input);
+    proposal.bodyMd = appendRehearsalContext(appendRequestContext(proposal.bodyMd, input), input, ctx);
     try {
       const approval = await createApprovalRequest(toolName, input, {
         // F3 (first .131 drive, 2026-08-15): QuoxFlow's create schema
@@ -1360,13 +1515,35 @@ async function checkApproval(toolName, input, ctx = {}) {
   // while a genuine no-assignment ('full'/null from a SUCCESSFUL lookup)
   // still falls through unchanged, so this is additive only, same as the
   // rest of this block.
+  // QUOX-SECURITY: refuse an out-of-scope, unverified or over-ceiling engagement request BEFORE the
+  // access_mode approval below can mint a card, so a human is never asked to approve a scan that policy
+  // forbids outright. Refusal only: an allowed decision falls through to every gate below unchanged (the
+  // full engagement block further down still handles its own approval tier), and a policy-check error
+  // blocks closed exactly as it does there.
+  if (ctx._securityEngagement) {
+    const { checkEngagementPolicy } = require('./securityEngagement.js');
+    const { engagementId, orgId: engOrgId, targetValue, capabilityRisk } = ctx._securityEngagement;
+    let early;
+    try {
+      early = checkEngagementPolicy({ engagementId, orgId: engOrgId, targetValue, capabilityRisk }, { db: _securityDb });
+    } catch (err) {
+      return {
+        allowed: false,
+        requiresApproval: false,
+        error: `Engagement policy check failed: ${err.message}`,
+        reason: 'Security engagement policy check errored; blocked closed.',
+      };
+    }
+    if (!early.allowed) return { allowed: false, requiresApproval: false, reason: early.reason };
+  }
+
   try {
     const { getAccessModeForAgentTool } = require('./agentTools.js');
     // Same normalization as isAgentGated/isApprovalResolutionByAgent above —
     // String()+trim()+toLowerCase() so a non-string, padded, or mixed-case
     // ctx.agentId can never dodge this gate the way a bare lookup would.
     const agentKey = String(ctx.agentId ?? '').trim().toLowerCase();
-    const accessMode = await getAccessModeForAgentTool(agentKey, toolName);
+    const accessMode = await getAccessModeForAgentTool(agentKey, toolName, ctx.orgId || null);
     if (accessMode === 'with_approval' || accessMode === 'unknown') {
       const isUnknown = accessMode === 'unknown';
       const approval = await createApprovalRequest(toolName, input, {
@@ -1797,12 +1974,20 @@ async function createApprovalRequest(toolName, input, pendingApproval, orgId = n
     }
     approvalContext = buildApprovalContext({
       toolName, input, pendingApproval, ctx: ctxForCard, turn, reach,
+      fallbackAsk: conv ? directRequestRegistry.askFor(conv, orgId) : null, // APPROVAL-WWWH: the human's own words when the turn registry has none
       delegationChainFor: approvalTurnContext.delegationChainFor,
     });
     request.metadata.approval_context = approvalContext;
   } catch (e) {
     console.warn('[ApprovalGate] approval context build failed (continuing without it):', e && e.message);
   }
+
+  // APPROVAL-WHAT (2026-10-15 live HIGH): the item must say what will happen and to what. Built from the
+  // tool input; throws approval_undescribed (before anything is filed) when it cannot.
+  const what = describeApprovalWhat({ toolName, input, pendingApproval });
+  const whatCheck = checkWhat(what);
+  if (!whatCheck.ok) throw new Error(`approval_undescribed: ${whatCheck.error} (refused before anything was filed)`);
+  request.metadata.what = what;
 
   const approval = await quoxflowFetch('/approvals', {
     method: 'POST',
@@ -1856,7 +2041,7 @@ async function createApprovalRequest(toolName, input, pendingApproval, orgId = n
   if (approval && approval.id && orgId) {
     let mintFailure = null;
     {
-      const legacyTitle = pendingApproval?.title || `Approval required — ${toolName} (${input.action || 'action'})`;
+      const legacyTitle = pendingApproval?.title || what.summary;
       const baseTitle = approvalContext ? buildContextTitle(approvalContext, legacyTitle, toolName) : legacyTitle;
       // quox#562: mechanics live in lib/inboxMint.js (never throws). This
       // site keeps its OWN dedup semantics: a dedup 200 is a FAILURE here,
@@ -1887,6 +2072,8 @@ async function createApprovalRequest(toolName, input, pendingApproval, orgId = n
           // QUOXON-REVIEW: the approval id rides on the card so a client that
           // approves it can poll GET /api/v1/approvals/:id/result.
           approval_id: approval.id,
+          // APPROVAL-WHAT: action, target (or why there is none) and one human line.
+          what,
           ...(pendingApproval?.targetId ? { targetId: pendingApproval.targetId } : {}),
           // BLAST-RADIUS-P1: the same computed summary attached to
           // request.metadata.reach above, mirrored here so the inbox card
@@ -2221,9 +2408,12 @@ module.exports = {
   isApprovalResolutionByAgent,
   AGENT_GATED_TOOLS,
   AGENT_ALWAYS_PROPOSE_TOOLS,
+  quoxCliDirectAuthorizes,
+  isDestructiveForDirectRequest,
   CONTACTSQ_LEASE_TOOLS,
   buildAgentGateProposal,
   appendRequestContext,
+  appendRehearsalContext,
   computeInputFingerprint,
   getStoredInputFingerprint,
   // BLAST-RADIUS-P1

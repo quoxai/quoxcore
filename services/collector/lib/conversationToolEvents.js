@@ -91,6 +91,15 @@ function summarizeToolResult(result) {
   if (!result || typeof result !== 'object') return scrubLine(result, 120);
   if (result.success === false || result.error) return scrubLine(`error: ${result.error || result.message || 'failed'}`, 120);
   if (typeof result.message === 'string' && result.message) return scrubLine(result.message, 120);
+  if (Array.isArray(result.logs)) {
+    const n = result.logs.length;
+    return `${n} log ${n === 1 ? 'line' : 'lines'}`;
+  }
+  if (result.operation === 'inspect' && result.details && typeof result.details === 'object') {
+    const d = result.details, h = d.health;
+    const hs = h && h.status ? `, health ${h.status}${h.failing_streak ? ` (failing ${h.failing_streak} times)` : ''}` : '';
+    return scrubLine(`inspect: ${d.status || 'ok'}${hs}`, 120);
+  }
   const parts = [];
   for (const [k, v] of Object.entries(result)) {
     if (k === 'success') continue;
@@ -116,7 +125,32 @@ function delegationFields(tool, input) {
 }
 
 const NESTED_TOOL_STATUSES = new Set(['ok', 'failed', 'denied', 'effect_unknown']);
+/** terminal_suggest_command: the proposed slash command rides on tool.finished for the TUI to ask y/N. */
+function suggestCommandFields(tool, result) {
+  if (tool !== 'terminal_suggest_command' || !result || typeof result !== 'object' || result.success === false) return {};
+  if (typeof result.suggested_command !== 'string' || !result.suggested_command) return {};
+  return {
+    suggest_command: result.suggested_command.slice(0, 120),
+    ...(typeof result.reason === 'string' && result.reason ? { suggest_reason: scrubLine(result.reason, 160) } : {}),
+    ...(result.explicit === true ? { suggest_explicit: true } : {}),
+  };
+}
+
+// Router tools run exactly one narrow executor and say which (result.routed_tool). That executor is
+// reported as a nested tool with the router's own outcome. Allowlisted per router, so no other tool's
+// result can claim a nested call.
+const ROUTER_TOOLS = {
+  quoxchat_read: new Set(['quoxchat_list_widgets', 'quoxchat_list_conversations', 'quoxchat_get_transcript', 'quoxchat_get_availability']),
+};
+
+function routedResultFields(tool, result) {
+  const allowed = ROUTER_TOOLS[tool];
+  if (!allowed || !result || typeof result !== 'object' || !allowed.has(result.routed_tool)) return {};
+  return { nested_tools: [{ tool: result.routed_tool, status: result.success === false ? 'failed' : 'ok' }] };
+}
+
 function delegationResultFields(tool, result) {
+  if (ROUTER_TOOLS[tool]) return routedResultFields(tool, result);
   if (tool !== 'delegate_to_agent' || !result || typeof result !== 'object') return {};
   const out = {};
   const t = result.tools_used;
@@ -159,14 +193,16 @@ function createToolEventBridge({ emit, dashboardOrigin = '', trace, corr = '' })
     if (!ev || !ev.type) return;
     switch (ev.type) {
       case 'tool.started':
-        emit('tool.started', { call_id: ev.call_id, tool: ev.tool, summary: summarizeToolCall(ev.tool, ev.input), ...delegationFields(ev.tool, ev.input) });
+        emit('tool.started', { call_id: ev.call_id, tool: ev.tool, summary: summarizeToolCall(ev.tool, ev.input), ...(ev.cli_command ? { cli_command: ev.cli_command } : {}), ...delegationFields(ev.tool, ev.input) });
         break;
       case 'tool.finished':
         emit('tool.finished', {
           call_id: ev.call_id, tool: ev.tool, status: ev.status,
           result_summary: summarizeToolResult(ev.result), duration_ms: ev.duration_ms,
           envelope_id: ev.envelope_id || null,
+          ...(ev.cli_command ? { cli_command: ev.cli_command } : {}),
           ...delegationResultFields(ev.tool, ev.result),
+          ...suggestCommandFields(ev.tool, ev.result),
           // WARD witnessing is asynchronous: the seq is not known at response time.
           receipt: null,
         });
@@ -177,7 +213,9 @@ function createToolEventBridge({ emit, dashboardOrigin = '', trace, corr = '' })
       case 'approval.requested': {
         const input = ev.input && typeof ev.input === 'object' ? ev.input : {};
         const tk = TARGET_KEYS.find((k) => typeof input[k] === 'string' || typeof input[k] === 'number');
-        const target = tk ? scrubBounded(input[tk], TARGET_MAX) : null;
+        let cliLine = null;
+        if (ev.tool === 'quox_cli_write') { try { cliLine = require('./quoxCliTools.js').summarizeWriteCall(input); } catch { cliLine = null; } }
+        const target = cliLine ? scrubBounded(cliLine, TARGET_MAX) : (tk ? scrubBounded(input[tk], TARGET_MAX) : null);
         const action = typeof input.action === 'string' ? scrubLine(input.action, 40) : null;
         const ck = CMD_KEYS.find((k) => typeof input[k] === 'string' && input[k]);
         const command = ck ? scrubBounded(input[ck], CMD_MAX) : null;
@@ -206,4 +244,4 @@ function createToolEventBridge({ emit, dashboardOrigin = '', trace, corr = '' })
   };
 }
 
-module.exports = { scrubLine, summarizeToolCall, summarizeToolResult, classifyToolStatus, approvalFromResult, dashboardUrlFor, createToolEventBridge };
+module.exports = { ROUTER_TOOLS, scrubLine, summarizeToolCall, summarizeToolResult, classifyToolStatus, approvalFromResult, dashboardUrlFor, createToolEventBridge, delegationResultFields };

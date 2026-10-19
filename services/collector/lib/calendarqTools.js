@@ -69,6 +69,32 @@ function resolveWindow(input) {
   return { timezone, windowStartLocalDate: fallback.windowStart, windowEndLocalDateExclusive: fallback.windowEndExclusive };
 }
 
+// Every workflow cron projects up to 200 firings, so an org with a few schedules
+// produced a 600KB overlay that the model could only read by shelling out
+// (routing gripe 2026-10-15). Human commitments (provider + internal events) are
+// kept first; machine firings fill what is left of the cap. Counts stay honest.
+const OVERLAY_MAX_OCCURRENCES = 100;
+const HUMAN_LAYER_KINDS = new Set(['provider', 'internal_events']);
+
+function capOverlayOccurrences({ layers, occurrences }) {
+  const kindOf = new Map(layers.map((l) => [l.layerId, l.kind]));
+  const occurrenceCountsByLayer = {};
+  for (const o of occurrences) occurrenceCountsByLayer[o.layerId] = (occurrenceCountsByLayer[o.layerId] || 0) + 1;
+  const human = occurrences.filter((o) => HUMAN_LAYER_KINDS.has(kindOf.get(o.layerId)));
+  const machine = occurrences.filter((o) => !HUMAN_LAYER_KINDS.has(kindOf.get(o.layerId)));
+  const kept = human.slice(0, OVERLAY_MAX_OCCURRENCES);
+  kept.push(...machine.slice(0, Math.max(0, OVERLAY_MAX_OCCURRENCES - kept.length)));
+  kept.sort((a, b) => (a.startTs || 0) - (b.startTs || 0));
+  const truncated = kept.length < occurrences.length;
+  return {
+    occurrences: kept,
+    occurrenceCount: occurrences.length,
+    occurrenceCountsByLayer,
+    truncated,
+    ...(truncated ? { truncationNote: `Showing ${kept.length} of ${occurrences.length} occurrences: all human events first, then the earliest machine firings. occurrenceCountsByLayer has the full per-layer totals; narrow the window or use calendar_schedules_overview for schedules.` } : {}),
+  };
+}
+
 const CALENDARQ_TOOLS = {
 
   calendar_layers_list: {
@@ -93,16 +119,36 @@ const CALENDARQ_TOOLS = {
     input_schema: {
       type: 'object',
       properties: {
-        connectionId: { type: 'string', description: 'The Calendar-Q connection id (from calendar_layers_list or `quox calendar status`).' },
+        connectionId: { type: 'string', description: 'The Calendar-Q connection id (from calendar_layers_list or `quox calendar status`). Optional when the org has exactly one connection; omit it rather than guessing.' },
         layerIds: { type: 'array', items: { type: 'string' }, description: 'Optional: restrict the returned occurrences to these layer ids.' },
       },
-      required: ['connectionId'],
     },
     execute: async (input, ctx) => {
-      const { connectionId, layerIds } = input || {};
-      if (!connectionId) return { success: false, error: 'connectionId is required' };
+      let { connectionId } = input || {};
+      const { layerIds } = input || {};
       try {
         const orgId = requireOrg(ctx);
+        // quox#830: resolve the connection gracefully instead of erroring raw.
+        // No connections at all -> a grounded empty answer, never a failed tool.
+        const connections = store.listConnections(orgId);
+        if (connections.length === 0) {
+          auditDep(ctx)({
+            type: 'action', intent: 'quox.calendar.read', corr: 'none',
+            payload: { tool: 'calendar_agenda', state: 'unavailable', count: 0 },
+          });
+          return {
+            success: true, connected: false,
+            coverage: { state: 'unavailable', reason: 'no_provider_connected' },
+            occurrences: [],
+            guidance: 'No provider calendar is connected to this org yet, so there is no agenda to read. Internal Quox layers are readable via calendar_overlay or calendar_layers_list. A provider is connected from the dashboard: Office > Calendar-Q > Connections.',
+          };
+        }
+        if (!connectionId) {
+          if (connections.length > 1) {
+            return { success: false, error: `multiple connections exist; pass connectionId (one of: ${connections.map((c) => c.id).join(', ')})` };
+          }
+          connectionId = connections[0].id;
+        }
         const agenda = getAgenda(orgId, { connectionId, layerIds: Array.isArray(layerIds) ? layerIds : null });
         auditDep(ctx)({
           type: 'action', intent: 'quox.calendar.read', corr: connectionId,
@@ -192,7 +238,7 @@ const CALENDARQ_TOOLS = {
 
   calendar_overlay: {
     name: 'calendar_overlay',
-    description: "The merged, layer-tagged occurrence feed across every connected calendar layer (provider calendars, your own internal events, team schedules, workflow cron triggers), with a per-layer coverage state. Quote each layer's coverage.state back rather than assuming every layer is fresh. Read-only, free.",
+    description: "The merged, layer-tagged occurrence feed across every connected calendar layer (provider calendars, your own internal events, team schedules, workflow cron triggers), with a per-layer coverage state. Returns at most 100 occurrences (human events first, then machine firings) plus occurrenceCount, occurrenceCountsByLayer and truncated: report the totals honestly when truncated. Quote each layer's coverage.state back rather than assuming every layer is fresh. Read-only, free.",
     input_schema: {
       type: 'object',
       properties: {
@@ -208,7 +254,8 @@ const CALENDARQ_TOOLS = {
         const { timezone, windowStartLocalDate, windowEndLocalDateExclusive } = resolveWindow(input);
         const overlay = await getOverlay(orgId, { userId: ctx.userId || null, windowStartLocalDate, windowEndLocalDateExclusive, timezone, fetchImpl: ctx.fetchImpl });
         auditDep(ctx)({ type: 'action', intent: 'quox.calendar.read', corr: orgId, payload: { tool: 'calendar_overlay', layerCount: overlay.layers.length, occurrenceCount: overlay.occurrences.length } });
-        return { success: true, ...overlay, occurrences: contactIdentity.enrichOccurrences(orgId, overlay.occurrences) };
+        const capped = capOverlayOccurrences(overlay);
+        return { success: true, ...overlay, ...capped, occurrences: contactIdentity.enrichOccurrences(orgId, capped.occurrences) };
       } catch (e) {
         return { success: false, error: e.message };
       }

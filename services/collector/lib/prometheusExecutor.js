@@ -11,12 +11,13 @@ const path = require('path');
 const MONITORING_CONFIG_PATH = path.join(__dirname, '..', 'monitoring-config.json');
 
 function getPrometheusUrl() {
-  if (process.env.PROMETHEUS_URL) return process.env.PROMETHEUS_URL;
-  try {
-    const config = JSON.parse(fs.readFileSync(MONITORING_CONFIG_PATH, 'utf8'));
-    if (config.prometheus?.url) return config.prometheus.url;
-  } catch {}
-  return '';
+  const u = process.env.PROMETHEUS_URL || (() => {
+    try { const c = JSON.parse(fs.readFileSync(MONITORING_CONFIG_PATH, 'utf8')); return c.prometheus?.url || ''; } catch { return ''; }
+  })();
+  // FND_...TX95 defence-in-depth: never fetch a denied SSRF target (loopback/link-local/metadata). A denied stored
+  // URL reads as not-configured so callers refuse cleanly; normal LAN (RFC1918) stays allowed.
+  if (u) { try { if (require('./monitoringEgressPolicy.js').orgMonitoringUrlRefusal(u)) return ''; } catch {} }
+  return u;
 }
 
 module.exports = {

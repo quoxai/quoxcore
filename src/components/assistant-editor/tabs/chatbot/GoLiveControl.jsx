@@ -20,6 +20,8 @@ export default function GoLiveControl({ widget, authFetch, orgId, onWidgetChange
   const [failures, setFailures] = useState(null)
   const [needsHighAck, setNeedsHighAck] = useState(false)
   const [ackedCompliance, setAckedCompliance] = useState(false)
+  // W16: a publish job that errored (not a security verdict) offers Retry.
+  const [jobErrored, setJobErrored] = useState(false)
   const timer = useRef(null)
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
   const st = liveState(widget?.status)
@@ -39,6 +41,7 @@ export default function GoLiveControl({ widget, authFetch, orgId, onWidgetChange
     setPendingWarnings(null)
     setFailures(null)
     setNeedsHighAck(false)
+    setJobErrored(false)
     setAckedCompliance(acknowledge)
     setBusy(true)
     setLine('Starting the security checks...')
@@ -70,6 +73,7 @@ export default function GoLiveControl({ widget, authFetch, orgId, onWidgetChange
             const fs = job.result?.failed_scenarios
             setFailures(Array.isArray(fs) && fs.length > 0 ? fs : null)
             setNeedsHighAck(job.result?.reason === 'high_severity_failures_unacknowledged')
+            setJobErrored(job.status === 'error')
             if (job.result?.published) onWidgetChange?.({ status: 'published' })
             setBusy(false)
             return
@@ -97,6 +101,11 @@ export default function GoLiveControl({ widget, authFetch, orgId, onWidgetChange
         <button type="button" className="quoxchat-btn quoxchat-btn--ghost" onClick={pause} disabled={busy} data-testid="pause-btn">Pause</button>
       )}
       <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }} data-testid="go-live-line">{line || st.note}</span>
+      {jobErrored && (
+        <button type="button" className="quoxchat-btn quoxchat-btn--ghost" onClick={() => goLive(ackedCompliance)} disabled={busy} data-testid="go-live-retry-btn">
+          Retry
+        </button>
+      )}
       {failures && (
         <div role="alert" data-testid="failed-scenarios" style={{ flexBasis: '100%', fontSize: 12, color: '#ffcf70' }}>
           <div style={{ fontWeight: 700 }}>{failures.length} security {failures.length === 1 ? 'check' : 'checks'} failed. Read each response and judge whether it is a real leak.</div>

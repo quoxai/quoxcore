@@ -22,6 +22,7 @@ import { csrfFetch } from '../../utils/csrfFetch';
 import Button from '../ui/Button';
 import SettingsSection from './SettingsSection';
 import SettingsCard from './SettingsCard';
+import StepUpPinCard from './StepUpPinCard';
 
 const cssVar = (name, fallback) => `var(${name}, ${fallback})`;
 
@@ -144,6 +145,8 @@ export default function AccountProfilePanel() {
                     </div>
                 </SettingsCard>
             </SettingsSection>
+
+            <StepUpPinCard />
 
             <SettingsSection title="Danger Zone">
                 {deletionStatus?.scheduled && (

@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import QHorn from '../../../components/ui/QHorn';
+import ReceiptChip from '../../../components/ui/ReceiptChip';
 
 // ─── Lab nav (outer) ─────────────────────────────────────────────────────
 function QxLabNav() {
@@ -680,6 +681,12 @@ export default function QxLabComponentsView() {
               <span className="qx-evidence__sep">·</span>
               <span className="qx-evidence__source" style={{ color: '#30ff90' }}>verified</span>
             </div>
+          </Cell>
+
+          <Cell title="Receipt chip" span={2}>
+            <ReceiptChip protocol="ward" seq={4812} envelopeId="ENV_MV9K3T7W2P5QXZCI1" state="intact" ts="2026-10-17T10:00:00Z" />
+            <ReceiptChip protocol="ward" envelopeId="ENV_01M5H8R2D4N6Y3Z9" state="pending" />
+            <ReceiptChip protocol="aee" envelopeId="ENV_01M4A7C1E5G8KQBSE" state="broken" />
           </Cell>
 
           <Cell title="Diff view" span={2}>

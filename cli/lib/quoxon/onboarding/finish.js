@@ -107,6 +107,21 @@ export async function createFinisher({ profileUrl = LOCAL_PROFILE_URL, fetchImpl
       }
     },
 
+    /** QUOXON-Z2H lane R: the owner said yes at the credential step; record it as their own act. -> { ok } | { ok: false, error } */
+    async grantConsent(provider) {
+      try { await createApi({ client, config, auth }).grantConsent(provider); return { ok: true }; }
+      catch (e) { return { ok: false, error: apiError(e, 'consent not recorded') }; }
+    },
+
+    /** Z2H-R5 E: can this server serve its host installer? -> { ok, status } | null (unknown). Reads only. */
+    async hostInstaller() {
+      try {
+        const api = createApi({ client, config, auth });
+        const base = await api.hostsBaseUrl();
+        return await api.hostInstallCheck(base);
+      } catch { return null; }
+    },
+
     /** -> { ok: true, url, expiresAt, ttlSeconds } | { ok: false, error } */
     async loginLink(dashboardUrl) {
       try {

@@ -107,7 +107,9 @@ services:
     ports:
       - "127.0.0.1:${AUTH_PORT:-3101}:3101"
     environment:
+      - QUOX_HOST_HOME=${QUOX_HOST_HOME:-/opt/quoxcore}
       - NODE_ENV=${NODE_ENV:-production}
+      - QUOX_STEP_UP_ENFORCE=${QUOX_STEP_UP_ENFORCE:-1}
       - AUTH_PORT=3101
       - AUTH_HOST=0.0.0.0
       - AUTH_DB_PATH=/var/lib/quox/auth.db
@@ -159,6 +161,8 @@ services:
       # image, same mounts) so an auth rebuild/restart cannot kill a 44 minute run.
       # Needs the docker socket mount below. Set false to run as a child of auth.
       - BACKUP_DETACHED=${BACKUP_DETACHED:-true}
+      # quox#1024: the dev box sets 1 in its .env (quox-memory is its live memory dir); public installs have none
+      - BACKUP_REQUIRE_QUOX_MEMORY=${BACKUP_REQUIRE_QUOX_MEMORY:-0}
     # Docker socket group — set DOCKER_GID to match host: stat -c '%g' /var/run/docker.sock
     # Host user group (1000) — allows traversing /opt/quoxcore:ro mount
     group_add:
@@ -202,7 +206,13 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=3102
-      - STORAGE_PATH=/var/lib/quox/files
+      # F01: STORAGE_DIR is what server.js reads (STORAGE_PATH never was, so files lived in the container layer and
+      # were lost on every recreate). The volume root: files/, metadata.json and folders.json all persist.
+      # Run scripts/ops/files-storage-to-volume.sh BEFORE the first deploy with this line (copies + verifies).
+      - STORAGE_DIR=/var/lib/quox
+      # F01 A': the store verifies the caller's JWT and the internal service key itself (org-scoped tenancy).
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY:-}
       - METADATA_PATH=/var/lib/quox/metadata
       - ALLOWED_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
     volumes:
@@ -245,7 +255,9 @@ services:
     ports:
       - "${COLLECTOR_PORT:-9848}:9848"
     environment:
+      - QUOX_HOST_HOME=${QUOX_HOST_HOME:-/opt/quoxcore}
       - NODE_ENV=${NODE_ENV:-production}
+      - QUOX_STEP_UP_ENFORCE=${QUOX_STEP_UP_ENFORCE:-1}
       - COLLECTOR_PORT=9848
       # DEVSUITE-SLOTS P6: the mautrix-telegram portal room slot says render
       # into (set-relay active on the bridge). Unset = outbound rendering
@@ -315,6 +327,9 @@ services:
       # call. Unset by default (honest "not configured" error, no fabricated
       # results) — see STATUS_AND_LIMITS_SECURITY.md.
       - SECURITY_SCAN_HOST=${SECURITY_SCAN_HOST:-}
+      # QUOXON-PROOF: the proof board data.json the conversation reads via proof_status.
+      # Unset = honest "no proof board configured" error. Non-secret LAN URL.
+      - QUOX_PROOF_BOARD_URL=${QUOX_PROOF_BOARD_URL:-}
       # QuoxFlow workflow engine
       - QUOXFLOW_URL=${QUOXFLOW_URL:-http://quoxflow:3200}
       - QUOXFLOW_APPROVAL_ENABLED=${QUOXFLOW_APPROVAL_ENABLED:-true}
@@ -342,6 +357,7 @@ services:
       - QUOXFEED_ORGS=${QUOXFEED_ORGS:-}
       - QUOXFEED_WARMUP_MS=${QUOXFEED_WARMUP_MS:-}
       - QUOXFEED_INTERVAL_MS=${QUOXFEED_INTERVAL_MS:-}
+      - QUOXFEED_FOLDER_WATCH=${QUOXFEED_FOLDER_WATCH:-}
       - QUOXFEED_MAX_ITEMS=${QUOXFEED_MAX_ITEMS:-}
       - FEED_DB_PATH=${FEED_DB_PATH:-/var/lib/quox/feed.db}
       # F2 transcript source: designates the single org allowed to receive
@@ -349,6 +365,9 @@ services:
       # header — transcripts are machine-global, NOT per-tenant).
       - QUOXFEED_HOST_ORG=${QUOXFEED_HOST_ORG:-}
       - TRANSCRIPT_DIR=${TRANSCRIPT_DIR:-}
+      # #1019: skill pack sources on this dev box (the code default is the container user's ~/.claude).
+      - QUOX_SKILLS_ROOT=${QUOX_SKILLS_ROOT:-/opt/quoxcore/.claude/skills}
+      - QUOX_CLAUDE_ROOT=${QUOX_CLAUDE_ROOT:-/opt/quoxcore/.claude}
       # MCP tools: Claude drives tool selection via quoxmcp MCP server
       - MCP_TOOLS_ENABLED=true
       # CLI-OVER-MCP (owner hard rule 2026-09-21): on-server agent reaches tools
@@ -480,6 +499,7 @@ services:
       - "127.0.0.1:${TASKS_PORT:-3104}:3104"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
+      - QUOX_STEP_UP_ENFORCE=${QUOX_STEP_UP_ENFORCE:-1}
       - PORT=3104
       - DB_PATH=/var/lib/quox/tasks.db
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
@@ -588,6 +608,7 @@ services:
     ports:
       - "127.0.0.1:${QUOXBRAIN_PORT:-3106}:3106"
     environment:
+      - QUOX_HOST_HOME=${QUOX_HOST_HOME:-/opt/quoxcore}
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=3106
       - DB_PATH=/var/lib/quox/quoxbrain.db

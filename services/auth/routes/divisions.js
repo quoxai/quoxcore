@@ -13,7 +13,7 @@ import { requireOrgMembership, requireOrgRole } from '../middleware/org.js';
 import { createScope, getScopeForEntity, deleteScope, updateScopeNameCache } from '../utils/scopes.js';
 import { Capabilities } from '../utils/policy.js';
 import { resolveCap } from '../utils/resolveCap.js';
-import { createAuditEvent, ulid } from '../utils/helpers.js';
+import { createAuditEvent, ulid, slugify } from '../utils/helpers.js';
 import { generateDivisionAssistantPersona, generateDivisionAssistantName } from '../utils/scopeAssistantTemplates.js';
 import { buildAssistantPersistencePayload } from './assistantLlm.js';
 import { provisionRoomForNode, deprovisionRoomForNode, isMatrixRoomsEnabled } from '../lib/matrixProvisioner.js';
@@ -114,7 +114,9 @@ router.post('/orgs/:orgId/divisions',
     async (req, res) => {
         try {
             const { orgId } = req.params;
-            const { name, slug, description, profile } = req.body;
+            const { name, description, profile } = req.body;
+            // #991: the CLI and API callers may omit slug; derive it from the name.
+            const slug = req.body.slug || (name ? slugify(String(name)).replace(/_/g, '-') : '');
             const userId = req.user.id;
 
             // Check capability

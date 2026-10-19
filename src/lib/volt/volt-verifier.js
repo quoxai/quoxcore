@@ -138,7 +138,7 @@ export async function verifyChain(events, options = {}) {
     if (computed_hash !== event.hash) {
       event_valid = false
       chain_valid = false
-      fail(expectedSeq, FAILURE_CODES.EVENT_HASH_MISMATCH, `Hash mismatch at seq ${expectedSeq}: computed ${computed_hash.slice(0, 16)}..., stored ${event.hash.slice(0, 16)}...`)
+      fail(expectedSeq, FAILURE_CODES.EVENT_HASH_MISMATCH, `Hash mismatch at seq ${expectedSeq}: computed ${computed_hash.slice(0, 16)}..., stored ${typeof event.hash === 'string' ? event.hash.slice(0, 16) + '...' : '(no hash)'}`)
     }
 
     if (event_valid) {

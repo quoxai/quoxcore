@@ -1,9 +1,9 @@
 {
   "name": "proxmox",
-  "version": "1.0.0",
+  "version": "1.1.2",
   "displayName": "Proxmox VE",
   "tagline": "Virtualization Made Visible",
-  "description": "Full Proxmox VE integration for VM and container management. Monitor cluster health, manage VMs and LXC containers, track resource usage, and execute lifecycle actions.",
+  "description": "Proxmox VE integration for VM and container management. Monitor cluster health and resources, run approval-gated lifecycle actions, clone from templates, take create-only snapshots, and lease disposable VMs from a governed pool. Agent writes always need a human approval; the platform-wide E-STOP and DEFCON controls apply to the HYPERION agent, there is no Proxmox-specific kill switch.",
   "shortDescription": "VM and container management for Proxmox clusters.",
   "author": "QUOX",
   "license": "commercial",
@@ -17,11 +17,11 @@
   "infoUrl": "https://quox.ai/plugins/proxmox",
   "docsUrl": "https://quox.ai/docs/plugins/proxmox",
   "marketingPoints": [
-    "Full cluster overview with quorum status",
-    "VM and container lifecycle management",
-    "Real-time resource monitoring",
-    "Snapshot management",
-    "Node health tracking"
+    "Cluster overview with quorum status",
+    "Approval-gated VM lifecycle",
+    "Disposable VM pool: lanes, warm standby, made-to-order",
+    "Rehearsal twins with one approval",
+    "quox vm CLI and /vm in chat"
   ],
   "features": {
     "clusterOverview": {
@@ -32,7 +32,7 @@
     },
     "vmManagement": {
       "name": "VM Management",
-      "description": "List, start, stop, and reboot virtual machines across all nodes.",
+      "description": "List VMs across all nodes; start, stop, reboot and shut down through approval.",
       "icon": "monitor",
       "highlight": true
     },
@@ -48,7 +48,7 @@
     },
     "snapshotManagement": {
       "name": "Snapshot Management",
-      "description": "View and manage VM snapshots across the cluster.",
+      "description": "View snapshots and create new ones (create-only; restore is not supported).",
       "icon": "camera"
     },
     "nodeStatus": {
@@ -60,6 +60,17 @@
       "name": "Storage Overview",
       "description": "See storage pools, usage, and availability.",
       "icon": "hard-drive"
+    },
+    "disposableVmPool": {
+      "name": "Disposable VM Pool",
+      "description": "Lease short-lived VMs from lanes with warm standby or made-to-order clones. Lease, release and configure are approval-gated for agents.",
+      "icon": "layers",
+      "highlight": true
+    },
+    "rehearsalTwins": {
+      "name": "Rehearsal Twins",
+      "description": "Rehearse a change on a twin of a guest with one approval and an exact-scope grant.",
+      "icon": "copy"
     }
   },
   "requirements": {
@@ -105,7 +116,7 @@
         "prompt": "Show Proxmox storage pool usage and flag any pools over 80% capacity"
       }
     ],
-    "schedulable": true,
+    "schedulable": false,
     "templateVariables": [
       {
         "name": "node",
@@ -121,15 +132,32 @@
     "destructiveActions": [
       "vm.stop",
       "vm.reboot",
-      "vm.delete"
+      "vm.shutdown"
     ],
     "requiresApproval": [
-      "vm.delete",
-      "snapshot.delete"
-    ],
-    "killSwitchEnabled": true
+      "vm.start",
+      "vm.stop",
+      "vm.reboot",
+      "vm.shutdown",
+      "vm.clone",
+      "snapshot.create",
+      "pool.lease",
+      "pool.release",
+      "pool.configure",
+      "rehearse"
+    ]
   },
   "changelog": {
+    "1.1.0": {
+      "date": "2026-10-14",
+      "changes": [
+        "Disposable VM pool (lanes, warm standby, made-to-order, governed)",
+        "REST reads with TLS pinning",
+        "quox vm CLI and /vm chat command",
+        "Rehearsal twins (one approval, exact-scope grant)",
+        "HYPERION agent"
+      ]
+    },
     "1.0.0": {
       "date": "2025-01-25",
       "changes": [

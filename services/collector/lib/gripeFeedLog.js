@@ -12,8 +12,8 @@
  *    createFleetGripeFileIssueHandler() (fleet-host dev.gripe capability).
  *
  * Written to the collector-data named volume (/var/lib/quox, docker-compose
- * volume `collector-data`), NOT the read-only /opt/quoxcore:ro bind mount —
- * the collector container cannot write under /opt/quoxcore. The host-side
+ * volume `collector-data`), NOT the read-only ~:ro bind mount —
+ * the collector container cannot write under ~. The host-side
  * ops/gripe-feed.sh script (quox-discord-pro) reads this file via
  * `docker exec quox-collector tail ...` (line-count baseline, same pattern
  * as ops/qlarity-feed.sh / ops/build-feed.sh) and relays new lines into the

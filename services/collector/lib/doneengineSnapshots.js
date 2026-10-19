@@ -30,11 +30,14 @@
  *   GET /api/v1/doneengine/snapshots/latest   newest, ?pack= to filter
  */
 
+const { hostPath } = require('../utils/runtimePaths.js');
 const fs = require('fs');
 const path = require('path');
 const { resolveQuoxplanOwnerOrgId } = require('./quoxplanTools.js');
 
-const DEFAULT_DIR = '/opt/quoxcore/quox-gauge/snapshots';
+const DEFAULT_DIR = hostPath('quox-gauge', 'snapshots');
+const STALE_AFTER_DAYS = 7;
+const LIVE_COMMAND = 'quox done board';
 
 /** Parse one snapshot file; null when unreadable (skipped, never fatal). */
 function readSnapshot(file) {
@@ -142,9 +145,71 @@ function createSnapshotsLatestHandler({ dir = DEFAULT_DIR, resolveOwnerOrgId = r
     if (r.error === 'none') {
       // No measurement is NOT a clean bill: say so, loudly, as data.
       const forOrg = scope.callerOrg ? ' is visible to your organisation' : ' has been taken';
-      return res.status(404).json({ error: 'no_snapshot', message: `No DoneEngine measurement${forOrg} (run gauge.mjs --snapshot with the org's pack on the control box). Absence of a snapshot is absence of evidence, not readiness.` });
+      const pack = req.query.pack || '<pack>';
+      return res.status(404).json({ error: 'no_snapshot', message: `No DoneEngine measurement${forOrg}. Take one with \`quox done bar ${pack} --snapshot\` on a machine with the repo checked out, or read the live board with \`quox done board\`. Absence of a snapshot is absence of evidence, not readiness.`, refresh_command: `quox done bar ${pack} --snapshot`, live_command: LIVE_COMMAND });
     }
-    return res.json({ snapshot: r.snapshot, file: r.file, age_ms: r.age_ms });
+    // Snapshots go stale: report the age plainly so nobody presents an old reading as the current state (quox#885).
+    const ageDays = Number.isFinite(r.age_ms) ? Math.floor(r.age_ms / 86400000) : null;
+    const pack = (r.snapshot && r.snapshot.pack) || req.query.pack || '<pack>';
+    return res.json({
+      snapshot: r.snapshot, file: r.file, age_ms: r.age_ms,
+      age_days: ageDays,
+      stale: ageDays === null ? true : ageDays > STALE_AFTER_DAYS,
+      refresh_command: `quox done bar ${pack} --snapshot`,
+      live_command: LIVE_COMMAND,
+    });
+  };
+}
+
+// ---- Estate board mirror (quox#885 part 2) ----------------------------------
+// The board (every surface's score, gates, deploy state) is measured on the host
+// by a control timer (scripts/doneengine/quox-board-snapshot.mjs) that writes
+// <dir>/board/board-latest.json as { taken_at, source, org_id?, board }. This
+// mirrors it, with the same org rule as pack snapshots.
+const BOARD_STALE_AFTER_DAYS = 1;
+const BOARD_REFRESH_COMMAND = 'quox done board';
+
+function latestBoard(dir = DEFAULT_DIR, { now = Date.now(), callerOrg, ownerOrg } = {}) {
+  const file = path.join(dir, 'board', 'board-latest.json');
+  let data;
+  try {
+    if (!fs.existsSync(file)) return { error: 'none' };
+    data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return { error: 'unreadable' };
+  }
+  if (!data || !data.taken_at || !data.board || !Array.isArray(data.board.surfaces)) return { error: 'unreadable' };
+  if (!orgMayView(data, callerOrg, ownerOrg)) return { error: 'none' };
+  const takenMs = Date.parse(data.taken_at);
+  return { board: data.board, taken_at: data.taken_at, source: data.source || null, age_ms: Number.isFinite(takenMs) ? Math.max(0, now - takenMs) : null };
+}
+
+function createBoardHandler({ dir = DEFAULT_DIR, resolveOwnerOrgId = resolveQuoxplanOwnerOrgId } = {}) {
+  return async function boardHandler(req, res) {
+    const scope = await resolveScope(req, res, resolveOwnerOrgId);
+    if (!scope) return undefined;
+    const r = latestBoard(dir, scope);
+    if (r.error === 'unreadable') {
+      return res.status(503).json({ error: 'board_unreadable', message: 'The DoneEngine board snapshot exists but could not be read.' });
+    }
+    if (r.error === 'none') {
+      return res.status(404).json({ error: 'no_board', message: 'No DoneEngine board reading is visible to your organisation. Run `quox done board` on a machine with the repo checked out for a live reading. Absence of a reading is absence of evidence, not readiness.', refresh_command: BOARD_REFRESH_COMMAND });
+    }
+    const ageDays = Number.isFinite(r.age_ms) ? Math.floor(r.age_ms / 86400000) : null;
+    const out = {
+      taken_at: r.taken_at, source: r.source, age_ms: r.age_ms, age_days: ageDays,
+      stale: ageDays === null ? true : ageDays >= BOARD_STALE_AFTER_DAYS,
+      refresh_command: BOARD_REFRESH_COMMAND,
+      surface_count: r.board.surfaces.length,
+    };
+    const want = req.query.surface ? String(req.query.surface).toLowerCase() : null;
+    if (want) {
+      out.surface = r.board.surfaces.find((s) => String(s.surface).toLowerCase() === want) || null;
+      if (!out.surface) out.known_surfaces = r.board.surfaces.map((s) => s.surface);
+    } else {
+      out.board = r.board;
+    }
+    return res.json(out);
   };
 }
 
@@ -154,4 +219,6 @@ module.exports = {
   latestSnapshot,
   createSnapshotsListHandler,
   createSnapshotsLatestHandler,
+  latestBoard,
+  createBoardHandler,
 };

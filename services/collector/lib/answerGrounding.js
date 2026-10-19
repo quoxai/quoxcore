@@ -38,8 +38,11 @@ const VALUE_FLAGS = new Set(['-p', '--profile', '-o', '--output', '--agent', '--
 const WORD = /^[a-z][a-z0-9-]*$/;
 
 /** -> [{ mention, reason }] for every `quox ...` mention not in the tree. */
-function findInventedCommands(answer, tree = loadCommandTree()) {
+function findInventedCommands(answer, tree = loadCommandTree(), evidence = '') {
   if (!tree) return [];
+  // A `quox <word> <word>` phrase the turn's own tool output contains is QUOTED tool text, not a command the model
+  // invented (journey story-a 2026-10-17: the approval gate's "quox proposed this action; a human must confirm").
+  const ev = String(evidence || '').toLowerCase();
   const out = [];
   const seen = new Set();
   const re = /(?:^|[\s`'"(*])quox((?:[ \t]+[^\s`'")*]+){1,6})/g;
@@ -58,6 +61,8 @@ function findInventedCommands(answer, tree = loadCommandTree()) {
       const sub = toks[i + 1];
       if (subs.length && sub && WORD.test(sub) && !subs.includes(sub)) { mention = `quox ${verb} ${sub}`; reason = `${verb} has no "${sub}" subcommand`; }
     }
+    const phrase = ['quox', ...toks.slice(i, i + 2)].join(' ').toLowerCase();
+    if (reason && ev && ev.includes(phrase)) reason = null;
     if (reason && !seen.has(mention)) { seen.add(mention); out.push({ mention, reason }); }
   }
   return out;
@@ -131,7 +136,7 @@ function findUngroundedQuantities(answer, evidence, { now = Date.now() } = {}) {
  * -> { flags: { commands, ids, quantities }, note } ; note is '' when nothing is flagged.
  */
 function checkAnswerGrounding({ answer, evidence, tree, now } = {}) {
-  const commands = findInventedCommands(answer, tree === undefined ? loadCommandTree() : tree);
+  const commands = findInventedCommands(answer, tree === undefined ? loadCommandTree() : tree, evidence);
   const ids = findUngroundedIds(answer, evidence);
   const quantities = findUngroundedQuantities(answer, evidence, { now });
   const parts = [];

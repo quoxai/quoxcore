@@ -12,6 +12,8 @@ npm install -g quoxcli
 
 Needs Node.js 20 or later. This installs two commands: `quox`, and `quoxon` (an alias that opens the conversation).
 
+Docs: https://cli.quox.ai/docs/start/
+
 ## Prerequisite: a running QuoxCORE
 
 You need a QuoxCORE instance to talk to. Install one on a machine you control: see https://github.com/quoxai/quoxcore, or run:

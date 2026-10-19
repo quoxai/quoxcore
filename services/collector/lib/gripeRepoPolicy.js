@@ -16,6 +16,30 @@ const REPO_ALLOWLIST = {
   'quoxai/quoxagent': 'private',
   'quoxai/quoxmcp': 'public',
   'quoxai/quox-plugin-sdk': 'public',
+  // 2026-10-17: the product repos that had not been added as the estate grew (a gripe to qlarity was refused and
+  // nothing filed). Visibility copied from `gh repo list quoxai` that day; pinned by gripeRepoPolicy.test.js.
+  'quoxai/qlarity': 'private',
+  'quoxai/quoxplan': 'private',
+  'quoxai/quox-qluster': 'private',
+  'quoxai/quox-signal': 'private',
+  'quoxai/quox-seo': 'private',
+  'quoxai/quox-gauge': 'private',
+  'quoxai/quox-voice': 'private',
+  'quoxai/quox-repobrain': 'private',
+  'quoxai/quox-skills': 'private',
+  'quoxai/quox-discord-pro': 'private',
+  'quoxai/cli.quox.ai': 'private',
+  'quoxai/quox-screenrecord': 'private',
+  'quoxai/quox-metron': 'private',
+  'quoxai/quox-precompacticus': 'private',
+  'quoxai/quox-telegram-owner': 'private',
+  'quoxai/quoxcore': 'public',
+  'quoxai/quoxproof': 'public',
+  'quoxai/skillrights': 'public',
+  'quoxai/aee': 'public',
+  'quoxai/aocl': 'public',
+  'quoxai/volt': 'public',
+  'quoxai/ward': 'public',
 };
 
 // Same patterns as scripts/release/public-mirror/privacy-patterns.txt.

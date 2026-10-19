@@ -189,7 +189,7 @@ ${searchContext}${fileContentSection}
 - Cite sources using [filename] when quoting content
 - ONLY reference files listed above
 - If asked about a file not in scope, say "I don't see that file in the current scope"
-- NEVER mention server paths like /opt/quoxcore or /home/ubuntu
+- NEVER mention server paths like /home/<user> or /root
 - You access QuoxCORE Files page content ONLY (browser localStorage)`;
 
     } catch (err) {

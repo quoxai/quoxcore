@@ -24,6 +24,8 @@
       "execute": { "via": "manual" } },
     "open_contacts_sync": { "kind": "open", "risk": "safe", "label": "Open the sync settings", "say": "Open ContactsQ, then Settings, then Sync, and re-enable the connection.", "url": "/contacts?tab=settings", "execute": { "via": "url" } },
     "open_contacts_compliance": { "kind": "open", "risk": "safe", "label": "Open the compliance view", "say": "Open ContactsQ, then Compliance, to see the retention status.", "url": "/contacts?tab=compliance", "execute": { "via": "url" } },
-    "open_contacts_review": { "kind": "open", "risk": "safe", "label": "Review the candidates", "say": "Open ContactsQ to keep or discard the waiting candidates.", "url": "/contacts", "execute": { "via": "url" } }
+    "open_contacts_review": { "kind": "open", "risk": "safe", "label": "Review the candidates", "say": "Open ContactsQ to keep or discard the waiting candidates.", "url": "/contacts", "execute": { "via": "url" } },
+    "open_matrix_board": { "kind": "open", "risk": "safe", "label": "Open the Proof Matrix board", "say": "Open the Proof Matrix board to see every job and its proof.", "url": "{view_url}", "requires": ["view_url"], "execute": { "via": "url" } },
+    "open_gripe": { "kind": "open", "risk": "safe", "label": "Open the gripe", "say": "Open the gripe to read it.", "url": "{gripe_url}", "requires": ["gripe_url"], "execute": { "via": "url" } }
   }
 }

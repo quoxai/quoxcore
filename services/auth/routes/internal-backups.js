@@ -35,10 +35,13 @@
  * endpoint (archive_path was used only for delete/verify/restore).
  */
 
+import { hostPath } from '../utils/hostPaths.js';
 import { Router } from 'express';
 import { getDb } from '../db/index.js';
 import { safeCompare } from '../utils/crypto.js';
 import { ulid, safeJsonParse } from '../utils/helpers.js';
+import { parseDryRunFlag, INVALID_DRY_RUN_BODY } from '../utils/dryRunFlag.js';
+import { verifyState } from '../lib/backupVerifyState.js';
 import { runBackupProcess, verifyBackupIntegrity, runRestoreProcess, logBackupAudit, DEFCON_LEVELS, resolveBackupTimeoutMs } from './backups.js';
 import { dispatchBackupToRunner, runnerHostId } from '../lib/backupRunnerDispatch.js';
 import { existsSync, createReadStream, statSync } from 'fs';
@@ -47,7 +50,7 @@ import * as path from 'path';
 // Where archives live on THIS node. Read per-call, not frozen at import: the
 // download fallback below needs whatever the container is mounted with now.
 function backupRoot() {
-  return process.env.BACKUP_ROOT || '/opt/quoxcore/backups';
+  return process.env.BACKUP_ROOT || hostPath('backups');
 }
 
 const router = Router();
@@ -130,7 +133,7 @@ router.get('/backups', (req, res) => {
     }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const rows = db.prepare(`
-      SELECT id, org_id, created_at, archive_size_bytes, status, manifest_json
+      SELECT id, org_id, created_at, archive_path, archive_size_bytes, status, manifest_json, verification_json
       FROM backups
       ${where}
       ORDER BY created_at DESC
@@ -141,6 +144,7 @@ router.get('/backups', (req, res) => {
       created_at: b.created_at,
       size: b.archive_size_bytes,
       status: b.status,
+      verify_state: verifyState(b),
       archiveHash: archiveHashOf(b.manifest_json),
     }));
     return res.json({ backups, count: backups.length });
@@ -240,7 +244,7 @@ router.get('/backups/status', (req, res) => {
 
   try {
     const lastSuccess = db.prepare(`
-      SELECT id, name, backup_type, archive_size_bytes, completed_at, duration_ms
+      SELECT id, name, backup_type, archive_size_bytes, completed_at, created_at, archive_path, duration_ms, status, verification_json
       FROM backups
       WHERE org_id = ? AND status IN ('completed', 'verified') AND COALESCE(archive_size_bytes, 0) > 0
       ORDER BY completed_at DESC LIMIT 1
@@ -311,6 +315,7 @@ router.get('/backups/status', (req, res) => {
         type: lastSuccess.backup_type,
         sizeBytes: lastSuccess.archive_size_bytes,
         completedAt: lastSuccess.completed_at,
+        verify_state: verifyState(lastSuccess),
         durationMs: lastSuccess.duration_ms
       } : null,
       lastFailed: lastFailed ? {
@@ -455,7 +460,19 @@ router.post('/backups/verify', (req, res) => {
     const backup = db.prepare('SELECT * FROM backups WHERE id = ? AND org_id = ?').get(backup_id, org_id);
     if (!backup) return res.status(404).json({ error: 'Backup not found' });
 
-    if (backup.status !== 'completed' && backup.status !== 'verified') {
+    // quox#1062: 'degraded' (archive built, a required component skipped) is verifiable, as on the org route
+    // (routes/backups.js); the verifier keeps the row 'degraded', so the gap is never hidden.
+    if (backup.status === 'verifying') {
+      // #1062: a retry while the verifier still runs is not a wrong-status backup; say what is happening.
+      // #1199: additive machine-readable code (status stays 400); since = when the verify began (updated_at, UTC).
+      return res.status(400).json({
+        error: 'This backup is still being verified. Try again shortly.',
+        code: 'verification_in_progress',
+        status: 'verifying',
+        since: backup.updated_at || null,
+      });
+    }
+    if (backup.status !== 'completed' && backup.status !== 'verified' && backup.status !== 'degraded') {
       return res.status(400).json({ error: 'Can only verify completed backups' });
     }
     if (!backup.archive_path || !existsSync(backup.archive_path)) {
@@ -498,9 +515,12 @@ router.post('/backups/verify', (req, res) => {
  */
 router.post('/backups/restore', (req, res) => {
   const db = req.db || getDb();
-  const { org_id, backup_id, dry_run = true, components } = req.body || {};
+  const { org_id, backup_id, dry_run, components } = req.body || {};
   if (!org_id) return res.status(400).json({ error: 'org_id required' });
   if (!backup_id) return res.status(400).json({ error: 'backup_id required' });
+  // A malformed flag (null, 1, "yes") must never become a live restore.
+  const dryFlag = parseDryRunFlag(dry_run, { defaultValue: true });
+  if (!dryFlag.ok) return res.status(400).json(INVALID_DRY_RUN_BODY);
   try {
     const backup = db.prepare('SELECT * FROM backups WHERE id = ? AND org_id = ?').get(backup_id, org_id);
     if (!backup) return res.status(404).json({ error: 'Backup not found' });
@@ -513,7 +533,7 @@ router.post('/backups/restore', (req, res) => {
     }
 
     const restoreId = ulid();
-    const isDryRun = dry_run === true || dry_run === 'true';
+    const isDryRun = dryFlag.value;
 
     let defconLevel = DEFCON_LEVELS.RESTORE_FULL;
     if (isDryRun) {

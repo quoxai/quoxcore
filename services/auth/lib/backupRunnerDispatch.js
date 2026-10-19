@@ -35,6 +35,7 @@
  *     can never hold the process open.
  */
 
+import { hostPath } from '../utils/hostPaths.js';
 import * as path from 'path';
 
 export const RUNNER_POLL_DEFAULTS = Object.freeze({
@@ -54,7 +55,7 @@ function collectorBaseUrl() {
 }
 
 function backupRoot() {
-    return process.env.BACKUP_ROOT || '/opt/quoxcore/backups';
+    return process.env.BACKUP_ROOT || hostPath('backups');
 }
 
 /** The configured runner host_id, or null when this instance has no runner. */

@@ -46,7 +46,7 @@ export const DEFAULT_WIDGET_TOOLS = [
     name: 'lead_capture',
     builtin_kind: 'lead_capture',
     status: 'active',
-    description: "Save the visitor's contact details as a lead when they express interest in the product or ask to be contacted. Always confirm the email back to the visitor.",
+    description: "Save the visitor's contact details as a lead when they express interest in the product or ask to be contacted. Needs an email OR a phone number (a phone is enough for a callback; do not ask for an email as well). Confirm the contact detail back to the visitor.",
     parameters: {
       type: 'object',
       properties: {
@@ -57,7 +57,7 @@ export const DEFAULT_WIDGET_TOOLS = [
         notes: NOTES_FIELD,
         intent: { type: 'string', description: 'What the visitor wants: pricing, demo, support, partnership, other.' },
       },
-      required: ['email'],
+      required: [],
     },
   },
   {
@@ -312,4 +312,32 @@ export function backfillEmailTranscriptSchema({ dryRun = false } = {}) {
     results.push({ tool_id: r.id, widget_id: r.widget_id });
   }
   return { scanned: rows.length, updated, results };
+}
+
+/**
+ * QC-BRUTALOOP-W14b: lead_capture accepts an email OR a phone. Widgets seeded
+ * earlier froze required:['email'] and an email-only description, so the model
+ * kept demanding an email for a phone callback. Only rows still byte-identical
+ * to that legacy default are moved; an admin-edited row is never overwritten.
+ */
+const _leadCanonical = DEFAULT_WIDGET_TOOLS.find((t) => t.builtin_kind === 'lead_capture');
+export const LEGACY_LEAD_CAPTURE = Object.freeze({
+  description: "Save the visitor's contact details as a lead when they express interest in the product or ask to be contacted. Always confirm the email back to the visitor.",
+  parametersJson: JSON.stringify({ ..._leadCanonical.parameters, required: ['email'] }),
+});
+
+export function backfillLeadCaptureSchema({ dryRun = false } = {}) {
+  const canonicalJson = JSON.stringify(_leadCanonical.parameters);
+  const rows = prepare(`
+    SELECT id, widget_id FROM widget_tools
+    WHERE tool_type = 'builtin' AND builtin_kind = 'lead_capture'
+      AND description = ? AND parameters_json = ?
+  `).all(LEGACY_LEAD_CAPTURE.description, LEGACY_LEAD_CAPTURE.parametersJson);
+  if (!dryRun) {
+    for (const r of rows) {
+      prepare(`UPDATE widget_tools SET parameters_json = ?, description = ?, updated_at = datetime('now') WHERE id = ?`)
+        .run(canonicalJson, _leadCanonical.description, r.id);
+    }
+  }
+  return { scanned: rows.length, updated: rows.length, results: rows.map((r) => ({ tool_id: r.id, widget_id: r.widget_id })) };
 }

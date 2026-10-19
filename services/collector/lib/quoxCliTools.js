@@ -8,8 +8,10 @@
  * enforcement path):
  *   quox_cli        READ leaves only. In the Default hat. D3 classes it a read.
  *   quox_cli_write  WRITE leaves, always through the shared approval gate
- *                   (AGENT_ALWAYS_PROPOSE_TOOLS); IMMEDIATE leaves (safety estop) run at
- *                   once. Privileged hats only. D3 classes it a write.
+ *                   (AGENT_ALWAYS_PROPOSE_TOOLS), which lets a direct human ask for THIS
+ *                   change run with no card (J2, approvalGate.quoxCliDirectAuthorizes);
+ *                   IMMEDIATE leaves (safety estop) run at once. Privileged hats only.
+ *                   D3 classes it a write.
  * NEVER leaves are refused by both, with the reason.
  *
  * Identity: the caller's own bearer and org (ctx.token, ctx.orgId), in a private temp
@@ -145,6 +147,36 @@ function witness({ toolName, ctx, built, cls, argv, disposition, exitCode = null
   }
 }
 
+/** The last line(s) of a CLI failure worth showing: an error JSON's message, else the text tail. */
+function failureText(text) {
+  const s = String(text || '').trim();
+  if (!s) return '';
+  const i = s.indexOf('{');
+  const j = s.lastIndexOf('}');
+  if (i !== -1 && j > i) {
+    try {
+      const o = JSON.parse(s.slice(i, j + 1));
+      const m = o && ((typeof o.message === 'string' && o.message) || (typeof o.error === 'string' && o.error) || (o.error && typeof o.error.message === 'string' && o.error.message));
+      if (m) return String(m);
+    } catch { /* not JSON: use the text */ }
+  }
+  const lines = s.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !/^at\s/.test(l));
+  return lines.slice(-3).join(' ').replace(/^(?:Error|error):\s*/, '');
+}
+
+/**
+ * quox#882: a failed run always says which command, how it ended and why, so the model and
+ * the tool.finished receipt never read an empty "failed".
+ */
+function failureReason(built, r, secrets) {
+  const cmd = `quox ${built.pathKey}`;
+  if (r.timedOut) return `${cmd} ran past its time limit (${Math.round((r.durationMs || 0) / 1000)} s) and was stopped.`;
+  if (r.error) return `${cmd} could not start: ${scrubString(String(r.error), secrets).slice(0, 300)}`;
+  const how = r.exitCode != null ? `exited with code ${r.exitCode}` : `was stopped by ${r.signal || 'a signal'}`;
+  const why = scrubString(failureText(r.stderr) || failureText(r.stdout), secrets).slice(0, 400);
+  return `${cmd} ${how}: ${why || 'no output'}`;
+}
+
 function refuse(toolName, ctx, { built = null, cls = null, argv = null, error, reason, extra = {} }) {
   witness({ toolName, ctx, built, cls, argv, disposition: 'refused', reason: reason || error });
   return { success: false, refused: true, error, ...extra };
@@ -157,7 +189,13 @@ function refuse(toolName, ctx, { built = null, cls = null, argv = null, error, r
 function planCall(input, { tree = loadTree(), policy = loadPolicy() } = {}) {
   const built = buildCall(stripControl(input), { tree });
   if (!built.ok) return { ok: false, error: built.error };
-  const cls = classifyCall(classifyLeaf(built.pathKey, { tree, policy }), built.leafArgv);
+  const leafCls = classifyLeaf(built.pathKey, { tree, policy });
+  if (built.help) {
+    // --help only prints the leaf's usage: a read on any leaf except a never one (the floor stands).
+    if (leafCls.class === 'never') return { ok: true, built, cls: leafCls, argv: [...built.leafArgv] };
+    return { ok: true, built, cls: { class: 'read', reason: 'prints the command\'s help only', source: 'help' }, argv: [...built.leafArgv] };
+  }
+  const cls = classifyCall(leafCls, built.leafArgv, built.pathKey);
   return { ok: true, built, cls, argv: fullArgv(built, cls) };
 }
 
@@ -172,7 +210,15 @@ async function executeQuoxCli(toolName, input, ctx = {}, deps = {}) {
   const bearerProblem = callerBearerProblem(ctx);
   if (bearerProblem) return refuse(toolName, ctx, { error: bearerProblem, reason: 'bearer_refused' });
   const plan = planCall(input || {}, deps);
-  if (!plan.ok) return refuse(toolName, ctx, { error: plan.error, reason: 'invalid' });
+  if (!plan.ok) {
+    // J2: answer a wrong guess with the closest real commands (lib/quoxCli/candidates.js).
+    let candidates = [];
+    try {
+      const ask = [...((input && input.path) || []), ...((input && input.positional) || [])].join(' ');
+      candidates = require('./quoxCli/candidates.js').rankCandidateLeaves(ask, { k: 5 }).candidates.map(({ leaf, class: cls, description }) => ({ leaf, class: cls, description }));
+    } catch { /* suggestions are best-effort */ }
+    return refuse(toolName, ctx, { error: plan.error, reason: 'invalid', extra: candidates.length ? { candidates } : {} });
+  }
   const { built, cls, argv } = plan;
   const cmd = displayCommand(argv);
 
@@ -203,7 +249,12 @@ async function executeQuoxCli(toolName, input, ctx = {}, deps = {}) {
       const red = redactOutput(r.stdout, { exactSecrets: secrets, truncated: r.truncated });
       const disposition = r.timedOut ? 'timed_out' : 'executed';
       witness({ toolName, ctx, built, cls, argv, disposition, exitCode: r.exitCode, durationMs: r.durationMs, truncated: r.truncated, outputBytes: red.bytes, approvalId });
-      const ok = r.exitCode === 0 && !r.timedOut && !r.error;
+      // The runner SIGKILLs the child at the output cap (truncated, no exit code): that is a
+      // complete-enough read with a narrow-it note, not a failure (quox#882: `voice calls` failed first, then
+      // the model retried narrower).
+      const cappedByRunner = r.truncated && r.exitCode == null && r.signal === 'SIGKILL';
+      const ok = (r.exitCode === 0 || cappedByRunner) && !r.timedOut && !r.error;
+      const failure = ok ? null : failureReason(built, r, secrets);
       return {
         success: ok,
         command: cmd,
@@ -213,8 +264,7 @@ async function executeQuoxCli(toolName, input, ctx = {}, deps = {}) {
         output: red.output,
         format: red.format,
         ...(r.truncated ? { truncated: true, note: `Output stopped at ${Math.round(red.bytes / 1024)} KB; narrow the query (--limit, filters).` } : {}),
-        ...(r.timedOut ? { error: 'The command ran past its time limit and was stopped.' } : {}),
-        ...(r.error ? { error: r.error } : {}),
+        ...(failure ? { error: failure } : {}),
         ...(!ok && r.stderr ? { stderr: scrubString(r.stderr, secrets).slice(0, STDERR_RETURN) } : {}),
         ...(approvalId ? { _approval: { id: approvalId, status: 'approved' } } : {}),
       };
@@ -251,7 +301,7 @@ async function executeQuoxCli(toolName, input, ctx = {}, deps = {}) {
 const INPUT_SCHEMA = {
   type: 'object',
   properties: {
-    path: { type: 'array', items: { type: 'string' }, description: 'The command words, e.g. ["inbox","list"] for `quox inbox list`.' },
+    path: { type: 'array', items: { type: 'string' }, description: 'The command words, e.g. ["inbox","list"] for `quox inbox list`. To learn a command\'s options, send args {"help":true} alone (works on any command that is not refused).' },
     args: { type: 'object', description: 'Named flags by long name without dashes, e.g. {"status":"pending","limit":5}; true for a bare flag.' },
     positional: { type: 'array', items: { type: 'string' }, description: 'Positional arguments in order, e.g. an id.' },
   },
@@ -261,13 +311,13 @@ const INPUT_SCHEMA = {
 const QUOX_CLI_TOOLS = {
   [READ_TOOL]: {
     name: READ_TOOL,
-    description: 'Run a read-only quox CLI command as the signed-in user, in this org, and get its JSON output. Use it for anything the CLI can read that no dedicated tool covers; prefer a dedicated tool when one exists. Commands that change state are refused here (use quox_cli_write).',
+    description: 'Run a read-only quox CLI command as the signed-in user, in this org, and get its JSON output. Use it for anything the CLI can read that no dedicated tool covers; prefer a dedicated tool when one exists. Commands that change state are refused here (use quox_cli_write). Answer straight from the JSON it returns and never post-process it with a shell (no jq, grep, python, cat, sed, awk or pipes). Large output: use --select/--summary, never a shell pipe.',
     input_schema: INPUT_SCHEMA,
     execute: (input, ctx) => executeQuoxCli(READ_TOOL, input, ctx || {}),
   },
   [WRITE_TOOL]: {
     name: WRITE_TOOL,
-    description: 'Run a quox CLI command that changes state, as the signed-in user, in this org. It always files an approval card first and runs once after approval (an emergency stop runs at once). Use it only when the user asks for that change and no dedicated tool does it.',
+    description: 'Run a quox CLI command that changes state, as the signed-in user, in this org. When the user asked for this change themselves it runs at once; otherwise it files an approval card first and runs once after approval (an emergency stop runs at once). Use it when the user asks for a change and no dedicated tool does it. It already runs as them: do not ask who they are, and use the names they gave (slot, session, host) as given. Answer straight from the JSON it returns and never post-process it with a shell (no jq, grep, python, cat, sed, awk or pipes). Large output: use --select/--summary, never a shell pipe.',
     input_schema: { ...INPUT_SCHEMA, properties: { ...INPUT_SCHEMA.properties, _approvalId: { type: 'string', description: 'After approval: the approval id, to run the approved command.' } } },
     execute: (input, ctx) => executeQuoxCli(WRITE_TOOL, input, ctx || {}),
   },
@@ -291,7 +341,32 @@ function describeProposal(input, ctx = {}) {
   return { targetId: `quox ${plan.built.pathKey}`, reason: '', title: `${agentLabel} proposes: quox ${plan.built.pathKey}`, bodyMd };
 }
 
+const SECRET_FLAG = /(token|secret|password|passwd|key|pin|otp|credential|auth|bearer|jwt|cookie)/i;
+/** One masked line for a card: `quox contacts add-id C1 --email x`. Never throws. */
+function summarizeWriteCall(input) {
+  const inp = input && typeof input === 'object' ? input : {};
+  const plan = planCall(inp);
+  const q = (a) => (/^[A-Za-z0-9_./:@,+-]+$/.test(a) ? a : JSON.stringify(a));
+  if (!plan.ok) {
+    const words = [...(Array.isArray(inp.path) ? inp.path : []), ...(Array.isArray(inp.positional) ? inp.positional : [])].map(String);
+    return words.length ? displayCommand(words) : null;
+  }
+  const path = [], pos = [], flags = [];
+  let afterDash = false;
+  for (const raw of plan.built.leafArgv) {
+    const a = String(raw);
+    if (afterDash) { pos.push(a); continue; }
+    if (a === '--') { afterDash = true; continue; }
+    const m = a.match(/^(--[^=]+)(?:=([\s\S]*))?$/);
+    if (m) flags.push(m[2] === undefined ? m[1] : `${m[1]} ${SECRET_FLAG.test(m[1]) ? '[hidden]' : q(m[2])}`);
+    else if (!flags.length) path.push(a);
+    else pos.push(a);
+  }
+  return ['quox', ...path, ...pos.map(q), ...flags].join(' ');
+}
+
 module.exports = {
+  summarizeWriteCall,
   QUOX_CLI_TOOLS,
   READ_TOOL,
   WRITE_TOOL,

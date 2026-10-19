@@ -163,5 +163,8 @@ plugins-src/*/*.quoxplugin
 # DoneEngine external verdicts (quox plugin doctor --json --out), generated, never committed
 .quox/
 
+# F01: the legacy files store is runtime data, never source
+services/files/data/
+
 # Z2H-AGENTINST: signed quoxagent release staged by the release build only; never committed
 /services/collector/quoxagent-release/

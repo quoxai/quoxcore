@@ -5,6 +5,7 @@
  */
 import { CHOICES, connectedChoices, providerId } from '../model.js';
 import { liveModels } from '../modelPrefs.js';
+import { pathItems } from '../slotChat.js';
 
 /** Provider ids /connect understands (one per provider; the subscription has no key). */
 export const connectIds = () => [
@@ -13,7 +14,7 @@ export const connectIds = () => [
   ).values(),
 ];
 
-export function createArgSources({ api, getPrefs = () => ({ favourites: [], default: null }) }) {
+export function createArgSources({ api, getPrefs = () => ({ favourites: [], default: null }), getRows = () => [] }) {
   return async function source(src, param) {
     switch (src) {
       case 'providers':
@@ -37,6 +38,8 @@ export function createArgSources({ api, getPrefs = () => ({ favourites: [], defa
           value: String(i + 1),
           desc: `${f.provider} ${f.model}`,
         }));
+      case 'rows':
+        return (getRows?.() || []).map((r) => ({ value: r.id, desc: r.source.type }));
       case 'orgs':
         return (await api.orgs()).map((o) => ({ value: o.slug || o.id, desc: o.name || '' }));
       case 'agents':
@@ -44,10 +47,16 @@ export function createArgSources({ api, getPrefs = () => ({ favourites: [], defa
           value: a.agent_id,
           desc: a.name && a.name !== a.agent_id ? a.name : '',
         }));
+      case 'fleetHosts':
+        return (await api.objects?.fleetNames?.()) || [];
+      case 'conversations':
+        return ((await api.conversations?.(15)) || []).map((c) => ({ value: String(c.id), desc: c.title || '' }));
+      case 'files': // QUOXON-MESH: /send <slot> <path>; param = the directory part typed so far
+        return pathItems(param || '', { cwd: process.cwd() });
       case 'slots':
         return (await api.slots()).map((s) => ({
           value: String(s.name),
-          desc: s.assigned_to ? `held by ${s.assigned_to}` : '',
+          desc: s.holder_session ? `held by ${s.holder_session}` : s.assigned_to ? `for ${s.assigned_to}` : '',
         }));
       default:
         return [];

@@ -18,6 +18,7 @@
  * phantom-running (same posture the old NOT-WIRED default had).
  */
 
+import { getLoopProvider } from './loopProviders.js'
 import { canExecuteResource, recordResourceFailure, recordResourceSuccess, CircuitBreakerOpenError } from './resourceBreaker.js'
 
 const COLLECTOR_URL = process.env.COLLECTOR_URL || 'http://collector:9848'
@@ -135,7 +136,7 @@ async function* pollEvents(fetchFn, sessionId, { maxDurationMs, sleep }) {
  * injectable for tests.
  */
 function createFleetLoopSpawner({ fetchFn, sleep = (ms) => new Promise(r => setTimeout(r, ms)) } = {}) {
-  return async function fleetLoopSpawner({ objective, backend, payload, args, capabilityScope, toolAccess, maxDurationMs, maxTurns, orgId }) {
+  return async function fleetLoopSpawner({ objective, backend, payload, args, capabilityScope, toolAccess, maxDurationMs, maxTurns, orgId, approvalItemId }) {
     // Resolve fetch at CALL time (not a module-load default), so a
     // globalThis.fetch swap in tests takes effect and no stale reference
     // is held.
@@ -160,7 +161,9 @@ function createFleetLoopSpawner({ fetchFn, sleep = (ms) => new Promise(r => setT
     }
 
     try {
-      const hostId = await resolveDevServer(doFetch, orgId)
+      // api-kind backends (openai) never run on a fleet host: the collector
+      // runs them in-process, so skip the dev-server lookup (host-less spawn).
+      const hostId = getLoopProvider(backend)?.kind === 'api' ? null : await resolveDevServer(doFetch, orgId)
 
       const resp = await doFetch(`${COLLECTOR_URL}/api/v1/dev-sessions/spawn`, {
         method: 'POST',
@@ -168,6 +171,10 @@ function createFleetLoopSpawner({ fetchFn, sleep = (ms) => new Promise(r => setT
         body: JSON.stringify({
           // host_id omitted (core-local) when no eligible dev server exists.
           org_id: orgId,
+          // Lets the collector mint a Bastion grant anchored to the approved
+          // before_start item and bound to this objective.
+          objective_id: objective?.id,
+          approval_item_id: approvalItemId || null,
           host_id: hostId,
           backend,
           payload,

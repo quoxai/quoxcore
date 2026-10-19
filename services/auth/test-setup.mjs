@@ -51,3 +51,9 @@ if (!process.env.SIGNED_CATALOG_PATH) {
 if (!process.env.POWERS_EGRESS_ALLOWLIST) {
   process.env.POWERS_EGRESS_ALLOWLIST = '127.0.0.1';
 }
+
+// #1078: auth audit witnesses go to the collector over HTTP. No collector runs under test: point the hop at a
+// refused loopback port so it fails fast into the outbox (tests that check witnessing set their own transport).
+if (!process.env.QUOX_WARD_WITNESS_URL) {
+  process.env.QUOX_WARD_WITNESS_URL = 'http://127.0.0.1:9';
+}

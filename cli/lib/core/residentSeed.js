@@ -53,10 +53,12 @@ function oneLine(text) {
 }
 
 function builtInTemplate({ hostId, slotName }) {
+  // #1021: Claude names a project dir by its path with separators turned into '-'.
+  const projectDirName = (process.env.QUOX_HOST_HOME || homedir()).replace(/[\\/]/g, '-');
   const claimCmd = `quox slot checkout ${slotName} --session resident-${slotName} --kind interactive --host ${hostId} --create`;
   return (
     `You are the resident Claude session for host ${hostId} (slot ${slotName}). ` +
-    `Before doing anything else: read ~/.claude/projects/-opt-quoxcore/memory/MEMORY.md and every ` +
+    `Before doing anything else: read ~/.claude/projects/${projectDirName}/memory/MEMORY.md and every ` +
     `memory file it indexes, then read ~/NOTES_TO_SELF.md if it exists, then read any identity or ` +
     `onboarding docs in your home directory for this host. Read all of it before you act on anything. ` +
     `Once you have read everything, claim your slot with: ${claimCmd}. ` +

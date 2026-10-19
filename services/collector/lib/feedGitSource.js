@@ -53,9 +53,21 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
 const feedWatermark = require('./feedWatermark.js');
+const feedBatchSupport = require('./feedBatchSupport.js');
 const brainFeedClient = require('./brainFeedClient.js');
 const { resolveSafeFolderPath } = require('./feedFolderSource.js');
 
+// BRAIN2-FABLE12 (deletion propagation): notes are now keyed on the FULL sha
+// (%H), which never changes with repo growth. Older notes keyed on the
+// abbreviated %h are recognised as the same commit by prefix match against the
+// full-sha set. The read above is a bounded, sliding window, so a path diff
+// against it would tombstone every commit that merely aged out of the window.
+// Deletions therefore never diff against the window: a note is tombstoned only
+// when its sha is absent from a separate, COMPLETE `git rev-list --no-merges
+// --all` walk (all refs, so switching the checked-out branch or config.ref
+// deletes nothing). Only a successful, non-shallow, non-empty walk may delete;
+// any failure, shallow clone or empty result skips reconciliation, and a
+// circuit breaker refuses to drop more than half of a large manifest at once.
 const SOURCE_TYPE = 'git';
 const DEFAULT_MAX_COMMITS = 50;
 // Bounds the `git log` read itself, not just the pushed result set, so a
@@ -234,13 +246,97 @@ function renderCommitNote(commit, repoBasename) {
   ].join('\n');
 
   return {
-    relPath: `git/${repoBasename}/${commit.shortSha}.md`,
+    relPath: `git/${repoBasename}/${commit.sha}.md`,
     content,
     title: `${commit.shortSha} ${commit.subject}`.slice(0, 120),
     kind: 'git_commit',
     sourceType: SOURCE_TYPE,
     occurredAt: commit.committedAtIso,
   };
+}
+
+/**
+ * Complete listing of every non-merge commit reachable from ANY ref (full shas).
+ * Returns null whenever the view could be partial or untrustworthy (git error,
+ * timeout, shallow clone, empty result): a caller must never delete on null.
+ */
+async function listAllShas(repoPath) {
+  const base = ['-c', 'safe.directory=*', '-C', repoPath];
+  try {
+    const shallow = String(await execGitRaw([...base, 'rev-parse', '--is-shallow-repository'])).trim();
+    if (shallow !== 'false') return null;
+    const out = await execGitRaw([...base, 'rev-list', '--no-merges', '--all'], { maxBuffer: 128 * 1024 * 1024, timeout: 60000 });
+    const shas = String(out).split('\n').map((l) => l.trim()).filter(Boolean);
+    if (shas.length === 0 || !shas.every((x) => /^[0-9a-f]{40,64}$/.test(x))) return null;
+    return new Set(shas);
+  } catch {
+    return null;
+  }
+}
+
+const MASS_DELETE_MIN = 20;
+
+/** The sha token of a note path (git/<repo>/<sha-or-short>.md), or null if not that shape. */
+function shaTokenOf(relPath) {
+  const m = /\/([0-9a-f]{7,64})\.md$/.exec(String(relPath));
+  return m ? m[1] : null;
+}
+
+/**
+ * Tombstones notes whose commit no longer exists anywhere in the repo. See the
+ * BRAIN2-FABLE12 note at the top for why this never diffs against the window.
+ * Never throws; reports into `result`.
+ */
+async function reconcileGitDeletions(o) {
+  const { orgId, repoPath, repoBasename, store, key, pushedPaths, ensureVault, listShasFn, listPathsFn, pushDeletionsFn, pushOpts, result } = o;
+  if (!store) return;
+  try {
+    const shas = await listShasFn(repoPath);
+    if (!shas || shas.size === 0) return; // incomplete view: never delete
+    const manifestKey = `${key}:manifest`;
+    let prev = null;
+    try { const raw = await store.get(orgId, manifestKey); prev = raw ? JSON.parse(raw) : null; } catch { prev = null; }
+    if (!Array.isArray(prev)) {
+      // First run for this repo: seed the manifest from what the vault really
+      // holds (covers legacy short-sha notes). Unlistable vault: try next tick.
+      const vaultId = await ensureVault();
+      if (!vaultId) return;
+      const listed = await listPathsFn(orgId, vaultId, pushOpts);
+      if (!Array.isArray(listed)) return;
+      const prefix = `git/${repoBasename}/`;
+      prev = listed.filter((p) => p.startsWith(prefix));
+      await store.set(orgId, manifestKey, JSON.stringify([...new Set(prev)].sort()));
+    }
+    const candidate = [...new Set([...prev, ...pushedPaths])];
+    const sorted = [...shas].sort();
+    const prefixCache = new Map();
+    const live = (p) => {
+      const tok = shaTokenOf(p);
+      if (!tok) return true; // unknown shape: never delete
+      if (shas.has(tok)) return true;
+      if (!prefixCache.has(tok)) {
+        // binary search for the first sha >= tok, then check the prefix
+        let lo = 0, hi = sorted.length;
+        while (lo < hi) { const mid = (lo + hi) >> 1; if (sorted[mid] < tok) lo = mid + 1; else hi = mid; }
+        prefixCache.set(tok, lo < sorted.length && sorted[lo].startsWith(tok));
+      }
+      return prefixCache.get(tok);
+    };
+    const seen = candidate.filter(live);
+    const gone = candidate.length - seen.length;
+    if (gone > MASS_DELETE_MIN && gone > candidate.length / 2) {
+      console.error(`[FeedGitSource] org=${orgId}: refusing to tombstone ${gone} of ${candidate.length} notes at once (circuit breaker)`);
+      try { await store.set(orgId, manifestKey, JSON.stringify(candidate.sort())); } catch { /* retried next tick */ }
+      return;
+    }
+    const r = await feedBatchSupport.reconcileDeletions({
+      store, orgId, key, seen, complete: true, ensureVault, pushDeletionsFn, pushOpts,
+    });
+    if (r.deleted > 0) result.deleted = r.deleted;
+    if (r.error) { result.error = r.error; console.error(`[FeedGitSource] org=${orgId}: ${r.error}`); }
+  } catch (err) {
+    console.error(`[FeedGitSource] org=${orgId}: deletion reconcile failed, ${err.message}`);
+  }
 }
 
 /**
@@ -317,12 +413,16 @@ async function ingestOneRepo(orgId, opts = {}, deps = {}) {
     fetchImpl,
     userId,
     dbPath,
+    listShasFn = listAllShas,
+    listPathsFn = brainFeedClient.listVaultRelPaths,
+    pushDeletionsFn = brainFeedClient.pushDeletions,
   } = deps;
 
   const watermarkKey = watermarkKeyForRepoPath(guard.path);
   const getWM = getWatermarkFn || ((org) => feedWatermark.getWatermark(org, watermarkKey, { dbPath }));
   const setWM = setWatermarkFn || ((org, ts) => feedWatermark.setWatermark(org, watermarkKey, ts, { dbPath }));
 
+  const stateStore = feedBatchSupport.resolveStateStore(deps, !!getWatermarkFn);
   const maxCommits = opts.maxItems ?? DEFAULT_MAX_COMMITS;
   const dryRun = !!opts.dryRun;
 
@@ -353,9 +453,16 @@ async function ingestOneRepo(orgId, opts = {}, deps = {}) {
   const remaining = allEligible.slice(maxCommits).map((c) => ({ ts: c.committedAtIso, id: c.sha }));
   const processed = [];
 
-  if (eligible.length === 0) return result;
-
   const repoBasename = path.basename(guard.path);
+  const vaultName = config.name || `Git History: ${repoBasename}`;
+  const ensureVault = () => ensurePushVaultFn(orgId, vaultName, { scope: 'org', userId, fetchImpl });
+  const reconcile = (pushedPaths) => (dryRun ? Promise.resolve() : reconcileGitDeletions({
+    orgId, repoPath: guard.path, repoBasename, store: stateStore, key: watermarkKey, pushedPaths,
+    ensureVault, listShasFn, listPathsFn, pushDeletionsFn, pushOpts: { userId, fetchImpl }, result,
+  }));
+
+  if (eligible.length === 0) { await reconcile([]); return result; }
+
   const docs = [];
   let newWatermark = storedWatermark || null;
 
@@ -371,12 +478,11 @@ async function ingestOneRepo(orgId, opts = {}, deps = {}) {
 
   newWatermark = feedWatermark.nextCursor(processed, remaining) || newWatermark;
 
-  if (docs.length === 0) return result;
+  if (docs.length === 0) { await reconcile([]); return result; }
 
   if (dryRun) return result; // tallies commitsRead, pushes/advances nothing
 
   try {
-    const vaultName = config.name || `Git History: ${repoBasename}`;
     const vaultId = await ensurePushVaultFn(orgId, vaultName, { scope: 'org', userId, fetchImpl });
     if (!vaultId) {
       result.error = 'ensurePushVault returned no vaultId';
@@ -400,6 +506,7 @@ async function ingestOneRepo(orgId, opts = {}, deps = {}) {
         console.error(`[FeedGitSource] org=${orgId}: watermark write failed, ${err.message}`);
       }
     }
+    await reconcile(docs.map((d) => d.relPath));
   } catch (err) {
     result.error = `push failed, ${err.message}`;
     console.error(`[FeedGitSource] org=${orgId}: ${result.error}, not advancing watermark`);
@@ -413,6 +520,8 @@ module.exports = {
   execGit,
   parseGitLog,
   renderCommitNote,
+  listAllShas,
+  reconcileGitDeletions,
   watermarkKeyForRepoPath,
   SOURCE_TYPE,
   GIT_LOG_FORMAT,

@@ -10,7 +10,7 @@
  */
 import React from 'react';
 import { Box, Static, Text, useStdin, useStdout } from 'ink';
-import { HistoryItem, Row, introAnimates, clampCols } from '../render.js';
+import { HistoryItem, Row, introAnimates, clampCols, AskCard } from '../render.js';
 import { c, clip } from '../theme.js';
 import { parseChunk, initialKeyState, PASTE_ON, PASTE_OFF } from '../keys.js';
 import { packageVersion } from '../welcome.js';
@@ -18,10 +18,15 @@ import * as T from './copy.js';
 import { matchIntent, yesNo, parseConnect } from './intent.js';
 import { loadJourney, saveJourney, clearJourney, resumeStep } from './journey.js';
 import { pendingRows, runPreflight, preflightPassed, detectOllama, defaultDeps } from './preflight.js';
-import { credentialOptions, KEY_PROVIDERS, normaliseOllamaUrl } from './credential.js';
+import { credentialOptions, KEY_PROVIDERS, normaliseOllamaUrl, nextSelectable } from './credential.js';
+import { needsConsent, providerLabel } from '../consent.js';
 import { HelloIntro, helloIntroMs } from '../qmotion.js';
 import { launchEgg } from '../egg.js';
 import { passwordProblem, emailOk, generatePassword } from './finish.js';
+import { dockerOffer } from './dockerOffer.js';
+
+// FIRSTRUN: a number pick means its example ("1" is "watch my servers"); the request is replayed as the first real turn.
+const requestText = (text) => { const n = /^\s*([1-9])\s*$/.exec(String(text ?? '')); return n && T.EXAMPLES[Number(n[1]) - 1] ? T.EXAMPLES[Number(n[1]) - 1] : text; };
 
 const h = React.createElement;
 const GLYPH = { ok: '✔', fail: '✖', warn: '⚠', running: '◐', pending: '·' };
@@ -55,6 +60,7 @@ function Item({ item, cols }) {
     case 'header': return h(Box, { flexDirection: 'column', marginTop: 1 },
       h(Text, null, h(Text, { color: c('violet'), bold: true }, T.LABEL), h(Text, { color: c('dim') }, ' ' + '─'.repeat(Math.max(1, cols - T.LABEL.length - 1)))),
       h(Text, { color: c('dim') }, clip(T.LABEL_SUB, cols)));
+    case 'ask': return h(AskCard, { text: item.text, cols }); // QUOXON-ASK: the same card as an approval
     case 'guide': return h(Box, { marginTop: item.gap === false ? 0 : 1, paddingLeft: 2 }, h(Para, { width: cols - 2, color: c(item.tone || 'text'), bold: Boolean(item.bold), text: item.text }));
     case 'dim': return h(Box, { paddingLeft: 2 }, h(Para, { width: cols - 2, color: c(item.tone || 'dim'), text: item.text }));
     case 'cmd': return h(Box, { paddingLeft: 4 }, h(Para, { width: cols - 4, color: c('sky'), text: item.text }));
@@ -95,7 +101,7 @@ const Hint = ({ text, cols }) => h(Box, { paddingLeft: 2 }, h(Text, { color: c('
 
 // ---- the view ---------------------------------------------------------------------------------
 export function GettingStarted({
-  columns, version = '0.3.0', cwd = '', welcome = false, animateIntro, earlyInput = null,
+  columns, version = '0.3.1', cwd = '', welcome = false, animateIntro, earlyInput = null,
   journeyPath, dryRun = false, runner = null, preflightDeps, runChecks = runPreflight, findOllama = detectOllama,
   requestCredential, broker = null, finisher = null, onExit = () => {}, now = () => Date.now()
 }) {
@@ -114,7 +120,7 @@ export function GettingStarted({
     const items = [introItem, ...(welcome ? [{ id: 'welcome', kind: 'welcome', version: packageVersion() }] : []), { id: 'hdr', kind: 'header' }];
     if (resumeAt) {
       items.push({ id: 'resume', kind: 'guide', text: T.RESUME });
-      if (saved.request) items.push({ id: 'resumeReq', kind: 'dim', text: T.resumeRequest(saved.request) });
+      if (saved.request) items.push({ id: 'resumeReq', kind: 'dim', text: T.resumeRequest(requestText(saved.request)) });
     } else {
       items.push({ id: 'greet', kind: 'guide', text: T.GREETING_REST }, { id: 'q', kind: 'guide', text: T.QUESTION }, { id: 'ex', kind: 'list', items: T.EXAMPLES, numbered: true });
     }
@@ -122,7 +128,7 @@ export function GettingStarted({
   };
 
   const S = React.useRef({
-    history: [], step: 'ask', input: '', intent: saved?.intent || null, request: saved?.request || null, provider: saved?.provider === 'skip' ? 'skip' : null,
+    history: [], step: 'ask', input: '', intent: saved?.intent || null, request: saved?.request ? requestText(saved.request) : null, provider: saved?.provider === 'skip' ? 'skip' : null,
     rows: [], fixNote: null, options: [], sel: 1, flash: null, install: null, logs: [], showLog: false, done: false, secret: null,
     installStage: saved?.installStage || null, installDir: saved?.installDir || null, dashboardUrl: saved?.dashboardUrl || null,
     ownerEmail: saved?.ownerEmail || null, finRows: [], stopping: false, vault: null
@@ -173,7 +179,7 @@ export function GettingStarted({
 
   function offerLines() {
     const items = [{ kind: 'guide', text: T.OFFER }];
-    items.push({ kind: 'guide', text: T.OFFER_ASK, bold: true, gap: false }, { kind: 'dim', text: T.ALREADY });
+    items.push({ kind: 'ask', text: T.OFFER_ASK }, { kind: 'dim', text: T.ALREADY });
     push(...items);
     set({ step: 'offer' });
     persist();
@@ -184,7 +190,7 @@ export function GettingStarted({
     if (m.intent === 'empty') return;
     push({ kind: 'user', text });
     if (m.intent === 'connect') { push({ kind: 'guide', text: T.CONNECT_INTENT_LINE }); set({ step: 'ask' }); return; }
-    set({ intent: m.intent, request: text });
+    set({ intent: m.intent, request: requestText(text) });
     push({ kind: 'guide', text: m.intent === 'offscript' ? T.DEFERRAL : T.INTENT_LINES[m.intent] });
     offerLines();
   }
@@ -197,7 +203,7 @@ export function GettingStarted({
     if (conn) {
       push({ kind: 'user', text: t });
       if (!conn.ok) { push({ kind: 'dim', tone: 'warn', text: conn.reason === 'url' ? T.connectBadUrl(conn.value) : T.CONNECT_USAGE }); return true; }
-      push({ kind: 'guide', text: T.connectHandoff(conn.url) });
+      push({ kind: 'guide', text: T.connectChecking(conn.url) });
       exit({ action: 'connect', url: conn.url });
       return true;
     }
@@ -255,14 +261,23 @@ export function GettingStarted({
       const held = await requestCredential(opt.id); // THE hook: K1 secure card once it merges
       if (!live.current || S.current.done) { held?.drop?.(); return; }
       if (!held) { set({ step: 'credential', input: '' }); return; }
-      push({ kind: 'user', text: opt.label }, { kind: 'guide', tone: 'ok', text: T.credHeld(opt.label, held.fingerprint) }, ...(opt.id === 'openai' ? [{ kind: 'guide', text: T.credConsent(opt.label) }] : []));
+      push({ kind: 'user', text: opt.label }, { kind: 'guide', tone: 'ok', text: T.credHeld(opt.label, held.fingerprint) }, ...(needsConsent(opt.id) ? [{ kind: 'guide', text: T.credConsent(opt.label) }] : []));
       set({ secret: held, input: '' });
+      if (needsConsent(opt.id)) { set({ step: 'cloudConsent', cloudConsent: null }); return; } // ask once; the answer is the user's own
+
     } else if (opt.id === 'ollama' && !opt.detected) {
       set({ step: 'ollamaUrl', input: '' }); // B3: nothing answered locally; ask for the LAN URL
       return;
     } else {
       push({ kind: 'user', text: opt.label }, { kind: 'guide', tone: opt.id === 'skip' ? 'warn' : 'ok', text: opt.id === 'skip' ? T.CRED_SKIPPED : T.CRED_OLLAMA });
     }
+    startInstall();
+  }
+
+  function answerCloudConsent(yes) {
+    const p = S.current.provider; const who = providerLabel(p);
+    push({ kind: 'user', text: yes ? 'yes' : 'no' }, { kind: 'guide', tone: yes ? 'ok' : 'warn', text: yes ? T.credConsentYes(who) : T.credConsentNo(who, p) });
+    set({ cloudConsent: yes });
     startInstall();
   }
 
@@ -317,7 +332,7 @@ export function GettingStarted({
     if (res.logPath) set({ installLogPath: res.logPath });
     if (res.dashboardUrl) set({ dashboardUrl: res.dashboardUrl });
     const rows = S.current.install.stages.map(st => ({ ...st, tail: st.earlier ? T.INSTALL_EARLIER : st.ms != null ? fmtS(st.ms) : '' }));
-    if (!res.ok) { set(s => ({ step: 'installFail', install: { ...s.install, failed: res.failedStage || '?', degraded: Boolean(res.degraded), error: res.error || null, logPath: res.logPath || null } })); persist({ step: 'install' }); return; }
+    if (!res.ok) { set(s => ({ step: 'installFail', install: { ...s.install, failed: res.failedStage || '?', degraded: Boolean(res.degraded), error: res.error || null, logPath: res.logPath || null, cause: res.cause?.message || null } })); persist({ step: 'install' }); return; }
     push({ kind: 'guide', text: T.INSTALL_TITLE + (dry ? ` (${T.INSTALL_DRY})` : ''), bold: true }, { kind: 'rows', rows });
     if (dry || !finisher) { finale({ dashboardUrl: res.dashboardUrl, dry }); return; }
     toOwner();
@@ -358,6 +373,7 @@ export function GettingStarted({
       { id: 'account', name: F.account.name, status: 'running', body: F.account.running },
       { id: 'signin', name: F.signin.name, status: 'pending', body: F.signin.running },
       { id: 'vault', name: F.vault.name, status: 'pending', body: S.current.secret ? F.vault.running(opt?.label || 'key') : F.vault.skipped },
+      ...(S.current.cloudConsent === true ? [{ id: 'consent', name: F.consent.name, status: 'pending', body: F.consent.running(providerLabel(S.current.provider)) }] : []),
       { id: 'link', name: F.link.name, status: 'pending', body: F.link.running }
     ];
     const row = (id, patch) => set(s => ({ finRows: s.finRows.map(r => (r.id === id ? { ...r, ...patch } : r)) }));
@@ -392,15 +408,27 @@ export function GettingStarted({
     }
     set({ vault });
 
+    if (S.current.cloudConsent === true && finisher.grantConsent) { // the owner said yes at the credential step
+      row('consent', { status: 'running' });
+      const g = await finisher.grantConsent(S.current.provider);
+      if (!live.current || S.current.done) return;
+      const who = providerLabel(S.current.provider);
+      row('consent', g?.ok ? { status: 'ok', body: F.consent.ok(who) } : { status: 'warn', body: F.consent.fail(g?.error || 'unknown error', S.current.provider) });
+    }
+
     row('link', { status: 'running' });
     const link = await finisher.loginLink(S.current.dashboardUrl);
     if (!live.current || S.current.done) return;
     row('link', link.ok ? { status: 'ok', body: F.link.ok } : { status: 'warn', body: F.link.fail(link.error) });
 
+    // Z2H-R5 E: only mention adding a host where this install can serve its host installer (unknown = as before).
+    let hostsAvailable = true;
+    try { const hi = finisher.hostInstaller ? await finisher.hostInstaller() : null; if (hi && hi.ok === false && Number(hi.status) >= 400) hostsAvailable = false; } catch { /* unknown */ }
+    if (!live.current || S.current.done) return;
     push({ kind: 'guide', text: T.FINISH_TITLE, bold: true }, { kind: 'rows', rows: S.current.finRows });
     if (vault) push({ kind: 'dim', text: vault.ok ? T.KEY_GONE_AFTER : `${T.KEY_GONE_AFTER} ${T.keyNotStored(vault.provider || S.current.provider)}` });
     set({ finRows: [] });
-    finale({ dashboardUrl: S.current.dashboardUrl, link: link.ok ? link.url : null, dry: false });
+    finale({ dashboardUrl: S.current.dashboardUrl, link: link.ok ? link.url : null, dry: false, hostsAvailable });
   }
 
   function replayText() {
@@ -409,7 +437,7 @@ export function GettingStarted({
     return request;
   }
 
-  function finale({ dashboardUrl, link = null, dry }) {
+  function finale({ dashboardUrl, link = null, dry, hostsAvailable = true }) {
     const items = [];
     const intent = S.current.intent && T.TIPS[S.current.intent] ? S.current.intent : 'explore';
     if (dry) items.push({ kind: 'guide', tone: 'warn', text: T.FINALE_DRY_BANNER });
@@ -424,8 +452,8 @@ export function GettingStarted({
     if (!dry && S.current.installLogPath) items.push({ kind: 'dim', text: T.INSTALL_LOG_PATH(S.current.installLogPath) });
     items.push({ kind: 'guide', text: T.FINALE_TIPS_TITLE }, { kind: 'list', items: dry ? T.FINALE_TIPS : T.TIPS[intent] });
     const noAi = !dry && (S.current.provider === 'skip' || (S.current.vault && !S.current.vault.ok));
-    if (noAi) items.push({ kind: 'guide', text: T.FINALE_HOSTS_NO_AI });
-    if (!dry) items.push({ kind: 'guide', text: noAi ? T.k2NoAi(S.current.provider === 'anthropic' ? 'anthropic' : 'openai') : T.K2[intent] });
+    if (noAi && hostsAvailable) items.push({ kind: 'guide', text: T.FINALE_HOSTS_NO_AI });
+    if (!dry) items.push({ kind: 'guide', text: noAi ? T.k2NoAi(S.current.provider === 'anthropic' ? 'anthropic' : 'openai') : (!hostsAvailable && intent === 'servers' ? T.K2_SERVERS_NO_INSTALLER : T.K2[intent]) });
     push(...items);
     S.current.secret?.drop?.();
     set({ step: 'finale', secret: null, finaleDry: dry });
@@ -464,15 +492,23 @@ export function GettingStarted({
           toCredential();
         }
         else if (ev.type === 'text' && /^q$/i.test(ev.text)) { push({ kind: 'dim', text: T.BYE }); persist({ step: 'preflight' }); exit({ action: 'exit' }); }
+        else if (ev.type === 'text' && /^y$/i.test(ev.text) && !dryRun) { // FIRSTRUN: the guide fixes Docker itself
+          const offer = dockerOffer(s.rows);
+          if (offer) { push({ kind: 'ask', text: offer.ask }, { kind: 'user', text: 'yes' }); persist({ step: 'preflight' }); exit({ action: 'docker', kind: offer.kind }); }
+        }
         return;
       case 'credential': {
         const n = s.options.length;
-        if (ev.type === 'key' && ev.name === 'up') set({ sel: (s.sel - 1 + n) % n, flash: null });
-        else if (ev.type === 'key' && (ev.name === 'down' || ev.name === 'tab')) set({ sel: (s.sel + 1) % n, flash: null });
+        if (ev.type === 'key' && ev.name === 'up') set({ sel: nextSelectable(s.options, s.sel, -1), flash: null }); // #1288: never land on a disabled row
+        else if (ev.type === 'key' && (ev.name === 'down' || ev.name === 'tab')) set({ sel: nextSelectable(s.options, s.sel, 1), flash: null });
         else if (ev.type === 'key' && ev.name === 'enter') choose(s.options[s.sel]);
         else if (ev.type === 'text' && /^[1-9]$/.test(ev.text) && Number(ev.text) <= n) { set({ sel: Number(ev.text) - 1 }); choose(s.options[Number(ev.text) - 1]); }
         return;
       }
+      case 'cloudConsent':
+        if (ev.type === 'text' && /^y(es)?$/i.test(ev.text.trim())) answerCloudConsent(true);
+        else if ((ev.type === 'text' && /^n(o)?$/i.test(ev.text.trim())) || (ev.type === 'key' && (ev.name === 'enter' || ev.name === 'escape'))) answerCloudConsent(false);
+        return;
       case 'install': if (ev.type === 'text' && /^v$/i.test(ev.text)) set({ showLog: !s.showLog }); return;
       case 'installStop':
         if (ev.type === 'text' && /^y/i.test(ev.text)) stopInstall();
@@ -493,7 +529,7 @@ export function GettingStarted({
     }
   };
   function stopInstall() {
-    push({ kind: 'dim', text: T.INSTALL_STOP_ASK }, { kind: 'user', text: 'yes' });
+    push({ kind: 'ask', text: T.INSTALL_STOP_ASK }, { kind: 'user', text: 'yes' });
     set({ stopping: true, step: 'install' });
     S.current.abort?.abort?.(); // the runner stops the installer's process group; startInstall then exits
   }
@@ -558,7 +594,11 @@ export function GettingStarted({
       case 'preflight': case 'preflightFail':
         liveParts.push(h(Box, { key: 'pf', marginTop: 1, paddingLeft: 2 }, h(Text, { bold: true, color: c('text') }, T.PREFLIGHT_TITLE)),
           ...s.rows.map((r) => h(CheckRow, { key: r.id, r, cols })));
-        if (s.step === 'preflightFail') liveParts.push(h(Box, { key: 'pfn', marginTop: 1, paddingLeft: 2, width: cols }, h(Para, { width: cols - 2, color: c('warn'), text: s.fixNote })), h(Hint, { key: 'h', text: dryRun ? T.PREFLIGHT_RETRY_DRY : T.PREFLIGHT_RETRY, cols }));
+        if (s.step === 'preflightFail') {
+          const offer = dryRun ? null : dockerOffer(s.rows); // FIRSTRUN: offer, never "go and do this"
+          if (offer) liveParts.push(h(Box, { key: 'pfo', marginTop: 1 }, h(AskCard, { text: offer.ask, cols })), h(Hint, { key: 'h', text: T.DOCKER_OFFER_HINT, cols }));
+          else liveParts.push(h(Box, { key: 'pfn', marginTop: 1, paddingLeft: 2, width: cols }, h(Para, { width: cols - 2, color: c('warn'), text: s.fixNote })), h(Hint, { key: 'h', text: dryRun ? T.PREFLIGHT_RETRY_DRY : T.PREFLIGHT_RETRY, cols }));
+        }
         break;
       case 'credential':
         liveParts.push(h(Box, { key: 'opts', flexDirection: 'column', marginTop: 1 }, ...s.options.map((o, i) => {
@@ -582,6 +622,11 @@ export function GettingStarted({
           h(Text, { color: c('violet') }, '─'.repeat(cols))));
         break;
       }
+      case 'cloudConsent':
+        liveParts.push(h(Box, { key: 'cc', flexDirection: 'column', marginTop: 1 },
+          h(AskCard, { text: T.credConsentAsk(providerLabel(s.provider)), cols }),
+          h(Hint, { text: T.CRED_CONSENT_HINT, cols })));
+        break;
       case 'ollamaUrl':
         liveParts.push(h(Box, { key: 'card', flexDirection: 'column', marginTop: 1 },
           h(Text, { color: c('violet') }, '─'.repeat(cols)),
@@ -615,12 +660,13 @@ export function GettingStarted({
         if (s.step === 'installFail') {
           liveParts.push(h(Box, { key: 'if', paddingLeft: 2, width: cols, marginTop: 1, flexDirection: 'column' },
             h(Para, { width: cols - 2, color: c('fail'), text: T.INSTALL_FAILED(T.STAGES[s.install.failed] || s.install.failed) }),
+            s.install.cause ? h(Para, { width: cols - 2, color: c('warn'), text: s.install.cause }) : null, // FIRSTRUN: why, in one line
             s.install.error ? h(Para, { width: cols - 2, color: c('dim'), text: s.install.error }) : null,
             s.install.logPath ? h(Para, { width: cols - 2, color: c('dim'), text: T.INSTALL_LOG_PATH(s.install.logPath) }) : null,
             s.install.logPath ? h(Para, { width: cols - 2, color: c('dim'), text: T.INSTALL_RERUN_HINT }) : null,
             s.install.degraded ? h(Para, { width: cols - 2, color: c('warn'), text: T.INSTALL_DEGRADED }) : null));
         }
-        if (s.step === 'installStop') liveParts.push(h(Box, { key: 'stop', paddingLeft: 2, width: cols, marginTop: 1 }, h(Para, { width: cols - 2, color: c('warn'), bold: true, text: T.INSTALL_STOP_ASK })));
+        if (s.step === 'installStop') liveParts.push(h(Box, { key: 'stop', width: cols }, h(AskCard, { text: T.INSTALL_STOP_ASK, cols })));
         liveParts.push(h(Hint, { key: 'h', text: s.step === 'installFail' ? T.INSTALL_FAIL_HINT : s.step === 'installStop' ? 'y to stop · n or Enter to carry on' : T.INSTALL_HINT, cols }));
         break;
       }

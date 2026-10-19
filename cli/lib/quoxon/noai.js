@@ -51,6 +51,7 @@ export function addHostLines(base, check = null) {
     // Two lines (shell continuation) so the TUI, which clips long lines, never cuts the command short.
     `( f=$(mktemp) && trap 'rm -f "$f"' EXIT && curl -fsSL ${b}/install -o "$f" && \\`,
     `  sudo bash "$f" --host-id <name> )`,
+    'Self-signed certificate? Run quox fleet enrol <name>: it prints this with the certificate pinned.',
     'Then check it arrived with: quox fleet hosts'
   ];
 }

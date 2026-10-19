@@ -52,7 +52,7 @@ function buildPayload(orgId, extra = {}) {
  * An intent nobody has classified is MEDIUM at L7, never silently LOW.
  */
 const AOCL_POLICY = new Set(['policy.decision', 'lease.denied', 'suppress_check']);
-const AOCL_CONTEXT = new Set(['read', 'find', 'search', 'resolve', 'brief', 'timeline_read', 'facts_read', 'handoffs_read', 'duplicates', 'import_dry_run', 'sync_dry_run']);
+const AOCL_CONTEXT = new Set(['read', 'find', 'search', 'resolve', 'brief', 'count', 'timeline_read', 'facts_read', 'handoffs_read', 'duplicates', 'import_dry_run', 'sync_dry_run']);
 const AOCL_HIGH = new Set(['lease.minted', 'lease.redeemed', 'lease.claimed', 'send', 'read_full', 'erased', 'retention_run', 'tombstone_lifted']);
 const AOCL_MEDIUM = new Set(['merge', 'unmerge', 'import', 'rewrap', 'reindex', 'strict_names_applied', 'grant_create', 'grant_revoke', 'settings_update', 'sync_run', 'sync_source_add', 'sync_source_remove', 'sync_source_update', 'dsar_exported', 'processing_record_exported', 'lease.revoked']);
 const AOCL_LOW_WRITES = new Set(['create', 'archive', 'consent', 'edge_add', 'edge_remove', 'fact_add', 'fact_proposed', 'fact_review', 'flags_changed', 'identifier_add', 'notice_sent', 'objection', 'photo_removed', 'photo_set', 'stage_changed', 'suppress', 'touchpoint', 'compliance_report']);

@@ -34,6 +34,13 @@ const { createIncident } = require('./governanceIncidents.js');
 const ATTACH_ALIAS = 'aee';
 
 const BASELINE_WINDOW_DAYS = 7;
+// 2026-10-17 receipts honesty: tool calls that RETURN { success:false } are witnessed as type 'error' from the first boot
+// that runs that code (they were success receipts). error_rate steps up against baselines built under the old rule, so
+// for one baseline window after that boot an error_rate RISE says plainly that counting changed (the old hours cannot
+// be recounted). The moment is per install (anchorErrorCountingChange, written once at startup); this constant is only
+// the fallback when that store cannot be read or written (HYPERION review).
+const ERROR_COUNTING_CHANGED_AT = '2026-10-17T00:00:00Z';
+const META_ERROR_COUNTING_KEY = 'error_counting_changed_at';
 const DEFAULT_MIN_SAMPLES = 30;
 const DEFAULT_MIN_MATURITY_DAYS = 7;
 
@@ -66,7 +73,33 @@ function initAgentBehaviorBaselines(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_baseline_agent ON agent_behavior_baselines(agent_id, metric);
     CREATE INDEX IF NOT EXISTS idx_baseline_org ON agent_behavior_baselines(org_id);
+    CREATE TABLE IF NOT EXISTS agent_behavior_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      set_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
+}
+
+/** At startup: record the first boot that runs the receipts-honesty rule (kept on later boots). Returns the anchor. */
+function anchorErrorCountingChange(db, now = new Date()) {
+  try {
+    db.prepare('INSERT OR IGNORE INTO agent_behavior_meta (key, value) VALUES (?, ?)').run(META_ERROR_COUNTING_KEY, now.toISOString());
+    return getErrorCountingChangedAt(db);
+  } catch (err) {
+    console.warn(`[MON-GOV] error-counting anchor not written (${err && err.message}); using ${ERROR_COUNTING_CHANGED_AT}`);
+    return ERROR_COUNTING_CHANGED_AT;
+  }
+}
+
+/** This install's anchor, or the shipped constant when none can be read. */
+function getErrorCountingChangedAt(db) {
+  try {
+    const row = db.prepare('SELECT value FROM agent_behavior_meta WHERE key = ?').get(META_ERROR_COUNTING_KEY);
+    return (row && row.value) || ERROR_COUNTING_CHANGED_AT;
+  } catch {
+    return ERROR_COUNTING_CHANGED_AT;
+  }
 }
 
 // ─── ATTACH helpers ──────────────────────────────────────────────────────
@@ -156,9 +189,11 @@ function hourlyErrors(voltDb, fromIso, toIso) {
       substr(ts, 1, 13) AS bucket_hour,
       COUNT(*) AS cnt
     FROM ${ATTACH_ALIAS}.envelopes
-    WHERE "from" >= 'agent.' AND "from" < 'agent/'
+    -- 2026-10-16: the ts range drives (idx_ts); "from"/type are checked per row. With the "from" RANGE driving,
+    -- every slice walked all agent envelopes ever written (21 s per boot catch-up, a 26.7 s loop block).
+    WHERE ts >= ? AND ts < ?
+      AND +"from" >= 'agent.' AND +"from" < 'agent/'
       AND +type = 'error'
-      AND ts >= ? AND ts < ?
     GROUP BY agent_id, bucket_hour
   `).all(fromIso, toIso);
 
@@ -311,10 +346,37 @@ function makeBaselineUpsert(voltDb, fromIso, toIso) {
   };
 }
 
+// One hourly collector over hour-aligned time slices, yielding between them.
+// Rows are merged by their GROUP BY key (a bucket split across two slices is
+// summed) and returned in the collector's own GROUP BY order, so the result is
+// the one-query result. WORKER7 2026-10-16: each collector was one synchronous
+// GROUP BY over 7 days of envelopes, run at every collector start.
+async function collectSliced(collect, voltDb, fromIso, toIso, { sliceHours, yieldFn }) {
+  const step = Math.max(1, sliceHours) * 60 * 60 * 1000;
+  const toMs = Date.parse(toIso);
+  const merged = new Map();
+  for (let a = Date.parse(fromIso); a < toMs;) {
+    const b = Math.min(toMs, (Math.floor(a / step) + 1) * step);
+    const from = a === Date.parse(fromIso) ? fromIso : new Date(a).toISOString();
+    const to = b === toMs ? toIso : new Date(b).toISOString();
+    for (const r of collect(voltDb, from, to)) {
+      const k = `${r.agent_id}\u0000${r.org_id}\u0000${r.bucket_hour}`;
+      const m = merged.get(k);
+      if (m) m.value += r.value;
+      else merged.set(k, { ...r });
+    }
+    a = b;
+    await yieldFn();
+  }
+  const cmp = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
+  return [...merged.values()].sort((x, y) => cmp(x.agent_id, y.agent_id) || cmp(x.org_id, y.org_id) || cmp(x.bucket_hour, y.bucket_hour));
+}
+
 /**
- * Event-loop-friendly computeBaselines for the boot catch-up: identical output,
- * but yields between the three hourly collectors and between upserts so no
- * single synchronous slice holds the loop for the whole pass.
+ * Event-loop-friendly computeBaselines for the boot catch-up and the daily run:
+ * identical output, but each hourly collector runs over `sliceHours` time
+ * slices with a yield between them, and upserts yield too, so no single
+ * synchronous slice holds the loop for the whole pass.
  */
 async function computeBaselinesAsync(voltDb, options = {}) {
   const {
@@ -323,6 +385,7 @@ async function computeBaselinesAsync(voltDb, options = {}) {
     aeeAttached = true,
     yieldFn = () => new Promise((r) => setImmediate(r)),
     chunkSize = 1,
+    sliceHours = 6,
   } = options;
 
   if (!aeeAttached) {
@@ -336,8 +399,7 @@ async function computeBaselinesAsync(voltDb, options = {}) {
 
   const hourly = [];
   for (const collect of [hourlyActivity, hourlyErrors, hourlyDenies]) {
-    hourly.push(...collect(voltDb, fromIso, toIso));
-    await yieldFn();
+    hourly.push(...await collectSliced(collect, voltDb, fromIso, toIso, { sliceHours, yieldFn }));
   }
   const summaries = summariseForBaselines(hourly, totalHours);
   const upsert = makeBaselineUpsert(voltDb, fromIso, toIso);
@@ -413,7 +475,11 @@ function detectAnomalies(voltDb, options = {}) {
     minMaturityDays = DEFAULT_MIN_MATURITY_DAYS,
     minSigma = 3,
     aeeAttached = true,
+    errorCountingChangedAt = getErrorCountingChangedAt(voltDb),
   } = options;
+  const changedMs = Date.parse(errorCountingChangedAt || '');
+  const countingChanged = Number.isFinite(changedMs) && now.getTime() >= changedMs
+    && now.getTime() - changedMs < BASELINE_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
   if (!aeeAttached) return [];
 
@@ -450,9 +516,12 @@ function detectAnomalies(voltDb, options = {}) {
     // (agent, metric, bucket_hour) so retries within the same hour
     // collapse through the existing incident dedup_key.
     const corr = `ANOM_${b.agent_id}_${b.metric}_${bucketHour}`;
-    const title = `Agent ${b.agent_id} ${b.metric} deviates ${sigma.toFixed(1)}σ from baseline`;
+    const changeNote = countingChanged && b.metric === 'error_rate' && sigma > 0;
+    const changedDay = changeNote ? new Date(changedMs).toISOString().slice(0, 10) : null;
+    const title = `Agent ${b.agent_id} ${b.metric} deviates ${sigma.toFixed(1)}σ from baseline${changeNote ? ' (error counting changed)' : ''}`;
     const description =
-      `Observed ${current.toFixed(2)} in the current hour vs baseline ${b.baseline_value.toFixed(2)} (σ=${b.stddev.toFixed(2)}, samples=${b.sample_count}).`;
+      `Observed ${current.toFixed(2)} in the current hour vs baseline ${b.baseline_value.toFixed(2)} (σ=${b.stddev.toFixed(2)}, samples=${b.sample_count}).`
+      + (changeNote ? ` Error counting changed on ${changedDay}: refused tool calls (a tool that returns a failure instead of throwing) now count as errors, and this baseline was built before that, so part or all of this rise is the new rule, not new failures. Check the failing calls before treating it as a spike.` : '');
 
     const incident = createIncident(voltDb, {
       org_id: b.org_id,
@@ -477,6 +546,7 @@ function detectAnomalies(voltDb, options = {}) {
         sigma,
         sample_count: b.sample_count,
         bucket_hour: bucketHour,
+        ...(changeNote ? { error_counting_changed_at: errorCountingChangedAt } : {}),
       },
     });
 
@@ -499,6 +569,9 @@ module.exports = {
   DEFAULT_MIN_SAMPLES,
   DEFAULT_MIN_MATURITY_DAYS,
   initAgentBehaviorBaselines,
+  anchorErrorCountingChange,
+  getErrorCountingChangedAt,
+  ERROR_COUNTING_CHANGED_AT,
   attachAeeDb,
   computeBaselines,
   computeBaselinesAsync,

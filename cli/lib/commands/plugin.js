@@ -2,6 +2,7 @@
  * Plugin commands: org-scoped plugin install registry (PD-1..PD-8)
  *
  * quox plugin list|get|install|update|uninstall|mine
+ * quox plugin enable <id>   (PLUGIN-IMG #1012: prebuilt private image, licence first)
  * quox plugin data list|get|set|delete
  * quox plugin secrets list|set|reveal|delete
  * quox plugin assign list|add|remove
@@ -19,6 +20,9 @@ import { readFileSync } from 'node:fs';
 import { formatOutput, formatDetail, printSuccess, printWarning, printInfo } from '../core/output.js';
 import { resolveOrgId, parseJSON } from './helpers.js';
 import { resolveEndpoint } from '../api/endpoints.js';
+import { enablePlugin, entitlementFrom } from '../server/pluginEnable.js';
+import { resolveInstall, readEnvKeys } from '../server/install.js';
+import { createSys } from '../server/sys.js';
 
 /** Read + JSON.parse a file, wrapping errors with the file path for context. */
 function readJsonFile(filePath, label) {
@@ -112,6 +116,56 @@ export function registerPluginCommands(program, ctx) {
           ? summary.entitlement_errors.map((e) => (typeof e === 'string' ? e : JSON.stringify(e))).join('; ')
           : '(none)',
       }, { title: `Licence: ${pluginId}` });
+    });
+
+  // ── plugin enable (PLUGIN-IMG #1012) ────────────────────────────────────────
+  // Starts a licensed plugin from its prebuilt private image on this
+  // self-hosted install. Licence first: unlicensed means nothing runs.
+
+  plugin
+    .command('enable')
+    .description('Start a licensed plugin from its prebuilt image on this self-hosted install (QuoxPlan for now). Unlicensed: refused, nothing pulled.')
+    .argument('<pluginId>', 'plugin id, e.g. quoxplan')
+    .option('--dir <path>', 'the install directory (default: the one Getting started recorded)')
+    .action(async (pluginId, opts) => {
+      auth.requireAuth();
+      const deps = ctx.serverDeps || {};
+      const env = deps.env || process.env;
+      const sys = deps.sys || createSys();
+      const checkEntitlement = async (id) => {
+        const ep = resolveEndpoint('setup.licensing.entitlements.list');
+        const data = await client.get(ep.path, { service: ep.service });
+        return entitlementFrom(data, id);
+      };
+      // Licence before anything that touches the box: an unlicensed enable must not even look for the install.
+      let ent;
+      try { ent = await checkEntitlement(pluginId); } catch (err) { ent = err; }
+      const resolveFirst = !(ent instanceof Error) && ent && ent.entitled;
+      let install = null;
+      if (resolveFirst) {
+        const i = await resolveInstall({ dir: opts.dir, env, sys, journey: deps.journey });
+        if (i.error) { const e = new Error(i.error); e.exitCode = 2; throw e; }
+        install = i;
+      }
+      const tag = install ? (env.QUOX_IMAGE_TAG || readEnvKeys(install.repoDir, ['QUOX_IMAGE_TAG']).QUOX_IMAGE_TAG || '') : '';
+      const result = await enablePlugin({
+        pluginId,
+        checkEntitlement: async () => { if (ent instanceof Error) throw ent; return ent; },
+        install: install || { repoDir: '' },
+        sys,
+        tag,
+        ...(deps.getPullCredential ? { getPullCredential: deps.getPullCredential } : {}),
+        ...(deps.sleep ? { sleep: deps.sleep } : {}),
+        log: (l) => printInfo(l),
+      });
+      if (program.opts().output === 'json') {
+        console.log(JSON.stringify({ plugin: pluginId, ok: result.ok, stage: result.stage, message: result.message }, null, 2));
+      } else if (result.ok) {
+        printSuccess(result.message);
+      } else {
+        printWarning(result.message);
+      }
+      if (!result.ok) process.exitCode = result.stage === 'licence' ? 3 : 1;
     });
 
   // ── plugin list ─────────────────────────────────────────────────────────────

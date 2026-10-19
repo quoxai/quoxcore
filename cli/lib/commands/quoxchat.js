@@ -131,11 +131,19 @@ export function registerQuoxchatCommands(program, ctx) {
     .action(async () => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
-      const data = await client.get(resolveEndpoint('quoxchat.widgets.list', { orgId }).path, { service: resolveEndpoint('quoxchat.widgets.list', { orgId }).service });
+      // QC-BRUTALOOP-W15: the route pages at 20; listing only page 1 silently
+      // under-reported the org's widgets (20 of 34). Walk every page.
+      const ep = resolveEndpoint('quoxchat.widgets.list', { orgId });
+      const rows = [];
+      for (let page = 1; page <= 50; page++) {
+        const data = await client.get(page === 1 ? ep.path : `${ep.path}?page=${page}`, { service: ep.service });
+        rows.push(...(Array.isArray(data) ? data : (data.items || [])));
+        if (Array.isArray(data) || !data.pagination?.has_more) break;
+      }
       formatOutput({
         columns: ['id', 'name', 'assistant_name', 'status', 'operator_online', 'created_at'],
         headers: ['ID', 'Name', 'Assistant', 'Status', 'Operator online', 'Created'],
-        rows: data.items || data,
+        rows,
       }, { format: program.opts().output, emptyMessage: 'No widgets found.' });
     });
 

@@ -13,7 +13,7 @@ import { requireOrgMembership, requireOrgMembershipSecure, requireOrgRole } from
 import { createScope, getScopeForEntity, getScopeById, deleteScope, updateScopeNameCache } from '../utils/scopes.js';
 import { Capabilities, hasRoleLevel, OrgRoles } from '../utils/policy.js';
 import { resolveCap } from '../utils/resolveCap.js';
-import { createAuditEvent, ulid } from '../utils/helpers.js';
+import { createAuditEvent, ulid, slugify } from '../utils/helpers.js';
 import { emitAndDispatch } from '../utils/teamEventEmitter.js';
 import { provisionRoomForNode, deprovisionRoomForNode, isMatrixRoomsEnabled } from '../lib/matrixProvisioner.js';
 import { humanGrantorOnly } from '../utils/principal.js';
@@ -129,7 +129,9 @@ router.post('/orgs/:orgId/teams',
     async (req, res) => {
         try {
             const { orgId } = req.params;
-            const { name, slug, description, attach_scope_id, parent_team_id, settings } = req.body;
+            const { name, description, attach_scope_id, parent_team_id, settings } = req.body;
+            // #991: the CLI and API callers may omit slug; derive it from the name.
+            const slug = req.body.slug || (name ? slugify(String(name)).replace(/_/g, '-') : '');
             const userId = req.user.id;
 
             // Check capability (admin or builder with team.create)
@@ -349,6 +351,31 @@ router.patch('/orgs/:orgId/teams/:teamId',
  * DELETE /orgs/:orgId/teams/:teamId
  * Delete a team
  */
+/**
+ * POST /orgs/:orgId/teams/:teamId/provision-room
+ * Provision (or adopt) the governed Matrix room for a people team (#993).
+ * `quox team provision-room` used to hit the tasks service, which only knows
+ * agent-team definitions, so it 404'd for every id `quox team list` prints.
+ */
+router.post('/orgs/:orgId/teams/:teamId/provision-room',
+    requireOrgMembership,
+    requireOrgRole('admin'),
+    async (req, res) => {
+        try {
+            const { orgId, teamId } = req.params;
+            const team = prepare('SELECT id FROM teams WHERE id = ? AND org_id = ?').get(teamId, orgId);
+            if (!team) {
+                return res.status(404).json({ error: 'Team not found' });
+            }
+            const result = await provisionRoomForNode({ orgId, nodeType: 'team', nodeId: teamId, actorId: req.user.id });
+            res.json({ status: result.status, reason: result.reason, room: result.row || null });
+        } catch (error) {
+            console.error('Error provisioning team room:', error);
+            res.status(500).json({ error: 'Failed to provision team room' });
+        }
+    }
+);
+
 router.delete('/orgs/:orgId/teams/:teamId',
     requireOrgMembership,
     async (req, res) => {
@@ -413,6 +440,9 @@ router.delete('/orgs/:orgId/teams/:teamId',
             res.json({ success: true, message: 'Team deleted' });
         } catch (error) {
             console.error('Error deleting team:', error);
+            if (error?.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+                return res.status(409).json({ error: 'This team still has assistants, tools or other items homed in it. Move or delete them first.' });
+            }
             res.status(500).json({ error: 'Failed to delete team' });
         }
     }

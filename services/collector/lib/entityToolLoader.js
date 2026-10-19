@@ -263,7 +263,14 @@ function __clearLeaseCacheForTesting() {
 /**
  * Create an executor that calls a direct HTTP API.
  */
+// Tools whose real work outlasts the 30 s default: a ScreenCap capture drives a headless browser through a
+// full page load and takes ~70 s on the dev box (proof browser/screencap-capture: every call aborted at 30 s,
+// so the capture could never be proven).
+const API_TOOL_TIMEOUT_MS = { 'screencap.capture': 120000 };
+const API_DEFAULT_TIMEOUT_MS = 30000;
+
 function createApiExecutor(baseUrl, toolId) {
+  const timeoutMs = API_TOOL_TIMEOUT_MS[toolId] || API_DEFAULT_TIMEOUT_MS;
   return async (input, ctx) => {
     try {
       const url = `${baseUrl}`;
@@ -279,7 +286,7 @@ function createApiExecutor(baseUrl, toolId) {
           input,
           agent_id: ctx?.agentId || 'quox'
         }),
-        signal: AbortSignal.timeout(30000)
+        signal: AbortSignal.timeout(timeoutMs)
       });
       if (!resp.ok) {
         const text = await resp.text();
@@ -287,10 +294,20 @@ function createApiExecutor(baseUrl, toolId) {
       }
       return await resp.json();
     } catch (err) {
+      // REL424-BROWSER: a connection that never happened (service not installed or not running) names the service
+      // and the cause, not a bare "fetch failed". A timeout or an HTTP error connected, so it is never "unreachable".
+      const code = err && err.cause && err.cause.code;
+      if (code && UNREACHABLE_CODES.has(code)) {
+        let origin = baseUrl;
+        try { origin = new URL(baseUrl).origin; } catch { /* keep the raw base */ }
+        const service = String(toolId).split('.')[0];
+        return { success: false, error_code: 'service_unreachable', error: `Could not connect to ${service} service at ${origin} (${code}) for ${toolId}: it is not running or not installed on this instance.` };
+      }
       return { success: false, error: `API call failed for ${toolId}: ${err.message}` };
     }
   };
 }
+const UNREACHABLE_CODES = new Set(['ENOTFOUND', 'ECONNREFUSED', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH']);
 
 /**
  * Create a fallback executor that routes through bastion SSH.
@@ -350,16 +367,94 @@ function createExecutor(endpoints, toolId, deps) {
 }
 
 /**
+ * quoxai/quox #1051: tool ids an entity toolset declares but cannot run (its
+ * internal executor returns not_implemented for them). They are not registered
+ * or granted, so no model is offered them. Derived from the executor's own
+ * UNSUPPORTED_TOOLS export (mikrotikExecutor.js), so a tool that leaves that
+ * map is offered again on the next load with no other change.
+ * deps.unavailableToolIds (iterable of entity ids) overrides it, for tests.
+ */
+function unavailableToolIdsFor(endpoints, deps) {
+  if (deps && deps.unavailableToolIds) return new Set(deps.unavailableToolIds);
+  const out = new Set(sharedRetiredIds());
+  if (!endpoints || endpoints.base !== 'internal' || !endpoints.api) return out;
+  const unsupported = INTERNAL_EXECUTORS[endpoints.api]?.UNSUPPORTED_TOOLS;
+  if (unsupported && typeof unsupported === 'object') for (const id of Object.keys(unsupported)) out.add(id);
+  return out;
+}
+
+/**
+ * quoxai/quox #1062: ids in the shared unsupported-tools file outside the
+ * executor-owned "mikrotik" group (groups "stubs" and "duplicates"): entity
+ * tools with no backend, or retired in favour of another tool. They apply to
+ * every entity family, whatever its endpoints block. Hardcoded tools may be
+ * listed too (e.g. keeper_backup_status); see withdrawRetiredTools.
+ */
+// WORKER2 review: the groups read are ALLOWLISTED, so a new group in the shared file (e.g. a
+// "planned" list) never withdraws a live tool by accident.
+const RETIRED_GROUPS = Object.freeze(['stubs', 'duplicates']);
+function retiredIdsFromShared(data) {
+  const ids = new Set();
+  for (const group of RETIRED_GROUPS) {
+    const map = data && data[group];
+    if (map && typeof map === 'object') for (const id of Object.keys(map)) ids.add(id);
+  }
+  return ids;
+}
+// A corrupt file fails visibly: one loud error line, the loader stays up, nothing is withdrawn.
+// A file missing from every candidate path still throws: an empty set there would quietly offer
+// tools that have no backend.
+function loadSharedRetired(candidates, log = console) {
+  for (const p of candidates) {
+    let raw;
+    try { raw = fs.readFileSync(p, 'utf8'); } catch (err) { if (err.code === 'ENOENT') continue; throw err; }
+    try { return retiredIdsFromShared(JSON.parse(raw)); } catch (err) {
+      log.error(`[entityToolLoader] ${p} (shared unsupported-tools.json) is corrupt, cannot parse: ${err.message}. NO tools are withdrawn until it is fixed.`);
+      return new Set();
+    }
+  }
+  throw new Error('[entityToolLoader] shared/tool-availability/unsupported-tools.json not found');
+}
+let _sharedRetired = null;
+function sharedRetiredIds() {
+  if (_sharedRetired) return _sharedRetired;
+  _sharedRetired = loadSharedRetired([
+    path.join(__dirname, '../../../shared/tool-availability/unsupported-tools.json'), // source tree
+    path.join(__dirname, '../shared/tool-availability/unsupported-tools.json'), // image: /app/lib -> /app/shared
+  ]);
+  return _sharedRetired;
+}
+
+/**
+ * Remove retired HARDCODED tools (declared directly in agentTools TOOL_DEFS,
+ * not by an entity file) from TOOL_DEFS and every AGENT_TOOLS grant, so no
+ * model is offered them. Returns the names removed.
+ */
+function withdrawRetiredTools(toolDefs, agentTools, ids = sharedRetiredIds()) {
+  const removed = [];
+  for (const id of ids) {
+    const name = entityIdToToolName(id);
+    if (toolDefs[name]) { delete toolDefs[name]; removed.push(name); }
+    for (const agent of Object.keys(agentTools)) {
+      const grant = agentTools[agent];
+      if (!Array.isArray(grant)) continue;
+      for (let i = grant.length - 1; i >= 0; i--) if (grant[i] === name) grant.splice(i, 1);
+    }
+  }
+  return removed;
+}
+
+/**
  * Load entity tool JSON files and register them into TOOL_DEFS.
  *
  * @param {string} basePath - Path to entities/tools/ directory
  * @param {object} toolDefs - TOOL_DEFS object to extend (mutated)
  * @param {object} agentTools - AGENT_TOOLS object to extend (mutated)
  * @param {object} deps - Dependencies: { callBastion }
- * @returns {{ loaded: number, skipped: number, gated: number, metadata: object }}
+ * @returns {{ loaded: number, skipped: number, gated: number, unavailable: number, metadata: object }}
  */
 function loadEntityTools(basePath, toolDefs, agentTools, deps = {}) {
-  const result = { loaded: 0, skipped: 0, gated: 0, metadata: {} };
+  const result = { loaded: 0, skipped: 0, gated: 0, unavailable: 0, metadata: {} };
 
   let files;
   try {
@@ -390,10 +485,17 @@ function loadEntityTools(basePath, toolDefs, agentTools, deps = {}) {
     const subcategory = entityData.subcategory || '';
     const endpoints = entityData.endpoints || null;
     const primaryAgent = entityData.agent_hints?.primary_agent || null;
+    const unavailable = unavailableToolIdsFor(endpoints, deps);
 
     for (const tool of entityData.tools || []) {
       if (!tool.id || !tool.description) {
         result.skipped++;
+        continue;
+      }
+
+      // #1051: declared but not implemented (returns 501) -> never offered.
+      if (unavailable.has(tool.id)) {
+        result.unavailable++;
         continue;
       }
 
@@ -477,7 +579,9 @@ function loadEntityTools(basePath, toolDefs, agentTools, deps = {}) {
 
       // Extend AGENT_TOOLS: grant to the specialist owner when one is declared.
       const specialistOwner = primaryAgent && primaryAgent !== 'quox' && !!agentTools[primaryAgent];
-      if (specialistOwner && !agentTools[primaryAgent].includes(toolName)) {
+      // DEVFLEET-READ: `primary_grant: false` keeps the tool DEFINED (CLI, other agents, tests)
+      // but off the owner's grant, where one merged tool (proxmox_read) replaces it.
+      if (specialistOwner && tool.primary_grant !== false && !agentTools[primaryAgent].includes(toolName)) {
         agentTools[primaryAgent].push(toolName);
       }
 
@@ -521,10 +625,16 @@ module.exports = {
   isPluginLicensed,
   refreshEntityToolLicenses,
   createApiExecutor,
+  API_TOOL_TIMEOUT_MS,
   createBastionExecutor,
   createInternalExecutor,
   createExecutor,
   registerInternalExecutor,
+  unavailableToolIdsFor,
+  withdrawRetiredTools,
+  retiredIdsFromShared,
+  loadSharedRetired,
+  RETIRED_GROUPS,
   INTERNAL_EXECUTORS,
   __clearLeaseCacheForTesting
 };

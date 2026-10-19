@@ -99,7 +99,7 @@ function matchesClockTimeSchedulingClaim(text) {
   return { matched };
 }
 
-const INTERNAL_PATH = /(\/data\/|\/var\/lib\/|\/home\/control\/|\/tmp\/quox|\/opt\/quox)/;
+const INTERNAL_PATH = /(\/data\/|\/var\/lib\/|\/home\/[^/\s]+\/|\/tmp\/quox|\/opt\/quox)/;
 
 function containsInternalPathLeak(text) {
   const matched = INTERNAL_PATH.test(text);

@@ -62,6 +62,17 @@ export function ObjectView({ item, cols, fx = null, t = fx && fx.e != null ? fx.
   return h(Box, { flexDirection: 'column', marginTop: 1, paddingLeft: 1 }, top, ...body, bottom);
 }
 
+/**
+ * TUI-UX #5: would this card (rows + border + margin) be taller than the terminal? Ink cannot erase rows that already scrolled
+ * off the top of a live region, so a decode-in on such a card leaves a half-decoded copy in scrollback. Callers skip the
+ * animation for it and commit it settled.
+ */
+export function cardTallerThanScreen(item, cols, termRows, now) {
+  if (!Number.isFinite(termRows) || termRows <= 0) return false;
+  const view = buildObject(item.obj || item, cols, now);
+  return (view.rows || []).length + (view.box ? 3 : 1) + 2 >= termRows; // top + bottom border, marginTop, plus the composer line
+}
+
 /** Plain text of a view at a width (tests, transcripts, --print): the box drawn with the same geometry. */
 export function objectText(item, cols, now) {
   const view = buildObject(item.obj || item, cols, now);

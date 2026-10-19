@@ -35,7 +35,7 @@ export function registerMonitoringCommands(program, ctx) {
       // nothing is stored); logged-in now actually sends the token.
       const data = await client.get(resolveEndpoint('v1.health.aggregate.list').path, {
         service: resolveEndpoint('v1.health.aggregate.list').service,
-        timeout: 5000,
+        timeout: 15000, // #930: aggregate fan-out, 5s too tight under load
       });
       formatDetail(data, { format: program.opts().output, title: 'Platform Health' });
     });

@@ -76,7 +76,12 @@ async function syncOrg(orgId, deps = {}) {
     if (journal.isReady()) {
       journal.applySnapshot({ org_id: orgId, feed: 'hitl', prefix: 'approval:', ts: now, as_of: now, surface: 'collector', events: data.approvals.map(eventFor) });
       if (_failing.delete(orgId)) {
-        journal.append({ org_id: orgId, ledger: 'operational', subject: FAIL_SUBJECT, kind: 'retract', ts: now, state: { status: 'recovered' }, source: { surface: 'collector', feed: 'hitl' } });
+        // #968: carry a RECOVERY summary. Without it the retract row kept the previous FAILING
+        // summary, so the situation's systems.last.L0 read "The approvals list could not be read ...
+        // ago" long after it recovered and chat reported a resolved failure as current.
+        journal.append({ org_id: orgId, ledger: 'operational', subject: FAIL_SUBJECT, kind: 'retract', ts: now,
+          state: { status: 'recovered' }, summary: "The approvals list is readable again.",
+          source: { surface: 'collector', feed: 'hitl' } });
       }
     }
   } catch (err) {

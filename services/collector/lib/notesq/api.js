@@ -29,6 +29,15 @@ const { BUILTIN_TEMPLATES, varsFor, renderTemplate, resolveTemplate, noteTitle }
 const IMPORT_MAX_BYTES = 100 * 1024 * 1024;
 const REQUIRED = ['requireAuth', 'resolveOrgId', 'isPluginLicensed', 'audit', 'deriveActorType', 'isHumanAdmin'];
 
+// SITE-CLI dry-run sweep: true/1/false/0 (any case of type) only; absent = not a dry run.
+// Anything else is refused so it can never fall through to the writing branch.
+function parseDryRunFlag(raw) {
+  if (raw === undefined) return { ok: true, value: false };
+  if (raw === true || raw === 'true' || raw === '1') return { ok: true, value: true };
+  if (raw === false || raw === 'false' || raw === '0') return { ok: true, value: false };
+  return { ok: false };
+}
+
 function registerNotesqRoutes(app, deps) {
   for (const k of REQUIRED) {
     if (!deps || typeof deps[k] !== 'function') throw new Error(`registerNotesqRoutes requires deps.${k}`);
@@ -124,6 +133,7 @@ function registerNotesqRoutes(app, deps) {
     notesqCall,
     audit,
     uploadAttachment: deps.uploadAttachment || createAttachmentUploader({ fetchImpl: deps.fetchImpl }),
+    jobStore: deps.importJobStore || null, // quox#1015: status outlives the 1h memory TTL and restarts
   });
   const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: IMPORT_MAX_BYTES, files: 1 } });
   const importCtx = (req) => {
@@ -159,7 +169,10 @@ function registerNotesqRoutes(app, deps) {
       if (scope !== 'org' && scope !== 'user') return res.status(400).json({ error: 'invalid_scope' });
       const format = opt('format') ? String(opt('format')) : undefined;
       if (format && !FORMATS.includes(format)) return res.status(400).json({ error: 'invalid_format' });
-      const dryRun = ['true', '1', true].includes(opt('dry_run'));
+      // Strict: only true/1/false/0. Any other spelling used to fall through to a LIVE import.
+      const dryFlag = parseDryRunFlag(opt('dry_run'));
+      if (!dryFlag.ok) return res.status(400).json({ error: 'invalid_dry_run' });
+      const dryRun = dryFlag.value;
       const collection = opt('collection') ? String(opt('collection')).slice(0, 120) : undefined;
       if (!dryRun) {
         // People and agents may import (same rule as every other NotesQ write:
@@ -244,6 +257,9 @@ function registerNotesqRoutes(app, deps) {
       if (!ctx.userId) return res.status(400).json({ error: 'user_required' });
       const noteId = req.params.id;
       const b = req.body || {};
+      // Strict: a malformed flag (1, "yes", null) used to create the skill for real.
+      const dryFlag = parseDryRunFlag(b.dry_run);
+      if (!dryFlag.ok) return res.status(400).json({ error: 'invalid_dry_run' });
       const read = await notesqCall({ ctx, method: 'GET', path: `/notesq/notes/${encodeURIComponent(noteId)}`, noteId });
       if (read.status !== 200) return res.status(read.status === 404 ? 404 : read.status).json(read.json || { error: 'not_found' });
       const note = read.json?.note || {};
@@ -254,7 +270,7 @@ function registerNotesqRoutes(app, deps) {
       const category = (typeof b.category === 'string' && b.category.trim()) ? b.category.trim().slice(0, 40) : 'procedure';
       const description = firstParagraph(bodyMd) || name;
       const tags = ['notesq', `source:notesq:${noteId}`];
-      if (b.dry_run === true || b.dry_run === 'true') {
+      if (dryFlag.value) {
         return res.json({ dry_run: true, payload: { name, category, description, bodyMd, tags }, review: 'experimental' });
       }
       const created = await createPendingSkill(

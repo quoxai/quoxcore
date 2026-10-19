@@ -48,7 +48,7 @@ function enqueue(db, userId, conversations = [], error = null, now = Date.now())
 }
 
 function legErrors(out) {
-  return ['memory', 'brain'].filter((k) => out?.[k] && !out[k].ok).map((k) => `${k}: ${out[k].error || 'failed'}`).join('; ') || 'incomplete';
+  return ['memory', 'brain', 'tasks'].filter((k) => out?.[k] && !out[k].ok).map((k) => `${k}: ${out[k].error || 'failed'}`).join('; ') || 'incomplete';
 }
 
 /** One pass over due rows. Returns {due, drained, failed, retired}. */

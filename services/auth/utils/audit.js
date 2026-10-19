@@ -60,6 +60,8 @@ export const AuditActions = {
     // Secrets
     SECRET_CREATE: 'secret.create',
     SECRET_ACCESS: 'secret.access',
+    // A refused credential resolution (cross-org, unknown id). Never a release; status 'denied'.
+    SECRET_ACCESS_DENIED: 'secret.access.denied',
     SECRET_UPDATE: 'secret.update',
     SECRET_DELETE: 'secret.delete',
     SECRET_ROTATE: 'secret.rotate',
@@ -107,6 +109,8 @@ export const AuditActions = {
     INTEGRATION_ACCESS: 'integration.access',
     INTEGRATION_SET_DEFAULT: 'integration.set_default',
     INTEGRATION_ROTATE: 'integration.rotate',
+    // #1288: an org admin allowed (or was refused) their own Ollama on a private address
+    INTEGRATION_PRIVATE_ORIGIN: 'integration.private_origin',
 
     // Instance Configuration (Core Integrations)
     CONFIG_UPDATE: 'config.update',

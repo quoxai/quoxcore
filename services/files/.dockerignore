@@ -2,3 +2,5 @@ node_modules
 npm-debug.log
 .env
 *.db
+# F01: never bake a files store into the image (personal uploads were committed and shipped in every image)
+data/

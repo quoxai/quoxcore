@@ -25,6 +25,7 @@ import { Capabilities } from '../utils/policy.js';
 import { resolveCap } from '../utils/resolveCap.js';
 import { createAuditEvent, ulid, getPagination, formatPaginatedResponse } from '../utils/helpers.js';
 import { resolveEffectivePlan, meetsPlan } from '../utils/planTiers.js';
+import { getUnavailableToolIds, unavailableToolFilter } from '../lib/unavailableTools.js';
 
 const router = Router();
 
@@ -85,6 +86,12 @@ router.get('/catalog', async (req, res) => {
             params.push(`%${search}%`, `%${search}%`, `%${search}%`);
         }
 
+        // quox #1051: declared-but-not-implemented tools (501) are never listed.
+        // Existing rows stay in the table; they reappear once the id leaves the set.
+        const unavailable = unavailableToolFilter('td');
+        whereClause += unavailable.sql;
+        params.push(...unavailable.params);
+
         // Get total count
         const countResult = prepare(`SELECT COUNT(*) as count FROM tool_definitions td ${whereClause}`).get(...params);
         const total = countResult?.count || 0;
@@ -130,6 +137,7 @@ router.get('/catalog/categories', async (req, res) => {
                 return res.status(403).json({ error: 'cross_org_access', message: 'Cannot access resources from another organization' });
             }
         }
+        const unavailable = unavailableToolFilter('td'); // quox #1051: counts match the listing
         let categories;
         if (org_id) {
             categories = prepare(`
@@ -139,11 +147,11 @@ router.get('/catalog/categories', async (req, res) => {
                     COUNT(td.id) as tool_count
                 FROM tool_categories tc
                 LEFT JOIN tool_definitions td ON td.category = tc.id
-                    AND td.status IN ('available', 'beta')
+                    AND td.status IN ('available', 'beta')${unavailable.sql}
                 WHERE tc.org_id IS NULL OR tc.org_id = ?
                 GROUP BY tc.id
                 ORDER BY tc.org_id IS NOT NULL, tc.sort_order
-            `).all(org_id);
+            `).all(...unavailable.params, org_id);
         } else {
             categories = prepare(`
                 SELECT
@@ -152,11 +160,11 @@ router.get('/catalog/categories', async (req, res) => {
                     COUNT(td.id) as tool_count
                 FROM tool_categories tc
                 LEFT JOIN tool_definitions td ON td.category = tc.id
-                    AND td.status IN ('available', 'beta')
+                    AND td.status IN ('available', 'beta')${unavailable.sql}
                 WHERE tc.org_id IS NULL
                 GROUP BY tc.id
                 ORDER BY tc.sort_order
-            `).all();
+            `).all(...unavailable.params);
         }
 
         res.json({ categories });
@@ -177,7 +185,8 @@ router.post('/catalog/categories', async (req, res) => {
         if (!name || typeof name !== 'string' || name.trim().length < 2) {
             return res.status(400).json({ error: 'invalid_name', message: 'Name must be at least 2 characters' });
         }
-        const orgId = req.user?.org_id;
+        // quox#1027: the org authenticate.js VERIFIED (req.org); it never sets req.user.org_id
+        const orgId = req.org?.id;
         if (!orgId) return res.status(401).json({ error: 'unauthorized' });
 
         // Generate slug-based ID with org suffix to avoid collisions
@@ -225,7 +234,8 @@ router.get('/catalog/:toolId', async (req, res) => {
             WHERE td.tool_id = ? OR td.id = ?
         `).get(toolId, toolId);
 
-        if (!tool) {
+        // quox #1051: declared but not implemented (501), so not a catalog tool.
+        if (!tool || getUnavailableToolIds().has(tool.tool_id)) {
             return res.status(404).json({ error: 'Tool not found in catalog' });
         }
 

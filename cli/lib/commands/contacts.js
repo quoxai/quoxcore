@@ -107,6 +107,7 @@ export function registerContactsCommands(program, ctx) {
     const q = textQuery ?? options.q;
     if (q) query.q = q;
     if (options.status) query.status = options.status;
+    if (options.relationship) query.relationship = options.relationship;
     if (options.limit !== undefined) query.limit = Number(options.limit);
     const ep = resolveEndpoint('contactsq.contacts.list');
     const data = await call(() => client.get(ep.path, { service: ep.service, query }));
@@ -186,6 +187,7 @@ export function registerContactsCommands(program, ctx) {
     .description('List contacts')
     .option('--q <text>', 'name filter')
     .option('--status <s>', 'active | candidate | archived')
+    .option('--relationship <r>', 'primary relationship, e.g. customer | supplier | partner')
     .option('--limit <n>', 'max contacts')
     .action((options) => list(options));
 
@@ -371,6 +373,53 @@ export function registerContactsCommands(program, ctx) {
       });
       for (const src of d.sync || []) console.log(`sync ${src.label || src.source_id}: ${src.retired ? 'retired' : (src.last_status || 'never run')}${src.last_run_at ? ` (${src.last_run_at})` : ''}`);
       announce('contacts brief', `${d.candidates_to_review} candidates, ${d.duplicates} duplicates`);
+    });
+
+  contacts
+    .command('timeline <id>')
+    .description('Interaction history of a contact, newest first: surface, direction, outcome and time (refs only, no message bodies)')
+    .option('--limit <n>', 'max entries', '20')
+    .action(async (id, options) => {
+      auth.requireAuth();
+      const ep = resolveEndpoint('contactsq.timeline', { id });
+      const d = await call(() => client.get(ep.path, { service: ep.service, query: { limit: options.limit } }));
+      if (isJson(program)) return printJson(d);
+      const rows = d.timeline || [];
+      if (!rows.length) console.log('No interactions recorded.');
+      for (const t of rows) console.log(`${t.occurred_at || ''}  ${t.surface || ''} ${t.direction || ''} ${t.outcome || ''}${t.agent_id ? ` (agent ${t.agent_id})` : ''}`);
+      announce('contacts timeline', `${rows.length} entries`);
+    });
+
+  contacts
+    .command('best-channel <id>')
+    .description('Which channel (voice, email or sms) may be used to reach a contact for a purpose, with every alternative and its reason codes. Read-only; never shows a number or address')
+    .option('--purpose <purpose>', 'service, transactional, marketing or research', 'service')
+    .action(async (id, options) => {
+      auth.requireAuth();
+      const ep = resolveEndpoint('contactsq.best_channel', { id });
+      const d = await call(() => client.get(ep.path, { service: ep.service, query: { purpose: options.purpose } }));
+      if (isJson(program)) return printJson(d);
+      console.log(`channel: ${d.channel || 'none allowed'}`);
+      for (const a of d.alternatives || []) console.log(`  ${a.channel}: ${a.decision}${(a.reasons || []).length ? ` (${a.reasons.join(', ')})` : ''}`);
+      announce('contacts best-channel', d.channel || 'none allowed');
+    });
+
+  contacts
+    .command('count')
+    .description('How many contacts: the total (people and organisations, not archived or erased) with counts by kind, status and relationship. --kind narrows to person or organisation')
+    .option('--kind <kind>', 'person or organisation')
+    .action(async (options) => {
+      auth.requireAuth();
+      const ep = resolveEndpoint('contactsq.count');
+      const query = options.kind ? { kind: options.kind } : undefined;
+      const d = await call(() => client.get(ep.path, { service: ep.service, query }));
+      if (isJson(program)) return printJson(d);
+      const fmt = (o) => Object.entries(o || {}).map(([k, n]) => `${k} ${n}`).join(', ') || 'none';
+      formatDetail({
+        total: d.total, ...(d.kind ? { kind: d.kind } : {}), by_kind: fmt(d.by_kind), by_status: fmt(d.by_status),
+        by_relationship: fmt(d.by_relationship), candidates_to_review: d.candidates_to_review, generated_at: d.generated_at,
+      });
+      announce('contacts count', `${d.total} contacts${d.kind ? ` (${d.kind})` : ''}`);
     });
 
   contacts

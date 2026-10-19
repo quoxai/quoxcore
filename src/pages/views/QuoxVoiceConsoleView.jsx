@@ -5,8 +5,10 @@
  * Route bounded-height chain lives in app-shell.css (.qvc-view).
  */
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useWorkspace } from '../../contexts/WorkspaceContext'
+import ReceiptChip from '../../components/ui/ReceiptChip'
 
 const API = '/collector/api/v1/telephony/numbers'
 const CALLS_API = '/collector/api/v1/voice/calls'
@@ -106,6 +108,8 @@ function PolicyEditor({ policy, onChange }) {
     <div className="qx-stack">
       <Group title="Greeting and persona">
         <div className="qx-grid-2">
+          <Text label="Brand" hint="Business name the line answers as, e.g. Quox A.I." policy={policy} path={['brand']} onChange={onChange} placeholder="Quox A.I." />
+          <Text label="Opener name" hint="Name spoken in the opener, e.g. CommanderQ" policy={policy} path={['opener_name']} onChange={onChange} placeholder="CommanderQ" />
           <Text label="Greeting" policy={policy} path={['greeting']} onChange={onChange} />
           <Text label="Persona" policy={policy} path={['persona']} onChange={onChange} />
         </div>
@@ -155,8 +159,9 @@ function PolicyEditor({ policy, onChange }) {
         <Toggle label="Self learning" policy={policy} path={['self_learning']} onChange={onChange} />
       </Group>
       <Group title="Voice">
-        <div className="qx-grid-2">
+        <div className="qx-grid-3">
           <Text label="Voice" policy={policy} path={['voice']} onChange={onChange} />
+          <Text label="Language" policy={policy} path={['language']} onChange={onChange} placeholder="en-GB" />
           <Select label="Verbosity" policy={policy} path={['verbosity']} options={['quiet', 'normal', 'verbose']} onChange={onChange} />
         </div>
       </Group>
@@ -221,7 +226,7 @@ function NumberEditor({ row, onSaved, onDeleted, authFetch }) {
       </div>
       {msg && <div className={`qx-banner qx-banner--${msg.kind}`}>{msg.text}</div>}
       <div className="qx-hint">
-        This QuoxLine answers as: {policy.persona || 'default persona'} · widget {policy.support_widget_id || 'none'} · voice {policy.voice || 'default'}
+        This QuoxLine answers as: {policy.opener_name || policy.persona || 'default persona'} for {policy.brand || 'Quox A.I.'} · voice {policy.voice || 'default'} · widget {policy.support_widget_id || 'none'}
       </div>
       <div className="qx-field">
         <label className="qx-field__label">Label</label>
@@ -363,28 +368,196 @@ function Placeholder({ title, body = 'Coming soon.' }) {
   )
 }
 
-const fmtTime = (ms) => (ms ? new Date(ms).toLocaleString() : '-')
+const toMs = (v) => {
+  if (v == null || v === '') return null
+  const t = typeof v === 'number' ? v : new Date(v).getTime()
+  return Number.isFinite(t) ? t : null
+}
+const fmtTime = (v) => { const t = toMs(v); return t ? new Date(t).toLocaleString() : '-' }
+const isOut = (c) => String(c.direction || '').startsWith('out')
 
-function CallsTab() {
-  const { authFetch } = useAuth()
-  const [calls, setCalls] = useState(null)
-  const [error, setError] = useState(null)
+function ago(ms, now = Date.now()) {
+  const d = Math.max(0, Math.round((now - ms) / 1000))
+  if (d < 60) return `${d}s ago`
+  if (d < 3600) return `${Math.round(d / 60)}m ago`
+  if (d < 86400) return `${Math.round(d / 3600)}h ago`
+  return `${Math.round(d / 86400)}d ago`
+}
+
+// Duration only when both ends exist; never invented.
+function callDuration(c) {
+  const a = toMs(c.started_at)
+  const b = toMs(c.ended_at)
+  if (a == null || b == null || b < a) return '-'
+  const s = Math.round((b - a) / 1000)
+  return `${Math.floor(s / 60)}m ${s % 60}s`
+}
+
+// The call rows carry no agent field yet, so this is inferred from direction and labelled so.
+const handledBy = (c) => (isOut(c) ? 'OutboundQ' : 'ReceptionistQ')
+const INFERRED = 'Inferred from direction (call rows carry no agent field yet)'
+
+// The sentence a line answers with, built only from policy keys that are set.
+function answerSentence(policy) {
+  const p = asObj(policy)
+  const parts = [`ReceptionistQ answering as ${p.opener_name || 'Reception'} for ${p.brand || 'Quox A.I.'}`]
+  if (p.pin_required) parts.push('PIN required')
+  if (p.forward_to_mobile) parts.push('forwards to mobile')
+  return parts.join(' · ')
+}
+
+// Speaker name for transcript turns: the line's opener_name when it is unambiguous, else "Reception".
+function openerFor(lines) {
+  const names = [...new Set((lines || []).map((l) => asObj(l.policy).opener_name).filter(Boolean))]
+  return names.length === 1 ? names[0] : 'Reception'
+}
+
+function Switchboard({ lines, calls, error }) {
+  const loading = lines === null || calls === null
+  const today = new Date().toDateString()
+  const list = calls || []
+  const todayCount = list.filter((c) => { const t = toMs(c.started_at); return t != null && new Date(t).toDateString() === today }).length
+  const outbound = list.filter(isOut).length
+  const canTellLive = list.some((c) => 'ended_at' in c)
+  const live = canTellLive ? list.filter((c) => toMs(c.started_at) != null && !toMs(c.ended_at)).length : null
+  const times = list.map((c) => toMs(c.started_at)).filter((t) => t != null)
+  const last = times.length ? Math.max(...times) : null
+
+  return (
+    <div className="qx-card qx-card--bar qx-stack">
+      <div className="qx-row qx-row--apart qx-row--nowrap">
+        <h3 className="qx-section-title">QuoxVoice switchboard</h3>
+        <span className="qx-hint qx-hint--sm">{last ? `last call ${ago(last)}` : 'no calls recorded'}</span>
+      </div>
+      {error && <div className="qx-banner qx-banner--error">{error}</div>}
+      {loading && !error && (
+        <>
+          <div className="qx-skeleton qx-skeleton--line-lg" />
+          <div className="qx-skeleton qx-skeleton--line-lg" />
+        </>
+      )}
+      {!loading && (
+        <>
+          <div className="qx-row qx-row--wrap">
+            <div className="qx-stat">
+              <span className="qx-stat__value qx-stat__value--hero">{(lines || []).length}</span>
+              <span className="qx-stat__label">{(lines || []).length === 1 ? 'line' : 'lines'}</span>
+            </div>
+            {live != null && (
+              <div className="qx-stat">
+                <span className="qx-stat__value qx-stat__value--sm">{live}</span>
+                <span className="qx-stat__label">on a call now</span>
+              </div>
+            )}
+            <div className="qx-stat">
+              <span className="qx-stat__value qx-stat__value--sm">{list.length}</span>
+              <span className="qx-stat__label">calls</span>
+            </div>
+            <div className="qx-stat">
+              <span className="qx-stat__value qx-stat__value--sm">{list.length - outbound}</span>
+              <span className="qx-stat__label">inbound</span>
+            </div>
+            <div className="qx-stat">
+              <span className="qx-stat__value qx-stat__value--sm">{outbound}</span>
+              <span className="qx-stat__label">outbound</span>
+            </div>
+          </div>
+          {(lines || []).length === 0 && <div className="qx-hint">No QuoxLine bound yet. Add one in the QuoxLines tab.</div>}
+          {(lines || []).map((l) => {
+            const bound = Object.keys(asObj(l.policy)).length > 0
+            return (
+              <div key={l.number} className="qx-host-row">
+                <span className={`qx-dot qx-dot--static ${bound ? 'qx-dot--online' : 'qx-dot--idle'} qx-host-row__dot`} aria-hidden="true" />
+                <div className="qx-host-row__body">
+                  <span className="qx-host-row__primary"><span className="qx-code">{l.number}</span></span>
+                  <span className="qx-host-row__secondary">{l.label || 'Unlabelled'}</span>
+                </div>
+                <span className="qx-host-row__meta">{bound ? answerSentence(l.policy) : 'No policy set, answering with defaults'}</span>
+              </div>
+            )
+          })}
+          <div className="qx-hint">
+            {last
+              ? `${todayCount} call${todayCount === 1 ? '' : 's'} today, last call ${ago(last)}.`
+              : 'No calls yet, so there is nothing to report on the voice lines.'}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+const DIRS = [['all', 'All'], ['in', 'Inbound'], ['out', 'Outbound']]
+
+function AgentTag({ call }) {
+  return (
+    <span className="qx-agent-tile qx-tip" data-tip={INFERRED} title={INFERRED}>
+      <span className="qx-agent-tile__body">
+        <span className="qx-agent-tile__name">{handledBy(call)}</span>
+      </span>
+    </span>
+  )
+}
+
+const DETAIL_TIP = 'Available once the call-to-envelope join ships'
+
+function CallDetail({ call, speaker }) {
+  const turns = Array.isArray(call.transcript) ? call.transcript : []
+  const ended = toMs(call.ended_at)
+  return (
+    <div className="qx-card qx-split qx-split--master">
+      <div className="qx-stack">
+        <div className="qx-row qx-row--apart">
+          <h3 className="qx-section-title">Call <span className="qx-code">{call.call_sid}</span></h3>
+          <div className="qx-row qx-row--tight">
+            {['Open envelope', 'Verify', 'Export'].map((l) => (
+              <button key={l} type="button" className="qx-btn qx-btn--sm" disabled title={DETAIL_TIP}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <span className="qx-stage-track" role="list" aria-label="call stages">
+          <span className={`qx-stage-track__node ${ended ? 'qx-stage-track__node--done' : 'qx-stage-track__node--current'}`} role="listitem" />
+          <span className="qx-stage-track__label">answered</span>
+          <span className={`qx-stage-track__bar${ended ? ' qx-stage-track__bar--done' : ''}`} />
+          <span className={`qx-stage-track__node${ended ? ' qx-stage-track__node--terminal' : ''}`} role="listitem" />
+          <span className="qx-stage-track__label">{ended ? 'ended' : 'in progress'}</span>
+        </span>
+        <div className="qx-kv">
+          <div className="qx-stat-row"><span className="qx-stat-row__label">Handled by</span><span className="qx-stat-row__value qx-tip" data-tip={INFERRED} title={INFERRED}>{handledBy(call)} (inferred)</span></div>
+          <div className="qx-stat-row"><span className="qx-stat-row__label">Duration</span><span className="qx-stat-row__value">{callDuration(call)}</span></div>
+          <div className="qx-stat-row"><span className="qx-stat-row__label">Turns</span><span className="qx-stat-row__value">{turns.length}</span></div>
+          <div className="qx-stat-row"><span className="qx-stat-row__label">Receipt</span><span className="qx-stat-row__value"><ReceiptChip state="pending" /></span></div>
+        </div>
+      </div>
+      <div className="qx-stack">
+        <h3 className="qx-section-title">Transcript</h3>
+        <div className="qx-slate qx-card qx-stack">
+          {turns.length === 0 && <div className="qx-hint">No transcript recorded.</div>}
+          {turns.map((t, i) => {
+            const caller = t.role === 'user'
+            const when = toMs(t.ts ?? t.at ?? t.timestamp)
+            return (
+              <div key={i} className="qx-slot-msg">
+                <div className="qx-slot-msg__meta">
+                  <span className={`qx-dot qx-dot--static ${caller ? 'qx-dot--idle' : 'qx-dot--online'}`} aria-hidden="true" />
+                  <strong>{caller ? 'Caller' : speaker}</strong>
+                  <span className="qx-hint qx-hint--sm">{when ? new Date(when).toLocaleTimeString() : `turn ${i + 1}`}</span>
+                </div>
+                <div className="qx-slot-msg__body">{typeof t.content === 'string' ? t.content : JSON.stringify(t.content)}</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CallsTab({ calls, lines, error }) {
   const [open, setOpen] = useState(null)
+  const [dir, setDir] = useState('all')
 
-  const load = useCallback(async () => {
-    try {
-      const res = await authFetch(CALLS_API)
-      if (!res.ok) { setError(`Could not load calls (HTTP ${res.status}).`); setCalls([]); return }
-      const body = await res.json()
-      setCalls(Array.isArray(body.calls) ? body.calls : [])
-      setError(null)
-    } catch (e) {
-      setError(`Could not load calls: ${e.message || e}`); setCalls([])
-    }
-  }, [authFetch])
-
-  useEffect(() => { load() }, [load])
-
+  const shown = (calls || []).filter((c) => dir === 'all' || (dir === 'out') === isOut(c))
   const current = calls && calls.find((c) => c.call_sid === open)
 
   return (
@@ -396,39 +569,43 @@ function CallsTab() {
           <div className="qx-empty__title">No calls yet.</div>
         </div>
       )}
-      {calls && calls.length > 0 && <div className="qx-hint">Select a call to read its transcript.</div>}
+      {calls && calls.length > 0 && (
+        <div className="qx-row qx-row--apart qx-row--center">
+          <div className="qx-seg" role="group" aria-label="Direction">
+            {DIRS.map(([id, l]) => (
+              <button key={id} type="button" className={`qx-seg__btn${dir === id ? ' qx-seg__btn--active' : ''}`} aria-pressed={dir === id} onClick={() => setDir(id)}>{l}</button>
+            ))}
+          </div>
+          <span className="qx-hint">Select a call to read its transcript. Receipts show pending until the call-to-envelope join ships.</span>
+        </div>
+      )}
       {calls && calls.length > 0 && (
         <table className="qx-table">
-          <thead><tr><th></th><th>Time</th><th>Direction</th><th>Who</th><th>Summary</th><th>Transcript</th></tr></thead>
+          <thead><tr><th></th><th>When</th><th>Dir</th><th>Who</th><th>Handled by</th><th>Dur</th><th>Receipt</th></tr></thead>
           <tbody>
-            {calls.map((c) => (
+            {shown.map((c) => (
               <tr
                 key={c.call_sid}
                 className={c.call_sid === open ? 'qx-table__row--active' : ''}
                 onClick={() => setOpen(c.call_sid === open ? null : c.call_sid)}
               >
-                <td>{c.call_sid === open ? '\u25BE' : '\u25B8'}</td>
-                <td>{fmtTime(c.started_at)}</td>
-                <td>{(c.direction || '').startsWith('out') ? 'out' : 'in'}</td>
+                <td>{c.call_sid === open ? '▾' : '▸'}</td>
+                <td>
+                  <div title={fmtTime(c.started_at)}>{toMs(c.started_at) ? ago(toMs(c.started_at)) : '-'}</div>
+                  <div className="qx-hint qx-hint--sm">{c.summary || 'No summary'}</div>
+                </td>
+                <td><span className={`qx-pill qx-pill--xs ${isOut(c) ? 'qx-pill--purple' : 'qx-pill--info'}`}>{isOut(c) ? 'out' : 'in'}</span></td>
                 <td><span className="qx-code">{c.peer || '-'}</span></td>
-                <td>{c.summary || '-'}</td>
-                <td>{(c.transcript || []).length} turns</td>
+                <td><AgentTag call={c} /></td>
+                <td>{callDuration(c)}</td>
+                <td><ReceiptChip state="pending" /></td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
-      {current && (
-        <div className="qx-card qx-stack">
-          <h3 className="qx-section-title">Transcript</h3>
-          {current.transcript.length === 0 && <div className="qx-hint">No transcript recorded.</div>}
-          {current.transcript.map((t, i) => (
-            <div key={i}>
-              <strong>{t.role === 'user' ? 'Caller' : 'Assistant'}:</strong> {typeof t.content === 'string' ? t.content : JSON.stringify(t.content)}
-            </div>
-          ))}
-        </div>
-      )}
+      {calls && calls.length > 0 && shown.length === 0 && <div className="qx-hint">No calls match this filter.</div>}
+      {current && <CallDetail call={current} speaker={openerFor(lines)} />}
     </div>
   )
 }
@@ -581,7 +758,7 @@ function IdentitiesTab() {
   )
 }
 
-const fmtDuration = (s) => (s == null ? '—' : `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`)
+const fmtDuration = (s) => (s == null ? '-' : `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`)
 
 function Stat({ label, value }) {
   return (
@@ -622,7 +799,7 @@ function InsightsTab() {
   const days = Array.isArray(data.by_day) ? data.by_day : []
   const peers = Array.isArray(data.top_peers) ? data.top_peers : []
   const maxDay = Math.max(...days.map((d) => Number(d.count) || 0), 1)
-  const avgTurns = data.avg_turns == null ? '—' : Number(data.avg_turns).toFixed(1)
+  const avgTurns = data.avg_turns == null ? '-' : Number(data.avg_turns).toFixed(1)
 
   return (
     <div className="qx-stack">
@@ -632,7 +809,7 @@ function InsightsTab() {
         <Stat label="Outbound" value={data.outbound ?? 0} />
         <Stat label="Avg turns" value={avgTurns} />
         <Stat label="Avg duration" value={fmtDuration(data.avg_duration_sec)} />
-        <Stat label="Last call" value={data.last_call_at ? new Date(data.last_call_at).toLocaleString() : '—'} />
+        <Stat label="Last call" value={data.last_call_at ? new Date(data.last_call_at).toLocaleString() : '-'} />
       </div>
       {days.length > 0 && (
         <div className="qx-stack qx-stack--tight">
@@ -684,28 +861,72 @@ function RecordingsTab() {
   )
 }
 
+const VALID_TABS = ['numbers', 'calls', 'team', 'identities', 'insights', 'recordings', 'live']
+
 export default function QuoxVoiceConsoleView() {
-  const [tab, setTab] = useState('numbers')
+  const { authFetch } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const urlTab = searchParams.get('tab')
+  const [tab, setTab] = useState(VALID_TABS.includes(urlTab) ? urlTab : 'numbers')
+  const selectTab = (id) => {
+    setTab(id)
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', id)
+    setSearchParams(next, { replace: true })
+  }
+  const [lines, setLines] = useState(null)
+  const [calls, setCalls] = useState(null)
+  const [callsError, setCallsError] = useState(null)
+  const [linesError, setLinesError] = useState(null)
   const tabCls = (id) => `qx-tab${tab === id ? ' qx-tab--active' : ''}`
+
+  const loadCalls = useCallback(async () => {
+    try {
+      const res = await authFetch(CALLS_API)
+      if (!res.ok) { setCallsError(`Could not load calls (HTTP ${res.status}).`); setCalls([]); return }
+      const body = await res.json()
+      setCalls(Array.isArray(body.calls) ? body.calls : [])
+      setCallsError(null)
+    } catch (e) {
+      setCallsError(`Could not load calls: ${e.message || e}`); setCalls([])
+    }
+  }, [authFetch])
+
+  const loadLines = useCallback(async () => {
+    try {
+      const res = await authFetch(API)
+      if (!res.ok) { setLinesError(`Could not load numbers (HTTP ${res.status}).`); setLines([]); return }
+      const body = await res.json()
+      setLines(Array.isArray(body.numbers) ? body.numbers : [])
+      setLinesError(null)
+    } catch (e) {
+      setLinesError(`Could not load numbers: ${e.message || e}`); setLines([])
+    }
+  }, [authFetch])
+
+  useEffect(() => { loadCalls() }, [loadCalls])
+  // Re-read the lines on every tab change so the switchboard reflects policy edits.
+  useEffect(() => { loadLines() }, [loadLines, tab])
+
   return (
     <div className="qx-view qvc-view">
+      <Switchboard lines={lines} calls={calls} error={linesError || callsError} />
       <div
         className="qx-card"
         style={{ padding: 20, flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}
       >
-        <div className="qx-row qx-row--apart">
-          <h2>QuoxVoice Console</h2>
-        </div>
         <div className="qx-tabs">
-          <button className={tabCls('numbers')} onClick={() => setTab('numbers')}>QuoxLines</button>
-          <button className={tabCls('calls')} onClick={() => setTab('calls')}>Calls</button>
-          <button className={tabCls('identities')} onClick={() => setTab('identities')}>Identities</button>
-          <button className={tabCls('insights')} onClick={() => setTab('insights')}>Insights</button>
-          <button className={tabCls('recordings')} onClick={() => setTab('recordings')}>Recordings</button>
-          <button className={tabCls('live')} onClick={() => setTab('live')}>Live</button>
+          <button className={tabCls('numbers')} onClick={() => selectTab('numbers')}>QuoxLines</button>
+          <button className={tabCls('calls')} onClick={() => selectTab('calls')}>Calls</button>
+          <button className={tabCls('team')} onClick={() => selectTab('team')}>Team</button>
+          <button className={tabCls('identities')} onClick={() => selectTab('identities')}>Identities</button>
+          <button className={tabCls('insights')} onClick={() => selectTab('insights')}>Insights</button>
+          <button className={tabCls('recordings')} onClick={() => selectTab('recordings')}>Recordings</button>
+          <button className={tabCls('live')} onClick={() => selectTab('live')}>Live</button>
         </div>
         {tab === 'numbers' && <NumbersTab />}
-        {tab === 'calls' && <CallsTab />}
+        {tab === 'calls' && <CallsTab calls={calls} lines={lines} error={callsError} />}
+        {tab === 'team' && <Placeholder title="Team" body="Coming next." />}
         {tab === 'identities' && <IdentitiesTab />}
         {tab === 'insights' && <InsightsTab />}
         {tab === 'live' && <Placeholder title="Live" body="Realtime voice is a separate beta plugin; enable it to talk live." />}

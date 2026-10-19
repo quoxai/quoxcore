@@ -4,18 +4,28 @@
  */
 import { resolveEndpoint } from '../api/endpoints.js';
 import { rememberEmail } from '../core/auth.js';
-import { isSessionDead } from './signin.js';
+import { isSessionDead } from './sessionDead.js'; // not signin.js: that loads React + Ink (QUOXON-LATENCY)
 import { buildStreamQuery } from '../commands/chat.js';
 import { loadBundledAssistantsRoster } from '../core/agentAlias.js';
+import { bundledIdentities } from './objects/fetch.js';
 import { recordHeldSlot } from '../commands/slot.js';
 import { askGripe, settleGripe } from '../commands/gripe.js';
+import { sendFeedback } from './feedback.js';
 import { fromObjective, fromExecution, fromApproval, sortRows } from './roster.js';
 import { normChoice } from './model.js';
 import { normPrefs as normModelPrefs } from './modelPrefs.js';
+import { createRowsStore } from './rowsStore.js';
 import { createObjectsApi } from './objects/fetch.js';
+import { createKillerApi } from './slash/killerApi.js';
+import { createUndoOps } from './slash/undoApi.js';
 import { resolveDashboardBase, resolveCollectorBase, detectLanIp } from './hostUrls.js';
 import { grantBody } from './consent.js';
 import { loadJourney } from './onboarding/journey.js';
+import { joinServiceUrl } from '../core/config.js';
+import { runVmCommand } from '../core/vmTui.js';
+import { fetchActivity, heldLines } from '../core/hyperion.js';
+import { createPeekFetchers, peekId } from '../core/peek.js';
+import { askAside } from '../core/aside.js';
 
 const missing = (e) => e?.status === 404 || e?.status === 405 || e?.status === 501;
 /** Server steer refusal label -> client reason. Unknown labels are 'ambiguous', never "finished". */
@@ -54,8 +64,22 @@ async function* readTurn(open, cur, signal) {
 const sleepFor = (ms, signal) => new Promise((r) => { if (signal?.aborted) return r(); const t = setTimeout(done, ms); function done() { clearTimeout(t); signal?.removeEventListener?.('abort', done); r(); } signal?.addEventListener?.('abort', done, { once: true }); });
 const listOf = (d, ...keys) => { for (const k of keys) if (Array.isArray(d?.[k])) return d[k]; return Array.isArray(d) ? d : null; };
 
-export function createApi({ client, config, auth, reattachBackoff = REATTACH_BACKOFF_MS }) {
+export const SLOTS_UNLICENSED = 'Slots need a licence. This Quox does not have one, so /slot is off. See: quox setup license status';
+// Z2H run-6: every slot write (checkout, /say, /broadcast) names the licence reason the same way.
+/** #1288: a refused vault write, keeping the server's "confirm this private address" hint. */
+const vaultFailure = (e) => ({ ok: false, status: e?.status, message: e?.message || 'failed', ...(e?.body?.confirmable === true ? { confirmable: true, origin: typeof e.body.origin === 'string' ? e.body.origin : null } : {}) });
+const slotsUnlicensed = (e) => e?.status === 403 && /not licen[cs]ed/i.test(`${e?.code || ''} ${e?.body?.error || ''} ${e?.message || ''}`);
+
+/** PRESENCE: only a person at a real terminal is "back". --print, pipes, proof runs and agents are not. */
+export function isInteractiveHuman({ stdin = process.stdin, stdout = process.stdout, env = process.env } = {}) {
+  return Boolean(stdin?.isTTY && stdout?.isTTY) && !env.CI;
+}
+
+export function createApi({ client, config, auth, windowOrg = null, reattachBackoff = REATTACH_BACKOFF_MS }) {
+  let holderSessionFn = null;
   const orgId = () => { try { return auth.getOrgId(); } catch { return null; } };
+  const rowsStore = createRowsStore({ client, config, orgId });
+  let credsSeen = null; // credentials-file mtime last seen (credentialsChanged)
   const userId = () => { try { return config.getAuth?.()?.user_id || null; } catch { return null; } };
   /** Z2H-R3: the server's public app URL (instance_config app_base_url), or null (not admin, old server, unset). Never throws. */
   const serverAppUrl = async () => {
@@ -64,7 +88,7 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
   const journeyUrl = () => { try { return loadJourney()?.dashboardUrl || null; } catch { return null; } };
   const listApprovals = async () => {
     // quox#827: the set comes from the server's one open-approvals function (the same one behind the dashboard badge and LUCID).
-    const ep = resolveEndpoint('approvals.open', { orgId: orgId() });
+    const ep = resolveEndpoint('inbox.approvals.open', { orgId: orgId() });
     try {
       const data = await client.get(ep.path, { service: ep.service });
       if (Array.isArray(data?.approvals)) return data.approvals.map((a) => a.item).filter(Boolean);
@@ -110,9 +134,36 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
     err.code = 'reattach_failed';
     throw err;
   }
+  /** PRESENCE auto-clear: the human's own first real action. -> { ok, cleared, welcome } (welcome once: { away_text, via }). Never throws. */
+  async function noteActivity(action, { quiet = false, interactive = isInteractiveHuman() } = {}) {
+    if (!interactive) return { ok: false, cleared: false, welcome: null, skipped: 'not interactive' };
+    try {
+      const ep = resolveEndpoint('presence.activity');
+      const d = await client.post(ep.path, { service: ep.service, retries: 0, timeout: 6000, body: { action, org_id: orgId(), ...(quiet ? { quiet: true } : {}) } });
+      return { ok: true, cleared: d?.cleared === true, welcome: d?.welcome || null };
+    } catch (e) { return { ok: false, cleared: false, welcome: null, status: e?.status || null }; }
+  }
   return {
+    ...createKillerApi({ client }),
     orgId,
+    undoOps: createUndoOps({ client, orgId }), // /undo
     userId,
+    /** /peek <id>: the same lookup as `quox peek`, in this window's org. -> peekId result */
+    peek: (id) => peekId(id, createPeekFetchers({ client, orgId })),
+    /** /aside: a no-tools, no-conversation question (core/aside.js). turns = recent exchanges, read-only context. */
+    aside: (question, turns = []) => askAside(client, { question, turns }),
+    /** @mention hosts: the Bastion inventory (same read as `quox fleet hosts`). -> [{ id, group, health }] */
+    async mentionHosts() {
+      const ep = resolveEndpoint('v1.fleet.hosts.list');
+      const d = await client.get(ep.path, { service: ep.service, retries: 0, timeout: 8000 });
+      return (listOf(d, 'hosts') || []).map(h => ({ id: h.id, group: h.group || '', health: h.status?.health || '' }));
+    },
+    /** @mention tasks: the newest objectives (one read, cached by the composer for the session). -> [{ id, title, status }] */
+    async mentionTasks() {
+      const ep = resolveEndpoint('objectives.list');
+      const d = await client.get(ep.path, { service: ep.service, query: { limit: 30 }, retries: 0, timeout: 8000 });
+      return (listOf(d, 'objectives', 'data') || []).map(o => ({ id: o.id, title: o.title || '', status: o.status || '' }));
+    },
     /** Z2H: the same login path as `quox login` (createAuth().login). Returns only what the card needs; tokens are stored by auth, never surfaced. */
     async signIn(email, password) {
       const r = await auth.login(config.getServiceUrl('auth'), email, password);
@@ -134,6 +185,21 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
       } catch (e) {
         return isSessionDead(e) ? { alive: false, reason: e.reason || null } : { alive: true };
       }
+    },
+    /**
+     * Stale sign-in: true once each time the credentials file changed on disk since the last call (another window
+     * or `quox login` wrote it). A cheap stat; the first call only records the baseline.
+     */
+    credentialsChanged() {
+      try {
+        const m = config.credentialsMtime?.() || 0;
+        const was = credsSeen; credsSeen = m;
+        return was !== null && m !== was;
+      } catch { return false; }
+    },
+    /** Re-read this profile's credentials from disk. -> true when a signed-in profile is there to retry with. */
+    reloadCredentials() {
+      try { config.reloadAuth?.(); return Boolean(config.getAuth?.()?.access_token); } catch { return false; }
     },
     /** Inline object views (objects/): skill, workflow, crystal, agent, memory, rules, proof, reconcile. */
     objects: createObjectsApi({ client, orgId, profile: config?._effectiveProfile || null }),
@@ -193,6 +259,11 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
       try { return normModelPrefs(config.getActiveProfile?.()?.model_prefs); }
       catch { return normModelPrefs(null); }
     },
+    /**
+     * QUOXON-FW17 / ROWS: custom rows. url, quox and plugin rows sync per user (preference namespace `quoxonRows`);
+     * cmd rows stay in a local file. One implementation, shared with `quox rows` (rowsStore.js).
+     */
+    ...rowsStore,
     /** Local copy on the active CLI profile: offline start + fallback store. */
     localSoundProfile() { try { return config.getActiveProfile?.()?.sound_profile || null; } catch { return null; } },
     setLocalSoundProfile(p) { const prof = config.getActiveProfile?.(); if (!prof) return false; prof.sound_profile = p; config.save?.(); return true; },
@@ -203,17 +274,21 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
      * by seq. While reconnecting it yields { type:'reconnecting', attempt } and, once back, { type:'resumed', after }.
      * A server without v1.1 (no seq on its events) gets the v1 behaviour: no reattach.
      */
-    async *stream({ turnId, message, agent, conversationId, context, provider, model, promptProfile, durable = true }, signal) {
+    async *stream({ turnId, message, agent, conversationId, context, provider, model, promptProfile, heldSlot = null, durable = true, overrideId = undefined, turnBudgetMs = undefined, mode = undefined, handoffFrom = undefined }, signal) {
       const body = buildStreamQuery({ queryId: turnId, message, agent: agent || 'quox', sessionId: conversationId, context });
       body.turn_id = turnId;
       if (durable) body.durable = true; // the server keeps the turn running when we disconnect (v1.1)
+      if (Number(turnBudgetMs) > 0) body.turn_budget_ms = Math.floor(Number(turnBudgetMs)); // quox#1090: a delegation hop may use the turn's budget
       if (provider) body.provider = provider; // a request: the server policy decides, turn.started says what ran
       if (provider && model) body.model = model;
       if (promptProfile === 'compact' || promptProfile === 'full') body.prompt_profile = promptProfile; // D3: server default when absent
       if (conversationId) body.conversation_id = conversationId;
+      if (mode === 'plan') body.mode = 'plan'; // PLAN MODE: the server makes no state-changing tool eligible and refuses writes
+      if (heldSlot?.name && heldSlot?.session) body.held_slot = heldSlot; // QUOXON-MESH: slot_say signs as this window's slot
+      if (handoffFrom) body.handoff_from = String(handoffFrom).slice(0, 80); // a handed-off turn: this agent stays attached, the server labels the exchange for it
       const ep = resolveEndpoint('chat.stream');
       const cur = { lastSeq: 0, finished: false, conversationId: conversationId || null };
-      const drop = yield* readTurn((sig) => client.stream(ep.path, { service: ep.service, body, signal: sig, untilClose: true }), cur, signal);
+      const drop = yield* readTurn((sig) => client.stream(ep.path, { service: ep.service, body, signal: sig, untilClose: true, ...(overrideId ? { headers: { 'x-override-id': overrideId } } : {}) }), cur, signal);
       if (cur.finished || !drop || !durable || signal?.aborted) return;
       if (!cur.lastSeq || !cur.conversationId) { if (drop.error) throw drop.error; return; } // v1 server: nothing to reattach to
       yield* reattachLoop({ turnId, cur, signal, first: drop.error, backoff: reattachBackoff });
@@ -282,16 +357,17 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
       const roster = loadBundledAssistantsRoster();
       const nameOf = new Map(roster.map(r => [r.id, r.name || r.shortName || r.id]));
       const out = new Map(); let ok = 0; let lastErr = null;
+      let ids = null; const roleOf = (id) => { ids ??= bundledIdentities(); const i = ids.get(id); return i?.tagline || i?.description || null; };
       try {
         const ep = resolveEndpoint('v1.tools.agents.list');
         const d = await client.get(ep.path, { service: ep.service, retries: 0 }); // authenticated: the collector's default-deny gate 401s a noAuth read
-        for (const id of Object.keys(d?.agentTools || {})) out.set(id, { agent_id: id, name: nameOf.get(id) || id });
+        for (const id of Object.keys(d?.agentTools || {})) out.set(id, { agent_id: id, name: nameOf.get(id) || id, role: roleOf(id), status: 'registered' });
         ok++;
-      } catch (e) { lastErr = e; for (const r of roster) out.set(r.id, { agent_id: r.id, name: nameOf.get(r.id) }); if (roster.length) ok++; }
+      } catch (e) { lastErr = e; for (const r of roster) out.set(r.id, { agent_id: r.id, name: nameOf.get(r.id), role: roleOf(r.id) }); if (roster.length) ok++; }
       try {
         const ep = resolveEndpoint('agents.list', { orgId: orgId() });
         const rows = listOf(await client.get(ep.path, { service: ep.service, query: { includeTools: 'false' }, retries: 0 }), 'agents', 'data', 'items');
-        for (const r of rows || []) if (r.agent_id && !out.has(r.agent_id)) out.set(r.agent_id, { agent_id: r.agent_id, name: r.name || r.agent_id });
+        for (const r of rows || []) if (r.agent_id && !out.has(r.agent_id)) out.set(r.agent_id, { agent_id: r.agent_id, name: r.name || r.agent_id, role: r.description || null, status: r.status || null });
         if (rows) ok++;
       } catch (e) { lastErr = lastErr || e; }
       if (!ok) throw lastErr || new Error('no agent list available');
@@ -412,6 +488,11 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
         return { ok: false, message: e?.status ? `HTTP ${e.status}: ${e.message}` : (e?.message || 'failed') };
       }
     },
+    /**
+     * /feedback: POST the previewed payload to the public quox.ai feedback API (not the org's server, not GitHub).
+     * Anonymous by design: no token, cookie, org or profile goes with it. -> { ok:true, id, url } | { ok:false, message }.
+     */
+    async feedback(payload, { version = null } = {}) { return sendFeedback(payload, { version }); },
     /** Installed, enabled plugin ids for the org (GET plugins.list, as `quox plugin list`). Throws on failure so it never reads as "none". */
     async installedPlugins() {
       const id = orgId();
@@ -436,24 +517,150 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
       if (!rows) throw new Error('unexpected response');
       return rows;
     },
-    /** Post a message into a slot room (same call as `quox slot say`). -> { ok:true } | { ok:false, message }. */
-    async slotSay(name, text) {
+    /**
+     * Post a message into a slot room (same call as `quox slot say`). QUOXON-MESH: `from` signs it as this window
+     * ("quox1 (Adam)"); `fast` answers once the line is in the slot, without waiting on the chat-app bridges.
+     * -> { ok:true, message } | { ok:false, message, status }.
+     */
+    /** SLOTS-REPLY2: the window registers how to name its checkout session; slotSay then sends it as holder_session. */
+    bindHolderSession(fn) { holderSessionFn = typeof fn === 'function' ? fn : null; },
+    async slotSay(name, text, { from = null, fast = false, roomSession = null, fromSlot = null, holderSession = holderSessionFn ? holderSessionFn() : null } = {}) {
       const ep = resolveEndpoint('v1.slots.say', { name });
       try {
-        await client.post(ep.path, { service: ep.service, body: { text, org_id: orgId() } });
-        return { ok: true };
-      } catch (e) { return { ok: false, message: e?.message || 'failed' }; }
+        // SLOTS-REPLY: fromSlot is this window's held slot, its reply address (the server verifies the hold).
+        const d = await client.post(ep.path, { service: ep.service, retries: 0, body: { text, org_id: orgId(), ...(roomSession ? { room_session: roomSession } : from ? { from } : {}), ...(!roomSession && fromSlot ? { from_slot: fromSlot } : {}), ...(!roomSession && holderSession ? { holder_session: holderSession } : {}), ...(fast ? { bridge_report: false } : {}) } });
+        return { ok: true, message: d?.message || null, roomPending: d?.room_pending === true, presence: d?.presence || null, humanPresence: d?.human_presence || null };
+      } catch (e) {
+        if (slotsUnlicensed(e)) return { ok: false, unlicensed: true, status: 403, message: SLOTS_UNLICENSED };
+        return { ok: false, message: e?.status === 404 ? `no slot named ${name}` : (e?.message || 'failed'), status: e?.status || null };
+      }
     },
-    async checkoutSlot(name, session) {
+    /** QUOXON-BROADCAST: fan a message out to the org's held slots. -> { ok:true, data } | { ok:false, message, status }. */
+    async slotBroadcast({ text, slots = null, priority = 'normal', ack = false, from = null } = {}) {
+      const ep = resolveEndpoint('v1.slots.broadcast');
+      try {
+        const data = await client.post(ep.path, { service: ep.service, retries: 0, body: { text, priority, ack, org_id: orgId(), ...(slots ? { slots } : {}), ...(from ? { from } : {}) } });
+        return { ok: true, data };
+      } catch (e) {
+        if (slotsUnlicensed(e)) return { ok: false, unlicensed: true, status: 403, message: SLOTS_UNLICENSED };
+        return { ok: false, message: e?.message || 'failed', status: e?.status || null };
+      }
+    },
+    async slotBroadcastStatus(id) {
+      const ep = resolveEndpoint('v1.slots.broadcast.get', { id });
+      try { return { ok: true, data: await client.get(ep.path, { service: ep.service, retries: 0, query: { org_id: orgId() } }) }; } catch (e) { return { ok: false, message: e?.message || 'failed', status: e?.status || null }; }
+    },
+    // POKE-WAKE: slot control (server allows a human org owner/admin only; agents are refused).
+    async slotControl(slot, command) {
+      const ep = resolveEndpoint('v1.slots.control', { name: slot });
+      try { return { ok: true, data: await client.post(ep.path, { service: ep.service, retries: 0, body: { command, org_id: orgId() } }) }; } catch (e) { return { ok: false, message: e?.message || 'failed', status: e?.status || null }; }
+    },
+    async slotControlGet(slot, id) {
+      const ep = resolveEndpoint('v1.slots.control.get', { name: slot, id });
+      try { return { ok: true, data: await client.get(ep.path, { service: ep.service, retries: 0, query: { org_id: orgId() } }) }; } catch (e) { return { ok: false, message: e?.message || 'failed', status: e?.status || null }; }
+    },
+    async slotAck(id, slot) {
+      const ep = resolveEndpoint('v1.slots.broadcast.ack', { id });
+      try { return { ok: true, data: await client.post(ep.path, { service: ep.service, retries: 0, body: { slot, org_id: orgId() } }) }; } catch (e) { return { ok: false, message: e?.message || 'failed', status: e?.status || null }; }
+    },
+    /** QUOXON-MESH: the slot's live messages (SSE). Yields { type: 'connected' | 'slot.message' | 'reconnect' }. */
+    async *slotStream(name, { since = null, excludeFrom = null, session = null } = {}, signal) {
+      const ep = resolveEndpoint('v1.slots.stream', { name });
+      yield* client.stream(ep.path, { service: ep.service, query: { org_id: orgId(), since, exclude_from: excludeFrom, ...(session ? { session } : {}) }, signal, untilClose: true });
+    },
+    /** QUOXON-ROOMS: join / leave a slot as a room (no hold). -> { ok, already? | removed? } | { ok:false, message, status }. */
+    async slotJoin(name, session, person = null) {
+      const ep = resolveEndpoint('v1.slots.join', { name });
+      try { const d = await client.post(ep.path, { service: ep.service, retries: 0, body: { session, ...(person ? { person } : {}), org_id: orgId() } }); return { ok: true, already: d?.already === true }; }
+      catch (e) { return { ok: false, message: e?.status === 404 ? `no slot named ${name}` : (e?.message || 'failed'), status: e?.status || null }; }
+    },
+    async slotLeave(name, session) {
+      const ep = resolveEndpoint('v1.slots.leave', { name });
+      try { const d = await client.post(ep.path, { service: ep.service, retries: 0, body: { session, org_id: orgId() } }); return { ok: true, removed: d?.removed === true }; }
+      catch (e) { return { ok: false, message: e?.message || 'failed', status: e?.status || null }; }
+    },
+    /** The rooms this session has joined (server truth, survives a restart). -> [{ slot_name, joined_at }]; throws on failure. */
+    async slotRooms(session) {
+      const ep = resolveEndpoint('v1.slots.rooms');
+      const d = await client.get(ep.path, { service: ep.service, retries: 0, query: { session, org_id: orgId() } });
+      return Array.isArray(d?.rooms) ? d.rooms : [];
+    },
+    /** Long-poll fallback for a server without the stream route (same call as `quox slot wait`). */
+    async slotWait(name, { since = null, excludeFrom = null } = {}) {
+      const ep = resolveEndpoint('v1.slots.wait', { name });
+      return client.get(ep.path, { service: ep.service, retries: 0, timeout: 40000, query: { org_id: orgId(), since, exclude_from: excludeFrom, timeout_ms: 25000 } });
+    },
+    /** Last `limit` messages of a slot, oldest first (same call as `quox slot read`). Throws on failure. */
+    async slotMessages(name, limit = 20) {
+      const ep = resolveEndpoint('v1.slots.messages', { name });
+      const rows = listOf(await client.get(ep.path, { service: ep.service, retries: 0, query: { org_id: orgId(), limit } }), 'messages');
+      if (!rows) throw new Error('unexpected response');
+      return rows;
+    },
+    /** The signed-in human's display name for slot lines (display_name, else the email's local part). */
+    displayName() {
+      try { const a = config.getAuth?.() || {}; return a.display_name || (a.email ? String(a.email).split('@')[0] : null); } catch { return null; }
+    },
+    /** `take` = the same signed-in user's other/renamed/restarted session takes a LIVE hold (stale holds of yours are reclaimed regardless). */
+    async checkoutSlot(name, session, { take = false } = {}) {
       const ep = resolveEndpoint('v1.slots.checkout', { name });
       try {
-        const data = await client.post(ep.path, { service: ep.service, body: { holder_session: session, holder_kind: 'interactive', host_id: null, org_id: orgId(), force: false, create: true } });
+        const data = await client.post(ep.path, { service: ep.service, body: { holder_session: session, holder_kind: 'interactive', host_id: null, org_id: orgId(), force: false, create: true, ...(take ? { take: true } : {}) } });
         recordHeldSlot(name, session);
-        return { ok: true, slot: data?.slot || data };
+        return { ok: true, slot: data?.slot || data, tookOver: data?.took_over || null };
       } catch (e) {
-        if (e?.status === 409) return { ok: false, message: e.detail?.assigned_to ? `slot ${name} is assigned to ${e.detail.assigned_to}` : `slot ${name} is held by ${e.detail?.holder_session || 'another session'}` };
-        return { ok: false, message: e?.message || 'failed' };
+        if (e?.status === 409) {
+          const d = e.detail || {};
+          if (d.assigned_to) return { ok: false, message: `slot ${name} is assigned to ${d.assigned_to}` };
+          return { ok: false, message: `slot ${name} is held by ${d.holder_session || 'another session'}`, held: { holder_session: d.holder_session || null, same_user: d.same_user === true, state: d.state || null, since: d.checked_out_at || null, last_seen: d.last_heartbeat_at || null } };
+        }
+        // Z2H-R5 C: a free install answers 403 "QuoxSlots is not licensed": say that, not a bare 403.
+        if (slotsUnlicensed(e)) {
+          return { ok: false, unlicensed: true, transient: false, status: 403, message: SLOTS_UNLICENSED };
+        }
+        // No answer, or the server failing (timeout, network, 5xx, e.g. a collector mid-redeploy): worth retrying.
+        const st = e?.status || null;
+        return { ok: false, message: e?.message || 'failed', status: st, transient: !st || st >= 500 || st === 429 || st === 408 };
       }
+    },
+    /** Keep a TUI-held slot alive (the hold lapses to stale after 15m without one). -> { ok } */
+    async slotHeartbeat(name, session) {
+      const ep = resolveEndpoint('v1.slots.heartbeat', { name });
+      try { await client.post(ep.path, { service: ep.service, body: { holder_session: session, org_id: orgId() } }); return { ok: true }; }
+      catch (e) { return { ok: false, message: e?.message || 'failed' }; }
+    },
+    /** quox#1183: the org's hats -> [{ id, key, name, definition }]. Same endpoint as `quox hat list`. */
+    async hats() {
+      const ep = resolveEndpoint('hat.list', { orgId: orgId() });
+      const d = await client.get(ep.path, { service: ep.service });
+      return Array.isArray(d?.hats) ? d.hats.filter(h => h.status !== 'archived') : [];
+    },
+    /** CUSTOM-HATS: create an org hat of your own -> { hat, warnings }. Throws the server's refusal unchanged. */
+    async createHat({ key, name, definition, visibility = 'org' }) {
+      const ep = resolveEndpoint('hat.create', { orgId: orgId() });
+      return client.post(ep.path, { service: ep.service, retries: 0, body: { key, name, definition, visibility } });
+    },
+    /** CUSTOM-HATS: a new revision of a hat -> { hat, warnings }. */
+    async updateHat(hatId, { definition, name, change_reason }) {
+      const ep = resolveEndpoint('hat.update', { orgId: orgId(), hatId });
+      return client.put(ep.path, { service: ep.service, retries: 0, body: { definition, ...(name ? { name } : {}), change_reason } });
+    },
+    /** CUSTOM-HATS: delete a custom hat -> { deleted: { key, revision, bindings_cleared, user_prefs_cleared } }. */
+    async deleteHat(hatId) {
+      const ep = resolveEndpoint('hat.delete', { orgId: orgId(), hatId });
+      return client.delete(ep.path, { service: ep.service, retries: 0 });
+    },
+    /** quox#1183: the hat this conversation is on (or would start on) -> { key, name } | null. */
+    async activeHat(conversationId) {
+      const ep = resolveEndpoint('hat.resolve', { orgId: orgId() });
+      const d = await client.get(ep.path, { service: ep.service, ...(conversationId ? { query: { conversation_id: conversationId } } : {}) });
+      return d?.hat ? { key: d.hat.key, name: d.hat.name, source: d.source || null } : null;
+    },
+    /** quox#1183: the person's own hat switch for this conversation (audited on the server). Throws the refusal unchanged. */
+    async bindHat(conversationId, hatId) {
+      const ep = resolveEndpoint('hat.bind', { orgId: orgId(), conversationId });
+      const d = await client.put(ep.path, { service: ep.service, retries: 0, body: { hat_id: hatId } });
+      return d?.binding || d;
     },
     /** QUOXON-FW3: the orgs the signed-in user belongs to -> [{ id, name, slug, role }]. Same endpoint as `quox org list`. */
     async orgs() {
@@ -463,19 +670,16 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
       return Array.isArray(rows) ? rows : [];
     },
     /**
-     * QUOXON-FW3: re-scope this login to another org via the existing token exchange (POST /api/auth/switch-org, the call
-     * behind `quox org switch`). The server checks membership; on success the stored login carries the new org, so every
-     * later request is scoped to it. -> { id, name }. Throws the server's refusal unchanged.
+     * QUOXON-FW3, #1034: re-scope THIS WINDOW to another org. The org-scoped token is held in this window's memory
+     * (windowOrg); the shared profile, its file and every other window keep their org. `quox org switch` in a shell is
+     * the explicit way to change a profile's default. -> { id, name }. Throws the server's refusal unchanged.
      */
     async switchOrg(targetId) {
-      const ep = resolveEndpoint('auth.switch-org');
-      const data = await client.post(ep.path, { service: ep.service, body: { org_id: targetId } });
-      if (!data?.org?.id || !data?.access_token) { const e = new Error('The server did not return a token for that org.'); e.code = 'switch_failed'; throw e; }
-      const a = { ...(config.getAuth() || {}) };
-      a.org_id = data.org.id; a.org_name = data.org.name; a.org_slug = data.org.slug; a.org_role = data.role; a.access_token = data.access_token;
-      config.setAuth(a);
-      return { id: data.org.id, name: data.org.name || data.org.slug || data.org.id };
+      if (!windowOrg) { const e = new Error('Org switching is not available in this mode.'); e.code = 'no_window_org'; throw e; }
+      return windowOrg.switchTo(targetId);
     },
+    /** The window's own org id when it differs from the profile's (carried across /restart), else null. */
+    windowOrgId: () => windowOrg?.current()?.id || null,
     /** -> [{ id, name, description, edition, version, decayState }] ; the org's QSKL procedural skills (read-only list; Crystals are a separate store). */
     async skills() {
       const ep = resolveEndpoint('quoxflow.skills.list');
@@ -548,6 +752,15 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
       ]);
       return { situation, approvals };
     },
+    /** PRESENCE: PUT /api/v1/presence (/afk, /sleep, /back, a typed turn). -> { ok:true, presence, notice } | { ok:false, message, status }. */
+    async setPresence(state, { note, slots } = {}) {
+      const ep = resolveEndpoint('presence.set');
+      try {
+        const d = await client.put(ep.path, { service: ep.service, retries: 0, timeout: 8000, body: { state, org_id: orgId(), ...(note ? { note } : {}), ...(Array.isArray(slots) && slots.length ? { slots } : {}) } });
+        return { ok: true, presence: d?.presence || null, notice: d?.notice || null };
+      } catch (e) { return { ok: false, message: e?.message || 'failed', status: e?.status || null }; }
+    },
+    noteActivity,
     /** E5 /away: GET /api/v1/away?since=<iso> -> { since, until, items, activity, blind }. Throws on non-2xx. */
     async away(since) {
       const ep = resolveEndpoint('away.digest');
@@ -569,8 +782,27 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
       ]);
       return { situation: sit, lessons, learning: [reflect, learn, insight] };
     },
+    /** /mind [id]: QuoxMind implants from the collector. -> { implants, health } | { implant }. Throws on non-2xx. */
+    async mind(id) {
+      if (id) { const ep = resolveEndpoint('mind.implant', { id }); return { implant: await client.get(ep.path, { service: ep.service, retries: 0, timeout: 15000 }) }; }
+      const [l, h] = await Promise.all([resolveEndpoint('mind.implants'), resolveEndpoint('mind.health')].map((ep) => client.get(ep.path, { service: ep.service, retries: 0, timeout: 15000 })));
+      return { implants: l.implants || [], health: h };
+    },
+    /** /mirror: the Mirror as CommanderQ sees it (compact System Status block + age). Throws on non-2xx. */
+    async mirror() {
+      const ep = resolveEndpoint('mind.mirror');
+      return client.get(ep.path, { service: ep.service, retries: 0, timeout: 10000 });
+    },
+    /** #904 part 3: providers refusing turns right now (weekly limit, no credits). -> [{ provider, state, line }] | null on error. */
+    async providerHealth() {
+      try {
+        const ep = resolveEndpoint('chat.status.list');
+        const d = await client.get(ep.path, { service: ep.service, retries: 0, timeout: 8000 });
+        return Array.isArray(d?.provider_health) ? d.provider_health : [];
+      } catch { return null; }
+    },
     async health(timeoutMs = 12000) {
-      const url = new URL('/health', config.getServiceUrl('collector'));
+      const url = joinServiceUrl(config.getServiceUrl('collector'), '/health');
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), timeoutMs);
       try { const r = await fetch(url, { signal: ctrl.signal }); return { ok: r.ok, status: r.status, url: url.origin }; }
@@ -611,20 +843,20 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
       } catch (e) { return { ok: false, status: e?.status, message: e?.message || 'failed' }; }
     },
     /** The governed vault write (same route as `quox vault create`): audited, AEE envelope carries type + label only. */
-    async saveProviderKey({ type, label, credentials, isDefault }) {
+    async saveProviderKey({ type, label, credentials, isDefault, confirmPrivateOrigin }) {
       const ep = resolveEndpoint('vault.create', { orgId: orgId() });
       try {
-        const r = await client.post(ep.path, { service: ep.service, body: { integration_type: type, label, credentials, is_default: Boolean(isDefault) }, retries: 0, sensitive: true });
+        const r = await client.post(ep.path, { service: ep.service, body: { integration_type: type, label, credentials, is_default: Boolean(isDefault), ...(confirmPrivateOrigin ? { confirm_private_origin: confirmPrivateOrigin } : {}) }, retries: 0, sensitive: true });
         return { ok: Boolean(r?.id), id: r?.id || null, message: r?.id ? null : 'unexpected response' };
-      } catch (e) { return { ok: false, status: e?.status, message: e?.message || 'failed' }; }
+      } catch (e) { return vaultFailure(e); }
     },
     /** B3: refresh an existing vault credential (same governed route as `quox vault update`). */
-    async updateProviderCredential({ id, credentials, isDefault }) {
+    async updateProviderCredential({ id, credentials, isDefault, confirmPrivateOrigin }) {
       const ep = resolveEndpoint('vault.update', { orgId: orgId(), id });
       try {
-        const r = await client.put(ep.path, { service: ep.service, body: { credentials, is_default: Boolean(isDefault) }, retries: 0, sensitive: true });
+        const r = await client.put(ep.path, { service: ep.service, body: { credentials, is_default: Boolean(isDefault), ...(confirmPrivateOrigin ? { confirm_private_origin: confirmPrivateOrigin } : {}) }, retries: 0, sensitive: true });
         return { ok: Boolean(r && (r.id || r.success || r.credential)), id, message: null };
-      } catch (e) { return { ok: false, status: e?.status, message: e?.message || 'failed' }; }
+      } catch (e) { return vaultFailure(e); }
     },
     /** Z2H: read the instance LAN-target gate -> { ok, enabled } | { ok:false, status, message }. */
     async lanTargets() {
@@ -668,6 +900,10 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
       try { return await client.get(ep.path, { service: ep.service, retries: 0 }); }
       catch (e) { return { ok: false, status: e?.status, error: e?.code || null, message: e?.message || 'failed' }; }
     },
+    /** /vm <verb> ...: the HYPERION Proxmox tools through POST /api/v1/tools/execute. Returns { lines, tone }. */
+    async vm(argv) { return runVmCommand({ client, orgId: orgId(), argv }); },
+    /** /hyperion: held VMs and who holds them, one line each (read only, GET /api/v1/proxmox/activity). */
+    async hyperion() { const data = await fetchActivity(client); return { lines: heldLines(data), tone: data.nodes_error || data.pool_error ? 'warn' : undefined }; },
     approvals: listApprovals,
     /** Org-wide approvals awaiting a human (the dashboard header's server-side count, inbox stats awaiting_human). */
     async approvalStats() {
@@ -681,9 +917,36 @@ export function createApi({ client, config, auth, reattachBackoff = REATTACH_BAC
       try { return await client.get(ep.path, { service: ep.service, query: { org_id: orgId() || undefined } }); }
       catch (e) { if (e?.status === 404) return null; throw e; }
     },
-    async respond(itemId, action, { via = null } = {}) {
+    /** quox ask: answer a decision with one of its option keys (and an optional note). */
+    async answerDecision(itemId, option, { note = null, stepUp = null, bulk = false } = {}) {
       const ep = resolveEndpoint('inbox.respond', { orgId: orgId(), itemId });
-      return client.post(ep.path, { service: ep.service, body: { action, comment: via ? `via quoxon ${via}` : 'via quoxon' } });
+      const r = await client.post(ep.path, { service: ep.service, headers: stepUp || {}, body: { action: 'answer', option, ...(bulk ? { bulk: true } : {}), ...(note ? { comment: String(note).slice(0, 4000) } : {}) } });
+      if (stepUp && Object.keys(stepUp).length) noteActivity('answer', { quiet: true }); // PRESENCE: answering is the owner being back
+      return r;
+    },
+    async respond(itemId, action, { via = null, stepUp = null, reason = null, bulk = false } = {}) {
+      const ep = resolveEndpoint('inbox.respond', { orgId: orgId(), itemId });
+      const tag = via ? `via quoxon ${via}` : 'via quoxon';
+      const why = reason ? String(reason).trim().slice(0, 4000) : '';
+      const r = await client.post(ep.path, { service: ep.service, headers: stepUp || {}, body: { action, ...(bulk ? { bulk: true } : {}), comment: why ? `${why} (${tag})` : tag, ...(why ? { reason: why } : {}) } });
+      if (stepUp && Object.keys(stepUp).length) noteActivity('approval', { quiet: true }); // PRESENCE
+      return r;
+    },
+    /** QUOXON-STEPUP: PIN -> short-lived step-up token. The PIN goes straight into the request body; never logged, never stored. */
+    async stepUpVerify(pin, { orgId: org = null, scopes = ['approve'] } = {}) {
+      const ep = resolveEndpoint('stepup.verify');
+      const r = await client.post(ep.path, { service: ep.service, body: { pin, org_id: org || orgId() || undefined, scopes } });
+      noteActivity('pin-step-up', { quiet: true }); // PRESENCE: a PIN step-up is a live human
+      return r;
+    },
+    async stepUpStatus() {
+      const ep = resolveEndpoint('stepup.status');
+      return client.get(ep.path, { service: ep.service });
+    },
+    /** QUOXON-STEPUP part B: override ONE blocked action. Needs a live override-scoped step-up token. */
+    async override({ blockId, blockType, reason, agentId = null, action = null, stepUp = {} }) {
+      const ep = resolveEndpoint('safety.override');
+      return client.post(ep.path, { service: ep.service, headers: stepUp, body: { block_id: blockId, block_type: blockType, reason, agent_id: agentId || undefined, action: action || undefined } });
     }
   };
 }

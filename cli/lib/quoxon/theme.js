@@ -25,6 +25,8 @@ export const DARK = {
   key: ['#2dd4bf', 80], // a thing you type: the command colour (purple is brand chrome only)
   muted: ['#bcc8e8', 189],
   ok: ['#4ade80', 78], warn: ['#f59e0b', 214], error: ['#f87171', 210],
+  ask: ['#f472b6', 211], // QUOXON-ASK: "needs you" (every y/N and approval): glyph and keys, bold line
+  gold: ['#d4af37', 178], // the authorisation moment: step-up PIN card frame, filled dots, human-present countdown
   // legacy names, kept so existing call sites read the same
   sky: ['#38bdf8', 75], violet: ['#a855f7', 135], indigo: ['#818cf8', 105], teal: ['#06b6d4', 38],
   fail: ['#f87171', 210], dim: ['#bcc8e8', 189], faint: ['#7c8fe0', 105],
@@ -44,13 +46,15 @@ export const LIGHT = {
   key: ['#0f766e', 30],
   muted: ['#3b4f87', 60],
   ok: ['#15803d', 28], warn: ['#b45309', 130], error: ['#b91c1c', 124],
+  ask: ['#be185d', 161],
+  gold: ['#8a6500', 94],
   sky: ['#0369a1', 25], violet: ['#7e22ce', 91], indigo: ['#4338ca', 62], teal: ['#0e7490', 30],
   fail: ['#b91c1c', 124], dim: ['#3b4f87', 60], faint: ['#7280c8', 104],
   text: ['#0f172a', 234], input: ['#0f172a', 234], placeholder: ['#3b4f87', 60],
   prose: SEMANTIC_LIGHT.prose, command: SEMANTIC_LIGHT.command, id: SEMANTIC_LIGHT.value, brand: SEMANTIC_LIGHT.brand, quiet: SEMANTIC_LIGHT.quiet, rule: SEMANTIC_LIGHT.rule
 };
 /** Roles a reader must be able to read: each is held to >= 4.5:1 on its background (tests). */
-export const ROLES = ['heading', 'icon', 'bullet1', 'bullet2', 'bullet3', 'label', 'value', 'number', 'link', 'code', 'key', 'muted', 'ok', 'warn', 'error', 'text', 'placeholder', 'prose', 'command', 'id', 'brand', 'quiet'];
+export const ROLES = ['heading', 'icon', 'bullet1', 'bullet2', 'bullet3', 'label', 'value', 'number', 'link', 'code', 'key', 'muted', 'ok', 'warn', 'error', 'ask', 'gold', 'text', 'placeholder', 'prose', 'command', 'id', 'brand', 'quiet'];
 
 /** Heading gradient stops across the word: sky -> indigo -> violet (light: the -700 shades). */
 export const HEADING_STOPS = { dark: ['#38bdf8', '#6366f1', '#a855f7'], light: ['#0369a1', '#4338ca', '#7e22ce'] };
@@ -192,7 +196,7 @@ export const bulletRole = (depth) => ['bullet1', 'bullet2', 'bullet3'][((depth %
 // ---- paint: split a plain line into coloured runs; the characters never change ---------------------
 const GLYPH_ROLE = {
   '●': 'ok', '✔': 'ok', '◐': 'warn', '○': 'quiet', '?': 'quiet', '✖': 'error', '⚠': 'warn', '⊘': 'warn',
-  '◉': 'icon', 'Ⓠ': 'icon', '▸': 'brand', '⛔': 'warn', '↳': 'icon', '»': 'quiet', '·': 'quiet', '⬢': 'icon', '⬡': 'quiet'
+  '◉': 'icon', 'Ⓠ': 'icon', '▸': 'brand', '⛔': 'warn', '↳': 'icon', '»': 'quiet', '·': 'quiet', '⬢': 'icon', '⬡': 'quiet', '▶': 'ask'
 };
 const KEYS = '(?:(?:Ctrl|Shift|Alt|Cmd|Option)\\+\\S+|Enter|Tab|Esc|Up|Down|Left|Right|Space|Backspace|PgUp|PgDn)';
 const TOKEN = new RegExp([
@@ -242,18 +246,25 @@ function proseRuns(seg, base, push, segStart) {
 
 /**
  * A note/list line as runs: a leading state glyph, then `Label  value` (two spaces) or `label: value`,
- * then tokens. tone: undefined/'dim' (neutral), 'ok', 'warn', 'accent', 'error'.
+ * then tokens. tone: undefined/'dim' (neutral), 'ok', 'warn', 'accent', 'error', 'ask' (a question for the human).
  */
 export function paintLine(text, tone) {
   const s = String(text ?? '');
   const out = [];
   // The tone colours the GLYPH only. The sentence stays prose, so commands and values inside keep their roles.
-  const TONE_GLYPH = { warn: 'warn', error: 'error', fail: 'error', ok: 'ok', accent: 'brand' };
-  const m = s.match(/^(\s*)(?:([●✔◐○?✖⚠⊘◉Ⓠ▸⛔↳»·⬢⬡])( ))?(.*)$/u);
+  const TONE_GLYPH = { warn: 'warn', error: 'error', fail: 'error', ok: 'ok', accent: 'brand', ask: 'ask' };
+  // [\s\S]* not .*: a notice can carry a newline (a server error body), and a failed match crashed the TUI
+  // ("m is not iterable", 2026-10-15 03:44 while the collector was down).
+  const m = s.match(/^(\s*)(?:([●✔◐○?✖⚠⊘◉Ⓠ▸⛔↳»·⬢⬡▶])( ))?([\s\S]*)$/u) || [s, '', undefined, undefined, s];
   const [, lead, glyph, gsp, rest0] = m;
   if (lead) out.push({ text: lead, role: undefined });
   if (glyph) out.push({ text: glyph, role: ['ok', 'warn', 'error'].includes(GLYPH_ROLE[glyph]) ? GLYPH_ROLE[glyph] : (TONE_GLYPH[tone] || GLYPH_ROLE[glyph]) }, { text: gsp, role: undefined });
   let rest = rest0;
+  if (tone === 'ask') { // QUOXON-ASK: "▶ reason. question? keys": the keys after the last "? " are the ask colour
+    const q = rest.lastIndexOf('? ');
+    if (q >= 0) { out.push(...paintRuns(rest.slice(0, q + 2), 'prose'), ...paintRuns(rest.slice(q + 2), 'ask')); return out; }
+    out.push(...paintRuns(rest, 'prose')); return out;
+  }
   const lv = rest.match(/^(\S[^·]{0,30}?\S|\S)( {2,})(\S.*)$/) || rest.match(/^([A-Za-z][\w .-]{0,22}:)( )(\S.*)$/);
   const valueBase = 'prose';
   if (lv && !/^https?:/.test(lv[1])) {
@@ -270,6 +281,6 @@ export const TONE_PREFIX = { warn: '⚠ ', error: '✖ ', fail: '✖ ', ok: '✔
 export const toneText = (text, tone) => {
   const p = TONE_PREFIX[tone];
   const t = String(text ?? '');
-  return p && !/^\s*[●✔◐○?✖⚠⊘◉Ⓠ▸⛔↳»·⬢⬡] /u.test(t) ? p + t : t;
+  return p && !/^\s*[●✔◐○?✖⚠⊘◉Ⓠ▸⛔↳»·⬢⬡▶] /u.test(t) ? p + t : t;
 };
 export { stripMarks };

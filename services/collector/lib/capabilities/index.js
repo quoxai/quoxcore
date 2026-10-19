@@ -18,7 +18,7 @@
  *   serviceHealth(key) -> { status: 'ok'|'degraded'|'down' }
  *   licence(orgId, pluginId) -> { licensed, failClosed? }
  *   installs(orgId, ctx) -> { ok, rows: [{ plugin_id, is_enabled }] }
- *   providers(orgId) -> { ok, openai, anthropic, claude_subscription, ...B5 presets (openrouter, groq, ...) }
+ *   providers(orgId) -> { ok, openai, anthropic, claude_subscription, claude_cli (false = no claude binary), ...B5 presets (openrouter, groq, ...) }
  *   mailAccounts(orgId) / calendarConnections(orgId) / devServers(orgId) -> number
  *   collectorEvidence() / lucidReady() / collectorCore() -> boolean (sync)
  */
@@ -87,6 +87,10 @@ async function checkRequirement(req, orgId, p, ctx) {
     if (req.provider === 'any') {
       if (Object.keys(PROVIDER_NAMES).some((k) => r[k] === true)) return verdict('installed');
       return verdict('requires_setup', 'No AI provider connected');
+    }
+    // Z2H-425: public prebuilt images ship without the Claude CLI; a Claude sign-in cannot work there.
+    if (req.provider === 'claude_subscription' && r.claude_cli === false) {
+      return verdict('unavailable', 'needs a local build (Claude CLI not in prebuilt images)');
     }
     if (r[req.provider]) return verdict('installed');
     // null = this provider's status could not be read (B5 presets on a vault error).

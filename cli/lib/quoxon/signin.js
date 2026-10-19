@@ -16,22 +16,21 @@ const h = React.createElement;
 export const SIGNED_OUT_LINE = 'Signed out. /login to sign in again';
 
 /** A definitive "this session is over" failure (not a transient hiccup, not a 401 from some other route). */
-export function isSessionDead(e) {
-  if (!e || e.transient) return false;
-  if (e.code === 'session_expired') return true;
-  return /session expired|No refresh token|please login again|no authentication token|valid jwt or service key|not signed in/i.test(e.message || '');
-}
+export { isSessionDead, SESSION_EXPIRED_LINE, signedOutNotice } from './sessionDead.js'; // QUOXON-LATENCY: pure, kept off the Ink import path
 
 const WHY = {
   idle_timeout: 'you were idle for longer than the idle limit',
-  max_session: 'it reached its maximum length'
+  max_session: 'it reached its maximum length',
+  session_revoked: 'the server revoked it (a session policy limit, an admin, or a sign-out elsewhere)'
 };
 
 /** The card text. reason = idle_timeout | max_session from the server's refresh response, else neutral. */
 export function signedOutCard(profile, reason) {
   const why = WHY[reason];
   return [
-    `You're signed out of ${profile} (CLI sign-ins last 30 days, set by your Quox server's session policy, unless your admin set a shorter limit).`,
+    // SIGNOUT-WIPE: never quote a length here. An org policy can cap CLI sessions far below the
+    // 30-day default (24h on 2026-10-15), and a wrong number made a policy expiry look like data loss.
+    `You're signed out of ${profile} (how long a sign-in lasts is set by your Quox server's session policy).`,
     ...(why ? [`This session ended because ${why}.`] : []),
     'Sign in again: /login'
   ].join(' ');

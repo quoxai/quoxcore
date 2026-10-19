@@ -52,11 +52,13 @@ export function parseDragonArg(restArg) {
     case 'fire': return rest.length ? null : { mode: 'fire' };
     case 'classic': return rest.length ? null : { mode: 'idle' };
     case 'hero': return rest.length ? null : { mode: 'hero' };
-    case 'explain': return rest.length ? null : { mode: 'explain' };
+    // `/dragon explain <thing>` is a question about that thing (owner 2026-10-15: it used to print usage).
+    case 'explain': return rest.length ? { mode: 'ask', question: rest.join(' ').trim() } : { mode: 'explain' };
     case 'sleep': return rest.length ? null : { mode: 'sleep' };
     case 'fly': return rest.length ? null : { mode: 'fly' };
     case 'ask': return { mode: 'ask', question: rest.join(' ').trim() };
-    default: return null;
+    // Anything else is a question for the dragon, never a usage error.
+    default: return { mode: 'ask', question: t };
   }
 }
 
@@ -112,7 +114,7 @@ export function sourceLines(s, cols, rows) {
 }
 
 // ---- the sleep screen -----------------------------------------------------------------------------------------
-export const SLEEP_HINT = 'asleep · any key wakes';
+export const SLEEP_HINT = 'asleep · any key wakes · /back when you return';
 const VEIL_RGB = [129, 140, 248], HINT_RGB = [186, 230, 253];
 
 /**

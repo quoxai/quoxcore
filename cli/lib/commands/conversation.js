@@ -16,11 +16,29 @@ export function registerConversationCommands(program, ctx) {
 
   conv
     .command('list')
-    .description('List conversations')
+    .description('List your chat conversations (newest first); --archive lists the imported conversation archive')
     .option('--limit <n>', 'Max results', '20')
-    .option('--offset <n>', 'Skip results', '0')
+    .option('--offset <n>', 'Skip results (archive only)', '0')
+    .option('--archive', 'list the imported conversation archive instead of chat conversations')
     .action(async (opts) => {
       auth.requireAuth();
+      if (!opts.archive) {
+        const ep = resolveEndpoint('conversations.chat.list');
+        const data = await client.get(ep.path, { service: ep.service, query: { limit: opts.limit } });
+        const rows = data.conversations || [];
+        formatOutput({
+          columns: ['id', 'title', 'turns', 'agent', 'updated_at'],
+          headers: ['ID', 'Title', 'Turns', 'Agent', 'Updated'],
+          rows: rows.map((c) => ({
+            id: c.id,
+            title: (c.title || 'Untitled').slice(0, 50),
+            turns: c.turn_count ?? 0,
+            agent: c.agent || '-',
+            updated_at: c.updated_at ? new Date(c.updated_at).toLocaleString() : '-',
+          })),
+        }, { format: program.opts().output });
+        return;
+      }
       const query = { limit: opts.limit, offset: opts.offset };
       const data = await client.get(resolveEndpoint('conversations.list').path, { service: resolveEndpoint('conversations.list').service, query });
       const conversations = data.conversations || data || [];
@@ -39,9 +57,22 @@ export function registerConversationCommands(program, ctx) {
   conv
     .command('get')
     .argument('<id>', 'conversation ID')
-    .description('Get conversation details')
-    .action(async (id) => {
+    .description('Show a chat conversation\'s turns; --archive reads the imported conversation archive')
+    .option('--limit <n>', 'Max turns (chat only)', '50')
+    .option('--archive', 'read the imported conversation archive instead of chat conversations')
+    .action(async (id, opts) => {
       auth.requireAuth();
+      if (!opts.archive) {
+        const ep = resolveEndpoint('conversations.chat.turns', { id });
+        const data = await client.get(ep.path, { service: ep.service, query: { limit: opts.limit } });
+        const turns = data.turns || [];
+        formatOutput({
+          columns: ['ts', 'role', 'content'],
+          headers: ['Time', 'Role', 'Content'],
+          rows: turns.map((t) => ({ ts: t.ts ? new Date(t.ts).toLocaleString() : '-', role: t.role, content: t.content })),
+        }, { format: program.opts().output });
+        return;
+      }
       const data = await client.get(resolveEndpoint('conversations.get', { id }).path, { service: resolveEndpoint('conversations.get', { id }).service });
       formatDetail(data.conversation || data, { format: program.opts().output, title: 'Conversation' });
     });

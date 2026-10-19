@@ -148,8 +148,22 @@ function AddSourcePanel({ widgetId, authFetch, orgId, onSourceAdded, onCancel })
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, depth }),
       })
-      const data = await resp.json().catch(() => ({}))
-      if (!resp.ok || data.success === false) {
+      let data = await resp.json().catch(() => ({}))
+      if (resp.status === 202 && data.job_id) {
+        // Background crawl: poll the job (a long crawl outlives any proxy timeout).
+        const jobUrl = `/api/orgs/${orgId}/widgets/${widgetId}/knowledge/crawl/jobs/${data.job_id}`
+        const deadline = Date.now() + 16 * 60 * 1000
+        let job = data
+        while (job.status === 'running') {
+          if (Date.now() > deadline) throw new Error('Crawl is still running; check the source list shortly')
+          await new Promise((r) => setTimeout(r, CRAWL_POLL_MS))
+          const jr = await authFetch(jobUrl)
+          job = await jr.json().catch(() => ({}))
+          if (!jr.ok) throw new Error(job.error || `Crawl status check failed (${jr.status})`)
+        }
+        if (job.status === 'error') throw new Error(job.error || 'Crawl failed')
+        data = job.result || {}
+      } else if (!resp.ok || data.success === false) {
         throw new Error(data.message || data.error || `Crawl failed (${resp.status})`)
       }
       onSourceAdded({
@@ -378,6 +392,75 @@ function hydrateSource(row) {
   }
 }
 
+/**
+ * QC-W14: raw retrieval search over the widget's knowledge. No LLM hop, so
+ * it shows exactly which chunks a question retrieves, with score and the
+ * reference-only / quarantined labels. Separate from "Test knowledge", which
+ * runs the full answer path.
+ */
+function SearchKnowledgeBox({ widgetId, orgId, authFetch }) {
+  const [query, setQuery] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const [chunks, setChunks] = useState(null)
+
+  const run = async () => {
+    if (!query.trim() || busy || !authFetch || !orgId || !widgetId) return
+    setBusy(true); setError(null)
+    try {
+      const resp = await authFetch(`/api/orgs/${orgId}/widgets/${widgetId}/knowledge/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query.trim(), limit: 8 }),
+      })
+      if (!resp.ok) {
+        const d = await resp.json().catch(() => ({}))
+        throw new Error(`HTTP ${resp.status}${d.error ? `: ${d.error}` : ''}`)
+      }
+      const data = await resp.json()
+      setChunks(Array.isArray(data?.chunks) ? data.chunks : [])
+    } catch (err) {
+      setChunks(null)
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="qx-flat-panel" data-testid="knowledge-search" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Search your knowledge</span>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={query} onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && run()}
+          aria-label="Search your knowledge"
+          placeholder="See which passages a question retrieves..."
+          style={{ flex: 1, padding: '6px 10px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, color: '#fff', fontSize: 12, fontFamily: 'inherit' }}
+        />
+        <button type="button" className="glass-btn" onClick={run} disabled={busy || !query.trim()} style={{ padding: '6px 14px', fontSize: 12, cursor: busy ? 'wait' : 'pointer' }}>
+          {busy ? 'Searching…' : 'Search'}
+        </button>
+      </div>
+      {error && <div role="alert" style={{ fontSize: 11, color: '#fca5a5' }}>Search failed ({error}).</div>}
+      {chunks && chunks.length === 0 && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>No matching passages.</div>}
+      {chunks && chunks.map((c, i) => (
+        <div key={i} data-testid="knowledge-search-result" style={{ padding: 8, borderRadius: 6, background: 'rgba(255,255,255,0.04)', fontSize: 11, color: '#fff' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
+            <strong>{c.source || 'unknown source'}</strong>
+            <span>score {Number(c.score || 0).toFixed(2)}</span>
+            {c.superseded && <span style={{ color: '#fcd34d' }}>reference only</span>}
+            {c.quarantined && <span style={{ color: '#fca5a5' }}>quarantined</span>}
+          </div>
+          <div style={{ lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{(c.text || '').slice(0, 300)}{(c.text || '').length > 300 ? '…' : ''}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const CRAWL_POLL_MS = 2000
+
 export default function KnowledgeTab({ widget, authFetch, orgId }) {
   const widgetId = widget?.id || null
   // P2 knowledge layout: default to the add panel until we know the widget
@@ -389,7 +472,9 @@ export default function KnowledgeTab({ widget, authFetch, orgId }) {
   const [testQuery, setTestQuery] = useState('')
   const [testResult, setTestResult] = useState(null)
   const [testBusy, setTestBusy] = useState(false)
-  const [loadingSources, setLoadingSources] = useState(false)
+  const [loadingSources, setLoadingSources] = useState(Boolean(authFetch && orgId && widget?.id))
+  const [loadError, setLoadError] = useState(null)
+  const [reloadTick, setReloadTick] = useState(0)
   const [storage, setStorage] = useState(null)
 
   const [sources, setSources] = useState([])
@@ -400,8 +485,12 @@ export default function KnowledgeTab({ widget, authFetch, orgId }) {
     if (!authFetch || !orgId || !widgetId) return
     let cancelled = false
     setLoadingSources(true)
+    setLoadError(null)
     authFetch(`/api/orgs/${orgId}/widgets/${widgetId}/knowledge/sources`)
-      .then(r => r.ok ? r.json() : { sources: [] })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then(data => {
         if (cancelled) return
         const rows = (data?.sources || []).map(hydrateSource)
@@ -411,10 +500,10 @@ export default function KnowledgeTab({ widget, authFetch, orgId }) {
         // A widget that already has sources should land on the detail view.
         setShowAdd(rows.length === 0)
       })
-      .catch(() => {})
+      .catch(err => { if (!cancelled) setLoadError(err?.message || 'request failed') })
       .finally(() => { if (!cancelled) setLoadingSources(false) })
     return () => { cancelled = true }
-  }, [authFetch, orgId, widgetId])
+  }, [authFetch, orgId, widgetId, reloadTick])
 
   // P2 knowledge layout: Escape closes the test knowledge drawer too.
   useEffect(() => {
@@ -557,7 +646,7 @@ export default function KnowledgeTab({ widget, authFetch, orgId }) {
 
         {storage && (
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
-            Storage: {storage.estimated_sources > 0 ? '~' : ''}{formatBytes(storage.used_bytes)}{storage.limit_bytes ? ` of ${formatBytes(storage.limit_bytes)} used` : ' used'}
+            Organisation storage (all widgets): {storage.estimated_sources > 0 ? '~' : ''}{formatBytes(storage.used_bytes)}{storage.limit_bytes ? ` of ${formatBytes(storage.limit_bytes)} used` : ' used'}
           </div>
         )}
 
@@ -566,7 +655,13 @@ export default function KnowledgeTab({ widget, authFetch, orgId }) {
             Loading sources…
           </div>
         )}
-        {!loadingSources && sources.length === 0 && (
+        {!loadingSources && loadError && sources.length === 0 && (
+          <div role="alert" data-testid="sources-load-error" style={{ padding: 12, fontSize: 11, color: '#fca5a5', lineHeight: 1.5 }}>
+            Could not load sources ({loadError}).{' '}
+            <button type="button" className="glass-btn" onClick={() => setReloadTick(t => t + 1)} style={{ padding: '2px 10px', fontSize: 11, cursor: 'pointer' }}>Retry</button>
+          </div>
+        )}
+        {!loadingSources && !loadError && sources.length === 0 && (
           <div style={{ padding: 12, fontSize: 11, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>
             No sources yet. Add a file, URL, or Q&A on the right to get started.
           </div>
@@ -651,10 +746,17 @@ export default function KnowledgeTab({ widget, authFetch, orgId }) {
           </button>
         </div>
 
+        <SearchKnowledgeBox widgetId={widgetId} orgId={orgId} authFetch={authFetch} />
+
         <div style={{ flex: 1, minWidth: 0 }}>
           {loadingSources && sources.length === 0 && !selectedSource ? (
             <div className="qx-flat-panel" style={{ padding: 24, fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
               Loading knowledge sources…
+            </div>
+          ) : loadError && sources.length === 0 && !selectedSource ? (
+            <div className="qx-flat-panel" style={{ padding: 24, fontSize: 12, color: '#fca5a5' }}>
+              Could not load sources ({loadError}).{' '}
+              <button type="button" className="glass-btn" onClick={() => setReloadTick(t => t + 1)} style={{ padding: '2px 10px', fontSize: 12, cursor: 'pointer' }}>Retry</button>
             </div>
           ) : showAdd ? (
             <AddSourcePanel widgetId={widgetId} authFetch={authFetch} orgId={orgId} onSourceAdded={upsertSource} onCancel={() => setShowAdd(false)} />

@@ -23,6 +23,36 @@ import { line as glyphLine, printEvent } from '../core/quoxglyph.js';
 import { resolveEndpoint } from '../api/endpoints.js';
 import { resolveOrgId } from './helpers.js';
 
+// codebase_query's schema (collector agentTools.js): question (required),
+// target, max_snippets. quox#836: the CLI used to send query/repo/limit,
+// every call failed "Missing required parameter: question", and the failure
+// printed as "0 hits".
+export function buildNucleusInput(question, options = {}) {
+  const input = { question };
+  if (options.target) input.target = options.target;
+  const n = parseInt(options.limit, 10);
+  if (n > 0) input.max_snippets = n;
+  return input;
+}
+
+// The tool result shape varies by engine version, so normalise rather than
+// assuming: an unexpected shape must still print SOMETHING true. An error
+// body is an error, never an empty result.
+export function readNucleusResult(data) {
+  if (data && data.success === false) return { error: data.error || data.message || 'tool call failed' };
+  // The collector's codebase_query returns agent-friendly text with
+  // file:line citations ({ success, output, resultCount }), not an array.
+  if (typeof data?.output === 'string') return { text: data.output, count: data.resultCount ?? null, result: data };
+  const result = data && (data.result || data.output || data);
+  if (result && result.success === false) return { error: result.error || result.message || 'tool call failed' };
+  if (typeof result?.output === 'string') return { text: result.output, count: result.resultCount ?? null, result };
+  const results = Array.isArray(result?.results) ? result.results
+    : Array.isArray(result?.snippets) ? result.snippets
+    : Array.isArray(result) ? result
+    : null;
+  return { results, result };
+}
+
 export function registerNucleusCommands(program, { client, auth }) {
   const nucleus = program
     .command('nucleus')
@@ -43,30 +73,31 @@ export function registerNucleusCommands(program, { client, auth }) {
       const started = Date.now();
 
       const ep = resolveEndpoint('v1.tools.execute');
-      const body = {
-        tool_name: 'codebase_query',
-        input: {
-          query: question,
-          ...(options.target ? { repo: options.target } : {}),
-          ...(options.limit ? { limit: parseInt(options.limit, 10) || 8 } : {}),
-        },
-      };
+      const body = { tool_name: 'codebase_query', input: buildNucleusInput(question, options) };
       const orgId = resolveOrgId(auth, program);
       if (orgId) body.org_id = orgId;
 
       const data = await client.post(ep.path, { service: ep.service, body, timeout: 60000 });
       const ms = Date.now() - started;
-
-      // The tool result shape varies by engine version, so normalise rather
-      // than assuming: an unexpected shape must still print SOMETHING true.
-      const result = data && (data.result || data.output || data);
-      const results = Array.isArray(result?.results) ? result.results
-        : Array.isArray(result?.snippets) ? result.snippets
-        : Array.isArray(result) ? result
-        : null;
+      const { error, results, result, text, count } = readNucleusResult(data);
 
       if (program.opts().output === 'json') {
         formatDetail(data, { format: 'json' });
+        return;
+      }
+
+      if (error) {
+        printEvent(glyphLine('repobrain', `query "${question}"`, { result: 'failed', ms }));
+        printWarning(`The query failed: ${error}`);
+        process.exitCode = 1;
+        return;
+      }
+
+      if (typeof text === 'string') {
+        const hits = count === null ? 'answered' : `${count} hits`;
+        printEvent(glyphLine('repobrain', `query "${question}"`, { result: count === 0 ? '0 hits' : hits, ms }));
+        console.log('');
+        console.log(text.split('\n').map((l) => `  ${l}`).join('\n'));
         return;
       }
 
@@ -85,7 +116,7 @@ export function registerNucleusCommands(program, { client, auth }) {
         const line = r.line || r.start_line || null;
         console.log('');
         console.log(`  ${loc}${line ? `:${line}` : ''}`);
-        const snippet = r.snippet || r.content || r.text || '';
+        const snippet = r.snippet || r.code || r.content || r.text || '';
         for (const l of String(snippet).split('\n').slice(0, 20)) console.log(`    ${l}`);
       }
     });

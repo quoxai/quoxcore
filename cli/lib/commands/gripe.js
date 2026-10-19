@@ -107,7 +107,7 @@ export async function settleGripe({ client, data, complaint, options = {}, orgId
   // is what stops the outcome from depending on how the agent phrased its
   // reply. Absent (older collector), classification falls back to prose.
   const toolsUsed = Array.isArray(data?.tools_used) ? data.tools_used : null;
-  const outcome = classifyGripeResponse(response, { assumedYes: yes, toolsUsed });
+  const outcome = classifyGripeResponse(response, { assumedYes: yes, toolsUsed, complaint });
   // quox#668: with --yes, a non-filing agent run is followed by the
   // deterministic file. Printing the agent's prose first ("no tool, cannot
   // file") right above "issue created" contradicted the real outcome. In
@@ -253,7 +253,7 @@ const AUTH_UNAVAILABLE_MESSAGE =
  * that is not there. The URL check stays first and stays authoritative, since
  * a real issue link is the only thing that proves filing.
  */
-export function classifyGripeResponse(response, { assumedYes = false, toolsUsed = null } = {}) {
+export function classifyGripeResponse(response, { assumedYes = false, toolsUsed = null, complaint = '' } = {}) {
   const text = String(response ?? '');
   const url = (text.match(/https:\/\/github\.com\/\S+\/issues\/\d+/) || [])[0];
   if (url) return { kind: 'filed', url, certain: true };
@@ -287,13 +287,13 @@ export function classifyGripeResponse(response, { assumedYes = false, toolsUsed 
       // issue; saying "not filed" would send the user to file a duplicate.
       return { kind: 'filed-unknown', certain: true };
     }
-    return { kind: 'not-filed', certain: true, hint: adviceHint(text, assumedYes) };
+    return { kind: 'not-filed', certain: true, hint: adviceHint(text, assumedYes, complaint) };
   }
 
   // No structured evidence available (an older collector, or a surface that
   // does not return tools_used). Fall back to the prose-only classification,
   // unchanged, rather than degrading every caller to "unknown".
-  const hint = adviceHint(text, assumedYes);
+  const hint = adviceHint(text, assumedYes, complaint);
   if (hint === 'no-connector') return { kind: 'no-connector' };
   if (hint === 'auth-unavailable') return { kind: 'auth-unavailable' };
   if (hint === 'awaiting-confirm') return { kind: 'awaiting-confirm' };
@@ -307,7 +307,18 @@ export function classifyGripeResponse(response, { assumedYes = false, toolsUsed 
  *
  * @returns {'no-connector'|'awaiting-confirm'|null}
  */
-function adviceHint(text, assumedYes) {
+// The platform-failure shapes adviceHint matches first. Each is a global regex so a match can be blanked.
+const AUTH_SIGNALS = [/membership/gi, /verification .{0,20}unavailable/gi, /auth service did not answer/gi, /\b(403|503|429)\b/g];
+
+function adviceHint(text, assumedYes, complaint = '') {
+  // 2026-10-17: GRIPE's confirmation reply echoes the complaint, so a gripe ABOUT an HTTP 403 (or the membership
+  // page) read as a platform auth failure and "File it?" became "a platform authorization step failed". A signal
+  // counts only where the user did not write it: whatever the complaint itself contains is blanked first.
+  const userText = String(complaint || '');
+  let authText = text;
+  for (const re of AUTH_SIGNALS) {
+    for (const m of new Set(userText.match(re) || [])) authText = authText.split(m).join(' ');
+  }
   // Platform-side authorization/availability failures beat the no-connector
   // guess. On 2026-09-21 auth's rate limiter 429'd the collector's membership
   // verify, the tool call 403'd with "no active membership", GRIPE narrated
@@ -315,12 +326,7 @@ function adviceHint(text, assumedYes) {
   // "the org has no GitHub connector configured" — a confident falsehood while
   // the vault held three healthy credentials (quox#565). These shapes come
   // from the collector's own error strings, so match them FIRST.
-  if (
-    /membership/i.test(text) ||
-    /verification .{0,20}unavailable/i.test(text) ||
-    /auth service did not answer/i.test(text) ||
-    /\b(403|503|429)\b/.test(text)
-  ) {
+  if (AUTH_SIGNALS.some((re) => { re.lastIndex = 0; return re.test(authText); })) {
     return 'auth-unavailable';
   }
 

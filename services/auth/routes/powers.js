@@ -19,6 +19,7 @@ import {
 } from '../lib/powersCredentialAdapter.js';
 // LIFECYCLE-P2-D1: Already-installed detection
 import { detectExistingRepoDeploy } from '../lib/powersAlreadyInstalled.js';
+import { builtinAgentIdRefusal } from '../lib/builtinAgentId.js';
 // LIFECYCLE-P3-D1: WARD witnessing for POWERS audit events
 import { witnessAuthAudit } from '../lib/wardAdapter.js';
 // LIFECYCLE-P3-D3: AOCL L0-L5 emissions for POWERS routes
@@ -325,6 +326,10 @@ router.post('/orgs/:orgId/powers/deploy', async (req, res) => {
       error: 'invalid_agent_id',
       message: 'persona.agent_id must start with a lowercase letter and contain only lowercase letters, numbers, and underscores',
     });
+  }
+  {
+    const builtinRefusal = builtinAgentIdRefusal(persona.agent_id, db);
+    if (builtinRefusal) return res.status(builtinRefusal.status).json(builtinRefusal.body);
   }
   if (typeof persona.name !== 'string' || persona.name.trim() === '') {
     return res.status(400).json({ error: 'invalid_body', message: 'persona.name must be a non-empty string' });
@@ -752,6 +757,8 @@ router.post('/orgs/:orgId/powers/deploy/repo', async (req, res) => {
         message: 'persona.agent_id must start with a lowercase letter and contain only lowercase letters, numbers, and underscores',
       });
     }
+    const builtinRefusal = builtinAgentIdRefusal(agentIdCandidate, db);
+    if (builtinRefusal) return res.status(builtinRefusal.status).json(builtinRefusal.body);
     const existingAgent = db.prepare(
       "SELECT id FROM agents WHERE org_id = ? AND agent_id = ? AND status != 'retired'"
     ).get(orgId, agentIdCandidate);
@@ -970,6 +977,10 @@ router.post('/orgs/:orgId/powers/deploy/repo/:toolDefId/finalize', async (req, r
       error: 'invalid_agent_id',
       message: 'persona.agent_id must start with a lowercase letter and contain only lowercase letters, numbers, and underscores',
     });
+  }
+  {
+    const builtinRefusal = builtinAgentIdRefusal(persona.agent_id, db);
+    if (builtinRefusal) return res.status(builtinRefusal.status).json(builtinRefusal.body);
   }
 
   // Verify tool_definition belongs to this org

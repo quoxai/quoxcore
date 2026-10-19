@@ -47,6 +47,7 @@
 const path = require('path');
 const feedWatermark = require('./feedWatermark.js');
 const brainFeedClient = require('./brainFeedClient.js');
+const feedBatchSupport = require('./feedBatchSupport.js');
 const { resolveRepoBrainBackend } = require('./repobrainRegistry.js');
 
 const SOURCE_TYPE = 'repobrain';
@@ -231,6 +232,7 @@ async function ingestRepobrain(orgId, opts = {}, deps = {}) {
     fetchImpl = fetch,
     ensurePushVaultFn = brainFeedClient.ensurePushVault,
     pushDocumentsFn = brainFeedClient.pushDocuments,
+    pushDeletionsFn = brainFeedClient.pushDeletions,
     getWatermarkFn,
     setWatermarkFn,
     getCursorFn,
@@ -251,6 +253,18 @@ async function ingestRepobrain(orgId, opts = {}, deps = {}) {
 
   const maxItems = opts.maxItems ?? DEFAULT_MAX_ITEMS;
   const dryRun = !!opts.dryRun;
+
+  // BRAIN2-FABLE11: durable state for deletion reconciliation. A target's file
+  // list is only a complete snapshot once ONE pass has walked it from offset 0
+  // to the end with no error; a pass spans ticks (resumable cursor), so the
+  // relPaths seen so far live in `<key>:walk` = {seen, valid}.
+  const stateStore = feedBatchSupport.resolveStateStore(deps, !!(getWatermarkFn || setWatermarkFn));
+  const readWalk = async (targetId) => {
+    if (!stateStore) return null;
+    try { const raw = await stateStore.get(orgId, `${watermarkSourceTypeForTarget(targetId)}:walk`); return raw ? JSON.parse(raw) : null; } catch { return null; }
+  };
+  // targetId -> {seen:Set, valid:boolean, done:boolean}, applied only after a successful push
+  const walks = new Map();
 
   let backend;
   try {
@@ -310,6 +324,11 @@ async function ingestRepobrain(orgId, opts = {}, deps = {}) {
     }
 
     const resumeAt = ti === startIdx ? startOffset : 0;
+    // A pass that starts at the top begins a fresh seen-set; a resumed pass
+    // continues the persisted one (and is unusable if none was persisted).
+    const prevWalk = resumeAt === 0 ? null : await readWalk(targetId);
+    const walk = { seen: new Set(prevWalk?.valid ? prevWalk.seen : []), valid: resumeAt === 0 || !!prevWalk?.valid, done: false };
+    walks.set(targetId, walk);
     let offset = Math.floor(resumeAt / ENUMERATE_PAGE_SIZE) * ENUMERATE_PAGE_SIZE;
     let total = null;
     let targetOk = true;
@@ -323,6 +342,7 @@ async function ingestRepobrain(orgId, opts = {}, deps = {}) {
         page = await defaultEnumeratePage(backend, orgId, targetId, offset, fetchImpl);
       } catch (err) {
         targetOk = false;
+        walk.valid = false; // an errored listing is never a snapshot
         console.error(`[FeedRepobrainSource] org=${orgId} target=${targetId}: enumerate failed at offset=${offset}, ${err.message}`);
         break;
       }
@@ -335,6 +355,7 @@ async function ingestRepobrain(orgId, opts = {}, deps = {}) {
         if (offset + fi < resumeAt) continue;
         if (docs.length >= maxItems) { nextCursorValue = { t: targetId, o: offset + fi }; capped = true; break; }
         if (!file?.path) continue;
+        walk.seen.add(`repobrain/${targetId}/${file.path}`); // exists at source even if render fails below
         try {
           const doc = renderFileDoc(targetId, file, occurredAt);
           result.edgesFound += doc.edgesFound;
@@ -352,7 +373,7 @@ async function ingestRepobrain(orgId, opts = {}, deps = {}) {
       offset += ENUMERATE_PAGE_SIZE;
     }
 
-    if (targetOk && !capped) syncedTargetIds.push(targetId);
+    if (targetOk && !capped) { syncedTargetIds.push(targetId); walk.done = true; }
     if (capped) break;
   }
 
@@ -364,30 +385,60 @@ async function ingestRepobrain(orgId, opts = {}, deps = {}) {
     }
   };
 
-  if (docs.length === 0) {
-    if (!dryRun && cursor) await persistCursor(); // stale cursor (past the end): wrap
+  if (dryRun) return result; // tallies filesRead/edgesFound/edgesResolved, pushes/advances nothing
+
+  const hasWalkWork = [...walks.values()].some((w) => w.done || w.seen.size > 0 || !w.valid);
+  if (docs.length === 0 && !(stateStore && hasWalkWork)) {
+    if (cursor) await persistCursor(); // stale cursor (past the end): wrap
     return result;
   }
 
-  if (dryRun) return result; // tallies filesRead/edgesFound/edgesResolved, pushes/advances nothing
+  const ensureVault = async () => ensurePushVaultFn(orgId, VAULT_NAME, { scope: 'org', userId, fetchImpl });
 
   try {
-    const vaultId = await ensurePushVaultFn(orgId, VAULT_NAME, { scope: 'org', userId, fetchImpl });
-    if (!vaultId) {
-      result.error = 'ensurePushVault returned no vaultId';
-      console.error(`[FeedRepobrainSource] org=${orgId}: ${result.error}, not advancing watermark`);
-      return result;
-    }
+    if (docs.length > 0) {
+      const vaultId = await ensureVault();
+      if (!vaultId) {
+        result.error = 'ensurePushVault returned no vaultId';
+        console.error(`[FeedRepobrainSource] org=${orgId}: ${result.error}, not advancing watermark`);
+        return result;
+      }
 
-    const pushResult = await pushDocumentsFn(orgId, vaultId, docs, { userId, fetchImpl });
-    if (pushResult?.error) {
-      result.error = pushResult.error;
-      console.error(`[FeedRepobrainSource] org=${orgId}: push failed, ${pushResult.error}, not advancing watermark`);
-      return result;
-    }
+      const pushResult = await pushDocumentsFn(orgId, vaultId, docs, { userId, fetchImpl });
+      if (pushResult?.error) {
+        result.error = pushResult.error;
+        console.error(`[FeedRepobrainSource] org=${orgId}: push failed, ${pushResult.error}, not advancing watermark`);
+        return result;
+      }
 
-    result.docsPushed = docs.length;
+      result.docsPushed = docs.length;
+    }
     await persistCursor();
+
+    // BRAIN2-FABLE11: files that vanished from a COMPLETE enumeration (one
+    // uninterrupted pass over a target, no errors, non-empty) are tombstoned.
+    if (stateStore) {
+      for (const [targetId, walk] of walks) {
+        const key = watermarkSourceTypeForTarget(targetId);
+        try {
+          if (walk.done && walk.valid && walk.seen.size > 0) {
+            const r = await feedBatchSupport.reconcileDeletions({
+              store: stateStore, orgId, key, seen: [...walk.seen], complete: true, ensureVault,
+              pushDeletionsFn, pushOpts: { userId, fetchImpl },
+            });
+            if (r.deleted > 0) result.deleted = (result.deleted || 0) + r.deleted;
+            if (r.error) { result.error = r.error; console.error(`[FeedRepobrainSource] org=${orgId} target=${targetId}: ${r.error}`); }
+            await stateStore.set(orgId, `${key}:walk`, '');
+          } else if (walk.done || !walk.valid) {
+            await stateStore.set(orgId, `${key}:walk`, ''); // finished empty / broken pass: start over
+          } else {
+            await stateStore.set(orgId, `${key}:walk`, JSON.stringify({ valid: walk.valid, seen: [...walk.seen] }));
+          }
+        } catch (err) {
+          console.error(`[FeedRepobrainSource] org=${orgId} target=${targetId}: walk state write failed, ${err.message}`);
+        }
+      }
+    }
 
     for (const targetId of syncedTargetIds) {
       try {

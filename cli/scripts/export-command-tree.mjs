@@ -24,7 +24,8 @@ const OUT = join(here, '..', '..', 'services', 'collector', 'config', 'cliComman
 const check = process.argv.includes('--check');
 
 const sandboxHome = mkdtempSync(join(tmpdir(), 'qx-tree-'));
-const env = { PATH: process.env.PATH, HOME: sandboxHome, XDG_CONFIG_HOME: join(sandboxHome, 'cfg'), NO_COLOR: '1', CI: '1' };
+// QUOX_HELP_INCLUDE_GATED: list install-gated commands (quox done) so the tree does not depend on the host.
+const env = { PATH: process.env.PATH, HOME: sandboxHome, XDG_CONFIG_HOME: join(sandboxHome, 'cfg'), NO_COLOR: '1', CI: '1', QUOX_HELP_INCLUDE_GATED: '1' };
 
 async function commandsOf(path) {
   let stdout = '';

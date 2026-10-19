@@ -15,7 +15,7 @@
 // at/above the floor, 1 otherwise.
 
 import { mkdtempSync, rmSync, cpSync, readFileSync } from 'fs'
-import { join, dirname, sep } from 'path'
+import { join, dirname, sep, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { tmpdir } from 'os'
 import { initDatabase, closeDatabase } from '../lib/db.js'
@@ -25,7 +25,25 @@ import { computeRelevance } from '../lib/relevance.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-const NODEBRAIN_SOURCE = '/opt/quoxcore/obsidian/NodeBrain'
+// Portable by default: with no --corpus the eval runs
+// against the checked-in synthetic fixture corpus + fixtures/questions.json.
+// Point it at the owner's real corpus with:
+//   node eval/runNodebrain.mjs --corpus /opt/quoxcore/obsidian/NodeBrain
+// (uses golden-nodebrain.json unless --questions <file> is given).
+// --dense additionally embeds the corpus and reports a dense-leg recall@5;
+// needs a configured embedding provider (collector), never run by default.
+function argValue(name) {
+  const i = process.argv.indexOf(name)
+  if (i >= 0 && process.argv[i + 1]) return process.argv[i + 1]
+  const eq = process.argv.find((a) => a.startsWith(name + '='))
+  return eq ? eq.slice(name.length + 1) : null
+}
+const FIXTURE_DIR = join(__dirname, 'fixtures')
+const CORPUS_ARG = argValue('--corpus') || null
+const NODEBRAIN_SOURCE = CORPUS_ARG ? resolve(CORPUS_ARG) : join(FIXTURE_DIR, 'corpus')
+const USING_FIXTURE = !CORPUS_ARG
+const QUESTIONS_ARG = argValue('--questions') || null
+const WANT_DENSE = process.argv.includes('--dense')
 const ORG = 'eval-nodebrain'
 const K_SMALL = 5
 const K_LARGE = 20
@@ -41,9 +59,14 @@ const NDCG_K = 10
 // the golden set".
 const RECALL_AT_20_FLOOR = 0.90
 
-function loadGoldenSet() {
-  const raw = readFileSync(join(__dirname, 'golden-nodebrain.json'), 'utf8')
-  return JSON.parse(raw)
+/** Returns { golden, unanswerable|null }. Fixture questions.json carries both
+ * lists; the legacy golden file is a bare array (unanswerable = built-in NONSENSE). */
+function loadQuestions() {
+  const file = QUESTIONS_ARG ? resolve(QUESTIONS_ARG)
+    : USING_FIXTURE ? join(FIXTURE_DIR, 'questions.json') : join(__dirname, 'golden-nodebrain.json')
+  const parsed = JSON.parse(readFileSync(file, 'utf8'))
+  if (Array.isArray(parsed)) return { golden: parsed, unanswerable: null }
+  return { golden: parsed.answerable, unanswerable: parsed.unanswerable || null }
 }
 
 /** Copies only the real NodeBrain .md tree (skips .obsidian config/plugins/
@@ -114,8 +137,35 @@ function evaluateQuery(orgId, { query, relevantRelPaths }) {
   return { query, resultCount: results.length, hitAt5, hitAt20, ndcg, resolvable, total: results.length }
 }
 
+/** Optional dense leg: embeds the indexed corpus through the configured
+ * provider, then scores recall@5 of the dense ranking. Returns null (with a
+ * warning) when no provider answers; never affects the lexical PASS/FAIL. */
+async function runDense(goldenSet) {
+  try {
+    const { backfillEmbeddings } = await import('../lib/embeddingBackfill.js')
+    const { embedQueryCached } = await import('../lib/embeddingClient.js')
+    for (let i = 0; i < 50; i++) {
+      const r = await backfillEmbeddings(ORG, { limit: 200 })
+      if (!r || !(r.embedded > 0)) break
+    }
+    let hits = 0
+    for (const g of goldenSet) {
+      const emb = await embedQueryCached(g.query, { orgId: ORG })
+      const rows = store.denseSearchChunks(ORG, emb.vectors[0], { limit: K_SMALL, model: emb.models?.[0] || null })
+      const ids = store.getChunkDetails(ORG, null, rows.map((r) => r.chunkId))
+      if (ids.some((d) => g.relevantRelPaths.includes(d.relPath))) hits += 1
+    }
+    const v = hits / goldenSet.length
+    console.log(`dense recall@${K_SMALL}:      ${(v * 100).toFixed(1)}% (provider-dependent, informational)`)
+    return v
+  } catch (err) {
+    console.warn(`[eval] --dense skipped: no usable embedding provider (${err.message})`)
+    return null
+  }
+}
+
 async function main() {
-  const goldenSet = loadGoldenSet()
+  const { golden: goldenSet, unanswerable } = loadQuestions()
 
   const vaultRoot = mkdtempSync(join(tmpdir(), 'quoxbrain-eval-vaultroot-'))
   const dbDir = mkdtempSync(join(tmpdir(), 'quoxbrain-eval-db-'))
@@ -131,7 +181,7 @@ async function main() {
       org_id: ORG, name: 'NodeBrain (eval)', source_type: 'local', source_path: orgDir
     })
     const indexed = await indexVault(vault)
-    console.log(`[eval] indexed ${indexed.note_count} notes, ${indexed.edge_count} resolved links from ${NODEBRAIN_SOURCE}`)
+    console.log(`[eval] indexed ${indexed.note_count} notes, ${indexed.edge_count} resolved links from ${USING_FIXTURE ? 'fixture corpus' : NODEBRAIN_SOURCE}`)
 
     const perQuery = goldenSet.map((g) => evaluateQuery(ORG, g))
     const n = perQuery.length
@@ -159,12 +209,22 @@ async function main() {
     }
     // Abstention calibration (BRAIN2-AUDIT): golden queries must NOT abstain
     // (FTS-only, no dense signal), nonsense queries must.
-    const NONSENSE = ['giraffe banana recipe', 'quantum pancake tuba', 'zxqv blorf wibble', 'purple elephant marathon trophy']
+    const NONSENSE = unanswerable || ['giraffe banana recipe', 'quantum pancake tuba', 'zxqv blorf wibble', 'purple elephant marathon trophy']
     const abstains = (q) => computeRelevance(q, store.getChunkDetails(ORG, null, store.searchChunks(ORG, null, { query: q, limit: 5 }).map((r) => r.chunkId))).insufficient
     const goldenAbstain = goldenSet.filter((g) => abstains(g.query))
     const nonsenseAbstain = NONSENSE.filter(abstains)
     console.log(`abstention: golden falsely insufficient ${goldenAbstain.length}/${n}; nonsense correctly insufficient ${nonsenseAbstain.length}/${NONSENSE.length}`)
     for (const g of goldenAbstain) console.log(`  -> false abstain ${JSON.stringify(g.query)}`)
+    for (const q of NONSENSE.filter((q) => !abstains(q))) console.log(`  -> failed to abstain ${JSON.stringify(q)}`)
+    let denseRecallAt5 = null
+    if (WANT_DENSE) denseRecallAt5 = await runDense(goldenSet)
+    if (process.argv.includes('--json')) {
+      // machine-readable summary for the test harness
+      console.log('EVAL_JSON ' + JSON.stringify({
+        queries: n, recallAt5, recallAt20, ndcg10: avgNdcg10, citationIntegrityPct,
+        falseAbstain: goldenAbstain.length, nonsenseAbstain: nonsenseAbstain.length, nonsenseTotal: NONSENSE.length, denseRecallAt5
+      }))
+    }
     console.log('')
     console.log(`regression floor recall@${K_LARGE}: ${(RECALL_AT_20_FLOOR * 100).toFixed(1)}%`)
 

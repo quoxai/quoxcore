@@ -10,7 +10,10 @@
 
 const BASTION_URL = process.env.BASTION_URL || '';
 const BASTION_TOKEN = process.env.BASTION_API_TOKEN || '';
+const { hostPath } = require('../utils/runtimePaths.js');
 const { BASTION_UNAVAILABLE_MESSAGE } = require('./bastionUnavailable');
+const { screencapExecute } = require('./screencapExecute');
+const { decisionBrief } = require('./decisionBrief.js');
 const QUOXFLOW_URL = process.env.QUOXFLOW_URL || 'http://quoxflow:3200';
 
 // Native tool executors (Phase 3.2 — replace n8n webhooks with direct execution)
@@ -20,7 +23,8 @@ const { buildCanonicalAction, actionEvidenceCommitment } = require('./canonicalA
 // trusted internal/agentic path (no ctx.orgId). Single tenant-isolation rule.
 const { resolveToolOrgId } = require('./toolExecuteOrgScope.js');
 const { dockerStatus, dockerExtended } = require('./toolExecutors/docker');
-const { proxmoxVms, proxmoxTemplatesList, proxmoxContainers, proxmoxCluster, proxmoxStorage, proxmoxVmAction } = require('./toolExecutors/proxmox');
+const { runSafeRead, dockerRead } = require('./bastionSafeRead.js');
+const { proxmoxVms, proxmoxTemplatesList, proxmoxContainers, proxmoxCluster, proxmoxStorage, proxmoxVmAction, proxmoxHaStatus, proxmoxNodeResources, proxmoxVmResolve } = require('./toolExecutors/proxmox');
 const { networkCheck } = require('./toolExecutors/network');
 const { systemAdmin } = require('./toolExecutors/system');
 const { securityAudit, sslCertificates } = require('./toolExecutors/security');
@@ -104,7 +108,7 @@ const { getReachRuntime, auditReachEvaluation } = require('./reach/runtime.js');
 //
 // FIX (found while wiring the sibling gripe-feed hook, which uncovered the
 // same bug): this originally shelled out to ~/bin/session-mail, a host CLI
-// script under /opt/quoxcore, which is a read-only bind mount in the
+// script under ~, which is a read-only bind mount in the
 // collector container — that write could never have succeeded in a
 // deployed container. logForgePrOpened() writes to the writable
 // collector-data volume instead, same fix already applied to gripeFeedLog.js.
@@ -203,16 +207,9 @@ function _emitPowersInvokeVolt(runId, eventType, toolDefId, orgId, extra = {}) {
   }
 }
 
-// Gemini CLI executor (review-and-synthesis agent)
-const { geminiReview, geminiAnalyze, geminiGenerate } = require('./toolExecutors/geminiCli');
-
-// Perplexity API executor (web research & verification agent)
-const { perplexitySearch, perplexityResearch, perplexityVerify } = require('./toolExecutors/perplexityApi');
 // VAULT-INTEG P3: single implementation of provider-key vault resolution
 // (lib/providerKeys.js — the same module server.js's getProviderKeys()
-// delegates to). 'perplexity' is already in PROVIDER_TYPE_MAP/
-// PROVIDER_KEY_FIELDS, so this reuses that path instead of the tool reading
-// process.env.PERPLEXITY_API_KEY directly.
+// delegates to), used by the research tools (lib/researchTools.js).
 const providerKeysLib = require('./providerKeys');
 
 // Codebase executor (RepoBrain codebase queries)
@@ -265,7 +262,13 @@ async function keeperAuthFetch(path, method = 'GET', body = null) {
     const text = await resp.text();
     const data = text ? JSON.parse(text) : null;
     if (!resp.ok) {
-      return { success: false, error: data?.message || data?.error || `HTTP ${resp.status}`, status: resp.status };
+      // #1199: carry a machine-readable code (+ since) through so callers can tell a pending state from a failure.
+      return {
+        success: false,
+        error: data?.message || data?.error || `HTTP ${resp.status}`,
+        status: resp.status,
+        ...(data?.code ? { code: data.code, since: data.since } : {}),
+      };
     }
     return { success: true, ...(data || {}) };
   } catch (err) {
@@ -351,6 +354,9 @@ const AGENT_REQUIRES_PLUGIN = {
   inboxq: 'inboxq',
   // NOTESQ agent: same server-side entitlement mirror as inboxq above.
   notesq: 'notesq',
+  // REL424-BROWSER: Browser-Q is paid and governed in the signed catalogue (requiresPlugin:'browser-q' in
+  // src/config/agentRegistry.js) but had no server teeth, so an unlicensed org reached the agent and its tools.
+  'browser-q': 'browser-q',
 };
 
 // X-PLUGIN phase 9: governed NATIVE TOOLS, actor-independent. The agent gate
@@ -409,6 +415,25 @@ const TOOL_REQUIRES_PLUGIN = {
   calendar_event_get: 'calendar-q',
   calendar_layers_list: 'calendar-q',
   calendar_changes: 'calendar-q',
+  // REL424-BROWSER: every Browser-Q-only tool, actor-independent (see inbox_* above). browser_navigate,
+  // browser_screenshot and browser_extract are also granted to free agents (sentinel, metrics, beacon), so they are
+  // gated only through the browser-q AGENT gate, never here.
+  browser_extract_table: 'browser-q', browser_extract_schema: 'browser-q', browser_extract_template: 'browser-q',
+  browser_extract_links: 'browser-q', browser_extract_metadata: 'browser-q', browser_click: 'browser-q',
+  browser_type: 'browser-q', browser_wait: 'browser-q', browser_scroll: 'browser-q', browser_fill_form: 'browser-q',
+  browser_select: 'browser-q', browser_find_element: 'browser-q', browser_analyze_forms: 'browser-q',
+  browser_pdf: 'browser-q', browser_download: 'browser-q', browser_lighthouse: 'browser-q',
+  browser_new_tab: 'browser-q', browser_switch_tab: 'browser-q', browser_list_tabs: 'browser-q',
+  browser_login: 'browser-q', browser_save_cookies: 'browser-q', browser_restore_cookies: 'browser-q',
+  browser_record_start: 'browser-q', browser_record_stop: 'browser-q', browser_replay: 'browser-q',
+  browser_sequence_save: 'browser-q', browser_sequence_list: 'browser-q', browser_sequence_load: 'browser-q',
+  browser_sequence_delete: 'browser-q', browser_video_start: 'browser-q', browser_video_stop: 'browser-q',
+  browser_video_list: 'browser-q', browser_video_delete: 'browser-q', browser_monitor_create: 'browser-q',
+  browser_monitor_list: 'browser-q', browser_monitor_check: 'browser-q', browser_monitor_delete: 'browser-q',
+  browser_objective_create: 'browser-q', browser_objective_plan: 'browser-q', browser_objective_execute: 'browser-q',
+  browser_objective_run: 'browser-q', browser_objective_approve_step: 'browser-q',
+  browser_objective_cancel: 'browser-q', browser_objective_list: 'browser-q', browser_objective_get: 'browser-q',
+  browser_objective_save_sequence: 'browser-q',
 };
 
 /** The plugin entitlement id a native tool requires, or null (common case). */
@@ -443,6 +468,40 @@ function __setLicenseGateForTesting(fn) {
 }
 function isPluginLicensedForAgentGate(orgId, pluginId) {
   return (_isPluginLicensedOverride || _realIsPluginLicensed)(orgId, pluginId);
+}
+
+/**
+ * #890 / #901: the agent-tool licence gates must keep "not licensed" apart from "could not check"
+ * (auth stalled, no usable cache): the real isPluginLicensed returns false for both. Returns
+ * { licensed, unavailable }. A test override may return a boolean or that object; a lookup that
+ * throws stays a fail-closed refusal, as before.
+ */
+async function agentGateVerdict(orgId, pluginId) {
+  if (_isPluginLicensedOverride) {
+    const v = await _isPluginLicensedOverride(orgId, pluginId);
+    return v && typeof v === 'object' ? { licensed: !!v.licensed, unavailable: !!v.unavailable } : { licensed: !!v, unavailable: false };
+  }
+  return require('./licenseGate').licenseVerdict(orgId, pluginId);
+}
+
+// Plain-words refusal (#890): a licence refusal is 'denied', never read as a broken tool.
+function licenceRefusal(what, pluginId) {
+  return {
+    success: false,
+    status: 'denied',
+    error: `${what} is not licensed for this organisation: it needs the '${pluginId}' licence. That is the licence gate working, not a fault. An admin can see what is licensed with \`quox licence status\`.`,
+    licenseRequired: true,
+    plugin: pluginId,
+  };
+}
+function licenceUnavailable(pluginId) {
+  return {
+    success: false,
+    status: 'failed',
+    error: `The '${pluginId}' licence could not be checked right now (the auth service did not answer). Try again shortly.`,
+    licenseUnavailable: true,
+    plugin: pluginId,
+  };
 }
 
 // VAULT-AUDIT P3.D1 — email_read (IMAP mailbox tool)
@@ -557,7 +616,7 @@ async function resolveCredentialForAgent(orgId, agentId, toolType, options = {})
 // seam. Mirrors server.js's own resolveCredentials(orgId, providers) (the
 // /api/setup/internal/resolve call it makes for getClaudeKeys()/
 // getProviderKeys()), minus the circuit breaker: this file is a much lower
-// call-volume path (perplexity_* tools only) so a bare try/catch is enough,
+// call-volume path (research tools only) so a bare try/catch is enough,
 // and providerKeys.js's own 30s cache already absorbs repeat calls.
 async function _resolveVaultProviderCredentials(orgId, providers) {
   try {
@@ -575,17 +634,6 @@ async function _resolveVaultProviderCredentials(orgId, providers) {
   return null;
 }
 
-/**
- * Resolve the org's Perplexity API key via the SAME vault-first waterfall
- * (lib/providerKeys.js) the LLM providers use — 'perplexity' is already in
- * PROVIDER_TYPE_MAP/PROVIDER_KEY_FIELDS. Returns '' (never throws) when
- * unresolved; perplexityApi.js's own env fallback covers that case.
- */
-async function resolvePerplexityApiKey(orgId) {
-  const keys = await providerKeysLib.getProviderKeys(orgId, { resolveCredentials: _resolveVaultProviderCredentials });
-  return keys?.perplexity_api_key || '';
-}
-
 // ============================================================================
 // Tool Executors
 // ============================================================================
@@ -598,11 +646,12 @@ let _ipToHostCache = null
 let _ipToHostCacheTime = 0
 const IP_CACHE_TTL = 300000 // 5 min
 
-async function resolveHostId(hostId) {
+async function resolveHostId(hostId, { fresh = false } = {}) {
   // If it doesn't look like an IP, return as-is
   if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostId)) return hostId
 
   // Build IP→hostname cache from bastion fleet
+  if (fresh) _ipToHostCache = null // fail closed: a failed fresh lookup must not fall back to a stale mapping
   if (!_ipToHostCache || Date.now() - _ipToHostCacheTime > IP_CACHE_TTL) {
     try {
       const resp = await fetch(`${BASTION_URL}/api/v1/hosts`, {
@@ -632,7 +681,16 @@ async function resolveHostId(hostId) {
   return hostId // fall through with the IP, bastion will 404
 }
 
-async function callBastion(hostId, command, grant) {
+// The Bastion exec budget. 30s by default; an INTERNAL caller (ctx.bastionTimeoutMs, never model input) such as
+// the VM pool may ask for up to 58s, under Bastion's own 60s cap: a guest bootstrap outran 30s on every pool
+// build under load (2026-10-15).
+function bastionTimeoutFor(ctx) {
+  const v = Number(ctx && ctx.bastionTimeoutMs);
+  if (!Number.isFinite(v)) return 30000;
+  return Math.min(58000, Math.max(5000, Math.round(v)));
+}
+
+async function callBastion(hostId, command, grant, timeoutMs = 30000) {
   if (!BASTION_URL || !BASTION_TOKEN) {
     return { success: false, error: BASTION_UNAVAILABLE_MESSAGE };
   }
@@ -655,7 +713,7 @@ async function callBastion(hostId, command, grant) {
         ...(grant ? { 'X-Bastion-Approval-Grant': grant } : {})
       },
       body: JSON.stringify({ targets: [resolvedHost], command }),
-      signal: AbortSignal.timeout(30000)
+      signal: AbortSignal.timeout(timeoutMs)
     });
 
     if (!resp.ok) {
@@ -700,6 +758,90 @@ async function callBastion(hostId, command, grant) {
  * never executes ungranted). Non-approved calls never reach here —
  * withApprovalGate holds them for approval first.
  */
+// ssh_exec `hosts` (multi-host, one approval). 1..SSH_EXEC_MAX_HOSTS safe short hostnames (or IPv4,
+// which resolveHostId maps), deduplicated and SORTED so the approval card, the fingerprinted stored
+// input and the grant targets all see ONE canonical list.
+const SSH_EXEC_MAX_HOSTS = 25;
+const SSH_EXEC_HOST_RE = /^(?:[A-Za-z0-9][A-Za-z0-9_-]{0,62}|\d{1,3}(?:\.\d{1,3}){3})$/;
+function normaliseSshExecHosts(list) {
+  if (!Array.isArray(list) || list.length === 0) return { error: 'ssh_exec hosts must be a non-empty list of hostnames' };
+  if (list.length > SSH_EXEC_MAX_HOSTS) return { error: `ssh_exec hosts accepts at most ${SSH_EXEC_MAX_HOSTS} hosts (got ${list.length})` };
+  const seen = new Set();
+  for (const h of list) {
+    if (typeof h !== 'string' || !SSH_EXEC_HOST_RE.test(h.trim())) {
+      return { error: `ssh_exec hosts entry is not a safe short hostname: ${JSON.stringify(typeof h === 'string' ? h.slice(0, 40) : h)}` };
+    }
+    seen.add(h.trim());
+  }
+  return { hosts: [...seen].sort() };
+}
+
+/**
+ * ONE Bastion call, targets = the whole approved list, ONE command. Returns a per-host result array.
+ * No retry of any host, ever. A target absent from Bastion's response is reported as failed.
+ */
+async function callBastionMulti(hostIds, command, grant, timeoutMs = 30000) {
+  if (!BASTION_URL || !BASTION_TOKEN) return { success: false, error: BASTION_UNAVAILABLE_MESSAGE };
+  const resolved = [...hostIds]; // already-resolved host_ids bound at proposal time; never re-resolved here
+  console.log(`[Tools] Bastion multi-exec on ${resolved.length} hosts: ${command.substring(0, 80)}`);
+  try {
+    const resp = await fetch(`${BASTION_URL}/api/v1/exec`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${BASTION_TOKEN}`,
+        ...(grant ? { 'X-Bastion-Approval-Grant': grant } : {})
+      },
+      body: JSON.stringify({ targets: resolved, command }),
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      return require("./bastionRefusal.js").bastionHttpErrorResult(resp.status, text);
+    }
+    const data = await resp.json();
+    // quox#1295: Bastion stamps each result's host_id with the IP it DIALLED, not the fleet id we sent,
+    // and returns results in target order (an unknown id 404s the whole call). Match by id first (a
+    // Bastion that reports ids), then by the id's IP from the host cache, then by position, but only
+    // when the reply has exactly one result per target.
+    const list = data && Array.isArray(data.results) ? data.results : [];
+    const byHost = new Map();
+    for (const r of list) byHost.set(r.host_id || r.host, r);
+    const ipOf = new Map();
+    if (_ipToHostCache) for (const [ip, id] of _ipToHostCache) if (!ipOf.has(id)) ipOf.set(id, ip);
+    const positional = list.length === resolved.length;
+    const results = resolved.map((t, i) => {
+      const r = byHost.get(t) || (ipOf.has(t) ? byHost.get(ipOf.get(t)) : undefined) || (positional ? list[i] : undefined);
+      if (!r) return { host: t, success: false, exit_code: null, stdout: '', stderr: '', error: 'no result returned by bastion for this host' };
+      return {
+        host: t, success: r.exit_code === 0, exit_code: r.exit_code, stdout: r.stdout, stderr: r.stderr,
+        ...(r.error || r.exit_code !== 0 ? { error: r.error || r.stderr } : {}),
+        ...(r.duration_ms !== undefined ? { duration_ms: r.duration_ms } : {})
+      };
+    });
+    const ok = results.filter((x) => x.success).length;
+    return { success: ok === results.length, partial: ok > 0 && ok < results.length, hosts: resolved, results };
+  } catch (err) {
+    console.error(`[Tools] Bastion multi error:`, err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// Grant-aware multi-host call: ONE grant whose targets are the full resolved list. Fail closed on mint failure.
+function makeGrantAwareCallBastionMulti(ctx, baseMulti, mintFn) {
+  return async (hostIds, command) => {
+    const targets = [...hostIds]; // resolved + sorted at proposal time
+    let grant;
+    try {
+      grant = await mintFn(ctx, { action: 'exec', command, targets });
+    } catch (err) {
+      if (err && err.code === 'grant_mint_failed') return { success: false, error: err.message };
+      throw err;
+    }
+    return baseMulti(targets, command, grant, bastionTimeoutFor(ctx));
+  };
+}
+
 /**
  * Run a gated ssh_exec under a fleet standing grant (lib/fleetStandingGrants.js).
  * Records the use as a tool_approvals row (status resuming -> approved|error) and an
@@ -760,7 +902,7 @@ function makeGrantAwareCallBastion(ctx, baseCallBastion, mintFn) {
       }
       throw err;
     }
-    return baseCallBastion(resolvedHost, command, grant);
+    return baseCallBastion(resolvedHost, command, grant, bastionTimeoutFor(ctx));
   };
 }
 
@@ -781,6 +923,47 @@ function isCollectorApiUrl(raw) {
   return ['localhost', '127.0.0.1', '::1', '0.0.0.0'].includes(host) && port === collectorPort;
 }
 
+// quox#1047: AEE envelopes live in the COLLECTOR store (the route `quox aee query|get` uses).
+// Service-key self-call; the org travels as ?org_id (honoured only for service callers), so
+// reads stay scoped to the caller's org. Non-2xx surfaces status + the body's error text.
+async function aeeCollectorGet(path, orgId) {
+  const port = process.env.COLLECTOR_PORT || process.env.PORT || 9848;
+  const sep = path.includes('?') ? '&' : '?';
+  const url = `http://127.0.0.1:${port}${path}${orgId ? `${sep}org_id=${encodeURIComponent(orgId)}` : ''}`;
+  const res = await fetch(url, { headers: buildInternalServiceHeaders() });
+  if (!res.ok) {
+    let detail = '';
+    try { const t = await res.text(); try { detail = JSON.parse(t).error || t; } catch { detail = t; } } catch { /* empty body */ }
+    throw new Error(`AEE ${res.status}${detail ? `: ${String(detail).slice(0, 200)}` : ''}`);
+  }
+  return res.json();
+}
+
+// Ancestors via reply_to up to the root, then every descendant (reply_to -> id), in time order.
+function buildEnvelopeCausalityChain(envelopes, startId) {
+  const byId = new Map(envelopes.map(e => [e.id, e]));
+  const children = new Map();
+  for (const e of envelopes) {
+    if (!e.reply_to) continue;
+    if (!children.has(e.reply_to)) children.set(e.reply_to, []);
+    children.get(e.reply_to).push(e);
+  }
+  const seen = new Set();
+  const ancestors = [];
+  let cur = byId.get(startId);
+  while (cur && !seen.has(cur.id)) { seen.add(cur.id); ancestors.unshift(cur); cur = cur.reply_to ? byId.get(cur.reply_to) : null; }
+  const descendants = [];
+  const queue = [...(children.get(startId) || [])];
+  while (queue.length) {
+    const e = queue.shift();
+    if (seen.has(e.id)) continue;
+    seen.add(e.id); descendants.push(e);
+    queue.push(...(children.get(e.id) || []));
+  }
+  descendants.sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
+  return [...ancestors, ...descendants];
+}
+
 async function localApiFetch(path, options = {}, { assertOk = true } = {}) {
   const port = process.env.COLLECTOR_PORT || process.env.PORT || 9848;
   const headers = {
@@ -793,6 +976,54 @@ async function localApiFetch(path, options = {}, { assertOk = true } = {}) {
     throw new Error(`local API ${path} → HTTP ${resp.status}: ${body.slice(0, 160)}`);
   }
   return resp;
+}
+
+// quox#1065: REGULA's settings_search/settings_explain read
+// /api/v1/platform/capabilities. With the service key alone the route has no
+// org, resolves only the env layer, and labels it source 'env', which REGULA
+// reported to a user as "environment default, no org override" (said 'allow'
+// while the org's stored value was 'require-acceptance'). Resolve the caller's
+// org: the authenticated ctx.orgId (authoritative on this path, QUOXTRUST F1)
+// goes as service key + X-Org-Id, so an expired user token cannot break the
+// read; with only a user token it goes as Bearer ONLY (a service key would
+// short-circuit the JWT path in requireServiceOrUserAuth). With no
+// org context the values are relabelled so the env layer is never presented
+// as this org's effective value.
+const UNRESOLVED_CAPABILITY_SOURCE = 'unresolved_no_org_context';
+const UNRESOLVED_CAPABILITY_NOTE = 'No org context reached this read, so each value is the environment/default layer only and may NOT be this org\'s effective value (an org override can exist). Use settings_get for the org\'s effective value and source before stating it.';
+
+async function fetchOrgCapabilities(qs, ctx) {
+  const path = `/api/v1/platform/capabilities${qs || ''}`;
+  let resp;
+  if (ctx?.orgId) {
+    resp = await localApiFetch(path, { headers: { 'X-Org-Id': String(ctx.orgId) } }, { assertOk: false });
+  } else if (ctx?.token) {
+    const port = process.env.COLLECTOR_PORT || process.env.PORT || 9848;
+    resp = await fetch(`http://127.0.0.1:${port}${path}`, { headers: { Authorization: `Bearer ${ctx.token}` } });
+  } else {
+    resp = await localApiFetch(path, {}, { assertOk: false });
+  }
+  const data = await resp.json().catch(() => null);
+  if (!resp.ok) return { ok: false, resp, data };
+  const orgResolved = !!(ctx?.token || ctx?.orgId);
+  const capabilities = (data?.capabilities || []).map((c) =>
+    orgResolved ? c : { ...c, source: UNRESOLVED_CAPABILITY_SOURCE }
+  );
+  return { ok: true, orgResolved, capabilities };
+}
+
+// quox#1083: the flags read resolves the org the same way as fetchOrgCapabilities. A delegated
+// specialist turn carries ctx.orgId but often no holdable user bearer, and the token-only path
+// failed every delegated settings_list/settings_get with org_context_required.
+// ctx.orgId wins over ctx.token deliberately because the two paths return the SAME flags for
+// the same org, not because the service path is stronger: it simply cannot fail on an expired
+// user token. ctx.orgId is the authenticated caller's org (set by the tools/execute route via
+// resolveCallerOrgId, or the delegating turn); a tool's input never chooses the org.
+async function fetchOrgFlags(ctx) {
+  const path = '/api/v1/platform/settings/flags';
+  if (ctx?.orgId) return localApiFetch(path, { headers: { 'X-Org-Id': String(ctx.orgId) } }, { assertOk: false });
+  const port = process.env.COLLECTOR_PORT || process.env.PORT || 9848;
+  return fetch(`http://127.0.0.1:${port}${path}`, { headers: { Authorization: `Bearer ${ctx.token}` } });
 }
 
 // COMMANDERQ P6: latency-budgeted delegation. One shared breaker across all
@@ -848,53 +1079,223 @@ async function _fetchIntegrationTypes(ctx) {
 }
 
 /**
- * Get fleet status from collector's own API (same process, localhost)
+ * Read the Bastion REGISTRY (every registered host, what `quox fleet hosts` lists). Bastion hosts carry
+ * {id, ip, group, state, health, last_seen}; older shapes carried `status`.
+ * -> { success:true, raw:[...] } | { success:false, error }
  */
-async function getFleetStatusLocal() {
+async function readBastionRegistry() {
   try {
-    // Fetch BOTH summary and per-host data in parallel — gives Claude complete picture
-    // 10s not 5s: found via QUOX-SECURITY quoxagent_install verification
-    // testing 2026-08-10 that under normal collector load these two
-    // self-referential calls (particularly /api/v1/agents, ~29 hosts of
-    // resource data) intermittently exceeded 5s, producing a spurious
-    // "target not in fleet" result for a target that genuinely was.
+    const resp = await localApiFetch('/api/v1/fleet/hosts', { signal: AbortSignal.timeout(10000) }, { assertOk: false });
+    if (!resp.ok) return { success: false, error: `HTTP ${resp.status}` };
+    const data = await resp.json();
+    return { success: true, raw: Array.isArray(data) ? data : (data.hosts || data.data || []) };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * FLEET-UNHEALTHY (proof case fleet/unhealthy): not healthy = degraded + unhealthy + unreachable, labelled.
+ * A host not active in the Bastion registry is labelled with that state (e.g. unreachable). An active host is
+ * not healthy when its reporting agent, or else the registry, says a health other than healthy/unknown.
+ * -> [{ host, status, reachability, source, health?, agent_health? }]
+ */
+function fleetNotHealthy(hosts) {
+  const OK = new Set(['healthy', 'unknown', '', 'null', 'undefined']);
+  const out = [];
+  for (const h of hosts) {
+    const state = String(h.state ?? '').toLowerCase();
+    const agentH = String(h.agent_health ?? '').toLowerCase();
+    const regH = String(h.health ?? '').toLowerCase();
+    if (state && state !== 'active') {
+      out.push({ host: h.id, status: state, reachability: h.reporting ? 'reachable' : state, source: 'bastion registry', health: h.health ?? null, ...(h.reporting ? { agent_health: h.agent_health } : {}) });
+    } else if (h.reporting && !OK.has(agentH)) {
+      out.push({ host: h.id, status: agentH, reachability: 'reachable', source: h.agent_id ? `reporting agent (reports as ${h.agent_id})` : 'reporting agent', ...(h.agent_id ? { agent_id: h.agent_id } : {}), agent_health: h.agent_health, health: h.health ?? null });
+    } else if (!OK.has(regH)) {
+      out.push({ host: h.id, status: regH, reachability: h.reporting ? 'reachable' : 'unknown', source: 'bastion registry', health: h.health });
+    }
+  }
+  const rank = (s) => (s === 'unhealthy' ? 0 : s === 'degraded' ? 1 : 2);
+  return out.sort((a, b) => rank(a.status) - rank(b.status) || String(a.host).localeCompare(String(b.host)));
+}
+
+/**
+ * fleet_status: the Bastion REGISTRY is the inventory (registered total, state counts, every non-active host);
+ * the QuoxAgent sidecars that report (/api/v1/agents) only contribute resources onto the hosts they cover.
+ * A registry read that fails is an error, never an agents-only number presented as the fleet.
+ */
+async function getFleetStatusLocal(input = {}) {
+  try {
+    // 10s not 5s: under normal collector load these self-referential calls intermittently exceeded 5s
+    // (QUOX-SECURITY quoxagent_install verification, 2026-08-10). ?registry=1 asks the summary route to
+    // also read the Bastion registry (other summary callers do not pay for that).
     const [summaryResp, agentsResp] = await Promise.all([
-      localApiFetch('/api/v1/fleet/summary', { signal: AbortSignal.timeout(10000) }),
+      localApiFetch('/api/v1/fleet/summary?registry=1', { signal: AbortSignal.timeout(10000) }),
       localApiFetch('/api/v1/agents', { signal: AbortSignal.timeout(10000) })
     ]);
     const summary = await summaryResp.json();
     const agentsData = await agentsResp.json();
-
-    // Include per-host breakdown with key fields only (keep payload manageable)
-    const hosts = (agentsData.agents || []).map(a => ({
-      host: a.host_id,
-      ip: a.remote_addr || a.ip,
-      health: a.status?.health || 'unknown',
-      connection: a.status?.connection || 'unknown',
-      cpu: a.resources?.cpu?.usage_percent?.toFixed(1) + '%',
-      memory: a.resources?.memory?.usage_percent?.toFixed(1) + '%',
-      disk: a.resources?.disk?.usage_percent ? a.resources.disk.usage_percent.toFixed(1) + '%' : 'n/a',
-      uptime: a.system?.uptime_hours ? Math.floor(a.system.uptime_hours) + 'h' : 'n/a',
-      containers: a.docker?.container_count ?? 'n/a',
-      last_seen: a.status?.last_seen_seconds + 's ago',
-      version: a.version || 'n/a'
-    }));
-
-    return { ...summary, hosts };
+    let reg = summary && summary.registry;
+    if (!reg || reg.error || !Array.isArray(reg.hosts)) {
+      return { success: false, error: `Bastion registry could not be read (${(reg && reg.error) || 'not returned'}); the registered host count is unknown.` };
+    }
+    const askedHost = input && typeof input.host === 'string' ? input.host.trim() : '';
+    if (askedHost) {
+      // single-host ask: only that host's row. A host that is not registered gets a not_found block (count + close NAMES),
+      // never a roster and never another host's state.
+      const { matchHosts, suggestHostNames } = require('./fleetAsk.js');
+      if (!matchHosts(reg.hosts, askedHost).length) {
+        const total = reg.total ?? reg.hosts.length;
+        const suggestions = suggestHostNames(reg.hosts.map((h) => h && h.id), askedHost);
+        return {
+          success: true,
+          registry_total: total,
+          hosts: [],
+          not_found: {
+            requested: askedHost,
+            registered_total: total,
+            suggestions,
+            message: `${askedHost} is not registered (${total} host${total === 1 ? '' : 's'} are).${suggestions.length ? ` Close names: ${suggestions.join(', ')}.` : ''} Say so; give no state, health or last-seen for any other host.`,
+          },
+        };
+      }
+      reg = { ...reg, hosts: matchHosts(reg.hosts, askedHost) };
+    }
+    const agentList = agentsData.agents || [];
+    const byAgent = new Map(agentList.map((a) => [String(a.host_id || '').toLowerCase(), a]));
+    const byAgentIp = new Map(agentList.filter((a) => a.remote_addr || a.ip).map((a) => [String(a.remote_addr || a.ip), a]));
+    const hosts = reg.hosts.map((h) => {
+      const id = String(h.id || 'unnamed');
+      const a = byAgent.get(id.toLowerCase()) || (h.ip ? byAgentIp.get(String(h.ip)) : undefined);
+      const row = { id, host: id, ip: h.ip, group: h.group, state: h.state, health: h.health, last_seen: h.last_seen, reporting: !!a };
+      if (a) {
+        Object.assign(row, {
+          connection: a.status?.connection || 'unknown',
+          agent_health: a.status?.health || 'unknown',
+          // FLEET-UNHEALTHY: an agent joined by IP may report under another name (agent prtg01 on registry host kuma02).
+          ...(String(a.host_id || '').toLowerCase() !== id.toLowerCase() && a.host_id ? { agent_id: a.host_id } : {}),
+          cpu: a.resources?.cpu?.usage_percent?.toFixed(1) + '%',
+          memory: a.resources?.memory?.usage_percent?.toFixed(1) + '%',
+          disk: a.resources?.disk?.usage_percent ? a.resources.disk.usage_percent.toFixed(1) + '%' : 'n/a',
+          uptime: a.system?.uptime_hours ? Math.floor(a.system.uptime_hours) + 'h' : 'n/a',
+          containers: a.docker?.container_count ?? 'n/a',
+          // the agent's own version is agent.version; a.version is the report schema ("1.0"), only a fallback
+          version: a.agent?.version || a.version || 'n/a',
+          os: a.system?.os_version || a.system?.os || 'n/a',
+          agent_last_seen: a.last_seen || null,
+        });
+      }
+      return row;
+    });
+    const notHealthy = fleetNotHealthy(hosts);
+    const notHealthyCounts = {};
+    notHealthy.forEach((h) => { notHealthyCounts[h.status] = (notHealthyCounts[h.status] || 0) + 1; });
+    return {
+      success: true,
+      registry_total: reg.total ?? hosts.length,
+      reporting_agents: agentList.length,
+      by_state: reg.by_state,
+      // FLEET-UNHEALTHY: the answer to "which servers are not healthy?": every host that is degraded or unhealthy
+      // (agent-reported, or registry health) or not active in the registry (unreachable), each labelled with its source.
+      not_healthy: notHealthy,
+      not_healthy_counts: notHealthyCounts,
+      not_active: hosts.filter((h) => String(h.state).toLowerCase() !== 'active').map(({ id, ip, group, state, health, last_seen }) => ({ id, ip, group, state, health, last_seen })),
+      hosts,
+    };
   } catch (err) {
     return { success: false, error: err.message };
   }
+}
+
+/**
+ * Z2H-7B4 (quox#1243): the Bastion REGISTRY roster. Bastion hosts carry `state` and `health`, not `status`, so
+ * status is read from state (a legacy `status` is kept when no state is present).
+ * -> { success:true, hosts:[{id,ip,group,status,state,health,last_seen}] } | { success:false, error }
+ */
+async function getFleetRegistryLocal() {
+  const reg = await readBastionRegistry();
+  if (!reg.success) return reg;
+  const { bastionHostFields } = require('./fleetAsk.js'); // Bastion nests status {state,health,last_seen}; state is always a string
+  return { success: true, hosts: reg.raw.map((h) => {
+    const f = bastionHostFields(h);
+    return {
+      id: String((h && (h.id || h.host_id || h.name)) || 'unnamed'),
+      ip: (h && h.ip) || null,
+      group: (h && h.group) || null,
+      status: f.state,
+      state: f.state,
+      health: f.health,
+      last_seen: f.last_seen,
+    };
+  }) };
 }
 
 // ============================================================================
 // Docker Fleet Executors
 // ============================================================================
 
+
+// DEVFLEET-DOCKER: an error body is not data. A refused / failed Bastion read must never be
+// folded into an empty list with success:true (2026-10-14: `quox mon docker containers` printed
+// [] while every host was refused by Bastion's "risky" approval mode).
+function dockerReadFailed(result) {
+  if (!result) return true;
+  if (result.refused) return true;
+  if (result.success !== false) return false;
+  // A non-zero exit WITH an exit_code is the remote command failing (e.g. no docker on that
+  // host), not the transport/gateway failing. Callers decide what that means.
+  return result.exit_code === undefined || result.exit_code === null;
+}
+
+function dockerHostFailure(host, result) {
+  const refused = !!(result && result.refused);
+  return {
+    host,
+    ok: false,
+    refused,
+    ...(refused ? { error_code: result.error_code || 'approval_required' } : {}),
+    error: refused
+      ? `Docker read on ${host} was refused by the SSH gateway's approval mode; nothing was read.`
+      : ((result && result.error) || `Docker read on ${host} failed`),
+  };
+}
+
+function dockerFailureResult(host, result) {
+  const f = dockerHostFailure(host, result);
+  return {
+    success: false,
+    ...(f.refused ? { refused: true, error_code: f.error_code } : {}),
+    host,
+    error: f.error,
+  };
+}
+
+/**
+ * Roll per-host outcomes into the fleet-wide envelope. Every host failed -> success:false
+ * (refused:true when they were all refusals). Some failed -> success:true, partial:true.
+ */
+function dockerFleetEnvelope(hostStatus, extra) {
+  const failed = hostStatus.filter(h => !h.ok);
+  if (hostStatus.length > 0 && failed.length === hostStatus.length) {
+    const allRefused = failed.every(h => h.refused);
+    return {
+      success: false,
+      ...(allRefused ? { refused: true, error_code: 'approval_required' } : {}),
+      error: allRefused
+        ? `Docker reads were refused by the SSH gateway's approval mode on all ${failed.length} host(s); nothing was read.`
+        : `Docker reads failed on all ${failed.length} host(s).`,
+      hosts: hostStatus,
+      partial: false,
+    };
+  }
+  return { success: true, ...extra, partial: failed.length > 0, ...(failed.length > 0 ? { hosts_failed: failed } : {}), host_status: hostStatus };
+}
+
 /**
  * Discover Docker hosts across the fleet via bastion.
  * Queries all known hosts for Docker version and container counts.
  */
-async function dockerFleetScan(callBastion) {
+async function dockerFleetScan(callBastion, deps = {}) {
   // Get ALL known hosts from bastion (not just QuoxAgent-registered ones)
   const bastionUrl = BASTION_URL;
   if (!bastionUrl) {
@@ -935,13 +1336,37 @@ async function dockerFleetScan(callBastion) {
 
   // Query each host — batch in groups of 5 to avoid overwhelming bastion
   const dockerHosts = [];
-  const batchSize = 5;
-  for (let i = 0; i < hostIds.length; i += batchSize) {
-    const batch = hostIds.slice(i, i + batchSize);
-    await Promise.all(batch.map(async (hostId) => {
+  const hostStatus = [];
+  // #1044: a sliding pool (never more than DOCKER_READ_CONCURRENCY in flight) instead of lockstep
+  // batches, so one slow or unreachable host no longer holds up the next four.
+  {
+    await mapPool(hostIds, DOCKER_READ_CONCURRENCY, async (hostId) => {
       try {
-        const result = await callBastion(hostId, 'docker info --format "{{.ServerVersion}}|{{.ContainersRunning}}|{{.ContainersStopped}}|{{.Containers}}|{{.Images}}" 2>/dev/null');
+        // DEVFLEET-BUILTINS: docker-read builtin first; raw only when Bastion does not know it.
+        const bi = dockerRead.info('|');
+        const result = await runSafeRead('docker-read', hostId, bi.params,
+          () => callBastion(hostId, 'docker info --format "{{.ServerVersion}}|{{.ContainersRunning}}|{{.ContainersStopped}}|{{.Containers}}|{{.Images}}" 2>/dev/null'),
+          { ...deps, convert: bi.convert });
+        if (dockerReadFailed(result)) {
+          hostStatus.push(dockerHostFailure(hostId, result));
+          return;
+        }
+        // quox#977 / quoxbastion#21: a docker failure carrying an exit code is the remote command failing.
+        // 127 / "command not found" means no Docker on that host (quiet, as before); any other code is a
+        // host with Docker we could not read, named with docker's own reason. An empty builtin answer
+        // stays "no Docker": a pre-#21 Bastion swallows the exit code, so empty cannot tell the two apart
+        // (treating it as a failure flagged every Docker-less host, 2026-10-15).
+        if (result.success === false) {
+          const why = `${result.error || ''} ${result.stderr || ''}`;
+          if (result.exit_code === 127 || /command not found|docker: not found/i.test(why)) {
+            hostStatus.push({ host: hostId, ok: true });
+            return;
+          }
+          hostStatus.push(dockerHostFailure(hostId, { error: result.error || `Docker read on ${hostId} failed (exit ${result.exit_code})` }));
+          return;
+        }
         const out = (result.stdout || '').trim();
+        hostStatus.push({ host: hostId, ok: true });
         if (out && out.includes('|') && !out.includes('Cannot connect')) {
           const [version, running, stopped, total, images] = out.split('|');
           dockerHosts.push({
@@ -954,53 +1379,158 @@ async function dockerFleetScan(callBastion) {
           });
         }
       } catch (err) {
-        // Host doesn't have Docker or is unreachable — skip silently
+        hostStatus.push(dockerHostFailure(hostId, { error: err.message || 'unreachable' }));
         console.log(`[DockerFleet] Scan skip ${hostId}: ${err.message || 'no docker'}`);
       }
-    }));
+    });
   }
 
-  return {
-    success: true,
-    hosts: dockerHosts.sort((a, b) => a.id.localeCompare(b.id)),
-    total_hosts: dockerHosts.length,
+  const sorted = dockerHosts.sort((a, b) => a.id.localeCompare(b.id));
+  const scanned = dockerFleetEnvelope(hostStatus, {
+    hosts: sorted,
+    total_hosts: sorted.length,
     scanned_hosts: hostIds.length,
-    total_containers: dockerHosts.reduce((sum, h) => sum + h.containers_total, 0),
-    total_running: dockerHosts.reduce((sum, h) => sum + h.containers_running, 0)
-  };
+    total_containers: sorted.reduce((sum, h) => sum + h.containers_total, 0),
+    total_running: sorted.reduce((sum, h) => sum + h.containers_running, 0)
+  });
+  // #1044: remember which hosts run Docker (only a successful scan that found some).
+  if (scanned.success && sorted.length) dockerHostCache = { at: (deps.now || Date.now)(), fleet: scanned };
+  return scanned;
+}
+
+/**
+ * quox#1044: discovering Docker hosts costs one Bastion read per FLEET host (68 on dev), and
+ * Bastion allows 60 req/min (burst 100) per caller, so re-discovering on every fleet-wide read
+ * made each call slow and the next one inside a minute fail with 429. Fleet-wide reads use the
+ * remembered host list for DOCKER_HOSTS_TTL_MS; docker_fleet_scan always scans live.
+ * Up to DOCKER_HOSTS_STALE_MS an older list still answers at once (marked stale) while one
+ * background scan refreshes it, so a delegated read never pays the ~25 s cold scan.
+ */
+const DOCKER_HOSTS_TTL_MS = 5 * 60 * 1000;
+const DOCKER_HOSTS_STALE_MS = 60 * 60 * 1000;
+const DOCKER_READ_CONCURRENCY = 5;
+let dockerHostCache = null; // { at, fleet }
+let dockerHostRefresh = null; // the one background scan in flight
+const DOCKER_HOSTS_REFRESH_BACKOFF_MS = 60 * 1000;
+let dockerHostRefreshFailedAt = 0; // a failed refresh is not retried for a minute
+function _resetDockerHostCacheForTest() { dockerHostCache = null; dockerHostRefresh = null; dockerHostRefreshFailedAt = 0; }
+function _dockerHostRefreshForTest() { return dockerHostRefresh || Promise.resolve(); }
+
+/** Run fn over items with at most `limit` in flight. */
+async function mapPool(items, limit, fn) {
+  let next = 0;
+  const worker = async () => { while (next < items.length) { const it = items[next++]; await fn(it); } };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
+async function dockerHostsForRead(callBastion, deps = {}) {
+  const now = (deps.now || Date.now)();
+  if (dockerHostCache && now - dockerHostCache.at < DOCKER_HOSTS_TTL_MS) {
+    return { ...dockerHostCache.fleet, discovery: { cached: true, age_s: Math.round((now - dockerHostCache.at) / 1000) } };
+  }
+  if (dockerHostCache && now - dockerHostCache.at < DOCKER_HOSTS_STALE_MS) {
+    const age_s = Math.round((now - dockerHostCache.at) / 1000);
+    if (!dockerHostRefresh && now - dockerHostRefreshFailedAt >= DOCKER_HOSTS_REFRESH_BACKOFF_MS) {
+      // dockerFleetScan replaces the memory only on success; a failed refresh keeps the old list.
+      const failed = (why) => { dockerHostRefreshFailedAt = now; console.log(`[DockerFleet] background host refresh failed: ${why}`); };
+      dockerHostRefresh = dockerFleetScan(callBastion, deps)
+        .then((r) => { if (!r.success) failed(r.error || 'scan failed'); })
+        .catch((err) => failed(err.message))
+        .finally(() => { dockerHostRefresh = null; });
+    }
+    return { ...dockerHostCache.fleet, discovery: { cached: true, stale: true, age_s } };
+  }
+  const fleet = await dockerFleetScan(callBastion, deps);
+  return { ...fleet, discovery: { cached: false, age_s: 0 } };
+}
+
+/**
+ * fleet/docker-hosts-plain ev_mvf3kmne_99baa7: a model that calls docker_fleet_scan again in the same hop spent another
+ * read per fleet host and hit Bastion's 429. A scan that succeeded under DOCKER_SCAN_REUSE_MS ago answers a repeat
+ * (marked cached); otherwise it scans live. dockerFleetScan itself always scans live.
+ */
+const DOCKER_SCAN_REUSE_MS = 60 * 1000;
+async function dockerFleetScanTool(callBastion, deps = {}) {
+  const now = (deps.now || Date.now)();
+  if (dockerHostCache && now - dockerHostCache.at < DOCKER_SCAN_REUSE_MS) {
+    return { ...dockerHostCache.fleet, discovery: { cached: true, age_s: Math.round((now - dockerHostCache.at) / 1000) } };
+  }
+  const fleet = await dockerFleetScan(callBastion, deps);
+  return { ...fleet, discovery: { cached: false, age_s: 0 } };
 }
 
 /**
  * List containers across the fleet or a specific host.
  */
-async function dockerFleetContainers(callBastion, input) {
+async function dockerFleetContainers(callBastion, input, deps = {}) {
   const showAll = input.all !== false ? '-a ' : '';
   const cmd = `docker ps ${showAll}--format "{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}|{{.CreatedAt}}"`;
+  const bp = dockerRead.ps(input.all !== false, '|');
+  const readPs = (h) => runSafeRead('docker-read', h, bp.params, () => callBastion(h, cmd), { ...deps, convert: bp.convert });
 
   if (input.host) {
     // Single host
-    const result = await callBastion(input.host, cmd);
+    const result = await readPs(input.host);
+    if (dockerReadFailed(result) || result.success === false) return dockerFailureResult(input.host, result);
     const containers = parseContainerList(result.stdout || '', input.host);
     return { success: true, containers, host: input.host, total: containers.length };
   }
 
-  // All hosts — scan fleet first
-  const fleet = await dockerFleetScan(callBastion);
+  // All hosts: the remembered Docker host list (#1044), else a scan.
+  const fleet = await dockerHostsForRead(callBastion, deps);
   if (!fleet.success) return fleet;
 
   const allContainers = [];
-  await Promise.all(fleet.hosts.map(async (host) => {
-    const result = await callBastion(host.id, cmd);
-    const containers = parseContainerList(result.stdout || '', host.id);
-    allContainers.push(...containers);
-  }));
+  // Hosts the scan itself could not read count against completeness too.
+  const hostStatus = (fleet.host_status || []).filter(h => !h.ok);
+  await mapPool(fleet.hosts, DOCKER_READ_CONCURRENCY, async (host) => {
+    const result = await readPs(host.id);
+    if (dockerReadFailed(result) || result.success === false) {
+      hostStatus.push(dockerHostFailure(host.id, result));
+      return;
+    }
+    hostStatus.push({ host: host.id, ok: true });
+    allContainers.push(...parseContainerList(result.stdout || '', host.id));
+  });
 
-  return {
-    success: true,
+  // #1044 follow-up: a stable order (hosts answer in any order) and the counts most asks need, so
+  // one call answers instead of several re-queries of a shifting list.
+  allContainers.sort((a, b) => a.host.localeCompare(b.host) || String(a.name).localeCompare(String(b.name)));
+  return dockerFleetEnvelope(hostStatus, {
     containers: allContainers,
     total: allContainers.length,
-    hosts_queried: fleet.hosts.length
-  };
+    hosts_queried: fleet.hosts.length,
+    ...summarizeContainers(allContainers),
+    discovery: fleet.discovery
+  });
+}
+
+/** `docker ps` Status text -> a state word. "Up 2 hours (unhealthy)" is running AND unhealthy. */
+function containerState(status) {
+  const s = String(status || '');
+  if (/^up\b/i.test(s)) return 'running';
+  const m = /^(exited|restarting|paused|created|dead|removing)\b/i.exec(s);
+  return m ? m[1].toLowerCase() : 'other';
+}
+
+/** Per-state and per-host counts, plus every container that is not running healthily. */
+function summarizeContainers(containers) {
+  const by_state = {};
+  const by_host = {};
+  const needs_attention = [];
+  for (const c of containers) {
+    const state = containerState(c.status);
+    const unhealthy = /\(unhealthy\)/i.test(String(c.status || ''));
+    by_state[state] = (by_state[state] || 0) + 1;
+    const h = by_host[c.host] || (by_host[c.host] = { total: 0, running: 0, exited: 0, restarting: 0, unhealthy: 0 });
+    h.total++;
+    h[state] = (h[state] || 0) + 1;
+    if (unhealthy) h.unhealthy++;
+    if (state !== 'running' || unhealthy) {
+      needs_attention.push({ host: c.host, name: c.name, image: c.image, status: c.status, state: unhealthy ? 'unhealthy' : state });
+    }
+  }
+  return { by_state, by_host, needs_attention };
 }
 
 function parseContainerList(raw, host) {
@@ -1038,26 +1568,34 @@ async function dockerFleetAction(callBastion, input) {
 /**
  * List Docker Compose stacks across fleet.
  */
-async function dockerFleetStacks(callBastion, input) {
+async function dockerFleetStacks(callBastion, input, deps = {}) {
   const cmd = `docker compose ls --format json 2>/dev/null || docker-compose ls --format json 2>/dev/null || echo "[]"`;
+  const bc = dockerRead.composeLs();
+  const readStacks = (h) => runSafeRead('docker-read', h, bc.params, () => callBastion(h, cmd), deps);
 
   if (input.host) {
-    const result = await callBastion(input.host, cmd);
+    const result = await readStacks(input.host);
+    if (dockerReadFailed(result) || result.success === false) return dockerFailureResult(input.host, result);
     const stacks = parseComposeStacks(result.stdout || '', input.host);
     return { success: true, stacks, host: input.host };
   }
 
-  const fleet = await dockerFleetScan(callBastion);
+  const fleet = await dockerHostsForRead(callBastion, deps); // #1044
   if (!fleet.success) return fleet;
 
   const allStacks = [];
-  await Promise.all(fleet.hosts.map(async (host) => {
-    const result = await callBastion(host.id, cmd);
-    const stacks = parseComposeStacks(result.stdout || '', host.id);
-    allStacks.push(...stacks);
-  }));
+  const hostStatus = (fleet.host_status || []).filter(h => !h.ok);
+  await mapPool(fleet.hosts, DOCKER_READ_CONCURRENCY, async (host) => {
+    const result = await readStacks(host.id);
+    if (dockerReadFailed(result) || result.success === false) {
+      hostStatus.push(dockerHostFailure(host.id, result));
+      return;
+    }
+    hostStatus.push({ host: host.id, ok: true });
+    allStacks.push(...parseComposeStacks(result.stdout || '', host.id));
+  });
 
-  return { success: true, stacks: allStacks, total: allStacks.length };
+  return dockerFleetEnvelope(hostStatus, { stacks: allStacks, total: allStacks.length, discovery: fleet.discovery });
 }
 
 function parseComposeStacks(raw, host) {
@@ -1074,9 +1612,9 @@ function parseComposeStacks(raw, host) {
 // Roadmap tool executors (read-only view of STRATEGIC_ROADMAP.json)
 // ============================================================================
 // The roadmap file is the owner's single source of truth, reachable via the
-// collector's /opt/quoxcore mount on the dev host. Agents READ only; mutation is
+// collector's ~ mount on the dev host. Agents READ only; mutation is
 // owner-only via roadmap-cli. Fail-soft when the file is absent (e.g. on prod).
-const ROADMAP_PATH = process.env.STRATEGIC_ROADMAP_PATH || '/opt/quoxcore/STRATEGIC_ROADMAP.json';
+const ROADMAP_PATH = process.env.STRATEGIC_ROADMAP_PATH || hostPath('STRATEGIC_ROADMAP.json');
 
 function readRoadmapFile() {
   const fs = require('fs');
@@ -1153,6 +1691,509 @@ function roadmapStats() {
 // Tool Definitions (Anthropic tool_use format)
 // ============================================================================
 
+/**
+ * Z2H-R5 A: does `agentId` name a registered specialist or one of the org's own agents?
+ * Returns { exists, ids } or null when it cannot be told (org list unreadable and not in the
+ * registry): then reach_agent does not block, it only blocks on a positive "no such agent".
+ */
+async function checkReachAgentExists(agentId, orgId) {
+  const id = agentId.trim().toLowerCase();
+  const { listAssistants, getAssistant } = require('./entityAssistantLoader');
+  const registry = (listAssistants() || []).map(String);
+  if (registry.some((r) => r.toLowerCase() === id) || getAssistant(id)) return { exists: true, ids: registry };
+  const parity = require('./parityReadTools.js').__depsForTesting();
+  if (typeof parity.listOrgAgents !== 'function') return null;
+  let rows;
+  try { rows = (await parity.listOrgAgents(orgId)) || []; } catch { return null; }
+  const orgIds = rows.map((r) => r && r.agentId).filter(Boolean).map(String);
+  if (orgIds.some((o) => o.toLowerCase() === id)) return { exists: true, ids: registry };
+  return { exists: false, ids: [...new Set([...registry, ...orgIds])].sort() };
+}
+
+// DEVFLEET-READ: view -> existing read tool + required params + how to shape its input.
+const PROXMOX_READ_VIEWS = {
+  cluster:       { tool: 'proxmox_cluster_status', pick: () => ({}) },
+  ha:            { tool: 'proxmox_ha_status', pick: () => ({}) },
+  vms:           { tool: 'proxmox_vms', pick: (i) => (i.node ? { node: i.node } : {}) },
+  containers:    { tool: 'proxmox_containers', pick: (i) => (i.node ? { node: i.node } : {}) },
+  storage:       { tool: (i) => (i.warn_percent !== undefined ? 'proxmox_storage_usage' : 'proxmox_storage'),
+                   pick: (i) => ({ ...(i.node ? { node: i.node } : {}), ...(i.warn_percent !== undefined ? { warn_percent: Number(i.warn_percent) } : {}) }) },
+  templates:     { tool: 'proxmox_templates_list', pick: (i) => (i.node ? { node: i.node } : {}) },
+  node:          { tool: 'proxmox_node_resources', required: ['node'], pick: (i) => ({ node: i.node }) },
+  vm:            { tool: 'proxmox_vm_resources', pick: (i) => ({ ...(i.vmid !== undefined ? { vmid: Number(i.vmid) } : {}), ...(i.node ? { node: i.node } : {}), ...(i.type ? { type: i.type } : {}) }) },
+  snapshots:     { tool: 'proxmox_snapshots_list', pick: (i) => (i.vmid !== undefined ? { vmid: Number(i.vmid) } : {}) },
+  backups:       { tool: 'proxmox_backup_status', pick: (i) => {
+                     const out = i.vmid !== undefined ? { vmid: Number(i.vmid) } : {};
+                     if (i.timeframe !== undefined && i.timeframe !== null && i.timeframe !== '') {
+                       const m = /^(\d+(?:\.\d+)?)\s*([dhw]?)$/i.exec(String(i.timeframe).trim());
+                       if (m) { const n = Number(m[1]); const u = m[2].toLowerCase(); out.days = Math.max(1, Math.ceil(u === 'h' ? n / 24 : u === 'w' ? n * 7 : n)); }
+                     }
+                     return out;
+                   } },
+  resolve:       { tool: 'proxmox_vm_resolve', anyOf: ['name', 'vmid'], pick: (i) => ({ ...(i.name ? { name: i.name } : {}), ...(i.vmid !== undefined ? { vmid: Number(i.vmid) } : {}) }) },
+  pool:          { tool: 'proxmox_pool_status', pick: () => ({}) },
+  rehearsal:     { tool: 'proxmox_rehearsal_status', required: ['rehearsal_id'], pick: (i) => ({ rehearsal_id: i.rehearsal_id }) },
+  doctor_report: { tool: 'proxmox_doctor_report', required: ['report_id'], pick: (i) => ({ report_id: i.report_id }) }
+};
+const PROXMOX_READ_VIEW_NAMES = Object.keys(PROXMOX_READ_VIEWS);
+// The read tools proxmox_read replaces. They stay DEFINED (CLI, other agents, tests) but are NOT
+// granted to atlas.
+const PROXMOX_READ_MERGED_TOOLS = ['proxmox_vms', 'proxmox_containers', 'proxmox_cluster_status', 'proxmox_storage', 'proxmox_storage_usage', 'proxmox_templates_list', 'proxmox_node_resources', 'proxmox_vm_resources', 'proxmox_snapshots_list', 'proxmox_backup_status', 'proxmox_vm_resolve', 'proxmox_ha_status', 'proxmox_pool_status', 'proxmox_rehearsal_status', 'proxmox_doctor_report'];
+
+async function proxmoxReadRoute(input, ctx) {
+  const view = String(input.view || '').trim().toLowerCase();
+  const spec = PROXMOX_READ_VIEWS[view];
+  if (!spec) {
+    return { success: false, error: 'invalid_view', detail: `view must be one of: ${PROXMOX_READ_VIEW_NAMES.join(', ')}` };
+  }
+  // DEVFLEET-P19d: view=vm + guest:true + vmid is answered from the QEMU guest agent (no new view or tool).
+  if (view === 'vm' && (input.guest === true || input.guest === 'true')) return proxmoxGuestView(input, ctx);
+  // DEVFLEET-P16: view=vms + guest:true is guest-agent coverage across the cluster (an option, not a new view).
+  if (view === 'vms' && (input.guest === true || input.guest === 'true')) return proxmoxGuestCoverage(input, ctx);
+  // DEVFLEET-P15: view=pool + activity:true is the activity book (who holds each pool and lane VM and why).
+  if (view === 'pool' && (input.activity === true || input.activity === 'true')) return proxmoxActivityView(input, ctx);
+  const has = (k) => input[k] !== undefined && input[k] !== null && input[k] !== '';
+  const missing = (spec.required || []).filter((k) => !has(k));
+  if (missing.length) {
+    return { success: false, error: 'missing_param', view, detail: `view=${view} requires ${missing.join(', ')}` };
+  }
+  if (spec.anyOf && !spec.anyOf.some(has)) {
+    return { success: false, error: 'missing_param', view, detail: `view=${view} requires ${spec.anyOf.join(' or ')}` };
+  }
+  const toolName = typeof spec.tool === 'function' ? spec.tool(input) : spec.tool;
+  const def = TOOL_DEFS[toolName];
+  if (!def || typeof def.execute !== 'function') {
+    return { success: false, error: 'view_unavailable', view, detail: `${toolName} is not available on this instance` };
+  }
+  // view=snapshots names each VM from the cluster resources: start that read alongside the per-VM walk, so the
+  // view takes the slower of the two, not their sum (live: 28 s + 8 s passed the CLI's 30 s request timeout).
+  const resourcesRead = view === 'snapshots' && TOOL_DEFS.proxmox_vm_resources
+    ? Promise.resolve().then(() => TOOL_DEFS.proxmox_vm_resources.execute({}, ctx)).catch(() => null)
+    : null;
+  const result = await def.execute(spec.pick(input), ctx);
+  if (view === 'vm') return shapeProxmoxVmResult(result, input, ctx);
+  if (view === 'snapshots') return shapeProxmoxSnapshotsResult(result, input, ctx, resourcesRead);
+  if (view === 'backups') return shapeProxmoxBackupsResult(result, input);
+  if (view === 'vms') return shapeProxmoxVmsResult(result, input);
+  return result;
+}
+
+// DEVFLEET-P19d: "what is running inside VM X" from the QEMU guest agent, one call, no new tool.
+// READ-ONLY guest-agent GETs through the same REST-first / pvesh-read-builtin path as the other
+// proxmox reads (readJson). vmid and node are validated before any path is built. The answer is
+// shaped only after the reads succeeded: a failure passes through, and an agent that is not running
+// or not enabled says exactly that, with no invented fields.
+const PVE_NODE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$/;
+const PVE_AGENT_ERR_TEXT = (r) => String((r && (r.error || r.stderr || r.stdout || r.output)) || '');
+function pveAgentState(text) {
+  if (/no qemu guest agent configured|guest agent (is )?not (enabled|configured)/i.test(text)) return 'not_enabled';
+  if (/guest agent is not running|agent is not running|not running|timed? ?out waiting for.*agent|qmp command.*(failed|timeout)/i.test(text)) return 'not_running';
+  return null;
+}
+async function proxmoxGuestView(input, ctx) {
+  const vmidNum = Number(input.vmid);
+  if (typeof input.vmid === 'boolean' || input.vmid === '' || !Number.isInteger(vmidNum) || vmidNum < 100 || vmidNum > 999999999) {
+    return { success: false, error: 'invalid_vmid', view: 'vm', guest: true, detail: 'vmid must be an integer VM id' };
+  }
+  let node = pveHas(input.node) ? String(input.node) : null;
+  if (node !== null && !PVE_NODE_RE.test(node)) {
+    return { success: false, error: 'invalid_node', view: 'vm', guest: true, detail: 'node must be a Proxmox node name' };
+  }
+  if (!node) {
+    const def = TOOL_DEFS.proxmox_vm_resources;
+    if (!def || typeof def.execute !== 'function') return { success: false, error: 'view_unavailable', view: 'vm', guest: true, detail: 'proxmox_vm_resources is not available on this instance' };
+    const r = await def.execute({}, ctx);
+    if (!r || r.success !== true) return r || { success: false, error: 'resources_read_failed', view: 'vm', guest: true };
+    let rows = r.output;
+    if (typeof rows === 'string') { try { rows = JSON.parse(rows); } catch { return { success: false, error: 'resources_unreadable', view: 'vm', guest: true }; } }
+    const hit = Array.isArray(rows) ? rows.find((v) => v && Number(v.vmid) === vmidNum && (v.type === undefined || v.type === 'qemu')) : null;
+    if (!hit || !hit.node || !PVE_NODE_RE.test(String(hit.node))) return { success: false, error: `VM ${vmidNum} not found` };
+    node = String(hit.node);
+  }
+  const { readJson } = require('./toolExecutors/proxmox.js');
+  const opts = { orgId: ctx.orgId };
+  const get = (leaf) => {
+    const p = `/nodes/${node}/qemu/${vmidNum}/agent/${leaf}`;
+    return readJson(callBastion, { host: node, opts, label: `guest agent ${leaf}`, restPath: p, bastionRead: { path: p },
+      pvesh: `pvesh get ${p} --output-format json` });
+  };
+  const leaves = ['get-osinfo', 'get-host-name', 'network-get-interfaces', 'get-fsinfo', 'info'];
+  const reads = await Promise.all(leaves.map((l) => get(l).catch((e) => ({ error: { success: false, error: String((e && e.message) || e) } }))));
+  const [osR, hostR, netR, fsR, infoR] = reads;
+  for (const x of reads) {
+    const state = x.error ? pveAgentState(PVE_AGENT_ERR_TEXT(x.error)) : null;
+    if (state) return { success: true, view: 'vm', guest: true, vmid: vmidNum, node, agent: state, error: PVE_AGENT_ERR_TEXT(x.error).slice(0, 200) };
+  }
+  if (reads.every((x) => x.error)) return osR.error;
+  const unwrap = (x) => (x && !x.error && x.data && typeof x.data === 'object' && 'result' in x.data ? x.data.result : (x && !x.error ? x.data : undefined));
+  const unavailable = [];
+  const pick = (x, name) => { const v = unwrap(x); if (v === undefined || v === null) { unavailable.push(name); } return v; };
+  const os = pick(osR, 'os'); const host = pick(hostR, 'hostname'); const net = pick(netR, 'ips'); const fs = pick(fsR, 'filesystems'); const info = pick(infoR, 'agent_version');
+  const str = (v) => (v === undefined || v === null ? null : String(v).slice(0, 80));
+  const out = { success: true, view: 'vm', guest: true, vmid: vmidNum, node, agent: 'running' };
+  if (os && typeof os === 'object') out.os = { name: str(os['pretty-name'] || os.name), version: str(os['version-id'] || os.version), kernel: str(os['kernel-release']) };
+  if (host && typeof host === 'object') out.hostname = str(host['host-name']);
+  if (Array.isArray(net)) {
+    out.ips = net.filter((n) => n && typeof n === 'object' && n.name !== 'lo').slice(0, 12).map((n) => {
+      const addrs = Array.isArray(n['ip-addresses']) ? n['ip-addresses'] : [];
+      const of = (t) => addrs.filter((a) => a && a['ip-address-type'] === t && a['ip-address']).map((a) => String(a['ip-address'])).slice(0, 4);
+      return { iface: str(n.name), ipv4: of('ipv4'), ipv6: of('ipv6') };
+    });
+  }
+  if (Array.isArray(fs)) {
+    const GB = 1024 ** 3;
+    out.filesystems = fs.filter((f) => f && typeof f === 'object' && Number(f['total-bytes']) > 0)
+      .map((f) => { const used = Number(f['used-bytes']) || 0; const total = Number(f['total-bytes']);
+        return { mount: str(f.mountpoint || f.name), type: str(f.type), used_gb: pveR1(used / GB), total_gb: pveR1(total / GB), used_pct: pveR1((used / total) * 100) }; })
+      .sort((a, b) => b.used_pct - a.used_pct).slice(0, 10);
+  }
+  if (info && typeof info === 'object') out.agent_version = str(info.version);
+  if (unavailable.length) out.unavailable = unavailable;
+  return out;
+}
+
+// DEVFLEET-P16: which running VMs answer on the QEMU guest agent. One read-only GET (agent/info) per
+// running, non-template qemu VM, REST-first with the pvesh-read builtin fallback, 8 at a time. Stopped VMs
+// are counted, never probed. An error that is not a recognised agent state is 'unknown', never counted as
+// covered or missing; if no probe produced an agent state at all, the first error passes through.
+const PVE_COVERAGE_ORDER = { not_enabled: 0, not_running: 1, unknown: 2 };
+async function proxmoxGuestCoverage(input, ctx) {
+  const node = pveHas(input.node) ? String(input.node) : null;
+  if (node !== null && !PVE_NODE_RE.test(node)) {
+    return { success: false, error: 'invalid_node', view: 'vms', guest: true, detail: 'node must be a Proxmox node name' };
+  }
+  const def = TOOL_DEFS.proxmox_vm_resources;
+  if (!def || typeof def.execute !== 'function') return { success: false, error: 'view_unavailable', view: 'vms', guest: true, detail: 'proxmox_vm_resources is not available on this instance' };
+  const r = await def.execute({}, ctx);
+  if (!r || r.success !== true) return r || { success: false, error: 'resources_read_failed', view: 'vms', guest: true };
+  let rows = r.output;
+  if (typeof rows === 'string') { try { rows = JSON.parse(rows); } catch { return { success: false, error: 'resources_unreadable', view: 'vms', guest: true }; } }
+  if (!Array.isArray(rows)) return { success: false, error: 'resources_unreadable', view: 'vms', guest: true };
+  const vms = rows.filter((v) => v && v.type === 'qemu' && Number(v.template) !== 1 && Number.isInteger(Number(v.vmid))
+    && v.node && PVE_NODE_RE.test(String(v.node)) && (node === null || String(v.node) === node));
+  const running = vms.filter((v) => v.status === 'running');
+  const { readJson } = require('./toolExecutors/proxmox.js');
+  const opts = { orgId: ctx.orgId };
+  const probe = async (v) => {
+    const p = `/nodes/${v.node}/qemu/${Number(v.vmid)}/agent/info`;
+    try {
+      const x = await readJson(callBastion, { host: String(v.node), opts, label: 'guest agent info', restPath: p, bastionRead: { path: p }, pvesh: `pvesh get ${p} --output-format json` });
+      if (!x || x.error) return { state: (x && pveAgentState(PVE_AGENT_ERR_TEXT(x.error))) || 'unknown', err: x && x.error };
+      return { state: 'running' };
+    } catch (e) {
+      const err = { success: false, error: String((e && e.message) || e) };
+      return { state: pveAgentState(err.error) || 'unknown', err };
+    }
+  };
+  const results = new Array(running.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(8, running.length) }, async () => {
+    while (next < running.length) { const i = next++; results[i] = await probe(running[i]); }
+  }));
+  if (results.length && results.every((x) => x.state === 'unknown')) return results[0].err || { success: false, error: 'guest_agent_unreadable', view: 'vms', guest: true };
+  const count = (st) => results.filter((x) => x.state === st).length;
+  const gapsAll = running.map((v, i) => ({ vmid: Number(v.vmid), name: v.name ? String(v.name).slice(0, 64) : null, node: String(v.node), agent: results[i].state }))
+    .filter((g) => g.agent !== 'running')
+    .sort((a, b) => PVE_COVERAGE_ORDER[a.agent] - PVE_COVERAGE_ORDER[b.agent] || a.vmid - b.vmid);
+  const limit = Math.min(50, Math.max(1, Math.floor(Number(input.limit)) || 25));
+  const out = { success: true, view: 'vms', guest: true, ...(node ? { node } : {}), vms: vms.length, stopped: vms.length - running.length, probed: running.length,
+    agent_running: count('running'), not_running: count('not_running'), not_enabled: count('not_enabled'), unknown: count('unknown'), gaps: gapsAll.slice(0, limit) };
+  if (gapsAll.length > limit) out.gaps_truncated = gapsAll.length - limit;
+  return out;
+}
+
+// DEVFLEET-P15: the same book as `quox hyperion` (pool store + Proxmox lane tags/description), so the agent
+// answers "who holds VM X and why" from data, not from memory. A VM absent from the book is said to be
+// absent, never given an invented owner; partial-failure notes from the book pass through.
+async function proxmoxActivityView(input, ctx) {
+  if (!ctx.orgId) return { success: false, error: 'org_required', view: 'pool', activity: true };
+  let book;
+  try { book = await require('./proxmoxActivity.js').buildActivity(ctx.orgId, { callBastion }); } catch (e) {
+    return { success: false, error: 'activity_unavailable', view: 'pool', activity: true, detail: String((e && e.message) || e).slice(0, 200) };
+  }
+  const rows = (Array.isArray(book && book.vms) ? book.vms : []).map((v) => {
+    const h = v.held_by || {};
+    return { vmid: v.vmid, name: v.name || null, node: v.node || null, status: v.status || null, held_by: h.lessee || null, source: h.source || null,
+      purpose: h.purpose || null, since: h.since || null, expires: h.expires || null };
+  });
+  const out = { success: true, view: 'pool', activity: true, vms: rows.length, held: rows.filter((r) => r.held_by).length, generated_at: book.generated_at || null };
+  for (const k of ['nodes_source', 'nodes_error', 'pool_error', 'vm_config_errors', 'vms_truncated']) if (book[k] !== undefined) out[k] = book[k];
+  if (pveHas(input.vmid)) {
+    const id = Number(input.vmid);
+    out.rows = rows.filter((r) => r.vmid === id);
+    if (!out.rows.length) { out.not_in_book = id; out.note = `VM ${id} is not a pool or HYPERION lane VM, so nobody holds it through HYPERION; look at it with view=vm`; }
+  } else out.rows = rows;
+  return out;
+}
+
+// DEVFLEET-P19b: snapshots, backups and vms return a computed answer instead of the raw dump
+// (16.7 KB, 7.2 KB, 28.8 KB measured live 2026-10-17). Same rule as the vm view: shape only after
+// the underlying tool succeeded; a failed or unparseable result passes through untouched, and a
+// failure is never shaped into empty data.
+const pveLimit = (input) => Math.min(25, Math.max(1, Math.floor(Number(input.limit)) || 10));
+const pveHas = (v) => v !== undefined && v !== null && v !== '';
+const pveR1 = (n) => Math.round(n * 10) / 10;
+const pveIso = (sec) => new Date(sec * 1000).toISOString().replace(/\.\d+Z$/, 'Z');
+
+// proxmox_snapshots_list output is, per qemu VM: `=== VM <vmid> ===` then that VM's snapshot JSON
+// array ([{name, snaptime, description, parent}, ..., {name:'current'}]) from either the REST path
+// or the Bastion pvesh command. The output carries no VM name or node, so they are looked up from
+// the cluster resources (best effort: null when that read fails).
+async function shapeProxmoxSnapshotsResult(result, input, ctx, resourcesRead = null) {
+  if (!result || result.success !== true || typeof result.output !== 'string') return result;
+  const parts = result.output.split(/^=== VM (\d+) ===\s*$/m);
+  if (parts.length < 3) return result;
+  const perVm = new Map();
+  let unread = 0;
+  for (let i = 1; i < parts.length; i += 2) {
+    const vmid = Number(parts[i]);
+    const body = (parts[i + 1] || '').trim();
+    let arr;
+    try { arr = JSON.parse(body); } catch { arr = null; }
+    if (!Array.isArray(arr)) { unread += 1; continue; }
+    const snaps = arr.filter((x) => x && typeof x === 'object' && x.name !== 'current').map((x) => ({ name: String(x.name), snaptime: Number(x.snaptime) || 0 }));
+    perVm.set(vmid, (perVm.get(vmid) || []).concat(snaps));
+  }
+  if (perVm.size === 0 && unread > 0) return result;
+  const meta = new Map();
+  try {
+    const def = TOOL_DEFS.proxmox_vm_resources;
+    const r = resourcesRead ? await resourcesRead : (def && await def.execute({}, ctx));
+    let rows = r && r.success === true ? r.output : null;
+    if (typeof rows === 'string') rows = JSON.parse(rows);
+    if (Array.isArray(rows)) for (const v of rows) if (v && v.vmid !== undefined) meta.set(Number(v.vmid), { name: v.name || null, node: v.node || null });
+  } catch { /* names are an extra; the counts do not depend on them */ }
+  const now = Date.now() / 1000;
+  const age = (t) => (t ? pveR1(Math.max(0, now - t) / 86400) : null);
+  const info = (vmid) => meta.get(vmid) || { name: null, node: null };
+  const limit = pveLimit(input);
+  const out = { success: true, view: 'snapshots' };
+  if (pveHas(input.vmid)) {
+    const vmid = Number(input.vmid);
+    const list = (perVm.get(vmid) || []).slice().sort((a, b) => b.snaptime - a.snaptime);
+    Object.assign(out, { vmid, name: info(vmid).name, node: info(vmid).node, count: list.length,
+      snapshots: list.map((x) => ({ snapshot: x.name, age_days: age(x.snaptime) })) });
+  } else {
+    const withSnaps = [...perVm.entries()].filter(([, l]) => l.length > 0);
+    const all = [];
+    for (const [vmid, l] of withSnaps) for (const x of l) all.push({ vmid, ...info(vmid), snapshot: x.name, age_days: age(x.snaptime) });
+    all.sort((a, b) => (b.age_days || 0) - (a.age_days || 0));
+    const byVm = withSnaps.map(([vmid, l]) => ({ vmid, name: info(vmid).name, count: l.length, newest_age_days: age(Math.max(...l.map((x) => x.snaptime))) }))
+      .sort((a, b) => b.count - a.count || a.vmid - b.vmid);
+    Object.assign(out, { vms_with_snapshots: withSnaps.length, total_snapshots: all.length,
+      oldest: all.slice(0, limit), by_vm: byVm.slice(0, 25) });
+    if (byVm.length > 25) out.by_vm_more = byVm.length - 25;
+  }
+  if (unread) out.vms_unread = unread;
+  return out;
+}
+
+// proxmox_backup_status output: vzdump tasks JSON ([{upid,node,starttime,endtime,id,status,...}])
+// on REST; on Bastion the cluster backup jobs JSON, a `---TASKS---` line, then that tasks JSON.
+// The tool ignores vmid and days, so they are applied here: vmid matches the task id, timeframe
+// bounds failed and recent (default 7d). last_24h is always the trailing 24 hours.
+async function shapeProxmoxBackupsResult(result, input) {
+  if (!result || result.success !== true || typeof result.output !== 'string') return result;
+  const marker = result.output.indexOf('---TASKS---');
+  const raw = marker >= 0 ? result.output.slice(marker + '---TASKS---'.length) : result.output;
+  let tasks;
+  try { tasks = JSON.parse(raw.trim()); } catch { return result; }
+  if (!Array.isArray(tasks)) return result;
+  let days = 7;
+  if (pveHas(input.timeframe)) {
+    const m = /^(\d+(?:\.\d+)?)\s*([dhw]?)$/i.exec(String(input.timeframe).trim());
+    if (m) { const n = Number(m[1]); const u = m[2].toLowerCase(); days = u === 'h' ? n / 24 : u === 'w' ? n * 7 : n; }
+  }
+  const now = Date.now() / 1000;
+  let rows = tasks.filter((t) => t && typeof t === 'object' && Number(t.starttime) > 0);
+  if (pveHas(input.vmid)) rows = rows.filter((t) => String(t.id) === String(Number(input.vmid)));
+  const state = (t) => {
+    if (!t.endtime && !t.status) return 'running';
+    const st = String(t.status || '');
+    return st === 'OK' || /^WARNINGS/i.test(st) ? 'ok' : 'failed';
+  };
+  const last = rows.filter((t) => now - Number(t.starttime) <= 86400);
+  const inWindow = rows.filter((t) => now - Number(t.starttime) <= days * 86400).sort((a, b) => Number(b.starttime) - Number(a.starttime));
+  const count = (s) => last.filter((t) => state(t) === s).length;
+  const limit = pveLimit(input);
+  const failedAll = inWindow.filter((t) => state(t) === 'failed');
+  const short = (u) => String(u || '').split(':').slice(2, 5).join(':');
+  const out = {
+    success: true, view: 'backups', timeframe_days: days,
+    last_24h: { ok: count('ok'), failed: count('failed'), running: count('running') },
+    failed: failedAll.slice(0, 25).map((t) => ({ ...(pveHas(t.id) ? { vmid: Number(t.id) } : {}), node: t.node, starttime: pveIso(Number(t.starttime)), status: String(t.status || '').slice(0, 80), upid: short(t.upid) })),
+    recent: inWindow.slice(0, limit).map((t) => ({ node: t.node, ...(pveHas(t.id) ? { vmid: Number(t.id) } : {}), status: state(t) === 'running' ? 'running' : String(t.status || ''), start: pveIso(Number(t.starttime)), end: t.endtime ? pveIso(Number(t.endtime)) : null, duration_s: t.endtime ? Number(t.endtime) - Number(t.starttime) : null }))
+  };
+  if (failedAll.length > 25) out.failed_more = failedAll.length - 25;
+  return out;
+}
+
+// proxmox_vms returns every VM with ten fields each (28.8 KB for 104). Still the full list, as
+// row objects under `vms` (the CLI's listVms reads that key), but compacted to the fields asked for.
+async function shapeProxmoxVmsResult(result, input) {
+  if (!result || result.success !== true || !Array.isArray(result.vms)) return result;
+  const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
+  const GB = 1024 ** 3;
+  let vms = result.vms.filter((v) => v && typeof v === 'object');
+  if (input.node) vms = vms.filter((v) => v.node === input.node);
+  return {
+    success: true, view: 'vms',
+    total: vms.length,
+    running: vms.filter((v) => v.status === 'running').length,
+    stopped: vms.filter((v) => v.status === 'stopped').length,
+    vms: vms.map((v) => ({ vmid: v.vmid, name: v.name, node: v.node, status: v.status, type: v.type || 'qemu', vcpus: v.maxcpu === undefined ? null : v.maxcpu, mem_max_gb: pveR1(num(v.maxmem) / GB), disk_max_gb: pveR1(num(v.maxdisk) / GB), uptime_h: pveR1(num(v.uptime) / 3600) }))
+  };
+}
+
+// DEVFLEET-P15: proxmox_vm_resources returns the raw /cluster/resources vm dump (all VMs, vmid
+// ignored). Shape it here, after success only: a failed or unparseable result passes through as is.
+// QUOXON 2026-10-17 (owner live turn, proven on the guest itself): Proxmox has NO in-use memory
+// figure for a Linux guest. Without a balloon, /cluster/resources `mem` is the QEMU process size;
+// with a balloon it is total minus the guest's MemFree. Both count the guest's page cache: a dev VM
+// read 188.5 of 195.3 GB (96.5%) while its own /proc/meminfo said MemAvailable 154 GiB. So a row
+// never carries a "used" figure: the field name says what it is (mem_incl_cache_gb / _pct), and
+// top_mem is a footprint ranking, never a pressure ranking.
+const PVE_VM_NOTE = "cpu is the share of the VM's own vCPUs (0-100%). Memory: Proxmox has no in-use figure for a guest. "
+  + 'mem_incl_cache is the host-side / balloon figure and includes the guest page cache, so a VM near 100% is normally just caching. '
+  + 'top_mem ranks footprint, NOT memory pressure: never call a VM memory-hot, full or at risk from it; say pressure is unknown and check inside the guest (free -g, MemAvailable).';
+
+function shapeProxmoxVmResult(result, input) {
+  if (!result || result.success !== true) return result;
+  let rows = result.output;
+  if (typeof rows === 'string') {
+    try { rows = JSON.parse(rows); } catch { return result; }
+  }
+  if (!Array.isArray(rows)) return result;
+  const r1 = (n) => Math.round(n * 10) / 10;
+  const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
+  const GB = 1024 ** 3;
+  const shape = (v) => {
+    const mem = num(v.mem);
+    const max = num(v.maxmem);
+    return {
+      vmid: v.vmid, name: v.name, node: v.node, type: v.type,
+      cpu_pct: r1(num(v.cpu) * 100), vcpus: v.maxcpu,
+      mem_incl_cache_gb: r1(mem / GB), mem_max_gb: r1(max / GB),
+      mem_incl_cache_pct: max > 0 ? r1((mem / max) * 100) : 0,
+      uptime_h: r1(num(v.uptime) / 3600)
+    };
+  };
+  const guests = rows.filter((v) => v && typeof v === 'object' && (v.type === undefined || v.type === 'qemu' || v.type === 'lxc'));
+  if (input.vmid !== undefined && input.vmid !== null && input.vmid !== '') {
+    const hit = guests.find((v) => Number(v.vmid) === Number(input.vmid));
+    return hit ? { success: true, view: 'vm', vm: shape(hit), note: PVE_VM_NOTE } : { success: false, error: `VM ${input.vmid} not found` };
+  }
+  let running = guests.filter((v) => v.status === 'running' && !Number(v.template));
+  if (input.node) running = running.filter((v) => v.node === input.node);
+  const limit = Math.min(25, Math.max(1, Math.floor(Number(input.limit)) || 10));
+  const top = (key) => [...running].sort((a, b) => num(key(b)) - num(key(a))).slice(0, limit).map(shape);
+  return {
+    success: true, view: 'vm', running: running.length, total: guests.length,
+    top_cpu: top((v) => v.cpu),
+    top_mem: top((v) => v.mem),
+    top_mem_is: 'memory incl. guest page cache, not pressure',
+    memory_pressure: 'unknown from Proxmox; check inside the guest',
+    note: PVE_VM_NOTE
+  };
+}
+
+// #970: the kinds of row in the QuoxSEO change log (quoxseo_changes type filter).
+const QUOXSEO_CHANGE_TYPES = ['url_added', 'url_removed', 'field_changed'];
+
+// deploy_template's built-in templates (a fresh copy per call: x-scheduled-post mutates its trigger).
+// Module-level so tests can check every node type is one the engine runs (quox#1190).
+function deployTemplates() {
+  return {
+    'health-check-report': {
+      name: 'Health Check Report',
+      description: 'Periodic health checks across fleet with consolidated report',
+      nodes: [
+        { id: 'trigger', type: 'trigger:schedule', config: { expression: '0 */6 * * *', label: 'Every 6 hours' } },
+        { id: 'check', type: 'call', config: { url: 'http://127.0.0.1:9848/fleet/status', method: 'GET' } },
+        { id: 'transform', type: 'data:transform', config: { expression: '({ hosts: input.hosts, summary: `${input.hosts?.length || 0} hosts checked`, timestamp: new Date().toISOString() })' } },
+        { id: 'log', type: 'util:log', config: { level: 'info', message: 'Health check completed' } },
+      ],
+      edges: [
+        { source: 'trigger', target: 'check' },
+        { source: 'check', target: 'transform' },
+        { source: 'transform', target: 'log' },
+      ]
+    },
+    'approval-pipeline': {
+      name: 'Approval Pipeline',
+      description: 'Human-in-the-loop approval gate for sensitive operations',
+      nodes: [
+        { id: 'trigger', type: 'trigger:webhook', config: { path: '/approval-request', method: 'POST' } },
+        { id: 'validate', type: 'data:transform', config: { expression: '({ ...input, validated: true, requestedAt: new Date().toISOString() })' } },
+        { id: 'gate', type: 'approval:gate', config: { approvers: ['admin'], timeoutMs: 86400000, title: 'Operation Approval Required' } },
+        { id: 'execute', type: 'util:log', config: { level: 'info', message: 'Approved operation executing' } },
+      ],
+      edges: [
+        { source: 'trigger', target: 'validate' },
+        { source: 'validate', target: 'gate' },
+        { source: 'gate', target: 'execute' },
+      ]
+    },
+    'notification-chain': {
+      name: 'Notification Chain',
+      description: 'Classifies ops.alert.* events by severity into the run log (logging only: it sends no notification)',
+      nodes: [
+        { id: 'trigger', type: 'trigger:event', config: { pattern: 'ops.alert.*' } },
+        { id: 'classify', type: 'flow:switch', config: { expression: 'input.severity || "info"', cases: { critical: 'escalate', warning: 'notify', info: 'log-only' } } },
+        { id: 'escalate', type: 'util:log', config: { level: 'error', message: 'CRITICAL alert logged (logging only: nobody was paged)' } },
+        { id: 'notify', type: 'util:log', config: { level: 'warn', message: 'Warning alert logged (logging only: no notification was sent)' } },
+        { id: 'log-only', type: 'util:log', config: { level: 'info', message: 'Info alert logged' } },
+      ],
+      edges: [
+        { source: 'trigger', target: 'classify' },
+        { source: 'classify', target: 'escalate', sourceHandle: 'critical' },
+        { source: 'classify', target: 'notify', sourceHandle: 'warning' },
+        { source: 'classify', target: 'log-only', sourceHandle: 'info' },
+      ]
+    },
+    'data-sync': {
+      name: 'Data Sync',
+      description: 'Scheduled data synchronization between services',
+      nodes: [
+        { id: 'trigger', type: 'trigger:schedule', config: { expression: '0 2 * * *', label: 'Daily at 2 AM' } },
+        { id: 'fetch', type: 'call', config: { url: 'http://localhost:3103/api/memory', method: 'GET' } },
+        { id: 'transform', type: 'data:transform', config: { expression: '({ records: Array.isArray(input) ? input.length : 0, syncedAt: new Date().toISOString() })' } },
+        { id: 'log', type: 'util:log', config: { level: 'info', message: 'Data sync completed' } },
+      ],
+      edges: [
+        { source: 'trigger', target: 'fetch' },
+        { source: 'fetch', target: 'transform' },
+        { source: 'transform', target: 'log' },
+      ]
+    },
+    // X-PLUGIN P5 — "scheduled" here means scheduled-DRAFTING, not
+    // scheduled-publishing. The trigger fires x_post on a cron, but
+    // x_post ALWAYS files a fresh HITL Inbox owner-approval card (see
+    // lib/xTools.js's withApprovalGate) — the human still taps Approve
+    // before anything reaches X. There is no unattended-publish mode;
+    // that gate cannot be bypassed by this or any other template.
+    'x-scheduled-post': {
+      name: 'X Scheduled Post (Drafting)',
+      description: 'Cron-triggered drafting of an X (Twitter) post. "Scheduled" means scheduled-DRAFTING ONLY: the trigger files a fresh owner approval card (HITL Inbox) on each run via x_post, and the post is only published once a human taps Approve — there is no unattended-publish mode.',
+      nodes: [
+        { id: 'trigger', type: 'trigger:schedule', config: { expression: '0 9 * * 1', label: 'Weekly scheduled draft' } },
+        {
+          id: 'draft',
+          type: 'assistant:invoke',
+          config: {
+            assistant_id: 'xtwitter',
+            prompt: 'Draft an X (Twitter) post via the x_post tool with exactly this text: "${vars.postText}". Do not attempt to bypass the approval gate — x_post always files an owner approval card, and that is by design; your job here is only to file the draft.',
+            timeout_ms: 60000,
+          },
+        },
+      ],
+      edges: [
+        { source: 'trigger', target: 'draft' },
+      ]
+    }
+  };
+}
+
 const TOOL_DEFS = {
   // BLAST-RADIUS-P2: read-only, no dots in the tool id (storage rule — see
   // llm-tool-name-vs-storage-id). Lets an agent self-check its own governed
@@ -1181,6 +2222,14 @@ const TOOL_DEFS = {
         return { success: false, error: 'agent_id_required', message: 'No agent_id given and no calling-agent context available to default to.' };
       }
       try {
+        // Z2H-R5 A: an agent_id the model made up ("HostStatusChecker") used to resolve to an
+        // empty reach and render as success. An explicit id must name a real agent.
+        if (input && input.agent_id) {
+          const known = await checkReachAgentExists(String(input.agent_id), orgId);
+          if (known && known.exists === false) {
+            return { success: false, error: `unknown_agent: No agent named "${input.agent_id}" exists in this org. Real agents: ${known.ids.slice(0, 40).join(', ')}${known.ids.length > 40 ? ', ...' : ''}. reach_agent only checks an agent's own blast radius; to see which hosts are online use fleet_status.` };
+          }
+        }
         const { resolveStaticReach } = getReachRuntime();
         const result = await resolveStaticReach(targetAgentId, orgId);
         auditReachEvaluation({
@@ -1208,27 +2257,68 @@ const TOOL_DEFS = {
     // allowlist) runs direct; anything else is held for human approval binding the exact host +
     // command. gatedInExecute defers the dispatch stamp to the real effect boundary.
     gatedInExecute: true,
-    description: 'Execute a shell command on a remote host via SSH bastion. Use for any command not covered by specialized tools. Commands run as the control user.',
+    description: 'Execute a shell command on a remote host via SSH bastion. Use for any command not covered by specialized tools. Commands run as the control user. Read-only probes run without approval only as ONE allowlisted command per call (e.g. `uname -r`, `cat /etc/os-release`, `quoxagent --version`). Never chain them with ; && || or pipes: chained commands need human approval. Make separate parallel calls instead.',
     input_schema: {
       type: 'object',
       properties: {
         host: {
           type: 'string',
-          description: 'Target hostname (e.g. docker01, hyp-01, gw-01, kuma01). Use the short hostname, not FQDN.'
+          description: 'Target hostname (e.g. docker01, hyp-01, gw-01, kuma01). Use the short hostname, not FQDN. Give EITHER host OR hosts, never both.'
+        },
+        hosts: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Run the SAME command on a list of hosts (1-25 short hostnames) under ONE approval. Give EITHER host OR hosts, never both. The list is sorted and deduplicated; the approval binds exactly that list.'
         },
         command: {
           type: 'string',
           description: 'Shell command to execute. Keep commands read-only unless explicitly asked to make changes.'
+        },
+        rehearsal_id: {
+          type: 'string',
+          description: 'Optional: the rehearsal_id from proxmox_rehearse for this exact change; the approval card then shows the rehearsal verdict.'
         }
       },
-      required: ['host', 'command']
+      required: ['command']
     },
     execute: async (input, ctx = {}) => {
       // quox#789: the approval's grant target is derived from input.host. A
       // hostless call (e.g. `quox fleet exec --host` sent as body.host_id) used
       // to be held for a human, approved, then refused at resume with
       // targets [null] and a High incident. Refuse BEFORE any approval exists.
-      if (typeof input?.host !== 'string' || !input.host.trim()) {
+      const _hasHosts = input && input.hosts !== undefined && input.hosts !== null;
+      if (_hasHosts && input.host !== undefined && input.host !== null && input.host !== '') {
+        return { success: false, status: 400, _inputInvalid: true, error: 'ssh_exec takes EITHER host OR hosts, not both' };
+      }
+      let _multi = null;
+      let _hostNames = null;
+      if (_hasHosts) {
+        const n = normaliseSshExecHosts(input.hosts);
+        if (n.error) return { success: false, status: 400, _inputInvalid: true, error: n.error };
+        if (input._approvalId) {
+          // RESUME: hosts are the approved resolved host_ids, host_names the approved name -> id map.
+          // Re-resolve every name fresh; any drift or inconsistency runs nothing.
+          const hn = input.host_names;
+          if (!hn || typeof hn !== 'object' || Array.isArray(hn) || Object.keys(hn).length === 0) {
+            return { success: false, error: 'ssh_exec resume refused: approved host_names mapping is missing' };
+          }
+          for (const [name, id] of Object.entries(hn)) {
+            if (!SSH_EXEC_HOST_RE.test(name) || typeof id !== 'string') return { success: false, error: `ssh_exec resume refused: bad host_names entry ${JSON.stringify(name.slice(0, 40))}` };
+            const now = await resolveHostId(name, { fresh: true });
+            if (now !== id) return { success: false, error: `ssh_exec resume refused: host ${name} now resolves to ${now}, but ${id} was approved; nothing was run` };
+          }
+          const ids = [...new Set(Object.values(hn))].sort();
+          if (JSON.stringify(ids) !== JSON.stringify(n.hosts)) return { success: false, error: 'ssh_exec resume refused: hosts do not match the approved host_names mapping; nothing was run' };
+          _multi = n.hosts;
+          _hostNames = hn;
+        } else {
+          // PROPOSAL: resolve names to bastion host_ids NOW so the card, fingerprint, grant and Bastion all see the ids.
+          const map = {};
+          for (const name of n.hosts) map[name] = await resolveHostId(name, { fresh: true });
+          _multi = [...new Set(Object.values(map))].sort();
+          _hostNames = map;
+        }
+      } else if (typeof input?.host !== 'string' || !input.host.trim()) {
         return {
           success: false,
           status: 400,
@@ -1250,7 +2340,11 @@ const TOOL_DEFS = {
       // unchanged. Surfaced by a live owner phone-approval of a delegated restart.
       const { _internal: _bse } = require('./bastionSshExecutor.js');
       const _grantAwareCall = makeGrantAwareCallBastion(ctx, callBastion, _bse.mintGrantForCtx);
-      const _runExec = async () => await _grantAwareCall(input.host, input.command);
+      // Multi-host: the closure runs the CANONICAL list computed above (never raw input), one grant, one call.
+      const _grantAwareMulti = makeGrantAwareCallBastionMulti(ctx, callBastionMulti, _bse.mintGrantForCtx);
+      const _runExec = _multi
+        ? async () => await _grantAwareMulti(_multi, input.command)
+        : async () => await _grantAwareCall(input.host, input.command);
       // Provably read-only command (injection-proof allowlist) runs direct; a read IS a
       // dispatch so we stamp it ourselves. Anything else is held for approval; on the gated
       // path withApprovalGate stamps dispatch. ssh_exec is in AGENT_ALWAYS_PROPOSE_TOOLS so the
@@ -1266,28 +2360,34 @@ const TOOL_DEFS = {
       // bastion grant is minted against the standing grant (auth re-validates it by keyed
       // callback) and fails CLOSED. Every use is an `approved` tool_approvals row + an AEE
       // envelope, so it is visible in approvals history. No grant -> the HITL gate below.
-      if (!input._approvalId && ctx.orgId) {
+      // A multi-host call is covered ONLY if EVERY host is covered by the SAME standing grant. A standing grant
+      // is bound to exactly one host (auth refuses a multi-target mint), so only a one-host list can qualify.
+      if (!input._approvalId && ctx.orgId && (!_multi || _multi.length === 1)) {
+        const _sgHost = _multi ? _multi[0] : input.host;
         let _sg = null;
         try {
-          _sg = require('./fleetStandingGrants.js').coversCall({ orgId: ctx.orgId, tool: 'ssh_exec', host: input.host, command: input.command });
+          _sg = require('./fleetStandingGrants.js').coversCall({ orgId: ctx.orgId, tool: 'ssh_exec', host: _sgHost, command: input.command });
         } catch (e) { console.warn('[ApprovalGate] fleet standing grant lookup failed (falling back to HITL):', e && e.message); }
         // An org store policy (deny / require_approval) always wins over a standing grant:
         // if one matches, or the policy store errors, fall through to the normal gate.
         if (_sg) {
           let _policyClear = false;
           try {
-            const _sp = await checkStorePolicies('ssh_exec', { command: input.command, host: input.host }, ctx);
+            const _sp = await checkStorePolicies('ssh_exec', { command: input.command, host: _sgHost }, ctx);
             _policyClear = !(_sp && _sp.effect);
           } catch (e) { _policyClear = false; }
-          if (_policyClear) return await _runUnderStandingGrant(_sg, input, ctx, _bse);
+          if (_policyClear) return await _runUnderStandingGrant(_sg, _multi ? { command: input.command, host: _sgHost, ...(typeof input.reason === 'string' && input.reason ? { reason: input.reason } : {}) } : input, ctx, _bse);
         }
       }
       const _gateInput = {
         command: input.command,
-        host: input.host,
+        // Multi-host: the canonical sorted list is a fingerprinted input field; a single host stays `host`.
+        ...(_multi ? { hosts: _multi, host_names: _hostNames } : { host: input.host }),
         // LUCID: the plain-words why rides on the card (appendRequestContext) and is part of the
         // fingerprinted input, so it must be carried through here or the approved resume mismatches.
         ...(typeof input.reason === 'string' && input.reason ? { reason: input.reason } : {}),
+        // DEVFLEET-P15: the rehearsal record the card cites; part of the fingerprinted input like reason.
+        ...(typeof input.rehearsal_id === 'string' && input.rehearsal_id ? { rehearsal_id: input.rehearsal_id } : {}),
         ...(input._approvalId ? { _approvalId: input._approvalId } : {}),
         ...(input._resumeToken ? { _resumeToken: input._resumeToken } : {}),
       };
@@ -1297,14 +2397,16 @@ const TOOL_DEFS = {
 
   fleet_status: {
     name: 'fleet_status',
-    description: 'Get the status of all QuoxAgent agents in the fleet. Shows which hosts are connected, their IPs, versions, and Docker container counts.',
+    description: 'Bastion host inventory and reachability: the registered host total, counts by state (active, unreachable), every non-active host, and for hosts with a reporting QuoxAgent their IPs, versions, and Docker container counts. For "which servers are not healthy" answer from not_healthy: every degraded, unhealthy or unreachable host, each with its status and source (reporting agent or Bastion registry); name every row and its status. For a QuoxAgent sidecar\'s own detail use quoxagent_status. For a question about a single host pass host=<name>: you get only that host. If the result has not_found, that host is not registered: say so, give the registered_total, offer at most the few suggestions as names, and do not list state, health or last-seen for any other host.',
     input_schema: {
       type: 'object',
-      properties: {},
+      properties: {
+        host: { type: 'string', description: 'Optional. A single host name to look up (e.g. web01). Omit for the whole inventory.' }
+      },
       required: []
     },
-    execute: async () => {
-      return await getFleetStatusLocal();
+    execute: async (input) => {
+      return await getFleetStatusLocal(input || {});
     }
   },
 
@@ -1334,7 +2436,7 @@ const TOOL_DEFS = {
 
   docker_extended: {
     name: 'docker_extended',
-    description: 'Get detailed Docker information: container logs, stats (CPU/memory), or network details.',
+    description: 'Read-only Docker reads on one host: inspect, or network (lists the Docker networks on a host: name, driver, scope, id); also logs and stats (CPU/memory) as a fallback. For a container\'s logs use docker_logs, for CPU/memory use docker_stats. Use this before any raw shell for inspect and network.',
     input_schema: {
       type: 'object',
       properties: {
@@ -1346,7 +2448,7 @@ const TOOL_DEFS = {
         operation: {
           type: 'string',
           enum: ['logs', 'stats', 'inspect', 'network'],
-          description: 'What to retrieve: logs (container logs), stats (CPU/memory), inspect (full config), network (docker networks)'
+          description: 'What to retrieve: logs (container logs), stats (CPU/memory), inspect (state plus health: status, failing streak, healthcheck command, last 3 probe results; use it for any unhealthy container), network (docker networks)'
         },
         container: {
           type: 'string',
@@ -1374,20 +2476,20 @@ const TOOL_DEFS = {
 
   docker_fleet_scan: {
     name: 'docker_fleet_scan',
-    description: 'Discover Docker hosts across the fleet. Scans known hosts via bastion SSH to find which have Docker installed, their version, and container counts.',
+    description: 'Discover Docker hosts across the fleet. Scans known hosts via bastion SSH to find which have Docker installed, their version, and container counts per host. Call it once per question: one scan reads every fleet host, and a repeat within a minute returns the same result.',
     input_schema: {
       type: 'object',
       properties: {},
       required: []
     },
     execute: async () => {
-      return await dockerFleetScan(callBastion);
+      return await dockerFleetScanTool(callBastion);
     }
   },
 
   docker_fleet_containers: {
     name: 'docker_fleet_containers',
-    description: 'List containers across all Docker hosts or a specific host. Shows name, image, status, host, ports, and uptime.',
+    description: 'List containers across all Docker hosts or a specific host. Shows name, image, status, host, ports, and uptime. Fleet-wide results are sorted by host then name and include by_state and by_host counts plus needs_attention (every container not running healthily): answer "what state is each in / which are unhealthy" from those in one call.',
     input_schema: {
       type: 'object',
       properties: {
@@ -1456,7 +2558,10 @@ const TOOL_DEFS = {
         return { success: false, error: 'invalid_container_id', detail: 'container_id must be a valid docker container name/id (injection guard)' };
       }
       const tail = Math.min(parseInt(input.tail) || 100, 500);
-      const result = await callBastion(input.host, `docker logs ${input.container_id} --tail ${tail} 2>&1`);
+      const bl = dockerRead.logs(input.container_id, tail);
+      const result = await runSafeRead('docker-read', input.host, bl.params,
+        () => callBastion(input.host, `docker logs ${input.container_id} --tail ${tail} 2>&1`), { convert: bl.convert });
+      if (result.success === false && (dockerReadFailed(result) || !result.stdout)) return dockerFailureResult(input.host, result);
       return {
         success: result.success !== false,
         host: input.host,
@@ -1486,9 +2591,10 @@ const TOOL_DEFS = {
       }
       const target = input.container_id || '';
       const cmd = `docker stats ${target} --no-stream --format "{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.BlockIO}}"`;
-      const result = await callBastion(input.host, cmd);
+      const bs = dockerRead.stats(input.container_id, '|');
+      const result = await runSafeRead('docker-read', input.host, bs.params, () => callBastion(input.host, cmd), { convert: bs.convert, fallbackWhen: bs.fallbackWhen });
       if (result.success === false) {
-        return { success: false, host: input.host, error: result.error };
+        return dockerFailureResult(input.host, result);
       }
       const raw = result.stdout || '';
       return {
@@ -1529,10 +2635,12 @@ const TOOL_DEFS = {
     },
     execute: async (input) => {
       const cmd = `docker system df --format "{{.Type}}|{{.TotalCount}}|{{.Active}}|{{.Size}}|{{.Reclaimable}}"`;
-      const result = await callBastion(input.host, cmd);
+      const bd = dockerRead.df('|');
+      const result = await runSafeRead('docker-read', input.host, bd.params, () => callBastion(input.host, cmd), { convert: bd.convert });
+      if (result.success === false) return dockerFailureResult(input.host, result);
       const raw = result.stdout || '';
       return {
-        success: result.success !== false,
+        success: true,
         host: input.host,
         usage: raw.split('\n').filter(Boolean).map(line => {
           const [type, totalCount, active, size, reclaimable] = line.split('|');
@@ -1602,6 +2710,10 @@ const TOOL_DEFS = {
     input_schema: {
       type: 'object',
       properties: {
+        host: {
+          type: 'string',
+          description: 'Fleet host id to run the check FROM (as listed by fleet_status); there is no default probe host'
+        },
         target: {
           type: 'string',
           description: 'Target IP or hostname to check (e.g. kuma01, google.com, 10.0.0.1)'
@@ -1629,10 +2741,14 @@ const TOOL_DEFS = {
           default: 'A'
         }
       },
-      required: ['target']
+      required: ['host', 'target']
     },
     execute: async (input) => {
+      // SITE-CLI 2026-10-17 (story-a): no borrowed 'gw-01' (one fleet's edge box). No host -> host_required with this
+      // fleet's own host ids; the executor's library default is never reached from the tool.
+      if (!input || !String(input.host || '').trim()) return await require('./bastionSshExecutor.js')._internal.hostRequiredResult();
       return await networkCheck(callBastion, {
+        host: input.host,
         target: input.target,
         type: input.type || 'ping',
         count: input.count || 4,
@@ -1655,8 +2771,8 @@ const TOOL_DEFS = {
       },
       required: []
     },
-    execute: async (input) => {
-      return await proxmoxVms(callBastion, { host: input.node || 'hyp-01' });
+    execute: async (input, ctx = {}) => {
+      return await proxmoxVms(callBastion, { host: input.node || 'hyp-01' }, { orgId: ctx.orgId });
     }
   },
 
@@ -1678,9 +2794,159 @@ const TOOL_DEFS = {
       },
       required: []
     },
-    execute: async (input) => {
-      return await proxmoxTemplatesList(callBastion, { host: input.node || 'hyp-01' });
+    execute: async (input, ctx = {}) => {
+      return await proxmoxTemplatesList(callBastion, { host: input.node || 'hyp-01' }, { orgId: ctx.orgId });
     }
+  },
+
+  // DEVFLEET-P10: HYPERION's disposable VM pool, server-side. Every host command inside
+  // these tools goes through the governed ssh_exec boundary as agent atlas (standing grant
+  // or HITL), so lease/release add no approval card of their own. configure is a settings
+  // write: always-propose (approvalGate AGENT_ALWAYS_PROPOSE_TOOLS) like other admin writes.
+  proxmox_pool_status: {
+    name: 'proxmox_pool_status',
+    description: 'Show the disposable test-VM pool for this org: settings, counts by state (building, ready, leased, recycling, failed) and every VM with its lessee and lease expiry. Read only.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+    execute: async (input, ctx = {}) => require('./toolExecutors/proxmoxPool.js').proxmoxPoolStatus(ctx)
+  },
+
+  proxmox_pool_lease: {
+    name: 'proxmox_pool_lease',
+    externalEffect: true,
+    description: 'Lease a disposable Ubuntu test VM from the pool (a warm one if it fits, else built to order). You must supply the lessee\'s own SSH PUBLIC key; it is installed for the guest user and only its fingerprint is stored. Returns the VM id, IP, the ssh command and the VM\'s ED25519 host key (host_key_line, host_key_fingerprint; host_key_error says why it could not be read, never a guess), plus the Proxmox tagging outcome (tags). The org\'s admin keys are installed beside the lessee key. The lease expires automatically (default and maximum: the pool lease_ttl_h, 24h unless changed); ask for less with ttl_h. Set require_avx2 for local LLM or other AVX2 workloads (errors if no lane has avx2, never falls back to a non-AVX node); set node to pin a lane. Leasing from an agent still files an approval.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        lessee: { type: 'string', description: 'Who the VM is for (a session or person name).' },
+        ssh_pubkey: { type: 'string', description: 'One ssh-ed25519, ssh-rsa or ecdsa public key line (the .pub file contents). Never a private key.' },
+        cores: { type: 'integer', description: 'CPU cores (default from pool settings).' },
+        memory_gb: { type: 'integer', description: 'RAM in GB (default from pool settings).' },
+        disk_gb: { type: 'integer', description: 'Disk in GB, at least 20 (default from pool settings).' },
+        ttl_h: { type: 'integer', description: 'Hours until the lease expires and the VM is destroyed; 1 up to the pool lease_ttl_h (the default).' },
+        purpose: { type: 'string', description: 'What the VM is for (shown in the pool status).' },
+        require_avx2: { type: 'boolean', description: 'Place only on a lane marked avx2 (needed for local LLM chat). Errors clearly when no lane can take it.' },
+        node: { type: 'string', description: 'Pin the VM to this lane host id; it must be an active, non-denied pool lane.' }
+      },
+      required: ['lessee', 'ssh_pubkey']
+    },
+    execute: async (input, ctx = {}) => require('./toolExecutors/proxmoxPool.js').proxmoxPoolLease(input || {}, ctx)
+  },
+
+  proxmox_pool_release: {
+    name: 'proxmox_pool_release',
+    externalEffect: true,
+    description: 'Release a leased pool VM: it is stopped and destroyed, then the pool re-warms. Only VMs inside the org\'s configured pool range are ever touched.',
+    input_schema: {
+      type: 'object',
+      properties: { vmid: { type: 'integer', description: 'The pool VM id to destroy.' } },
+      required: ['vmid']
+    },
+    execute: async (input, ctx = {}) => require('./toolExecutors/proxmoxPool.js').proxmoxPoolRelease(input || {}, ctx)
+  },
+
+  proxmox_pool_configure: {
+    name: 'proxmox_pool_configure',
+    gatedInExecute: true,
+    description: 'Change the org\'s VM pool settings (admin settings write, held for approval): enabled, lanes, deny_nodes, admin_keys, prom_url, backup_window, vmid_min, vmid_max, warm_target, max_pool, default_cores, default_mem_gb, default_disk_gb, lease_ttl_h, guest_user, cpu_type. Send only the fields to change.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean' },
+        lanes: { type: 'array', description: 'Placement lanes, each covered by its own standing grant: [{ node, template_vmid, max, clone_mode: linked|full, avx2: true|false }].', items: { type: 'object' } },
+        deny_nodes: { type: 'array', items: { type: 'string' }, description: 'Hard denylist: nodes the pool never places on or touches.' },
+        admin_keys: { type: 'array', items: { type: 'string' }, description: 'Up to 8 ssh public key lines installed into every leased VM beside the lessee key.' },
+        prom_url: { type: 'string', description: 'Prometheus base URL for free-RAM-fraction placement (omit to place on the lane with the fewest pool VMs).' },
+        backup_window: { type: 'string', description: 'HH:MM-HH:MM UTC during which the scheduler does not warm.' },
+        vmid_min: { type: 'integer' }, vmid_max: { type: 'integer' }, warm_target: { type: 'integer' },
+        max_pool: { type: 'integer' }, default_cores: { type: 'integer' }, default_mem_gb: { type: 'integer' },
+        default_disk_gb: { type: 'integer' }, lease_ttl_h: { type: 'integer' }, guest_user: { type: 'string' },
+        cpu_type: { type: 'string' }
+      },
+      required: []
+    },
+    execute: async (input, ctx = {}) => {
+      const { proxmoxPoolConfigure } = require('./toolExecutors/proxmoxPool.js');
+      const gateInput = { ...(input || {}) };
+      return await withApprovalGate('proxmox_pool_configure', gateInput, async () => proxmoxPoolConfigure(input || {}, ctx), ctx);
+    }
+  },
+
+  // DEVFLEET-P15: "approve with proof". Clone the target from a fresh snapshot into a network-isolated
+  // twin, run the command inside it, diff health, destroy the twin. Every host command rides the
+  // governed ssh_exec boundary (standing grant lane, else one HITL approval); no card of its own.
+  // Attach the returned rehearsal_id to a later proxmox_vm_action / ssh_exec proposal so the card shows it.
+  proxmox_rehearse: {
+    name: 'proxmox_rehearse',
+    externalEffect: true,
+    description: 'Rehearse a shell command on a disposable, network-isolated TWIN of a VM before proposing it for real: snapshots the target, full-clones the snapshot with every NIC link_down, boots it, runs health checks, runs your command inside it, re-checks, then destroys the twin and the snapshot. One human approval is required: the card lists every host command, and approving grants exactly those commands for 60 minutes. After approval it takes minutes (a full disk copy), returns AT ONCE with { rehearsal_id, state: running } and the run continues in the background: poll proxmox_rehearsal_status for the verdict (pass/fail/error), exit code, failed units before/after, check results and output tail. Attach the rehearsal_id to the follow-up proposal. The target needs the qemu guest agent. Anything outside the approved command list asks again and stops the run.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        vmid: { type: 'integer', description: 'The target VM id (not a template).' },
+        node: { type: 'string', description: 'Proxmox node the target is on.' },
+        command: { type: 'string', description: 'Shell command to run inside the twin. No single quotes (use double quotes).' },
+        checks: {
+          type: 'array',
+          description: 'Health checks run before and after: { type: "url", url: "http://127.0.0.1:<port>/path" } | { type: "unit", name } | { type: "cmd", run }. Plain characters only, no quotes or shell metacharacters.',
+          items: { type: 'object' }
+        },
+        keep_twin: { type: 'boolean', description: 'Leave the (stopped, isolated) twin in place instead of destroying it.' }
+      },
+      required: ['vmid', 'node', 'command']
+    },
+    // The whole rehearsal is one approval: the card lists every host command, and approving mints an
+    // ephemeral exact-scope grant (see proxmoxRehearse.js). The gate input is the server-computed one,
+    // never the model's, so what is approved is what the stored plan says will run.
+    gatedInExecute: true,
+    execute: async (input, ctx = {}) => {
+      const ex = require('./toolExecutors/proxmoxPool.js');
+      let gateInput;
+      if (input && input._approvalId) {
+        gateInput = { ...input }; // approved-resume replay of the stored gate input; withApprovalGate re-binds it
+      } else {
+        const prep = await ex.proxmoxRehearsePrepare(input || {}, ctx);
+        if (!prep.success) return prep;
+        gateInput = prep.gateInput;
+      }
+      const res = await withApprovalGate('proxmox_rehearse', gateInput, async () => ex.proxmoxRehearseRun(gateInput, ctx), ctx);
+      if (res && typeof res === 'object' && gateInput.rehearsal_id && !res.rehearsal_id) res.rehearsal_id = gateInput.rehearsal_id;
+      return res;
+    }
+  },
+
+  proxmox_rehearsal_status: {
+    name: 'proxmox_rehearsal_status',
+    description: 'Read a rehearsal started by proxmox_rehearse: state running or done, and when done the verdict (pass, fail, error), exit code, failed units before/after, check results, output tail and any cleanup problems. Read only; poll every 30 seconds or so.',
+    input_schema: {
+      type: 'object',
+      properties: { rehearsal_id: { type: 'string', description: 'The rehearsal_id returned by proxmox_rehearse (RH_ plus 16 hex characters).' } },
+      required: ['rehearsal_id']
+    },
+    execute: async (input, ctx = {}) => require('./toolExecutors/proxmoxPool.js').proxmoxRehearsalStatus(input || {}, ctx)
+  },
+
+  // DEVFLEET-DOCTOR: HYPERION's VM Doctor. READ ONLY (not in always-propose): gathers Proxmox
+  // metrics, tasks and guest-agent data, runs fixed rules, returns ranked findings with evidence.
+  proxmox_vm_doctor: {
+    name: 'proxmox_vm_doctor',
+    description: 'Diagnose why a VM is slow or unhealthy. READ ONLY. Gathers status, config, snapshots, hour/day performance history, host node load, storage use, recent tasks and the guest agent, runs fixed rules (no guessing) and returns a verdict (healthy, degraded, critical), ranked findings each with evidence (metric, value, threshold, window, source) and a suggested fix (a gated action only where a tool exists), plus gaps for anything it could not read. Explain the top findings with their evidence; never perform a suggested fix unasked.',
+    input_schema: {
+      type: 'object',
+      properties: { target: { type: 'string', description: 'VM name or numeric vmid' } },
+      required: ['target']
+    },
+    execute: async (input, ctx = {}) => require('./toolExecutors/proxmoxDoctor.js').proxmoxVmDoctor(input || {}, ctx, { callBastion })
+  },
+
+  proxmox_doctor_report: {
+    name: 'proxmox_doctor_report',
+    description: 'Read a stored VM Doctor report by report_id (DR_ plus 16 hex characters) from proxmox_vm_doctor. Read only; scoped to this org.',
+    input_schema: {
+      type: 'object',
+      properties: { report_id: { type: 'string', description: 'The report_id returned by proxmox_vm_doctor.' } },
+      required: ['report_id']
+    },
+    execute: async (input, ctx = {}) => require('./toolExecutors/proxmoxDoctor.js').proxmoxDoctorReport(input || {}, ctx)
   },
 
   proxmox_containers: {
@@ -1696,8 +2962,8 @@ const TOOL_DEFS = {
       },
       required: []
     },
-    execute: async (input) => {
-      return await proxmoxContainers(callBastion, { host: input.node || 'hyp-01' });
+    execute: async (input, ctx = {}) => {
+      return await proxmoxContainers(callBastion, { host: input.node || 'hyp-01' }, { orgId: ctx.orgId });
     }
   },
 
@@ -1709,8 +2975,8 @@ const TOOL_DEFS = {
       properties: {},
       required: []
     },
-    execute: async () => {
-      return await proxmoxCluster(callBastion, { host: 'hyp-01' });
+    execute: async (_input, ctx = {}) => {
+      return await proxmoxCluster(callBastion, { host: 'hyp-01' }, { orgId: ctx.orgId });
     }
   },
 
@@ -1727,9 +2993,73 @@ const TOOL_DEFS = {
       },
       required: []
     },
-    execute: async (input) => {
-      return await proxmoxStorage(callBastion, { host: input.node || 'hyp-01' });
+    execute: async (input, ctx = {}) => {
+      return await proxmoxStorage(callBastion, { host: input.node || 'hyp-01' }, { orgId: ctx.orgId });
     }
+  },
+
+  // DEVFLEET-A2: HYPERION read tools backed by the Proxmox REST API (vault
+  // token), Bastion pvesh only when the API is not configured.
+  proxmox_ha_status: {
+    name: 'proxmox_ha_status',
+    description: 'Proxmox High Availability manager state: quorum, master node, HA-managed guests and their states.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+    execute: async (_input, ctx = {}) => {
+      return await proxmoxHaStatus(callBastion, { host: 'hyp-01' }, { orgId: ctx.orgId });
+    }
+  },
+
+  proxmox_node_resources: {
+    name: 'proxmox_node_resources',
+    description: 'CPU, memory, rootfs and load for one Proxmox node. Use for capacity planning before placing a VM.',
+    input_schema: {
+      type: 'object',
+      properties: { node: { type: 'string', description: 'Proxmox node name' } },
+      required: ['node']
+    },
+    execute: async (input, ctx = {}) => {
+      return await proxmoxNodeResources(callBastion, { node: input.node }, { orgId: ctx.orgId });
+    }
+  },
+
+  proxmox_vm_resolve: {
+    name: 'proxmox_vm_resolve',
+    description: 'Resolve a VM or container NAME (or a vmid) to its {vmid, node, type, status}. Exact name match; reports ambiguous (with candidates) or not_found honestly.',
+    input_schema: {
+      type: 'object',
+      properties: { name: { type: 'string', description: 'Exact VM or container name' }, vmid: { type: 'integer', description: 'VMID instead of a name' } },
+    },
+    execute: async (input, ctx = {}) => {
+      return await proxmoxVmResolve(callBastion, { name: input.name, vmid: input.vmid }, { orgId: ctx.orgId });
+    }
+  },
+
+  // DEVFLEET-READ: ONE read tool for HYPERION in place of 15 near-identical read tools (too many
+  // similar tools hurts tool choice and costs context every turn). Pure router: every view delegates
+  // to the EXISTING executor in TOOL_DEFS (resolved lazily, entity tools load after this literal), so
+  // payload shapes are unchanged. Writes are NOT here; each keeps its own tool and approval rule.
+  proxmox_read: {
+    name: 'proxmox_read',
+    description: 'Read-only look at Proxmox. Pick one view: cluster (health, quorum, nodes), ha (High Availability manager, HA-managed guests), vms (the full VM list: total, running, stopped and vms [{vmid,name,node,status,type,vcpus,mem_max_gb,disk_max_gb,uptime_h}], sorted by vmid, no usage figures; optional node; with guest:true instead: QEMU guest-agent coverage of every running VM in ONE read, agent_running/not_running/not_enabled/unknown counts and the gaps list, never check VMs one by one or ssh for this), containers (LXC), storage (datastore usage; add warn_percent to flag full pools), templates (golden-clone catalogue for proxmox_vm_clone), node (CPU/memory/load of one node; needs node), vm (resource usage: with vmid returns that one VM; without vmid returns top_cpu and top_mem, the heaviest running VMs by CPU and by memory, optional node and limit; add guest:true with a vmid for what runs inside it: OS, hostname, IPs, filesystems, from the QEMU guest agent), snapshots (computed: vms_with_snapshots, total_snapshots, oldest (top by age, limit), by_vm (25 rows); with vmid, the snapshots of that VM and their ages), backups (computed: last_24h {ok,failed,running}, failed backup tasks, recent tasks (limit); optional vmid, timeframe like 7d default 7d), resolve (VM or container name to vmid/node/type; needs name), pool (disposable test-VM pool; with activity:true the book of who holds every pool and HYPERION lane VM and why, vmid optional: answer ownership questions from this, never from memory), rehearsal (verdict of a proxmox_rehearse run; needs rehearsal_id), doctor_report (stored proxmox_vm_doctor report; needs report_id). To diagnose a slow or unhealthy VM use proxmox_vm_doctor instead.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        view: { type: 'string', enum: PROXMOX_READ_VIEW_NAMES, description: 'What to look at.' },
+        node: { type: 'string', description: 'Proxmox node name (required for view=node; optional filter for vms, containers, storage, templates).' },
+        vmid: { type: 'number', description: 'VM or container id (view=vm, snapshots, backups, resolve).' },
+        guest: { type: 'boolean', description: 'view=vm with vmid: true returns what runs inside the VM from the QEMU guest agent (agent state, os, hostname, ips, filesystems, agent_version); needs vmid, node optional. view=vms with guest:true returns guest-agent coverage across running VMs (agent_running, not_running, not_enabled, unknown, gaps [{vmid,name,node,agent}]); node optional filter.' },
+        activity: { type: 'boolean', description: 'view=pool: true returns the activity book, who holds each pool and HYPERION lane VM and why (held_by, purpose, since, expires); add vmid for one VM. Use this for any "who has VM X / what is it for" question.' },
+        name: { type: 'string', description: 'Exact VM or container name (view=resolve).' },
+        timeframe: { type: 'string', description: 'How far back for view=backups, e.g. 7d or 24h (default 7d).' },
+        type: { type: 'string', enum: ['qemu', 'lxc'], description: 'Guest type, view=vm only.' },
+        limit: { type: 'integer', minimum: 1, maximum: 25, description: 'List length, 1-25, default 10: view=vm without vmid (top consumers per ranking), view=snapshots (oldest), view=backups (recent tasks).' },
+        warn_percent: { type: 'number', description: 'view=storage: flag pools above this percent used.' },
+        rehearsal_id: { type: 'string', description: 'view=rehearsal: the id returned by proxmox_rehearse.' },
+        report_id: { type: 'string', description: 'view=doctor_report: the id returned by proxmox_vm_doctor.' }
+      },
+      required: ['view']
+    },
+    execute: async (input, ctx = {}) => proxmoxReadRoute(input || {}, ctx)
   },
 
   proxmox_vm_action: {
@@ -1755,6 +3085,10 @@ const TOOL_DEFS = {
         node: {
           type: 'string',
           description: 'Proxmox node the VM is on (hyp-01, hyp-02, hyp-03)'
+        },
+        rehearsal_id: {
+          type: 'string',
+          description: 'Optional: the rehearsal_id from proxmox_rehearse for this change; the approval card then shows the rehearsal verdict.'
         }
       },
       required: ['vmid', 'action', 'node']
@@ -1765,6 +3099,7 @@ const TOOL_DEFS = {
         vmid: input.vmid,
         action: input.action,
         type: input.type || 'qemu',
+        ...(typeof input.rehearsal_id === 'string' && input.rehearsal_id ? { rehearsal_id: input.rehearsal_id } : {}),
         ...(input._approvalId ? { _approvalId: input._approvalId } : {}),
         ...(input._resumeToken ? { _resumeToken: input._resumeToken } : {}),
       };
@@ -1919,21 +3254,28 @@ const TOOL_DEFS = {
     input_schema: {
       type: 'object',
       properties: {
+        host: {
+          type: 'string',
+          description: 'Fleet host id to run the check FROM (as listed by fleet_status); there is no default host'
+        },
         domain: {
           type: 'string',
           description: 'Specific domain to check (e.g. quox.ai). Leave empty for all configured domains.'
         }
       },
-      required: []
+      required: ['host']
     },
     execute: async (input) => {
-      return await sslCertificates(callBastion, { domain: input.domain });
+      // VULCAN deploy check 2026-10-17: no borrowed 'gw-01' (one fleet's edge box). No host -> host_required with this
+      // fleet's own host ids; the executor's library default is never reached from the tool.
+      if (!input || !String(input.host || '').trim()) return await require('./bastionSshExecutor.js')._internal.hostRequiredResult();
+      return await sslCertificates(callBastion, { host: input.host, domain: input.domain });
     }
   },
 
   metrics_query: {
     name: 'metrics_query',
-    description: `Execute a PromQL query against Prometheus. Translates natural language metric requests into PromQL.
+    description: `Execute a PromQL query against Prometheus. Translates natural language metric requests into PromQL. For an ask over a period (over the last hour, in 5 minute steps, a trend) pass range and step: that runs a real Prometheus range query (query_range), not instant values.
 
 METRIC CATALOG (available metrics from node_exporter, cAdvisor, and custom exporters):
 
@@ -2114,7 +3456,7 @@ Actions:
 
   alerts_manage: {
     name: 'alerts_manage',
-    description: 'Manage Prometheus Alertmanager: list firing/pending alerts, create silences, or check history. Use this when user asks about alerts, problems, or wants to silence noisy alerts.',
+    description: 'Silence a noisy Alertmanager alert (a write: action silence). Not for reading alerts: what is firing now is alerts_active, current silences are alerts_silences, Prometheus firing or pending alerts are prometheus_alerts, past alerts are alerts_history. Its list and history actions remain for older callers.',
     input_schema: {
       type: 'object',
       properties: {
@@ -2138,7 +3480,7 @@ Actions:
         operation,
         matchers: input.alert_name ? { alertname: input.alert_name } : undefined,
         hours: input.hours
-      });
+      }, ctx);
       // QUOXTRUST MF-2: 'list'/'history' are reads and run direct; only
       // 'silence' (the un-mediated standout — suppresses alerting) is gated.
       // alerts_manage is in AGENT_ALWAYS_PROPOSE_TOOLS so the gate holds
@@ -2232,12 +3574,22 @@ Actions:
         priority: { type: 'string', enum: ['low', 'normal', 'high', 'urgent'], description: 'Priority level (default: normal)' },
         scope: { type: 'string', enum: ['org', 'division', 'team'], description: 'Scope of the item' },
         scope_id: { type: 'string', description: 'ID of the org/division/team' },
-        assignee: { type: 'string', description: 'User ID or email to assign to' }
+        assignee: { type: 'string', description: 'User ID or email to assign to' },
+        action: { type: 'string', description: 'kind=approval only (required): the action or tool that will run if approved, e.g. "send email", "restart nginx"' },
+        target: { type: 'string', description: 'kind=approval only: what it acts on (host, recipient, id). Omit only with target_none.' },
+        target_none: { type: 'string', description: 'kind=approval only: why there is no target, when there is none' },
+        summary: { type: 'string', description: 'kind=approval only (required): one line saying what will happen, e.g. "send the March invoice to sam@example.com"' }
       },
       required: ['title', 'kind']
     },
     execute: async (input, ctx) => {
       try {
+        // APPROVAL-WHAT: an approval must say what will happen and to what, or it is not filed.
+        let what = null;
+        if (input.kind === 'approval') {
+          try { what = require('./approvalWhat.js').approvalWhat({ action: input.action, target: input.target, targetNone: input.target_none, summary: input.summary }); }
+          catch (e) { return { success: false, error: `${e.message}. Pass action, target (or target_none) and summary so the approver can tell what they are approving.` }; }
+        }
         const authToken = ctx?.token;
         const baseUrl = process.env.AUTH_SERVICE_URL || 'http://quox-auth:3101';
         const orgId = ctx?.orgId;
@@ -2268,7 +3620,7 @@ Actions:
             priority: input.priority || 'normal',
             assignee_user_id: safeAssignee,
             aee_correlation_id: ctx?.session_id || null,
-            payload: { source: 'agent', source_agent: ctx?.agentId || 'quox', scope: input.scope || null, scope_id: input.scope_id || null }
+            payload: { source: 'agent', source_agent: ctx?.agentId || 'quox', scope: input.scope || null, scope_id: input.scope_id || null, ...(what ? { what } : {}) }
           })
         });
         const responseText = await res.text();
@@ -2276,11 +3628,39 @@ Actions:
         if (!res.ok) return { success: false, error: `Inbox API returned ${res.status}: ${responseText}` };
         let data;
         try { data = JSON.parse(responseText); } catch { data = {}; }
-        return { success: true, item_id: data.id || data.item_id, message: `Created inbox item: ${input.title}` };
+        // PRESENCE (owner 2026-10-16): the asking agent learns now that the human is away, so it can
+        // work on something else instead of waiting. The item is filed and queued exactly as before.
+        let presenceFields = {};
+        try { const ps = require('./userPresence.js'); const st = ps.getDefaultStore(); if (st) presenceFields = ps.approvalFields(st.awayHumans({ orgId })); } catch { presenceFields = {}; }
+        return { success: true, item_id: data.id || data.item_id, message: `Created inbox item: ${input.title}${presenceFields.owner_away ? ` (${presenceFields.owner_away_notice})` : ''}`, ...presenceFields };
       } catch (err) {
         return { success: false, error: `Failed to create inbox item: ${err.message}` };
       }
     }
+  },
+
+  // PRESENCE (owner 2026-10-16): is the human at their terminal? Read-only, org from the turn.
+  presence_get: {
+    name: 'presence_get',
+    description: 'Is a person (default: the org owner) at their terminal right now? Returns present, away or sleeping, since when, and their note. When they are away, do not wait on approvals or answers: approvals still queue, so file them and work on something else. Read-only.',
+    input_schema: { type: 'object', properties: { who: { type: 'string', description: 'user id, email, email name, or "owner" (default: everyone in the org with presence on record)' } }, required: [] },
+    execute: async (input, ctx) => {
+      const orgId = ctx?.orgId;
+      if (!orgId) return { success: false, error: 'No organization context: cannot read presence' };
+      const ps = require('./userPresence.js');
+      const st = ps.getDefaultStore();
+      if (!st) return { success: false, error: 'presence store unavailable' };
+      try {
+        if (input && input.who) {
+          const p = st.find({ orgId, who: input.who });
+          if (!p) return { success: true, found: false, message: `No presence on record for ${input.who}: treat them as present.` };
+          return { success: true, found: true, presence: p, ...(p.away ? { notice: ps.slotNotice([p]) } : {}) };
+        }
+        const list = st.list({ orgId });
+        const away = list.filter((p) => p.away);
+        return { success: true, presence: list, owner_away: away.some((p) => p.who === 'owner'), notice: ps.slotNotice(away) || 'nobody is marked away' };
+      } catch (e) { return { success: false, error: `presence read failed: ${e.message}` }; }
+    },
   },
 
   // QUOXON: core read-only clock (server clock + Intl, no network, no org data). Models
@@ -2297,13 +3677,13 @@ Actions:
   // key gated, returns {items}).
   inbox_pending: {
     name: 'inbox_pending',
-    description: 'Read the HITL inbox queue — items awaiting a human decision (approvals, questions, incidents), newest first. This is the READ side of triage: see what needs attention, its kind, priority, and age, then act with approve_request / deny_request. Filter by kind (e.g. "approval" for the approval queue) and status (default "open").',
+    description: 'Read the HITL inbox queue — items awaiting a human decision (approvals, questions, incidents), newest first. A pending decision (quox ask) carries a decision block with every option\'s label: when you recommend one, say it in words with the key in brackets and name the question by its title; never a bare letter. Unlabelled options are flagged: do not invent what they mean. With several pending decisions, take them ONE AT A TIME: one plain sentence of what it does, your recommendation in words, and ask for a yes/no. This is the READ side of triage: see what needs attention, its kind, priority, and age, then act with approve_request / deny_request. Filter by kind (e.g. "approval" for the approval queue) and status (default "open").',
     input_schema: {
       type: 'object',
       properties: {
         kind: { type: 'string', enum: ['approval', 'question', 'task', 'incident', 'info', 'override_required'], description: 'Filter by item kind, e.g. "approval" for the approval queue. Omit for all kinds.' },
         status: { type: 'string', description: 'Filter by status: open (default), in_progress, waiting, resolved. Use "all" for every status.' },
-        limit: { type: 'number', description: 'Max items to return (default 20, max 100)' },
+        limit: { type: 'number', description: 'Max items to return (default 20, max 200). For ranking or filtering by priority/overdue use hitl_queue.' },
       },
       required: [],
     },
@@ -2317,7 +3697,8 @@ Actions:
       const params = new URLSearchParams();
       if (status) params.set('status', status);
       if (input?.kind) params.set('kind', input.kind);
-      params.set('limit', String(Math.min(Math.max(1, parseInt(input?.limit) || 20), 100)));
+      // TRIAGE-TOOLS: 100 silently capped a 200 ask (TRIAGE-Q saw 11 of 49 urgent); total/truncated still report the rest.
+      params.set('limit', String(Math.min(Math.max(1, parseInt(input?.limit) || 20), 200)));
       try {
         const res = await fetch(`${baseUrl}/api/internal/orgs/${encodeURIComponent(orgId)}/inbox/items?${params.toString()}`, {
           headers: { ...(serviceKey ? { 'X-Service-Key': serviceKey } : {}) },
@@ -2336,10 +3717,61 @@ Actions:
           status: it.status,
           created_at: it.created_at,
           assignee_user_id: it.assignee_user_id || null,
+          // DECISION-LABELS: a pending decision carries every option's label, not just its key.
+          ...(() => { const d = decisionBrief(it.payload_json); return d ? { decision: d } : {}; })(),
         }));
-        return { success: true, count: compact.length, filter: { status: status || 'all', kind: input?.kind || 'all' }, items: compact };
+        // #864: the page is not the count. total = every match for this filter (the auth
+        // service counts it), so "how many" is never answered from a capped page.
+        const total = Number.isInteger(data.total) ? data.total : null;
+        return {
+          success: true, count: compact.length, ...(total !== null ? { total, truncated: total > compact.length } : {}),
+          filter: { status: status || 'all', kind: input?.kind || 'all' }, items: compact,
+          ...(total !== null && total > compact.length ? { note: `Showing ${compact.length} of ${total}. For counts by status, priority or kind use inbox_stats.` } : {}),
+        };
       } catch (err) {
         return { success: false, error: `Failed to read inbox queue: ${err.message}` };
+      }
+    }
+  },
+
+  // QUOXON-PROOF #864: "how many items are open / urgent" was answered "at least 100" from
+  // inbox_pending's capped page. This reads the user's own counts from the auth service
+  // (lib/inboxStats.js there: the SAME function `quox inbox stats` and the dashboard read),
+  // as the user driving the turn. Read-only; org and user come from the turn, never the input.
+  inbox_stats: {
+    name: 'inbox_stats',
+    description: 'Count the HITL inbox (the Quox work queue of approvals, tasks, questions and incidents; not email): totals by status (open, in_progress, waiting, resolved), urgent, overdue, by priority, by kind, assigned to me, unread and approvals waiting. Use for any "how many" question about the inbox or approvals; inbox_pending lists items, this counts them. Read-only, as the current user (owners and admins see the whole org).',
+    input_schema: { type: 'object', properties: {}, required: [] },
+    execute: async (_input, ctx) => {
+      const orgId = ctx?.orgId;
+      const userId = ctx?.userId;
+      if (!orgId) return { success: false, error: 'No organization context: cannot count the inbox' };
+      if (!userId) return { success: false, error: 'No user identity on this turn: inbox counts are per user, so they cannot be read' };
+      const baseUrl = process.env.AUTH_SERVICE_URL || 'http://quox-auth:3101';
+      const serviceKey = process.env.INTERNAL_SERVICE_KEY || '';
+      try {
+        const res = await fetch(`${baseUrl}/api/internal/orgs/${encodeURIComponent(orgId)}/inbox/stats?user_id=${encodeURIComponent(userId)}`, {
+          headers: { ...(serviceKey ? { 'X-Service-Key': serviceKey } : {}) },
+          signal: AbortSignal.timeout(8000),
+        });
+        const text = await res.text();
+        if (!res.ok) return { success: false, error: `Inbox stats API returned ${res.status}: ${text.slice(0, 200)}` };
+        let d;
+        try { d = JSON.parse(text); } catch { return { success: false, error: 'Inbox stats API returned a body that is not JSON' }; }
+        const n = (v) => (Number.isFinite(v) ? v : 0);
+        return {
+          success: true,
+          scope: d.scope || null,
+          open: n(d.open), urgent: n(d.urgent), overdue: n(d.overdue), total_active: n(d.total_active),
+          by_status: { open: n(d.open), in_progress: n(d.in_progress), waiting: n(d.waiting), resolved: n(d.resolved) },
+          by_priority: d.by_priority && typeof d.by_priority === 'object' ? d.by_priority : {},
+          by_kind: d.by_kind && typeof d.by_kind === 'object' ? d.by_kind : {},
+          assigned_to_me: n(d.assigned_to_me), unread: n(d.unread), flagged: n(d.flagged), snoozed: n(d.snoozed),
+          pending_approvals: n(d.pending_approvals), awaiting_human: n(d.awaiting_human),
+          note: 'urgent and overdue count open and in_progress items; by_priority, by_kind and assigned_to_me count active items (open, in_progress, waiting).',
+        };
+      } catch (err) {
+        return { success: false, error: `Failed to read inbox stats: ${err.message}` };
       }
     }
   },
@@ -2366,6 +3798,24 @@ Actions:
             max_duration_seconds: { type: 'number', description: 'Timeout in seconds (default: 600)' },
             checkpoint_after_each_task: { type: 'boolean', description: 'Require approval after each task (default: false)' }
           }
+        },
+        execution_mode: { type: 'string', enum: ['dag', 'loop'], description: "'dag' (default): planned specialist-task graph. 'loop': reactive QLoop turn loop; requires capability_scope and always needs human pre-start approval." },
+        goal_condition: { type: 'string', description: 'Success criterion for the objective (max 2000 chars). Without one a dag objective finalises after its first batch of tasks.' },
+        capability_scope: { type: 'array', items: { type: 'string' }, description: 'Loop mode only: explicit allowlist of tool names the loop may use (deny-by-default; empty or missing is refused).' },
+        max_iterations: { type: 'number', description: 'Max re-observe rounds (dag) or turns (loop), clamped to 1-20 (default 5).' },
+        exit_predicate: {
+          type: 'object',
+          description: 'Server-evaluated exit check bound to an EXTERNAL observable (not the model transcript). kind=http {url, expect_status?, body_contains?}; kind=tool {tool, input?, expect:{path, equals|contains|exists}}; kind=assert {tool, input?} (passes on success and exit_code 0); kind=llm {} (fuzzy goal judged by the goal evaluator).',
+          properties: {
+            kind: { type: 'string', enum: ['http', 'tool', 'assert', 'llm'] },
+            url: { type: 'string' },
+            expect_status: { type: 'number' },
+            body_contains: { type: 'string' },
+            tool: { type: 'string' },
+            input: { type: 'object' },
+            expect: { type: 'object' }
+          },
+          required: ['kind']
         },
         auto_start: { type: 'boolean', description: 'If true (default), immediately start decomposition, auto-approve the plan, and begin execution. Set false to create in pending state for manual review.' },
         auto_approve: { type: 'boolean', description: 'If true (default when auto_start is true), automatically approve the decomposed plan so execution begins immediately. Set false to pause at the plan review stage.' }
@@ -2477,6 +3927,30 @@ Actions:
         };
         if (teamId) payload.team_id = teamId;
 
+        // QLOOP-ENGINE P1: pass the loop/goal fields through to the objectives
+        // route (which already validates + clamps them). Omitted => unchanged.
+        if (input.execution_mode !== undefined) payload.execution_mode = input.execution_mode;
+        if (input.capability_scope !== undefined) payload.capability_scope = input.capability_scope;
+        if (input.max_iterations !== undefined) payload.max_iterations = input.max_iterations;
+        if (typeof input.goal_condition === 'string' && input.goal_condition.trim()) payload.goal_condition = input.goal_condition;
+        if (input.exit_predicate !== undefined) {
+          const p = input.exit_predicate;
+          const kinds = ['http', 'tool', 'assert', 'llm'];
+          let perr = null;
+          if (!p || typeof p !== 'object' || Array.isArray(p) || !kinds.includes(p.kind)) perr = `exit_predicate.kind must be one of ${kinds.join(', ')}`;
+          else if (p.kind === 'http' && !(typeof p.url === 'string' && /^https?:\/\//i.test(p.url))) perr = 'exit_predicate.url must be an http(s) URL';
+          else if ((p.kind === 'tool' || p.kind === 'assert') && !(typeof p.tool === 'string' && p.tool)) perr = `exit_predicate.tool is required for kind ${p.kind}`;
+          if (perr) return { success: false, error: perr };
+          payload.metadata = { exit_predicate: p };
+          if (!payload.goal_condition) payload.goal_condition = `Exit predicate satisfied (${p.kind})`;
+        }
+
+        // Journey story-a (ev_mvc783pe_cdfd57): with auto-approve OFF the human gate must exist when this tool returns,
+        // not be raised later and asynchronously. Ask for the pre-start gate: /start files the checkpoint and its approval
+        // item synchronously and returns their ids. (A loop objective keeps its own gate rules.)
+        const holdForApproval = input.auto_start !== false && input.auto_approve === false && input.execution_mode !== 'loop';
+        if (holdForApproval) payload.require_approval_before_start = true;
+
         // Create the objective
         const createRes = await fetch(`${tasksUrl}/api/objectives`, {
           method: 'POST',
@@ -2500,7 +3974,9 @@ Actions:
 
         // Default auto_start to true for chat-initiated objectives
         const autoStart = input.auto_start !== false;
-        const autoApprove = input.auto_approve !== false && autoStart;
+        // A loop objective's pre-start approval is the human gate (goal, budget,
+        // capability_scope): never auto-approve it from the agent surface.
+        const autoApprove = input.auto_approve !== false && autoStart && input.execution_mode !== 'loop';
         const serviceHeaders = {
           'Content-Type': 'application/json',
           'X-Org-Id': orgId,
@@ -2514,9 +3990,32 @@ Actions:
             const startRes = await fetch(`${tasksUrl}/api/objectives/${objectiveId}/start`, {
               method: 'POST',
               headers: serviceHeaders,
-              body: JSON.stringify({ skip_checkpoint: true }),
+              body: JSON.stringify(holdForApproval ? {} : { skip_checkpoint: true }),
               signal: AbortSignal.timeout(15000),
             });
+            if (startRes.ok && holdForApproval) {
+              let started = {};
+              try { started = JSON.parse(await startRes.text()); } catch { started = {}; }
+              if (started && started.status === 'awaiting_approval') {
+                const itemId = started.inbox_item_id || null;
+                return {
+                  success: true,
+                  objective_id: objectiveId,
+                  title: input.title,
+                  status: 'awaiting_approval',
+                  task_count: 0,
+                  team_id: teamId || null,
+                  auto_approve: false,
+                  started: false,
+                  checkpoint_id: started.checkpoint_id || null,
+                  inbox_item_id: itemId,
+                  approval_id: itemId,
+                  message: `Objective "${input.title}" created and held for a human. It has NOT started: approval item ${itemId || '(being raised; it will appear in the Approvals inbox)'} must be approved by a person (with their PIN) before anything runs. Tell the user it is waiting for their approval.`,
+                  links: { mission_control: '/mission-control?tab=objectives' },
+                  advisory: null,
+                };
+              }
+            }
             if (!startRes.ok) {
               const startErr = await startRes.text();
               return {
@@ -2576,23 +4075,29 @@ Actions:
               })(); // fire and forget — don't await
             }
 
-            // Return immediately — objective is decomposing in background
-            return {
-              success: true,
-              objective_id: objectiveId,
-              title: input.title,
-              status: 'decomposing',
-              task_count: 0,
-              team_id: teamId || null,
-              message: `Objective "${input.title}" created and decomposition started. It will auto-approve and run when the plan is ready. IMPORTANT: When the objective completes, use get_objective_results to fetch and present the full report to the user.`,
-              links: {
-                mission_control: '/mission-control?tab=objectives',
-                opsdeck: `/opsdeck?objective=${objectiveId}`,
-              },
-              advisory: null,
-            };
+            // Return immediately: the objective is decomposing in the background. The reply says what was asked
+            // (journey story-a 2026-10-17: auto-approve OFF still replied "will auto-approve"; the branch below was
+            // unreachable).
+            if (autoApprove) {
+              return {
+                success: true,
+                objective_id: objectiveId,
+                title: input.title,
+                status: 'decomposing',
+                task_count: 0,
+                team_id: teamId || null,
+                auto_approve: true,
+                started: true,
+                message: `Objective "${input.title}" created and decomposition started. It will auto-approve and run when the plan is ready. IMPORTANT: When the objective completes, use get_objective_results to fetch and present the full report to the user.`,
+                links: {
+                  mission_control: '/mission-control?tab=objectives',
+                  opsdeck: `/opsdeck?objective=${objectiveId}`,
+                },
+                advisory: null,
+              };
+            }
 
-            // Auto-start without auto-approve
+            // Auto-start without auto-approve: the plan waits for a human
             return {
               success: true,
               objective_id: objectiveId,
@@ -2600,7 +4105,10 @@ Actions:
               status: 'decomposing',
               task_count: 0,
               team_id: teamId || null,
-              message: `Objective "${input.title}" created and decomposition started. Review and approve the plan in Mission Control when ready.`,
+              auto_approve: false,
+              started: false,
+              // WORKER2 rerun (ev_mvc6jbvr_c603da): "decomposition started" read as "I started it"; it has not
+              message: `Objective "${input.title}" created and is being planned. It has NOT started: auto-approve is off, so nothing runs until a human reviews and approves the plan (Mission Control, Plans Awaiting Approval). Tell the user it is waiting for their plan approval.`,
               links: {
                 mission_control: '/mission-control?tab=objectives',
               },
@@ -2712,7 +4220,7 @@ Actions:
 
   create_workflow: {
     name: 'create_workflow',
-    description: 'Create a new workflow via QuoxFlow. For simple workflows, specify name + trigger (+ schedule for cron). For advanced workflows, provide full nodes and edges arrays. Node types: trigger:webhook, trigger:schedule, trigger:event, flow:condition, flow:switch, flow:loop, flow:parallel, flow:merge, call (HTTP), data:transform, data:set, data:aggregate, error:try, error:catch, error:throw, util:wait, util:log, util:subworkflow.',
+    description: 'Create a new workflow via QuoxFlow. For simple workflows, specify name + trigger (+ schedule for cron). For advanced workflows, provide full nodes and edges arrays. Node types: trigger:webhook, trigger:schedule, trigger:event, notification:deliver, human:task, flow:condition, flow:switch, flow:loop, flow:parallel, flow:merge, call (HTTP), data:transform, data:set, data:aggregate, error:try, error:catch, error:throw, util:wait, util:log, util:subworkflow. To reach a person, add a delivering step: notification:deliver { title, message, priority? } files an item in the user inbox and does not pause; human:task { title, message } asks them and waits for a response; a call step posts to a real endpoint they own. A trigger-only or log-only workflow cannot deliver a reminder or notification (util:log only writes the run log), so for "remind me every Monday" use trigger:schedule -> notification:deliver; a reminder with no delivering step is refused.',
     input_schema: {
       type: 'object',
       properties: {
@@ -2755,6 +4263,16 @@ Actions:
           }
         }
 
+        // A reminder or notification needs a step that DELIVERS (a call to a real endpoint); a trigger-only or
+        // log-only workflow fires and reaches no one, so it is refused rather than presented as a reminder (2026-10-17).
+        const asksToDeliver = /\b(remind|reminder|notify me|notify (the|my) |send me|message me|email me|alert me|ping me|tell me|let me know)/i.test(`${input.name || ''} ${input.description || ''}`);
+        // Delivering steps: notification:deliver (inbox item, proven live 2026-10-17), human:task (asks and waits), call (a real endpoint).
+        const delivers = nodes.some((n) => n && typeof n.type === 'string' && (n.type === 'call' || n.type.startsWith('call:') || n.type === 'notification:deliver' || n.type === 'human:task'));
+        const actionSteps = nodes.filter((n) => n && typeof n.type === 'string' && !n.type.startsWith('trigger:'));
+        if (asksToDeliver && !delivers) {
+          return { success: false, error_code: 'workflow_cannot_deliver', error: 'This workflow cannot deliver a reminder or notification: it has no delivering step (util:log only writes the run log). Nothing was created. Add a notification:deliver step { title, message } after the trigger to put an item in the user\'s inbox (or human:task to ask them, or a call step to an endpoint they own), then create it again.' };
+        }
+
         const payload = {
           id: workflowId,
           name: input.name,
@@ -2783,6 +4301,7 @@ Actions:
         const data = await res.json();
         return {
           success: true,
+          ...(actionSteps.length === 0 ? { warning: 'This workflow has a trigger and no steps: it fires and does nothing until steps are added.' } : {}),
           workflow_id: data.data?.id || data.id || workflowId,
           name: input.name,
           trigger: input.trigger,
@@ -3132,45 +4651,84 @@ Actions:
 
   list_workflows: {
     name: 'list_workflows',
-    description: 'List all workflows in QuoxFlow. Returns workflow IDs, names, active status, and trigger types.',
+    description: 'List workflows in QuoxFlow (a page). Returns workflow IDs, names, active status, plus the TRUE total, active_total and inactive_total across all pages: for "how many workflows / how many active" read those, never count the page.',
     input_schema: {
       type: 'object',
       properties: {
         active: { type: 'boolean', description: 'Filter by active status (true/false). Omit for all.' },
-        limit: { type: 'number', description: 'Max results (default: 50)' },
+        search: { type: 'string', description: 'Find workflows whose id or name contains this text (case-insensitive), across ALL pages. Use this to look up a workflow by name instead of paging.' },
+        limit: { type: 'number', description: 'Max results per page (default 20, max 100)' },
         offset: { type: 'number', description: 'Pagination offset (default: 0)' }
       },
       required: []
     },
     execute: async (input, ctx) => {
       try {
+        const serviceKey = process.env.INTERNAL_SERVICE_KEY || '';
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(ctx?.token ? { 'Authorization': `Bearer ${ctx.token}` } : {}),
+          ...(serviceKey ? { 'X-Service-Key': serviceKey } : {}),
+          ...(ctx?.orgId ? { 'X-Org-ID': ctx.orgId } : {})
+        };
+        const get = async (p) => {
+          const qs = p.toString() ? `?${p.toString()}` : '';
+          const res = await fetch(`${QUOXFLOW_URL}/api/workflows${qs}`, { method: 'GET', headers });
+          if (!res.ok) return { error: `QuoxFlow returned ${res.status}: ${await res.text()}` };
+          return { body: await res.json() };
+        };
         const params = new URLSearchParams();
         if (input.active !== undefined) params.set('active', String(input.active));
-        if (input.limit) params.set('limit', String(input.limit));
+        // The engine rejects limit > 100 with a 400.
+        if (input.limit) params.set('limit', String(Math.min(100, Math.max(1, Number(input.limit) || 20))));
         if (input.offset) params.set('offset', String(input.offset));
-        const qs = params.toString() ? `?${params.toString()}` : '';
-        const serviceKey = process.env.INTERNAL_SERVICE_KEY || '';
-        const res = await fetch(`${QUOXFLOW_URL}/api/workflows${qs}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(ctx?.token ? { 'Authorization': `Bearer ${ctx.token}` } : {}),
-            ...(serviceKey ? { 'X-Service-Key': serviceKey } : {}),
-            ...(ctx?.orgId ? { 'X-Org-ID': ctx.orgId } : {})
+        if (input.search) {
+          // Name/id lookup across every page (engine has no name filter). Capped at 10 pages of 100.
+          const needle = String(input.search).toLowerCase();
+          const matches = []; let total = null;
+          for (let off = 0; off < 1000; off += 100) {
+            const sp = new URLSearchParams(params); sp.set('limit', '100'); sp.set('offset', String(off));
+            const pg = await get(sp);
+            if (pg.error) return { success: false, error: pg.error };
+            const rows = pg.body?.data || pg.body?.workflows || [];
+            if (Number.isFinite(pg.body?.pagination?.total)) total = pg.body.pagination.total;
+            for (const w of rows) {
+              const nm = w.name || w.definition?.name || '';
+              if (String(w.id).toLowerCase().includes(needle) || String(nm).toLowerCase().includes(needle)) {
+                matches.push({ id: w.id, name: nm, active: w.active, description: w.description || w.definition?.description, created_at: w.createdAt, updated_at: w.updatedAt });
+              }
+            }
+            if (rows.length < 100 || (total !== null && off + rows.length >= total)) break;
           }
-        });
-        if (!res.ok) return { success: false, error: `QuoxFlow returned ${res.status}: ${await res.text()}` };
-        const data = await res.json();
+          return { success: true, count: matches.length, matched: matches.length, total, workflows: matches };
+        }
+        const first = await get(params);
+        if (first.error) return { success: false, error: first.error };
+        const data = first.body;
         const workflows = data.data || data.workflows || data;
-        return {
+        const list = Array.isArray(workflows) ? workflows : [];
+        const total = Number.isFinite(data?.pagination?.total) ? data.pagination.total : null;
+        const out = {
           success: true,
-          count: Array.isArray(workflows) ? workflows.length : 0,
+          count: list.length,
           workflows: Array.isArray(workflows) ? workflows.map(w => ({
             id: w.id, name: w.name || w.definition?.name, active: w.active,
-            description: w.description || w.definition?.description,
+            description: String(w.description || w.definition?.description || '').slice(0, 160) || undefined,
             created_at: w.createdAt, updated_at: w.updatedAt
           })) : workflows
         };
+        if (total !== null) {
+          out.total = total;
+          out.truncated = (Number(input.offset) || 0) + list.length < total;
+          // Active split across ALL pages (one cheap count request), so "how many are active" never means "on this page".
+          if (input.active === undefined) {
+            const ap = new URLSearchParams({ active: 'true', limit: '1' });
+            const act = await get(ap);
+            const at = act.body?.pagination?.total;
+            if (Number.isFinite(at)) { out.active_total = at; out.inactive_total = total - at; }
+          } else if (input.active === true || input.active === 'true') { out.active_total = total; }
+        }
+        return out;
       } catch (err) {
         return { success: false, error: `Failed to list workflows: ${err.message}` };
       }
@@ -3252,15 +4810,13 @@ Actions:
     },
     execute: async (input, ctx) => {
       try {
-        const serviceKey = process.env.INTERNAL_SERVICE_KEY || '';
+        // RunActor slice 3 Part A: a human bearer goes ALONE (quoxflow records user:<id>); its org and user are checked
+        // first; a turn token is never forwarded; no bearer = the service-key path (system:api).
+        const auth = require('./workflowRunAuth.js').workflowRunAuth({ token: ctx?.token, orgId: ctx?.orgId, userId: ctx?.userId });
+        if (auth.refusal) return { success: false, error: auth.refusal };
         const res = await fetch(`${QUOXFLOW_URL}/api/workflows/${encodeURIComponent(input.workflow_id)}/execute`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(ctx?.token ? { 'Authorization': `Bearer ${ctx.token}` } : {}),
-            ...(serviceKey ? { 'X-Service-Key': serviceKey } : {}),
-            ...(ctx?.orgId ? { 'X-Org-ID': ctx.orgId } : {})
-          },
+          headers: auth.headers,
           body: JSON.stringify({
             triggerData: { orgId: ctx?.orgId, ...input.trigger_data },
             async: input.async || false
@@ -3452,10 +5008,12 @@ Actions:
 
   list_schedules: {
     name: 'list_schedules',
-    description: 'List all active cron schedules. Shows which workflows have registered schedule triggers and their next run times.',
+    description: 'List the cron schedules the live scheduler has REGISTERED (not the saved config): each row has workflow_id, expression, timezone, state (active or paused) and next_run. Pass workflow_id to answer "is this workflow\'s schedule really registered and when does it fire next" for one workflow: registered=false means the engine has no live registration for it.',
     input_schema: {
       type: 'object',
-      properties: {},
+      properties: {
+        workflow_id: { type: 'string', description: 'Optional: only this workflow; the answer then says registered true/false.' }
+      },
       required: []
     },
     execute: async (input, ctx) => {
@@ -3472,18 +5030,24 @@ Actions:
         });
         if (!res.ok) return { success: false, error: `QuoxFlow returned ${res.status}: ${await res.text()}` };
         const data = await res.json();
-        const schedules = data.data || data;
-        return {
-          success: true,
-          count: Array.isArray(schedules) ? schedules.length : 0,
-          schedules: Array.isArray(schedules) ? schedules.map(s => ({
-            workflow_id: s.workflowId,
-            node_id: s.nodeId,
-            expression: s.expression,
-            timezone: s.timezone,
-            next_run: s.nextRun
-          })) : schedules
-        };
+        const raw = data.data || data;
+        if (!Array.isArray(raw)) return { success: true, count: 0, schedules: raw };
+        let rows = raw.map(s => ({
+          workflow_id: s.workflowId,
+          node_id: s.nodeId,
+          expression: s.expression,
+          timezone: s.timezone,
+          state: s.active === false ? 'paused' : 'active',
+          next_run: s.nextRun ?? null
+        }));
+        if (input && input.workflow_id) {
+          rows = rows.filter(r => r.workflow_id === input.workflow_id);
+          return {
+            success: true, workflow_id: input.workflow_id, registered: rows.length > 0, count: rows.length, schedules: rows,
+            ...(rows.length ? {} : { note: `Workflow ${input.workflow_id} is not registered with the live scheduler (inactive, no schedule trigger, or not activated), so it will not fire on a schedule.` })
+          };
+        }
+        return { success: true, count: rows.length, schedules: rows };
       } catch (err) {
         return { success: false, error: `Failed to list schedules: ${err.message}` };
       }
@@ -3496,13 +5060,14 @@ Actions:
 
   list_approvals: {
     name: 'list_approvals',
-    description: 'List approval requests from QuoxFlow workflows. Filter by status (pending, approved, denied, expired) or workflow_id. Shows who needs to approve and what action is waiting.',
+    description: 'List approval requests from QuoxFlow workflows. Filter by status (pending, approved, denied, expired) or workflow_id. Returns { total, approvals: [{ id, status, title (what is waiting, in plain words), workflow, approvers, created_at, expires_at, resolution }] }; pass detail: true for the full records. Quote each approval\'s title when you report it.',
     input_schema: {
       type: 'object',
       properties: {
         status: { type: 'string', description: 'Filter by status: pending, approved, denied, expired, cancelled', enum: ['pending', 'approved', 'denied', 'expired', 'cancelled'] },
         workflow_id: { type: 'string', description: 'Filter by workflow ID' },
-        limit: { type: 'number', description: 'Max results (default 20)' }
+        limit: { type: 'number', description: 'Max results (default 20)' },
+        detail: { type: 'boolean', description: 'true: the full approval records instead of compact rows' }
       },
       required: []
     },
@@ -3525,7 +5090,23 @@ Actions:
         });
         if (!res.ok) return { success: false, error: `QuoxFlow returned ${res.status}: ${await res.text()}` };
         const data = await res.json();
-        return { success: true, ...(data.data || data) };
+        const body = data.data || data;
+        // Proof run 2026-10-17: QuoxFlow's data is an ARRAY; spreading it gave keys "0","1",...
+        // (no list for --select, a 26 KB dump, a thrashing turn). Return a real list instead.
+        if (Array.isArray(body)) {
+          const approvals = input.detail ? body : body.map((a) => ({
+            id: a.id,
+            status: a.status,
+            title: (a.metadata && a.metadata.what && a.metadata.what.summary) || a.workflowName || a.nodeId || null,
+            workflow: a.workflowName || a.workflowId || null,
+            approvers: a.approvers || [],
+            created_at: a.createdAt || null,
+            expires_at: a.expiresAt || null,
+            resolution: a.resolution || null,
+          }));
+          return { success: true, total: body.length, approvals };
+        }
+        return { success: true, ...body };
       } catch (err) {
         return { success: false, error: `Failed to list approvals: ${err.message}` };
       }
@@ -3668,42 +5249,36 @@ Actions:
 
   query_envelopes: {
     name: 'query_envelopes',
-    description: 'Search the QuoxFlow audit trail (AEE envelopes). Filter by correlation ID, intent pattern, type, or time range. Use this to investigate what a workflow did, trace errors, or audit actions.',
+    description: 'Search the AEE audit trail (envelopes from chat, tools, AOCL and QuoxFlow workflows). Filter by correlation ID, intent prefix, type, or time range. Use this to investigate what a workflow or agent did, trace errors, or audit actions.',
     input_schema: {
       type: 'object',
       properties: {
         corr: { type: 'string', description: 'Correlation ID to filter by (exact match)' },
-        intent: { type: 'string', description: 'Intent pattern to filter (supports % wildcard, e.g. quox.flow.%)' },
+        intent: { type: 'string', description: 'Intent prefix to filter by (e.g. aocl. or quox.flow.; a trailing % is accepted)' },
         type: { type: 'string', description: 'Envelope type filter', enum: ['task', 'result', 'error', 'event'] },
         since: { type: 'string', description: 'ISO date string — only return envelopes after this time' },
-        limit: { type: 'number', description: 'Max envelopes to return (default 50)' }
+        limit: { type: 'number', description: 'Max envelopes to return (default 50, max 200)' }
       },
       required: []
     },
+    // quox#1047: this called QuoxFlow /api/envelopes, which only holds QuoxFlow's own workflow
+    // envelopes and 400s on inputs the collector accepts. QuoxFlow forwards its envelopes to the
+    // collector (/aee/sync), so the collector AEE store is the superset, and it is what
+    // `quox aee query` reads. Read it with the service key + the caller's org (org scoped).
     execute: async (input, ctx) => {
       try {
-        const serviceKey = process.env.INTERNAL_SERVICE_KEY || '';
         const params = new URLSearchParams();
-        if (input.corr) params.set('corr', input.corr);
-        if (input.intent) params.set('intent', input.intent);
-        if (input.type) params.set('type', input.type);
-        if (input.since) params.set('since', input.since);
-        params.set('limit', String(input.limit || 50));
-        const res = await fetch(`${QUOXFLOW_URL}/api/envelopes?${params}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(ctx?.token ? { 'Authorization': `Bearer ${ctx.token}` } : {}),
-            ...(serviceKey ? { 'X-Service-Key': serviceKey } : {}),
-            ...(ctx?.orgId ? { 'X-Org-ID': ctx.orgId } : {})
-          }
-        });
-        if (!res.ok) return { success: false, error: `QuoxFlow returned ${res.status}: ${await res.text()}` };
-        const data = await res.json();
-        const envelopes = data.data || data.envelopes || [];
+        if (input.corr) params.set('corr', String(input.corr));
+        if (input.intent) params.set('intent', String(input.intent).replace(/%+$/, ''));
+        if (input.type) params.set('type', String(input.type));
+        if (input.since) params.set('after', String(input.since));
+        params.set('limit', String(Math.min(Math.max(parseInt(input.limit, 10) || 50, 1), 200)));
+        const data = await aeeCollectorGet(`/aee/query?${params}`, ctx?.orgId);
+        const envelopes = data.envelopes || [];
         return {
           success: true,
           count: envelopes.length,
+          total: data.total,
           envelopes: envelopes.map(e => ({
             id: e.id, type: e.type, intent: e.intent,
             from: e.from, to: e.to, corr: e.corr,
@@ -3726,30 +5301,36 @@ Actions:
       },
       required: ['envelope_id']
     },
+    // quox#1047: this called QuoxFlow /api/envelopes/:id/chain, whose :id must be a 26-char ULID,
+    // so a collector envelope id (ENV_...) always 400'd while `quox aee get <id>` worked. Read the
+    // envelope and its correlation from the collector AEE store (org scoped) and walk reply_to.
     execute: async (input, ctx) => {
       try {
-        const serviceKey = process.env.INTERNAL_SERVICE_KEY || '';
-        const res = await fetch(`${QUOXFLOW_URL}/api/envelopes/${input.envelope_id}/chain`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(ctx?.token ? { 'Authorization': `Bearer ${ctx.token}` } : {}),
-            ...(serviceKey ? { 'X-Service-Key': serviceKey } : {}),
-            ...(ctx?.orgId ? { 'X-Org-ID': ctx.orgId } : {})
-          }
-        });
-        if (!res.ok) return { success: false, error: `QuoxFlow returned ${res.status}: ${await res.text()}` };
-        const data = await res.json();
-        const chain = data.data || data.chain || [];
-        return {
+        const id = String(input.envelope_id || '').trim();
+        if (!id) return { success: false, error: 'envelope_id is required' };
+        const start = await aeeCollectorGet(`/aee/${encodeURIComponent(id)}`, ctx?.orgId);
+        let related = [start];
+        if (start.corr) {
+          const q = new URLSearchParams({ corr: String(start.corr), limit: '500' });
+          const data = await aeeCollectorGet(`/aee/query?${q}`, ctx?.orgId);
+          related = data.envelopes || [];
+          if (!related.some(e => e.id === start.id)) related.push(start);
+        }
+        const chain = buildEnvelopeCausalityChain(related, start.id);
+        const shape = e => ({ id: e.id, type: e.type, intent: e.intent, from: e.from, to: e.to, ts: e.ts, reply_to: e.reply_to });
+        const out = {
           success: true,
+          envelope_id: start.id,
+          corr: start.corr || null,
           chain_length: chain.length,
-          chain: chain.map(e => ({
-            id: e.id, type: e.type, intent: e.intent,
-            from: e.from, to: e.to, ts: e.ts,
-            reply_to: e.reply_to
-          }))
+          chain: chain.map(shape),
         };
+        // No reply_to links: say so and show the correlation's timeline instead of a bare 1-item chain.
+        if (chain.length === 1 && related.length > 1) {
+          out.note = 'No reply_to links from this envelope; showing the envelopes that share its correlation id in time order.';
+          out.same_corr = [...related].sort((a, b) => String(a.ts).localeCompare(String(b.ts))).slice(0, 50).map(shape);
+        }
+        return out;
       } catch (err) {
         return { success: false, error: `Failed to get envelope chain: ${err.message}` };
       }
@@ -3898,7 +5479,7 @@ Actions:
     // QUOXTRUST MF-2: gated INSIDE execute (withApprovalGate), same shape as
     // ssh_exec — the choke must not stamp dispatched before the gate decides.
     gatedInExecute: true,
-    description: 'Deploy a pre-built QuoxFlow workflow template. Available templates: health-check-report (periodic health checks with notification), approval-pipeline (human-in-the-loop approval chain), notification-chain (multi-channel alert routing), data-sync (scheduled data synchronization), x-scheduled-post (cron-triggered X/Twitter post DRAFTING — the schedule only files a fresh HITL approval card each run via x_post; nothing is ever published without a human tap. Pass config.postText for the draft text and optionally config.cron for the schedule).',
+    description: 'Deploy a pre-built QuoxFlow workflow template. Available templates: health-check-report (periodic health checks with notification), approval-pipeline (human-in-the-loop approval chain), notification-chain (classifies ops.alert.* events by severity and logs them to the run log; logging only, it sends nothing), data-sync (scheduled data synchronization), x-scheduled-post (cron-triggered X/Twitter post DRAFTING — the schedule only files a fresh HITL approval card each run via x_post; nothing is ever published without a human tap. Pass config.postText for the draft text and optionally config.cron for the schedule).',
     input_schema: {
       type: 'object',
       properties: {
@@ -3919,95 +5500,7 @@ Actions:
       required: ['template']
     },
     execute: async (input, ctx) => {
-      const templates = {
-        'health-check-report': {
-          name: 'Health Check Report',
-          description: 'Periodic health checks across fleet with consolidated report',
-          nodes: [
-            { id: 'trigger', type: 'trigger:schedule', config: { expression: '0 */6 * * *', label: 'Every 6 hours' } },
-            { id: 'check', type: 'call:http', config: { url: 'http://127.0.0.1:9848/fleet/status', method: 'GET' } },
-            { id: 'transform', type: 'data:transform', config: { expression: '({ hosts: input.hosts, summary: `${input.hosts?.length || 0} hosts checked`, timestamp: new Date().toISOString() })' } },
-            { id: 'log', type: 'util:log', config: { level: 'info', message: 'Health check completed' } },
-          ],
-          edges: [
-            { source: 'trigger', target: 'check' },
-            { source: 'check', target: 'transform' },
-            { source: 'transform', target: 'log' },
-          ]
-        },
-        'approval-pipeline': {
-          name: 'Approval Pipeline',
-          description: 'Human-in-the-loop approval gate for sensitive operations',
-          nodes: [
-            { id: 'trigger', type: 'trigger:webhook', config: { path: '/approval-request', method: 'POST' } },
-            { id: 'validate', type: 'data:transform', config: { expression: '({ ...input, validated: true, requestedAt: new Date().toISOString() })' } },
-            { id: 'gate', type: 'approval:gate', config: { approvers: ['admin'], timeoutMs: 86400000, title: 'Operation Approval Required' } },
-            { id: 'execute', type: 'util:log', config: { level: 'info', message: 'Approved operation executing' } },
-          ],
-          edges: [
-            { source: 'trigger', target: 'validate' },
-            { source: 'validate', target: 'gate' },
-            { source: 'gate', target: 'execute' },
-          ]
-        },
-        'notification-chain': {
-          name: 'Notification Chain',
-          description: 'Multi-channel alert routing with escalation',
-          nodes: [
-            { id: 'trigger', type: 'trigger:event', config: { pattern: 'ops.alert.*' } },
-            { id: 'classify', type: 'flow:switch', config: { expression: 'input.severity || "info"', cases: { critical: 'escalate', warning: 'notify', info: 'log-only' } } },
-            { id: 'escalate', type: 'util:log', config: { level: 'error', message: 'CRITICAL alert — escalation needed' } },
-            { id: 'notify', type: 'util:log', config: { level: 'warn', message: 'Warning alert — notification sent' } },
-            { id: 'log-only', type: 'util:log', config: { level: 'info', message: 'Info alert logged' } },
-          ],
-          edges: [
-            { source: 'trigger', target: 'classify' },
-            { source: 'classify', target: 'escalate', sourceHandle: 'critical' },
-            { source: 'classify', target: 'notify', sourceHandle: 'warning' },
-            { source: 'classify', target: 'log-only', sourceHandle: 'info' },
-          ]
-        },
-        'data-sync': {
-          name: 'Data Sync',
-          description: 'Scheduled data synchronization between services',
-          nodes: [
-            { id: 'trigger', type: 'trigger:schedule', config: { expression: '0 2 * * *', label: 'Daily at 2 AM' } },
-            { id: 'fetch', type: 'call:http', config: { url: 'http://localhost:3103/api/memory', method: 'GET' } },
-            { id: 'transform', type: 'data:transform', config: { expression: '({ records: Array.isArray(input) ? input.length : 0, syncedAt: new Date().toISOString() })' } },
-            { id: 'log', type: 'util:log', config: { level: 'info', message: 'Data sync completed' } },
-          ],
-          edges: [
-            { source: 'trigger', target: 'fetch' },
-            { source: 'fetch', target: 'transform' },
-            { source: 'transform', target: 'log' },
-          ]
-        },
-        // X-PLUGIN P5 — "scheduled" here means scheduled-DRAFTING, not
-        // scheduled-publishing. The trigger fires x_post on a cron, but
-        // x_post ALWAYS files a fresh HITL Inbox owner-approval card (see
-        // lib/xTools.js's withApprovalGate) — the human still taps Approve
-        // before anything reaches X. There is no unattended-publish mode;
-        // that gate cannot be bypassed by this or any other template.
-        'x-scheduled-post': {
-          name: 'X Scheduled Post (Drafting)',
-          description: 'Cron-triggered drafting of an X (Twitter) post. "Scheduled" means scheduled-DRAFTING ONLY: the trigger files a fresh owner approval card (HITL Inbox) on each run via x_post, and the post is only published once a human taps Approve — there is no unattended-publish mode.',
-          nodes: [
-            { id: 'trigger', type: 'trigger:schedule', config: { expression: '0 9 * * 1', label: 'Weekly scheduled draft' } },
-            {
-              id: 'draft',
-              type: 'assistant:invoke',
-              config: {
-                assistant_id: 'xtwitter',
-                prompt: 'Draft an X (Twitter) post via the x_post tool with exactly this text: "${vars.postText}". Do not attempt to bypass the approval gate — x_post always files an owner approval card, and that is by design; your job here is only to file the draft.',
-                timeout_ms: 60000,
-              },
-            },
-          ],
-          edges: [
-            { source: 'trigger', target: 'draft' },
-          ]
-        }
-      };
+      const templates = deployTemplates();
 
       const template = templates[input.template];
       if (!template) {
@@ -4055,7 +5548,9 @@ Actions:
               ...(serviceKey ? { 'X-Service-Key': serviceKey } : {}),
               ...(ctx?.orgId ? { 'X-Org-ID': ctx.orgId } : {})
             },
-            body: JSON.stringify({ workflow })
+            // The engine's POST /api/workflows takes the workflow itself (WorkflowSchema: id, name, nodes, edges);
+            // the old { workflow } wrapper failed that schema, so every approved deploy 400d.
+            body: JSON.stringify(workflow)
           });
           if (!res.ok) return { success: false, error: `QuoxFlow returned ${res.status}: ${await res.text()}` };
           const data = await res.json();
@@ -4080,7 +5575,7 @@ Actions:
 
   delegate_to_agent: {
     name: 'delegate_to_agent',
-    description: 'Delegate a sub-task to a specialist agent (this is your primary role as orchestrator — prefer it over doing domain work yourself). The specialist executes tools and returns results. Delegate by the real id of the agent that holds the tools for the job (your instructions list who holds which tools, from the agent registry; agent_directory lists every agent), or any custom agent by its id. Set deadline_ms for time-sensitive turns.',
+    description: 'Delegate a sub-task to a specialist agent (this is your primary role as orchestrator — prefer it over doing domain work yourself). The specialist executes tools and returns results. Delegate by the real id of the agent that holds the tools for the job (your instructions list who holds which tools, from the agent registry; agent_directory lists every agent), or any custom agent by its id. Set deadline_ms for time-sensitive turns. A slot (a named session address such as quox1, from slot_list) is not an agent: a message to a slot goes through slot_say, never here.',
     input_schema: {
       type: 'object',
       properties: {
@@ -4112,11 +5607,28 @@ Actions:
         task_class: {
           type: 'string',
           description: 'Short stable snake_case label for the KIND of task (e.g. security_audit, fleet_status, code_review, network_diag, research). Used by the outcome-learned router to build a per-class track record — use delegation_router_advise with the SAME task_class first to pick the best specialist. Defaults to "general".'
+        },
+        expect_tool: {
+          type: 'string',
+          description: 'The specialist tool this delegation is for, when a hint named one (e.g. web_search). If the specialist answers without calling it, it is asked once more, and then the result is marked unverified: never credit the agent or tool with findings from an unverified result.'
         }
       },
       required: ['agent_id', 'task']
     },
+    // SITE-CLI ruling 2026-10-17: the wrong_holder guard (lib/delegationHolderGuard.js) is UNWIRED pending a redesign
+    // against the live receipts (ev_mvcr6xbm_ed32fa, ev_mvcspiao_574d67, ev_mvcsmm3r_592a78, ev_mvclc17j_b87df8).
     execute: async (input, ctx) => {
+      const toolCallId = (ctx && ctx._toolCallId) || null; // the model's delegate_to_agent call id, for delegation.late
+      // #982: canonicalize a DISPLAY NAME ("HYPERION") to the registry id ("atlas") up front so the
+      // hat check, roster edge, JWT mint and tool gateway all agree. An unresolved display name was
+      // rejected by the gateway ("invalid agent_id: unknown agent in JWT claim: hyperion").
+      {
+        const canon = canonicalizeDelegateAgentId(input?.agent_id);
+        if (canon && canon !== String(input?.agent_id || '').toLowerCase()) {
+          console.log(`[Delegation] #982 resolved display name '${input.agent_id}' -> registry id '${canon}'`);
+        }
+        if (canon) input = { ...input, agent_id: canon };
+      }
       const depth = (ctx._delegationDepth || 0) + 1;
       if (depth > 2) {
         return { success: false, error: 'Maximum delegation depth (2) reached. Provide the answer with available information.' };
@@ -4168,6 +5680,13 @@ Actions:
       } catch { /* advisory only — never block a delegation on this check */ }
 
       console.log(`[Delegation] QUOX → ${input.agent_id} (depth ${depth}): ${input.task.substring(0, 80)}`);
+      // SITE-CLI redesign step 1 (observe only): record the full brief, the user's words, the live hints and what a
+      // holder guard WOULD do. Never changes or delays the delegation (lib/delegationCapture.js).
+      try {
+        let userText = '';
+        try { const t = require('./approvalTurnContext.js').getTurn(ctx.session_id || ctx.conversationId, ctx.orgId); userText = (t && t.text) || ''; } catch { userText = ''; }
+        require('./delegationCapture.js').captureDelegation({ orgId: ctx.orgId || null, conversationId: ctx.session_id || ctx.conversationId || null, from: parentId || 'quox', to: targetId, task: input.task, userText, expectTool: input.expect_tool || '' });
+      } catch { /* observe only */ }
 
       // HITL-CONTEXT (owner 2026-10-07): record the delegation edge on this
       // conversation so an approval the specialist triggers names the chain
@@ -4179,14 +5698,35 @@ Actions:
       } catch { /* context is best-effort */ }
 
       // COMMANDERQ P7 tenant context + Z2H-R4 provider inheritance: see lib/delegationBody.js
-      const buildBody = (agentId) => require('./delegationBody.js').buildDelegationBody(input, ctx, agentId, depth);
+      // SITE-CLI ruling: carry the human's direct request into the specialist's key only when their
+      // own words name it and the turn is untainted (lib/directRequestRegistry.js aliasForSpecialist).
+      // The nested hop runs under the session_id the body carries; without one it would mint a random
+      // key nothing knows, so a hop with no session of its own is given one here.
+      let hopCtx = ctx;
+      try {
+        const reg = require('./directRequestRegistry.js');
+        const parentKeys = [ctx.conversationId, ctx.session_id].filter(Boolean);
+        if (parentKeys.length && ctx.orgId) {
+          const hopKey = ctx.session_id || `SESSION_deleg_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+          let names = [targetId];
+          try { const a = require('./entityAssistantLoader').getAssistant(targetId); names = [targetId, a?.identity?.name, a?.identity?.shortName]; } catch { /* id alone */ }
+          if (reg.aliasForSpecialist(parentKeys, hopKey, targetId, names) && !ctx.session_id) hopCtx = { ...ctx, session_id: hopKey };
+        }
+      } catch { /* the carry-over is an optimisation of a no-card path; failure just means the card */ }
+      const buildBody = (agentId) => require('./delegationBody.js').buildDelegationBody(input, hopCtx, agentId, depth);
 
-      const callAgent = async (agentId, signal) => {
+      // quox#1167: a specialist whose run failed mid-execution reports tools_ran 'unknown'; never turn
+      // that into tools_used [] (read as "ran no tools"), and keep its error_code.
+      const delegateToolFields = (r) => (r && r.tools_ran === 'unknown'
+        ? { tools_ran: 'unknown', ...(r.error_code ? { error_code: r.error_code } : {}) }
+        : { tools_used: (r && r.tools_used) || [], ...(r && r.error_code ? { error_code: r.error_code } : {}) });
+      const callAgent = async (agentId, signal, task) => {
         const resp = await localApiFetch(`/chat/claude`, {
           method: 'POST',
           // QUOXON-ASK J2: the caller's bearer rides the loopback hop (see delegationBody.js).
           headers: require('./delegationBody.js').buildDelegationHeaders(ctx),
-          body: buildBody(agentId),
+          // quox#1105: `task` is the one re-ask that requires the specialist's tool (delegationToolCheck.js)
+          body: task ? require('./delegationBody.js').buildDelegationBody({ ...input, task }, hopCtx, agentId, depth) : buildBody(agentId),
           signal
         }, { assertOk: false });
         let result = {};
@@ -4208,11 +5748,17 @@ Actions:
         deadlineMs = dl.ms;
         if (dl.local) deadlineNote = 'a local model on CPU can be slow; raise QUOX_OLLAMA_TURN_TIMEOUT_MS or use a smaller model';
       }
+      // #957/#964: the target agent's own wait budget (assistant config `delegation.wait_ms`), over
+      // the provider default; it also floors a model-chosen budget so a 60 s guess cannot cut a
+      // Browser-Q turn off mid-call.
+      deadlineMs = require('./delegationContract.js').resolveAgentWaitMs({ agentId: input.agent_id, callerMs: callerDeadline, providerMs: deadlineMs, local: !!deadlineNote });
+      // quox#1090: on a turn that stated its budget, the hop may run to the end of the turn (capped).
+      if (!callerDeadline) deadlineMs = require('./turnBudget.js').delegationWithTurn({ deadlineMs, turnDeadlineAt: ctx.turnDeadlineAt });
       const rerouteMs = deadlineMs;
       // COMMANDERQ P6: run the delegation under a latency contract (deadline +
       // degrade path + breaker) instead of the old fixed 90s abort with no fallback.
       const outcome = await runWithContract(
-        { deadline_ms: deadlineMs, degrade_path: input.degrade_path, reroute_to: input.reroute_to, target: input.agent_id, deadline_note: deadlineNote, breaker_key: `agent:${input.agent_id}` },
+        { deadline_ms: deadlineMs, degrade_path: input.degrade_path, reroute_to: input.reroute_to, target: input.agent_id, deadline_note: deadlineNote, detach: input.degrade_path !== 'cancel' && input.degrade_path !== 'reroute', breaker_key: `agent:${input.agent_id}` },
         (signal) => callAgent(input.agent_id, signal),
         { breaker: _delegationBreaker, rerouteFn: (target) => callAgent(target, AbortSignal.timeout(rerouteMs)) }
       );
@@ -4244,6 +5790,17 @@ Actions:
 
       const delegation = { breached: !!outcome.breached, action_taken: outcome.action_taken, elapsed_ms: outcome.elapsed_ms, ...(outcome.cost_breached ? { cost_breached: true } : {}) };
 
+      // #964 / quox#1248: attach a specialist that is still running after the wait (detached or
+      // rerouted-away-from) so its late answer AND tools land in this conversation.
+      const attachLate = (handle, settled) => require('./delegationLate.js').attachLateDelegation({
+        handle, agentId: input.agent_id, task: input.task, ctx, settled, deadlineMs,
+        postArtifact: (rv) => localApiFetch('/api/v1/artifacts/routing_verdict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(ctx.orgId ? { 'x-org-id': ctx.orgId } : {}) },
+          body: JSON.stringify(rv),
+        }, { assertOk: false }).catch(() => {}),
+      });
+
       // QUOXHAT MISSION D2 — re-surface a delegated specialist's pending approval
       // onto THIS tool result so the orchestrator's needs_approval extractor
       // (extractPendingApproval, run over the orchestrator's own toolExecutions =
@@ -4252,18 +5809,103 @@ Actions:
       const { pendingApprovalResultFields } = require('./voiceApproval');
 
       if (outcome.action_taken === 'completed' || outcome.action_taken === 'completed_over_budget') {
-        const r = outcome.result || {};
-        return { success: r.success, ...(r.error ? { error: `Delegation to ${input.agent_id} failed: ${r.error}` } : {}), agent: input.agent_id, response: r.response, tools_used: r.tools_used || [], ...(Array.isArray(r.tool_outcomes) ? { tool_outcomes: r.tool_outcomes } : {}), delegation, ...pendingApprovalResultFields(r.needs_approval) };
+        let r = outcome.result || {};
+        // quox#1105: a hop that exists to use the specialist's tool must show that tool ran. One
+        // re-ask requiring it; then an unverified result that says no tool ran (never "<Agent> found X").
+        let verification = null;
+        try {
+          const check = require('./delegationToolCheck.js');
+          const conv = ctx.conversationId || ctx.session_id;
+          const expected = check.expectedDelegateTools({
+            input, ctx,
+            targetTools: AGENT_TOOLS[String(input.agent_id || '').toLowerCase()] || [],
+            userAsk: conv && ctx.orgId ? require('./directRequestRegistry.js').askFor(conv, ctx.orgId) : '',
+          });
+          if (expected.length) {
+            let agentName = null;
+            try { agentName = require('./entityAssistantLoader').getAssistant(input.agent_id)?.identity?.name || null; } catch { /* name optional */ }
+            const v = await check.verifyDelegatedToolUse({
+              agentId: input.agent_id, agentName, expected, first: r, task: input.task,
+              rerun: (task) => callAgent(input.agent_id, AbortSignal.timeout(rerouteMs), task),
+            });
+            r = v.result;
+            verification = v.verification;
+            if (verification) console.log(`[Delegation] #1105 ${input.agent_id} tool check: ${verification.verified ? `verified (${verification.tool_called}${verification.retried ? ', after re-ask' : ''})` : (verification.unverified || 'unverified')}`);
+          }
+        } catch (e) { console.warn(`[Delegation] #1105 tool check skipped: ${e.message}`); }
+        // quox#1145: a provider named in the answer must be backed by that provider's tool.
+        if (!verification || verification.verified) {
+          try {
+            const pc = require('./delegationToolCheck.js').checkProviderClaim({ agentId: input.agent_id, result: r });
+            if (pc) {
+              // WORKER2: the suppressed answer stays diagnosable server-side (redacted, bounded, with the turn).
+              const preview = require('./conversationToolEvents.js').scrubLine(r && r.response, 200);
+              const turn = ctx.corrId || ctx.session_id || ctx.conversationId || '-';
+              r = pc.result; verification = pc.verification;
+              console.log(`[Delegation] #1145 ${input.agent_id}: ${verification.unverified} turn=${turn} suppressed="${preview}"`);
+            }
+          } catch (e) { console.warn(`[Delegation] #1145 provider check skipped: ${e.message}`); }
+        }
+        if (verification && !verification.verified && !verification.pending_approval) {
+          return { success: false, error: r.error, agent: input.agent_id, ...delegateToolFields(r), verification, delegation, ...pendingApprovalResultFields(r.needs_approval) };
+        }
+        // quox#1044: a list/table answer streams to the user verbatim now; the result then tells the
+        // outer model it was shown (one framing line at most). Unchanged when no live turn showed it.
+        return require('./delegatePassthrough.js').passthroughDelegateResult({ success: r.success, ...(r.error ? { error: `Delegation to ${input.agent_id} failed: ${r.error}` } : {}), agent: input.agent_id, response: r.response, ...(verification ? { verification } : {}), ...delegateToolFields(r), ...(Array.isArray(r.tool_outcomes) ? { tool_outcomes: r.tool_outcomes } : {}), delegation, ...pendingApprovalResultFields(r.needs_approval) }, ctx);
       }
       if (outcome.action_taken === 'rerouted' || outcome.action_taken === 'rerouted_breaker_open') {
         const r = outcome.result || {};
-        return { success: r.success !== false, agent: outcome.rerouted_to, response: r.response || 'Rerouted to a fallback specialist.', tools_used: r.tools_used || [], ...(Array.isArray(r.tool_outcomes) ? { tool_outcomes: r.tool_outcomes } : {}), delegation: { ...delegation, rerouted_from: input.agent_id, rerouted_to: outcome.rerouted_to }, ...pendingApprovalResultFields(r.needs_approval) };
+        // quox#1248: after a TIMEOUT reroute the primary was not cancelled and may still be acting.
+        // Say so in plain words, mark it structurally, and attach its late result + tools.
+        let notice = null;
+        let primaryMark = null;
+        if (outcome.primary && outcome.primary.still_running) {
+          const nameOf = (id) => { try { return require('./entityAssistantLoader').getAssistant(id)?.identity?.name || id; } catch { return id; } };
+          primaryMark = { agent: outcome.primary.agent || input.agent_id, handle: outcome.primary.handle };
+          notice = `${nameOf(primaryMark.agent)} was still working when this was rerouted to ${nameOf(outcome.rerouted_to)}; its actions are not included here (handle ${primaryMark.handle}). Its result will be attached to this conversation when it finishes, or it is stopped at ${primaryMark.ceiling_ms ? `${Math.round(primaryMark.ceiling_ms / 60000)} min` : 'the delegation ceiling'} if it has not.`;
+          if (outcome.primary_settled) attachLate(primaryMark.handle, outcome.primary_settled);
+        }
+        const baseResp = r.response || 'Rerouted to a fallback specialist.';
+        return require('./delegatePassthrough.js').passthroughDelegateResult({ success: r.success !== false, agent: outcome.rerouted_to, response: notice ? `${notice}\n\n${baseResp}` : baseResp, ...(notice ? { notice, primary_still_running: primaryMark } : {}), tools_used: r.tools_used || [], ...(Array.isArray(r.tool_outcomes) ? { tool_outcomes: r.tool_outcomes } : {}), delegation: { ...delegation, rerouted_from: input.agent_id, rerouted_to: outcome.rerouted_to, ...(primaryMark ? { primary_still_running: primaryMark } : {}) }, ...pendingApprovalResultFields(r.needs_approval) }, ctx);
       }
       if (outcome.action_taken === 'execute_error') {
         return { success: false, error: `Delegation to ${input.agent_id} failed: ${outcome.error}`, delegation };
       }
+      // #964: the wait expired but the specialist is still running. Never a silent drop and never a
+      // completion claim: the handle is returned, the late result is posted to this conversation.
+      if (outcome.action_taken === 'pending') {
+        const pendingMsg = outcome.degraded.message;
+        const lateRec = attachLate(outcome.handle, outcome.settled);
+        // quox#1044 (WORKER1 re-measure): the breach facts ride on the result, and the live outer turn
+        // is told, so a fallback answer is flagged partial and the late answer is shown in the same
+        // turn when it lands within the turn's bounded wait (lib/delegatePassthrough.js).
+        const held = require('./delegatePassthrough.js').notifyBreach({
+          orgId: ctx.orgId, conversationId: ctx.session_id || ctx.conversationId, agentId: ctx.agentId, depth: ctx._delegationDepth || 0,
+          breach: { agent: input.agent_id, waited_ms: deadlineMs, handle: outcome.handle, late: true, rec: lateRec, call_id: toolCallId },
+        });
+        return {
+          success: false, pending: true, handle: outcome.handle, agent: input.agent_id, degraded: true,
+          error: pendingMsg, response: pendingMsg, delegation: { ...delegation, pending: true, handle: outcome.handle },
+          breach: {
+            agent: input.agent_id, waited_ms: deadlineMs, handle: outcome.handle,
+            full_answer: held ? 'shown to the user later in this turn if it lands within about 60 s, otherwise posted to this conversation' : 'posted to this conversation when it finishes',
+          },
+          answer_guidance: `${input.agent_id} has NOT confirmed the task. Tell the user it is still in progress and that the result will be posted to this conversation. Do not say it is done, created, restored or saved. If you answer from your own tools instead, that answer is PARTIAL: say so in its first line, name what is not covered (for example which hosts, N of M) and that ${input.agent_id}'s full answer is still coming. Never present a fallback as the complete answer. ${require('./delegatePassthrough.js').PARTIAL_WORDING_RULE}`,
+        };
+      }
       // degraded / cancelled / breaker_open_degraded — graceful, no hang.
-      return { success: false, agent: input.agent_id, response: (outcome.degraded && outcome.degraded.message) || 'Delegation did not complete in time.', degraded: true, delegation };
+      // quox#886: the reason rides in `error` too, not only `response` — the tool-result
+      // boundary strips `response` on failures, so without this the receipt and the UI
+      // showed a bare "error: failed" while the SLA context was lost.
+      // quox#1248: a failed reroute still left the primary running; attach its late answer.
+      if (outcome.primary && outcome.primary_settled) attachLate(outcome.primary.handle, outcome.primary_settled);
+      const degradedMsg = (outcome.degraded && outcome.degraded.message) || `Delegation to ${input.agent_id} did not complete within ${deadlineMs}ms (${outcome.action_taken}, ${outcome.elapsed_ms}ms elapsed).`;
+      // quox#1044: no late answer will come, but a fallback answer is still partial; the live turn flags it.
+      require('./delegatePassthrough.js').notifyBreach({
+        orgId: ctx.orgId, conversationId: ctx.session_id || ctx.conversationId, agentId: ctx.agentId, depth: ctx._delegationDepth || 0,
+        breach: { agent: input.agent_id, waited_ms: deadlineMs, late: false },
+      });
+      return { success: false, error: degradedMsg, agent: input.agent_id, response: degradedMsg, degraded: true, delegation, breach: { agent: input.agent_id, waited_ms: deadlineMs, full_answer: 'will not arrive' }, answer_guidance: `If you answer from your own tools instead, that answer is PARTIAL: say so in its first line and name what is not covered (for example which hosts, N of M). Never present a fallback as the complete answer. ${require('./delegatePassthrough.js').PARTIAL_WORDING_RULE}` };
     }
   },
 
@@ -4304,7 +5946,16 @@ Actions:
         });
         if (!resp.ok) return { success: false, error: `catalogue unavailable (HTTP ${resp.status})` };
         const body = await resp.json();
-        return { success: true, ...body };
+        // #906: OpenAI answered "which hats exist?" without NSOC, a privileged hat it was handed in
+        // other_hats. A flat list of every hat name (privileged included) leaves nothing to drop.
+        const hats = [body && body.active, ...((body && Array.isArray(body.other_hats)) ? body.other_hats : [])].filter((h) => h && h.name);
+        return {
+          success: true,
+          ...body,
+          hat_names: hats.map((h) => h.name),
+          privileged_hats: hats.filter((h) => h.privileged === true).map((h) => h.name),
+          answer_guidance: 'When asked which hats exist, name every hat in hat_names, privileged ones included. Naming a privileged hat is fine; switching to one needs a human approval.',
+        };
       } catch (err) {
         return { success: false, error: `catalogue unavailable: ${err.message}` };
       }
@@ -4379,16 +6030,37 @@ Actions:
         });
         if (!catResp.ok) return { success: false, error: `hat catalogue unavailable (HTTP ${catResp.status})` };
         const cat = await catResp.json();
-        const target = (cat.other_hats || []).find(h => h.key === input.hat)
-          || (cat.active?.key === input.hat ? cat.active : null);
+        // Z2H run-6: people (and small models) name a hat by what it is called ("DevOps", "the DevOps hat"),
+        // not its key. Exact key first, then key or display name, case-insensitive, without a trailing "hat".
+        const want = String(input.hat || '').trim();
+        const norm = (v) => String(v || '').trim().toLowerCase().replace(/\s+hat$/, '');
+        const hats = [...(cat.other_hats || []), ...(cat.active ? [cat.active] : [])];
+        const target = hats.find(h => h.key === want)
+          || hats.find(h => norm(h.key) === norm(want) || (h.name && norm(h.name) === norm(want)))
+          || null;
         if (!target) {
-          return { success: false, error: `no hat '${input.hat}' available to this conversation`, available: (cat.other_hats || []).map(h => h.key) };
+          const choices = (cat.other_hats || []).map(h => (h.name ? `${h.key} (${h.name})` : h.key));
+          return { success: false, error: `no hat '${want}' available to this conversation. Hats you can switch to: ${choices.join(', ') || 'none'}. Call again with one of those keys.`, available: (cat.other_hats || []).map(h => h.key) };
         }
+        input = { ...input, hat: target.key };
         if (cat.active?.key === input.hat) {
           return { success: true, already_active: true, message: `Hat '${input.hat}' is already active.` };
         }
 
         const privileged = target.privileged === true;
+        // QUOXON-ASK J2 (quox#868): hat-switch cards are for privileged hats and autonomous or
+        // delegated turns. On the human's own direct request a non-privileged tool simply runs.
+        if (!privileged && Number(ctx._delegationDepth || 0) === 0) {
+          const human = require('./directRequestRegistry.js').isDirectRequest(convId, orgId);
+          const agent = String(ctx.agentId || '').trim().toLowerCase();
+          if (human && ctx.userId && String(ctx.userId) === human.userId && (!human.agentId || !agent || agent === human.agentId)) {
+            return {
+              success: true,
+              no_switch_needed: true,
+              note: `No hat switch is needed: the user asked for this directly, so call the tool you need now (non-privileged tools on the '${target.name}' hat run on their own request). Do not file a switch or ask them to approve one.`,
+            };
+          }
+        }
         const res = await fetch(`${authBase}/api/internal/orgs/${orgId}/inbox`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'X-Service-Key': serviceKey } : {}) },
@@ -4399,6 +6071,11 @@ Actions:
             priority: privileged ? 'high' : 'normal',
             aee_correlation_id: convId,
             payload: {
+              what: {
+                action: 'switch hat',
+                target: `conversation ${convId || 'n/a'}`,
+                summary: `switch this conversation from the ${cat.active?.name || 'current'} hat to ${target.name}${privileged ? ' (privileged)' : ''}`,
+              },
               // Describable card for the CLI and dashboard: tool + target + risk, so it gets a normal approve/deny.
               approval_context: {
                 method: { tool: 'hat.switch', target: `${cat.active?.name || 'current'} → ${target.name}${privileged ? ' (privileged)' : ''}` },
@@ -4511,7 +6188,7 @@ Actions:
   // QSKL-CHAT-BRIDGE.1: Quox Skills catalog discovery
   skills_list: {
     name: 'skills_list',
-    description: 'List Quox skills available to the current org. Filters: category, edition, agentId (best_for_agents tag), tag, limit. Returns up to 50 items by default, each with id, name, category, description, version, edition, bestForAgents.',
+    description: 'List Quox skills available to the current org: the skill library plus crystals (skills crystallised from executions), each labelled store library or crystal, the same set as `quox skills list`. Filters: category, edition, agentId (best_for_agents tag), tag, store, limit. Returns up to 50 items, with the real total.',
     input_schema: {
       type: 'object',
       properties: {
@@ -4531,6 +6208,11 @@ Actions:
         tag: {
           type: 'string',
           description: 'Filter to skills containing this tag'
+        },
+        store: {
+          type: 'string',
+          enum: ['library', 'crystal'],
+          description: 'Only library skills, or only crystals (#846: crystals are skills)'
         },
         limit: {
           type: 'number',
@@ -4571,12 +6253,47 @@ Actions:
         }
 
         const body = await res.json();
-        const allSkills = body.data || body.skills || [];
+        const librarySkills = (body.data || body.skills || []).map((s) => ({ ...s, store: 'library' }));
+        // quox#846 (SITE-CLI ruling: crystals ARE skills): the crystal store (QuoxFlow GET /api/skills,
+        // the CLI's skills.crystals.list) joins the list, exactly as `quox skills list` does. A
+        // library-only filter (edition, category, agentId) skips it, as the CLI does; a failure there
+        // never sinks the library and is reported.
+        let crystalSkills = [];
+        let crystalsError = null;
+        if (input.store !== 'library' && !input.edition && !input.category && !input.agentId) {
+          // WORKER2 review: with no org, QuoxFlow's resolveOrgId falls back to the JWT or a default org
+          // and would return ANOTHER store's crystals labelled as this org's. Refuse that half instead.
+          if (!ctx?.orgId) crystalsError = 'org_context_required';
+          else try {
+            const cq = new URLSearchParams();
+            cq.set('orgId', ctx.orgId);
+            const cr = await fetch(`${QUOXFLOW_URL}/api/skills?${cq}`, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(ctx?.token ? { 'Authorization': `Bearer ${ctx.token}` } : {}),
+                ...(serviceKey ? { 'X-Service-Key': serviceKey } : {}),
+                ...(ctx?.orgId ? { 'X-Org-ID': ctx.orgId } : {})
+              }
+            });
+            if (!cr || !cr.ok) throw new Error(`crystal store returned ${cr ? cr.status : 'no response'}`);
+            const cb = await cr.json();
+            let rows = cb.data || cb.skills || cb;
+            if (!Array.isArray(rows)) rows = [];
+            if (input.tag) rows = rows.filter((r) => Array.isArray(r.tags) && r.tags.includes(input.tag));
+            crystalSkills = rows.map((r) => ({ ...r, store: 'crystal' }));
+          } catch (err) {
+            crystalsError = err.message;
+          }
+        }
+        const pool = input.store === 'crystal' ? crystalSkills : input.store === 'library' ? librarySkills : [...librarySkills, ...crystalSkills];
+        const allSkills = pool;
         const rawSkills = allSkills.slice(0, limit);
         const skills = rawSkills.map(s => ({
           id: s.id,
           name: s.name,
-          category: s.category,
+          store: s.store,
+          category: s.category ?? (s.store === 'crystal' ? 'crystal' : undefined),
           version: s.version,
           edition: s.edition,
           description: s.description,
@@ -4595,13 +6312,18 @@ Actions:
           });
         }
 
-        const total = body.meta?.total ?? allSkills.length;
+        const libraryTotal = body.meta?.total ?? librarySkills.length;
+        const crystalTotal = crystalSkills.length;
+        const total = input.store === 'crystal' ? crystalTotal : input.store === 'library' ? libraryTotal : libraryTotal + crystalTotal;
         return {
           success: true,
           count: skills.length,
           total,
-          // false only when the library is larger than the fetch cap: then total is a floor.
-          total_exact: body.meta?.total != null || allSkills.length < SKILLS_TOTAL_CAP,
+          library_total: libraryTotal,
+          crystal_total: crystalTotal,
+          ...(crystalsError ? { crystals_error: crystalsError } : {}),
+          // false when the library is larger than the fetch cap (total is a floor) or the crystal store could not be read.
+          total_exact: (body.meta?.total != null || librarySkills.length < SKILLS_TOTAL_CAP) && !crystalsError,
           has_more: total > skills.length,
           ...(total > skills.length ? { note: `Showing ${skills.length} of ${total} skills; this is a page, not the whole library.` } : {}),
           skills
@@ -5187,208 +6909,6 @@ Actions:
   },
 
   // ==========================================================================
-  // Gemini CLI Tools (review-and-synthesis agent)
-  // ==========================================================================
-
-  gemini_review: {
-    name: 'gemini_review',
-    description: 'Review code using Google Gemini AI for a second-perspective analysis. Identifies bugs, security issues, performance problems, and readability improvements. Useful for independent code review from a different AI model.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        code: {
-          type: 'string',
-          description: 'The code to review'
-        },
-        language: {
-          type: 'string',
-          description: 'Programming language (e.g. javascript, python, go, rust)'
-        },
-        context: {
-          type: 'string',
-          description: 'Additional context about the code (what it does, where it lives, recent changes)'
-        },
-        focus: {
-          type: 'string',
-          description: 'Specific areas to focus on (e.g. "security", "performance", "error handling"). Default: bugs, security, performance, readability'
-        }
-      },
-      required: ['code']
-    },
-    execute: async (input, ctx) => {
-      return await geminiReview(input, ctx);
-    }
-  },
-
-  gemini_analyze: {
-    name: 'gemini_analyze',
-    description: 'Analyze large content (logs, configs, documents, data) using Gemini\'s 1M token context window. Ask specific questions about the content. Good for log analysis, config review, documentation synthesis.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        content: {
-          type: 'string',
-          description: 'The content to analyze (logs, config, docs, data — up to 100K chars)'
-        },
-        question: {
-          type: 'string',
-          description: 'What you want to know about the content'
-        },
-        format: {
-          type: 'string',
-          description: 'Desired response format (e.g. "markdown", "json", "bullet points")'
-        }
-      },
-      required: ['content', 'question']
-    },
-    execute: async (input, ctx) => {
-      return await geminiAnalyze(input, ctx);
-    }
-  },
-
-  gemini_generate: {
-    name: 'gemini_generate',
-    // QUOXTRUST MF-2(b) TODO (v1.2 follow-up, left UNWIRED — see the
-    // trust-proof-self-audit report for this stream): this is a spend-money
-    // tool (real pay-per-use Gemini API cost per call) with no per-org
-    // cost-budget/quota/spend-rate mechanism anywhere in the choke (checked:
-    // no budget/quota/spend-cap gate exists for native tools — connector
-    // bridge.js's _checkRateLimit is a CALL-FREQUENCY limiter for connector
-    // tools only, not a cost ceiling, and does not apply to this native
-    // tool). Do NOT build a bespoke budget subsystem here; wire this (and
-    // perplexity_research below) into a real org cost-budget gate once one
-    // exists in the choke.
-    description: 'Generate content using Google Gemini AI. Creates documentation, reports, emails, summaries, or other text content. Provides a different perspective from Claude for content creation tasks.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        task: {
-          type: 'string',
-          description: 'What to generate (e.g. "Write a technical summary of...", "Draft an incident report for...")'
-        },
-        context: {
-          type: 'string',
-          description: 'Background context for the generation task'
-        },
-        tone: {
-          type: 'string',
-          description: 'Desired tone (e.g. "professional", "casual", "technical", "executive summary")'
-        },
-        format: {
-          type: 'string',
-          description: 'Output format (e.g. "markdown", "email", "report", "bullet points")'
-        },
-        length: {
-          type: 'string',
-          description: 'Desired length (e.g. "brief", "detailed", "500 words")'
-        }
-      },
-      required: ['task']
-    },
-    execute: async (input, ctx) => {
-      return await geminiGenerate(input, ctx);
-    }
-  },
-
-  // ==========================================================================
-  // Perplexity API Tools (web research & verification agent)
-  // ==========================================================================
-
-  perplexity_search: {
-    name: 'perplexity_search',
-    description: 'Search the web using Perplexity Sonar AI with citations and source URLs. Returns current, well-sourced results with domain filtering and recency options. Use for finding up-to-date information, news, documentation, and web content.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'string',
-          description: 'The search query (e.g. "latest Docker release features", "current Kubernetes best practices")'
-        },
-        domain_filter: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Restrict results to specific domains (e.g. ["docker.com", "github.com"])'
-        },
-        recency: {
-          type: 'string',
-          enum: ['hour', 'day', 'week', 'month'],
-          description: 'Filter results by recency (hour, day, week, month)'
-        }
-      },
-      required: ['query']
-    },
-    execute: async (input, ctx = {}) => {
-      const apiKey = await resolvePerplexityApiKey(ctx.orgId);
-      return await perplexitySearch(input, apiKey);
-    }
-  },
-
-  perplexity_research: {
-    name: 'perplexity_research',
-    // QUOXTRUST MF-2(b) TODO (v1.2 follow-up, left UNWIRED): spend-money tool,
-    // same gap as gemini_generate above — no org cost-budget/quota/spend-rate
-    // gate exists anywhere in the choke to wire this into. Not built here;
-    // see gemini_generate's TODO for the full rationale.
-    description: 'Perform deep multi-source research on a topic using Perplexity Sonar Pro. Searches comprehensively across web or academic sources. Use for thorough investigation, literature review, or technical deep-dives.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        topic: {
-          type: 'string',
-          description: 'The research topic (e.g. "quantum computing advances 2025", "WebAssembly security model")'
-        },
-        mode: {
-          type: 'string',
-          enum: ['web', 'academic'],
-          description: 'Search mode: "web" for general sources, "academic" for scholarly papers and journals. Default: web'
-        },
-        depth: {
-          type: 'string',
-          enum: ['standard', 'deep'],
-          description: 'Research depth: "standard" (sonar-pro) or "deep" (sonar-deep-research). Default: standard'
-        },
-        focus: {
-          type: 'string',
-          description: 'Specific focus area within the topic (e.g. "security implications", "performance benchmarks")'
-        }
-      },
-      required: ['topic']
-    },
-    execute: async (input, ctx = {}) => {
-      const apiKey = await resolvePerplexityApiKey(ctx.orgId);
-      return await perplexityResearch(input, apiKey);
-    }
-  },
-
-  perplexity_verify: {
-    name: 'perplexity_verify',
-    description: 'Fact-check a claim against current web sources using Perplexity Sonar Reasoning. Returns a verdict (TRUE/FALSE/PARTIALLY TRUE/UNVERIFIABLE) with confidence level and supporting evidence with citations.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        claim: {
-          type: 'string',
-          description: 'The claim to fact-check (e.g. "PostgreSQL 17 supports MERGE statements")'
-        },
-        context: {
-          type: 'string',
-          description: 'Additional context about the claim (e.g. "From a 2024 blog post about database features")'
-        },
-        sources: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Suggested source URLs to check against'
-        }
-      },
-      required: ['claim']
-    },
-    execute: async (input, ctx = {}) => {
-      const apiKey = await resolvePerplexityApiKey(ctx.orgId);
-      return await perplexityVerify(input, apiKey);
-    }
-  },
-
-  // ==========================================================================
   // KEEPER — System Continuity Tools (backup, restore, update, rollback)
   // Wraps auth service API endpoints for backup and update lifecycle
   // ==========================================================================
@@ -5471,7 +6991,7 @@ Actions:
 
   keeper_backup_verify: {
     name: 'keeper_backup_verify',
-    description: 'Verify a backup archive integrity using SHA-256 cryptographic proof. Run this before restoring to ensure the backup is not corrupted.',
+    description: 'Verify a backup archive integrity using SHA-256 cryptographic proof. Run this before restoring to ensure the backup is not corrupted. A verify that is still running returns status \'verifying\' (pending, not an error): report it and do not retry in the same turn.',
     input_schema: {
       type: 'object',
       properties: {
@@ -5484,10 +7004,25 @@ Actions:
       // enforces CSRF a service-key caller can't satisfy. Same
       // verifyBackupIntegrity path. (Proven live 2026-08-08: org route
       // returned 403 "Missing CSRF token header".)
-      return await keeperAuthFetch(`/internal/backups/verify`, 'POST', {
+      const r = await keeperAuthFetch(`/internal/backups/verify`, 'POST', {
         org_id: ctx?.orgId || 'default',
         backup_id: input.backup_id,
       });
+      // #1199: a verify already running is a pending state, not a failure. Never claims integrity.
+      if (r && r.success === false && r.code === 'verification_in_progress') {
+        const raw = r.since ? String(r.since) : '';
+        const t = raw ? Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(raw) ? raw.replace(' ', 'T') : raw.replace(' ', 'T') + 'Z') : NaN;
+        const elapsed = Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60000)) : null;
+        const out = { success: true, status: 'verifying', pending: true, backup_id: input.backup_id, since: r.since || null, elapsed_minutes: elapsed };
+        let msg = `Verification of ${input.backup_id} is still running` + (elapsed !== null ? ` (started ${elapsed} min ago)` : '') + '; it has not finished, so integrity is not yet known. Try again later.';
+        if (elapsed !== null && elapsed > 60) {
+          out.stale = true;
+          msg += ' It has been running unusually long and may be stuck.';
+        }
+        out.message = msg;
+        return out;
+      }
+      return r;
     }
   },
 
@@ -5683,18 +7218,18 @@ Actions:
 
   execution_intelligence: {
     name: 'execution_intelligence',
-    description: 'Query QuoxMind cognitive index — mirror status, objectives, wisdom patterns, agent performance, engine health, and implant details',
+    description: 'Query QuoxMind cognitive index — mirror status, objectives, wisdom patterns, agent performance, engine health, and implant details. ALWAYS call this for any question about the count, list, health or activity of QuoxMind implants: the live registry changes, so never answer those from memory, recalled notes or planning documents, even when they seem to contain the number.',
     input_schema: {
       type: 'object',
       properties: {
         action: {
           type: 'string',
-          enum: ['mirror_index', 'implant_detail', 'recent_objectives', 'search_wisdom', 'engine_health'],
-          description: 'What to query: mirror_index (full cognitive index), implant_detail (one implant), recent_objectives, search_wisdom, engine_health'
+          enum: ['mirror_index', 'implants', 'implant_detail', 'recent_objectives', 'search_wisdom', 'engine_health'],
+          description: 'What to query: implants (list the cognitive implants with status, last activity and a health summary; use for "what are my implants" and "how is QuoxMind doing"), implant_detail (one implant, needs implant_id; with no id use implants), mirror_index (full cognitive index), recent_objectives, search_wisdom, engine_health'
         },
         implant_id: {
           type: 'string',
-          description: 'Implant ID for implant_detail action (e.g. quox-memory, quox-guard)'
+          description: 'Implant ID for implant_detail action (e.g. quox-memory, quox-guard, or the short name: predict, repobrain, qortex)'
         },
         query: {
           type: 'string',
@@ -5717,13 +7252,26 @@ Actions:
         'X-Service-Key': process.env.INTERNAL_SERVICE_KEY || '',
       };
 
+      // Models guess adjacent action names for "how is QuoxMind doing" (seen
+      // live: mirror_status, mind_health). Route the plain-English synonyms to
+      // the implants action, which carries the per-implant health summary,
+      // instead of failing the whole turn on an unknown action.
+      const EI_IMPLANT_ALIASES = ['mirror_status', 'mind_health', 'mind_status', 'health', 'status', 'implant_health', 'implant_status', 'list_implants', 'implant_list', 'mind'];
+      const EI_DETAIL_ALIASES = ['implant_details', 'implant_info', 'implant', 'get_implant', 'implant_get', 'show_implant'];
+      const eiAct = String(input.action || '').toLowerCase();
       // Models also ask for "objectives" (seen live on 4.2.2: browser-objective-list, objective-count-completed):
       // that is the recent_objectives read, not an unknown action.
       const EI_OBJECTIVE_ALIASES = ['objectives', 'objective', 'list_objectives', 'objective_list', 'my_objectives'];
-      const eiAction = EI_OBJECTIVE_ALIASES.includes(String(input.action || '').toLowerCase()) ? 'recent_objectives' : input.action;
+      const eiAction = EI_IMPLANT_ALIASES.includes(eiAct) ? 'implants' : EI_DETAIL_ALIASES.includes(eiAct) ? 'implant_detail' : EI_OBJECTIVE_ALIASES.includes(eiAct) ? 'recent_objectives' : input.action;
+      if (EI_DETAIL_ALIASES.includes(eiAct) && !input.implant_id) input.implant_id = input.implant || input.id || input.name || (input.query && String(input.query).length < 40 ? input.query : undefined);
+      // a detail-style action with no implant named means "all of them": list instead of failing.
+      // So does one that names every implant ('all', '*', 'every', 'all implants'): proof mind/chat-no-activity
+      // failed on "Unknown implant: all".
+      const eiAll = /^\s*(?:\*|all|every|any|all\s+(?:of\s+them|implants?)|every\s+implant)\s*$/i.test(String(input.implant_id || ''));
+      const eiFinal = eiAction === 'implant_detail' && (!input.implant_id || eiAll) ? 'implants' : eiAction;
 
       try {
-        switch (eiAction) {
+        switch (eiFinal) {
           case 'mirror_index': {
             // Build a collector-side mirror from available data sources
             const AUTH_URL = `http://${process.env.AUTH_HOST || 'auth'}:${process.env.AUTH_PORT || '3101'}`;
@@ -5746,10 +7294,22 @@ Actions:
             const roster = listAssistants()
               .map(id => getAssistant(id)?.identity?.name || id.toUpperCase())
               .sort();
+            // QUOXON-MIRROR: the org's server-built Mirror (health, memory, capabilities, plugins,
+            // implants, fabric) is the same object CommanderQ's [SELF-KNOWLEDGE] and /mirror show.
+            let orgMirror = null;
+            if (ctx?.orgId) {
+              try {
+                const om = require('./orgMirror.js');
+                if (om.isConfigured()) orgMirror = (await om.get(ctx.orgId)).mirror;
+              } catch (mErr) {
+                orgMirror = { unknown: { code: mErr.code || 'MIRROR_BUILD_FAILED', service: 'collector', message: mErr.message || 'mirror build failed' } };
+              }
+            }
             return {
               success: true,
               mirror: {
                 timestamp: new Date().toISOString(),
+                ...(orgMirror ? { org: orgMirror } : {}),
                 engine: health || { note: 'Task service unavailable' },
                 agents: {
                   note: 'AI agent roster (not infrastructure agents) — derived from src/config/entities/assistants/',
@@ -5775,30 +7335,26 @@ Actions:
               },
             };
           }
+          case 'implants': {
+            // Same read model as `quox mind implants|health` (lib/mindImplants.js): registry facts + live
+            // tasks stats, org-scoped; implants with nothing recorded say "no activity recorded".
+            const mi = require('./mindImplants.js');
+            const registry = await loadCognitiveImplants();
+            if (!Object.keys(registry).length) return { success: false, error: 'implant registry unavailable' };
+            const implants = await mi.listImplants({ orgId: ctx?.orgId || 'default', userId: ctx?.userId || null, registry, tasksUrl, serviceKey: process.env.INTERNAL_SERVICE_KEY || '' });
+            return { success: true, count: implants.length, implants, health: mi.summarizeHealth(implants) };
+          }
           case 'implant_detail': {
-            // TRUST-GATE 1.18b — implant descriptions come from the same
-            // src/config/cognitiveImplants.js registry the dashboard renders,
-            // not a hardcoded map that drifts when implants change.
-            const cognitiveImplants = await loadCognitiveImplants();
-            const validIds = Object.keys(cognitiveImplants);
+            // One implant: registry facts (src/config/cognitiveImplants.js) plus its live stats. Accepts
+            // the registry id (quox-predict) or the short name (predict, repobrain, qortex).
+            const mi = require('./mindImplants.js');
+            const registry = await loadCognitiveImplants();
+            const validIds = Object.keys(registry);
             if (!input.implant_id) return { success: false, error: `implant_id required. Valid IDs: ${validIds.join(', ')}` };
-            // Return what we know about this implant from engine health
-            const hResp = await fetch(`${tasksUrl}/api/engine/health`, { headers, signal: AbortSignal.timeout(5000) });
-            const hData = hResp.ok ? await hResp.value?.json?.() || await hResp.json() : null;
-            const cfg = cognitiveImplants[input.implant_id];
-            if (!cfg) return { success: false, error: `Unknown implant: ${input.implant_id}. Valid IDs: ${validIds.join(', ')}` };
-            return {
-              success: true,
-              implant: {
-                name: `${cfg.name} Implant`,
-                inspiredBy: cfg.inspiredBy,
-                role: cfg.description,
-                tier: cfg.tier,
-                id: input.implant_id,
-                engineHealth: hData || null,
-                note: 'For live health metrics, the dashboard Mirror tab shows real-time implant data.',
-              },
-            };
+            const detail = await mi.implantDetail({ orgId: ctx?.orgId || 'default', userId: ctx?.userId || null, registry, tasksUrl, serviceKey: process.env.INTERNAL_SERVICE_KEY || '', implantId: input.implant_id });
+            if (!detail) return { success: false, error: `Unknown implant: ${input.implant_id}. Valid IDs: ${validIds.join(', ')}` };
+            // name/role/inspiredBy keep the pre-`quox mind` field shape this action always returned.
+            return { success: true, implant: { ...detail, name: `${detail.name} Implant`, role: detail.description, inspiredBy: detail.inspired_by } };
           }
           case 'recent_objectives': {
             const resp = await fetch(`${tasksUrl}/api/objectives?limit=${limit}`, {
@@ -5831,7 +7387,7 @@ Actions:
             return { success: true, ...data };
           }
           default:
-            return { success: false, error: `Unknown action: ${input.action}. Use recent_objectives, search_wisdom, or engine_health.` };
+            return { success: false, error: `Unknown action: ${input.action}. Use mirror_index, implants, implant_detail, recent_objectives, search_wisdom, or engine_health.` };
         }
       } catch (err) {
         return { success: false, error: err.message };
@@ -5989,7 +7545,7 @@ Actions:
 
   browser_navigate: {
     name: 'browser_navigate',
-    description: 'Navigate to a URL in the Browser-Q headless browser. Returns the page title, final URL (after redirects), and a screenshot URL.',
+    description: 'Navigate to a URL in the Browser-Q headless browser. Returns the page title, final URL (after redirects), and a preview screenshot URL. The preview is not a saved capture: when the user asks for a screenshot, call browser_screenshot after navigating.',
     input_schema: {
       type: 'object',
       properties: {
@@ -6008,34 +7564,8 @@ Actions:
         return { success: false, refused: true, error: 'browser_navigate does not open the Quox collector API: a page fetch runs without your identity. Use quox_cli or the dedicated tool for that data.' };
       }
 
-      // Attempt to call ScreenCap service /execute endpoint
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(serviceKey ? { 'x-service-key': serviceKey } : {})
-          },
-          body: JSON.stringify({
-            tool_id: 'browser_navigate',
-            input: { url },
-            agent_id: 'browser-q'
-          }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          return data.result || data;
-        }
-      } catch { /* ScreenCap may not support this tool yet */ }
-
-      // BQF-4: Return error, not success, when screencap is unavailable
-      return {
-        success: false,
-        error: 'ScreenCap service unavailable for browser_navigate'
-      };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_navigate', { url });
     }
   },
 
@@ -6050,35 +7580,9 @@ Actions:
       required: []
     },
     execute: async (input, ctx) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(serviceKey ? { 'x-service-key': serviceKey } : {})
-          },
-          body: JSON.stringify({
-            tool_id: 'browser_screenshot',
-            input: { selector: input.selector || null },
-            agent_id: 'browser-q'
-          }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          return data.result || data;
-        }
-      } catch { /* ScreenCap may not support this tool yet */ }
-
-      return {
-        success: true,
-        stub: true,
-        screenshot_url: null,
-        dimensions: null,
-        message: 'Browser-Q screenshot tools are registered. Playwright browser engine will be wired in BQ-1.'
-      };
+      // #957: one ScreenCap call path. A failure used to return success:true with a 'BQ-1' stub
+      // message, so a screenshot that never happened read as done.
+      return await screencapExecute('browser_screenshot', { selector: input.selector || null });
     }
   },
 
@@ -6097,25 +7601,15 @@ Actions:
         fields: { type: 'object', description: 'Field name to CSS selector map for list items (format=list)' },
         export_format: { type: 'string', enum: ['json', 'csv'], description: 'Export format for extracted data' },
         create_actions: { type: 'boolean', description: 'Create Action-Q items from extracted data' },
-        org_id: { type: 'string', description: 'Organisation ID for Action-Q items' },
         user_id: { type: 'string', description: 'User ID for Action-Q items' },
         session_id: { type: 'string', description: 'Browser session ID (default: "default")' }
       },
       required: []
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_extract', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_extract' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_extract', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
@@ -6132,18 +7626,8 @@ Actions:
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_extract_table', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_extract_table' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_extract_table', input);
     }
   },
 
@@ -6156,31 +7640,22 @@ Actions:
         schema: { type: 'object', description: 'Extraction schema: { fieldName: { selector, type, attr?, match?, required?, fields? } }' },
         export_format: { type: 'string', enum: ['json', 'csv'], description: 'Export format' },
         create_actions: { type: 'boolean', description: 'Create Action-Q items from extracted data' },
-        org_id: { type: 'string', description: 'Organisation ID for Action-Q items' },
         user_id: { type: 'string', description: 'User ID for Action-Q items' },
         session_id: { type: 'string', description: 'Browser session ID (default: "default")' }
       },
       required: ['schema']
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_extract_schema', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_extract_schema' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_extract_schema', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
   browser_extract_template: {
     name: 'browser_extract_template',
-    description: 'Extract data using a pre-built extraction template. Templates: product_listing, invoice_table, job_listing, contact_info, page_links.',
+    // quox#1076: the first sentence carries the words users say, so a plain ask ranks it.
+    description: 'Pull links, contact details, product listings, invoice tables or job listings from a page with a ready-made extraction template (templates: page_links, contact_info, product_listing, invoice_table, job_listing).',
     input_schema: {
       type: 'object',
       properties: {
@@ -6191,18 +7666,8 @@ Actions:
       required: ['template']
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_extract_template', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_extract_template' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_extract_template', input);
     }
   },
 
@@ -6220,18 +7685,8 @@ Actions:
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_extract_links', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_extract_links' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_extract_links', input);
     }
   },
 
@@ -6246,18 +7701,8 @@ Actions:
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_extract_metadata', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_extract_metadata' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_extract_metadata', input);
     }
   },
 
@@ -6276,18 +7721,8 @@ Actions:
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_click', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_click' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_click', input);
     }
   },
 
@@ -6307,18 +7742,8 @@ Actions:
       required: ['text']
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_type', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_type' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_type', input);
     }
   },
 
@@ -6336,18 +7761,8 @@ Actions:
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_wait', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_wait' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_wait', input);
     }
   },
 
@@ -6365,18 +7780,8 @@ Actions:
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_scroll', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_scroll' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_scroll', input);
     }
   },
 
@@ -6393,18 +7798,8 @@ Actions:
       required: ['fields']
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_fill_form', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_fill_form' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_fill_form', input);
     }
   },
 
@@ -6422,18 +7817,8 @@ Actions:
       required: ['selector']
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_select', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_select' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_select', input);
     }
   },
 
@@ -6449,18 +7834,8 @@ Actions:
       required: ['description']
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_find_element', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_find_element' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_find_element', input);
     }
   },
 
@@ -6481,24 +7856,14 @@ Actions:
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_analyze_forms', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_analyze_forms' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_analyze_forms', input);
     }
   },
 
   browser_pdf: {
     name: 'browser_pdf',
-    description: 'Generate a PDF of the current page. Returns the PDF file path and size.',
+    description: 'Save a web page as a PDF file and report how big it is (file path, size, number of pages), for the current or a given page. A long page can take a minute or two to render: say so before you start, then report the pages and size it returns.',
     input_schema: {
       type: 'object',
       properties: {
@@ -6510,18 +7875,8 @@ Actions:
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_pdf', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(30000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_pdf' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_pdf', input);
     }
   },
 
@@ -6540,45 +7895,26 @@ Actions:
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_download', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(60000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_download' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_download', input);
     }
   },
 
   browser_lighthouse: {
     name: 'browser_lighthouse',
-    description: 'Run a Lighthouse audit on the current page. Returns performance, accessibility, best practices, and SEO scores with improvement suggestions.',
+    description: 'Audit a web page with Lighthouse for its performance, accessibility, best-practices and SEO scores. Returns each score with improvement suggestions.',
     input_schema: {
       type: 'object',
       properties: {
         session_id: { type: 'string', description: 'Session ID (default: "default")' },
-        categories: { type: 'array', items: { type: 'string' }, description: 'Categories to audit (performance, accessibility, best-practices, seo). Default: all.' }
+        categories: { type: 'array', items: { type: 'string' }, description: 'Categories to audit (performance, accessibility, best-practices, seo). Default: all.' },
+        form_factor: { type: 'string', enum: ['desktop', 'mobile'], description: 'Device to audit as. Default desktop. Mobile simulation is far slower (over 398 s on a heavy page) and usually returns an honest timeout instead of scores.' }
       },
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_lighthouse', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(60000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_lighthouse' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_lighthouse', input);
     }
   },
 
@@ -6594,18 +7930,8 @@ Actions:
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_new_tab', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_new_tab' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_new_tab', input);
     }
   },
 
@@ -6621,18 +7947,8 @@ Actions:
       required: ['tab_index']
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_switch_tab', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_switch_tab' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_switch_tab', input);
     }
   },
 
@@ -6647,18 +7963,8 @@ Actions:
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_list_tabs', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_list_tabs' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_list_tabs', input);
     }
   },
 
@@ -6742,18 +8048,8 @@ Actions:
       // Also relay agent_id so ScreenCap's own credential resolve (the actual
       // release point) is gated too, not only this defense-in-depth check.
       const relayInput = { ...input, org_id: orgId, agent_id: agentId };
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_login', input: relayInput, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(60000) // Longer timeout for login flow
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_login' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_login', relayInput);
     }
   },
 
@@ -6776,18 +8072,8 @@ Actions:
     // ctx.orgId), never as a user-supplied override (cross-tenant vector).
     execute: async (input, ctx = {}) => {
       const relayInput = { ...input, org_id: resolveToolOrgId(ctx, input) };
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_save_cookies', input: relayInput, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_save_cookies' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_save_cookies', relayInput);
     }
   },
 
@@ -6806,18 +8092,8 @@ Actions:
     // VAULT-P3.B2: inject org_id from context (see browser_save_cookies).
     execute: async (input, ctx = {}) => {
       const relayInput = { ...input, org_id: resolveToolOrgId(ctx, input) };
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_restore_cookies', input: relayInput, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_restore_cookies' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_restore_cookies', relayInput);
     }
   },
 
@@ -7442,18 +8718,8 @@ Actions:
       required: ['name']
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_record_start', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_record_start' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_record_start', input);
     }
   },
 
@@ -7468,18 +8734,8 @@ Actions:
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_record_stop', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_record_stop' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_record_stop', input);
     }
   },
 
@@ -7491,26 +8747,16 @@ Actions:
       properties: {
         sequence_id: { type: 'string', description: 'ID of a saved sequence to replay' },
         inline_sequence: { type: 'object', description: 'An inline sequence object to replay' },
-        org_id: { type: 'string', description: 'Organisation ID (required when using sequence_id)' },
         variables: { type: 'object', description: 'Variable substitutions, e.g. { "username": "admin@test.com" }' },
         self_heal: { type: 'boolean', description: 'Enable self-healing when selectors fail (default: true)' },
         session_id: { type: 'string', description: 'Browser session ID (default: "default")' }
       },
       required: []
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_replay', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(120000) // Long timeout — replays can take a while
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_replay' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_replay', { ...input, org_id: resolveToolOrgId(ctx, input) }, { timeoutMs: 120000 });
     }
   },
 
@@ -7520,24 +8766,14 @@ Actions:
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID' },
         sequence: { type: 'object', description: 'The sequence object to save' }
       },
-      required: ['org_id', 'sequence']
+      required: ['sequence']
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_sequence_save', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_sequence_save' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_sequence_save', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
@@ -7547,23 +8783,13 @@ Actions:
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID' }
       },
-      required: ['org_id']
+      required: []
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_sequence_list', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_sequence_list' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_sequence_list', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
@@ -7573,24 +8799,14 @@ Actions:
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID' },
         sequence_id: { type: 'string', description: 'Sequence ID to load' }
       },
-      required: ['org_id', 'sequence_id']
+      required: ['sequence_id']
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_sequence_load', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_sequence_load' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_sequence_load', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
@@ -7600,24 +8816,14 @@ Actions:
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID' },
         sequence_id: { type: 'string', description: 'Sequence ID to delete' }
       },
-      required: ['org_id', 'sequence_id']
+      required: ['sequence_id']
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_sequence_delete', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_sequence_delete' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_sequence_delete', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
@@ -7638,18 +8844,8 @@ Actions:
       required: []
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_video_start', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_video_start' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_video_start', input);
     }
   },
 
@@ -7660,24 +8856,14 @@ Actions:
       type: 'object',
       properties: {
         session_id: { type: 'string', description: 'Browser session ID (default: "default")' },
-        org_id: { type: 'string', description: 'Organisation ID for video storage' },
         cleanup: { type: 'boolean', description: 'Delete frame files after assembly (default: true)' }
       },
-      required: ['org_id']
+      required: []
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_video_stop', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(60000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_video_stop' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_video_stop', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
@@ -7687,23 +8873,13 @@ Actions:
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID' }
       },
-      required: ['org_id']
+      required: []
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_video_list', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_video_list' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_video_list', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
@@ -7713,24 +8889,14 @@ Actions:
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID' },
         video_id: { type: 'string', description: 'Video ID to delete' }
       },
-      required: ['org_id', 'video_id']
+      required: ['video_id']
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_video_delete', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_video_delete' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_video_delete', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
@@ -7744,28 +8910,18 @@ Actions:
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID' },
         url: { type: 'string', description: 'URL to monitor' },
         name: { type: 'string', description: 'Human-readable name for this monitor' },
         cron_expression: { type: 'string', description: 'Cron expression for check schedule (e.g. "0 * * * *" for hourly)' },
         threshold: { type: 'number', description: 'Pixel diff percentage threshold to trigger alerts (default: 5)' },
         login_credential_id: { type: 'string', description: 'Optional vault credential ID for authenticated pages' }
       },
-      required: ['org_id', 'url', 'name', 'cron_expression']
+      required: ['url', 'name', 'cron_expression']
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_monitor_create', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_monitor_create' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_monitor_create', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
@@ -7775,51 +8931,55 @@ Actions:
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID' }
       },
-      required: ['org_id']
+      required: []
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_monitor_list', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_monitor_list' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_monitor_list', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
+  // quox#1185: a monitor could be created but never deleted (ScreenCap had the handler, no tool reached it).
+  // The org is the caller's authenticated org, never a tool input, so only the caller's own monitor goes.
+  browser_monitor_delete: {
+    name: 'browser_monitor_delete',
+    description: "Delete one of this organisation's visual monitors by id (stops its scheduled checks and removes its baseline and history). Only monitors in the caller's own organisation can be deleted.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        monitor_id: { type: 'string', description: 'Monitor ID to delete' }
+      },
+      required: ['monitor_id']
+    },
+    execute: async (input, ctx = {}) => {
+      const orgId = ctx && ctx.orgId;
+      if (!orgId) return { success: false, error_code: 'org_required', error: 'No authenticated organisation on this call, so no monitor can be deleted.' };
+      const monitorId = input && typeof input.monitor_id === 'string' ? input.monitor_id.trim() : '';
+      if (!monitorId) return { success: false, error_code: 'monitor_id_required', error: 'monitor_id is required.' };
+      const r = await screencapExecute('browser_monitor_delete', { org_id: orgId, monitor_id: monitorId });
+      if (r && r.success !== false && r.deleted === false) {
+        return { success: false, error_code: 'monitor_not_found', error: `No monitor ${monitorId} in your organisation, so nothing was deleted.`, monitor_id: monitorId };
+      }
+      return r && r.success !== false ? { ...r, success: true, monitor_id: monitorId } : r;
+    }
+  },
   browser_monitor_check: {
     name: 'browser_monitor_check',
     description: 'Run an immediate visual check for a monitor. Captures screenshot, compares to baseline, creates alerts if changes exceed threshold.',
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID' },
         monitor_id: { type: 'string', description: 'Monitor ID to check' },
         session_id: { type: 'string', description: 'Browser session ID to use (optional)' }
       },
-      required: ['org_id', 'monitor_id']
+      required: ['monitor_id']
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_monitor_check', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(60000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_monitor_check' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_monitor_check', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
@@ -7833,28 +8993,17 @@ Actions:
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID' },
         user_id: { type: 'string', description: 'User ID' },
         url: { type: 'string', description: 'Target URL for the automation' },
         intent: { type: 'string', description: 'Plain-English description of what to accomplish' }
       },
-      required: ['org_id', 'url', 'intent']
+      required: ['url', 'intent']
     },
     execute: async (input, ctx) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      // Thread the chat correlation ID through to the objective
-      const enrichedInput = { ...input, corr_id: input.corr_id || ctx?.session_id || null };
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_objective_create', input: enrichedInput, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_objective_create' };
+      // quox#1184: #957 kept enrichedInput but dropped its definition, so this threw a ReferenceError.
+      const enrichedInput = { ...input, org_id: resolveToolOrgId(ctx, input), corr_id: (input && input.corr_id) || ctx?.session_id || null };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_objective_create', enrichedInput);
     }
   },
 
@@ -7882,18 +9031,8 @@ Actions:
       required: ['objective_id', 'steps']
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_objective_plan', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_objective_plan' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_objective_plan', input);
     }
   },
 
@@ -7909,19 +9048,10 @@ Actions:
       required: ['objective_id']
     },
     execute: async (input, ctx) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      const enrichedInput = { ...input, corr_id: input.corr_id || ctx?.session_id || null };
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_objective_execute', input: enrichedInput, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(120000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_objective_execute' };
+      // quox#1184: #957 kept enrichedInput but dropped its definition, so this threw a ReferenceError.
+      const enrichedInput = { ...input, org_id: resolveToolOrgId(ctx, input), corr_id: (input && input.corr_id) || ctx?.session_id || null };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_objective_execute', enrichedInput, { timeoutMs: 120000 });
     }
   },
 
@@ -7931,29 +9061,19 @@ Actions:
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID' },
         user_id: { type: 'string', description: 'User ID (default: system)' },
         url: { type: 'string', description: 'Target URL' },
         intent: { type: 'string', description: 'Plain-English description of what to accomplish' },
         credential_id: { type: 'string', description: 'Vault credential ID for login (optional)' },
         needs_login: { type: 'boolean', description: 'Whether the task requires authentication' }
       },
-      required: ['org_id', 'url', 'intent']
+      required: ['url', 'intent']
     },
     execute: async (input, ctx) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      const enrichedInput = { ...input, corr_id: input.corr_id || ctx?.session_id || null };
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_objective_run', input: enrichedInput, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(120000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_objective_run' };
+      // quox#1184: #957 kept enrichedInput but dropped its definition, so this threw a ReferenceError.
+      const enrichedInput = { ...input, org_id: resolveToolOrgId(ctx, input), corr_id: (input && input.corr_id) || ctx?.session_id || null };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_objective_run', enrichedInput, { timeoutMs: 120000 });
     }
   },
 
@@ -7969,18 +9089,8 @@ Actions:
       required: ['objective_id', 'step_id']
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_objective_approve_step', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_objective_approve_step' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_objective_approve_step', input);
     }
   },
 
@@ -7995,18 +9105,8 @@ Actions:
       required: ['objective_id']
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_objective_cancel', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_objective_cancel' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_objective_cancel', input);
     }
   },
 
@@ -8016,24 +9116,14 @@ Actions:
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID' },
         limit: { type: 'number', description: 'Max results (default 20)' }
       },
-      required: ['org_id']
+      required: []
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_objective_list', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_objective_list' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_objective_list', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
@@ -8043,24 +9133,14 @@ Actions:
     input_schema: {
       type: 'object',
       properties: {
-        org_id: { type: 'string', description: 'Organisation ID' },
         objective_id: { type: 'string', description: 'Objective ID' }
       },
-      required: ['org_id', 'objective_id']
+      required: ['objective_id']
     },
-    execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_objective_get', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_objective_get' };
+    execute: async (input, ctx = {}) => {
+      // Org scope comes from the authenticated ctx, never the model (QUOXTRUST F1 rule, resolveToolOrgId).
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_objective_get', { ...input, org_id: resolveToolOrgId(ctx, input) });
     }
   },
 
@@ -8075,18 +9155,8 @@ Actions:
       required: ['objective_id']
     },
     execute: async (input) => {
-      const screencapUrl = process.env.SCREENCAP_URL || 'http://screencap:3300';
-      const serviceKey = process.env.INTERNAL_SERVICE_KEY;
-      try {
-        const resp = await fetch(`${screencapUrl}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(serviceKey ? { 'x-service-key': serviceKey } : {}) },
-          body: JSON.stringify({ tool_id: 'browser_objective_save_sequence', input, agent_id: 'browser-q' }),
-          signal: AbortSignal.timeout(15000)
-        });
-        if (resp.ok) { const data = await resp.json(); return data.result || data; }
-      } catch { /* fallthrough */ }
-      return { success: false, error: 'ScreenCap service unavailable for browser_objective_save_sequence' };
+      // #957: one ScreenCap call path, honest timeout/unavailable/HTTP errors.
+      return await screencapExecute('browser_objective_save_sequence', input);
     }
   },
 
@@ -8322,7 +9392,7 @@ Actions:
   // the single source of truth). ROADY (Strategic Roadmap Navigator) could not do
   // its job without this: it only had stale brain docs, no live roadmap. Agents
   // READ only; the roadmap is mutated exclusively via the roadmap-cli by the owner.
-  // The file is reachable via the collector's /opt/quoxcore mount on the dev host;
+  // The file is reachable via the collector's ~ mount on the dev host;
   // on environments without it, the tools return a clear "not available" result.
   roadmap_list: {
     name: 'roadmap_list',
@@ -8447,7 +9517,7 @@ Actions:
   // BRAIN2-V3 B3: "what's new" daily brief (GET /brain/brief).
   brain_brief: {
     name: 'brain_brief',
-    description: 'Catch the user up on what is new in their brain since a time window (counts by source, newest notes with titles, open questions). Use when the user asks what is new, to catch them up, or for a daily brief. Deterministic and scoped to their org/user.',
+    description: 'Catch the user up on what is new in their brain since a time window (counts by source, newest notes with titles, open questions), plus the total note count from the brain status. Use when the user asks what is new, to catch them up, for a daily brief, or how many notes their brain holds. Deterministic and scoped to their org/user.',
     input_schema: {
       type: 'object',
       properties: {
@@ -8468,7 +9538,7 @@ Actions:
   // stays for short facts/preferences.
   brain_save: {
     name: 'brain_save',
-    description: 'Save a note, reference, article excerpt or decision-as-a-document into the user\'s knowledge brain (editable in NotesQ, searchable immediately). Use when the user tells you something worth keeping as a document, or asks you to clip a URL. Saves are always private to the user (org-wide sharing is done by the user in NotesQ). For a short fact or preference use memory_save instead. Identical or near-identical text updates the existing note rather than duplicating it.',
+    description: 'Save a note, reference, article excerpt or decision-as-a-document into the user\'s knowledge brain (editable in NotesQ, searchable immediately). Use when the user tells you something worth keeping as a document, or asks you to clip a URL. Saves are always private to the user (org-wide sharing is done by the user in NotesQ). For a short fact or preference use memory_save instead. Saving identical text again (with no title, or the same title) is recognised as already saved; the same text under a different title is a new note, flagged as a possible duplicate. To change an existing note use brain_update.',
     input_schema: {
       type: 'object',
       properties: {
@@ -8487,7 +9557,8 @@ Actions:
   // a second brain_save copy.
   brain_update: {
     name: 'brain_update',
-    description: 'Correct one of the user\'s own private knowledge-brain notes, or a team note in the user\'s own org, in place (use instead of saving a duplicate). Pass the noteId from a search/read result and the FULL corrected markdown text. You MUST read the note first with quoxbrain_read and pass the \'revision\' it returned as expectedHash; without it the edit is refused, and if the note changed since you read it you get a conflict and must re-read. A revision is recorded and restorable in NotesQ.',
+    gatedInExecute: true,
+    description: 'Correct one of the user\'s own private knowledge-brain notes, or a team note in the user\'s own org, in place (use instead of saving a duplicate). On a team note you did not author this does NOT write: it files an approval card with the line diff (result has pending:true and an approvalId) and a human must approve it; if the note changes before approval, the approval fails as a conflict. Pass the noteId from a search/read result and the FULL corrected markdown text. You MUST read the note first with quoxbrain_read and pass the \'revision\' it returned as expectedHash; without it the edit is refused, and if the note changed since you read it you get a conflict and must re-read. A revision is recorded and restorable in NotesQ.',
     input_schema: {
       type: 'object',
       properties: {
@@ -8541,7 +9612,8 @@ Actions:
 
   brain_delete: {
     name: 'brain_delete',
-    description: 'Delete one of the user\'s own private knowledge-brain notes when they ask you to forget it. Pass the noteId and the \'revision\' from quoxbrain_read as expectedHash (read the note first; a stale revision is a conflict and nothing is deleted). Shared org notes are refused. The delete is recorded as a revision and restorable in NotesQ.',
+    gatedInExecute: true,
+    description: 'Delete one of the user\'s own private knowledge-brain notes when they ask you to forget it. Pass the noteId and the \'revision\' from quoxbrain_read as expectedHash (read the note first; a stale revision is a conflict and nothing is deleted). Deleting a shared team note always files an approval card instead (pending:true); a human must approve it. The delete is recorded as a revision and restorable in NotesQ.',
     input_schema: {
       type: 'object',
       properties: {
@@ -8642,7 +9714,8 @@ Actions:
 
   brain_restore: {
     name: 'brain_restore',
-    description: 'Restore one of the user\'s own private notes, or a team note in the user\'s own org, to an earlier revision, when they ask to undo an edit. Find the revision with brain_history first. You MUST read the note with quoxbrain_read and pass its current \'revision\' as expectedHash; a stale value is a conflict and nothing is restored (re-read and redo). The restore is itself recorded as a revision.',
+    gatedInExecute: true,
+    description: 'Restore one of the user\'s own private notes, or a team note in the user\'s own org, to an earlier revision, when they ask to undo an edit. On a team note you did not author this files an approval card (pending:true) instead of writing. Find the revision with brain_history first. You MUST read the note with quoxbrain_read and pass its current \'revision\' as expectedHash; a stale value is a conflict and nothing is restored (re-read and redo). The restore is itself recorded as a revision.',
     input_schema: {
       type: 'object',
       properties: {
@@ -8713,14 +9786,11 @@ Actions:
     description: "List every org-settable behaviour flag with its current effective value, default, and whether an org override or the environment default is in effect. Backs 'walk me through my current settings'.",
     input_schema: { type: 'object', properties: {}, required: [] },
     execute: async (_input, ctx) => {
-      if (!ctx?.token) {
-        return { success: false, error: 'org_context_required', message: 'settings_list needs an authenticated user session (org context) to resolve org-scoped overrides.' };
+      if (!ctx?.token && !ctx?.orgId) {
+        return { success: false, error: 'org_context_required', message: 'settings_list needs an org context (a user session, or the delegating turn\'s org) to resolve org-scoped overrides.' };
       }
       try {
-        const port = process.env.COLLECTOR_PORT || process.env.PORT || 9848;
-        const resp = await fetch(`http://127.0.0.1:${port}/api/v1/platform/settings/flags`, {
-          headers: { Authorization: `Bearer ${ctx.token}` }
-        });
+        const resp = await fetchOrgFlags(ctx);
         const data = await resp.json().catch(() => null);
         if (!resp.ok) {
           return { success: false, error: data?.error || `HTTP ${resp.status}`, status: resp.status };
@@ -8743,14 +9813,11 @@ Actions:
       required: ['key']
     },
     execute: async (input, ctx) => {
-      if (!ctx?.token) {
-        return { success: false, error: 'org_context_required', message: 'settings_get needs an authenticated user session (org context) to resolve org-scoped overrides.' };
+      if (!ctx?.token && !ctx?.orgId) {
+        return { success: false, error: 'org_context_required', message: 'settings_get needs an org context (a user session, or the delegating turn\'s org) to resolve org-scoped overrides.' };
       }
       try {
-        const port = process.env.COLLECTOR_PORT || process.env.PORT || 9848;
-        const resp = await fetch(`http://127.0.0.1:${port}/api/v1/platform/settings/flags`, {
-          headers: { Authorization: `Bearer ${ctx.token}` }
-        });
+        const resp = await fetchOrgFlags(ctx);
         const data = await resp.json().catch(() => null);
         if (!resp.ok) {
           return { success: false, error: data?.error || `HTTP ${resp.status}`, status: resp.status };
@@ -8778,16 +9845,20 @@ Actions:
     },
     execute: async (input, ctx) => {
       try {
-        const resp = await localApiFetch('/api/v1/platform/capabilities', {}, { assertOk: false });
-        const data = await resp.json().catch(() => null);
-        if (!resp.ok) {
-          return { success: false, error: data?.error || `HTTP ${resp.status}`, status: resp.status };
+        const r = await fetchOrgCapabilities('', ctx);
+        if (!r.ok) {
+          return { success: false, error: r.data?.error || `HTTP ${r.resp.status}`, status: r.resp.status };
         }
-        const capability = (data?.capabilities || []).find((c) => c.key === input.key);
+        const capability = r.capabilities.find((c) => c.key === input.key);
         if (!capability) {
           return { success: false, error: 'not_found', message: `No known behaviour flag named '${input.key}'.` };
         }
-        return { success: true, capability };
+        return {
+          success: true,
+          capability,
+          org_overrides_resolved: r.orgResolved,
+          ...(r.orgResolved ? {} : { note: UNRESOLVED_CAPABILITY_NOTE }),
+        };
       } catch (err) {
         return { success: false, error: err.message };
       }
@@ -8796,7 +9867,7 @@ Actions:
 
   settings_search: {
     name: 'settings_search',
-    description: 'Search behaviour flags by keyword against their key, name, and description. Use for "what settings affect X". Covers both user-settable and operator-only flags.',
+    description: 'Search behaviour flags by keyword against their key, name, and description. Use for "what settings affect X". Covers both user-settable and operator-only flags. This is not for one named setting\'s current value: use settings_get for that.',
     input_schema: {
       type: 'object',
       properties: {
@@ -8810,18 +9881,23 @@ Actions:
         const params = new URLSearchParams();
         if (input.classification) params.set('classification', input.classification);
         const qs = params.toString() ? `?${params.toString()}` : '';
-        const resp = await localApiFetch(`/api/v1/platform/capabilities${qs}`, {}, { assertOk: false });
-        const data = await resp.json().catch(() => null);
-        if (!resp.ok) {
-          return { success: false, error: data?.error || `HTTP ${resp.status}`, status: resp.status };
+        const r = await fetchOrgCapabilities(qs, ctx);
+        if (!r.ok) {
+          return { success: false, error: r.data?.error || `HTTP ${r.resp.status}`, status: r.resp.status };
         }
         const needle = String(input.query || '').toLowerCase();
-        const matches = (data?.capabilities || []).filter((c) =>
+        const matches = r.capabilities.filter((c) =>
           c.key.toLowerCase().includes(needle) ||
           (c.name || '').toLowerCase().includes(needle) ||
           (c.description || '').toLowerCase().includes(needle)
         );
-        return { success: true, count: matches.length, capabilities: matches };
+        return {
+          success: true,
+          count: matches.length,
+          capabilities: matches,
+          org_overrides_resolved: r.orgResolved,
+          ...(r.orgResolved ? {} : { note: UNRESOLVED_CAPABILITY_NOTE }),
+        };
       } catch (err) {
         return { success: false, error: err.message };
       }
@@ -8982,7 +10058,7 @@ Actions:
   // own terminal. Nothing here writes a credential or sees one.
   vault_types: {
     name: 'vault_types',
-    description: "List available integration types (the catalogue vault credentials are created from), optionally filtered by a search string and/or category. Returns each type's id, name, category, description, whether it runs a live connection test on save, and the field names/labels a user must supply — never a default or example value that could be mistaken for a real credential.",
+    description: "List available integration types (the catalogue vault credentials are created from), optionally filtered by a search string and/or category. Returns each type's id, name, category, description, whether it runs a live connection test on save, and the field names/labels a user must supply — never a default or example value that could be mistaken for a real credential. This is not a how-to for connecting one integration: for what to provide and the steps, use vault_connect_guide.",
     input_schema: {
       type: 'object',
       properties: {
@@ -9138,7 +10214,7 @@ Actions:
 
   license_status: {
     name: 'license_status',
-    description: 'Report the instance license (tier, seats, expiry) and any per-plugin license status.',
+    description: 'Report the instance license (tier, seats, expiry), the licence plan name(s) (licenses[].plans) and how many plugins the licence governs (governed_count), per-plugin license status, and per-plugin seat bands (plugin_seats: seats used / allowed, e.g. QuoxSignal). plugin_seats lists only seat-banded plugins, so its size is not the governed count.',
     input_schema: { type: 'object', properties: {}, required: [] },
     execute: async (input, ctx) => {
       if (!ctx?.token) {
@@ -9146,9 +10222,11 @@ Actions:
       }
       try {
         const headers = { Authorization: `Bearer ${ctx.token}` };
-        const [licResp, pluginResp] = await Promise.all([
+        const [licResp, pluginResp, entResp] = await Promise.all([
           fetch(`${AUTH_BASE_URL}/setup/licensing`, { headers, signal: AbortSignal.timeout(10000) }),
           fetch(`${AUTH_BASE_URL}/setup/plugin-licenses`, { headers, signal: AbortSignal.timeout(10000) }),
+          // Per-plugin seat bands, the same source `quox plugin licence` reads.
+          fetch(`${AUTH_BASE_URL}/setup/licensing/entitlements`, { headers, signal: AbortSignal.timeout(10000) }).catch(() => null),
         ]);
         if (!licResp.ok) {
           const errData = await licResp.json().catch(() => null);
@@ -9156,7 +10234,30 @@ Actions:
         }
         const licData = await licResp.json().catch(() => null);
         const pluginData = pluginResp.ok ? await pluginResp.json().catch(() => ({ licenses: {} })) : { licenses: {} };
-        return { success: true, licensing: licData?.licensing ?? null, plugin_licenses: pluginData?.licenses ?? {} };
+        const entData = entResp && entResp.ok ? await entResp.json().catch(() => null) : null;
+        // Seats used / allowed per banded plugin; other orgs' ids (assigned_orgs) are not handed to the model.
+        const plugin_seats = {};
+        for (const [pid, b] of Object.entries(entData?.org_bands || {})) {
+          plugin_seats[pid] = {
+            seats_used: typeof b?.assigned_count === 'number' ? b.assigned_count : null,
+            seats_allowed: typeof b?.allowance === 'number' ? b.allowance : null,
+            org_licensed: b?.org_licensed ?? null,
+          };
+        }
+        // Z2H-7B5: the plan name(s) and the governed-plugin count, from the same entitlements read the CLI's
+        // `quox licence status` uses. Without them a turn that trusted this tool answered with the tier code and
+        // the banded-plugin count (43) instead of the plan and the governed count (71). Added only when present.
+        const out = { success: true, licensing: licData?.licensing ?? null, plugin_licenses: pluginData?.licenses ?? {}, plugin_seats };
+        if (Array.isArray(entData?.licenses)) {
+          out.licenses = entData.licenses.map((l) => ({
+            license_id: l.license_id,
+            plans: Array.isArray(l.plans) ? l.plans : [],
+            licence_expires_at: l.expires_at,
+            lease_expires_at: l.lease_expires_at,
+          }));
+        }
+        if (Array.isArray(entData?.governed)) out.governed_count = entData.governed.length;
+        return out;
       } catch (err) {
         return { success: false, error: err.message };
       }
@@ -9209,7 +10310,7 @@ Actions:
 
   quoxseo_summary: {
     name: 'quoxseo_summary',
-    description: "Latest crawl summary for the org's site: URL count, ok/error, GSC coverage, orphans, noindex, missing canonical/meta, totals.",
+    description: "Latest crawl summary for the org's site: URL count, ok/error, GSC coverage, orphans, noindex, missing canonical/meta, totals. This is not for quick wins (use quoxseo_opportunities) or clicks gained or lost over time (use quoxseo_trends).",
     input_schema: { type: 'object', properties: {}, required: [] },
     execute: async (input, ctx) => {
       try {
@@ -9272,12 +10373,13 @@ Actions:
 
   quoxseo_changes: {
     name: 'quoxseo_changes',
-    description: 'The witnessed change log: signed diffs between consecutive crawls (noindex transitions, canonical/title changes, added/removed URLs).',
+    description: 'The witnessed change log: signed diffs between consecutive crawls (noindex transitions, canonical/title changes, added/removed URLs). Pass type to get only one kind: type "url_added" answers "which URLs were added", "url_removed" which were removed, "field_changed" title/canonical/noindex edits. count_by_type always gives the totals of every kind.',
     input_schema: {
       type: 'object',
       properties: {
         limit: { type: 'number', description: 'Max results (default 50)' },
-        crawl_id: { type: 'string', description: 'Restrict to changes for a specific crawl id' }
+        crawl_id: { type: 'string', description: 'Restrict to changes for a specific crawl id' },
+        type: { type: 'string', enum: QUOXSEO_CHANGE_TYPES, description: 'Only changes of this kind: url_added, url_removed or field_changed' }
       },
       required: []
     },
@@ -9285,6 +10387,10 @@ Actions:
       try {
         const orgId = ctx?.orgId;
         if (!orgId) return { success: false, error: 'No organization context' };
+        const type = input?.type;
+        if (type !== undefined && type !== null && type !== '' && !QUOXSEO_CHANGE_TYPES.includes(type)) {
+          return { success: false, error: `Unknown change type "${type}". Use one of: ${QUOXSEO_CHANGE_TYPES.join(', ')}.` };
+        }
         const base = process.env.QUOXSEO_URL || 'http://quoxseo:3110';
         const params = new URLSearchParams();
         if (input?.crawl_id) {
@@ -9300,6 +10406,17 @@ Actions:
         if (!res.ok) return { success: false, error: `QuoxSEO returned ${res.status}: ${text}` };
         let data;
         try { data = JSON.parse(text); } catch { data = {}; }
+        // #970: count every kind first, then filter, so "which URLs were added" is answered
+        // from a small result instead of the whole log.
+        if (Array.isArray(data.changes)) {
+          const countByType = {};
+          for (const c of data.changes) countByType[c?.type] = (countByType[c?.type] || 0) + 1;
+          data.count_by_type = countByType;
+          if (type) {
+            data.changes = data.changes.filter((c) => c?.type === type);
+            data.filter = { type };
+          }
+        }
         return { success: true, ...data };
       } catch (err) {
         return { success: false, error: `Failed to fetch QuoxSEO change log: ${err.message}` };
@@ -9401,7 +10518,7 @@ Actions:
 
   quoxseo_issues: {
     name: 'quoxseo_issues',
-    description: "Technical SEO audit for the org's site: every on-page and technical issue in the latest crawl, ranked by severity. Detects error pages, noindex pages that still earn traffic (accidental deindexing), missing canonical/meta description/H1, multiple H1s, thin content, orphans, pages missing from the sitemap, and duplicate titles/meta descriptions. Use when the user asks what is wrong with the site, for a site audit, or about technical SEO health.",
+    description: "Technical SEO audit for the org's site: every on-page and technical issue in the latest crawl, ranked by severity. Detects error pages, noindex pages that still earn traffic (accidental deindexing), missing canonical/meta description/H1, multiple H1s, thin content, orphans, pages missing from the sitemap, and duplicate titles/meta descriptions. Use when the user asks what is wrong with the site, for a site audit, or about technical SEO health. This is not for quick wins (use quoxseo_opportunities) or clicks gained or lost over time (use quoxseo_trends).",
     input_schema: {
       type: 'object',
       properties: {
@@ -9676,7 +10793,7 @@ TOOL_DEFS.wb_get_node_schema = {
 
 TOOL_DEFS.wb_list_agents = {
   name: 'wb_list_agents',
-  description: 'List specialist agents that can be invoked by an agent:agentic node. Returns id + name + 1-line role per agent (max 40). Use this when the user asks for a workflow that needs a specialist (browser automation, security, deployments) and you need to know who is available.',
+  description: 'List specialist agents that can be invoked by an agent:agentic node. Returns id + name + 1-line role per agent (max 120). Use this when the user asks for a workflow that needs a specialist (browser automation, security, deployments) and you need to know who is available.',
   input_schema: { type: 'object', properties: {}, required: [] },
   execute: async () => {
     // Use already-loaded assistant entities (loaded at startup via loadAssistants)
@@ -9688,7 +10805,8 @@ TOOL_DEFS.wb_list_agents = {
         name: data.identity?.name || id,
         role: data.identity?.description || data.identity?.tagline || '',
       });
-      if (entries.length >= 40) break;
+      // 40 dropped real specialists once the roster passed 40 (weaver went missing).
+      if (entries.length >= 120) break;
     }
     return entries;
   },
@@ -10379,7 +11497,7 @@ function isTextualFile(mime, filename) {
 
 TOOL_DEFS['list_files'] = {
   name: 'list_files',
-  description: 'List files stored in the org file store (file_objects), optionally filtered by a namespace prefix. Returns filename, mime type, size, virtual path and creation time — never internal blob paths or content hashes.',
+  description: 'List files in the org knowledge store (file_objects: QuoxChat widget knowledge bases and chat uploads), optionally filtered by a namespace prefix. This is not the Files plugin (`quox file list`); say which store you read. Returns filename, mime type, size, virtual path and creation time, never internal blob paths or content hashes.',
   input_schema: {
     type: 'object',
     properties: {
@@ -10422,9 +11540,226 @@ TOOL_DEFS['list_files'] = {
   },
 };
 
+// QUOXON-PROOF: "how many files are in my file store?" read list_files (the org knowledge
+// store, 230) instead of the Files plugin store (21, `quox file list`). This reads the SAME
+// service route the CLI does (services/files GET /list) and returns the total, so "my files /
+// my file store / files I uploaded" has a tool that matches the CLI. Read-only.
+// READ-CLASS: action_analyse had a handler (actionToolHandlers.actionAnalyse, read-only: two GETs and an
+// audit emit) but no tool definition, so no agent could reach it. Held by Action-Q only.
+TOOL_DEFS['action_analyse'] = {
+  name: 'action_analyse',
+  description: 'Analyse the open items on the Action board: counts by column, overdue count, stale items, and which items could be delegated to agents. Use for "analyse my action board", "is anything overdue or stale". Read-only: it changes nothing.',
+  input_schema: { type: 'object', properties: {}, required: [] },
+  execute: async (input, ctx = {}) => handleActionTool('action_analyse', input || {}, {
+    agentId: ctx.agentId || 'action-q', userId: ctx.userId, orgId: ctx.orgId, token: ctx.token || null,
+  }),
+};
+TOOL_DEFS['files_plugin_list'] = {
+  name: 'files_plugin_list',
+  description: "List the files in the Files plugin store (what `quox file list` and the Files page show), with the total count. Use for \"my files\", \"my file store\", \"files I uploaded\" and how-many questions. Entries are the conversation's own organisation's files (the store is org-scoped since F01); read_file opens one by its id. This is not the org knowledge store (list_files: widget knowledge bases and chat uploads). Read-only. It is also how you find a Files plugin file by name or path: scan its listing.",
+  input_schema: {
+    type: 'object',
+    properties: { limit: { type: 'number', description: 'Max files to list (1-200, default 50); total is always the full count' } },
+    required: [],
+  },
+  execute: async (input, ctx) => {
+    const baseUrl = process.env.FILES_SERVICE_URL || 'http://files:3102';
+    const limit = Math.min(Math.max(1, Number(input?.limit) || 50), 200);
+    // F01 A': the store is org-scoped. Act for the TRUSTED ctx org (service key + X-Org-Id), never a model-named org.
+    if (!ctx?.orgId) return { success: false, error: 'org_context_required', message: 'files_plugin_list needs the org of the conversation.' };
+    try {
+      const res = await fetch(`${baseUrl}/list`, {
+        headers: { 'X-Service-Key': process.env.INTERNAL_SERVICE_KEY || '', 'X-Org-Id': String(ctx.orgId) },
+        signal: AbortSignal.timeout(10000),
+      });
+      const text = await res.text();
+      if (!res.ok) return { success: false, error: `Files service returned ${res.status}: ${text.slice(0, 200)}` };
+      let d;
+      try { d = JSON.parse(text); } catch { return { success: false, error: 'Files service returned a body that is not JSON' }; }
+      const all = Array.isArray(d?.files) ? d.files : (Array.isArray(d) ? d : null);
+      if (!all) return { success: false, error: 'Files service returned no files array' };
+      const page = all.slice(0, limit).map((f) => ({ id: f.id, name: f.name || f.filename || null, type: f.type || null, size_bytes: f.size ?? null, modified_at: f.mtime || f.created_at || null }));
+      return {
+        success: true, store: 'Files plugin store (`quox file list`)', org_scoped: true, total: all.length, count: page.length, truncated: all.length > page.length, files: page,
+      };
+    } catch (err) {
+      return { success: false, error: `Failed to read the Files plugin store: ${err.message}` };
+    }
+  },
+};
+
+// QUOXON-PROOF: the proof matrix board is the canonical "what works" source. The owner asked
+// about "51/74 pass" and quox could not confirm it. This reads the board's data.json from the
+// ONE URL in QUOX_PROOF_BOARD_URL (server-side env; there is no per-org URL setting pattern to
+// reuse yet, so env is the config for now). Egress rule: only that configured URL is ever
+// fetched (never model-supplied), http(s) only, no embedded credentials, no redirects, 5 s
+// timeout, 2 MB cap. Read-only.
+const PROOF_BOARD_MAX_BYTES = 2 * 1024 * 1024;
+
+// quox#1171/#1180: the numbers the owner watches (STRICT headline, release-proven jobs, freshness,
+// regressions since the previous run) live in the board's summary.json, beside data.json on the
+// SAME operator-set URL. Best-effort: a failure here never fails proof_status; it is reported as
+// summary_error and the data.json results still come back. Same egress rules (no redirects, 5 s).
+async function readProofBoardSummary(boardUrl) {
+  try {
+    const su = new URL('summary.json', boardUrl);
+    const res = await fetch(su.toString(), { redirect: 'error', signal: AbortSignal.timeout(5000), headers: { Accept: 'application/json' } });
+    if (!res.ok) return { error: `summary.json returned ${res.status}` };
+    const declared = Number(res.headers?.get?.('content-length'));
+    if (declared > PROOF_BOARD_MAX_BYTES) return { error: 'summary.json exceeds the 2 MB cap' };
+    const text = await res.text();
+    if (text.length > PROOF_BOARD_MAX_BYTES) return { error: 'summary.json exceeds the 2 MB cap' };
+    let d;
+    try { d = JSON.parse(text); } catch { return { error: 'summary.json is not JSON' }; }
+    return proofSummaryFields(d);
+  } catch (err) {
+    return { error: `summary.json could not be read: ${err.message}` };
+  }
+}
+
+// The owner's numbers out of a board document (summary.json, or the slim status.json that carries
+// them inline). { error } when none of them is present.
+function proofSummaryFields(d) {
+  {
+    const out = {};
+    const p = d && d.passing_now;
+    if (p && Number.isFinite(p.pass) && Number.isFinite(p.of)) {
+      out.headline = { score: d.headline_score || null, pass: p.pass, of: p.of, fail: Number.isFinite(p.fail) ? p.fail : null };
+    }
+    const rp = d && d.jobs_release_proven;
+    if (rp && Number.isFinite(rp.proven) && Number.isFinite(rp.of)) {
+      out.release_proven = { proven: rp.proven, of: rp.of, release: (rp.build && rp.build.release) || null };
+    }
+    const f = d && d.freshness;
+    if (f && f.state) out.freshness = { state: f.state, newest_run_at: f.newest_run_at || null, age_minutes: Number.isFinite(f.age_minutes) ? f.age_minutes : null };
+    if (Array.isArray(d && d.regressions_since_previous_run)) out.regressions_since_previous_run = d.regressions_since_previous_run.slice(0, 50);
+    // HYPERION #14: when the board built what was read (it may serve a copy up to ~60 s old while it rebuilds)
+    if (d && typeof d.board_built_at === 'string') out.board_built_at = d.board_built_at;
+    if (!Object.keys(out).length) return { error: 'summary.json has an unexpected shape' };
+    return out;
+  }
+}
+TOOL_DEFS['proof_status'] = {
+  name: 'proof_status',
+  description: "Read the Quox proof board (the proof matrix): what is proven to work. Returns totals (cases pass/total, chat domains pass/total, tools proven/total, CLI leaves driven/total) and per-domain pass/partial/fail counts. Also the STRICT headline (headline: pass/of/fail, the number the owner watches), release-proven jobs (release_proven), freshness and regressions_since_previous_run when the board's summary is readable (else summary_error). Pass `domain` for that domain's case ids with verdict and the question asked, or `verdict` (pass, partial, fail) to list matching cases. Use for \"what's working\", \"what's proven\", \"proof board / proof engine / matrix\" and pass-rate questions. Read-only.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      domain: { type: 'string', description: 'Optional: one proof domain (e.g. agents, inbox) to list its cases' },
+      verdict: { type: 'string', enum: ['pass', 'partial', 'fail'], description: 'Optional: only cases with this verdict' },
+    },
+    required: [],
+  },
+  execute: async (input) => {
+    const raw = process.env.QUOX_PROOF_BOARD_URL;
+    if (!raw || !String(raw).trim()) {
+      return { success: false, error: 'No proof board configured: QUOX_PROOF_BOARD_URL is not set on this collector, so proof status cannot be read. Say so plainly; do not answer proof questions from DoneEngine or memory.' };
+    }
+    let u;
+    try { u = new URL(String(raw).trim()); } catch { return { success: false, error: 'QUOX_PROOF_BOARD_URL is not a valid URL' }; }
+    if (!/^https?:$/.test(u.protocol) || u.username || u.password) {
+      return { success: false, error: 'QUOX_PROOF_BOARD_URL must be a plain http(s) URL without credentials' };
+    }
+    // SITE-CLI 2026-10-17: the board's slim status.json carries the summary fields inline, so a
+    // board URL pointed at it is ONE fetch. Otherwise: summary.json first (best-effort), then the
+    // configured document (authoritative; its failure fails the tool).
+    const slimStatus = /\/status\.json$/.test(u.pathname);
+    let summary = slimStatus ? null : await readProofBoardSummary(u);
+    try {
+      const res = await fetch(u.toString(), { redirect: 'error', signal: AbortSignal.timeout(5000), headers: { Accept: 'application/json' } });
+      if (!res.ok) return { success: false, error: `Proof board returned ${res.status}` };
+      const declared = Number(res.headers?.get?.('content-length'));
+      if (declared > PROOF_BOARD_MAX_BYTES) return { success: false, error: 'Proof board response exceeds the 2 MB cap' };
+      let text;
+      if (res.body && typeof res.body.getReader === 'function') {
+        const reader = res.body.getReader();
+        const chunks = []; let n = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          n += value.length;
+          if (n > PROOF_BOARD_MAX_BYTES) { try { await reader.cancel(); } catch { /* already closed */ } return { success: false, error: 'Proof board response exceeds the 2 MB cap' }; }
+          chunks.push(Buffer.from(value));
+        }
+        text = Buffer.concat(chunks).toString('utf8');
+      } else {
+        text = await res.text();
+        if (text.length > PROOF_BOARD_MAX_BYTES) return { success: false, error: 'Proof board response exceeds the 2 MB cap' };
+      }
+      let d;
+      try { d = JSON.parse(text); } catch { return { success: false, error: 'Proof board returned a body that is not JSON' }; }
+      const cases = d?.engine?.cases;
+      if (!d?.totals || !Array.isArray(cases)) return { success: false, error: 'Proof board data has an unexpected shape (no totals or engine.cases)' };
+
+      const domains = {};
+      for (const c of cases) {
+        const b = (domains[c.domain] = domains[c.domain] || { pass: 0, partial: 0, fail: 0 });
+        if (c.verdict in b) b[c.verdict]++;
+      }
+      const t = d.totals;
+      const out = {
+        success: true,
+        source: 'proof board (proof matrix data.json)',
+        last_run: d.engine.last_run || null,
+        totals: {
+          cases: { pass: cases.filter((c) => c.verdict === 'pass').length, total: cases.length },
+          chat_domains: { pass: t.domains_chat_pass ?? null, total: t.domains ?? null },
+          tools: { proven: t.tools_chat_proven ?? null, total: t.tools ?? null },
+          cli: { driven: t.cli_driven ?? null, total: t.cli_leaves ?? null },
+        },
+        domains,
+      };
+      if (slimStatus) summary = proofSummaryFields(d);
+      if (summary.error) out.summary_error = summary.error;
+      else Object.assign(out, summary);
+      const domain = input?.domain ? String(input.domain).trim() : '';
+      const verdict = input?.verdict ? String(input.verdict).trim().toLowerCase() : '';
+      if (domain && !domains[domain]) return { success: false, error: `Unknown proof domain "${domain}". Domains with cases: ${Object.keys(domains).join(', ')}` };
+      if (domain || verdict) {
+        const picked = cases.filter((c) => (!domain || c.domain === domain) && (!verdict || c.verdict === verdict));
+        out.cases = picked.slice(0, 100).map((c) => ({ id: `${c.domain}/${c.case}`, verdict: c.verdict, ask: c.ask || null, ...(c.verdict !== 'pass' && c.why ? { why: String(c.why).slice(0, 200) } : {}) }));
+        out.matched = picked.length;
+        if (picked.length > 100) out.truncated = true;
+      }
+      return out;
+    } catch (err) {
+      return { success: false, error: `Failed to read the proof board: ${err.message}` };
+    }
+  },
+};
+
+// quox#1066: the Files plugin store (services/files) mints ids as file_<epoch ms>_<random>.
+const FILES_PLUGIN_ID_RE = /^file_\d{10,}_[A-Za-z0-9_-]+$/;
+
+// F01 A': the files service serves only the caller org's files; another org's file and a quarantined one answer
+// 404 exactly like a missing one. read_file acts for the TRUSTED ctx org (service key + X-Org-Id), never a
+// model-named org, the same as files_plugin_list.
+async function readFilesPluginFile(fileId, orgId) {
+  const baseUrl = process.env.FILES_SERVICE_URL || 'http://files:3102';
+  const headers = { 'X-Service-Key': process.env.INTERNAL_SERVICE_KEY || '', 'X-Org-Id': String(orgId) };
+  const listResp = await fetch(`${baseUrl}/list`, { headers, signal: AbortSignal.timeout(10000) });
+  if (!listResp.ok) return { success: false, error: `Files service returned ${listResp.status}`, status: listResp.status };
+  const d = await listResp.json().catch(() => null);
+  const all = Array.isArray(d?.files) ? d.files : null;
+  if (!all) return { success: false, error: 'Files service returned no files array' };
+  const f = all.find((x) => x && x.id === fileId);
+  if (!f) return { success: false, error: 'not_found', message: `No file with id ${fileId}` };
+  const fileMeta = { id: f.id, filename: f.name || f.filename || null, mime: f.type || null, size_bytes: f.size ?? null };
+  const store = 'Files plugin store (`quox file list`)';
+  if (!isTextualFile(fileMeta.mime, fileMeta.filename)) {
+    return { success: true, store, file: fileMeta, content: null, note: `binary file (${fileMeta.mime || 'unknown mime'}, ${fileMeta.size_bytes ?? 0} bytes) — not returned as text` };
+  }
+  const contentResp = await fetch(`${baseUrl}/file/${encodeURIComponent(fileId)}`, { headers, signal: AbortSignal.timeout(15000) });
+  if (contentResp.status === 404) return { success: false, error: 'not_found', message: `No file with id ${fileId}` };
+  if (!contentResp.ok) return { success: false, error: `HTTP ${contentResp.status}`, status: contentResp.status };
+  const raw = await contentResp.text();
+  const truncated = raw.length > 50000;
+  return { success: true, store, file: fileMeta, content: truncated ? raw.slice(0, 50000) : raw, truncated };
+}
+
 TOOL_DEFS['read_file'] = {
   name: 'read_file',
-  description: 'Read a file from the org file store by id. Text-like files (text/*, JSON, XML, CSV, YAML, Markdown, JS) are returned as content, truncated to 50,000 characters. Binary files return metadata only — raw bytes are never streamed into the model.',
+  description: 'Read a file by id from the org file store or the Files plugin store (ids from list_files, search_files or files_plugin_list). Text-like files (text/*, JSON, XML, CSV, YAML, Markdown, JS) are returned as content, truncated to 50,000 characters. Binary files return metadata only — raw bytes are never streamed into the model.',
   input_schema: {
     type: 'object',
     properties: {
@@ -10447,6 +11782,9 @@ TOOL_DEFS['read_file'] = {
         signal: AbortSignal.timeout(10000),
       });
       if (metaResp.status === 404) {
+        // quox#1066: files_plugin_list hands out Files plugin store ids (file_<ts>_<rand>); since F01 A' that
+        // store is org-scoped, so read those through it for the conversation's org.
+        if (FILES_PLUGIN_ID_RE.test(file_id)) return await readFilesPluginFile(file_id, ctx.orgId);
         return { success: false, error: 'not_found', message: `No file with id ${file_id}` };
       }
       const meta = await metaResp.json().catch(() => null);
@@ -10483,7 +11821,7 @@ TOOL_DEFS['read_file'] = {
 
 TOOL_DEFS['search_files'] = {
   name: 'search_files',
-  description: 'Search org files by filename or virtual path (case-insensitive substring match against both fields).',
+  description: 'Search org files by filename or virtual path (case-insensitive substring match). Searches BOTH stores: the org knowledge store (widget knowledge bases and chat uploads) and the Files plugin store (what `quox file list` and the Files page show; matches carry store: "files_plugin"). read_file opens any match by its id.',
   input_schema: {
     type: 'object',
     properties: {
@@ -10492,31 +11830,72 @@ TOOL_DEFS['search_files'] = {
     required: ['query'],
   },
   execute: async (input, ctx) => {
-    if (!ctx?.token || !ctx?.orgId) {
+    if (!ctx?.orgId) {
       return { success: false, error: 'org_context_required', message: 'search_files needs an authenticated user session with organization context.' };
     }
     const { query } = input || {};
     if (!query || typeof query !== 'string') {
       return { success: false, error: 'query is required and must be a string' };
     }
+    const q = query.toLowerCase();
+    const matches = [];
+    const storeErrors = [];
+    // Org knowledge store (auth file_objects): needs the user's bearer; a delegated turn has none (#1083 shape).
+    let authFailure = null;
+    if (ctx.token) {
+      try {
+        const resp = await fetch(`${AUTH_BASE_URL}/orgs/${encodeURIComponent(ctx.orgId)}/files?limit=200`, {
+          headers: { Authorization: `Bearer ${ctx.token}` },
+          signal: AbortSignal.timeout(10000),
+        });
+        const data = await resp.json().catch(() => null);
+        if (!resp.ok) {
+          authFailure = { success: false, error: data?.error || `HTTP ${resp.status}`, status: resp.status };
+        } else {
+          for (const f of (data?.items || [])) {
+            if ((f.filename || '').toLowerCase().includes(q) || (f.virtual_path || '').toLowerCase().includes(q)) {
+              matches.push({ id: f.id, filename: f.filename, mime: f.mime, virtual_path: f.virtual_path });
+            }
+          }
+        }
+      } catch (err) {
+        authFailure = { success: false, error: err.message };
+      }
+      if (authFailure) storeErrors.push({ store: 'org_file_objects', error: authFailure.error, ...(authFailure.status ? { status: authFailure.status } : {}) });
+    }
+    // quox#1117: the Files plugin store (quox file upload / quox file list). Org-scoped since F01 A': act for the
+    // TRUSTED ctx org (service key + X-Org-Id), never a model-named org, the same as files_plugin_list.
     try {
-      const resp = await fetch(`${AUTH_BASE_URL}/orgs/${encodeURIComponent(ctx.orgId)}/files?limit=200`, {
-        headers: { Authorization: `Bearer ${ctx.token}` },
+      const baseUrl = process.env.FILES_SERVICE_URL || 'http://files:3102';
+      const res = await fetch(`${baseUrl}/list`, {
+        headers: { 'X-Service-Key': process.env.INTERNAL_SERVICE_KEY || '', 'X-Org-Id': String(ctx.orgId) },
         signal: AbortSignal.timeout(10000),
       });
-      const data = await resp.json().catch(() => null);
-      if (!resp.ok) {
-        return { success: false, error: data?.error || `HTTP ${resp.status}`, status: resp.status };
+      const text = await res.text();
+      if (!res.ok) {
+        storeErrors.push({ store: 'files_plugin', error: `Files service returned ${res.status}`, status: res.status });
+      } else {
+        let d = null;
+        try { d = JSON.parse(text); } catch { /* reported below */ }
+        const all = Array.isArray(d?.files) ? d.files : (Array.isArray(d) ? d : null);
+        if (!all) storeErrors.push({ store: 'files_plugin', error: 'Files service returned no files array' });
+        for (const f of (all || [])) {
+          const name = f.name || f.filename || '';
+          const path = f.path || f.virtual_path || '';
+          if (name.toLowerCase().includes(q) || path.toLowerCase().includes(q)) {
+            matches.push({ id: f.id, filename: name || null, mime: f.type || f.mime || null, ...(path ? { virtual_path: path } : {}), store: 'files_plugin' });
+          }
+        }
       }
-      const items = data?.items || [];
-      const q = query.toLowerCase();
-      const matches = items
-        .filter((f) => (f.filename || '').toLowerCase().includes(q) || (f.virtual_path || '').toLowerCase().includes(q))
-        .map((f) => ({ id: f.id, filename: f.filename, mime: f.mime, virtual_path: f.virtual_path }));
-      return { success: true, count: matches.length, matches };
     } catch (err) {
-      return { success: false, error: err.message };
+      storeErrors.push({ store: 'files_plugin', error: err.message });
     }
+    // An auth-store failure with nothing found anywhere stays the honest failure it always was.
+    if (authFailure && matches.length === 0) return authFailure;
+    if (!ctx.token && matches.length === 0 && storeErrors.length) {
+      return { success: false, error: storeErrors[0].error, store_errors: storeErrors };
+    }
+    return { success: true, count: matches.length, matches, ...(storeErrors.length ? { store_errors: storeErrors } : {}) };
   },
 };
 
@@ -10564,7 +11943,8 @@ const GOVERNANCE_TOOLS = ['hat_catalogue', 'hat_load_bundle', 'hat_propose_switc
 // are quoxplan PLUGIN tools (not in this static TOOL_DEFS floor); the native
 // roadmap_* tools read the RETIRED archive, so roadmap is deliberately NOT here.
 //   - time_now          : the server clock (no org data, no network), QUOXON 2026-10-12.
-const TIER0_READ_TOOLS = ['inbox_pending', 'memory_search', 'quoxbrain_search', 'time_now'];
+//   - quox_command_lookup: the generated TUI / CLI command registries (static, no org data), QUOXON-ENGINE class 5.
+const TIER0_READ_TOOLS = ['inbox_pending', 'memory_search', 'quoxbrain_search', 'time_now', 'quox_command_lookup']; // QUOXON-ENGINE class 5: mirrors hatManifest.js
 
 // QUOXHAT MISSION D1.4 — CommanderQ IS the orchestrator (quox) under its
 // voice/display name (the dashboard defines it as "QUOX (CommanderQ)"). The sync
@@ -10578,6 +11958,12 @@ const TIER0_READ_TOOLS = ['inbox_pending', 'memory_search', 'quoxbrain_search', 
 // authority: claiming 'commanderq' now yields exactly what claiming 'quox'
 // already would, and only this one explicit alias is mapped (unknown agents
 // still fail closed).
+// DECISION-LABELS (2026-10-17): chat in the TUI said "that tool isn't granted to me ... type /approvals yourself".
+// terminal_suggest_command only PROPOSES a slash command to the TUI (nothing runs server-side; the TUI vets it,
+// asks y/N, and never offers /approve, /deny and the other human-typed commands), so every agent holds it, except
+// qloop, whose slice is deliberately narrow ("widening it is a governance decision").
+const TERMINAL_OFFER_TOOLS = ['terminal_suggest_command'];
+const TERMINAL_OFFER_EXEMPT = new Set(['qloop']);
 const AGENT_ID_ALIASES = { commanderq: 'quox' };
 function canonicalAgentId(agentId) {
   const k = (agentId || 'quox').toLowerCase();
@@ -10626,8 +12012,12 @@ const AGENT_TOOLS = {
     'vault_list', 'vault_types',
     'notesq_search', 'notesq_list', 'notesq_read',
     'calendar_layers_list', 'calendar_agenda', 'calendar_coverage_status', 'calendar_event_get',
-    'list_files', 'search_files', 'read_file',
+    'list_files', 'search_files', 'read_file', 'files_plugin_list',
+    // QUOXON-PROOF v16: the proof board (what is proven to work), read-only.
+    'proof_status',
     'plugin_list', 'spend_status', 'identity_status', 'install_status', 'license_status',
+    // QUOXON-PROOF security/engagements: engagement count + status split (read, org from the turn).
+    'security_list_engagements',
     // QUOXON-ASK lane J: any real CLI leaf, as the caller. quox_cli runs reads;
     // quox_cli_write runs writes only after an approval card (lib/quoxCliTools.js).
     'quox_cli', 'quox_cli_write',
@@ -10635,11 +12025,17 @@ const AGENT_TOOLS = {
     // the routing policy, the live backup record, live sessions and the prompt library.
     // Read-only, org from the turn, caller bearer. See lib/quoxonProofReadTools.js.
     'llm_status', 'llm_policy', 'backup_overview', 'live_sessions', 'prompt_list', 'prompt_read',
+    // quox#1062: backup health totals (success/failure counts) as quox's own read; a REGULA hint was ignored
+    // whenever backup_overview answered, so the ask never reached it.
+    'backup_status',
+    // SITE-CLI 2026-10-19: "list my backups" reaches the list tool itself, beside backup_overview (same shape as #1062).
+    'keeper_backup_list',
     // LUCID: background situational awareness, read-only (what needs the owner, per-item detail).
     'lucid_situation', 'lucid_item',
     'delegate_to_agent', 'orchestrate_objective', 'get_objective_results', 'save_as_workflow',
     // CONTACTSQ P0: read-only, masked cards/greetings only (never raw identifiers).
-    'contacts_resolve', 'contacts_find', 'contacts_search', 'contacts_dial', 'contacts_send',
+    // contacts_find leaves quox (v19 cap room for contacts_count; contacts_search covers name lookups).
+    'contacts_brief', 'contacts_count', 'contacts_search', 'contacts_dial', 'contacts_send',
     // CONTACTSQ P8B: one-approval batches + the contact open in the dashboard.
     'contacts_dial_batch', 'contacts_send_batch', 'contacts_focus',
     // CONTACTSQ P5: propose a fact (lands for human review, ungated: reaches no one) and read confirmed context (approval-gated lease).
@@ -10663,13 +12059,33 @@ const AGENT_TOOLS = {
     'import_n8n_workflow', 'deploy_template',
     // X-PLUGIN P2: the quox x CLI executes as the orchestrator; the x_*
     // writes only file HITL cards, so the grant is draft-not-publish.
-    'x_post', 'x_thread', 'x_delete', 'x_budget_status',
-    // X-PLUGIN P10 slice B: engagement writes, same draft-not-publish grant.
-    'x_like', 'x_repost',
+    // x_budget_status left quox's grant in QUOXON-PROOF v16 for Default-hat cap room (proof_status);
+    // `quox x budget` via quox_cli reaches it, and the X publishing hat keeps the tool.
+    'x_post', 'x_thread', 'x_delete',
+    // QUOXON-AGG quox#900: named aggregate reads. x_like / x_repost left quox's grant for the
+    // Default-hat cap room (they stay on the X publishing hat; `quox x` via quox_cli reaches them).
+    'objective_counts', 'voice_calls', 'voice_numbers',
+    // quox#908 (owner 2026-10-14): reads evicted for Default-hat cap room come back as the Default
+    // hat's on_demand_reads (D3 offers them per question; they do not count toward the 128).
+    'grafana_dashboards', 'security_check_policy', 'security_get_engagement', 'security_list_findings',
+    'calibration_self_audit', 'agh_chain_leaderboard', 'x_budget_status', 'contacts_resolve', 'contacts_find', 'contacts_handoffs',
+    // quox#908 browser lane: qlarity read tier (never qlarity_eval), offered by the D3 browser route.
+    'qlarity_open', 'qlarity_inspect', 'qlarity_close',
+    'compliance_posture', 'compliance_get_reports', 'compliance_list_jobs',
+    // quox#911 / #909: purpose-named reads for the D3 purpose rows (Default on_demand_reads).
+    'ward_query_entries', 'ward_verify_chain', 'loop_sessions', 'loop_suggest',
+    // Proof run 2026-10-14 (notes lane): NotesQ reads (Default on_demand_reads, offered by the D3 notes routes).
+    'notesq_health', 'notesq_history', 'notesq_related', 'notesq_suggest_links',
+    // Proof run 2026-10-15 (calendar lane): Calendar-Q reads (Default on_demand_reads, offered by the D3 calendar routes).
+    'calendar_overlay', 'calendar_clashes', 'calendar_schedules_overview', 'calendar_changes', 'calendar_prep', 'calendar_brief_input',
+    // Proof blitz 2026-10-15 (code lane, quox#942): BOB's build reads, offered by the D3 bob-build route (writes stay with BOB).
+    'bob_build_status', 'bob_build_history', 'bob_log_tail', 'bob_detect_repeated_failures', 'bob_preflight', 'bob_build_targets',
     'ssh_exec', 'fleet_status', 'docker_status', 'docker_extended',
     'system_admin', 'network_check', 'proxmox_vms', 'proxmox_cluster_status',
     'proxmox_vm_action', 'security_audit', 'metrics_query',
-    'gemini_image_generate', 'grafana_dashboards', 'alerts_manage',
+    // grafana_dashboards left quox's grant in QUOXON-PROOF v16 for Default-hat cap room
+    // (security_list_engagements); metrics/insight/janus agents and the DevOps hats keep it.
+    'gemini_image_generate', 'alerts_manage',
     'execution_intelligence', 'codebase_query',
     // QUOXIFY pass 2 (DEVSUITE phase 15): Slots is an ADDRESSING primitive,
     // so the orchestrator gets its tools rather than a Slots persona (owner
@@ -10678,6 +12094,11 @@ const AGENT_TOOLS = {
     // slot_assign is approval-gated in the tool itself: pool curation is an
     // admin action and the route's admin gate lets service callers through.
     'slot_list', 'slot_say', 'slot_read', 'slot_assign',
+    // QUOXON lane S: create / attach on the user's own request (no approval card: the
+    // request is the authorization; refused on autonomous and scheduled turns).
+    'slot_create', 'slot_checkout',
+    // The terminal can do it directly: propose a slash command to the TUI (read-only, never executes).
+    'terminal_suggest_command',
     // AGENT-OVERHAUL-2 — roadmap_list/roadmap_show/roadmap_stats grant
     // removed (archive readers over the retired roadmap-cli, 2026-07-25
     // cutover). quoxplan_* below is the live source of truth.
@@ -10689,8 +12110,10 @@ const AGENT_TOOLS = {
     // QUOXPLAN-P7 — HITL-gated completion: files an owner approval instead
     // of setting COMPLETE directly; see lib/quoxplanTools.js.
     'quoxplan_request_complete',
-    // QCX-3.3 — QuoxChat widget tools via MCP
-    'quoxchat_list_widgets', 'quoxchat_search_knowledge', 'quoxchat_simulate_message',
+    // QCX-3.3 — QuoxChat widget tools via MCP. quoxchat_simulate_message (a widget test-send)
+    // left quox's grant in QUOXON-PROOF v15 for Default-hat cap room (files_plugin_list); the
+    // tool is still defined and reachable through QuoxChat's own MCP surface.
+    'quoxchat_read', 'quoxchat_search_knowledge',
     // VAULT-AUDIT P3.D1 — IMAP mailbox read via vault email_account credential
     'email_read',
     // VAULT-AUDIT P3.D3 — SMTP mailbox send via vault email_account credential
@@ -10702,7 +12125,7 @@ const AGENT_TOOLS = {
     // VAULT-AUDIT P4.C — SQL query via vault database credential
     'db_query',
     // CommanderQ reachability tools (COMMANDERQ-P2, read)
-    'agh_chain_leaderboard', 'noc_tool_outcomes', 'doneengine_readiness',
+    'noc_tool_outcomes', 'doneengine_readiness',
     'quoxlens_read', 'compliance_read', 'governance_read',
     // CommanderQ reachability tools (COMMANDERQ-P2, write — governance-gated)
     'quoxlens_accept_risk', 'quoxlens_apply', 'compliance_create',
@@ -10711,8 +12134,7 @@ const AGENT_TOOLS = {
     'plan_artifact_create', 'plan_artifact_get', 'plan_artifact_diff',
     // CommanderQ commitment ledger tools (COMMANDERQ-P8)
     'commitment_create', 'commitment_list', 'commitment_resolve',
-    // CommanderQ calibration self-audit (COMMANDERQ-P11/B3)
-    'calibration_self_audit',
+    // calibration_self_audit and agh_chain_leaderboard left quox's grant (QUOXON-AGG, Default-hat cap room); the specialists keep them.
     // CommanderQ outcome-learned routing advisory (COMMANDERQ-P7)
     'delegation_router_advise',
     // CommanderQ contactability (COMMANDERQ-P9, deny-by-default; propose-only writes)
@@ -10720,6 +12142,9 @@ const AGENT_TOOLS = {
     // CommanderQ outbound calls (COMMANDERQ-P10, deny-by-default intent + signed summary)
     'call_raise_intent', 'call_summarize_and_end', 'call_provider_readiness',
     ...MEMORY_TOOLS,
+    // quox#1290: "delete my memories" must reach the memory delete. Without it the only delete tool on offer was
+    // delete_workflow, and the model used that. memory_forget is held for approval by the destructive default gate.
+    'memory_forget',
     ...SKILL_TOOLS,
     ...ACTION_TOOLS,
     ...KNOWLEDGE_TOOLS,
@@ -10734,23 +12159,50 @@ const AGENT_TOOLS = {
     // reads stay licence-gated per tool (TOOL_REQUIRES_PLUGIN), so an org without the
     // plugin gets an honest refusal, not data.
     'ward_verify', 'ward_status', 'standing_grants_list', 'safety_status', 'memory_history',
+    // QUOXON-PROOF #864: inbox counts (inbox_pending is a capped page; this is the total).
+    'inbox_stats',
     // #818: what a peer agent can do comes from the registry, not the model's guess.
     'agent_directory',
+    // QUOXON-ENGINE lane N: no new grants here. The Default hat is at its 128-tool hard cap;
+    // quox reaches the governed voice record through quox_cli (`quox voice calls`), and
+    // turnToolSelection routes voice_calls / engagement / Qlarity reads wherever granted.
     'quoxseo_summary', 'quoxseo_issues', 'quoxseo_changes', 'quoxseo_urls',
     'inbox_accounts', 'inbox_zones', 'inbox_search', 'inbox_report_latest',
+    // Proof run 2026-10-15 (mail lane): the rest of the InboxQ READS (never move/rezone/block/create_folder or
+    // the propose_* writes). Gated exactly like the inboxq agent: TOOL_REQUIRES_PLUGIN 'inboxq' at execute
+    // (clear refusal when the org lacks it) plus the turn-level AI data sharing consent.
+    'inbox_get', 'inbox_folders', 'inbox_proposals', 'inbox_blocked',
+    // Proof blitz 2026-10-15 (receipts lane): AEE and VOLT evidence reads (Default on_demand_reads; certify / bundle writes stay with auditus).
+    'aee_get_stats', 'aee_query_envelopes', 'volt_list_runs', 'volt_verify_run',
+    // REL424-EVIDENCE (4.2.4 fresh-install proof): AOCL decisions are a core evidence read quox could only delegate
+    // (Default on_demand_reads). governance_list_policies / governance_get_templates stay specialist-held (SITE-CLI
+    // least-privilege ruling, pinned by turnToolSelection1064 / turnIntentReadPhrasing); ward_source_breakdown waits
+    // for an org-scoped WARD read.
+    'aocl_get_decisions',
+    // Owner 2026-10-15 ("let Quox propose"): the propose tools only create one Approvals item (proposed:true,
+    // applied:false); inbox_move/rezone/block/create_folder stay off quox.
+    'inbox_propose_block', 'inbox_propose_create_folder', 'inbox_propose_move',
   ],
 
   // Network specialist
   cipher: ['ssh_exec', 'network_check', 'fleet_status', 'system_admin', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
 
   // DevOps specialist
-  nova: ['box_health', 'ssh_exec', 'docker_status', 'docker_extended', 'system_admin', 'fleet_status', 'execution_intelligence', 'codebase_query', 'create_workflow', 'send_notification', 'list_workflows', 'execute_workflow', 'list_executions', 'activate_workflow', 'deactivate_workflow', 'import_n8n_workflow', 'deploy_template', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
+  // quox#1293: the single-host Docker agent holds the read-only disk-usage read (docker system df), not just per-image sizes
+  nova: ['box_health', 'ssh_exec', 'docker_status', 'docker_extended', 'docker_fleet_system_df', 'system_admin', 'fleet_status', 'execution_intelligence', 'codebase_query', 'create_workflow', 'send_notification', 'list_workflows', 'execute_workflow', 'list_executions', 'activate_workflow', 'deactivate_workflow', 'import_n8n_workflow', 'deploy_template', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
 
   // Proxmox specialist
   atlas: [
-    'ssh_exec', 'proxmox_vms', 'proxmox_containers', 'proxmox_cluster_status',
-    'proxmox_storage', 'proxmox_vm_action', 'proxmox_templates_list',
+    'ssh_exec', 'proxmox_read', 'proxmox_vm_action',
     'proxmox_vm_snapshot', 'proxmox_vm_clone', 'fleet_status',
+    // DEVFLEET-P10: the disposable VM pool (host commands still ride ssh_exec's standing grant / HITL).
+    'proxmox_pool_lease', 'proxmox_pool_release', 'proxmox_pool_configure',
+    // DEVFLEET-P15: rehearsal twins (approve with proof). Verdict is proxmox_read view=rehearsal.
+    'proxmox_rehearse',
+    // DEVFLEET-DOCTOR: VM diagnosis (its own verb: the 'diagnose' intent).
+    'proxmox_vm_doctor',
+    // DEVFLEET-READ: every other Proxmox read is proxmox_read view=...; the old read tools stay
+    // defined but are not granted here (entity reads opt out via primary_grant:false).
     // mikrotik_dhcp_find_free_ip is granted dynamically via mikrotik.json's
     // also_grant (entityToolLoader.js) — HYPERION creates VMs most often and
     // needs to know what's free before assigning a static IP, granted
@@ -10772,10 +12224,7 @@ const AGENT_TOOLS = {
   // Uptime/availability — browser tools for health screenshots (W2-6)
   beacon: ['ssh_exec', 'fleet_status', 'network_check', 'execution_intelligence', 'create_inbox_item', 'send_notification', 'browser_navigate', 'browser_screenshot', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
 
-  // Research (limited tools). perplexity_search/research granted directly —
-  // SCHOLAR's own system prompt already names Perplexity for enhanced web
-  // search but never had a live search tool to back that claim (overnight
-  // tooling-gap pass, 2026-08-08).
+  // Research (limited tools).
   scholar: ['fleet_status', 'network_check', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
 
   // CORTEX — the second-brain front door (CortexDock). Still deliberately
@@ -10822,7 +12271,7 @@ const AGENT_TOOLS = {
   // something goes through an approval, never through this agent.
   lucid: ['lucid_situation', 'lucid_item', 'box_health', 'create_inbox_item', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
 
-  'loop-q': ['loop_sessions', 'loop_turns', 'loop_halt', 'loop_suggest', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
+  'loop-q': ['loop_sessions', 'loop_turns', 'loop_halt', 'loop_suggest', 'objective_get', 'objective_checkpoints_pending', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
 
   // INBOXQ: the inbox chief of staff (INBOXQ_AGENT_DESIGN.md). Read tools are
   // free. The DIRECT-EXECUTE tools (inbox_move/inbox_rezone/inbox_block/
@@ -10839,7 +12288,7 @@ const AGENT_TOOLS = {
     'inbox_move', 'inbox_rezone', 'inbox_block', 'inbox_create_folder',
     'inbox_propose_move', 'inbox_propose_rezone', 'inbox_propose_block', 'inbox_propose_create_folder',
     'contacts_resolve', 'contacts_find', 'contacts_search', 'contacts_best_channel', 'contacts_record_objection',
-    'contacts_timeline', 'contacts_log_touchpoint', 'contacts_propose_fact',
+    'contacts_timeline', 'contacts_log_touchpoint', 'contacts_propose_fact', 'contacts_brief', 'contacts_count',
     ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS,
   ],
 
@@ -10878,7 +12327,7 @@ const AGENT_TOOLS = {
   contactsq: [
     'contacts_resolve', 'contacts_find', 'contacts_search', 'contacts_best_channel', 'contacts_timeline', 'contacts_context',
     'contacts_log_touchpoint', 'contacts_record_objection', 'contacts_propose_fact',
-    'contacts_brief', 'contacts_handoff', 'contacts_handoffs',
+    'contacts_brief', 'contacts_count', 'contacts_handoff', 'contacts_handoffs',
     'contacts_dial', 'contacts_send', 'contacts_dial_batch', 'contacts_send_batch', 'contacts_focus',
     ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS,
   ],
@@ -10964,18 +12413,19 @@ const AGENT_TOOLS = {
   // Image generation specialist (ImagesQ, MediaQ family — LLM-backed image tool serving as an agent until MediaQ goes beyond it)
   imagesq: ['gemini_image_generate', 'gemini_image_edit', 'gemini_image_describe', 'gemini_image_models', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
 
-  // Review & synthesis specialist (Gemini CLI)
-  gemini: ['gemini_review', 'gemini_analyze', 'gemini_generate', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
+  // Review & synthesis specialist (model-neutral, runs on the org's default model)
+  gemini: ['create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
 
-  // Web research & verification specialist (Perplexity Sonar API)
-  perplexity: ['perplexity_search', 'perplexity_research', 'perplexity_verify', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
+  // Web research & verification specialist (model-neutral)
+  perplexity: ['web_search', 'web_read', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
 
   // System continuity specialist
   keeper: [
-    'keeper_backup_status', 'keeper_backup_create', 'keeper_backup_list',
+    'backup_status', 'keeper_backup_create', 'keeper_backup_list',
     'keeper_backup_verify', 'keeper_restore', 'keeper_schedule_list',
     'keeper_schedule_manage', 'keeper_update_check', 'keeper_update_start',
     'keeper_update_rollback', 'keeper_audit_log',
+    'fleet_status', // read-only host inventory, so backup coverage asks can be compared against the host list
     'create_inbox_item', 'send_notification',
     ...MEMORY_TOOLS,
     ...SKILL_TOOLS,
@@ -10983,7 +12433,7 @@ const AGENT_TOOLS = {
   ],
 
   // Task management specialist
-  'action-q': ['contacts_resolve', 'contacts_find', 'contacts_search', 'contacts_best_channel', 'contacts_record_objection', 'contacts_timeline', 'contacts_log_touchpoint', 'contacts_propose_fact', ...ACTION_TOOLS, ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS, 'execution_intelligence', 'org_directory'],
+  'action-q': ['contacts_resolve', 'contacts_find', 'contacts_search', 'contacts_best_channel', 'contacts_record_objection', 'contacts_timeline', 'contacts_log_touchpoint', 'contacts_propose_fact', 'contacts_brief', 'contacts_count', ...ACTION_TOOLS, 'action_analyse', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS, 'execution_intelligence', 'org_directory'],
 
   // Web automation specialist
   'browser-q': [
@@ -10999,7 +12449,7 @@ const AGENT_TOOLS = {
     'browser_record_start', 'browser_record_stop', 'browser_replay',
     'browser_sequence_save', 'browser_sequence_list', 'browser_sequence_load', 'browser_sequence_delete',
     'browser_video_start', 'browser_video_stop', 'browser_video_list', 'browser_video_delete',
-    'browser_monitor_create', 'browser_monitor_list', 'browser_monitor_check',
+    'browser_monitor_create', 'browser_monitor_list', 'browser_monitor_check', 'browser_monitor_delete',
     'browser_objective_create', 'browser_objective_plan', 'browser_objective_execute',
     'browser_objective_run', 'browser_objective_approve_step', 'browser_objective_cancel',
     'browser_objective_list', 'browser_objective_get', 'browser_objective_save_sequence',
@@ -11031,8 +12481,10 @@ const AGENT_TOOLS = {
   ],
 
   // MikroTik network specialist (entity tools loaded dynamically)
+  // bastionCapabilities.canExecute is false (netwatch.json): no shell tool in the grant, or a misrouted
+  // host read becomes ssh_exec and an approval card (t1-network_routes, SITE-CLI 2026-10-17)
   netwatch: [
-    'ssh_exec', 'remote_ssh', 'network_check', 'fleet_status',
+    'network_check', 'fleet_status',
     'create_inbox_item', 'send_notification',
     ...MEMORY_TOOLS,
     ...SKILL_TOOLS,
@@ -11119,10 +12571,10 @@ const AGENT_TOOLS = {
   // names already defined in TOOL_DEFS are used here (no aspirational tools
   // that only exist in agentRegistry.js/entity JSON without a real executor).
 
-  // ARGUS — Wazuh SIEM specialist. No wazuh_* tools are registered in TOOL_DEFS
-  // yet (wazuh.json has no agent_hints.primary_agent, so entity-tool loading
-  // does not auto-attach), so she gets the closest real security/fleet tools.
-  argus: ['security_audit', 'fleet_status', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
+  // ARGUS — Wazuh SIEM specialist. The four wazuh_* reads are real TOOL_DEFS entries over the
+  // collector's Wazuh backend (lib/wazuhReads.js); the wazuh.* entity tools stay retired stubs
+  // (shared/tool-availability/unsupported-tools.json), so there is one definition per name.
+  argus: ['wazuh_agents', 'wazuh_manager_status', 'wazuh_alerts', 'wazuh_vulnerabilities', 'security_audit', 'fleet_status', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
 
   // QDIS-CONCIERGE — Discord Pro's own agent. discord_list_bindings and
   // discord_diagnose are read-only; discord_bind_channel/
@@ -11217,7 +12669,8 @@ const AGENT_TOOLS = {
   // QuoxPlan notes #2202/#2203): TRIAGE-Q's calls to them file a proposal via
   // withApprovalGate/AGENT_GATED_TOOLS instead of resolving directly; a human
   // must confirm from the inbox before the underlying resolution executes.
-  'triage-q': [...ACTION_TOOLS, 'inbox_pending', 'list_approvals', 'create_inbox_item', 'send_notification', 'execution_intelligence', 'approve_request', 'deny_request', 'org_directory', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
+  // TRIAGE-TOOLS (2026-10-16): hitl_* triage reads + non-decision housekeeping (approve/deny unchanged).
+  'triage-q': [...ACTION_TOOLS, 'inbox_pending', 'inbox_stats', 'presence_get', 'hitl_queue', 'hitl_item', 'hitl_groups', 'hitl_item_dismiss', 'hitl_item_snooze', 'hitl_item_assign', 'hitl_bulk_dismiss', 'list_approvals', 'create_inbox_item', 'send_notification', 'execution_intelligence', 'approve_request', 'deny_request', 'org_directory', ...MEMORY_TOOLS, ...SKILL_TOOLS, ...KNOWLEDGE_TOOLS],
 
   // QUOXPERTICUS: resident governed agent, shipped with the server core
   // (QUOXPERTICUS P2). Read/observe surface only: fleet_status, memory,
@@ -11266,6 +12719,7 @@ const AGENT_TOOLS = {
   // convenience one.
   qloop: ['skills_list', 'skill_view', 'skill_manage']
 };
+
 
 // ============================================================================
 // AGENT-OVERHAUL-2 FIX 1 — connector-family scoping for connector-prefixed
@@ -11492,6 +12946,7 @@ const CHIEF_AGENT_TOOLS = {
 
 // Merge chiefs into AGENT_TOOLS
 Object.assign(AGENT_TOOLS, CHIEF_AGENT_TOOLS);
+for (const k of Object.keys(AGENT_TOOLS)) if (!TERMINAL_OFFER_EXEMPT.has(k) && !AGENT_TOOLS[k].includes('terminal_suggest_command')) AGENT_TOOLS[k] = [...AGENT_TOOLS[k], ...TERMINAL_OFFER_TOOLS]; // DECISION-LABELS: every built-in agent can OFFER a command to the TUI (a copy: shared slices stay untouched)
 
 // ============================================================================
 // STUDY-REV K1/R1: DB-resolved tool descriptor
@@ -12168,7 +13623,14 @@ function getToolDef(name, orgId = '__global__') {
 // ============================================================================
 
 // DB tool cache for custom agents: agentKey → { toolNames, expiry }
+// quox#1171: built-in tools a user can give their own agent via the catalog
+// (src/config/entities/tools/agent-basics.json). Their native descriptor always wins.
+const ASSIGNABLE_NATIVE_TOOLS = new Set(['memory_save', 'slot_say', 'web_fetch_allowlisted', 'proof_status']);
 const _dbToolCache = new Map();
+// one entry per (org, agent): a custom agent's slug is unique per org only
+function _dbToolCacheKey(agentKey, orgId) {
+  return orgId ? `${orgId}::${agentKey}` : agentKey;
+}
 const DB_TOOL_CACHE_TTL = 60000; // 60s
 
 /**
@@ -12227,13 +13689,16 @@ function getToolsForAgent(agentId, ctx) {
  * distinguish "no assignment" from "couldn't ask" (getAccessModeForAgentTool)
  * read dbOk rather than only inspecting the returned tools array.
  */
-async function _resolveToolsForAgent(agentId) {
+async function _resolveToolsForAgent(agentId, orgId = null) {
   const agentKey = canonicalAgentId(agentId);
+  // ASSAY audit 2026-10-16: a custom agent's slug is unique per org only, so the lookup and
+  // its cache are per org; auth resolves a custom agent only inside the org named here.
+  const cacheKey = _dbToolCacheKey(agentKey, orgId);
 
   // Check cache first (covers both built-in and custom agents). Only
   // successful DB lookups are ever cached (see the dbOk guard below), so a
   // cache hit always implies dbOk: true.
-  const cached = _dbToolCache.get(agentKey);
+  const cached = _dbToolCache.get(cacheKey);
   if (cached && cached.expiry > Date.now()) {
     return { tools: cached.tools, dbOk: true, agentNotFound: !!cached.agentNotFound };
   }
@@ -12281,7 +13746,7 @@ async function _resolveToolsForAgent(agentId) {
   let agentNotFound = false;
 
   try {
-    const resp = await fetch(`${authBase}/internal/agents/${agentKey}/tools`, {
+    const resp = await fetch(`${authBase}/internal/agents/${agentKey}/tools${orgId ? `?org_id=${encodeURIComponent(orgId)}` : ''}`, {
       headers: serviceKey ? { 'X-Service-Key': serviceKey } : {},
       signal: AbortSignal.timeout(5000)
     });
@@ -12321,11 +13786,15 @@ async function _resolveToolsForAgent(agentId) {
     byName.set(t.name, t);
   }
   for (const t of dbDescriptors) {
-    // DB descriptor wins — overrides any hardcoded entry with same name
+    // DB descriptor wins — overrides any hardcoded entry with same name.
+    // quox#1171: EXCEPT the built-ins a user can assign to their own agent through the catalog
+    // (ASSIGNABLE_NATIVE_TOOLS): the agent sees the native description and schema, i.e. what
+    // actually runs and its safety notes; the catalog row contributes only access_mode.
+    const native = ASSIGNABLE_NATIVE_TOOLS.has(t.name) && TOOL_DEFS[t.name] ? TOOL_DEFS[t.name] : null;
     byName.set(t.name, {
       name: t.name,
-      description: t.description,
-      input_schema: t.input_schema,
+      description: native ? native.description : t.description,
+      input_schema: native ? native.input_schema : t.input_schema,
       entity: false,
       provider: t.provider || null,
       source: 'db', // marks origin for observability/debugging
@@ -12350,14 +13819,14 @@ async function _resolveToolsForAgent(agentId) {
   // outage, including calls whose real (uncached) access_mode is
   // 'with_approval' — the exact governance bypass this follow-up closes.
   if (dbOk) {
-    _dbToolCache.set(agentKey, { tools, toolNames, agentNotFound, expiry: Date.now() + DB_TOOL_CACHE_TTL });
+    _dbToolCache.set(cacheKey, { tools, toolNames, agentNotFound, expiry: Date.now() + DB_TOOL_CACHE_TTL });
   }
   console.log(`[Tools] Resolved ${tools.length} tools for agent '${agentKey}' (${hardcodedTools.length} hardcoded + ${dbDescriptors.length} from DB, dbOk=${dbOk})`);
   return { tools, dbOk, agentNotFound };
 }
 
-async function getToolsForAgentAsync(agentId) {
-  const { tools } = await _resolveToolsForAgent(agentId);
+async function getToolsForAgentAsync(agentId, orgId = null) {
+  const { tools } = await _resolveToolsForAgent(agentId, orgId);
   return tools;
 }
 
@@ -12383,9 +13852,9 @@ async function getToolsForAgentAsync(agentId) {
  * @param {string} toolName - the emitted tool name (matches toolDescriptors[].name)
  * @returns {Promise<string|null>} 'full' | 'read_only' | 'with_approval' | 'unknown' | null
  */
-async function getAccessModeForAgentTool(agentId, toolName) {
+async function getAccessModeForAgentTool(agentId, toolName, orgId = null) {
   const agentKey = (agentId || 'quox').toLowerCase();
-  const { tools, dbOk } = await _resolveToolsForAgent(agentKey);
+  const { tools, dbOk } = await _resolveToolsForAgent(agentKey, orgId);
   if (!dbOk) return 'unknown';
   const tool = tools.find(t => t.name === toolName);
   return tool?.access_mode || null;
@@ -12401,7 +13870,11 @@ async function getAccessModeForAgentTool(agentId, toolName) {
 function invalidateAgentToolCache(agentKey) {
   if (!agentKey) return;
   const key = agentKey.toLowerCase();
-  const deleted = _dbToolCache.delete(key);
+  // the cache is per org (see _dbToolCacheKey): clear this agent for every org
+  let deleted = false;
+  for (const k of [..._dbToolCache.keys()]) {
+    if (k === key || k.endsWith(`::${key}`)) { _dbToolCache.delete(k); deleted = true; }
+  }
   console.log(`[Tools] Cache invalidated for agent '${key}' (was cached: ${deleted})`);
 }
 
@@ -12409,8 +13882,8 @@ function invalidateAgentToolCache(agentKey) {
  * Check if a custom agent (from DB cache) is authorized to use a tool.
  * Returns true if authorized, false otherwise.
  */
-function _isCustomAgentAuthorized(agentKey, toolName) {
-  const cached = _dbToolCache.get(agentKey);
+function _isCustomAgentAuthorized(agentKey, toolName, orgId = null) {
+  const cached = _dbToolCache.get(_dbToolCacheKey(agentKey, orgId));
   if (!cached || cached.expiry <= Date.now()) {
     return false; // No cache = no authorization info
   }
@@ -12466,8 +13939,36 @@ function brainHolderCtx(toolName, ctx = {}) {
   return { ...ctx, userId: String(ctx.holderUserId), brainUserFromHolder: true };
 }
 
+// quoxai/quox #1062: retired duplicates that still resolve for old callers (stored plans, scripts).
+const RETIRED_TOOL_ALIASES = { keeper_backup_status: 'backup_status' };
+
 async function executeTool(toolName, input, ctx = {}) {
+  // WORKER2 review: an aliased call records the name that was asked for, in the result (so it
+  // reaches tool.finished and the receipts) and as an envelope. The grant/hat checks run on the
+  // RESOLVED name, so an agent that holds only keeper_backup_status (a custom or DB agent) is now
+  // denied, fail-closed.
+  if (RETIRED_TOOL_ALIASES[toolName]) {
+    const requestedAs = toolName;
+    const resolved = RETIRED_TOOL_ALIASES[toolName];
+    try { ctx.emitEnvelope?.({ intent: 'quox.tool.alias', payload: { tool: resolved, requested_as: requestedAs, agent: ctx.agentId || null, issue: 'quox#1062' } }); } catch { /* evidence only */ }
+    const r = await executeTool(resolved, input, ctx);
+    return r && typeof r === 'object' && !Array.isArray(r) ? { ...r, requested_as: requestedAs, resolved_as: resolved } : r;
+  }
   ctx = brainHolderCtx(toolName, ctx);
+  // QUOXON 2026-10-17: a specialist's real tool call reaches the live outer turn's spinner
+  // (delegation.progress), so a delegation is not 70 s of silence. Best-effort, never gates.
+  try { require('./delegatePassthrough.js').forwardDelegateProgress(toolName, input, ctx); } catch { /* progress only */ }
+  // HYPERION follow-up 2026-10-17: operator-only tools (proof_status) run only for the instance
+  // operator's org or an instance admin, checked here on every dispatch, before any side effect.
+  {
+    const operatorRefusal = await require('./operatorOnlyTools').operatorOnlyRefusal(toolName, ctx);
+    if (operatorRefusal) return { success: false, error: operatorRefusal, operator_only: true };
+  }
+  // RunActor slice 2: a scheduled/workflow run's system actor cannot use tools that act as a person.
+  {
+    const systemRefusal = require('./systemActor.js').systemActorRefusal(toolName, ctx);
+    if (systemRefusal) return { success: false, error: systemRefusal, system_actor: true };
+  }
   // QUOXHAT P-C.4 — COMPLETE MEDIATION. The chat/MCP/internal legs pre-resolve
   // the hat and arm ctx.hatManifest; but a handful of direct tool routes (e.g.
   // POST /docker/containers/:id/:action) call executeTool with an org context
@@ -12542,7 +14043,46 @@ async function executeTool(toolName, input, ctx = {}) {
   // availability/shape drift must never expand authority.
   if (ctx.hatManifest?.enforced) {
     const authz = ctx.hatManifest.authzToolNames || ctx.hatManifest.toolNames;
+    // QUOXON-ASK J2 (quox#852): fail-closed because the hat could not be resolved (auth slow
+    // or down, no last-known-good hat). Same denial, said plainly instead of a bare hat key.
+    if (ctx.hatManifest.resolveFailed && authz && !authz.has(toolName)) {
+      console.warn(`[QUOXHAT] tool '${toolName}' denied: hat unresolved (fail-closed), agent=${ctx.agentId || '?'}, org=${ctx.orgId || '?'}`);
+      return {
+        success: false,
+        error: `Couldn't load ${ctx.agentId || 'this agent'}'s permissions (the auth service was slow or unreachable), so ${toolName} did not run. Try again in a moment.`,
+        hatDenied: true,
+        hatResolveFailed: true,
+        hatDenyReason: 'hat_unresolved',
+        hat: ctx.hatManifest.hatKey,
+        hatRevision: ctx.hatManifest.revision,
+      };
+    }
+    // QUOXON-ASK J2 (quox#868): the human asked for this directly and the tool is granted
+    // and not privileged: their request is the authorization, not a hat switch. Witnessed.
+    let directHat = null;
     if (authz && !authz.has(toolName)) {
+      try { directHat = await require('./hatDirectAccess.js').directHatAccess(toolName, ctx); } catch { directHat = null; }
+      if (directHat) {
+        console.log(`[QUOXHAT] tool '${toolName}' outside hat '${ctx.hatManifest.hatKey}' runs on the direct request of ${directHat.userId} (non-privileged, granted), agent=${ctx.agentId || '?'}, org=${ctx.orgId || '?'}`);
+        if (typeof ctx.emitEnvelope === 'function') {
+          try { ctx.emitEnvelope({ intent: 'quox.hat.direct_request', payload: { tool: toolName, hat: ctx.hatManifest.hatKey, agent: ctx.agentId || null, human: directHat.userId, conversation: ctx.conversationId || ctx.session_id || null } }); } catch { /* evidence never blocks */ }
+        }
+      }
+    }
+    // quox#908 follow-up: a tool reached only via on_demand_reads is offered as a READ. Its write
+    // actions (grafana_dashboards.annotate) are refused here, never executed silently.
+    if (ctx.hatManifest.onDemandOnly?.has(toolName) && require('./turnToolSelection.js').isWriteAction(toolName, input)) {
+      console.warn(`[QUOXHAT] tool '${toolName}' action '${input && input.action}' refused: write action via on_demand_reads only, hat '${ctx.hatManifest.hatKey}', agent=${ctx.agentId || '?'}, org=${ctx.orgId || '?'}`);
+      return {
+        success: false,
+        error: `Not run: ${toolName} action '${input.action}' changes state, and ${toolName} is only available here as a read. Ask for it directly (for example "annotate the dashboard with ...") and it will be done with your OK; do not retry it as a read.`,
+        hatDenied: true,
+        hatDenyReason: 'write_action_on_demand_read',
+        hat: ctx.hatManifest.hatKey,
+        hatRevision: ctx.hatManifest.revision,
+      };
+    }
+    if (authz && !authz.has(toolName) && !directHat) {
       const grantSet = ctx.hatManifest.grantToolNames;
       const notGranted = grantSet ? !grantSet.has(toolName) : null;
       const reason = notGranted === true
@@ -12571,15 +14111,22 @@ async function executeTool(toolName, input, ctx = {}) {
         });
         if (hop) return hop;
       }
+      // QUOXON handoff offer (2026-10-17 21:58): the attached agent itself cannot delegate, so "Delegate to: ..." made it
+      // ask the user to pick an agent beside the handoff card. On its own turn it is told the card is coming instead.
+      let handoffNote = null;
+      if (notGranted === true && !unknownTool && heldBy.length) {
+        try { handoffNote = require('./handoffSuggest.js').noteScopeRefusal(ctx, toolName); } catch { handoffNote = null; }
+      }
       return {
         success: false,
         error: unknownTool
           ? `Tool ${toolName} does not exist in Quox (no tool has that name). Do not retry it; find the right tool with more_tools or hat_catalogue, or say plainly that you have no tool for this.`
           : notGranted === true
-          ? `Tool ${toolName} is not granted to agent ${ctx.agentId || '?'}. ${describeHolders(heldBy)}`
+          ? (explainUnconnectedConnector(toolName, ctx.agentId) || (handoffNote ? `Tool ${toolName} is not granted to agent ${ctx.agentId || '?'}. ${handoffNote}` : `Tool ${toolName} is not granted to agent ${ctx.agentId || '?'}. ${describeHolders(heldBy)}`))
           : `Tool ${toolName} is ${reason}. Switch hats, propose a scope change, or delegate to a specialist.`,
         ...(notGranted === true ? { heldBy } : {}),
         ...(unknownTool ? { unknownTool: true } : {}),
+        ...(handoffNote ? { handoffOffered: true } : {}),
         hatDenied: true,
         hatDenyReason: notGranted === true ? 'not_granted' : 'mode_forbidden',
         hat: ctx.hatManifest.hatKey,
@@ -12601,20 +14148,19 @@ async function executeTool(toolName, input, ctx = {}) {
     const requiredPlugin = getRequiredPluginForAgent(ctx.agentId);
     if (requiredPlugin) {
       const orgId = ctx.orgId || 'default';
-      let licensed = false;
+      let v = { licensed: false, unavailable: false };
       try {
-        licensed = await isPluginLicensedForAgentGate(orgId, requiredPlugin);
+        v = await agentGateVerdict(orgId, requiredPlugin);
       } catch (_) {
-        licensed = false; // fail closed
+        v = { licensed: false, unavailable: false }; // fail closed
       }
-      if (!licensed) {
+      if (v.unavailable) {
+        console.warn(`[Tools] LICENSE check unavailable: agent '${ctx.agentId}' needs '${requiredPlugin}' (org=${orgId})`);
+        return licenceUnavailable(requiredPlugin);
+      }
+      if (!v.licensed) {
         console.warn(`[Tools] LICENSE denied: agent '${ctx.agentId}' requires the '${requiredPlugin}' entitlement (org=${orgId})`);
-        return {
-          success: false,
-          error: `Agent ${ctx.agentId} requires the '${requiredPlugin}' entitlement, which this organization does not hold`,
-          licenseRequired: true,
-          plugin: requiredPlugin,
-        };
+        return licenceRefusal(`Agent ${ctx.agentId}`, requiredPlugin);
       }
     }
   }
@@ -12627,20 +14173,19 @@ async function executeTool(toolName, input, ctx = {}) {
     const requiredPluginForTool = getRequiredPluginForTool(toolName);
     if (requiredPluginForTool) {
       const orgId = ctx.orgId || 'default';
-      let licensed = false;
+      let v = { licensed: false, unavailable: false };
       try {
-        licensed = await isPluginLicensedForAgentGate(orgId, requiredPluginForTool);
+        v = await agentGateVerdict(orgId, requiredPluginForTool);
       } catch (_) {
-        licensed = false; // fail closed
+        v = { licensed: false, unavailable: false }; // fail closed
       }
-      if (!licensed) {
+      if (v.unavailable) {
+        console.warn(`[Tools] LICENSE check unavailable: tool '${toolName}' needs '${requiredPluginForTool}' (org=${orgId})`);
+        return licenceUnavailable(requiredPluginForTool);
+      }
+      if (!v.licensed) {
         console.warn(`[Tools] LICENSE denied: tool '${toolName}' requires the '${requiredPluginForTool}' entitlement (org=${orgId})`);
-        return {
-          success: false,
-          error: `The ${toolName} tool requires the '${requiredPluginForTool}' entitlement, which this organization does not hold`,
-          licenseRequired: true,
-          plugin: requiredPluginForTool,
-        };
+        return licenceRefusal(`The ${toolName} tool`, requiredPluginForTool);
       }
     }
   }
@@ -12761,10 +14306,10 @@ async function executeTool(toolName, input, ctx = {}) {
       // floor is for agents that EXIST: a floor tool now passes only once the
       // lookup succeeds (dbOk: auth answered 200, i.e. a known agent or an
       // active resident). A 404 (unknown) or an unreachable auth still denies.
-      if (!_isCustomAgentAuthorized(agentKey, toolName)) {
+      if (!_isCustomAgentAuthorized(agentKey, toolName, ctx.orgId || null)) {
         let resolved = null;
         try {
-          resolved = await _resolveToolsForAgent(agentKey);
+          resolved = await _resolveToolsForAgent(agentKey, ctx.orgId || null);
         } catch {
           resolved = null;
         }
@@ -12920,9 +14465,10 @@ async function executeTool(toolName, input, ctx = {}) {
       // 'errDetail.substring is not a function' (tooling audit: skill_view, and
       // any tool with a non-string error). String() makes the log safe and lets
       // the tool's real result through untouched.
-      const errDetail = result.error || result.stderr || '';
-      _chokeError = String(typeof errDetail === 'string' ? errDetail : JSON.stringify(errDetail));
-      console.warn(`[Tools] ${toolName} failed: ${_chokeError.substring(0, 300)}`);
+      const _failure = describeToolFailure(result, toolName);
+      _chokeError = _failure.text;
+      if (_failure.held) console.log(`[Tools] ${toolName} ${_chokeError}`);
+      else console.warn(`[Tools] ${toolName} failed: ${_chokeError.substring(0, 300)}`);
       _chokeResult = result;
     } else {
       console.log(`[Tools] ${toolName} completed: success`);
@@ -13036,6 +14582,8 @@ Object.assign(TOOL_DEFS, LUCID_TOOLS);
 // ctx.orgId. See lib/parityReadTools.js. The WARD service is wired by server.js. =====
 const { PARITY_READ_TOOLS, setParityReadDeps } = require('./parityReadTools');
 Object.assign(TOOL_DEFS, PARITY_READ_TOOLS);
+// QUOXON-ENGINE lane N (#837): governed-store reads (lib/governedStoreReadTools.js).
+Object.assign(TOOL_DEFS, require('./governedStoreReadTools').GOVERNED_STORE_READ_TOOLS);
 setParityReadDeps({ getVoltDb: () => _govVoltDb });
 
 // ===== INBOXQ Agent Tools (INBOXQ_AGENT_DESIGN.md §A): every mutating tool
@@ -13130,6 +14678,17 @@ TOOL_DEFS.roster_coverage = {
 // See lib/slotTools.js. =====
 const { SLOT_TOOLS } = require('./slotTools');
 Object.assign(TOOL_DEFS, SLOT_TOOLS);
+// quox#1171: governed GET limited to org-admin-allowlisted URL prefixes. See lib/allowlistedFetchTool.js.
+const { ALLOWLISTED_FETCH_TOOLS } = require('./allowlistedFetchTool');
+Object.assign(TOOL_DEFS, ALLOWLISTED_FETCH_TOOLS);
+// TRIAGE-TOOLS (2026-10-16): HITL queue ranking/filters/detail/groups + non-decision housekeeping.
+// See lib/hitlTriageTools.js. hitl_bulk_dismiss is always-propose (approvalGate.js).
+const { HITL_TRIAGE_TOOLS } = require('./hitlTriageTools');
+Object.assign(TOOL_DEFS, HITL_TRIAGE_TOOLS);
+
+// terminal_suggest_command: proposes a slash command to the user's TUI (no server-side effect).
+const { TERMINAL_SUGGEST_TOOLS } = require('./terminalSuggestTool');
+Object.assign(TOOL_DEFS, TERMINAL_SUGGEST_TOOLS);
 
 // ===== QUOX-SECURITY Engagement Tools (Phase 1): engagement/scope CRUD
 // and the policy gate, wraps lib/securityEngagement.js directly (in-process,
@@ -13219,6 +14778,9 @@ const { COMMANDERQ_ROUTING_TOOL } = require('./commanderqRoutingTool');
 Object.assign(TOOL_DEFS, COMMANDERQ_ROUTING_TOOL);
 
 // COMMANDERQ P9 (C1+C3): contactability check + propose-only consent/watch tools.
+// Wazuh reads (ARGUS): lib/wazuhTools.js, over lib/wazuhReads.js
+Object.assign(TOOL_DEFS, require('./wazuhTools').WAZUH_TOOLS);
+
 const { COMMANDERQ_CONTACTABILITY_TOOLS } = require('./commanderqContactabilityTool');
 Object.assign(TOOL_DEFS, COMMANDERQ_CONTACTABILITY_TOOLS);
 
@@ -13229,7 +14791,8 @@ Object.assign(TOOL_DEFS, COMMANDERQ_CALL_TOOLS);
 const { loadEntityTools, refreshEntityToolLicenses } = require('./entityToolLoader');
 const { loadAssistants, getAssistantPrompt, getAssistant, listAssistants } = require('./entityAssistantLoader');
 // #818: agent_directory reads the same registry the roster uses (lib/parityReadTools.js).
-setParityReadDeps({ listAgents: () => listAssistants(), getAgent: (id) => getAssistant(id), getAgentTools: (id) => [...(AGENT_TOOLS[canonicalAgentId(id)] || [])] });
+// #843: plus the org's own agents (auth), so the directory's set and total equal `quox agent list`.
+setParityReadDeps({ listAgents: () => listAssistants(), getAgent: (id) => getAssistant(id), getAgentTools: (id) => [...(AGENT_TOOLS[canonicalAgentId(id)] || [])], listOrgAgents: (orgId) => require('./parityReadTools.js').listOrgAgentsFromAuth(orgId) });
 const _fs = require('fs');
 const _entityToolsPathDev = require('path').join(__dirname, '../../../src/config/entities/tools');
 const _entityToolsPathDocker = '/app/entity-tools';
@@ -13238,7 +14801,11 @@ const _entityLoadResult = loadEntityTools(entityToolsPath, TOOL_DEFS, AGENT_TOOL
   callBastion
 });
 const TOOL_ENTITY_META = _entityLoadResult.metadata;
-console.log(`[Tools] Loaded ${_entityLoadResult.loaded} entity tools (${_entityLoadResult.skipped} skipped, ${_entityLoadResult.gated} license-gated)`);
+// quoxai/quox #1062: hardcoded tools retired in shared/tool-availability/unsupported-tools.json
+// (keeper_backup_status, a duplicate of backup_status) are not offered to any model. Old
+// references still resolve: executeTool maps the name to its replacement (RETIRED_TOOL_ALIASES).
+const _withdrawnTools = require('./entityToolLoader').withdrawRetiredTools(TOOL_DEFS, AGENT_TOOLS);
+console.log(`[Tools] Loaded ${_entityLoadResult.loaded} entity tools (${_entityLoadResult.skipped} skipped, ${_entityLoadResult.gated} license-gated, ${_entityLoadResult.unavailable} not implemented, not offered)`);
 
 // AGENT-OVERHAUL-2 FIX 3 — entity licence gating now consults the real
 // lease, not LICENSED_PLUGINS env alone. Module init above stayed
@@ -13340,7 +14907,7 @@ function __setCognitiveImplantsPathForTesting(filePath) {
 // build time, { cache: 'hit'|'miss'|'shared'|'stale'|'none', ms }, for the
 // per-turn timing log (QUOXON A2). 'none' = this agent has no connector families.
 async function getToolsWithConnectors(agentId, orgId, opts = {}) {
-  const coreTools = await getToolsForAgentAsync(agentId);
+  const coreTools = await getToolsForAgentAsync(agentId, orgId);
 
   // AGENT-OVERHAUL-2 FIX 1 — only merge connector tools from families this
   // agent is scoped to (see CONNECTOR_FAMILIES). An agent with no scoped
@@ -13445,6 +15012,23 @@ function holdersOfTool(toolName, callerId) {
     (a) => a.toLowerCase() !== me && Array.isArray(AGENT_TOOLS[a]) && AGENT_TOOLS[a].includes(toolName),
   );
 }
+// #917: a connector-family tool for a connector the org has NOT connected falls through the grant
+// check (the connector TYPE is known so it is not "unknown", but no account is configured so nothing
+// grants it), and reported "not granted to agent / no agent holds it" — a permissions lie pointing
+// nowhere. When the tool parses as a connector tool whose family this agent carries, the honest reason
+// is that the connector is not connected yet. Returns a message, or null to fall back to the default.
+function explainUnconnectedConnector(toolName, agentId) {
+  let parsed = null;
+  try { parsed = parseConnectorTool(toolName); } catch { parsed = null; }
+  if (!parsed) return null;
+  let families = [];
+  try { families = getConnectorFamiliesForAgent(agentId) || []; } catch { families = []; }
+  if (!families.includes(parsed.connectorId)) return null;
+  return `The ${parsed.connectorId} connector is not connected for this organisation, so ${toolName} is not available yet. `
+    + `Connect ${parsed.connectorId} (Settings > Integrations, or 'quox vault' for its credential), then try again. `
+    + `This is not a permissions problem.`;
+}
+
 function describeHolders(ids) {
   if (!ids.length) return 'No agent holds it, so it cannot be delegated; tell the user it is unavailable.';
   let getAssistant = null;
@@ -13457,13 +15041,45 @@ function describeHolders(ids) {
   return `Delegate to: ${shown.join(', ')}${ids.length > 8 ? `, and ${ids.length - 8} more` : ''}.`;
 }
 
+// #982: resolve a delegate target that may be a DISPLAY NAME to its registry agent id. Returns the
+// input lowercased when it is already a registry id, unknown, or an ambiguous display name (so an
+// unknown/ambiguous target is left for the downstream to report honestly, never silently rerouted).
+function canonicalizeDelegateAgentId(rawId) {
+  const raw = String(rawId || '').toLowerCase();
+  if (!raw) return raw;
+  try {
+    const { getAssistant, listAssistants } = require('./entityAssistantLoader');
+    if (getAssistant(raw)) return raw;
+    const byName = listAssistants().filter((id) => {
+      const a = getAssistant(id);
+      return a && a.identity && String(a.identity.name || '').toLowerCase() === raw;
+    });
+    return byName.length === 1 ? byName[0] : raw;
+  } catch { return raw; }
+}
+
+// The reason a success:false tool result gives, never empty (proof contact-context 2026-10-17: a pending
+// approval has no error field and logged "failed: " with nothing). A held call says it is held.
+function describeToolFailure(result, toolName) {
+  const r = result || {};
+  if (r.pending === true) return { held: true, text: `held for approval${r.approvalId ? ` ${r.approvalId}` : ''}` };
+  const detail = r.error || r.stderr || r.message || r.reason || '';
+  const text = typeof detail === 'string' ? detail : JSON.stringify(detail);
+  return { held: false, text: text || `${toolName || 'tool'} returned success:false with no error text` };
+}
+
 module.exports = {
+  deployTemplates,
+  describeToolFailure,
+  canonicalizeDelegateAgentId, // #982 — exported for unit test
+  holdersOfTool, describeHolders, // quox#976: the per-turn offer names the holder of a specialist-held tool
   brainHolderCtx,
   readResultFields,
   getToolsForAgent,
   getToolsForAgentAsync,
   resolveHostId, // fleet standing-grant check resolves host the same way ssh_exec does
   makeGrantAwareCallBastion, // QUOXTRUST T4 — exported for unit test
+  bastionTimeoutFor,
   summarizeToolInputForLog, // QUOXTRUST v1.4 CF1 — exported for the redaction pin
 
   getAccessModeForAgentTool,
@@ -13472,15 +15088,17 @@ module.exports = {
   getAllAgentToolCatalogs,
   getToolDef,
   executeTool,
-  holdersOfTool, // REL-423: exported for ee3457cb9's tests (main exports it since #976 227077783)
   resolveCredentialForAgent,
   parseConnectorTool,
   invalidateAgentToolCache,
   getFleetStatusLocal,
+  getFleetRegistryLocal,
+  dockerFleetScan, dockerFleetScanTool, dockerFleetContainers, dockerFleetStacks, _resetDockerHostCacheForTest, _dockerHostRefreshForTest, // DEVFLEET-DOCKER: exported for tests
   TOOL_DEFS,
   AGENT_TOOLS,
   CONNECTOR_FAMILIES,
   getConnectorFamiliesForAgent,
+  explainUnconnectedConnector,
   CONNECTOR_TOOL_ALLOWLIST,
   getConnectorToolAllowlistForAgent,
   MEMORY_TOOLS,
@@ -13518,5 +15136,6 @@ module.exports = {
   __setGripeFeedLogForTesting,
   AGENT_REQUIRES_PLUGIN,
   getRequiredPluginForAgent,
+  getRequiredPluginForTool,
   __setLicenseGateForTesting,
 };

@@ -42,6 +42,7 @@ export default function ApprovalContextBlock({ context }) {
     const reason = context.reason || {};
     const method = context.method || {};
     const why = context.why_approval || {};
+    const targets = String(method.target || '').split(',').map((x) => x.trim()).filter(Boolean);
     const expires = context.expires_at ? new Date(context.expires_at) : null;
     const expired = expires && !Number.isNaN(expires.getTime()) && expires.getTime() < Date.now();
 
@@ -52,6 +53,12 @@ export default function ApprovalContextBlock({ context }) {
                 {context.source_label || rb.agent_label}
                 {rb.profile ? ` · profile ${rb.profile}` : ''}
             </Row>
+            {Array.isArray(rb.delegation_chain) && rb.delegation_chain.length > 0 && (
+                <Row label="Chain">
+                    {rb.delegation_chain.join(' → ')}
+                    {rb.caller?.name ? ` (via ${rb.caller.name})` : ''}
+                </Row>
+            )}
             {ob && (
                 <Row label="On behalf of">
                     {ob.user_name || ob.user_id || 'unknown user'}
@@ -67,10 +74,16 @@ export default function ApprovalContextBlock({ context }) {
             <Row label="Method">
                 {method.tool} via {method.transport}{method.target ? ` on ${method.target}` : ''}
             </Row>
+            {targets.length > 1 && (
+                <Row label="Where">{targets.length} targets: {targets.join(', ')}</Row>
+            )}
             {(method.command || method.args) && (
                 <pre className="qx-code-block" data-testid="approval-context-command">{method.command || method.args}</pre>
             )}
             {why.label && <Row label="Why approval">{why.label}</Row>}
+            {/not on the read-only allowlist/i.test(why.label || '') && (
+                <Row label="Class"><span className="qx-pill qx-pill--high qx-pill--xs">NOT read-only</span></Row>
+            )}
             {context.risk && (
                 <Row label="Risk"><span className="qx-pill qx-pill--high qx-pill--xs">{context.risk}</span></Row>
             )}

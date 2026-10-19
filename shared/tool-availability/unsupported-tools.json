@@ -1,0 +1,18 @@
+{
+  "_about": "Declared tools that are NOT offered to models (collector entityToolLoader) and are not listed/seeded in the auth tool catalog. Group 'mikrotik' (quoxai/quox #1051) is the executor map: mikrotikExecutor.js exports it as UNSUPPORTED_TOOLS; those tools return not_implemented/501. Group 'stubs' (#1062) holds entity tools with no backend; they return an error live. Remove an id when it is implemented and it is offered again automatically. Group 'duplicates' (#1062) holds tools retired in favour of another tool; the reason names it. Ids are entity ids (dots), except hardcoded tools, which use their tool name. Read by services/collector/lib/entityToolLoader.js and services/auth/lib/unavailableTools.js, which take the union of every group.",
+  "mikrotik": {
+    "mikrotik.firewall.unblock_ip": "No DELETE path for /ip/firewall/address-list is on the RouterOS proxy allowlist. src/services/routerosClient.js#unblockDevice is itself a stub that never calls the router, so there is nothing real to bridge to yet.",
+    "mikrotik.diagnostics.analyze_issue": "No RouterOS REST path backs AI-powered issue analysis; it has not been built.",
+    "mikrotik.automation.preview": "No RouterOS REST path backs configuration-change preview; it has not been built."
+  },
+  "stubs": {
+    "uptime.sla_report": "stub, no backend: bastionSshExecutor has no uptime.sla_report handler, the call returns an error.",
+    "uptime.incidents": "stub, no backend: bastionSshExecutor has no uptime.incidents handler, the call returns an error.",
+    "uptime.dependencies": "stub, no backend: bastionSshExecutor has no uptime.dependencies handler, the call returns an error."
+  },
+  "duplicates": {
+    "keeper_backup_status": "#1062 duplicate of backup_status (the same keeperInternalBackupStatus call).",
+    "prometheus.query": "#1062 duplicate of metrics_query.",
+    "prometheus.range": "#1062 duplicate of metrics_query (its range and step inputs run the same Prometheus range query; SITE-CLI ruling 2026-10-15)."
+  }
+}

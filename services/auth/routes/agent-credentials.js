@@ -28,6 +28,7 @@ import {
     getCredentialById
 } from '../db/integrations.js';
 import { humanGrantorOnly } from '../utils/principal.js';
+import { clearCache as clearResolverCache } from '../services/credentialResolver.js';
 
 const router = Router();
 
@@ -82,6 +83,8 @@ function createAssignment(req, res) {
             req,
             { action: 'agent_assign', agent_id, tool_type }
         );
+        // A new assignment must be visible to resolve-for-agent now, not after the 30s cache TTL.
+        clearResolverCache();
 
         res.status(201).json(assignment);
     } catch (err) {
@@ -109,6 +112,7 @@ function deleteAssignment(req, res) {
         if (!deleted) {
             return res.status(404).json({ error: 'not_found', message: 'Assignment not found' });
         }
+        clearResolverCache();
         res.json({ deleted: true });
     } catch (err) {
         console.error('Failed to delete agent assignment:', err);

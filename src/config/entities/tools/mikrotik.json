@@ -19,18 +19,13 @@
     {
       "id": "mikrotik.discovery.scan",
       "name": "Scan Network",
-      "description": "Discover MikroTik routers on the network using CDP/MNDP neighbor discovery",
+      "description": "Passive READ of the router neighbor table (MNDP/CDP/LLDP): identity, address, MAC, interface, platform, version of devices the router has already heard. Not an active scan; it probes nothing.",
       "aeeIntent": "quox.noc.mikrotik.discovery.scan",
       "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
       "accessLevel": "specialists+",
       "defconLevel": "GREEN",
       "requiresApproval": false,
       "parameters": {
-        "subnet": {
-          "type": "string",
-          "required": false,
-          "description": "CIDR subnet to scan (e.g., '10.0.0.0/24')"
-        }
       },
       "returns": {
         "type": "object",
@@ -125,7 +120,7 @@
     {
       "id": "mikrotik.monitoring.interfaces",
       "name": "List Interfaces",
-      "description": "Get interface statistics including errors, utilization, and link status",
+      "description": "List interfaces with type, running/disabled state, rx/tx byte counters and MTU",
       "aeeIntent": "quox.noc.mikrotik.interfaces.list",
       "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
       "accessLevel": "specialists+",
@@ -162,7 +157,7 @@
     {
       "id": "mikrotik.monitoring.traffic",
       "name": "Monitor Traffic",
-      "description": "Get real-time bandwidth usage per interface",
+      "description": "Get a one-shot rx/tx bits-per-second sample for one interface",
       "aeeIntent": "quox.noc.mikrotik.traffic.query",
       "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
       "accessLevel": "specialists+",
@@ -176,8 +171,8 @@
         },
         "interface": {
           "type": "string",
-          "required": false,
-          "description": "Specific interface (optional)"
+          "required": true,
+          "description": "Interface name (e.g., ether1)"
         }
       },
       "returns": {
@@ -386,7 +381,7 @@
     {
       "id": "mikrotik.firewall.rules",
       "name": "List Firewall Rules",
-      "description": "List firewall filter, NAT, and mangle rules with hit counters",
+      "description": "List firewall filter rules, or NAT rules with table=nat. Listing only; mangle is not supported.",
       "aeeIntent": "quox.noc.mikrotik.firewall.rules.list",
       "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
       "accessLevel": "specialists+",
@@ -403,12 +398,12 @@
           "required": false,
           "description": "Filter by chain: input, forward, output"
         },
-        "type": {
+        "table": {
           "type": "string",
           "required": false,
           "default": "filter",
-          "enum": ["filter", "nat", "mangle"],
-          "description": "Rule type"
+          "enum": ["filter", "nat"],
+          "description": "Rule table"
         }
       },
       "returns": {
@@ -614,7 +609,7 @@
     {
       "id": "mikrotik.diagnostics.ping_test",
       "name": "Ping Test",
-      "description": "Test connectivity to a target from the router",
+      "description": "Ping a target from the router (1-5 pings) and report sent/received/avg RTT",
       "aeeIntent": "quox.noc.mikrotik.diagnostics.ping",
       "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
       "accessLevel": "specialists+",
@@ -634,8 +629,8 @@
         "count": {
           "type": "number",
           "required": false,
-          "default": 4,
-          "description": "Number of pings"
+          "default": 3,
+          "description": "Number of pings (1-5)"
         }
       },
       "returns": {
@@ -657,7 +652,7 @@
     {
       "id": "mikrotik.diagnostics.dns_check",
       "name": "DNS Check",
-      "description": "Test DNS resolution from the router",
+      "description": "Read the router DNS config (servers, allow-remote-requests) and cache size; optionally the cache entries for one name. Does not trigger a resolve.",
       "aeeIntent": "quox.noc.mikrotik.diagnostics.dns",
       "aoclClassification": { "layer": 1, "risk": "LOW", "autonomy": "FULL" },
       "accessLevel": "specialists+",
@@ -669,15 +664,10 @@
           "required": true,
           "description": "Router ID"
         },
-        "hostname": {
-          "type": "string",
-          "required": true,
-          "description": "Hostname to resolve"
-        },
-        "dns_server": {
+        "name": {
           "type": "string",
           "required": false,
-          "description": "DNS server to use (optional)"
+          "description": "Filter cache entries to this name"
         }
       },
       "returns": {

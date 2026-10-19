@@ -18,7 +18,7 @@ export const inbox = {
     tags: ['live-safe'],
   },
   // quox#827: the ONE server-side set of open approvals this user can act on (also backs stats.pending_approvals and LUCID).
-  'approvals.open': {
+  'inbox.approvals.open': {
     method: 'GET',
     service: 'auth',
     path: ({ orgId }) => `/api/orgs/${orgId}/approvals/open`,
@@ -29,6 +29,19 @@ export const inbox = {
     service: 'auth',
     path: ({ orgId, itemId }) => `/api/orgs/${orgId}/inbox/${itemId}/respond`,
     tags: ['live-write'],
+  },
+  // quox ask: a session files a decision request (one inbox item) and waits for the human's answer.
+  'inbox.decision.create': {
+    method: 'POST',
+    service: 'auth',
+    path: ({ orgId }) => `/api/orgs/${orgId}/decisions`,
+    tags: ['live-write'],
+  },
+  'inbox.decision.get': {
+    method: 'GET',
+    service: 'auth',
+    path: ({ orgId, id }) => `/api/orgs/${orgId}/decisions/${id}`,
+    tags: ['live-safe'],
   },
   'inbox.stats.list': {
     method: 'GET',

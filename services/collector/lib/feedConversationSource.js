@@ -28,6 +28,10 @@
 const feedWatermark = require('./feedWatermark.js');
 const brainFeedClient = require('./brainFeedClient.js');
 
+// BRAIN2-FABLE11 (deliberately no deletion propagation): conversations are
+// AEE envelopes, an append-only evidence log that is never deleted at source,
+// and the reader only lists conversations idle since the cursor, not the whole
+// set, so a "gone since last time" diff would be false by construction.
 const SOURCE_TYPE = 'conversation';
 const VAULT_NAME = 'Conversations';
 

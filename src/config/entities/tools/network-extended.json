@@ -25,9 +25,8 @@
       "parameters": {
         "host": {
           "type": "string",
-          "required": false,
-          "default": "localhost",
-          "description": "Host to check interfaces on"
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
         },
         "include_loopback": {
           "type": "boolean",
@@ -78,8 +77,8 @@
       "parameters": {
         "host": {
           "type": "string",
-          "required": false,
-          "default": "localhost"
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
         },
         "state": {
           "type": "string",
@@ -113,8 +112,8 @@
       "parameters": {
         "host": {
           "type": "string",
-          "required": false,
-          "default": "localhost"
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
         }
       },
       "instructions": {
@@ -136,8 +135,8 @@
       "parameters": {
         "host": {
           "type": "string",
-          "required": false,
-          "default": "localhost"
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
         }
       },
       "instructions": {

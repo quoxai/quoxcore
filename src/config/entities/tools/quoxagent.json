@@ -79,7 +79,7 @@
     {
       "id": "quoxagent.status",
       "name": "Fleet Status",
-      "description": "Get status of all QuoxAgent agents in the fleet",
+      "description": "The QuoxAgent sidecars' own self-reported health: which agents report themselves healthy, degraded or unhealthy, and their connection state. Use for asks about the sidecars or agents reporting their own health. For the Bastion host inventory (which hosts exist, IPs, reachability) use fleet_status.",
       "accessLevel": "specialists+",
       "defconLevel": "GREEN",
       "requiresApproval": false,

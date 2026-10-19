@@ -21,10 +21,25 @@ function clearKey(next, stored, key) {
   else delete next[key]
 }
 
+// Hosts a visitor's browser cannot reach: localhost, loopback, RFC1918 ranges.
+export function isNonPublicEndpoint(value) {
+  const v = String(value || '').trim()
+  if (!v) return false // empty = same-origin, not a host problem
+  let host
+  try { host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(v) ? v : `https://${v}`).hostname.toLowerCase() } catch { return false }
+  host = host.replace(/^\[|\]$/g, '')
+  if (host === 'localhost' || host.endsWith('.localhost') || host === '::1') return true
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+  if (!m) return false
+  const [a, b] = [Number(m[1]), Number(m[2])]
+  return a === 127 || a === 10 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)
+}
+
 export default function SettingsTab({ widget, authFetch, orgId, onWidgetChange, onDeleted }) {
   const config = widget?.embed_config || JSON.parse(widget?.embed_config_json || '{}')
   const initDomains = widget?.allowed_domains || JSON.parse(widget?.allowed_domains_json || '["localhost"]')
 
+  const [copyAnyway, setCopyAnyway] = useState(false)
   const [domains, setDomains] = useState(initDomains)
   const [newDomain, setNewDomain] = useState('')
   const [embedMode, setEmbedMode] = useState('script')
@@ -224,7 +239,11 @@ export default function SettingsTab({ widget, authFetch, orgId, onWidgetChange, 
   const embedConfig = { widgetId: publicKey, endpoint, theme, position: config.position || 'bottom-right', showBranding: false }
   const code = embedMode === 'script' ? generateEmbedCode(embedConfig) : generateWebComponentCode(embedConfig)
 
+  const endpointNonPublic = isNonPublicEndpoint(endpoint)
+  const copyBlocked = endpointNonPublic && !copyAnyway
+
   const handleCopy = () => {
+    if (copyBlocked) return
     navigator.clipboard?.writeText(code)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -259,6 +278,16 @@ export default function SettingsTab({ widget, authFetch, orgId, onWidgetChange, 
           </span>
         </div>
 
+        {endpointNonPublic && (
+          <div role="alert" data-testid="endpoint-warning" style={{ marginBottom: 10, padding: '8px 12px', borderRadius: 6, fontSize: 11, lineHeight: 1.5, background: 'rgba(245,158,11,0.14)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}>
+            This endpoint ({endpoint.trim()}) is a local or private address. Your visitors' browsers cannot reach it, so the widget will not load on your site. Set your public Core address in the "Your Core endpoint URL" field above.
+            {' '}
+            <button type="button" onClick={() => setCopyAnyway(v => !v)} style={{ background: 'none', border: 'none', padding: 0, color: '#f59e0b', textDecoration: 'underline', cursor: 'pointer', font: 'inherit' }}>
+              {copyAnyway ? 'Block copying again' : 'Copy anyway for local testing'}
+            </button>
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
           {[{ id: 'script', label: 'Script Tag' }, { id: 'component', label: 'Web Component' }].map(m => (
             <button key={m.id} onClick={() => setEmbedMode(m.id)} style={{
@@ -278,11 +307,12 @@ export default function SettingsTab({ widget, authFetch, orgId, onWidgetChange, 
           }}>
             {code}
           </pre>
-          <button onClick={handleCopy} style={{
+          <button onClick={handleCopy} disabled={copyBlocked} title={copyBlocked ? 'Set a public endpoint first' : undefined} style={{
+            opacity: copyBlocked ? 0.5 : 1,
             position: 'absolute', top: 8, right: 8, padding: '4px 10px', fontSize: 10, fontWeight: 600,
             background: copied ? 'rgba(48,255,144,0.1)' : 'rgba(255,255,255,0.06)',
             border: `1px solid ${copied ? 'rgba(48,255,144,0.2)' : 'rgba(255,255,255,0.1)'}`,
-            borderRadius: 5, cursor: 'pointer', color: copied ? '#30ff90' : 'rgba(255,255,255,0.7)', fontFamily: 'inherit',
+            borderRadius: 5, cursor: copyBlocked ? 'not-allowed' : 'pointer', color: copied ? '#30ff90' : 'rgba(255,255,255,0.7)', fontFamily: 'inherit',
           }}>
             {copied ? '✓ Copied' : 'Copy'}
           </button>
@@ -331,7 +361,7 @@ export default function SettingsTab({ widget, authFetch, orgId, onWidgetChange, 
       <div>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 10 }}>Allowed Domains</div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginBottom: 8 }}>
-          The widget will only load on these domains. Use *.example.com for all subdomains. Localhost is always allowed.
+          The widget will only load on these domains. Use *.example.com for all subdomains.
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
@@ -340,10 +370,19 @@ export default function SettingsTab({ widget, authFetch, orgId, onWidgetChange, 
               display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
               background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 6,
             }}>
-              <span style={{ flex: 1, fontSize: 12, color: '#fff', fontFamily: "'JetBrains Mono', monospace" }}>{d}</span>
-              {d !== 'localhost' && (
-                <button onClick={() => removeDomain(d)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.65)', cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>
-              )}
+              <span style={{ flex: 1, fontSize: 12, color: '#fff', fontFamily: "'JetBrains Mono', monospace" }}>
+                {d}
+                {d === 'localhost' && (
+                  <>
+                    {' '}
+                    <span data-testid="localhost-tag" style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 4, padding: '1px 6px', fontFamily: 'inherit' }}>testing</span>
+                    <span data-testid="localhost-hint" style={{ display: 'block', fontSize: 10, color: 'rgba(255,255,255,0.65)', fontFamily: 'inherit', marginTop: 2 }}>
+                      Added automatically so you can preview. Remove it before launch.
+                    </span>
+                  </>
+                )}
+              </span>
+              <button aria-label={`Remove ${d}`} onClick={() => removeDomain(d)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.65)', cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>
             </div>
           ))}
         </div>

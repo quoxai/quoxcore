@@ -513,7 +513,7 @@ async function hCreateProposal(ctx, deps) {
   let approvalItemId = null;
   if (typeof deps.createApprovalItem === 'function') {
     try {
-      approvalItemId = await deps.createApprovalItem({ orgId: ctx.orgId, kind: 'approval', title: `InboxQ ${kind} proposal`, payload: { proposalId: proposal.id, kind, payload } });
+      approvalItemId = await deps.createApprovalItem({ orgId: ctx.orgId, kind: 'approval', title: `InboxQ ${kind} proposal`, payload: { proposalId: proposal.id, kind, payload, what: { action: `InboxQ ${kind}`, target: `mailbox ${account.email || account.id || accountId}`, summary: `apply the InboxQ ${kind} proposal ${proposal.id} to mailbox ${account.email || account.id || accountId}` } } });
       if (approvalItemId) store.setProposalStatus(ctx.orgId, proposal.id, 'proposed', { approvalItemId });
     } catch { /* approval mirroring best-effort; proposal still visible in InboxQ */ }
   }

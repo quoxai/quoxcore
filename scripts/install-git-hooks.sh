@@ -68,10 +68,32 @@ EOF
 
 chmod +x "$HOOK_DIR/pre-commit"
 
+cat > "$HOOK_DIR/commit-msg" <<'HOOK'
+#!/bin/bash
+# Quox commit-msg hook (installed by scripts/install-git-hooks.sh; edits here are overwritten).
+# LOOSEN-GUARD: a commit that makes a test or proof case easier to pass is refused unless its message
+# carries `Loosening-Attestation: <signed attestation>` from an item a HUMAN approved with a step-up PIN.
+# There is deliberately no skip variable. quox-land and CI run the same guard over the pushed range.
+REPO_ROOT=$(git rev-parse --show-toplevel)
+GIT_DIR=$(git rev-parse --git-dir)
+# The judge is HEAD's committed guard, not the working copy being committed.
+GUARD="$(mktemp "${TMPDIR:-/tmp}/loosen-guard.XXXXXX.mjs")"; trap 'rm -f "$GUARD"' EXIT
+git show HEAD:scripts/guards/check-test-loosening.mjs > "$GUARD" 2>/dev/null || exit 0   # a branch older than the guard
+[ -f "$GIT_DIR/MERGE_HEAD" ] && exit 0    # merges: quox-land and CI judge the whole range
+(cd "$REPO_ROOT" && node "$GUARD" --staged --strict --msg-file "$1"); code=$?
+[ "$code" -eq 3 ] && exit 1
+[ "$code" -ne 0 ] && echo "LOOSEN-GUARD: guard error (exit $code), commit allowed; quox-land and CI still check the range" >&2
+exit 0
+HOOK
+
+chmod +x "$HOOK_DIR/commit-msg"
+
 echo "Installed pre-commit hook at $HOOK_DIR/pre-commit"
 echo "  → runs scripts/pre-commit-secrets-check.sh"
 echo "  → runs scripts/pre-commit-matrix-check.sh"
 echo "  → runs scripts/pre-commit-env-check.sh"
+echo "Installed commit-msg hook at $HOOK_DIR/commit-msg"
+echo "  → runs scripts/guards/check-test-loosening.mjs --staged (no loosening without a human approval)"
 echo ""
 echo "To bypass the matrix check on a commit: QUOX_MATRIX_SKIP=1 git commit ..."
 echo "To bypass the env registry check on a commit: QUOX_ENV_SKIP=1 git commit ..."

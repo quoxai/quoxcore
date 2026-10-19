@@ -57,6 +57,11 @@ function readApprovalResult(approvalId, orgId, scope) {
  * the caller should fall through to the existing (pending) handling.
  */
 function storedApprovalOutcome(approvalId, toolName, ctx = {}) {
+  // No org context: there is no scope to read a stored result under, so do not
+  // claim "not found" either. Fall through to the legacy `_approvalId` poll path,
+  // which keeps its own fingerprint, #670 org binding and single-use claim checks
+  // (fd446d441 turned this case into a 404 and broke approved re-invocation).
+  if (!ctx || !ctx.orgId) return null;
   const row = scopedRow(approvalId, ctx.orgId, { toolName, agentId: ctx.agentId });
   if (!row) {
     // Only claim "not found" when the local store knows the tool-approval table;

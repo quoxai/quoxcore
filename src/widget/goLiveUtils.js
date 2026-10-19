@@ -17,7 +17,11 @@ export function liveState(status) {
 /** One-line result for a finished publish job. */
 export function publishResultLine(job) {
   if (!job) return ''
-  if (job.status === 'error') return `Go live failed (${job.http_status || job.error || 'error'}). Nothing changed.`
+  if (job.status === 'error') {
+    const raw = job.http_status || job.error || 'error'
+    if (job.message) return `${job.message} (${raw})`
+    return `Go live failed (${raw}). Nothing changed.`
+  }
   const r = job.result || {}
   if (r.published) return r.message || 'Live.'
   return `Not live: ${r.message || r.reason || 'security checks did not pass'}.`

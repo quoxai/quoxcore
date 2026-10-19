@@ -241,8 +241,16 @@ export function listMemories({ org_id, user_id, agent_id, memory_type, valid = t
  * GET /api/memory/org-users) to feed each user's memories into a user-scoped
  * vault instead of reading only the 'service' user.
  */
-export function listMemoryUserIds({ org_id, limit = 1000 }) {
+export function listMemoryUserIds({ org_id, limit = 1000, withEntities = false }) {
   const db = getDatabase()
+  if (withEntities) {
+    // QUOXON-MIRROR: the org Mirror sums per-user stats, so it also needs users who own only
+    // entities (no valid memories), or their entities are missed. Opt-in: the Feed keeps memory owners.
+    return db.prepare(`SELECT user_id FROM (
+        SELECT user_id FROM memories WHERE org_id = ? AND valid = 1 AND user_id IS NOT NULL
+        UNION SELECT user_id FROM entities WHERE org_id = ? AND deleted_at IS NULL AND user_id IS NOT NULL
+      ) ORDER BY user_id LIMIT ?`).all(org_id, org_id, limit).map((r) => r.user_id)
+  }
   return db.prepare('SELECT DISTINCT user_id FROM memories WHERE org_id = ? AND valid = 1 AND user_id IS NOT NULL ORDER BY user_id LIMIT ?')
     .all(org_id, limit).map((r) => r.user_id)
 }
@@ -957,6 +965,7 @@ export function getStats({ org_id, user_id }) {
   `).get(org_id)
 
   return {
+    scope: 'user',
     memories: {
       total: memoryCounts.reduce((sum, r) => sum + r.count, 0),
       by_type: Object.fromEntries(memoryCounts.map(r => [r.memory_type, r.count]))
@@ -967,6 +976,156 @@ export function getStats({ org_id, user_id }) {
     },
     core_memories: coreMemoryCount.count,
     conversations: conversationCount.count,
-    relations: relationCount.count
+    relations: relationCount.count,
+    meaning: STATS_MEANING
   }
+}
+
+// =============================================================================
+// QUOXMIND #1111: truthful org stats, the core set, cross-agent org recall
+// =============================================================================
+
+// Writers whose rows are org-visible by construction: the org-shared owner
+// (QuoxDream beliefs) and the internal service/system writers agents use.
+// A HUMAN user's rows are private to that human and are never widened here.
+// Agent identity users (auth users.actor_type='agent') are only treated as
+// org-visible when the trusted caller names them in agent_user_ids: this
+// service has no auth DB, so it never guesses who is an agent.
+export const ORG_VISIBLE_WRITERS = [ORG_SHARED_USER_ID, 'service', 'system']
+
+function visibleOwners(user_id, agent_user_ids = []) {
+  const extra = Array.isArray(agent_user_ids) ? agent_user_ids.filter((u) => typeof u === 'string' && u) : []
+  return [...new Set([user_id, ...ORG_VISIBLE_WRITERS, ...extra].filter(Boolean))]
+}
+
+const STATS_MEANING = {
+  total: 'valid memories (not deleted, not superseded) in this scope',
+  not_valid: 'rows kept for history: deleted or superseded by a newer version',
+  scope_user: 'user scope counts only rows written under your own user id; agents write under their own identities, so this is a subset of the org',
+  core_set: 'memories always loaded into chat turns: pinned ones plus auto-promoted decisions and facts rated high or critical',
+}
+
+/** Rank an importance value: critical=4, high=3, medium=2, low=1. Numeric scales 0-1 and 0-10 are mapped. */
+export function importanceRank(v) {
+  const s = String(v ?? '').toLowerCase().trim()
+  if (s === 'critical') return 4
+  if (s === 'high') return 3
+  if (s === 'medium') return 2
+  if (s === 'low') return 1
+  const n = Number(s)
+  if (!Number.isFinite(n)) return 2
+  const ten = n <= 1 ? n * 10 : n
+  if (ten >= 9) return 4
+  if (ten >= 7) return 3
+  if (ten >= 4) return 2
+  return 1
+}
+
+const CORE_TYPES = new Set(['decision', 'constraint', 'preference', 'fact'])
+const CORE_ALWAYS_TYPES = new Set(['decision', 'constraint', 'preference'])
+export const CORE_RECALL_THRESHOLD = 3
+
+/** Why a row is (or is not) auto-promoted into the core set. Returns 'auto' or null. */
+export function autoCoreReason(m) {
+  if (!m || !CORE_TYPES.has(m.memory_type)) return null
+  const r = importanceRank(m.importance)
+  if (r >= 4) return 'auto'
+  if (r === 3 && (CORE_ALWAYS_TYPES.has(m.memory_type) || (m.access_count || 0) >= CORE_RECALL_THRESHOLD)) return 'auto'
+  return null
+}
+
+/** Org-wide stats with per-agent and per-user breakdown. Counts only, never content. */
+export function getOrgStats({ org_id }) {
+  const db = getDatabase()
+  const byType = db.prepare('SELECT memory_type, COUNT(*) AS n FROM memories WHERE org_id = ? AND valid = 1 GROUP BY memory_type').all(org_id)
+  const byAgent = db.prepare("SELECT COALESCE(agent_id, '(none)') AS a, COUNT(*) AS n FROM memories WHERE org_id = ? AND valid = 1 GROUP BY a ORDER BY n DESC").all(org_id)
+  const byUser = db.prepare(`SELECT user_id, COUNT(*) AS n, GROUP_CONCAT(DISTINCT agent_id) AS agents, MAX(created_at) AS last
+    FROM memories WHERE org_id = ? AND valid = 1 GROUP BY user_id ORDER BY n DESC`).all(org_id)
+  const notValid = db.prepare('SELECT COUNT(*) AS n FROM memories WHERE org_id = ? AND valid = 0').get(org_id).n
+  const last = db.prepare('SELECT MAX(created_at) AS t FROM memories WHERE org_id = ?').get(org_id).t
+  const pinned = db.prepare('SELECT COUNT(*) AS n FROM memories WHERE org_id = ? AND valid = 1 AND pinned = 1').get(org_id).n
+  const kind = (u) => (u === ORG_SHARED_USER_ID ? 'org-shared' : (u === 'service' || u === 'system') ? u : 'user')
+  return {
+    scope: 'org',
+    memories: {
+      total: byType.reduce((s, r) => s + r.n, 0),
+      not_valid: notValid,
+      by_type: Object.fromEntries(byType.map((r) => [r.memory_type, r.n])),
+    },
+    by_agent: Object.fromEntries(byAgent.map((r) => [r.a, r.n])),
+    by_user: byUser.map((r) => ({ user_id: r.user_id, kind: kind(r.user_id), count: r.n, agents: r.agents ? r.agents.split(',') : [], last_write_at: r.last })),
+    pinned,
+    core_memories: db.prepare('SELECT COUNT(*) AS n FROM core_memories WHERE org_id = ?').get(org_id).n,
+    last_write_at: last,
+    meaning: STATS_MEANING,
+  }
+}
+
+function pinRow(id, org_id) {
+  const row = getDatabase().prepare('SELECT * FROM memories WHERE id = ? AND org_id = ?').get(id, org_id)
+  return row ? parseMemoryRow(row) : null
+}
+
+/** Pin a memory into the org core set. Org-checked: returns null if the id is not in this org. */
+export function pinMemory({ id, org_id, by }) {
+  const db = getDatabase()
+  const r = db.prepare(`UPDATE memories SET pinned = 1, pinned_at = datetime('now'), pinned_by = ?, updated_at = datetime('now')
+    WHERE id = ? AND org_id = ?`).run(by || null, id, org_id)
+  return r.changes ? pinRow(id, org_id) : null
+}
+
+/** Unpin: the row is excluded from the core set (also from auto-promotion) until pinned again. */
+export function unpinMemory({ id, org_id }) {
+  const db = getDatabase()
+  const r = db.prepare(`UPDATE memories SET pinned = -1, pinned_at = NULL, pinned_by = NULL, updated_at = datetime('now')
+    WHERE id = ? AND org_id = ?`).run(id, org_id)
+  return r.changes ? pinRow(id, org_id) : null
+}
+
+/**
+ * The core set for one caller in one org: pinned rows first (newest pin
+ * first), then auto-promoted rows (importance, then recency). Only rows the
+ * caller may already see: their own, org-visible writers, and the agent
+ * identity users the trusted caller named. Each row carries core_reason.
+ */
+export function getCoreSet({ org_id, user_id, agent_user_ids = [], limit = 8 }) {
+  const db = getDatabase()
+  const owners = visibleOwners(user_id, agent_user_ids)
+  const marks = owners.map(() => '?').join(',')
+  const rows = db.prepare(`SELECT * FROM memories WHERE org_id = ? AND valid = 1 AND user_id IN (${marks})
+    AND COALESCE(pinned, 0) >= 0
+    AND (pinned = 1 OR memory_type IN ('decision','constraint','preference','fact'))
+    ORDER BY created_at DESC LIMIT 2000`).all(org_id, ...owners)
+  const pinned = rows.filter((r) => r.pinned === 1)
+    .sort((a, b) => String(b.pinned_at).localeCompare(String(a.pinned_at)))
+    .map((r) => ({ ...parseMemoryRow(r), core_reason: 'pinned' }))
+  const auto = rows.filter((r) => r.pinned !== 1 && autoCoreReason(r))
+    .sort((a, b) => importanceRank(b.importance) - importanceRank(a.importance) || String(b.created_at).localeCompare(String(a.created_at)))
+    .map((r) => ({ ...parseMemoryRow(r), core_reason: 'auto' }))
+  return [...pinned, ...auto].slice(0, Math.max(0, limit))
+}
+
+/**
+ * Cross-agent recall within one org (any agent_id), bm25-ranked, over rows
+ * the caller may already see (see getCoreSet). Bumps access_count, which is
+ * what lets a repeatedly recalled high fact auto-promote into the core set.
+ */
+export function recallOrg({ org_id, user_id, query, agent_user_ids = [], limit = 5 }) {
+  const fts = toRecallFtsQuery(query)
+  if (!fts) return []
+  const db = getDatabase()
+  const owners = visibleOwners(user_id, agent_user_ids)
+  const marks = owners.map(() => '?').join(',')
+  let rows
+  try {
+    rows = db.prepare(`SELECT m.*, bm25(memories_fts) AS rank FROM memories m JOIN memories_fts ON m.rowid = memories_fts.rowid
+      WHERE memories_fts MATCH ? AND m.org_id = ? AND m.valid = 1 AND m.user_id IN (${marks})
+      ORDER BY rank LIMIT ?`).all(fts, org_id, ...owners, limit)
+  } catch (err) {
+    console.warn('[Memory] recallOrg FTS failed:', err.message)
+    return []
+  }
+  const bump = db.prepare("UPDATE memories SET last_accessed_at = datetime('now'), access_count = access_count + 1 WHERE id = ?")
+  for (const r of rows) bump.run(r.id)
+  return rows.map(parseMemoryRow)
 }

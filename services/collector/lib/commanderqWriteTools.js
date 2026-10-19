@@ -314,7 +314,7 @@ const COMMANDERQ_WRITE_TOOLS = {
           ].filter(Boolean).join('\n'),
           kind: 'approval',
           priority: 'high',
-          payload: { action: 'compliance.artifact.status_change', artifact, artifact_id: id, requested_status: status, fields: fields || null, org_id: orgId },
+          payload: { action: 'compliance.artifact.status_change', artifact, artifact_id: id, requested_status: status, fields: fields || null, org_id: orgId, what: { action: 'change compliance status', target: `${artifact} ${id}`, summary: `set ${artifact} ${id} to status ${status}` } },
         });
         if (!card.ok) return { success: false, error: `Status change requires approval but filing the inbox card failed: ${card.error}` };
         return {
@@ -326,18 +326,106 @@ const COMMANDERQ_WRITE_TOOLS = {
       }
 
       try {
-        const path = `/api/v1/compliance/${artifact}/${encodeURIComponent(id)}`;
+        // #937: the PUT dropped org_id too, so a service caller's update 404'd. resolveComplianceOrgId
+        // reads req.query.org_id for a service caller; carry it on the path.
+        const path = `/api/v1/compliance/${artifact}/${encodeURIComponent(id)}${orgId ? `?org_id=${encodeURIComponent(orgId)}` : ''}`;
         let body;
         if (artifact === 'soa') {
-          body = { ...(fields && fields.controls !== undefined ? { controls: fields.controls } : fields), ...(status ? { status } : {}) };
+          // #937 follow-up: the SoA PUT applies only `controls` (replacing the WHOLE array) and `status`, and answers
+          // 200 for anything else. Merge edits by control_id into the stored controls, refuse unknown ids, verify.
+          let edits = null;
+          if (fields && Array.isArray(fields.controls)) edits = fields.controls;
+          else if (fields && Object.keys(fields).length) edits = Object.entries(fields).map(([control_id, v]) => ({ ...(v && typeof v === 'object' ? v : {}), control_id }));
+          if (edits && edits.length) {
+            const cur = await writeCollector(path, ctx, { method: 'GET' });
+            if (!cur.ok) return { success: false, error: `Could not read SoA ${id} before updating (${cur.status})`, status: cur.status };
+            const stored = ((cur.data && (cur.data.assessment || cur.data))?.controls_json) || [];
+            const ids = new Set(stored.map((c) => c.control_id));
+            const unknown = edits.map((e) => e.control_id).filter((cid) => !cid || !ids.has(cid));
+            if (unknown.length) {
+              return { success: false, error: `Not a control in SoA ${id}: ${unknown.join(', ')}. Give edits keyed by control_id, e.g. { "A.5.1": { "implementation_status": "implemented" } } (this SoA has ${ids.size} controls, ${[...ids].slice(0, 5).join(', ')}...).` };
+            }
+            const byId = new Map(edits.map((e) => [e.control_id, e]));
+            body = { controls: stored.map((c) => (byId.has(c.control_id) ? { ...c, ...byId.get(c.control_id) } : c)), ...(status ? { status } : {}) };
+          } else {
+            body = { ...(status ? { status } : {}) };
+          }
+          if (!Object.keys(body).length) return { success: false, error: 'Nothing to update: give fields (controls by control_id) and/or a status' };
+          const put = await writeCollector(path, ctx, { method: 'PUT', body });
+          if (!put.ok) return { success: false, error: `Compliance update returned ${put.status}`, status: put.status, data: put.data };
+          const row = put.data && (put.data.assessment || put.data);
+          if (body.controls) {
+            const after = new Map(((row && row.controls_json) || []).map((c) => [c.control_id, c]));
+            const landed = edits.every((e) => Object.entries(e).every(([k, v]) => JSON.stringify((after.get(e.control_id) || {})[k]) === JSON.stringify(v)));
+            if (!landed) return { success: false, error: `SoA ${id} update reported ok but the stored controls do not show the change`, data: row };
+          }
+          return { success: true, artifact, updated: row };
+        } else if (artifact === 'classification') {
+          // #937 follow-up: the classification PUT applies only `answers` (wholesale); it reads system_name for the
+          // memo, and stores it only where the route persists it. Merge answers, refuse other names, verify both.
+          const given = fields || {};
+          const unknown = Object.keys(given).filter((k) => k !== 'answers' && k !== 'system_name');
+          if (unknown.length) return { success: false, error: `Not a classification field: ${unknown.join(', ')}. Fields are: answers (object of question id -> answer), system_name.` };
+          if (given.answers === undefined && given.system_name === undefined) return { success: false, error: 'Nothing to update: give fields.answers and/or fields.system_name' };
+          const cur = await writeCollector(path, ctx, { method: 'GET' });
+          if (!cur.ok) return { success: false, error: `Could not read classification ${id} before updating (${cur.status})`, status: cur.status };
+          const stored = (cur.data && (cur.data.classification || cur.data)) || {};
+          body = {
+            ...(given.answers !== undefined ? { answers: { ...(stored.answers_json || {}), ...given.answers } } : {}),
+            ...(given.system_name !== undefined ? { system_name: given.system_name } : {}),
+          };
+          const put = await writeCollector(path, ctx, { method: 'PUT', body });
+          if (!put.ok) return { success: false, error: `Compliance update returned ${put.status}`, status: put.status, data: put.data };
+          const row = put.data && (put.data.classification || put.data);
+          const missed = [];
+          if (body.answers && JSON.stringify((row && row.answers_json) || {}) !== JSON.stringify(body.answers)) missed.push('answers');
+          if (body.system_name !== undefined && (row && row.system_name) !== body.system_name) missed.push('system_name');
+          if (missed.length) return { success: false, error: `Classification ${id} update reported ok but the stored record does not show: ${missed.join(', ')}`, data: row };
+          return { success: true, artifact, updated: row };
         } else if (artifact === 'dpia') {
-          body = { ...(fields && fields.sections !== undefined ? { sections: fields.sections } : fields), ...(status ? { status } : {}) };
-        } else {
-          body = { ...(fields || {}) };
+          // #937: the DPIA PUT applies only `sections` (replacing the whole JSON) and `status`, and answers
+          // 200 for anything else, so a field like { description: { system_name } } used to be dropped with a
+          // success. Merge the given section fields into the STORED sections, refuse names that are not
+          // sections, and confirm the write landed.
+          // sections_json is the key compliance_read returns; a model that round-trips it means sections.
+          let given = fields && fields.sections !== undefined ? fields.sections
+            : fields && fields.sections_json !== undefined ? fields.sections_json : fields;
+          // A model may round-trip the sections as a JSON string; parse it, never iterate its characters.
+          if (typeof given === 'string') {
+            try { given = JSON.parse(given); } catch { return { success: false, error: 'DPIA sections given as a string that is not valid JSON. Give an object, e.g. { "description": { "system_name": "..." } }.' }; }
+            if (!given || typeof given !== 'object' || Array.isArray(given)) return { success: false, error: 'DPIA sections must be an object keyed by section, e.g. { "description": { "system_name": "..." } }.' };
+          }
+          if (given && Object.keys(given).length) {
+            const cur = await writeCollector(path, ctx, { method: 'GET' });
+            if (!cur.ok) return { success: false, error: `Could not read DPIA ${id} before updating (${cur.status})`, status: cur.status };
+            const stored = (cur.data && (cur.data.dpia || cur.data))?.sections_json || {};
+            const unknown = Object.keys(given).filter((k) => !(k in stored));
+            if (unknown.length) {
+              return { success: false, error: `Not a DPIA section: ${unknown.join(', ')}. Sections are: ${Object.keys(stored).join(', ')}. Put a field inside its section, e.g. { "description": { "system_name": "..." } }.` };
+            }
+            const merged = { ...stored };
+            for (const [k, v] of Object.entries(given)) {
+              merged[k] = v && typeof v === 'object' && !Array.isArray(v) && stored[k] && typeof stored[k] === 'object' && !Array.isArray(stored[k])
+                ? { ...stored[k], ...v } : v;
+            }
+            body = { sections: merged, ...(status ? { status } : {}) };
+          } else {
+            body = { ...(status ? { status } : {}) };
+          }
+          if (!Object.keys(body).length) return { success: false, error: 'Nothing to update: give fields (DPIA sections) and/or a status' };
+          const put = await writeCollector(path, ctx, { method: 'PUT', body });
+          if (!put.ok) return { success: false, error: `Compliance update returned ${put.status}`, status: put.status, data: put.data };
+          const row = put.data && (put.data.dpia || put.data);
+          if (body.sections) {
+            const after = row && row.sections_json;
+            const landed = after && Object.entries(given).every(([k, v]) => JSON.stringify(after[k]) === JSON.stringify(body.sections[k]));
+            if (!landed) return { success: false, error: `DPIA ${id} update reported ok but the stored sections do not show the change`, data: row };
+          }
+          return { success: true, artifact, updated: row };
         }
-        const { ok, status: httpStatus, data } = await writeCollector(path, ctx, { method: 'PUT', body });
-        if (!ok) return { success: false, error: `Compliance update returned ${httpStatus}`, status: httpStatus, data };
-        return { success: true, artifact, updated: (data && (data.assessment || data.dpia || data.classification)) || data };
+        // unreachable: the artifact enum (soa | dpia | classification) is checked at the top, and each branch
+        // above returns after verifying its own write. No generic forward-and-trust PUT remains.
+        return { success: false, error: `Unknown artifact "${artifact}"` };
       } catch (err) {
         return { success: false, error: err.message };
       }
@@ -366,6 +454,18 @@ const COMMANDERQ_WRITE_TOOLS = {
       const { name, category, effect, reason } = input;
       if (!name || !category || !effect) return { success: false, error: 'name, category and effect are all required' };
       if (!reason || !String(reason).trim()) return { success: false, error: 'reason is required' };
+      // #975: dry-run the SAME validator the policy store uses so we never file a proposal a human
+      // cannot create from the dashboard. A proposal with an invalid category, a missing integer
+      // priority, or missing conditions/scope was filed happily and then rejected on create.
+      const candidate = { name, category, effect, scope: input.scope, conditions: input.conditions, priority: input.priority };
+      const v = require('./policyStore.js').validatePolicy(candidate);
+      if (!v.valid) {
+        return {
+          success: false,
+          error: 'The proposed policy failed validation and was NOT filed; fix these fields and propose again (a human could not create it as filed).',
+          validation_errors: v.errors,
+        };
+      }
       const orgId = resolveToolOrgId(ctx, input);
       const extraFields = { ...input };
       delete extraFields.name; delete extraFields.category; delete extraFields.effect; delete extraFields.reason; delete extraFields.org_id;
@@ -389,7 +489,7 @@ const COMMANDERQ_WRITE_TOOLS = {
         ].filter(Boolean).join('\n'),
         kind: 'approval',
         priority: 'high',
-        payload: { action: 'governance.policy.create_proposed', name, category, effect, reason, org_id: orgId, ...extraFields },
+        payload: { action: 'governance.policy.create_proposed', name, category, effect, reason, org_id: orgId, ...extraFields, what: { action: 'create governance policy', target: `policy ${name}`, summary: `create ${effect} policy "${name}" (${category})` } },
       });
 
       if (!card.ok) return { success: false, error: `Failed to file policy proposal: ${card.error}` };

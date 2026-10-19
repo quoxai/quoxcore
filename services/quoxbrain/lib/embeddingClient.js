@@ -508,9 +508,38 @@ function queryCacheKey(orgId, query, model) {
   return `${orgId || ''}\u0000${model || ''}\u0000${String(query).toLowerCase().replace(/\s+/g, ' ').trim()}`
 }
 
+// Circuit breaker (2026-10-15, SITE-CLI/HYPERION): with the provider on 429
+// (quota gone) every /brain/context still waited the full interactive bound
+// for a vector that never came, so the collector's 2.5s BrainImplant timed out
+// on EVERY turn. Per org: after BREAKER_THRESHOLD straight failures, query
+// embeds are skipped (sparse only, at once) for a cooldown that doubles on each
+// failed probe, capped. One success closes it. Cache hits are still served.
+const BREAKER_THRESHOLD = 3
+const BREAKER_BASE_MS = 60 * 1000
+const BREAKER_MAX_MS = 10 * 60 * 1000
+const queryEmbedBreaker = new Map() // orgId -> { fails, openUntil, cooldownMs }
+
+function breakerState(orgId) {
+  const k = orgId || ''
+  let b = queryEmbedBreaker.get(k)
+  if (!b) { b = { fails: 0, openUntil: 0, cooldownMs: 0 }; queryEmbedBreaker.set(k, b) }
+  return b
+}
+
+function breakerRecord(orgId, ok, now) {
+  const b = breakerState(orgId)
+  if (ok) { b.fails = 0; b.openUntil = 0; b.cooldownMs = 0; return }
+  b.fails += 1
+  if (b.fails < BREAKER_THRESHOLD) return
+  b.cooldownMs = b.cooldownMs ? Math.min(b.cooldownMs * 2, BREAKER_MAX_MS) : BREAKER_BASE_MS
+  b.openUntil = now() + b.cooldownMs
+  console.warn(`[embeddingClient] query embeds failing (${b.fails} in a row, org=${orgId || '-'}); skipping them for ${Math.round(b.cooldownMs / 1000)}s, sparse-only meanwhile`)
+}
+
 export function _resetQueryEmbedCache() {
   queryEmbedCache.clear()
   queryEmbedInflight.clear()
+  queryEmbedBreaker.clear()
 }
 
 /**
@@ -528,6 +557,10 @@ export async function embedQueryCached(query, deps = {}) {
   }
   if (hit) queryEmbedCache.delete(key)
 
+  const clock = typeof deps.now === 'function' ? deps.now : Date.now
+  const brk = breakerState(deps.orgId)
+  if (brk.openUntil > clock()) return { vectors: [], models: [], skipped: 'embed_breaker_open' }
+
   // In-flight dedup (BRAIN2-AUDIT 2026-10-05): a cold embed takes 4-5s, longer
   // than the 1.5s interactive bound, so repeats of the same new query inside
   // that window each started a FRESH upstream embed, each timing out at 1.5s,
@@ -541,9 +574,12 @@ export async function embedQueryCached(query, deps = {}) {
       const ttl = Number.isFinite(deps.cacheTtlMs) ? deps.cacheTtlMs : QUERY_CACHE_TTL_MS
       queryEmbedCache.set(key, { vector, model: res.models?.[0] ?? null, expiresAt: Date.now() + ttl })
       while (queryEmbedCache.size > max) queryEmbedCache.delete(queryEmbedCache.keys().next().value)
+      breakerRecord(deps.orgId, true, clock)
+    } else {
+      breakerRecord(deps.orgId, false, clock)
     }
     return res
-  }).finally(() => { queryEmbedInflight.delete(key) })
+  }, (err) => { breakerRecord(deps.orgId, false, clock); throw err }).finally(() => { queryEmbedInflight.delete(key) })
   if (!pending) queryEmbedInflight.set(key, embedding)
 
   // Interactive bound (BRAIN2-AUDIT 2026-10-05): a cold query embed took

@@ -139,9 +139,31 @@ async function fetchCustomAssistantOrgScoped({ orgId, agentId, fetchFn, authServ
     headers: { 'X-Service-Key': serviceKey, 'X-Org-Id': orgId || '' },
     signal: AbortSignal.timeout(timeoutMs),
   });
-  if (!resp.ok) return null; // includes the cross-org / unknown-id 404 — same shape either way
+  // HYPERION NO-GO fix (2026-10-16): only a 404 is a definite "no" (cross-org, unknown, retired).
+  // Any other non-ok (401/500/503...) THROWS, so no caller can read an auth outage as an answer.
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`auth answered ${resp.status}`);
   const data = await resp.json();
   return data && typeof data === 'object' && typeof data.id === 'string' ? data : null;
+}
+
+// quox#1170: a user-made agent (`quox agent create`, auth agents table) is asked about the same
+// way, against its own org-scoped endpoint: 200 only for an ACTIVE, non-built-in agent of that
+// slug IN the caller's org.
+async function fetchOrgAgentOrgScoped({ orgId, agentId, fetchFn, authServiceUrl = AUTH_URL_DEFAULT, timeoutMs = CUSTOM_AGENT_FETCH_TIMEOUT_MS }) {
+  const doFetch = fetchFn || globalThis.fetch;
+  const serviceKey = process.env.INTERNAL_SERVICE_KEY || '';
+  const url = `${authServiceUrl}/api/internal/org-agents/${encodeURIComponent(agentId)}?org_id=${encodeURIComponent(orgId || '')}`;
+  const resp = await doFetch(url, {
+    headers: { 'X-Service-Key': serviceKey, 'X-Org-Id': orgId || '' },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  // HYPERION NO-GO fix (2026-10-16): only a 404 is a definite "no" (cross-org, unknown, retired).
+  // Any other non-ok (401/500/503...) THROWS, so no caller can read an auth outage as an answer.
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`auth answered ${resp.status}`);
+  const data = await resp.json();
+  return data && typeof data === 'object' && data.org_id === orgId && data.status === 'active' ? data : null;
 }
 
 const CUSTOM_AGENT_CACHE_TTL_MS = 15000;
@@ -165,25 +187,57 @@ function _customAgentCacheSet(key, known) {
 function clearCustomAgentCache() {
   customAgentCache.clear();
   residentAgentCache.clear();
+  orgAgentCache.clear();
 }
 
-async function isKnownCustomOrgAgent({ orgId, agentId, fetchFn } = {}) {
-  if (!orgId || !agentId || typeof agentId !== 'string') return false;
+// Journey #3 (2026-10-19): a REAL agent was refused "unknown agent in JWT claim" when this lookup timed out during
+// an event-loop stall (the 2 s timeout, fail closed). One retry after a short pause; when auth still cannot answer
+// the result carries the error, so the caller can say "could not verify" instead of "unknown". Still fails closed.
+const CUSTOM_AGENT_RETRY_MS = 250;
+async function checkCustomOrgAgent({ orgId, agentId, fetchFn } = {}) {
+  if (!orgId || !agentId || typeof agentId !== 'string') return { known: false, error: null };
   const key = `${orgId}::${agentId}`;
   const cached = _customAgentCacheGet(key);
-  if (cached !== undefined) return cached;
-  try {
-    const assistant = await fetchCustomAssistantOrgScoped({ orgId, agentId, fetchFn });
-    const known = !!assistant;
-    _customAgentCacheSet(key, known);
-    return known;
-  } catch (err) {
-    console.error(`[agentIdResolver] custom-org agent check failed (org=${orgId}, agent=${agentId}): ${err.message}`);
-    // Fail CLOSED: an unreachable auth service must never widen who counts
-    // as a known agent. Not cached — a transient outage should not poison
-    // the next call once auth recovers.
-    return false;
+  if (cached !== undefined) return { known: cached, error: null };
+  let lastErr = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, CUSTOM_AGENT_RETRY_MS));
+    try {
+      const assistant = await fetchCustomAssistantOrgScoped({ orgId, agentId, fetchFn });
+      const known = !!assistant || !!(await fetchOrgAgentOrgScoped({ orgId, agentId, fetchFn }));
+      _customAgentCacheSet(key, known);
+      return { known, error: null };
+    } catch (err) {
+      lastErr = err;
+      console.error(`[agentIdResolver] custom-org agent check failed (org=${orgId}, agent=${agentId}, attempt ${attempt + 1}/2): ${err.message}`);
+    }
   }
+  // Fail CLOSED: an unreachable auth service must never widen who counts as a known agent. Not cached, so a
+  // transient outage does not poison the next call once auth recovers.
+  return { known: false, error: String((lastErr && (lastErr.name === 'TimeoutError' ? `timeout: ${lastErr.message}` : lastErr.message)) || 'auth did not answer') };
+}
+
+async function isKnownCustomOrgAgent(args = {}) {
+  return (await checkCustomOrgAgent(args)).known === true;
+}
+
+/**
+ * quox#1171: is this a USER-MADE agent (auth agents table, non-built-in, active) in this org?
+ * Unlike isKnownCustomOrgAgent this THROWS when auth cannot answer, so a caller that restricts
+ * user-made agents (slot_say) can fail closed instead of mistaking an outage for "not user-made".
+ * Only definite answers are cached.
+ */
+const orgAgentCache = new Map(); // `${orgId}::${agentId}` -> { known, expires }
+async function isUserMadeOrgAgent({ orgId, agentId, fetchFn } = {}) {
+  if (!orgId || !agentId || typeof agentId !== 'string') return false;
+  // A tenant row may share a built-in's id (ids are unique per org only); the built-in is never shadowed.
+  if (isKnownAgent(aliasAgentId(agentId))) return false;
+  const key = `${orgId}::${agentId}`;
+  const hit = orgAgentCache.get(key);
+  if (hit && Date.now() <= hit.expires) return hit.known;
+  const known = !!(await fetchOrgAgentOrgScoped({ orgId, agentId, fetchFn }));
+  orgAgentCache.set(key, { known, expires: Date.now() + CUSTOM_AGENT_CACHE_TTL_MS });
+  return known;
 }
 
 const RESIDENT_AGENT_CACHE_TTL_MS = 15000;
@@ -215,7 +269,10 @@ async function fetchResidentIdentityOrgScoped({ orgId, agentId, fetchFn, authSer
     headers: { 'X-Service-Key': serviceKey, 'X-Org-Id': orgId || '' },
     signal: AbortSignal.timeout(timeoutMs),
   });
-  if (!resp.ok) return null; // 404 = revoked / cross-org / unknown — same shape
+  // HYPERION NO-GO fix (2026-10-16): only a 404 is a definite "no" (cross-org, unknown, retired).
+  // Any other non-ok (401/500/503...) THROWS, so no caller can read an auth outage as an answer.
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`auth answered ${resp.status}`);
   const data = await resp.json();
   return data && typeof data === 'object' && data.status === 'active' && typeof data.id === 'string' ? data : null;
 }
@@ -282,9 +339,13 @@ async function resolveCallerAgentIdAsync(req, opts = {}) {
       }
     }
 
-    const known = await isKnownCustomOrgAgent({ orgId, agentId: jwtAgentClaim, fetchFn: opts.fetchFn });
-    if (known) {
+    const check = await checkCustomOrgAgent({ orgId, agentId: jwtAgentClaim, fetchFn: opts.fetchFn });
+    if (check.known) {
       return { ok: true, agentId: jwtAgentClaim };
+    }
+    if (check.error) {
+      // still refused, but never reported as "unknown": auth could not answer, so a retry may succeed
+      return { ok: false, agentId: null, error: `could not verify agent ${jwtAgentClaim} right now (auth lookup failed: ${check.error}); nothing ran, retry` };
     }
   }
 
@@ -296,6 +357,7 @@ module.exports = {
   resolveCallerAgentIdAsync,
   isKnownAgent,
   isKnownCustomOrgAgent,
+  isUserMadeOrgAgent,
   isKnownResidentAgent,
   clearCustomAgentCache,
 };

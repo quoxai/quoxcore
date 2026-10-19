@@ -4,7 +4,7 @@
  * never disagree. Only commands that can work here are bright; anything this session cannot run is
  * dim with the reason. Planned commands stay hidden unless typed exactly.
  */
-import { REGISTRY } from '../commands.js';
+import { REGISTRY, entryVisible } from '../commands.js';
 
 export const PALETTE_MAX = 8;
 
@@ -25,7 +25,7 @@ export function unavailableReason(entry, { api = {}, caps = null, blocked = null
   const cap = caps ? caps[entry.cap || entry.id] : null;
   if (cap && cap.available === false) return cap.reason || 'not available on this server';
   for (const m of entry.needs || []) if (typeof api[m] !== 'function') return 'not available in this mode';
-  if (blocked && entry.server) return 'not signed in';
+  if (blocked && entry.server) return '(sign in)';
   return null;
 }
 
@@ -44,11 +44,12 @@ export function capabilityMap(res) {
 
 /** All palette rows for this session, registry order. */
 export function paletteItems(ctx = {}, registry = REGISTRY) {
-  return registry.filter(e => e.kind === 'command').map(e => ({
+  return registry.filter(e => e.kind === 'command' && entryVisible(e)).map(e => ({
     id: e.id,
     name: '/' + e.id,
     usage: e.usage,
-    desc: e.desc,
+    desc: e.short || e.desc, // the palette row is short (commandShort.js); the long wording is searched and shown by /help
+    longDesc: e.desc,
     aliases: (e.aliases || []).map(a => '/' + a),
     planned: e.status === 'planned',
     disabled: e.status === 'planned' ? 'planned, not built yet' : unavailableReason(e, ctx)
@@ -73,13 +74,26 @@ export function fuzzy(q, s) {
 export function filterPalette(items, query) {
   const q = String(query ?? '').toLowerCase();
   const exact = (it) => it.id === q || it.aliases.includes('/' + q);
+  const wordStart = (text) => q.length >= 2 && new RegExp('(^|[^a-z0-9])' + q.replace(/[^a-z0-9]/g, '\\$&')).test(String(text).toLowerCase());
   const scored = [];
   items.forEach((it, idx) => {
     if (it.planned && !exact(it)) return;
-    const names = [it.id, ...it.aliases.map(a => a.slice(1))];
+    // Rank: exact, prefix of the name, prefix of an alias, inside a name, a word in the description at a word start,
+    // then fuzzy subsequence, then any other mention in the description.
     let best = null;
-    for (const n of names) { const sc = fuzzy(q, n); if (sc != null && (best == null || sc < best)) best = sc; }
-    if (best == null && q.length >= 3 && it.desc.toLowerCase().includes(q)) best = 500; // words in the description
+    const long = it.longDesc || it.desc;
+    const nameSc = fuzzy(q, it.id);
+    if (nameSc === 0) best = 0;
+    else if (it.aliases.some(a => a.slice(1).toLowerCase().startsWith(q))) best = 1;
+    else if (nameSc != null && nameSc < 100) best = nameSc; // a substring of the name (10 + position)
+    else {
+      for (const a of it.aliases) { const sc = fuzzy(q, a.slice(1)); if (sc != null && sc < 100 && (best == null || sc < best)) best = sc; }
+      if (best == null && wordStart(long)) best = 60;
+      if (best == null) { // fuzzy subsequence of the name or an alias
+        for (const n of [it.id, ...it.aliases.map(a => a.slice(1))]) { const sc = fuzzy(q, n); if (sc != null && (best == null || sc < best)) best = sc; }
+      }
+      if (best == null && q.length >= 3 && long.toLowerCase().includes(q)) best = 500;
+    }
     if (best == null) return;
     if (exact(it)) best = -1;
     if (it.disabled) best += 0.5; // a working command outranks an unavailable one on a tie

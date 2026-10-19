@@ -8,6 +8,7 @@
 import { Context, Next } from 'hono';
 import jwt from 'jsonwebtoken';
 import { AuthUser } from '../types.js';
+import type { ApproverPrincipal } from '../../approval/approval-engine.js';
 
 // Environment configuration — read lazily to allow runtime configuration
 // and to make testing easier. No hardcoded fallback (the previous
@@ -67,8 +68,34 @@ function checkServiceKey(header: string | undefined): AuthUser | null {
 }
 
 /**
+ * quoxflow#14: the same agent markers QuoxCORE's shared principal classifier uses
+ * (services/shared/principal.cjs). Fail closed: any marker makes the token an agent, so a
+ * resident identity token carrying an org role still never reads as a human.
+ */
+function isAgentClaims(payload: Record<string, unknown>): boolean {
+  return !!(payload.agent_id || payload.actor_type === 'agent' || payload.actor_type === 'plugin'
+    || payload.agent_ops || payload.attach_lease_id);
+}
+
+/**
+ * quoxflow#14: the verified approver principal for org role groups. Only a JWT caller has one;
+ * a service-key caller has no verified org role, so it can never satisfy org:admins / org:members.
+ */
+export function approverPrincipal(user: AuthUser | undefined): ApproverPrincipal | undefined {
+  if (!user || user.type !== 'access') return undefined;
+  return { userId: user.user_id, orgId: user.org_id, role: user.role, isAgent: user.isAgent !== false };
+}
+
+/**
  * Verify a JWT token using the shared secret
  */
+/**
+ * Audiences quoxflow accepts (RunActor slice 3, FND_01M597EWP89CFEGA3T0B9CFEGA part 2): EMPTY, default deny. A token
+ * that names any audience (e.g. a collector per-turn tool credential, aud 'quox:tools-execute') was minted for another
+ * service and is refused here; a future quoxflow audience is one reviewed entry.
+ */
+export const ACCEPTED_AUDIENCES: ReadonlySet<string> = new Set<string>();
+
 function verifyJwt(token: string): AuthUser | null {
   const secret = getJwtSecret();
   if (!secret) {
@@ -80,6 +107,13 @@ function verifyJwt(token: string): AuthUser | null {
     const payload = jwt.verify(token, secret, { algorithms: ['HS256'] }) as Record<string, unknown>;
 
     if (!payload || typeof payload !== 'object') return null;
+    // FND_01M597EWP89CFEGA3T0B9CFEGA: only an ACCESS token is a login. A refresh token (type 'refresh', same secret,
+    // 7-day default) or any other typed token is refused, as the memory service does. No type claim = legacy access.
+    if (payload.type !== undefined && payload.type !== 'access') return null;
+    if (payload.aud !== undefined) {
+      const auds = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+      if (!auds.every((a) => typeof a === 'string' && ACCEPTED_AUDIENCES.has(a))) return null;
+    }
 
     return {
       user_id: (payload.user_id as string) || (payload.sub as string) || 'unknown',
@@ -87,6 +121,7 @@ function verifyJwt(token: string): AuthUser | null {
       org_id: payload.org_id as string | undefined,
       role: payload.role as string | undefined,
       type: 'access',
+      isAgent: isAgentClaims(payload),
     };
   } catch {
     return null;

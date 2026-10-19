@@ -27,6 +27,23 @@ function unwrapVoltBundle(data) {
   return bundle;
 }
 
+/**
+ * quox#935: a bundle is ONE JSON object carrying `manifest` and/or
+ * `events_ndjson`. An events NDJSON file also starts with '{' on every line,
+ * so a first-character check took every NDJSON file for a bundle and the
+ * whole-file JSON.parse failed. Decide by parsing instead.
+ */
+export function looksLikeBundle(raw) {
+  try {
+    const p = JSON.parse(raw);
+    return !!p && typeof p === 'object' && !Array.isArray(p) && ('manifest' in p || 'events_ndjson' in p);
+  } catch {
+    return false;
+  }
+}
+
+const ndjsonEvents = (raw) => raw.trim().split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
+
 export function registerVoltCommands(program, ctx = {}) {
   const { client, auth } = ctx;
 
@@ -47,7 +64,7 @@ export function registerVoltCommands(program, ctx = {}) {
       const raw = await readFile(file, 'utf8');
 
       // Detect if this is a bundle (JSON with manifest) or raw NDJSON
-      const isBundle = raw.trimStart().startsWith('{');
+      const isBundle = looksLikeBundle(raw);
 
       if (isBundle) {
         // fleet #447: a persisted per-run bundle can be manifest_only (no
@@ -190,7 +207,7 @@ export function registerVoltCommands(program, ctx = {}) {
     .option('--manifest', 'show bundle manifest only')
     .action(async (file, options) => {
       const raw = await readFile(file, 'utf8');
-      const isBundle = raw.trimStart().startsWith('{');
+      const isBundle = looksLikeBundle(raw);
 
       let events;
       let manifest = null;
@@ -432,9 +449,34 @@ export function registerVoltCommands(program, ctx = {}) {
   volt
     .command('summary')
     .description('Quick summary of a bundle (no verification)')
-    .argument('<file>', 'path to bundle JSON file')
+    .argument('<file>', 'path to bundle JSON or events NDJSON file')
     .action(async (file) => {
       const raw = await readFile(file, 'utf8');
+      // quox#935: an events NDJSON file gets a chain summary instead of a crash.
+      if (!looksLikeBundle(raw)) {
+        let evs;
+        try { evs = ndjsonEvents(raw); } catch {
+          printWarning('File is neither a VOLT evidence bundle nor an events NDJSON file');
+          process.exitCode = 1;
+          return;
+        }
+        const counts = {};
+        for (const ev of evs) counts[ev.event_type] = (counts[ev.event_type] || 0) + 1;
+        console.log('');
+        console.log(chalk.bold(`VOLT NDJSON Chain Summary (${evs.length} events)`));
+        console.log(chalk.gray('─'.repeat(40)));
+        console.log(`  Run ID:     ${chalk.cyan(evs[0]?.run_id || 'N/A')}`);
+        console.log(`  Events:     ${evs.length} events`);
+        if (Object.keys(counts).length > 0) {
+          console.log('');
+          console.log(chalk.bold('  Event Types:'));
+          for (const [type, count] of Object.entries(counts).sort((a, b) => b[1] - a[1])) {
+            console.log(`    ${String(count).padStart(4)}  ${type}`);
+          }
+        }
+        console.log('');
+        return;
+      }
       const parsed = JSON.parse(raw);
 
       if (!parsed.manifest) {

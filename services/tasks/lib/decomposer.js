@@ -5,6 +5,7 @@ import { emitProgress } from './progress.js'
 import { createTaskEnvelope, TASK_INTENTS } from './envelopes.js'
 import { getTeamDefinition } from './teamLoader.js'
 import { selectBestAgent } from './agentSelector.js'
+import { inferDomainFromTitle } from './agentScorer.js'
 import { scorePriority } from './priorityScorer.js'
 import { isPluginLicensed } from './licenseGate.js'
 import { fetchAgentCapabilities, buildAgentListWithTools, applyToolAwareAssignment, STATIC_CAPABILITY_SNAPSHOT } from './agentCapabilities.js'
@@ -81,22 +82,6 @@ async function getFleetHostCount() {
   return null
 }
 
-// AT-3: Simple domain inference from task title keywords
-function inferDomainFromTitle(title) {
-  const t = (title || '').toLowerCase()
-  if (t.match(/security|audit|scan|vuln|cve|firewall/)) return 'security'
-  if (t.match(/deploy|docker|ci|cd|build|release/)) return 'devops'
-  if (t.match(/network|dns|route|vpn|ssl|cert/)) return 'network'
-  if (t.match(/monitor|metric|alert|health|status/)) return 'monitoring'
-  if (t.match(/database|sql|migration|backup|restore/)) return 'database'
-  if (t.match(/test|qa|quality|validate|verify/)) return 'testing'
-  if (t.match(/api|rest|graphql|endpoint/)) return 'api'
-  if (t.match(/frontend|ui|react|css|component/)) return 'frontend'
-  if (t.match(/backend|server|service/)) return 'backend'
-  if (t.match(/doc|readme|changelog|report/)) return 'documentation'
-  if (t.match(/browser|website|web page|screenshot|scrape|fill form|login to|navigate to|extract from.*site|download.*from|monitor.*site|open.*url/)) return 'web-automation'
-  return 'general'
-}
 const INTERNAL_SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || ''
 
 // MACH-FOLLOWUP WI-A: structured form of the agent list (agentId +

@@ -171,6 +171,24 @@ function listEnrolledOrgs({ dbPath } = {}) {
 }
 
 /**
+ * BRAIN2-FABLE11: enabled rows of the given source types across all orgs, with
+ * parsed config. Feeds the folder watch manager (feedFolderWatcher.js).
+ * Returns [] when the store is unavailable.
+ */
+function listEnabledSources(sourceTypes, { dbPath } = {}) {
+  const db = resolveDb(dbPath);
+  if (!db || !Array.isArray(sourceTypes) || sourceTypes.length === 0) return [];
+  try {
+    const marks = sourceTypes.map(() => '?').join(',');
+    return db.prepare(`SELECT org_id, source_type, config FROM feed_sources WHERE enabled = 1 AND source_type IN (${marks})`).all(...sourceTypes)
+      .map((r) => ({ orgId: r.org_id, sourceType: r.source_type, config: r.config }));
+  } catch (err) {
+    console.error(`[FeedWatermark] listEnabledSources failed: ${err.message}`);
+    return [];
+  }
+}
+
+/**
  * Upserts a feed_sources row. `fields` may set any subset of
  * {scope, enabled, config, last_sync, last_status, last_count} — omitted
  * fields keep their existing value (or the column default on first
@@ -318,6 +336,7 @@ module.exports = {
   getSource,
   upsertSource,
   listEnrolledOrgs,
+  listEnabledSources,
   parseCursor,
   isAfterCursor,
   compareByTsId,

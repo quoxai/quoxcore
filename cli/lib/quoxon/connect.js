@@ -13,7 +13,8 @@
  * the composer buffer or history, never sent to the chat stream, never written to a transcript.
  */
 
-import { consentCovers, connectConsentNote, needsConsent } from './consent.js';
+import { askText } from './ask.js';
+import { consentCovers, connectConsentNote, needsConsent, providerLabel } from './consent.js';
 import { providerState, SUBSCRIPTION_NAME } from './providers.js';
 import { isLoopbackUrl, detectLanIp } from './hostUrls.js';
 import { cmd } from './palette.js';
@@ -222,6 +223,9 @@ export async function connectFlow(api, providerId, secret, extra) {
   return { ok: true, provider: p.id, last4, text: `✔ ${p.name} connected · key …${last4} · tested`, ...(p.disclosure ? { disclosure: p.disclosure } : {}) };
 }
 
+/** QUOXON-Z2H lane R: the one consent question asked after a cloud connect. Default No: cloud processing stays opt-in. */
+export const consentAskLine = (type) => askText(`Allow Quox to send your conversations to ${providerLabel(type)}?`, { keys: 'y/N', who: 'Quox', action: `send your messages and any tool results to ${providerLabel(type)}, a third party, when it answers`, reason: 'Nothing is sent until you say yes; withdraw it any time in Settings > Privacy.' }) // no consent yet: nothing to chat with;
+
 // ---- card controller ---------------------------------------------------------------------------
 /**
  * Owns the open card and its secret box. The app routes every input event here while the card is
@@ -244,16 +248,65 @@ export function createConnectController({ api, note, emit, refresh }) {
       emit({ type: 'connect.saved', provider: p.id, last4: r.last4 });
       note(r.text, 'ok');
       if (r.disclosure) note(r.disclosure, 'warn');
-      if (needsConsent(p.type) && api.consentStatus) { // never meet the consent error cold: say now whether your OK is in place
-        let rec = null; try { rec = await api.consentStatus(); } catch { rec = null; }
-        if (!consentCovers(rec, p.type)) note(connectConsentNote(p.type), 'warn');
-      }
       note('Your next turns can use it. Servers cache keys briefly, so allow up to a minute.');
+      await askConsent(p.type); // never meet the consent error cold: ask now, once
       return;
     }
     card.phase = 'input'; card.error = r.text; refresh();
   }
+  /**
+   * QUOXON-Z2H lane R: when `type` is a cloud provider and this user's OK is not in place, open the card on
+   * the consent question. y records it (the user's own direct act, POST /api/consent); anything else leaves
+   * it off and says how to give it later. -> true when the question opened.
+   */
+  async function askConsent(type) {
+    if (!needsConsent(type) || !api.consentStatus) return false;
+    let rec = null; try { rec = await api.consentStatus(); } catch { rec = null; }
+    if (consentCovers(rec, type)) return false;
+    if (!api.grantConsent) { note(connectConsentNote(type), 'warn'); return false; }
+    box.clear();
+    card = { provider: providerFor(type) || Object.values(PROVIDERS).find((x) => x.type === type) || { id: type, type, name: providerLabel(type) }, phase: 'consent', consentType: type, error: null, question: consentAskLine(type) };
+    refresh();
+    return true;
+  }
+  async function answerConsent(yes) {
+    const type = card.consentType;
+    if (!yes) { close(); note(`Left off: nothing goes to ${providerLabel(type)} until you say so. ${connectConsentNote(type)}`, 'warn'); return; }
+    card.phase = 'saving'; refresh();
+    try {
+      await api.grantConsent(type);
+      close(); note(`✔ Your OK is recorded: ${providerLabel(type)} can now answer. Withdraw it any time: quox consent list, or Settings > Privacy.`, 'ok');
+    } catch (e) {
+      close(); note(`Quox could not record your OK (${e?.message || e}). Nothing was sent. Try /consent grant ${type}.`, 'warn');
+    }
+  }
+  /**
+   * #1288: "Connect to <host>? It's on your private network." y/N. y runs offer.retry() (the save with a
+   * confirm for that exact origin) and hands its result to after(); n, Enter or Esc saves nothing.
+   */
+  function askPrivate(offer, after) {
+    box.clear();
+    card = {
+      provider: PROVIDERS.ollama || { id: 'ollama', type: 'ollama', name: 'Ollama' },
+      phase: 'private', error: null, privateOffer: offer, privateAfter: after,
+      question: askText(`Connect to ${offer.host}?`, { keys: 'y/N', who: 'Quox', reason: "It's on your private network", action: `save ${offer.origin} as your org's Ollama. Only this address is allowed, after the server checks it answers as Ollama. Needs an org admin.` })
+    };
+    refresh();
+    return true;
+  }
+  async function answerPrivate(yes) {
+    const { privateOffer: offer, privateAfter: after } = card;
+    if (!yes) { close(); note(`Left blocked: ${offer.host} was not connected. Nothing was saved.`); return; }
+    card.phase = 'saving'; refresh();
+    let r;
+    try { r = await offer.retry(); } catch (e) { r = { ok: false, lines: [[`✖ ${e?.message || e}. Nothing was saved.`, 'warn']] }; }
+    close();
+    for (const [t, tone] of r.lines || []) note(t, tone);
+    if (after) await after(r);
+  }
   return {
+    askConsent,
+    askPrivate,
     isOpen: () => Boolean(card),
     view: () => (card ? { card: { ...card }, mask: box.mask() } : null),
     /** -> true when a card opened. */
@@ -279,6 +332,16 @@ export function createConnectController({ api, note, emit, refresh }) {
     onEvent(e) {
       if (!card) return false;
       if (card.phase === 'saving') return true;
+      if (card.phase === 'private') {
+        if (e.type === 'text' && /^y(es)?$/i.test(String(e.text).trim())) { answerPrivate(true); return true; }
+        if ((e.type === 'text' && /^n(o)?$/i.test(String(e.text).trim())) || (e.type === 'key' && ['enter', 'escape', 'ctrl-c'].includes(e.name))) { answerPrivate(false); return true; }
+        return true; // the question takes only y or n
+      }
+      if (card.phase === 'consent') {
+        if (e.type === 'text' && /^y(es)?$/i.test(String(e.text).trim())) { answerConsent(true); return true; }
+        if ((e.type === 'text' && /^n(o)?$/i.test(String(e.text).trim())) || (e.type === 'key' && ['enter', 'escape', 'ctrl-c'].includes(e.name))) { answerConsent(false); return true; }
+        return true; // the question takes only y or n
+      }
       if (e.type === 'paste') { box.paste(e.text); card.error = null; refresh(); return true; }
       if (e.type === 'text') { box.type(e.text); card.error = null; refresh(); return true; }
       if (e.type !== 'key') return true;
@@ -431,7 +494,7 @@ export function ollamaSetupCard(lan) {
  * write as the org default: { base_url, default_model, allow_private_origin? }. A private address is
  * allow-listed only for the exact origin probed. -> { ok, lines: [[text, tone?]] }
  */
-export async function connectOllamaFlow(api, rest, { retried = false } = {}) {
+export async function connectOllamaFlow(api, rest, { retried = false, confirmOrigin = null } = {}) {
   const { url, model } = parseOllamaArg(rest);
   if (!url) return { ok: false, lines: ollamaSetupCard((api.lanIp ? api.lanIp() : detectLanIp()) || '<lan-ip>') };
   if (!api.ollamaProbe || !api.saveProviderKey) return { ok: false, lines: [['Connecting is not available in this mode.', 'warn']] };
@@ -452,12 +515,21 @@ export async function connectOllamaFlow(api, rest, { retried = false } = {}) {
   }
   const credentials = { base_url: p.base_url, ...(def ? { default_model: def } : {}), ...(p.private ? { allow_private_origin: p.origin } : {}) };
   const label = `Ollama · ${p.host}`;
-  let s = await api.saveProviderKey({ type: 'ollama', label, credentials, isDefault: true });
+  const confirm = confirmOrigin ? { confirmPrivateOrigin: confirmOrigin } : {};
+  let s = await api.saveProviderKey({ type: 'ollama', label, credentials, isDefault: true, ...confirm });
   if (!s?.ok && s?.status === 409 && api.connections && api.updateProviderCredential) {
     // Same host connected before: refresh that credential (URL, default model, allowance) instead.
     const c = await api.connections();
     const row = c?.ok ? c.rows.find(r => r.integration_type === 'ollama' && r.label === label) : null;
-    s = row ? await api.updateProviderCredential({ id: row.id, credentials, isDefault: true }) : s;
+    s = row ? await api.updateProviderCredential({ id: row.id, credentials, isDefault: true, ...confirm }) : s;
+  }
+  if (!s?.ok && s?.confirmable && !confirmOrigin) {
+    // #1288: the server lets an org admin allow THIS one private address for their own Ollama. Ask y/N.
+    const origin = s.origin || p.origin;
+    return { ok: false, lines: [], privateAsk: { host: p.host, origin, retry: () => connectOllamaFlow(api, rest, { retried: true, confirmOrigin: origin }) } };
+  }
+  if (!s?.ok && confirmOrigin) {
+    return { ok: false, lines: [[`✖ Ollama at ${p.host} was not saved (${s?.status ? `HTTP ${s.status}: ` : ''}${s?.message || 'failed'}).`, 'warn']] };
   }
   if (!s?.ok && isPrivateNetworkError(s)) {
     return lanGateCard(api, `Ollama at ${p.host}`, () => connectOllamaFlow(api, rest, { retried: true }), { retried });
@@ -467,7 +539,8 @@ export async function connectOllamaFlow(api, rest, { retried = false } = {}) {
     return { ok: false, lines: [[`✖ Ollama answered but the connection was not saved (${s?.status ? `HTTP ${s.status}: ` : ''}${s?.message || 'failed'}).${role}`, 'warn']] };
   }
   const lines = [[`✔ Ollama connected · ${p.host} · ${models.length} model${models.length === 1 ? '' : 's'}${def ? ` · default ${def}` : ''}`, 'ok']];
-  if (p.private) lines.push(...privateScopeNote(p.origin));
+  if (p.private && confirmOrigin) lines.push([`  ${confirmOrigin} is on your private network. Quox allows only this address, for this connection.`]);
+  else if (p.private) lines.push(...privateScopeNote(p.origin));
   if (!models.length) lines.push(['  No models installed yet. On that machine run: ollama pull qwen2.5', 'warn']);
   else {
     lines.push(...ollamaModelRows(models, def));

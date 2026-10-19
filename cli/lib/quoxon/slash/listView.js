@@ -10,7 +10,9 @@ import { c, clip } from '../theme.js';
 const h = React.createElement;
 
 export function ListView({ title = null, rows = [], sel = 0, cols = 80, hint = null, empty = null, more = 0 }) {
-  const keyW = Math.min(22, Math.max(8, ...rows.map(r => [...String(r.key || '')].length)) + 1);
+  // The key column grows with the window (22 cells minimum, 32 at most) and always leaves a one-cell gap, so a name that fits is shown whole;
+  // one that does not gets the ellipsis from truncate-end, never a silent cut.
+  const keyW = Math.min(Math.max(22, Math.min(32, Math.floor(cols / 3))), Math.max(8, ...rows.map(r => [...String(r.key || '')].length)) + 1);
   const textW = Math.max(10, cols - keyW - 6);
   return h(Box, { flexDirection: 'column', paddingLeft: 1 },
     title ? h(Text, { color: c('muted'), bold: true }, clip(title, cols - 2)) : null,

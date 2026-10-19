@@ -99,7 +99,9 @@ export function registerTeamCommands(program, ctx) {
     .argument('<teamId>', 'team ID')
     .action(async (teamId) => {
       auth.requireAuth();
-      const data = await client.post(resolveEndpoint('teams.provisionRoom', { teamId }).path, { service: resolveEndpoint('teams.provisionRoom', { teamId }).service });
+      const orgId = resolveOrgId(auth, program);
+      const ep = resolveEndpoint('teams.provisionRoom', { orgId, teamId });
+      const data = await client.post(ep.path, { service: ep.service, body: {} });
       printSuccess('Team Matrix room provisioned.');
       const room = data.room || data;
       formatDetail(room, { format: program.opts().output, title: 'Matrix Room' });

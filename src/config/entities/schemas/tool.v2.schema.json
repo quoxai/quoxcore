@@ -160,6 +160,10 @@
           "pattern": "^[a-z][a-z0-9_]*$",
           "description": "QUOX-SECURITY (2026-08-08): abstract capability label (e.g. 'discover_hosts', 'inspect_tls'). Multiple tool ids may declare the same capability, naming distinct concrete providers for the same abstract action. No selection/ranking mechanism exists yet at the schema level, this field only enables one to be built (see lib/capabilityRouter.js)."
         },
+        "primary_grant": {
+          "type": "boolean",
+          "description": "DEVFLEET-READ: set false to keep the tool defined and executable but NOT auto-granted to agent_hints.primary_agent (a merged tool such as proxmox_read replaces it in that agent's offered set)."
+        },
         "also_grant": {
           "type": "array",
           "items": { "type": "string" },

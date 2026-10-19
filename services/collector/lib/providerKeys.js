@@ -23,6 +23,31 @@ const CACHE_TTL_MS = 30 * 1000;
 // auth endpoints on every call, and under a 429 the fleet of callers became a
 // self-sustaining hammer that kept auth rate-limited (2026-09-21 incident).
 const FAILURE_TTL_MS = 10 * 1000;
+// A round where the credential service itself did not answer (timeout, open
+// breaker, non-2xx) is NOT a confirmed empty: park it only briefly so the
+// next caller retries soon, and mark it so callers never say "key not
+// configured" for what was really a slow/unreachable credential service.
+const UNAVAILABLE_TTL_MS = 3 * 1000;
+
+// Non-enumerable marker so existing shape checks (toEqual({}), Object.keys)
+// are unaffected; read it with isVaultUnavailable().
+function markUnavailable(keys) {
+  const copy = { ...(keys || {}) };
+  Object.defineProperty(copy, 'vault_unavailable', { value: true, enumerable: false });
+  return copy;
+}
+
+function isVaultUnavailable(keys) {
+  return !!(keys && keys.vault_unavailable === true);
+}
+
+function credentialUnavailableResult(providerLabel) {
+  return {
+    success: false,
+    error_code: 'credential_service_unavailable',
+    error: `The credential service did not answer in time, so the ${providerLabel} key could not be read. Nothing is wrong with the key; try again.`,
+  };
+}
 
 const _providerKeysCache = new Map();
 let _testOverrides = null;
@@ -56,9 +81,13 @@ async function getProviderKeys(orgId, depsOverride) {
 
   // Try QuoxVault resolver first
   const vaultKeys = {};
-  const resolved = typeof deps.resolveCredentials === 'function'
+  const hasResolver = typeof deps.resolveCredentials === 'function';
+  const resolved = hasResolver
     ? await deps.resolveCredentials(orgId, ['anthropic', 'openai', 'perplexity', 'gemini', 'brave', 'tavily'])
     : null;
+  // The injected resolver returns null only when the call failed (timeout,
+  // open breaker, non-2xx); a 2xx answer is always an object.
+  let unavailable = hasResolver && !resolved;
   if (resolved?.providers) {
     for (const [provider, data] of Object.entries(resolved.providers)) {
       if (data?.key) {
@@ -85,20 +114,34 @@ async function getProviderKeys(orgId, depsOverride) {
       });
       if (resp.ok) {
         legacyKeys = await resp.json();
+      } else {
+        unavailable = true;
       }
     } catch (err) {
+      unavailable = true;
       console.error('[Provider Keys] Legacy fallback failed:', err.message);
     }
   }
 
   const result = mergeProviderKeys(vaultKeys, legacyKeys);
+  if (unavailable) {
+    // Do not cache as a confirmed empty. Serve (and briefly park) what we
+    // have, flagged, so a key-missing outcome reads as "service unavailable".
+    const base = Object.keys(result).length > 0 ? result : (cached?.value || {});
+    const flagged = markUnavailable(base);
+    _providerKeysCache.set(cacheKey, {
+      value: flagged,
+      checkedAt: now - CACHE_TTL_MS + UNAVAILABLE_TTL_MS,
+    });
+    return flagged;
+  }
   if (Object.keys(result).length > 0) {
     _providerKeysCache.set(cacheKey, { value: result, checkedAt: now });
     return result;
   }
   // Empty round: keep serving the last good value, but park a short negative
   // entry so the next N callers don't re-hammer auth while it recovers.
-  const fallback = cached?.value || {};
+  const fallback = cached?.value ? { ...cached.value } : {};
   _providerKeysCache.set(cacheKey, {
     value: fallback,
     checkedAt: now - CACHE_TTL_MS + FAILURE_TTL_MS,
@@ -129,6 +172,8 @@ const _testHooks = {
 
 module.exports = {
   getProviderKeys,
+  isVaultUnavailable,
+  credentialUnavailableResult,
   clearCache,
   invalidate,
   PROVIDER_KEY_FIELDS,

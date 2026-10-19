@@ -36,6 +36,7 @@
 import { Router } from 'express';
 import { randomBytes } from 'crypto';
 import { ulid } from '../utils/helpers.js';
+import { safeCompare } from '../utils/crypto.js';
 import { getDb } from '../db/index.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireOrgMembership } from '../middleware/org.js';
@@ -341,7 +342,8 @@ router.post('/internal/oauth/:provider/access-token', tokenBrokerLimiter, (req, 
     if (!expectedKey) return res.status(401).json({ error: 'service_key_not_configured' });
 
     const serviceKey = req.headers['x-service-key'];
-    if (!serviceKey || serviceKey !== expectedKey) {
+    // Audit FND_01M4ZH8K8BMTHFTVRKS8MTHFTV: timing-safe compare, like the other internal routers
+    if (!serviceKey || !safeCompare(String(serviceKey), expectedKey)) {
         return res.status(401).json({ error: 'unauthorized', message: 'Invalid service key' });
     }
 

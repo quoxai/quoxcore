@@ -52,6 +52,9 @@ import { evaluateLeaseGate } from '../lib/leaseGate.js';
 import { getVaultStats, runHealthScan, getVaultActivity } from '../services/credentialHealthScanner.js';
 import { INTEGRATION_TYPES, getType, getTestConfig, getFieldSchema, listTypes, getTypesByCategory, getTestDepth, INTEGRATION_CATEGORIES } from '../config/integrationTypeRegistry.js';
 import { testConnection, lanTargetsAllowed } from '../services/integrationHealthService.js';
+import { evaluatePrivateOllamaAllowance } from '../lib/privateOllamaAllowance.js';
+import { isNonHumanPrincipal } from '../utils/principal.js';
+import { logAudit } from '../utils/audit.js';
 import { isValidKind, isValidReleasePolicy, isReleasePolicyAllowedForKind, validateKindShape } from '../config/credentialKinds.js';
 
 const router = Router();
@@ -306,6 +309,51 @@ router.get('/orgs/:orgId/integrations/expiring', authenticate(), requireOrgMembe
 });
 
 /**
+ * #1288: the vault refused a private base_url. If it is an org admin's own Ollama, confirmed for that
+ * exact origin and answering /api/tags, allow it for this one credential (lib/privateOllamaAllowance.js)
+ * and audit the decision. -> the allowance, or null after sending the refusal.
+ */
+async function privateOllamaGate(req, res, { orgId, integrationType, credentials, integrationId = null, baseUrlError }) {
+    const pa = await evaluatePrivateOllamaAllowance({
+        integrationType,
+        credentials,
+        confirmOrigin: req.body?.confirm_private_origin,
+        role: req.orgMembership?.role,
+        nonHuman: isNonHumanPrincipal(req)
+    });
+    if (!pa.applies) {
+        res.status(400).json({ error: 'validation_error', message: `Invalid base URL: ${baseUrlError}` });
+        return null;
+    }
+    if (!pa.allow && !pa.confirmable) auditPrivateOrigin(req, orgId, integrationId, integrationType, pa, 'failed');
+    if (!pa.allow) {
+        res.status(pa.status).json({ error: pa.error, message: pa.message, origin: pa.origin, ...(pa.confirmable ? { confirmable: true } : {}) });
+        return null;
+    }
+    return pa;
+}
+
+function auditPrivateOrigin(req, orgId, integrationId, integrationType, pa, status) {
+    try {
+        logAudit({
+            action: AuditActions.INTEGRATION_PRIVATE_ORIGIN,
+            actor: { type: 'user', id: req.user?.id },
+            orgId,
+            target: { type: 'integration', id: integrationId },
+            status,
+            request: req,
+            metadata: {
+                integration_type: integrationType,
+                origin: pa.origin,
+                decision: pa.allow ? 'allowed' : 'refused',
+                reason: pa.allow ? 'org_admin_confirmed_and_answers_ollama_api_tags' : pa.error,
+                role: req.orgMembership?.role || null
+            }
+        });
+    } catch (e) { console.error('[PrivateOllama] audit failed:', e.message); }
+}
+
+/**
  * POST /orgs/:orgId/integrations
  * Create new integration credential
  */
@@ -415,13 +463,12 @@ router.post('/orgs/:orgId/integrations', authenticate(), requireOrgMembership, r
         }
 
         // SSRF Protection: Validate base_url in credentials if provided
+        let privateOllama = null;
         if (credentials && credentials.base_url) {
             const baseUrlValidation = validateUrlBasic(credentials.base_url, { allowPrivate: lanTargetsAllowed(integration_type) });
             if (!baseUrlValidation.valid) {
-                return res.status(400).json({
-                    error: 'validation_error',
-                    message: `Invalid base URL: ${baseUrlValidation.error}`
-                });
+                privateOllama = await privateOllamaGate(req, res, { orgId, integrationType: integration_type, credentials, baseUrlError: baseUrlValidation.error });
+                if (!privateOllama) return;
             }
         }
 
@@ -457,6 +504,7 @@ router.post('/orgs/:orgId/integrations', authenticate(), requireOrgMembership, r
             req,
             { integration_type, label: credential.label }
         );
+        if (privateOllama) auditPrivateOrigin(req, orgId, credential.id, integration_type, privateOllama, 'success');
 
         res.status(201).json(credential);
     } catch (err) {
@@ -656,13 +704,12 @@ router.put('/orgs/:orgId/integrations/:id', authenticate(), requireOrgMembership
         }
 
         // SSRF Protection: Validate base_url in credentials if provided
+        let privateOllama = null;
         if (credentials && credentials.base_url) {
             const baseUrlValidation = validateUrlBasic(credentials.base_url, { allowPrivate: lanTargetsAllowed(existing.integration_type) });
             if (!baseUrlValidation.valid) {
-                return res.status(400).json({
-                    error: 'validation_error',
-                    message: `Invalid base URL: ${baseUrlValidation.error}`
-                });
+                privateOllama = await privateOllamaGate(req, res, { orgId, integrationType: existing.integration_type, credentials, integrationId: id, baseUrlError: baseUrlValidation.error });
+                if (!privateOllama) return;
             }
         }
 
@@ -705,6 +752,7 @@ router.put('/orgs/:orgId/integrations/:id', authenticate(), requireOrgMembership
             req,
             { label: updated.label }
         );
+        if (privateOllama) auditPrivateOrigin(req, orgId, id, existing.integration_type, privateOllama, 'success');
 
         // F10: invalidate the 30s resolver cache so a revoked/updated
         // credential can't still be served as plaintext post-write.
@@ -846,13 +894,12 @@ router.post('/orgs/:orgId/integrations/:id/rotate', authenticate(), requireOrgMe
         }
 
         // SSRF Protection: Validate base_url in credentials if provided
+        let privateOllama = null;
         if (credentials.base_url) {
             const baseUrlValidation = validateUrlBasic(credentials.base_url, { allowPrivate: lanTargetsAllowed(existing.integration_type) });
             if (!baseUrlValidation.valid) {
-                return res.status(400).json({
-                    error: 'validation_error',
-                    message: `Invalid base URL: ${baseUrlValidation.error}`
-                });
+                privateOllama = await privateOllamaGate(req, res, { orgId, integrationType: existing.integration_type, credentials, integrationId: id, baseUrlError: baseUrlValidation.error });
+                if (!privateOllama) return;
             }
         }
 
@@ -884,6 +931,7 @@ router.post('/orgs/:orgId/integrations/:id/rotate', authenticate(), requireOrgMe
             }
         }
 
+        if (privateOllama) auditPrivateOrigin(req, orgId, id, existing.integration_type, privateOllama, 'success');
         // Audit log with old key_preview for forensic tracking
         logIntegrationEvent(
             AuditActions.INTEGRATION_ROTATE,

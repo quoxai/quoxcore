@@ -44,8 +44,16 @@ export function buildHistory({ server, client } = {}) {
       .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
       .slice(-MAX_TURNS)
       .map(clean);
-    return { messages, source: 'server', dropped_assistant: 0 };
+    if (messages.length) return { messages, source: 'server', dropped_assistant: 0 };
+    // QC-BRUTALOOP-W18: the server has no turns yet (an API caller's first
+    // server-visible turn). Accept the client's USER turns only, tighter caps.
+    const fb = fromClient(client, 6, 500);
+    return fb.messages.length ? fb : { messages, source: 'server', dropped_assistant: fb.dropped_assistant };
   }
+  return fromClient(client, MAX_TURNS, MAX_CONTENT);
+}
+
+function fromClient(client, maxTurns, maxContent) {
   const arr = Array.isArray(client) ? client : [];
   let dropped = 0;
   const users = [];
@@ -53,11 +61,11 @@ export function buildHistory({ server, client } = {}) {
     if (!m || typeof m !== 'object') continue;
     if (m.role === 'user') {
       if (m.content === undefined || m.content === null) continue;
-      users.push(clean(m));
+      users.push({ role: 'user', content: String(m.content).slice(0, maxContent) });
     } else if (m.role === 'assistant') {
       dropped++;
     }
   }
-  const messages = users.slice(-MAX_TURNS);
+  const messages = users.slice(-maxTurns);
   return { messages, source: messages.length ? 'client_user_only' : 'none', dropped_assistant: dropped };
 }

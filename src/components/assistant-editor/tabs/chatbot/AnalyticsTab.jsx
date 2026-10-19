@@ -30,6 +30,7 @@ import {
   statsFromSummary,
   answerQualityDisplay,
   UNANSWERED_REASON_LABELS,
+  correctedCaption,
 } from './analyticsTabUtils'
 
 const RANGE_OPTIONS = [
@@ -90,7 +91,7 @@ export default function AnalyticsTab({ widget, authFetch, orgId }) {
   const [sourceUtilisation, setSourceUtilisation] = useState([])
   const [responseTimes, setResponseTimes] = useState(null)
   const [usage, setUsage] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(Boolean(authFetch && orgId && widget?.id))
   // W12: a failed fetch is 'unavailable', never a fabricated 0.
   const [failed, setFailed] = useState({})
   const [reloadTick, setReloadTick] = useState(0)
@@ -100,34 +101,43 @@ export default function AnalyticsTab({ widget, authFetch, orgId }) {
   const prevRange = useMemo(() => shiftRangeBack(range), [range])
 
   useEffect(() => {
-    if (!authFetch || !orgId || !widget?.id) return
+    // W15: every exit path clears loading, or a cancelled run followed by an
+    // early return left the cards on "…" forever.
+    if (!authFetch || !orgId || !widget?.id) { setLoading(false); return }
     let cancelled = false
     setLoading(true)
     const base = `/api/orgs/${orgId}/widgets/${widget.id}`
     const FAIL = Symbol('fail')
     const j = (r) => (r.ok ? r.json() : FAIL)
+    // W15: one hung request must not hold every card on "…"; a call that has
+    // not answered in 20 s is reported unavailable like any other failure.
+    const realFetch = authFetch
+    const authFetchT = (url) => Promise.race([
+      realFetch(url),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 20000)),
+    ])
     Promise.all([
-      authFetch(withRange(`${base}/conversations`, range)).then(j).catch(() => FAIL),
-      authFetch(`${base}/knowledge/stats`).then(j).catch(() => FAIL),
-      authFetch(withRange(`${base}/analytics/top-questions?limit=10`, range)).then(j).catch(() => FAIL),
-      authFetch(withRange(`${base}/analytics/source-utilisation`, range)).then(j).catch(() => FAIL),
-      authFetch(withRange(`${base}/analytics/response-times`, range)).then(j).catch(() => FAIL),
+      authFetchT(withRange(`${base}/conversations`, range)).then(j).catch(() => FAIL),
+      authFetchT(`${base}/knowledge/stats`).then(j).catch(() => FAIL),
+      authFetchT(withRange(`${base}/analytics/top-questions?limit=10`, range)).then(j).catch(() => FAIL),
+      authFetchT(withRange(`${base}/analytics/source-utilisation`, range)).then(j).catch(() => FAIL),
+      authFetchT(withRange(`${base}/analytics/response-times`, range)).then(j).catch(() => FAIL),
       // QCL-BACKEND-UX #131: usage-vs-cap burn panel. Org-scoped endpoint;
       // never calls the collector or internal endpoint from the browser.
       // Caught like every other call here so a failed/empty fetch degrades
       // to "no burn panel" rather than crashing the tab.
-      authFetch(`${base}/usage/current`).then(j).catch(() => FAIL),
+      authFetchT(`${base}/usage/current`).then(j).catch(() => FAIL),
       // QCX-5j: previous equally-long window for compare-to-previous deltas.
       // Skipped when 'all time' is selected; there's no previous window.
       prevRange.from
-        ? authFetch(withRange(`${base}/conversations`, prevRange)).then(j).catch(() => FAIL)
+        ? authFetchT(withRange(`${base}/conversations`, prevRange)).then(j).catch(() => FAIL)
         : Promise.resolve(null),
-      authFetch(withRange(`${base}/analytics/summary`, range)).then(j).catch(() => FAIL),
+      authFetchT(withRange(`${base}/analytics/summary`, range)).then(j).catch(() => FAIL),
       prevRange.from
-        ? authFetch(withRange(`${base}/analytics/summary`, prevRange)).then(j).catch(() => FAIL)
+        ? authFetchT(withRange(`${base}/analytics/summary`, prevRange)).then(j).catch(() => FAIL)
         : Promise.resolve(null),
-      authFetch(withRange(`${base}/analytics/unanswered?limit=20`, range)).then(j).catch(() => FAIL),
-      authFetch(`${base}/leads?limit=50`).then(j).catch(() => FAIL),
+      authFetchT(withRange(`${base}/analytics/unanswered?limit=20`, range)).then(j).catch(() => FAIL),
+      authFetchT(`${base}/leads?limit=50`).then(j).catch(() => FAIL),
     ]).then((res) => {
       if (cancelled) return
       const names = ['conversations', 'knowledge', 'topQuestions', 'sourceUtilisation', 'responseTimes', 'usage', 'prevConversations', 'summary', 'prevSummary', 'unanswered', 'leads']
@@ -201,6 +211,9 @@ export default function AnalyticsTab({ widget, authFetch, orgId }) {
   const failedLabels = Object.keys(failed).filter(k => !['prevConversations', 'prevSummary'].includes(k))
   const UNAVAIL = <div data-testid="unavailable" style={{ fontSize: 11, color: '#fca5a5' }}>unavailable (could not be loaded)</div>
   const isEmpty = !loading && !statsUnavailable && stats.totalConversations === 0
+  // W15: while a (re)load is in flight the cards show a placeholder, never the
+  // empty-state 0 (or the previous range's number) that read as "no data".
+  const cardValue = (v) => (statsUnavailable ? 'unavailable' : (loading ? '…' : v))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -240,10 +253,10 @@ export default function AnalyticsTab({ widget, authFetch, orgId }) {
 
       {/* Stat cards */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <StatCard label="Conversations" value={statsUnavailable ? 'unavailable' : stats.totalConversations} color="#38bdf8" subtitle={`${stats.totalMessages} total messages`} delta={deltas.totalConversations} />
-        <StatCard label="Handed off" value={statsUnavailable ? 'unavailable' : stats.handedOffCount} color="#30ff90" subtitle={stats.totalConversations > 0 ? `${stats.closedCount} closed · ${stats.activeCount} active` : 'No conversations yet'} delta={deltas.handedOffCount} />
-        <StatCard label="Satisfaction" value={statsUnavailable ? 'unavailable' : satisfaction.value} color={satisfaction.color} subtitle={satisfaction.suppressed ? `${ratedCount} rating${ratedCount === 1 ? '' : 's'} so far` : 'Thumbs up ratio'} delta={satisfaction.suppressed ? null : deltas.satisfactionRatio} />
-        <StatCard label="Avg length" value={statsUnavailable ? 'unavailable' : (stats.avgMessages || 0)} subtitle="messages per conversation" delta={deltas.avgMessages} />
+        <StatCard label="Conversations" value={cardValue(stats.totalConversations)} color="#38bdf8" subtitle={loading || statsUnavailable ? undefined : `${stats.totalMessages} total messages`} delta={deltas.totalConversations} />
+        <StatCard label="Handed off" value={cardValue(stats.handedOffCount)} color="#30ff90" subtitle={loading || statsUnavailable ? undefined : stats.totalConversations > 0 ? `${stats.closedCount} closed · ${stats.activeCount} active` : 'No conversations yet'} delta={deltas.handedOffCount} />
+        <StatCard label="Satisfaction" value={cardValue(satisfaction.value)} color={satisfaction.color} subtitle={loading || statsUnavailable ? undefined : satisfaction.suppressed ? `${ratedCount} rating${ratedCount === 1 ? '' : 's'} so far` : 'Thumbs up ratio'} delta={satisfaction.suppressed ? null : deltas.satisfactionRatio} />
+        <StatCard label="Avg length" value={cardValue(stats.avgMessages || 0)} subtitle={loading || statsUnavailable ? undefined : 'messages per conversation'} delta={deltas.avgMessages} />
         {summary && (
           <StatCard label="Avg response" value={summary.avg_response_ms == null ? 'n/a' : `${(summary.avg_response_ms / 1000).toFixed(1)}s`} subtitle={`${summary.leads || 0} lead${summary.leads === 1 ? '' : 's'} captured${summary.blocked_turns ? ` · ${summary.blocked_turns} blocked` : ''}`} />
         )}
@@ -251,7 +264,9 @@ export default function AnalyticsTab({ widget, authFetch, orgId }) {
 
       {isEmpty && (
         <div className="qx-flat-panel--ghost" style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', textAlign: 'center' }}>
-          No conversations yet. Deploy the widget and have a chat to populate analytics.
+          {rangeId === 'all'
+            ? 'No conversations yet. Deploy the widget and have a chat to populate analytics.'
+            : 'No conversations in this date range. Logs shows every conversation; choose All time to match it. Test and simulation chats are not counted here.'}
         </div>
       )}
 
@@ -292,22 +307,22 @@ export default function AnalyticsTab({ widget, authFetch, orgId }) {
       <div className="qx-flat-panel" data-testid="answer-quality-panel">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Answer quality</span>
-          <span style={{ fontSize: 20, fontWeight: 800, color: quality.color, fontFamily: "'JetBrains Mono', monospace" }}>{quality.valueLabel}</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: quality.color, fontFamily: "'JetBrains Mono', monospace" }}>{loading ? '…' : quality.valueLabel}</span>
         </div>
         <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }}>
           <div style={{ width: `${quality.percent}%`, height: '100%', borderRadius: 4, background: quality.color, transition: 'width 0.5s ease' }} />
         </div>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', marginTop: 6 }}>{quality.detail}</div>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', marginTop: 6 }}>{loading ? 'Loading…' : quality.detail}</div>
         <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>
-          Knowledge size: {failed.knowledge ? 'unavailable' : `${knowledge.totalSources} source${knowledge.totalSources === 1 ? '' : 's'} · ${knowledge.totalChunks} chunks · ${knowledge.qaCount} Q&A pair${knowledge.qaCount === 1 ? '' : 's'}`}
-          {!failed.knowledge && !hasKnowledge ? ' (add a knowledge source to ground answers)' : ''}
+          Knowledge size: {loading ? 'loading…' : failed.knowledge ? 'unavailable' : `${knowledge.totalSources} source${knowledge.totalSources === 1 ? '' : 's'} · ${knowledge.totalChunks} chunks · ${knowledge.qaCount} Q&A pair${knowledge.qaCount === 1 ? '' : 's'}`}
+          {!loading && !failed.knowledge && !hasKnowledge ? ' (add a knowledge source to ground answers)' : ''}
         </div>
       </div>
 
       {/* Unanswered / low confidence feed */}
       <div className="qx-flat-panel" data-testid="unanswered-panel">
         <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 8 }}>Unanswered questions</div>
-        {failed.unanswered ? UNAVAIL : unanswered.length === 0 ? (
+        {loading ? <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Loading…</div> : failed.unanswered ? UNAVAIL : unanswered.length === 0 ? (
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Nothing flagged in this range. Questions the knowledge base could not back will appear here.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -326,9 +341,12 @@ export default function AnalyticsTab({ widget, authFetch, orgId }) {
       {corrected.length > 0 && (
         <div className="qx-flat-panel" data-testid="corrected-panel">
           <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Answer was corrected</div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>The claim check removed an unsupported claim before the visitor saw the reply. Not unanswered, but worth checking your sources cover these.</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', marginBottom: 8 }}>Not unanswered, but worth checking your sources cover these.</div>
           {corrected.map((u) => (
-            <div key={u.message_id} style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }} title={u.answer}>{u.question || '(question not recorded)'}</div>
+            <div key={u.message_id} style={{ padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }} title={u.answer}>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>{u.question || '(question not recorded)'}</div>
+              <div data-testid="corrected-caption" style={{ fontSize: 10, color: u.served_unsupported === true ? '#f59e0b' : 'rgba(255,255,255,0.65)' }}>{correctedCaption(u.served_unsupported)}</div>
+            </div>
           ))}
         </div>
       )}
@@ -336,7 +354,7 @@ export default function AnalyticsTab({ widget, authFetch, orgId }) {
       {/* Leads captured by the lead_capture action */}
       <div className="qx-flat-panel" data-testid="leads-panel">
         <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 8 }}>Leads</div>
-        {failed.leads ? UNAVAIL : leads.length === 0 ? (
+        {loading ? <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Loading…</div> : failed.leads ? UNAVAIL : leads.length === 0 ? (
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>No leads captured yet. They appear here when a visitor leaves contact details in the chat.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -354,7 +372,7 @@ export default function AnalyticsTab({ widget, authFetch, orgId }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div className="qx-flat-panel">
           <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 8 }}>{questionsSectionLabel}</div>
-          {failed.topQuestions ? UNAVAIL : questionsToShow.length === 0 ? (
+          {loading ? <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Loading…</div> : failed.topQuestions ? UNAVAIL : questionsToShow.length === 0 ? (
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>No questions yet.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -372,7 +390,7 @@ export default function AnalyticsTab({ widget, authFetch, orgId }) {
 
         <div className="qx-flat-panel">
           <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 8 }}>Source utilisation</div>
-          {failed.sourceUtilisation ? UNAVAIL : sourceUtilisation.length === 0 ? (
+          {loading ? <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Loading…</div> : failed.sourceUtilisation ? UNAVAIL : sourceUtilisation.length === 0 ? (
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>No sources cited yet.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

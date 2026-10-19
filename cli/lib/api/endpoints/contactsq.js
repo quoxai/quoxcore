@@ -57,8 +57,10 @@ export const contactsq = {
   'contactsq.sync.remove': { method: 'DELETE', service: 'collector', path: ({ id }) => `${B}/sync/sources/${id}`, tags: ['live-write'] },
   // P8a: morning brief, timeline / touchpoints / policy (selftest), handoff notes.
   'contactsq.brief': { method: 'GET', service: 'collector', path: () => `${B}/brief`, tags: ['live-safe'] },
+  'contactsq.count': { method: 'GET', service: 'collector', path: () => `${B}/count`, tags: ['live-safe'] },
   'contactsq.timeline': { method: 'GET', service: 'collector', path: ({ id }) => `${B}/contacts/${id}/timeline`, tags: ['live-safe'] },
   'contactsq.touchpoints.add': { method: 'POST', service: 'collector', path: ({ id }) => `${B}/contacts/${id}/touchpoints`, tags: ['live-write'] },
+  'contactsq.best_channel': { method: 'GET', service: 'collector', path: ({ id }) => `${B}/contacts/${id}/best-channel`, tags: ['live-safe'] },
   'contactsq.policy': { method: 'POST', service: 'collector', path: ({ id }) => `${B}/contacts/${id}/policy`, tags: ['live-safe'] },
   'contactsq.handoffs.add': { method: 'POST', service: 'collector', path: ({ id }) => `${B}/contacts/${id}/handoffs` },
   'contactsq.handoffs': { method: 'GET', service: 'collector', path: ({ id }) => `${B}/contacts/${id}/handoffs`, tags: ['live-safe'] },

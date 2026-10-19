@@ -35,7 +35,7 @@ export function DragonTalk({ cols, label, talking, since, still = false }) {
 export function FlyLive({ cols, rows, startedAt, still = false }) {
   useFrame();
   const c = flyCols(cols);
-  const cells = flyFrame(Date.now() - startedAt, c, { still, mono: mono(), theme: isLight() ? 'light' : 'dark' });
+  const cells = flyFrame(Date.now() - startedAt, c, { still, mono: mono(), theme: isLight() ? 'light' : 'dark', termRows: rows });
   return h(Box, { flexDirection: 'column', marginTop: 1 },
     ...cells.map((row, k) => h(Text, { key: k, wrap: 'truncate' }, ...cellNodes(row, `f${k}-`))));
 }

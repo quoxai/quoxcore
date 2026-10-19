@@ -696,12 +696,29 @@ export const FTS_STOPWORDS = new Set([
 
 const CJK_RUN_RE = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]+/g
 
+// A delegated specialist turn passes the whole task text (SITE-CLI/WORKER1 2026-10-15): every word
+// became an OR term and the keyword leg took ~2s against the 2.5s implant budget. Repeats are sent
+// once, and a long query keeps its most distinctive terms (longest first, a cheap rarity proxy).
+export const FTS_MAX_TERMS = 16
+const ftsKey = (t) => t.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
 export function buildOrMatchQuery(query) {
   const all = String(query).trim().split(/\s+/).filter(Boolean)
   if (all.length === 0) return null
-  const kept = all.filter((t) => !FTS_STOPWORDS.has(t.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')))
-  const tokens = kept.length > 0 ? kept : all
-  return tokens.map((t) => `"${t.replace(/"/g, '""')}"`).join(' OR ')
+  const kept = all.filter((t) => !FTS_STOPWORDS.has(ftsKey(t)))
+  const seen = new Set()
+  const tokens = (kept.length > 0 ? kept : all).filter((t) => {
+    const k = ftsKey(t) || t.toLowerCase()
+    if (seen.has(k)) return false
+    seen.add(k)
+    return true
+  })
+  let chosen = tokens
+  if (tokens.length > FTS_MAX_TERMS) {
+    const keep = new Set(tokens.map((t, i) => ({ i, len: ftsKey(t).length }))
+      .sort((x, y) => y.len - x.len || x.i - y.i).slice(0, FTS_MAX_TERMS).map((x) => x.i))
+    chosen = tokens.filter((_, i) => keep.has(i))
+  }
+  return chosen.map((t) => `"${t.replace(/"/g, '""')}"`).join(' OR ')
 }
 
 /**
@@ -1914,7 +1931,7 @@ export function getBrainStatus(orgId, { ownerUserId = null } = {}) {
   const vScoped = scopeClause(orgId, ownerUserId, { alias: 'v' })
 
   const sourceRows = db.prepare(`
-    SELECT v.id AS vaultId, v.name AS name, COUNT(n.id) AS count
+    SELECT v.id AS vaultId, v.name AS name, COUNT(n.vault_id) AS count
     FROM vaults v
     LEFT JOIN notes n ON n.vault_id = v.id
     WHERE ${vScoped.sql}
@@ -2851,7 +2868,10 @@ export function getNoteContentHashes(orgId, noteIds = []) {
     const ids = [...new Set((noteIds || []).filter(i => typeof i === 'string' && i))].slice(0, 200)
     if (!ids.length) return out
     const db = getDatabase()
-    const rows = db.prepare(`SELECT id, content_hash FROM notes WHERE org_id = ? AND id IN (${ids.map(() => '?').join(',')})`).all(orgId, ...ids)
+    // '+org_id' keeps the planner on the primary key: with no ANALYZE stats it
+    // chose idx_notes_org and walked every note of the org (168-273ms per
+    // /brain/context answer on dev, quox#1108). The org filter still applies.
+    const rows = db.prepare(`SELECT id, content_hash FROM notes WHERE +org_id = ? AND id IN (${ids.map(() => '?').join(',')})`).all(orgId, ...ids)
     for (const r of rows) if (r.content_hash) out[r.id] = r.content_hash
   } catch (err) {
     console.warn('[Brain] note hash pin lookup failed (non-fatal):', err.message)

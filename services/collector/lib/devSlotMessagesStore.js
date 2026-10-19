@@ -24,6 +24,30 @@ function newMessageId() {
   return `slotmsg_${crypto.randomBytes(12).toString('hex')}`;
 }
 
+// A slot message cursor is '<created_at>|<seq>' (exact: after that message), '|<seq>' (after that row), or a plain
+// ISO time (old clients: after that time). A timestamp alone loses a second message in the same millisecond.
+function parseCursor(since) {
+  if (since == null || since === '') return null;
+  const m = /^(.*)\|(\d+)$/.exec(String(since));
+  if (m) return { ts: m[1] || null, seq: Number(m[2]) };
+  return { ts: String(since), seq: null };
+}
+// Is this message after the cursor? Mirrors listMessages' since filter. A plain ISO cursor counts a message AT
+// that time as after it only when `inclusive` (a live stream advancing past a message it just delivered).
+function isAfterCursor(rec, cursor, { inclusive = false } = {}) {
+  const c = parseCursor(cursor);
+  if (!c) return true;
+  if (!rec || !rec.created_at) return false;
+  if (c.seq != null && !c.ts) return rec.seq != null && rec.seq > c.seq;
+  if (rec.created_at !== c.ts) return rec.created_at > c.ts;
+  if (c.seq != null) return rec.seq != null && rec.seq > c.seq;
+  return inclusive;
+}
+function cursorOf(rec) {
+  if (!rec) return null;
+  return rec.seq == null ? rec.created_at : `${rec.created_at}|${rec.seq}`;
+}
+
 function rowToRecord(row) {
   if (!row) return null;
   return {
@@ -32,6 +56,8 @@ function rowToRecord(row) {
     slot_id: row.slot_id,
     slot_name: row.slot_name,
     from: row.from_label || null,
+    // SLOTS-REPLY (migration 046): the sender's verified slot, the reply address.
+    from_slot: row.from_slot || null,
     // Server-derived, unforgeable identity (migrations/aee/022). from_label
     // stays the caller-chosen display name; this is the trustworthy field
     // for "who actually posted", see deriveCallerIdentity below.
@@ -39,10 +65,14 @@ function rowToRecord(row) {
     text: row.text,
     source: row.source,
     created_at: row.created_at,
+    // The row position (rowid): with created_at it makes an exact cursor (see cursorOf / parseCursor).
+    seq: row._seq == null ? null : row._seq,
     // QUOXIDENTITY P10: who claimed it (first claimer wins) and who it was for.
     claimed_by: row.claimed_by || null,
     claimed_at: row.claimed_at || null,
     addressed_to: row.addressed_to || null,
+    // SLOT-RUN (migration 047): a command the sender asks the human to run. Data only, never executed here.
+    run: row.run_command || null,
   };
 }
 
@@ -68,7 +98,9 @@ const LABEL_MAX_LEN = 64;
 // smuggle markup or a fake extra line into every rendered surface (CLI
 // tables, bridge lines, the dashboard), which is the whole point of this
 // check, so "whitespace" here means the space character, not \s.
-const LABEL_ALLOWED_RE = /^[A-Za-z0-9._@:\- ]*$/;
+// QUOXON-MESH: parentheses allowed for "quox1 (Adam)" (slot plus the human's name); they
+// carry no markup or line-break risk.
+const LABEL_ALLOWED_RE = /^[A-Za-z0-9._@:\-() ]*$/;
 
 /**
  * Validate a client-supplied slot message label (the `from` field of a say).
@@ -90,6 +122,23 @@ function validateSlotLabel(label) {
   return { ok: true, value: s };
 }
 
+// SLOT-RUN: the optional `run` field of a say. One command, one line, shown to the human in full before
+// they choose to run it, so anything that can make the screen differ from what runs is refused: line
+// breaks (a second command), C0/DEL control characters (ESC sequences can hide text, CR can overwrite it)
+// and Unicode bidi/zero-width/line-separator characters (they reorder or hide what is displayed).
+const RUN_MAX_LEN = 2000;
+const RUN_BAD_RE = /[\u0000-\u001f\u007f\u0080-\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/;
+
+/** -> { ok: true, value: string|null } | { ok: false, error }. Never trims or rewrites: stored verbatim. */
+function validateRunCommand(run) {
+  if (run === undefined || run === null || run === '') return { ok: true, value: null };
+  if (typeof run !== 'string') return { ok: false, error: 'run must be a string (one shell command)' };
+  if (!run.trim()) return { ok: false, error: 'run is empty' };
+  if (run.length > RUN_MAX_LEN) return { ok: false, error: `run too long (max ${RUN_MAX_LEN} characters)` };
+  if (RUN_BAD_RE.test(run)) return { ok: false, error: 'run must be one command on one line, without control, bidi or zero-width characters' };
+  return { ok: true, value: run };
+}
+
 /**
  * @param {object} deps
  * @param {Function} deps.getDb - returns the better-sqlite3 handle.
@@ -107,23 +156,41 @@ function createDevSlotMessagesStore({ getDb, now = () => new Date().toISOString(
   // In-process notify so slot waiters never poll the DB. Keyed org+slot.
   const bus = new EventEmitter();
   bus.setMaxListeners(1000);
-  function subscribe({ orgId, slotId } = {}, cb) {
+  // Presence: who is listening right now (open SSE stream or in-progress wait). `session` is the
+  // listener's own name when it gave one, so a sender's own window is not counted as the recipient.
+  const live = new Map();
+  function subscribe({ orgId, slotId, session = null } = {}, cb) {
     const key = `${orgId}:${slotId}`;
     bus.on(key, cb);
-    return () => bus.off(key, cb);
+    const tok = { session: session || null };
+    if (!live.has(key)) live.set(key, new Set());
+    live.get(key).add(tok);
+    return () => {
+      bus.off(key, cb);
+      const set = live.get(key);
+      if (set) { set.delete(tok); if (!set.size) live.delete(key); }
+    };
+  }
+  /** Open listeners on a slot, optionally ignoring the sender's own session. */
+  function listeners({ orgId, slotId, excludeSession = null } = {}) {
+    const set = live.get(`${orgId}:${slotId}`);
+    if (!set) return 0;
+    let n = 0;
+    for (const t of set) if (!excludeSession || t.session !== excludeSession) n += 1;
+    return n;
   }
 
-  function appendMessage({ orgId, slotId, slotName, from, authorIdentity, text, source } = {}) {
+  function appendMessage({ orgId, slotId, slotName, from, authorIdentity, text, source, fromSlot, run = null } = {}) {
     if (!orgId || !slotId || !slotName || !text) {
       throw new Error('appendMessage: orgId, slotId, slotName and text are required');
     }
     const t = now();
     const id = newMessageId();
     db().prepare(`
-      INSERT INTO dev_slot_messages (id, org_id, slot_id, slot_name, from_label, author_identity, text, source, created_at, addressed_to)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, orgId, slotId, slotName, from || null, authorIdentity || null, text, source || 'say', t, parseAddressedTo(text));
-    const rec = rowToRecord(db().prepare('SELECT * FROM dev_slot_messages WHERE id = ?').get(id));
+      INSERT INTO dev_slot_messages (id, org_id, slot_id, slot_name, from_label, author_identity, text, source, created_at, addressed_to, from_slot, run_command)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, orgId, slotId, slotName, from || null, authorIdentity || null, text, source || 'say', t, parseAddressedTo(text), fromSlot || null, run || null);
+    const rec = rowToRecord(db().prepare('SELECT *, rowid AS _seq FROM dev_slot_messages WHERE id = ?').get(id));
     bus.emit(`${orgId}:${slotId}`, rec);
     return rec;
   }
@@ -136,16 +203,23 @@ function createDevSlotMessagesStore({ getDb, now = () => new Date().toISOString(
     const cap = Number.isFinite(limit) && limit > 0 ? Math.min(limit, 500) : 50;
     const params = [orgId, slotId];
     let where = 'org_id = ? AND slot_id = ?';
-    if (since) {
+    const c = parseCursor(since);
+    if (c && c.seq != null && c.ts) {
+      where += ' AND (created_at > ? OR (created_at = ? AND rowid > ?))';
+      params.push(c.ts, c.ts, c.seq);
+    } else if (c && c.seq != null) {
+      where += ' AND rowid > ?';
+      params.push(c.seq);
+    } else if (c && c.ts) {
       where += ' AND created_at > ?';
-      params.push(since);
+      params.push(c.ts);
     }
     // rowid tiebreak (audit 2026-08-17): created_at is ISO ms-resolution, so a
     // say + a steer landing in the same millisecond had SQLite-undefined
     // relative order that could flip between reads. rowid is the stable
     // insertion order within a tie.
     const rows = db().prepare(`
-      SELECT * FROM dev_slot_messages WHERE ${where} ORDER BY created_at DESC, rowid DESC LIMIT ?
+      SELECT *, rowid AS _seq FROM dev_slot_messages WHERE ${where} ORDER BY created_at DESC, rowid DESC LIMIT ?
     `).all(...params, cap);
     return rows.reverse().map(rowToRecord);
   }
@@ -166,7 +240,7 @@ function createDevSlotMessagesStore({ getDb, now = () => new Date().toISOString(
     return { ok: false, code: 'claimed', claimed_by: row.claimed_by };
   }
 
-  return { appendMessage, listMessages, claimMessage, subscribe, _listenerCount: (k) => bus.listenerCount(k), _emit: (k) => bus.emit(k) };
+  return { appendMessage, listMessages, claimMessage, subscribe, listeners, _listenerCount: (k) => bus.listenerCount(k), _emit: (k, rec) => bus.emit(k, rec) };
 }
 
 /**
@@ -228,6 +302,31 @@ function deriveCallerIdentity(req) {
   return 'unknown';
 }
 
+// quox#1306: the collector's own slot_say posts under the service key, so an agent turn's post (a workflow or
+// scheduled run holds no slot) was stored as plain 'service' and the record could not say WHICH agent posted.
+// A SERVICE caller (the collector itself, the trust root; it already chooses the display label) may name the
+// acting agent, taken from the turn's verified agent id. It is stored as service:agent:<id>, never agent:<id>,
+// so it reads as collector-asserted and cannot pass as an attached agent principal. A user or agent caller
+// cannot claim one: its own authenticated identity stands. Returns null for a malformed acting agent (refuse).
+const ACTING_AGENT_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+function deriveSayIdentity(req, body) {
+  const identity = deriveCallerIdentity(req);
+  const acting = body && Object.prototype.hasOwnProperty.call(body, 'acting_agent') ? body.acting_agent : undefined;
+  if (identity !== 'service' || acting === undefined) return identity;
+  return typeof acting === 'string' && ACTING_AGENT_RE.test(acting) ? `service:agent:${acting}` : null;
+}
+
+// HYPERION #20 follow-up: WHO an agent post was made for, the verified turn user or the system actor of a
+// scheduled/workflow run, so the say envelope carries run -> agent -> post -> human. Same trust rule as the
+// acting agent: only a service caller that names one may assert it, in the X-On-Behalf-Of header (the body is
+// never read for it). undefined = none given; null = refuse.
+const ON_BEHALF_OF_RE = /^(?:system:[a-z0-9][a-z0-9:_-]{0,95}|[A-Za-z0-9][A-Za-z0-9_-]{0,63})$/;
+function deriveOnBehalfOf(req, body) {
+  const h = req && req.headers ? req.headers['x-on-behalf-of'] : undefined;
+  if (h === undefined || deriveCallerIdentity(req) !== 'service' || !(body && body.acting_agent !== undefined)) return undefined;
+  return typeof h === 'string' && ON_BEHALF_OF_RE.test(h) ? h : null;
+}
+
 // Two processes cannot both speak AS the slot's voice (DEVSUITE-SLOTS
 // P1-TRUST slice 2, the "double-voice kill"). A resident's identity IS the
 // slot's voice: checkoutSlot for a resident sets holder_session to exactly
@@ -280,7 +379,56 @@ function checkSlotSayAuthor({ slot, identity, caller }) {
   return { ok: false, holderSession };
 }
 
+/**
+ * SLOTS-REPLY: verify a caller-supplied from_slot (the sender's reply address).
+ * Kept only when that slot exists in the caller's org, is held (or stale, not yet
+ * reclaimed), and its hold is bound to the SAME authenticated identity
+ * (holder_identity, the same_user rule checkout uses). Anything else is dropped,
+ * never an error: the say itself still lands, it just carries no reply address.
+ * `getSlot(name)` must already be org-scoped.
+ *
+ * @returns {{ value: string|null, dropped: string|null }}
+ */
+const FROM_SLOT_RE = /^[a-z0-9-]{1,32}$/;
+function checkFromSlot({ fromSlot, identity, getSlot } = {}) {
+  if (fromSlot === undefined || fromSlot === null || fromSlot === '') return { value: null, dropped: null };
+  const name = String(fromSlot);
+  if (!FROM_SLOT_RE.test(name)) return { value: null, dropped: 'bad_name' };
+  let slot = null;
+  try { slot = typeof getSlot === 'function' ? getSlot(name) : null; } catch { slot = null; }
+  if (!slot) return { value: null, dropped: 'unknown_slot' };
+  const held = slot.state === 'held' || slot.state === 'stale';
+  if (!held || !identity || !slot.holder_identity || slot.holder_identity !== identity) {
+    return { value: null, dropped: 'not_held_by_you' };
+  }
+  return { value: slot.name, dropped: null };
+}
+
+/**
+ * SLOTS-REPLY2: a say with no (or an unaccepted) from_slot still gets stamped when the caller names the
+ * session it checked a slot out as (`holder_session`) and exactly ONE held/stale slot in the org is bound to
+ * BOTH that session name and the caller's authenticated identity. The slot comes from the server's hold
+ * record, never from the client, so a caller cannot forge another holder's address; an ambiguous or missing
+ * match stamps nothing. `listSlots()` must already be org-scoped.
+ *
+ * @returns {{ value: string|null, dropped: string|null }}
+ */
+function resolveFromSlot({ fromSlot, holderSession, identity, getSlot, listSlots } = {}) {
+  const direct = checkFromSlot({ fromSlot, identity, getSlot });
+  if (direct.value) return direct;
+  const hs = typeof holderSession === 'string' ? holderSession.trim() : '';
+  if (!hs || !identity || typeof listSlots !== 'function') return direct;
+  let rows = [];
+  try { rows = listSlots() || []; } catch { rows = []; }
+  const hit = rows.filter((r) => r && (r.state === 'held' || r.state === 'stale')
+    && r.holder_identity === identity && r.holder_session === hs);
+  if (hit.length === 1 && FROM_SLOT_RE.test(hit[0].name)) return { value: hit[0].name, dropped: null };
+  return direct;
+}
+
 module.exports = {
-  createDevSlotMessagesStore, deriveSlotAuthor, deriveCallerIdentity, validateSlotLabel,
-  checkSlotSayAuthor, parseAddressedTo,
+  resolveFromSlot,
+  createDevSlotMessagesStore, deriveSlotAuthor, deriveCallerIdentity, deriveSayIdentity, deriveOnBehalfOf, validateSlotLabel,
+  checkSlotSayAuthor, parseAddressedTo, checkFromSlot, validateRunCommand, RUN_MAX_LEN,
+  parseCursor, cursorOf, isAfterCursor,
 };

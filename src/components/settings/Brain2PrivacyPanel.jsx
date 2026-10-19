@@ -93,6 +93,8 @@ export default function Brain2PrivacyPanel({ client, refreshKey }) {
                 <Row label="Embedding provider and model" testId="brain2-egress-embedding">
                     {!emb.known
                         ? 'Unknown (the collector could not be asked)'
+                        : emb.local
+                            ? <>Chunk text is embedded locally by <strong>{emb.provider}</strong> ({emb.model || 'default model'}) on your own host: no third-party egress</>
                         : emb.provider
                             ? <>Chunk text is sent to <strong>{emb.provider}</strong> ({emb.model || 'default model'}) via {emb.route}</>
                             : 'No embedding provider connected: nothing is sent, search is keyword only'}

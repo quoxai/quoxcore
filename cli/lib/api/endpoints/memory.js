@@ -66,6 +66,25 @@ export const memory = {
     path: ({ id }) => `/api/memory/${id}/reinstate`,
     tags: ['live-write'],
   },
+  // QUOXMIND #1111: the core set.
+  'memory.core-set': {
+    method: 'GET',
+    service: 'memory',
+    path: () => `/api/memory/core-set`,
+    tags: ['live-safe'],
+  },
+  'memory.pin': {
+    method: 'POST',
+    service: 'memory',
+    path: ({ id }) => `/api/memory/${id}/pin`,
+    tags: ['live-write'],
+  },
+  'memory.unpin': {
+    method: 'DELETE',
+    service: 'memory',
+    path: ({ id }) => `/api/memory/${id}/pin`,
+    tags: ['live-write'],
+  },
   'memory.update': {
     method: 'PATCH',
     service: 'memory',

@@ -5,7 +5,7 @@
  * array of user/team ULIDs (or `["*"]` for everyone). In practice WEAVER
  * routinely emits one of these wrong shapes:
  *
- *   - "admin@email.com"                       (single email string)
+ *   - "user@example.com"                       (single email string)
  *   - "*"                                    (string instead of array)
  *   - "{{PLACEHOLDER:your-team-id}}"         (unresolved template literal)
  *   - "${vars.recipient}"                    (expression that didn't resolve)

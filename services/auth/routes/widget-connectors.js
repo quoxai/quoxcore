@@ -105,12 +105,17 @@ widgetConnectorsInternalRouter.get('/widgets/:widgetId/tools', (req, res) => {
 widgetConnectorsInternalRouter.post('/widgets/:widgetId/tools/:toolId/record-usage', (req, res) => {
   try {
     const { widgetId, toolId } = req.params;
-    const { success } = req.body || {};
+    const { success, visitor_id, simulated } = req.body || {};
     // CW-SEC-1: accept either internal id or public_key.
     const widget = prepare('SELECT id FROM website_widgets WHERE id = ? OR public_key = ?').get(widgetId, widgetId);
     if (!widget) return res.status(404).json({ error: 'Widget not found' });
     const tool = prepare('SELECT id FROM widget_tools WHERE id = ? AND widget_id = ?').get(toolId, widget.id);
     if (!tool) return res.status(404).json({ error: 'Tool not found' });
+    // QC-W14: simulation / admin-test runs are not real usage. Same test
+    // visitor set as the analytics filter (widgets.js TEST_VISITOR_IDS).
+    const isTest = simulated === true
+      || (typeof visitor_id === 'string' && (visitor_id.startsWith('sim_') || ['knowledge-tab-test', 'training_test', 'onboarding'].includes(visitor_id)));
+    if (isTest) return res.json({ success: true, skipped: 'test_traffic' });
     prepare(`
       UPDATE widget_tools
       SET use_count = COALESCE(use_count, 0) + 1,
@@ -136,7 +141,7 @@ widgetConnectorsInternalRouter.post('/widgets/:widgetId/tools/:toolId/record-usa
  * lead + inbox pattern, just flagged with a higher priority and a distinct
  * title so a demo request doesn't get lost in a plain-lead inbox.
  */
-async function createLeadInboxItem({ orgId, widgetId, conversationId, visitorId, name, email, intent, demo, preferredTime }) {
+async function createLeadInboxItem({ orgId, widgetId, conversationId, visitorId, name, email, phone, intent, demo, preferredTime }) {
   if (!orgId) {
     console.warn('[widget-connectors] lead captured with no org_id, cannot create inbox item');
     return false;
@@ -144,8 +149,9 @@ async function createLeadInboxItem({ orgId, widgetId, conversationId, visitorId,
   const lines = [
     `Widget: ${widgetId}`,
     `Name: ${name || 'not provided'}`,
-    `Email: ${email}`,
+    `Email: ${email || 'not provided'}`,
   ];
+  if (phone) lines.push(`Phone: ${phone}`);
   if (intent) lines.push(`Intent: ${intent}`);
   if (demo && preferredTime) lines.push(`Preferred time: ${preferredTime}`);
   if (conversationId) lines.push(`Conversation: ${conversationId}`);
@@ -165,7 +171,8 @@ async function createLeadInboxItem({ orgId, widgetId, conversationId, visitorId,
           conversation_id: conversationId || null,
           visitor_id: visitorId || null,
           name: name || null,
-          email,
+          email: email || null,
+          phone: phone || null,
           intent: intent || null,
           demo: !!demo,
           preferred_time: preferredTime || null,
@@ -235,15 +242,92 @@ function stampChatContact(widget, visitorId, { email, name } = {}) {
   }
 }
 
+// QC-BRUTALOOP-W14b: phone-only callback leads. A phone is a valid contact
+// detail on its own; dedupe is by digits within the conversation because a
+// NULL email never collides on the UNIQUE(widget_id, email, conversation_id).
+function phoneDigits(v) {
+  const d = typeof v === 'string' ? v.replace(/\D/g, '') : '';
+  return d.length >= 7 ? d : '';
+}
+
+function findPhoneLead(widget, conversationId, phone, email) {
+  const digits = phoneDigits(phone);
+  if (!digits || !conversationId) return null;
+  const rows = prepare('SELECT id, name, email, phone, company, notes FROM widget_leads WHERE widget_id = ? AND org_id = ? AND conversation_id = ?').all(widget.id, widget.org_id, conversationId);
+  return rows.find((r) => phoneDigits(r.phone) === digits && (!r.email || !email || r.email === email)) || null;
+}
+
+// Merge newly provided non-empty fields into an existing lead row; never
+// blanks a value. Returns the list of columns changed.
+function mergeLeadFields(widget, existing, { name, email, phone, company, notes }) {
+  const merged = [];
+  if (!existing) return merged;
+  const clean = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  const sets = []; const vals = [];
+  const cols = [['name', clean(name)], ['phone', clean(phone)], ['company', clean(company)]];
+  if (!existing.email) cols.push(['email', clean(email)]);
+  for (const [col, v] of cols) {
+    if (v && v !== existing[col]) { sets.push(`${col} = ?`); vals.push(v); merged.push(col); }
+  }
+  const n = clean(notes);
+  if (n && !(existing.notes || '').includes(n)) {
+    sets.push('notes = ?'); vals.push(existing.notes ? `${existing.notes}\n${n}` : n); merged.push('notes');
+  }
+  if (sets.length) {
+    try { prepare(`UPDATE widget_leads SET ${sets.join(', ')} WHERE id = ? AND org_id = ?`).run(...vals, existing.id, widget.org_id); } catch (e) { console.error('[widget-connectors] lead merge failed:', e?.message || e); merged.length = 0; }
+  }
+  return merged;
+}
+
+// QC-BRUTALOOP-W14: read-back by idempotency key (conversation_id + email) so the
+// collector can confirm a lead landed after a network/timeout error.
+// Same derivation as the collector's _leadRef (lib/quoxchatToolExecutors.js).
+function leadReference(id) {
+  const s = typeof id === 'string' ? id.replace(/[^A-Za-z0-9]/g, '') : '';
+  return s.length >= 6 ? s.slice(-6).toUpperCase() : null;
+}
+
+widgetConnectorsInternalRouter.get('/widgets/:widgetId/leads/lookup', (req, res) => {
+  try {
+    const { widgetId } = req.params;
+    const email = typeof req.query.email === 'string' ? req.query.email.trim() : '';
+    const phone = typeof req.query.phone === 'string' ? req.query.phone.trim() : '';
+    const conversationId = typeof req.query.conversation_id === 'string' && req.query.conversation_id ? req.query.conversation_id : null;
+    const widget = prepare('SELECT id, org_id FROM website_widgets WHERE id = ? OR public_key = ?').get(widgetId, widgetId);
+    if (!widget) return res.status(404).json({ error: 'Widget not found' });
+    if (!email && !phoneDigits(phone)) return res.status(400).json({ error: 'email or phone required' });
+    const row = email
+      ? prepare('SELECT id FROM widget_leads WHERE widget_id = ? AND org_id = ? AND email = ? AND conversation_id IS ?').get(widget.id, widget.org_id, email, conversationId)
+      : findPhoneLead(widget, conversationId, phone, null);
+    if (!row) return res.status(404).json({ error: 'not_found' });
+    res.json({ id: row.id });
+  } catch (err) {
+    console.error('Error looking up lead:', err);
+    res.status(500).json({ error: 'lookup failed' });
+  }
+});
+
 widgetConnectorsInternalRouter.post('/widgets/:widgetId/leads', async (req, res) => {
   try {
     const { widgetId } = req.params;
-    const { visitor_id, conversation_id, name, email, phone, company, notes, metadata } = req.body || {};
+    const { visitor_id, conversation_id, name, phone, company, notes, metadata } = req.body || {};
+    let { email } = req.body || {};
     // CW-SEC-1: accept either internal id or public_key.
     const widget = prepare('SELECT id, org_id, notification_settings_json FROM website_widgets WHERE id = ? OR public_key = ?').get(widgetId, widgetId);
     if (!widget) return res.status(404).json({ error: 'Widget not found' });
-    if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ error: 'valid email required' });
+    const emailOk = typeof email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!emailOk && !phoneDigits(phone)) {
+      return res.status(400).json({ error: 'valid email or phone required' });
+    }
+    if (!emailOk) email = null;
+
+    // QC-BRUTALOOP-W14b: same phone in the same conversation (a phone-only
+    // lead, or the email arriving on a later turn) updates that lead.
+    const phoneLead = findPhoneLead(widget, conversation_id || null, phone, email);
+    if (phoneLead) {
+      if (email) stampChatContact(widget, visitor_id, { email, name });
+      const merged = mergeLeadFields(widget, phoneLead, { name, email, phone, company, notes });
+      return res.json({ success: true, id: phoneLead.id, duplicate: true, merged });
     }
 
     // QUOXCHAT-EMAIL D2 — the visitor just typed their contact email into the
@@ -256,6 +340,9 @@ widgetConnectorsInternalRouter.post('/widgets/:widgetId/leads', async (req, res)
     const demo = metadata?.demo === true;
     const preferredTime = typeof metadata?.preferred_time === 'string' ? metadata.preferred_time.trim().slice(0, 200) : null;
     const id = ulid();
+    // QC W17: the visitor is told "reference XXXXXX" (collector _leadRef = last
+    // 6 alphanumerics of the id, upper-case). Store it so staff can look it up.
+    const reference = leadReference(id);
     try {
       prepare(`
         INSERT INTO widget_leads (id, widget_id, org_id, conversation_id, visitor_id, name, email, phone, company, notes, metadata_json)
@@ -264,7 +351,7 @@ widgetConnectorsInternalRouter.post('/widgets/:widgetId/leads', async (req, res)
         id, widget.id, widget.org_id,
         conversation_id || null, visitor_id || null,
         name || null, email, phone || null, company || null, notes || null,
-        JSON.stringify(metadata || {}),
+        JSON.stringify({ ...(metadata || {}), reference }),
       );
       // PRO-1: notify a human. Fail-soft, awaited so the collector's tool
       // executor call resolves after the escalation attempt, but a slow or
@@ -277,6 +364,7 @@ widgetConnectorsInternalRouter.post('/widgets/:widgetId/leads', async (req, res)
         visitorId: visitor_id || null,
         name: name || null,
         email,
+        phone: phone || null,
         intent,
         demo,
         preferredTime,
@@ -286,13 +374,16 @@ widgetConnectorsInternalRouter.post('/widgets/:widgetId/leads', async (req, res)
       if (!notified) {
         try { prepare('UPDATE widget_leads SET notification_failed = 1 WHERE id = ?').run(id); } catch (e) { console.error('[widget-connectors] failed to flag lead notification_failed:', e?.message || e); }
       }
-      res.status(201).json({ success: true, id, duplicate: false, notified, alerts_configured: alertsConfigured(widget.notification_settings_json) });
+      res.status(201).json({ success: true, id, reference, duplicate: false, notified, alerts_configured: alertsConfigured(widget.notification_settings_json) });
     } catch (err) {
       if (String(err.message || '').includes('UNIQUE')) {
         // Same email + conversation, return the existing row rather than erroring the LLM.
         // No new inbox item on a duplicate: a human was already notified the first time.
-        const existing = prepare('SELECT id FROM widget_leads WHERE widget_id = ? AND email = ? AND conversation_id IS ?').get(widget.id, email, conversation_id || null);
-        return res.json({ success: true, id: existing?.id || null, duplicate: true });
+        const existing = prepare('SELECT id, name, phone, company, notes FROM widget_leads WHERE widget_id = ? AND org_id = ? AND email = ? AND conversation_id IS ?').get(widget.id, widget.org_id, email, conversation_id || null);
+        // QC-BRUTALOOP-W14: merge newly provided non-empty fields into the
+        // existing row (a phone given on the retry turn was being dropped).
+        const merged = mergeLeadFields(widget, existing, { name, phone, company, notes });
+        return res.json({ success: true, id: existing?.id || null, duplicate: true, merged });
       }
       throw err;
     }
@@ -1455,6 +1546,7 @@ function rowToLead(r) {
     company: r.company,
     notes: r.notes,
     metadata,
+    reference: (typeof metadata.reference === 'string' && metadata.reference) || leadReference(r.id),
     status: r.status,
     captured_at: r.captured_at,
     updated_at: r.updated_at,

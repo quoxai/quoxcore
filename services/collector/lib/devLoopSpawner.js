@@ -183,7 +183,8 @@ async function deliverLoopSpawn({
   maxTurns,
   toolAccess,  // normalized tool_access block (see normalizeToolAccess)
   signFn,      // async (orgId, canonicalBytesHex) => { signature: hex, key_id }
-  deliverFn,   // async (hostId, command) => { success, stdout, stderr, error }
+  deliverFn,   // async (hostId, command, grant) => { success, stdout, stderr, error }
+  grantFn,     // optional async (hostId, command) => grant string|null; throws to refuse
   agentApiUrl, // test override
 }) {
   const envelopeId = `dvi_${crypto.randomBytes(12).toString('hex')}`;
@@ -205,7 +206,10 @@ async function deliverLoopSpawn({
   envelope.key_id = signed.key_id;
 
   const command = buildDeliveryCommand(envelope, agentApiUrl);
-  const result = await deliverFn(hostId, command);
+  // WHY after buildDeliveryCommand: the grant binds the exact command string,
+  // which is unique per spawn, so it can only be minted once the command exists.
+  const grant = grantFn ? await grantFn(hostId, command) : undefined;
+  const result = await deliverFn(hostId, command, grant);
   if (!result || !result.success) {
     throw new Error(`devLoopSpawner: delivery to ${hostId} failed: ${result && (result.error || result.stderr) || 'no result'}`);
   }

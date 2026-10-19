@@ -114,7 +114,7 @@ async function dispatchGovernedToolCall({
     try {
       // QUOXTRUST D6: this dispatcher emits its own per-tool evidence (below);
       // opt the executeTool choke out to avoid a double-emit.
-      if (toolCtx) toolCtx._callerEmitsToolEvidence = true;
+      if (toolCtx) { toolCtx._callerEmitsToolEvidence = true; toolCtx._toolCallId = callId; }
       toolResult = typeof executeTool === 'function'
         ? await executeTool(toolName, parsedInput, toolCtx)
         : { success: false, error: 'executeTool dep missing' };
@@ -127,6 +127,10 @@ async function dispatchGovernedToolCall({
       };
     }
   }
+
+  // QUOXON-ENGINE class 4 (quox#830): one plain message for the model and the UI; the raw
+  // error (JSON body, stack, driver code) stays in the server log only.
+  toolResult = require('./toolErrorPlain.js').plainToolResult(toolName, toolResult);
 
   // CRP-AU-4: VOLT, tool executed
   if (voltEmitter && typeof voltEmitter.emit === 'function') {
@@ -188,11 +192,25 @@ function handleOfferGate({ toolOffer, callId, toolName, input, emitEvent }) {
     emit({ type: 'tool.finished', call_id: callId, tool: toolName, input: input || {}, status: classifyToolStatus(result), result, duration_ms: Date.now() - t0, envelope_id: null });
     return result;
   }
+  // PLAN MODE: an offered tool whose CALL would change state (a write action, a state-changing slash
+  // command handed to the terminal) is refused here, before dispatch. Nothing runs.
+  const planWhy = toolOffer.isOffered(toolName) && typeof toolOffer.planRefusal === 'function' ? toolOffer.planRefusal(toolName, input || {}) : null;
+  if (planWhy) {
+    const result = { success: false, dropped: true, plan_mode: true, error: planWhy };
+    emit({ type: 'tool.started', call_id: callId, tool: toolName, input: input || {} });
+    emit({ type: 'tool.finished', call_id: callId, tool: toolName, input: input || {}, status: classifyToolStatus(result), result, duration_ms: 0, envelope_id: null });
+    return result;
+  }
   if (toolOffer.isOffered(toolName)) return null;
-  const result = {
-    success: false,
-    error: `Tool '${toolName}' was not offered on this turn, so it was not run. Call more_tools with what you need to do.`,
-  };
+  // QUOXON-ENGINE class 1/3: a withheld raw source or a hat switch on a read-only ask is
+  // dropped with its reason (and marked so the turn can note it), never run.
+  const why = typeof toolOffer.refusalFor === 'function' ? toolOffer.refusalFor(toolName) : null;
+  const result = why
+    ? { success: false, dropped: true, error: why }
+    : {
+      success: false,
+      error: `Tool '${toolName}' was not offered on this turn, so it was not run. Call more_tools with what you need to do.`,
+    };
   emit({ type: 'tool.started', call_id: callId, tool: toolName, input: input || {} });
   emit({ type: 'tool.finished', call_id: callId, tool: toolName, input: input || {}, status: classifyToolStatus(result), result, duration_ms: 0, envelope_id: null });
   return result;

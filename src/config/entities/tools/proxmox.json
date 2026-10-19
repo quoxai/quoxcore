@@ -241,6 +241,40 @@
           "User wants ALL VMs, not just templates (use proxmox.vms)"
         ]
       }
+    },
+    {
+      "id": "proxmox.vm.resolve",
+      "name": "Resolve VM by Name",
+      "description": "Resolve a VM or container NAME to its vmid, node, type and status from the live cluster inventory. Exact name match; reports ambiguous (with candidates) or not_found.",
+      "accessLevel": "specialists+",
+      "defconLevel": "GREEN",
+      "requiresApproval": false,
+      "parameters": {
+        "name": {
+          "type": "string",
+          "required": true,
+          "description": "Exact VM or container name (case-insensitive)"
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "vmid": { "type": "number" },
+          "node": { "type": "string" },
+          "type": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      },
+      "instructions": {
+        "summary": "Turn a guest name into the vmid and node other Proxmox tools need",
+        "when_to_use": [
+          "A VM is named and an action needs its vmid or node",
+          "Before proxmox_vm_action, snapshot or clone when only a name is known"
+        ],
+        "when_not_to_use": [
+          "You already have the vmid and node"
+        ]
+      }
     }
   ],
 
@@ -251,7 +285,7 @@
   },
 
   "instructions": {
-    "summary": "Manage Proxmox VE virtual machines, containers, and cluster resources",
+    "summary": "Manage Proxmox VE virtual machines, containers, and cluster resources. HYPERION reads all of this through one tool, proxmox_read (view=cluster|vms|containers|templates|resolve|...); writes keep their own gated tools.",
     "when_to_use": [
       "User wants to manage VMs or containers",
       "User asks about virtualization infrastructure",

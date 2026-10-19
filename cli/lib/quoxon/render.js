@@ -5,24 +5,31 @@
 import React from 'react';
 import chalk from 'chalk';
 import { Box, Text, useStdout } from 'ink';
-import { graphemes, lineCol } from './textBuffer.js';
+import stringWidth from 'string-width';
+import { graphemes, lineCol, selection, composerFrom } from './textBuffer.js';
 
 const h = React.createElement;
 /** Coloured runs (from theme.paintLine/paintRuns) as Text children; the characters are unchanged. */
 const runs = (rs) => rs.map((r, i) => (r.role ? h(Text, { key: i, color: c(r.role) }, r.text) : r.text));
 
-import { COLORS, MODE_COLOR, MIN_COLS, mono, c, clampCols, clip, paintLine, paintRuns, agentColor, proto, toneText, stripMarks } from './theme.js';
+import { COLORS, MODE_COLOR, MIN_COLS, mono, c, clampCols, clip, paintLine, paintRuns, agentColor, proto, toneText, stripMarks, providerOf, providerColor } from './theme.js';
 import { reducedMotion, motionAllowed } from './motion/clock.js';
 import { ruleColors, ringStep, ringMode } from './motion/ring.js';
 import { useFrame } from './motion/frame.js';
 import { rgbStr, hexRgb, mix, clamp01, mixOk, pulse01 } from './motion/color.js';
 import { revealCells, TIMING } from './motion/reveal.js';
 import { handoffFrame } from './motion/level.js';
+import { dividerRuleEl } from './dividerRule.js';
 import * as themeNs from './theme.js';
 import { qArt, qArtFrame } from '../core/banner.js';
-import { TIP_FOOTER } from './tips.js';
-import { Markdown, markdownRows, wrapRows, WText, Heading } from './markdown.js';
+import { cmd } from './palette.js';
+import { themeRole, rowParts, clipParts, labelWidth } from './rows.js';
+import { Markdown, wrapCell, markdownRows, wrapRows, WText, Heading } from './markdown.js';
+import { parseAsk, keysLabel, askText } from './ask.js';
+import { parseAsideNote } from './asideView.js';
+import { formatSlotBody, inlineable, codeRows } from './slotFormat.js';
 import { termRows } from './term.js';
+import { cellWidth, ambiguousWide } from './cells.js';
 import { welcomeModel } from './welcome.js';
 import { Q_GLYPH, qColor, stateWord, indicatorState, fmtTokens, wordFrame, wordColor } from './indicator.js';
 
@@ -369,15 +376,28 @@ export function TraceRow({ b, cols, fx = null, pulse = null }) {
 }
 
 export function HelpView({ model, cols }) {
+  // TUI-UX #6: the key column is sized from the usage text (capped), always followed by a two-space gutter. A usage that
+  // does not fit its column goes on its own line with the description underneath, so the two never run together.
   const keyW = Math.min(24, Math.max(...model.filter(m => m.key).map(m => [...m.key].length), 8) + 2);
   return h(Box, { flexDirection: 'column', marginTop: 1, width: cols }, ...model.map((m, i) => {
     if (m.kind === 'gap') return h(Text, { key: i }, ' ');
     if (m.kind === 'head') return m.dim ? h(Text, { key: i, bold: true, color: c('muted') }, m.text) : h(Heading, { key: i, text: m.text });
     if (m.kind === 'row' || (m.kind === 'dim' && m.key)) {
       const dim = m.kind === 'dim';
-      return h(Box, { key: i },
-        h(Box, { width: keyW + 2, flexShrink: 0 }, h(Text, { color: c('muted') }, '  ', ...(dim ? [m.key] : runs(paintRuns(m.key, 'key').map(r => (r.role === 'muted' || r.role === 'key' ? r : { ...r, role: /^\s*(just type|paste|status line)\s*$/.test(m.key) ? 'label' : 'key' })))))),
-        h(Box, { flexGrow: 1, flexShrink: 1 }, h(Text, { color: c(dim ? 'muted' : 'text') }, ...(dim ? [m.text] : runs(paintRuns(m.text, 'text'))))));
+      const keyRole = (r) => (r.role === 'muted' || r.role === 'key' ? r : { ...r, role: /^\s*(just type|paste|status line)\s*$/.test(m.key) ? 'label' : 'key' });
+      const keyNode = (txt) => h(Text, { color: c('muted') }, ...(dim ? [txt] : runs(paintRuns(txt, 'key').map(keyRole))));
+      const descNode = (txt) => h(Text, { color: c(dim ? 'muted' : 'text') }, ...(dim ? [txt] : runs(paintRuns(txt, 'text'))));
+      // Both columns are wrapped here, by words, so no continuation line starts with a stray space and none collides.
+      const descLines = wrapCell(m.text, Math.max(10, cols - keyW - 4));
+      if ([...m.key].length + 2 <= keyW) { // usage plus a two-space gutter fits the key column
+        return h(Box, { key: i, flexDirection: 'column' }, ...descLines.map((d, k) => h(Box, { key: k },
+          h(Box, { width: keyW + 2, flexShrink: 0 }, k === 0 ? h(Text, null, '  ', keyNode(m.key)) : h(Text, null, ' ')),
+          h(Box, { flexGrow: 1, flexShrink: 1 }, descNode(d)))));
+      }
+      const keyLines = wrapCell(m.key, Math.max(10, cols - 8)).map((l, k) => (k ? '    ' : '  ') + l);
+      return h(Box, { key: i, flexDirection: 'column' },
+        ...keyLines.map((l, k) => h(Text, { key: `k${k}` }, keyNode(l))),
+        ...descLines.map((d, k) => h(Box, { key: `d${k}`, paddingLeft: keyW + 2 }, descNode(d))));
     }
     return h(Text, { key: i, color: c(m.kind === 'dim' ? 'muted' : 'text') }, ...runs(paintRuns(m.text, m.kind === 'dim' ? 'muted' : 'text')));
   }));
@@ -429,14 +449,19 @@ export function introArt(cols, rows, progress = 1, color = !mono(), { dragon = f
   return { size, w: qDims(size).cols, ms, lines: cellsToAnsi(t === Infinity ? qCells(size, { color }) : plan.at(Math.min(t, plan.ms))) };
 }
 
+export const INTRO_HEAD = "Hi, I'm Quox!";
+export const INTRO_LINES = ['Tell me what you want. Watch me work.', '/help for commands, or just ask me anything.'];
+
 export function Intro({ item, cols, progress = 1, rows, dragon = false }) {
   const { stdout } = useStdout();
   const art = introArt(cols, rows ?? termRows(stdout) ?? 40, progress, !mono(), { dragon });
-  const wide = cols >= 60;
-  const info = h(Box, { flexDirection: 'column', justifyContent: 'center', marginLeft: wide ? 2 : 0, marginTop: wide ? 0 : 1 },
-    h(Grad, { text: 'Quox' }),
-    h(Text, { color: c('dim') }, clip(item.text, cols - (wide ? art.w + 4 : 2))),
-    h(Text, { color: c('dim') }, 'Talk to Quox. /help for everything.'));
+  // Beside the art only when the longest line fits there; otherwise the text goes under the art, left-aligned and wrapped, never clipped.
+  const need = Math.max(...[INTRO_HEAD, ...INTRO_LINES, item.text].map(l => [...l].length));
+  const wide = cols >= 60 && cols - 2 - art.w - 2 >= need;
+  const info = h(Box, { flexDirection: 'column', justifyContent: 'center', marginLeft: wide ? 2 : 0, marginTop: wide ? 0 : 1, flexShrink: 1, ...(wide ? {} : { width: Math.max(10, cols - 4) }) },
+    h(Grad, { text: INTRO_HEAD }),
+    ...INTRO_LINES.map((l, k) => h(Text, { key: k, color: c('text'), wrap: 'wrap' }, l)),
+    h(Text, { color: c('label'), wrap: 'wrap' }, item.text)); // version/build line: quieter (normal weight, soft brand tint), never grey
   return h(Box, { flexDirection: wide ? 'row' : 'column', marginTop: 1, marginBottom: 2, marginLeft: 2 }, h(Box, { flexDirection: 'column' }, ...art.lines.map((l, k) => h(Text, { key: k, wrap: 'truncate' }, l))), info);
 }
 
@@ -475,24 +500,24 @@ export function AoclRow({ item, cols }) {
 /**
  * Visual rhythm, decided in ONE place (the history renderer), never per producer. Blank rows BEFORE an item given
  * the item above it (an item never carries a trailing blank, so two blanks in a row cannot happen):
- *   - a new turn (user message) opens with one blank; the user message and its answer form one block (no blank)
- *   - a run of notices is one group: one blank before and after it, none inside (an /approvals listing stays tight)
- *   - a bang output block gets a blank before it
+ *   - a blank row between EVERY distinct block (user message, tool group, answer, notice group, AOCL footer, tip
+ *     frame, bang block); tight only inside a block: a run of tool rows, a run of notices, the AOCL + Thought
+ *     footer lines. A blank follows the prompt, separates the answer from the footer, and follows the footer.
  *   - items that draw their own leading blank (intro, welcome, help, object cards) add none here
  *   - under 20 terminal rows nothing is padded: only a new turn keeps its blank
  */
 const SELF_SPACED = new Set(['intro', 'welcome', 'help', 'object']);
-const NOTICE = new Set(['note', 'tip', 'error']);
+const GROUP = { tool: 'tools', trace: 'tools', note: 'notice', error: 'notice', aocl: 'footer', summary: 'footer' };
+const FOOTER = new Set(['aocl', 'summary']);
 export function historyGap(prev, item, rows = null) {
   if (!item || SELF_SPACED.has(item.kind)) return 0;
   if (item.kind === 'user') return 1;
   if (!prev) return item.kind === 'text' ? 1 : 0;
   if (rows != null && rows < 20) return 0;
-  if (NOTICE.has(item.kind)) return NOTICE.has(prev.kind) ? 0 : 1;
-  if (item.kind === 'bang') return 1;
-  if (NOTICE.has(prev.kind) || prev.kind === 'bang') return 1;
-  if (item.kind === 'text') return prev.kind === 'user' ? 0 : 1;
-  return 0;
+  if (FOOTER.has(item.kind) && FOOTER.has(prev.kind)) return 0; // the AOCL line and the Thought line are one footer block
+  const g = GROUP[item.kind];
+  if (g && g === GROUP[prev.kind]) return 0; // a run of tool rows, or of notices, is one block
+  return 1; // every other pair of distinct blocks (each tip frame is its own block)
 }
 
 export function HistoryItem({ item, cols, live = false, fx = null, pulse = null, ignite = 0, gap }) {
@@ -520,7 +545,10 @@ export function HistoryItem({ item, cols, live = false, fx = null, pulse = null,
     case 'aocl': return h(AoclRow, { item, cols });
     case 'error': return h(ErrorView, { item, cols, fx });
     case 'note': return h(NoteView, { item, cols, fx });
+    case 'slotmsg': return h(SlotMsgView, { item, cols });
     case 'tip': return h(TipView, { item, cols });
+    case 'whatsnew': return h(WhatsNewView, { item, cols });
+    case 'bcard': return h(BroadcastCardView, { item, cols });
     case 'bang': return h(Box, { paddingLeft: 2, flexDirection: 'column', width: cols }, ...String(item.text).split('\n').map((l, i) => h(Text, { key: i, color: c('text') }, l || ' ')));
     default: return null;
   }
@@ -542,31 +570,195 @@ export function noteLines(text, width) {
   lines.push(cur);
   return lines;
 }
-export const noteRows = (text, cols, tone) => noteLines(toneText(text, tone), cols - 2).reduce((n, l) => n + wrapRows(stripMarks(l), cols - 2), 0);
+/** A note line that is one bare URL longer than the row: never hard-wrapped (a break inside a token breaks copy and click). */
+const longUrl = (l, width) => { const t = stripMarks(l); return /^https?:\/\/\S+$/.test(t) && graphemes(t).length > width; };
+export const noteRows = (text, cols, tone) => noteLines(toneText(text, tone), cols - 2).reduce((n, l) => n + (longUrl(l, cols - 2) ? 1 : wrapRows(stripMarks(l), cols - 2)), 0);
 
-/** A failure: a red ✖ then the sentence in prose, so a command inside (`/login`) keeps the command colour. */
+/**
+ * Z2H-7B3: a failure message can be several lines (what ran, what did not, the advice). Every line shows,
+ * wrapped at the row width, never clipped to one: the first line leads with a red ✖, the rest indent under it.
+ */
+export const errorRows = (text, cols) => String(text ?? '').split('\n').reduce((n, l) => n + Math.max(1, wrapRows(stripMarks(l), Math.max(10, cols - 4))), 0);
 function ErrorView({ item, cols, fx }) {
   const raw = String(item.text ?? '');
-  const t = [...stripMarks(raw)].length > cols - 6 ? clip(stripMarks(raw), cols - 6) : raw;
-  const parts = [{ t: '✖ ', color: 'error' }, ...paintRuns(t, 'prose').map(r => ({ t: r.text, color: r.role || 'prose' }))];
-  return h(Box, { paddingLeft: 2 }, fx ? h(Text, null, ...fxNodes(parts, fx, 13)) : h(Text, null, ...parts.map((p, i) => h(Text, { key: i, color: c(p.color) }, p.t))));
+  const lines = raw.split('\n');
+  const paint = (l) => paintRuns(l, 'prose').map(r => ({ t: r.text, color: r.role || 'prose' }));
+  if (lines.length === 1 && wrapRows(stripMarks(raw), Math.max(10, cols - 4)) === 1) {
+    const parts = [{ t: '✖ ', color: 'error' }, ...paint(raw)];
+    return h(Box, { paddingLeft: 2 }, fx ? h(Text, null, ...fxNodes(parts, fx, 13)) : h(Text, null, ...parts.map((p, i) => h(Text, { key: i, color: c(p.color) }, p.t))));
+  }
+  return h(Box, { paddingLeft: 2, flexDirection: 'column', width: cols },
+    ...lines.map((l, i) => h(Box, { key: i },
+      h(Box, { width: 2, flexShrink: 0 }, h(Text, { color: c('error') }, i === 0 ? '✖ ' : '  ')),
+      h(Box, { flexGrow: 1, flexShrink: 1 }, h(WText, { color: c('prose') }, ...runs(paintRuns(l || ' ', 'prose')))))));
 }
 
+/**
+ * /aside: a read-only side answer, drawn apart from the conversation: a violet ┃ bar down the left, the question
+ * as its header, the answer as markdown, a quiet read-only footer. Rows: margin + header + body + footer (asideRows).
+ */
+function AsideView({ item, cols }) {
+  const { head, body, foot } = parseAsideNote(item.text);
+  const w = Math.max(10, cols - 5);
+  return h(Box, { marginLeft: 2, marginTop: 1, flexDirection: 'column', width: cols - 2, borderStyle: 'bold', borderTop: false, borderRight: false, borderBottom: false, borderLeftColor: c('violet'), paddingLeft: 1 },
+    h(Text, { color: c('violet'), bold: true }, clip(head, w)),
+    h(Markdown, { text: body.join('\n') || '(no answer)', cols: w }),
+    ...(foot ? [h(Text, { key: 'f', color: c('quiet') }, clip(foot, w))] : []));
+}
+export const asideRows = (text, cols) => { const { body, foot } = parseAsideNote(text); return 2 + Math.max(1, markdownRows(body.join('\n') || '(no answer)', Math.max(10, cols - 5))) + (foot ? 1 : 0); };
+
 function NoteView({ item, cols, fx = null }) {
+  if (item.tone === 'ask') return h(AskCard, { text: item.text, cols }); // QUOXON-ASK: every ask is the approval card
+  if (item.tone === 'aside') return h(AsideView, { item, cols });
+  // RECO-HIGHLIGHT: the recommended option of a decision card: bold, accent colour, never grey.
+  if (item.tone === 'reco') return h(Box, { paddingLeft: 2, width: cols }, h(WText, { color: c('sky'), bold: true }, stripMarks(item.text)));
   // Tone shows as a glyph (⚠ ✖ ✔) in front; the sentence stays prose so commands and values keep their own colours.
   const color = c('prose');
   const text = toneText(item.text, item.tone);
   // While it reveals, a line that fits decodes in; a line that wraps keeps plain wrapping (never mis-measured).
-  return h(Box, { paddingLeft: 2, flexDirection: 'column', width: cols }, ...noteLines(text, cols - 2).map((l, i) => (fx && wrapRows(stripMarks(l), cols - 2) === 1
+  return h(Box, { paddingLeft: 2, flexDirection: 'column', width: cols }, ...noteLines(text, cols - 2).map((l, i) => longUrl(l, cols - 2)
+    ? h(Box, { key: i, width: graphemes(stripMarks(l)).length, flexShrink: 0 }, h(Text, { color: c('link'), wrap: 'truncate-end' }, stripMarks(l)))
+    : (fx && wrapRows(stripMarks(l), cols - 2) === 1
     ? h(Text, { key: i }, ...fxNodes(paintLine(l, item.tone).map(r => (typeof r === 'string' ? { t: r, color: 'prose' } : { t: r.text, color: r.role || 'prose' })), { e: fx.e - i * 0.05, timing: fx.timing }, 17 + i))
-    : h(WText, { key: i, color }, ...runs(paintLine(l, item.tone))))));
+    : h(WText, { key: i, color, bold: item.tone === 'ask' }, ...runs(paintLine(l, item.tone))))));
 }
 
-/** A "did you know" tip (tips.js). Normal foreground text with a coloured "Tip:" label; nothing grey. Same words as tipLine(). */
+/**
+ * QUOXON-MESH: a slot chat line. Incoming "◆ quox2 (Adam) 04:56 hello" (violet: another session speaking),
+ * outgoing "→ quox2 04:56 hello ✔" (sky: you). A file shows its name, three lines and a /slot log pointer;
+ * /slot log prints the whole file (`full`).
+ */
+function SlotMsgView({ item, cols }) {
+  const l = item.line || {};
+  if (l.roomLine) { // QUOXON-ROOMS: `#group-chat  QUOXON: text`, a stable colour per sender
+    return h(Box, { paddingLeft: 2, width: cols },
+      h(WText, null,
+        h(Text, { color: c('label') }, `#${l.room}  `),
+        h(Text, { color: c(l.color || 'sky'), bold: true }, `${l.who}: `),
+        h(Text, { color: c('text') }, String(l.text ?? ''))));
+  }
+  const role = l.out ? 'sky' : l.urgent ? 'error' : 'violet';
+  const body = String(l.text ?? '');
+  // SLOT-RUN A (owner 2026-10-16 "messy needs a format"): one tidy header line (sender, no-reply marker, time);
+  // a short plain line stays on it, anything longer or with markdown renders below as formatted rows.
+  const time = l.time ? ` ${l.time}` : '';
+  const headLen = graphemes(`${l.glyph || '◆'} ${l.who || ''}${!l.out && l.noReply ? ' (no reply address)' : ''}${time} `).length;
+  const run = !l.out && l.run ? l.run : null;
+  const inline = !run && (Boolean(l.file) || l.out || inlineable(body, cols - 2 - headLen - 2));
+  const segRow = (segs, key) => h(Box, { key, paddingLeft: 4, width: cols }, segs.length ? h(Text, null, ...segs.map((sg, i) => h(Text, { key: i, color: c(sg.role || 'text'), bold: sg.bold || undefined }, sg.t))) : h(Text, null, ' '));
+  const out = [h(Box, { key: 'h', paddingLeft: 2, width: cols },
+    h(WText, null,
+      h(Text, { color: c(role), bold: true }, `${l.glyph || '◆'} ${l.who || ''}`),
+      !l.out && l.noReply ? h(Text, { color: c('label') }, ' (no reply address)') : null,
+      h(Text, { color: c('label') }, `${time} `),
+      inline ? h(Text, { color: c(l.urgent ? 'error' : 'text') }, body) : null,
+      l.out && l.delivered ? h(Text, { color: c('ok') }, ' ✔') : null))];
+  if (!inline && !l.file && !run && body.trim()) formatSlotBody(body, cols - 6, { role: l.urgent ? 'error' : 'text' }).forEach((segs, i) => out.push(segRow(segs, `b${i}`)));
+  // SLOT-RUN B: a run request shows the shared ask, the FULL command (never clipped), and its answer line.
+  // ASK-SETTLE: an answered or expired run request is one line (what was asked and the answer), never a live card.
+  if (run && run.settled) out.push(h(Box, { key: 'run', paddingLeft: 4, width: cols }, h(WText, { color: c('prose') }, ...runs(paintLine(toneText(run.settled, run.settledTone), run.settledTone)))));
+  else if (run) out.push(h(Box, { key: 'run' }, h(NeedsYouCard, { // QUOXON-ASK: a run request is the approval card too
+    cols, title: `⚠ ${run.who} asks you to run this here`, rows: run.why ? [['why', run.why]] : [], block: codeRows([run.cmd], cols - 4),
+    notes: run.runnable ? [] : [`✖ Not offered: ${run.refuse}. Copy it yourself only if you trust it.`],
+    footer: run.danger ? `▶ ${run.danger}. Type run to run it, n to skip? run · n no · c chat` : '▶ Run it? y yes · n no · c chat',
+    arming: run.runnable ? null : h(Text, null, '') })));
+  if (l.file && !l.out) {
+    const lines = l.full ? String(l.file.body).split('\n') : l.file.preview;
+    lines.forEach((t, i) => out.push(h(Box, { key: `f${i}`, paddingLeft: 6, width: cols }, h(Text, { color: c('text') }, clip(t || ' ', cols - 8)))));
+    if (!l.full && l.file.lines > lines.length) out.push(h(Box, { key: 'more', paddingLeft: 6 }, h(Text, { color: c('prose') }, `… ${l.file.lines - lines.length} more line${l.file.lines - lines.length === 1 ? '' : 's'}: `), h(Text, { color: c('command') }, '/slot log')));
+    else if (!l.full) out.push(h(Box, { key: 'more', paddingLeft: 6 }, h(Text, { color: c('prose') }, 'full file: '), h(Text, { color: c('command') }, '/slot log')));
+  }
+  return h(Box, { flexDirection: 'column' }, ...out);
+}
+
+export const TIP_HINT = `${cmd('/tip')} for another · ${cmd('/tip-settings off')} to stop`;
+/** Word-wrap plain text to `width` columns (a word longer than the width is hard-split). */
+function wrapPlain(text, width) {
+  const out = []; let line = '';
+  for (const w0 of String(text ?? '').split(/\s+/).filter(Boolean)) {
+    let w = w0;
+    while ([...w].length > width) { if (line) { out.push(line); line = ''; } out.push([...w].slice(0, width).join('')); w = [...w].slice(width).join(''); }
+    if (line && [...line].length + 1 + [...w].length > width) { out.push(line); line = w; } else line = line ? `${line} ${w}` : w;
+  }
+  if (line) out.push(line);
+  return out.length ? out : [''];
+}
+
+/**
+ * A tip in a rounded brand-accent frame: width min(cols - 4, 76), 1-col padding, wrapped text, "Try:" on its own
+ * line in the command colour, the /tip hint as the last line inside. Under 40 cols or NO_COLOR: a plain "Tip:" block.
+ */
 function TipView({ item, cols }) {
-  return h(Box, { paddingLeft: 2, width: cols }, h(Text, null,
-    h(Text, { color: c('sky'), bold: true }, 'Tip:'), ` ${item.text}  `,
-    h(Text, { color: c('key'), bold: true }, 'Try:'), ` ${item.cmd}  ${TIP_FOOTER}`));
+  if (mono() || cols < 40) {
+    const w = Math.max(10, cols - 2);
+    const lines = [...wrapPlain(`Tip: ${item.text}`, w), `Try: ${item.cmd}`, ...wrapPlain(stripMarks(TIP_HINT), w)];
+    return h(Box, { paddingLeft: 2, flexDirection: 'column', width: cols }, ...lines.map((l, i) => h(Text, { key: i }, l)));
+  }
+  const W = Math.min(cols - 4, 76), inner = W - 4, edge = { color: c('brand') };
+  const row = (key, kids, len) => h(Box, { key }, h(Text, edge, '│ '), h(Text, null, ...kids), h(Text, null, ' '.repeat(Math.max(0, inner - len))), h(Text, edge, ' │'));
+  const body = wrapPlain(item.text, inner).map((l, i) => row(`t${i}`, [h(Text, { key: 0, color: c('prose') }, l)], [...l].length));
+  const cmdText = clip(item.cmd, inner - 5);
+  const tryRow = row('try', [h(Text, { key: 0, color: c('prose'), bold: true }, 'Try: '), h(Text, { key: 1, color: c('command') }, cmdText)], 5 + [...cmdText].length);
+  const hintRow = row('hint', runs(paintRuns(TIP_HINT, 'quiet')), [...stripMarks(TIP_HINT)].length);
+  return h(Box, { paddingLeft: 2, flexDirection: 'column' },
+    h(Text, edge, '╭─ ', h(Text, { bold: true }, 'Tip'), ' ', '─'.repeat(W - 8), '╮'),
+    ...body, tryRow, hintRow,
+    h(Text, edge, '╰', '─'.repeat(W - 2), '╯'));
+}
+
+/**
+ * The startup "What's new since you last ran Quox" box: same frame as a tip, one title row (+ a "Try:" row) per entry,
+ * then ALWAYS a "Try: /whatsnew" footer ("+N more. Try: /whatsnew" when more are unseen), so the way to the full list
+ * never depends on which entries happen to be newest. The compact head variant (item.head, the new-commands line)
+ * already ends "/whatsnew for more" and gets no footer. Under 40 cols or NO_COLOR: plain lines, no frame.
+ */
+function WhatsNewView({ item, cols }) {
+  const HEAD = item.head || "What's new since you last ran Quox";
+  const lead = item.more > 0 ? `+${item.more} more. ` : '';
+  const more = item.head ? '' : `${lead}Try: /whatsnew`;
+  if (mono() || cols < 40) {
+    const w = Math.max(10, cols - 2);
+    const lines = [HEAD, ...item.items.flatMap(it => [`- ${it.title}`, ...(it.cmd ? [`  Try: ${it.cmd}`] : [])]), ...(more ? [more] : [])].flatMap(l => wrapPlain(l, w));
+    return h(Box, { paddingLeft: 2, flexDirection: 'column', width: cols }, ...lines.map((l, i) => h(Text, { key: i }, l)));
+  }
+  const W = Math.min(cols - 4, 76), inner = W - 4, edge = { color: c('brand') };
+  const row = (key, kids, len) => h(Box, { key }, h(Text, edge, '│ '), h(Text, null, ...kids), h(Text, null, ' '.repeat(Math.max(0, inner - len))), h(Text, edge, ' │'));
+  const rows = item.items.flatMap((it, i) => {
+    const t = clip(it.title, inner - 2);
+    const out = [row(`t${i}`, [h(Text, { key: 0, color: c('prose'), bold: true }, `• ${t}`)], 2 + [...t].length)];
+    if (it.cmd) { const k = clip(it.cmd, inner - 7); out.push(row(`c${i}`, [h(Text, { key: 0, color: c('prose') }, '  Try: '), h(Text, { key: 1, color: c('command') }, k)], 7 + [...k].length)); }
+    return out;
+  });
+  if (more) rows.push(row('more', [h(Text, { key: 0, color: c('prose') }, lead), h(Text, { key: 1, color: c('prose'), bold: true }, 'Try: '), h(Text, { key: 2, color: c('command') }, '/whatsnew')], [...more].length));
+  if (item.pad) { rows.unshift(row('p0', [], 0)); rows.push(row('p1', [], 0)); }
+  return h(Box, { paddingLeft: 2, flexDirection: 'column' },
+    h(Text, edge, '╭─ ', h(Text, { bold: true }, HEAD), ' ', '─'.repeat(Math.max(1, W - 5 - HEAD.length)), '╮'),
+    ...rows,
+    h(Text, edge, '╰', '─'.repeat(W - 2), '╯'));
+}
+
+/**
+ * QUOXON-BROADCAST: the sender's delivery card. Rounded frame in the card's tone (green all in, gold pending, red a
+ * real failure), one row per fact, the id and the status hint in the bottom edge. Widths are measured in cells so the
+ * emoji does not skew the edge. Under 50 cols: the model's one-line form.
+ */
+function BroadcastCardView({ item, cols }) {
+  const m = item.card;
+  if (cols < 50) return h(Box, { paddingLeft: 1, width: cols }, h(WText, { color: c('prose') }, m.narrow));
+  const W = Math.min(cols - 4, 76), inner = W - 4, edge = { color: c(m.tone) };
+  const cut = (t, room) => { let o = ''; for (const ch of [...t]) { if (stringWidth(o + ch) > room - 1) return o + '…'; o += ch; } return o; };
+  const fit = (t, room) => (stringWidth(t) > room ? cut(t, room) : t);
+  const rows = m.rows.map((segs, i) => {
+    let left = inner;
+    const kids = segs.map(([t, role], k) => { const x = fit(t, left); left -= stringWidth(x); return h(Text, { key: k, color: c(role) }, x); });
+    return h(Box, { key: i }, h(Text, edge, '│ '), h(Text, null, ...kids), h(Text, null, ' '.repeat(Math.max(0, left))), h(Text, edge, ' │'));
+  });
+  const title = fit(m.title, W - 5);
+  const foot = fit(m.foot, W - 5);
+  return h(Box, { paddingLeft: 2, flexDirection: 'column' },
+    h(Text, edge, '╭─ ', h(Text, { bold: true, color: c('prose') }, title), ' ', '─'.repeat(Math.max(1, W - 5 - stringWidth(title))), '╮'),
+    ...rows,
+    h(Text, edge, '╰─ ', h(Text, { color: c('quiet') }, foot), ' ', '─'.repeat(Math.max(1, W - 5 - stringWidth(foot))), '╯'));
 }
 
 /** Rows a live block takes as HistoryItem renders it (sizes the live region; keep in step with HistoryItem). */
@@ -574,8 +766,10 @@ export function liveRows(blocks, cols) {
   return blocks.reduce((n, b) => {
     switch (b.kind) {
       case 'text': return n + 1 + markdownRows(b.text, cols - 2, true);
-      case 'note': return n + noteRows(b.text, cols, b.tone);
+      case 'note': return n + (b.tone === 'ask' ? askCardRows(b.text, cols) : b.tone === 'aside' ? asideRows(b.text, cols) : noteRows(b.text, cols, b.tone));
       case 'summary': return n + noteLines(b.text, cols - 4).length;
+      case 'error': return n + errorRows(b.text, cols);
+      case 'slotmsg': return n + (b.line?.run && !b.line.run.settled ? 9 + Math.ceil(String(b.line.run.cmd || '').length / Math.max(10, cols - 8)) : 1); // ASK-SETTLE: an armed run card is held live
       default: return n + 1;
     }
   }, 0);
@@ -591,11 +785,34 @@ export const Grad = ({ text }) => {
   }));
 };
 
+/**
+ * Pure: the model as the composer's bottom-rule label (`──── anthropic claude-sonnet-5-5 ─`). Degrades to fit,
+ * never wraps: full, then a shortened provider (`anth claude-sonnet-5-5`), then the model alone, then the
+ * model clipped. Leaves at least four rule cells on the left. Below 30 cols, or no model: ''.
+ */
+export function modelRuleLabel(cols, model) {
+  const full = String(model || '').trim();
+  if (!full || cols < 30) return '';
+  const room = cols - 7; // ' label ' + one trailing dash + four leading dashes
+  const fits = (t) => cellWidth(t) <= room; // cells under the ambiguous-width policy (cells.js)
+  if (fits(full)) return full;
+  const segs = full.split(' · ');
+  const tailSeg = segs[segs.length - 1];
+  const words = (segs.length > 1 ? segs[0] : full).split(' ');
+  const name = segs.length > 1 ? tailSeg : words.slice(1).join(' ') || words[0];
+  const provider = segs.length > 1 ? segs[0] : words.length > 1 ? words[0] : '';
+  if (provider) { const short = `${provider.slice(0, 4)} ${name}`; if (fits(short)) return short; }
+  if (fits(name)) return name;
+  return clip(name, room);
+}
+
 /** Pure: the rule split around a right-aligned session name: `───── name ─`. Below 30 cols, or no name: plain. */
 export function ruleParts(cols, name) {
-  if (!name || cols < 30) return { left: '─'.repeat(cols), label: '', right: '' };
+  // TUI-FOOTER: '─' is East Asian Ambiguous; where the terminal draws it two cells wide, half as many fill the row
+  const d = cellWidth('─');
+  if (!name || cols < 30) return { left: '─'.repeat(Math.floor(cols / d)), label: '', right: '' };
   const label = ` ${clip(name, cols - 8)} `;
-  return { left: '─'.repeat(Math.max(1, cols - [...label].length - 1)), label, right: '─' };
+  return { left: '─'.repeat(Math.max(1, Math.floor((cols - cellWidth(label) - d) / d))), label, right: '─' };
 }
 
 /**
@@ -619,26 +836,33 @@ function ringString(str, rgbs, from = 0) {
  * A composer rule. `ring` (motion only, never under NO_COLOR) = { state, top }: the rule becomes half of the
  * light ring (motion/ring.js); the session name stays bright on top of it.
  */
-export const Rule = ({ cols, color, name, ring = null }) => {
+export const Rule = ({ cols, color, name, ring = null, labelColor = null }) => {
   const p = ruleParts(cols, name);
+  // `labelColor` (the model on the bottom rule): its own colour, not bold, so it reads as context, not a title
+  const lab = labelColor ? { color: labelColor } : null;
   if (ring && ring.state && ring.state.k > 0 && !mono()) {
     const rgbs = ruleColors(cols, ring.top, ring.state, COLORS[color] || color);
     if (!p.label) return h(Text, null, ringString(p.left, rgbs));
     const ls = [...p.left].length, lb = [...p.label].length;
-    return h(Text, null, ringString(p.left, rgbs), h(Text, { color: c('violet'), bold: true }, p.label), ringString(p.right, rgbs, ls + lb));
+    return h(Text, null, ringString(p.left, rgbs), h(Text, lab || { color: c('violet'), bold: true }, p.label), ringString(p.right, rgbs, ls + lb));
   }
   if (!p.label) return h(Text, { color: c(color) }, p.left);
-  return h(Text, null, h(Text, { color: c(color) }, p.left), h(Text, { color: c('label'), bold: true }, p.label), h(Text, { color: c(color) }, p.right));
+  return h(Text, null, h(Text, { color: c(color) }, p.left), h(Text, lab || { color: c('label'), bold: true }, p.label), h(Text, { color: c(color) }, p.right));
 };
 
 /** Split the buffer into visible lines with an inverse cursor cell. */
 export function composerLines(buf, maxLines = 8) {
   const lines = buf.text.split('\n');
   const { line: cl, col } = lineCol(buf.text, buf.cursor);
-  let from = 0;
-  if (lines.length > maxLines) from = Math.min(Math.max(0, cl - Math.floor(maxLines / 2)), lines.length - maxLines);
+  const from = composerFrom(buf, maxLines);
+  const sel = selection(buf);
+  const starts = []; { let o = 0; for (const l of lines) { starts.push(o); o += l.length + 1; } }
   return lines.slice(from, from + maxLines).map((text, i) => {
     const idx = from + i;
+    if (sel) { // QUOXON-MOUSE: the selected span is drawn inverse; no cursor cell while a selection shows
+      const a = Math.max(0, Math.min(text.length, sel.from - starts[idx])); const b = Math.max(0, Math.min(text.length, sel.to - starts[idx]));
+      return a < b ? { key: idx, pre: text.slice(0, a), sel: text.slice(a, b), post: text.slice(b) } : { text, cursor: null, key: idx };
+    }
     if (idx !== cl) return { text, cursor: null, key: idx };
     const gs = graphemes(text);
     return { key: idx, before: gs.slice(0, col).map(g => g.text).join(''), at: gs[col] ? gs[col].text : ' ', after: gs.slice(col + 1).map(g => g.text).join('') };
@@ -652,24 +876,44 @@ export function composerLines(buf, maxLines = 8) {
 export function RingComposer({ ring: ringIn, ...props }) {
   const now = useFrame();
   const ring = ringIn ? (ringIn.ref.current = ringStep(ringIn.ref.current, { active: ringIn.active, mode: ringIn.mode, now })) : null;
-  return h(Composer, { ...props, ring });
+  return h(Composer, { ...props, ring, now });
 }
 
 /** `ring` = a ring state from motion/ring.js, or null for the static rules. Hook-free (pure render). */
-export function Composer({ buf, cols, mode, busy, placeholder, name, ring = null }) {
+// TUI-DIVIDER: `divider` = { d, slow } (the AOCL strip state and the per-turn slow-redraw ref), drawn only on the
+// ring path (motion + colour), so NO_COLOR, reduced motion and the lite TUI keep the plain rule.
+/** Does the block directly above the composer close with a rule? Then no spacer and no second rule (one rule only). */
+export function endsInRule({ card = null, asks = [], background = 0, pending = [], steering = [], countdown = false }) {
+  if (background > 0 || pending.length || steering.length || countdown) return false;
+  if (asks.length) return !askCardModel(asks[asks.length - 1].text).plain && askCardRows(asks[asks.length - 1].text, 80) > 0;
+  return Boolean(card);
+}
+
+export function Composer({ buf, cols, mode, busy, placeholder, name, model = null, ring = null, divider = null, now = 0, topRule = true }) {
   const empty = buf.text === '';
   const lines = composerLines(buf);
   const body = empty
     ? [h(Box, { key: 'p' }, h(Text, { color: c('sky'), bold: true }, '› '), h(Text, { inverse: true }, ' '), h(Text, { color: c('placeholder') }, clip(placeholder, cols - 5)))]
     : lines.map((l, i) => h(Box, { key: l.key },
-      h(Text, { color: c('sky'), bold: true }, i === 0 ? '› ' : '  '),
-      l.at === undefined
+      h(Box, { flexShrink: 0 }, h(Text, { color: c('sky'), bold: true }, i === 0 ? '› ' : '  ')), // COMPOSER-EDIT: never squeezed, so wrapped rows are cols - 2 wide
+      l.sel !== undefined
+        ? h(Text, { color: c('input') }, l.pre, h(Text, { inverse: true }, l.sel), l.post)
+        : l.at === undefined
         ? h(Text, { color: c('input') }, l.text || ' ')
         : h(Text, { color: c('input') }, l.before, h(Text, { inverse: true }, l.at), l.after)));
   return h(Box, { flexDirection: 'column', width: cols },
-    h(Rule, { cols, color: MODE_COLOR[mode] || 'sky', name, ring: ring ? { state: ring, top: true } : null }),
+    topRule ? h(Rule, { cols, color: MODE_COLOR[mode] || 'sky', name, ring: ring ? { state: ring, top: true } : null }) : null,
     ...body,
-    h(Rule, { cols, color: 'dim', ring: ring ? { state: ring, top: false } : null }));
+    (ring && divider && dividerRuleEl({ cols, label: modelRuleLabel(cols, model), divider: divider.d, now, ruleColor: c('dim'), labelColor: modelColor(model), mono: mono(), reduced: cellWidth('─') !== 1, slow: divider.slow }))
+      || h(Rule, { cols, color: 'dim', name: modelRuleLabel(cols, model), labelColor: modelColor(model), ring: ring ? { state: ring, top: false } : null }));
+}
+
+/** The model label's colour: its provider's brand colour, else the label role (never a grey). */
+function modelColor(model) {
+  if (mono()) return undefined;
+  const [prov, ...rest] = String(model || '').split(' ');
+  const pc = providerOf(prov, rest.join(' ')) ? providerColor(prov, rest.join(' ')) : null;
+  return pc || c('label');
 }
 
 export function Pending({ pending, steering, cols }) {
@@ -695,89 +939,201 @@ export function WaitingNotice({ items = [], cols }) {
   if (!items.length) return null;
   const from = [...new Set(items.map(i => i.origin || 'another session'))].slice(0, 2).join(', ');
   const n = items.length;
-  return h(Text, { color: c('warn') }, ' ' + clip(`${n} approval${n === 1 ? '' : 's'} waiting from ${from}${items.some(i => i.privileged) ? ' (privileged)' : ''}: /approvals`, cols - 2));
+  return h(Text, { color: c('ask'), bold: true }, ' ' + clip(`▶ ${n} approval${n === 1 ? '' : 's'} waiting from ${from}${items.some(i => i.privileged) ? ' (privileged)' : ''}: /approvals`, cols - 2));
 }
 
-export function ApprovalCard({ card, org, cols, armed, draftHint = null, motionE = null, confirm = false }) {
-  const rows = card.undescribable ? [['tool', card.tool], ['org', org]] : [
-    ['tool', card.tool], ['target', card.target], ['scope', card.scope], ['risk', card.risk], ['org', org]
+/**
+ * QUOXON-ASK (owner 2026-10-16 "every ask should look like an approval card"): THE card frame for anything that needs
+ * the human. Approval cards and every other ask render through this one function, so they cannot drift apart:
+ * a rule, a bold title saying who is asking, label/value rows (what a yes does, in full, and why), then the
+ * "▶ question? keys" footer in the ask colour, and a closing rule. `arming` replaces the footer until keys are live.
+ */
+export function NeedsYouCard({ cols, title, rows = [], block = [], notes = [], footer, arming = null, motionE = null }) {
+  const e = motionE;
+  return h(Box, { flexDirection: 'column', width: cols, marginTop: 1 },
+    e == null ? h(Rule, { cols, color: 'warn' }) : h(DrawRule, { cols, color: 'warn', e }),
+    e == null ? h(Text, { color: c('warn'), bold: true, wrap: 'wrap' }, title) : h(Text, null, ...fxNodes([{ t: title, color: 'warn', bold: true }], { e: e - 0.1, timing: TIMING.title }, 23)),
+    // APPROVAL-WHAT: wrap at word boundaries under the label instead of cutting the action or target off
+    ...rows.flatMap(([k, v]) => wrapPlain(String(v), Math.max(10, cols - 10)).slice(0, 8).map((line, i) => h(Text, { key: `${k}${i}`, color: c('text') }, '  ', h(Text, { color: c('label') }, (i ? '' : k).padEnd(7)), h(Text, { color: c(k === 'risk' ? 'warn' : 'value') }, line)))),
+    // block: pre-shaped segment rows shown verbatim (a command to run: never word-wrapped, never clipped)
+    ...block.map((segs, i) => h(Box, { key: `b${i}`, paddingLeft: 2, width: cols }, h(Text, null, ...segs.map((sg, j) => h(Text, { key: j, color: c(sg.role || 'text'), bold: sg.bold || undefined }, sg.t))))),
+    ...notes.map((n, i) => h(Text, { key: `n${i}`, color: c('warn'), bold: true, wrap: 'wrap' }, `  ${n}`)),
+    arming || h(Text, { color: c('prose'), bold: true, wrap: 'wrap' }, '  ', ...runs(paintLine(footer, 'ask'))),
+    e == null ? h(Rule, { cols, color: 'warn' }) : h(DrawRule, { cols, color: 'warn', e }));
+}
+
+/** The card's fields for an ask line (from askText): who asks, what a yes does, why, and the footer. */
+export function askCardModel(text) {
+  const a = parseAsk(text);
+  const rows = [['do', a.action], ['why', a.reason]].filter(r => r[1]);
+  if (a.plain) return { plain: true, title: '', rows: [], footer: String(text).trim() }; // one quiet line, no box (the walkthrough's prompt)
+  return { title: a.title ? `⚠ ${a.title}` : `⚠ ${a.who || 'This terminal'} asks: ${a.question}`, rows, footer: `▶ ${a.question} ${keysLabel(a.keys)}`.trim() };
+}
+
+/** Any ask (y/N/c and friends) as the approval card frame. `text` is the askText line. */
+export function AskCard({ text, cols }) {
+  if (!String(text ?? '').replace(/^\s*▶?\s*/, '').trim()) return null; // an empty ask draws nothing: no rules, no blank line
+  const m = askCardModel(text);
+  if (m.plain) return h(Box, { width: cols, marginTop: 1 }, h(Text, { color: c('prose'), bold: true, wrap: 'wrap' }, '  ', ...runs(paintLine(m.footer, 'ask'))));
+  return h(NeedsYouCard, { cols, title: m.title, rows: m.rows, footer: m.footer });
+}
+/** Rows an AskCard takes (sizes the live region). */
+export const askCardRows = (text, cols) => {
+  if (!String(text ?? '').replace(/^\s*▶?\s*/, '').trim()) return 0;
+  const m = askCardModel(text);
+  if (m.plain) return 1 + wrapRows(m.footer, cols - 2);
+  return 4 + wrapRows(m.title, cols) + m.rows.reduce((n, [, v]) => n + Math.min(8, wrapPlain(String(v), Math.max(10, cols - 10)).length), 0) + wrapRows(m.footer, cols - 2);
+};
+
+export function ApprovalCard({ card, org, cols, armed, draftHint = null, motionE = null, confirm = false, position = null }) {
+  const when = card.askedAt ? String(card.askedAt).replace('T', ' ').slice(0, 16) + ' UTC' : null;
+  const rows = card.undescribable ? [['what', card.what], ['from', card.askedBy || card.origin], ['asked', when], ['org', org]].filter(r => r[1]) : [
+    ['what', card.what && card.what !== card.tool ? card.what : null], ['tool', card.tool], ['target', card.target], ['scope', card.scope], ['risk', card.risk], ['from', card.foreign ? card.origin : null], ['org', org]
   ].filter(r => r[1]);
   if (card.privileged) rows.push(['grants', `PRIVILEGED: ${[card.tool, card.target].filter(Boolean).join(' ')}`]);
+  // APPROVAL-WWWH: what exactly (verbatim), where, who, why, when, read-only or write. The command is a block: never word-wrapped.
+  const f = card.facts || null; const block = [];
+  if (f && !card.undescribable) {
+    if (f.where && /^\d+ (hosts|targets):/.test(f.where)) { for (const k of ['target', 'what']) { const i = rows.findIndex(r => r[0] === k && (k === 'target' || String(r[1]).includes(f.hostList[1]))); if (i >= 0) rows.splice(i, 1); } }
+    if (f.command) { block.push([{ t: f.command.kind === 'input' ? 'input:' : 'command:', role: 'label' }]); block.push(...codeRows(f.command.shown.split('\n'), cols - 4)); }
+    for (const r of [['where', f.where], ['who', f.who], ['why', f.why], ['asked', [f.asked && `"${f.asked}"`, f.when].filter(Boolean).join(' · ') || null], ['class', f.access]]) if (r[1]) rows.push(r);
+  }
   const e = motionE;
-  const title = '⚠ Approval needed: execution is held';
+  const title = `⚠ Approval needed${position && position.n > 1 ? ` (${position.i} of ${position.n})` : ''}: execution is held`;
   const filled = e == null ? 0 : Math.min(ARM_BAR, Math.floor(clamp01(e / 0.3) * ARM_BAR));
   const arming = e == null || mono()
     ? h(Text, { color: c('dim') }, e == null ? '  arming…' : `  arming… ${'▰'.repeat(filled)}${'▱'.repeat(ARM_BAR - filled)}`)
     : h(Text, null, h(Text, { color: c('dim') }, '  arming… '), h(Text, { color: c('warn') }, '▰'.repeat(filled)), h(Text, { color: c('faint') }, '▱'.repeat(ARM_BAR - filled)));
-  return h(Box, { flexDirection: 'column', width: cols, marginTop: 1 },
-    e == null ? h(Rule, { cols, color: 'warn' }) : h(DrawRule, { cols, color: 'warn', e }),
-    e == null ? h(Text, { color: c('warn'), bold: true }, title) : h(Text, null, ...fxNodes([{ t: title, color: 'warn', bold: true }], { e: e - 0.1, timing: TIMING.title }, 23)),
-    ...rows.map(([k, v]) => h(Text, { key: k, color: c('text') }, '  ', h(Text, { color: c('label') }, k.padEnd(7)), h(Text, { color: c(k === 'risk' ? 'warn' : 'value') }, clip(v, cols - 10)))),
-    card.undescribable ? h(Text, { color: c('warn'), bold: true }, '  Quox could not describe this action') : null,
-    draftHint === 'draft' ? h(Text, { color: c('warn') }, '  Tab to answer the approval card (your draft is kept)') : null,
-    draftHint === 'focus' ? h(Text, { color: c('warn') }, '  card focused (Esc returns to your draft)') : null,
-    draftHint === 'tab' ? h(Text, { color: c('warn') }, '  press Tab to answer this card (typing does not approve)') : null,
-    !armed ? arming : h(Text, { color: c('muted') }, ...runs(paintLine(
-      card.privileged && confirm ? '  press y to confirm the privileged grant · anything else cancels · d deny'
-        : card.privileged ? (card.undescribable ? '  Tab to focus, then type the word approve to grant · d deny (no default)' : '  Tab to focus, then a and y (or type approve) to grant · d deny (no default)')
-        : card.undescribable ? '  type the word approve to allow · d deny (no default)'
-          : '  a approve · d deny · o open in dashboard (no default)'))),
-    e == null ? h(Rule, { cols, color: 'warn' }) : h(DrawRule, { cols, color: 'warn', e }));
+  const footer = card.privileged && confirm ? `▶ Grant ${[card.tool, card.target].filter(Boolean).join(' ')}? press y again to confirm, any other key cancels`
+    : card.undescribable && confirm ? '▶ Quox could not describe this action. Approve it anyway? press y again to confirm, any other key cancels'
+      : draftHint === 'focus' ? askText('Approve it?', { keys: 'y approve · n deny · card focused (Esc returns to your draft)' }) // RESTORE-TUI: every y/n goes through askText (same text)
+      : draftHint === 'draft' ? askText('Approve it?', { keys: 'y/n answer once your draft is empty · Tab to answer the approval card (your draft is kept)' })
+        : '▶ Approve it? y approve · n deny · c chat · Tab later · /approvals all';
+  return h(NeedsYouCard, { cols, title, rows, block, notes: card.undescribable && !confirm ? ['Quox could not describe this action'] : [], footer, arming: armed ? null : arming, motionE: e });
 }
 
-/** Columns the status line's Q takes: 2 for the Braille glyph, 1 for the Ⓠ fallback. */
-export const statusGlyphWidth = () => glyphStill('resting', { mono: mono(), mode: glyphMode(process.env) }).width;
+/** Columns the status line's Q takes: 2 for the Braille glyph, 1 for the Ⓠ fallback (2 where Ambiguous is wide). */
+export const statusGlyphWidth = () => cellWidth(glyphStill('resting', { mono: mono(), mode: glyphMode(process.env) }).text);
+
+/** The composer mode in plain words on the status line's context row. */
+export const MODE_WORDS = { ask: 'ask first', auto: 'auto, acts without asking', plan: 'plan only' };
 
 /**
- * Fit the status line to the width: fields are dropped by priority (org, then the key hint, then mode,
- * then profile) and joined by separators, never clipped mid-word or glued to the hint. Pure.
+ * The status as ONE continuous line that wraps (owner 2026-10-17 19:47: "should just make it one long line that wraps
+ * to second or third line if needed ... so much space, looks wrong"; "should say agent: none, when nothing attached").
+ * `● agent X · ⬢ slot S · ⬢ groups a 2, b · profile P · org O · mode ask first · rules · ↻ auto-restart`, wrapped
+ * onto as few rows as it needs, evened out so no item sits alone, broken only between items, every further row at
+ * the same left edge (never inside an item; a
+ * single value too long for a row is split across rows). The key hints are separate: always their own row at that
+ * same left edge, so nothing is right-aligned and no row carries a gap. The model sits on the composer's bottom rule
+ * (modelRuleLabel). Widths are terminal cells under the ambiguous-width policy (cells.js).
+ * Pure: rows of { text, segs, hint, gap, lead } where segs are [text, kind, extra].
  */
-export function statusLayout({ cols, slot, agent, parts, hint, qw = statusGlyphWidth() }) {
-  const room = Math.max(10, cols - 1);
-  const ident = slot ? `⬢ slot ${slot}` : '⬡ no slot';
-  const ag = agent ? `● ${agent}` : '○ no agent';
-  const order = ['org', 'rules', 'hint', 'mode', 'profile']; // first dropped first; model is kept longest
-  let keep = new Set(['profile', 'org', 'model', 'mode', 'hint', 'rules']);
-  const build = () => {
-    const tail = ['profile', 'org', 'model', 'mode', 'rules'].filter(k => keep.has(k) && parts[k]).map(k => parts[k]).join(' · ');
-    const left = ` Ⓠ ✦ ${ident} · ${ag}${tail ? ' · ' + tail : ''}`;
-    const hintS = keep.has('hint') && hint ? hint : '';
-    return { left, hint: hintS, width: [...left].length + (qw - 1) + (hintS ? 2 + [...hintS].length : 0) };
+export function statusRows({ cols, slot, agent, groups = [], parts, hint, qw = statusGlyphWidth(), wide = ambiguousWide() }) {
+  const len = (t) => cellWidth(t, { wide });
+  const W = Math.max(12, cols - 1);
+  const lead = 1 + qw + len(' ✦ '); // ' ' + Q + ' ✦ '
+  const room = Math.max(4, W - lead);
+  // a token: segs to draw, joined to the previous token on the same row by `pre`
+  const tokens = [];
+  tokens.push(agent
+    ? { pre: ' · ', segs: [['● ', 'agentDot', agent], ['agent ', 'label'], [agent, 'agent', agent]] }
+    : { pre: ' · ', segs: [['○ ', 'icon'], ['agent: ', 'label'], ['none', 'value']] });
+  tokens.push({ pre: ' · ', segs: slot ? [['⬢ ', 'icon'], ['slot ', 'label'], [slot, 'value']] : [['⬡ no slot', 'label']] });
+  (groups || []).filter(g => g?.name).forEach((g, i) => tokens.push({ pre: i ? ', ' : ' · ',
+    segs: [...(i ? [] : [['⬢ ', 'icon'], ['groups ', 'label']]), [g.name, 'value'], ...(g.unread ? [[' ' + g.unread, 'number']] : [])] }));
+  const p = parts || {};
+  // every context item says what it is (owner: "profile moo .. ask?? what?"); /help status explains each in a line
+  const word = { profile: 'profile ', org: 'org ', mode: 'mode ' };
+  const val = (k) => k === 'mode' ? (MODE_WORDS[p.mode] || null) : k === 'auto' ? '↻ auto-restart' : String(p[k]);
+  for (const k of ['profile', 'org', 'mode', 'rules', 'auto'].filter(k => p[k])) tokens.push({ pre: ' · ',
+    segs: word[k] && val(k) ? [[word[k], 'label'], [val(k), k === 'mode' && p.mode === 'plan' ? 'violet' : 'value']] : [[k === 'mode' ? String(p[k]) : val(k), 'label']] });
+  const tlen = (tk) => tk.segs.reduce((n, sg) => n + len(sg[0]), 0);
+  // split a token too wide for a row into row-sized pieces (whole characters by cell width, never an ellipsis)
+  const fit = (tk) => {
+    if (tlen(tk) <= room) return [tk];
+    const out = [];
+    let segs = [], w = 0;
+    const flush = () => { out.push({ pre: out.length ? '' : tk.pre, segs, forceBreak: out.length > 0 }); segs = []; w = 0; };
+    for (const [t, k, x] of tk.segs) for (const ch of t) {
+      const cw = len(ch);
+      if (w + cw > room && segs.length) flush();
+      const last = segs[segs.length - 1];
+      if (last && last[1] === k) last[0] += ch; else segs.push([ch, k, x]);
+      w += cw;
+    }
+    if (segs.length) flush();
+    return out;
   };
-  let out = build();
-  for (const k of order) { if (out.width <= room) break; keep.delete(k); out = build(); }
-  return out;
+  // fill each row left to right; break only between items (or at a forced piece of an over-long one)
+  const pack = (pieces, limit = room) => {
+    const rows = [];
+    let cur = null, w = 0;
+    for (const tk of pieces) {
+      const need = tlen(tk) + (cur && cur.length ? len(tk.pre) : 0);
+      if (!cur || tk.forceBreak || w + need > limit) { cur = [{ ...tk, pre: '' }]; rows.push(cur); w = tlen(tk); continue; }
+      cur.push(tk); w += need;
+    }
+    return rows;
+  };
+  // as few rows as filling gives, evened out (the narrowest limit that keeps that count): no item left alone on a row
+  const balanced = (pieces) => {
+    const n = pack(pieces).length;
+    if (n < 2) return pack(pieces);
+    let lo = Math.max(1, ...pieces.map(tlen)), hi = room;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (pack(pieces, m).length <= n) hi = m; else lo = m + 1; }
+    return pack(pieces, lo);
+  };
+  const toSegs = (row) => row.flatMap(tk => [...(tk.pre ? [[tk.pre, 'sep']] : []), ...tk.segs]);
+  const rowsOut = balanced(tokens.flatMap(fit)).map(row => ({ segs: toSegs(row), hint: '' }));
+  const hintS = String(hint || '');
+  if (hintS) for (const r of pack(hintS.split(' · ').map(t => ({ pre: ' · ', segs: [[t, 'hint']] })))) rowsOut.push({ segs: [], hint: toSegs(r).map(x => x[0]).join('') });
+  const pad = ' '.repeat(lead);
+  return rowsOut.map((r, i) => {
+    const body = r.segs.map(x => x[0]).join('');
+    const head = i === 0 ? ' ' + 'Ⓠ'.padEnd(qw, ' ') + ' ✦ ' : pad;
+    return { segs: r.segs, hint: r.hint, gap: 0, lead, text: head + body + r.hint };
+  });
 }
 
-export function StatusLine({ cols, slot, agent, parts, right }) {
-  const p = Array.isArray(parts) ? { profile: parts[0], org: parts[1], model: parts[2], mode: parts[3], rules: parts[4] } : parts;
-  const L = statusLayout({ cols, slot, agent, parts: p, hint: right });
-  const gap = L.hint ? Math.max(2, cols - 1 - [...L.left].length - (statusGlyphWidth() - 1) - [...L.hint].length) : 0;
-  const lead = ' Ⓠ ✦ ';
-  const rest = L.left.slice(lead.length);
-  // The still Q (qglyph.js): two Braille cells, or Ⓠ under NO_COLOR / no Braille. statusLayout reserved its width.
+/** QUOXON-FW17: custom rows, one truncated line each, just above the status line. */
+export function RowsBar({ rows, cols }) {
+  if (!rows?.length) return null;
+  const shown = rows.slice(0, 3);
+  const labelW = labelWidth(shown); // labels line up across rows
+  return h(Box, { flexDirection: 'column', width: cols },
+    ...shown.map((r) => {
+      const parts = clipParts(rowParts(r, { labelW }), Math.max(1, cols - 2));
+      // ROWS: label, value, tone and trend as their own runs; every role is a palette colour (no grey, owner rule).
+      return h(Text, { key: r.row.id, wrap: 'truncate-end' }, ' ', ...parts.map(([t, role, bold], i) => h(Text, { key: i, color: c(themeRole(role)), bold: Boolean(bold) }, t)));
+    }));
+}
+
+export function StatusLine({ cols, slot, agent, groups = [], parts, right }) {
+  const p = Array.isArray(parts) ? { profile: parts[0], org: parts[1], model: parts[2], mode: parts[3], rules: parts[4], auto: parts[5] } : parts;
+  const qw = statusGlyphWidth();
+  const rows = statusRows({ cols, slot, agent, groups, parts: p, hint: right, qw });
+  // The still Q (qglyph.js): two Braille cells, or Ⓠ under NO_COLOR / no Braille. statusRows reserved its width.
   const q = glyphStill('resting', { mono: mono(), mode: glyphMode(process.env), depth: colorDepth(process.env) });
-  return h(Box, { width: cols },
-    h(Text, { wrap: 'truncate-end' }, ' ', h(Text, { bold: true }, ...cellNodes(q.cells, 'sq')), h(Text, { color: c('icon') }, ' ✦ '),
-      h(Text, { color: c('text') }, ...statusIdent(rest.split(' · ').slice(0, 2).join(' · '))),
-      rest.split(' · ').length > 2 ? h(Text, { color: c('label') }, ...runs(paintRuns(' · ' + rest.split(' · ').slice(2).join(' · '), 'label'))) : null,
-      L.hint ? h(Text, { color: c('muted') }, ' '.repeat(gap), ...runs(paintRuns(L.hint, 'muted'))) : null));
+  const colour = (k, x) => k === 'agentDot' || k === 'agent' ? agentColor(x) : c(k === 'sep' || k === 'hint' ? 'label' : k);
+  return h(Box, { width: cols, flexDirection: 'column' }, ...rows.map((r, i) => h(Text, { key: 'r' + i, wrap: 'truncate-end' },
+    i === 0 ? h(Text, null, ' ', h(Text, { bold: true }, ...cellNodes(q.cells, 'sq')), h(Text, { color: c('icon') }, ' ✦ ')) : ' '.repeat(r.lead),
+    ...r.segs.map(([t, k, x], j) => h(Text, { key: j, color: colour(k, x), bold: k === 'agent' || k === 'number' }, t)),
+    r.hint ? h(Text, { color: c('label') }, ' '.repeat(r.gap), ...hintNodes(r.hint)) : null))); // no grey (owner rule)
 }
 
-/** `⬢ slot NAME · ● AGENT` as runs: glyphs in the icon role, `slot` a label, the agent in its own shade. */
-function statusIdent(t) {
-  const m = t.match(/^(⬢|⬡) (slot |no slot)(.*?) · (●|○) (.*)$/);
-  if (!m) return [t];
-  const agent = m[4] === '●';
-  return [h(Text, { key: 'g', color: c(m[1] === '⬢' ? 'icon' : 'muted') }, m[1] + ' '), h(Text, { key: 's', color: c(m[3] ? 'label' : 'muted') }, m[2]),
-    m[3] ? h(Text, { key: 'n', color: c('value') }, m[3]) : null, h(Text, { key: 'd', color: c('muted') }, ' · '),
-    h(Text, { key: 'a', color: agent ? agentColor(m[5]) : c('muted') }, m[4] + ' '), h(Text, { key: 'an', color: agent ? agentColor(m[5]) : c('muted'), bold: agent }, m[5])];
+/** `Enter send · /help`: each key in the key role, its words and the separators in label (never a grey). */
+function hintNodes(hint) {
+  return hint.split(' · ').flatMap((part, i) => {
+    const [k, ...rest] = part.split(' ');
+    return [i ? h(Text, { key: 's' + i, color: c('label') }, ' · ') : null, h(Text, { key: 'k' + i, color: c('key') }, k), rest.length ? h(Text, { key: 'w' + i, color: c('label') }, ' ' + rest.join(' ')) : null];
+  }).filter(Boolean);
 }
 
 /** Live, actionable counts under the status line. Never a transcript message. */
-export function NotifyBar({ approvals, error, cols, signedOut = false, alerts = [] }) {
+export function NotifyBar({ approvals, error, cols, signedOut = false, alerts = [], hideCount = false }) {
   if (signedOut) return h(Text, { color: c('warn') }, ' ' + clip('not signed in: approvals unavailable until you sign in', cols - 2));
-  const count = approvals ? h(Text, { key: 'n', color: c('warn') }, ' ' + clip(`⛔ ${approvals} approval${approvals === 1 ? '' : 's'} waiting for you${error ? ' (last known)' : ''} · /approvals`, cols - 3)) : null;
+  const count = approvals && !hideCount ? h(Text, { key: 'n', color: c('ask'), bold: true }, ' ' + clip(`▶ ${approvals} approval${approvals === 1 ? '' : 's'} waiting for you${error ? ' (last known)' : ''} · /approvals`, cols - 3)) : null;
   // Background workflows that keep failing: one deduped line each (max 2), never roster rows.
   const alertLines = alerts.slice(0, 2).map((t, i) => h(Text, { key: 'a' + i, color: c('fail') }, ' ' + clip(t, cols - 2)));
   if (alertLines.length) {
@@ -800,8 +1156,9 @@ export function Roster({ view, peek = [], confirm = null, hint = null, cols, fx 
     ...view.lines.map((l, i) => {
       const e = fx && l.key != null ? fx(l.key) : null; // a row that just appeared decodes in (new rows land on top)
       return h(Text, { key: 'r' + i, bold: l.selected, wrap: 'truncate-end' },
-        h(Text, { color: c(l.selected ? 'text' : ROSTER_TONE[l.state]) }, ' ' + l.marker + l.glyph),
-        e == null ? h(Text, { color: c(l.selected ? 'text' : l.tone) }, l.rest) : h(Text, null, ...fxNodes([{ t: l.rest, color: l.selected ? 'text' : l.tone }], { e, timing: TIMING.roster }, 29 + i)));
+        h(Text, { color: c(l.selected ? 'text' : (l.glyphRole || ROSTER_TONE[l.state])) }, ' ' + l.marker + l.glyph),
+        e == null ? h(Text, { color: c(l.selected ? 'text' : l.tone) }, l.rest) : h(Text, null, ...fxNodes([{ t: l.rest, color: l.selected ? 'text' : l.tone }], { e, timing: TIMING.roster }, 29 + i)),
+        l.pulse ? h(Text, { color: c(l.pulseRole === 'dim' && l.selected ? 'text' : l.pulseRole) }, l.pulse) : null);
     }),
     view.more ? h(Text, { key: 'more', color: c('dim') }, `   +${view.more} more · /roster`) : null,
     ...peek.map((p, i) => h(Text, { key: 'p' + i, color: c('dim'), wrap: 'truncate-end' }, '   ' + clip(p, cols - 5))),

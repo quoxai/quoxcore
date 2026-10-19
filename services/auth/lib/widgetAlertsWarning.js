@@ -3,6 +3,8 @@
  * and leads (notification settings null/empty, or no enabled event with a
  * delivery channel). Mirrors the Widget Room banner's rule.
  */
+import { sourcesChangedByNotice, priceChangeMessage } from './priceChangeNotice.js';
+
 export const ALERTS_NOT_CONFIGURED = {
   id: 'alerts_not_configured',
   message: 'Handoffs and leads land in the inbox but nobody is alerted: set up alerts.',
@@ -32,12 +34,27 @@ export function knowledgeSourceWarnings(rows) {
     if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch { cfg = null; } }
     return cfg && typeof cfg === 'object' && pred(cfg);
   }).map((r) => r.name);
-  const outdated = names((c) => c.suggest_superseded === true && c.superseded !== true);
+  // W18: price lists a later price-change notice modifies (detected live from the stored digests, plus the persisted flag).
+  const changed = new Map();
+  for (const h of sourcesChangedByNotice(rows)) changed.set(h.name, h.notice);
+  for (const r of rows || []) {
+    let cfg = r?.config_json;
+    if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch { cfg = null; } }
+    if (cfg && cfg.changed_by_notice && cfg.superseded !== true && !changed.has(r.name)) changed.set(r.name, cfg.changed_by_notice.notice || 'a price-change notice');
+  }
+  const outdated = names((c) => c.suggest_superseded === true && c.superseded !== true && !c.changed_by_notice);
   if (outdated.length > 0) {
     out.push({
       id: 'knowledge_possibly_outdated',
       message: `${outdated.length} knowledge ${outdated.length === 1 ? 'source is' : 'sources are'} flagged "possibly outdated" and still being used to answer: ${outdated.slice(0, 5).join(', ')}.`,
       fix: 'Open Knowledge and either keep each one or mark it "Treat as reference only".',
+    });
+  }
+  if (changed.size > 0) {
+    out.push({
+      id: 'knowledge_changed_by_notice',
+      message: [...changed].slice(0, 5).map(([n, notice]) => `${priceChangeMessage(n, notice)}.`).join(' '),
+      fix: 'Open Knowledge and either upload the current price list (with its effective date) or mark the old file "Treat as reference only".',
     });
   }
   const auto = names((c) => c.auto_superseded === true && c.superseded === true);

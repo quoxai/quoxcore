@@ -84,7 +84,9 @@ export function turnTokens(turn) {
  * Sans Mono fallback (ｪｴ like I/E, ｭｮﾕﾖ boxes, ﾆ "=", ﾉ "/", ﾌ "7", ﾍ "^", ﾘ "U", ﾚ "L", ﾛ a box, ｰ a dash)
  * and the voiced marks ﾞ ﾟ.
  */
-export const SCRAMBLE_GLYPHS = 'ｦｧｨｩｫｬｯｱｲｳｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾇﾈﾊﾋﾎﾏﾐﾑﾒﾓﾔﾗﾙﾜﾝ';
+/** Decode glyphs: every half-width katakana (U+FF66-FF9D, one cell each, minus the long-vowel bar ｰ) plus the
+ * code-rain digits. Owner 2026-10-15: the reveal felt like "just a few characters" with 44 look-alike kana. */
+export const SCRAMBLE_GLYPHS = 'ｦｧｨｩｪｫｬｭｮｯｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789';
 
 /** Deterministic hash in [0,1). */
 const hsh = (a, b, c = 0) => { let x = (a * 374761393 + b * 668265263 + c * 2147483647) | 0; x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };

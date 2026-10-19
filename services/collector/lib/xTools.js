@@ -132,6 +132,21 @@ function validateAndResolveImages(orgId, imagePaths, imageObjects) {
     return { ok: false, error: `too many images (${imagePaths.length}); X allows at most ${MAX_IMAGES_PER_POST} per post` };
   }
 
+  // #1080: name EVERY entry that is not in the org's media store, not just the first, so one
+  // refusal shows all the typos instead of one per retry.
+  let noStore = false;
+  const unresolved = imagePaths.filter((p) => {
+    const r = xPostingStore.resolveOrgMediaPath(orgId, p);
+    if (!r.ok && /^media directory for this org does not exist/.test(r.error || '')) { noStore = true; return true; }
+    return !r.ok && /^image file not found/.test(r.error || '');
+  }).map(String);
+  if (noStore) {
+    return { ok: false, unresolved: imagePaths.map(String), error: `this org has no X media store yet, so none of these images resolve: ${imagePaths.join(', ')}. Upload the images first. Nothing was filed.` };
+  }
+  if (unresolved.length) {
+    return { ok: false, unresolved, error: `image file not found in this org's X media store: ${unresolved.join(', ')}. Nothing was filed; correct the name${unresolved.length > 1 ? 's' : ''} and draft again.` };
+  }
+
   const images = [];
   for (let i = 0; i < imagePaths.length; i++) {
     const inputPath = imagePaths[i];
@@ -256,6 +271,7 @@ async function pushXApproval({ orgId, userId, title, bodyMd, action, actionParam
         created_by_user_id: userId || null,
         payload: {
           source: 'x-plugin',
+          what: { action: `X ${String(action || 'post').replace(/^x\./, '').replace(/[._]/g, ' ')}`, target: 'the connected X account', summary: `${String(title || '').replace(/^X:\s*/, '').replace(/\s+/g, ' ').slice(0, 200)} on the connected X account` },
           action,
           // QUOXHAT #657 P-C.5: stamp the ACTING AGENT onto the card so the
           // decide→publish callback can revalidate the hat's authorization for
@@ -303,6 +319,13 @@ const X_TOOLS = {
       required: ['text'],
     },
     execute: async ({ text, reply_to_tweet_id, image_paths, images: imageObjects, ...compose } = {}, ctx = {}) => {
+      // #1080: an argument x_post does not know (image, image_path, media...) used to be dropped
+      // silently, so the card was filed image-less with success:true. Refuse it and name the valid ones.
+      const unknownArgs = Object.keys(compose).filter((k) => !k.startsWith('_') && !(k in COMPOSE_PROPERTIES));
+      if (unknownArgs.length) {
+        const valid = ['text', 'reply_to_tweet_id', 'image_paths', ...Object.keys(COMPOSE_PROPERTIES)];
+        return { success: false, error: `unknown argument(s) ${unknownArgs.join(', ')} for x_post; valid arguments: ${valid.join(', ')}. Attach media with image_paths (or images with alt_text). Nothing was filed.` };
+      }
       const validationError = validatePostText(text);
       if (validationError) return { success: false, error: validationError };
 
@@ -311,7 +334,7 @@ const X_TOOLS = {
       // Fail at draft time, not at approval — a bad image path never becomes
       // a surprise the owner discovers only after approving the post.
       const imageResolution = validateAndResolveImages(orgId, image_paths, imageObjects);
-      if (!imageResolution.ok) return { success: false, error: imageResolution.error };
+      if (!imageResolution.ok) return { success: false, error: imageResolution.error, ...(imageResolution.unresolved ? { unresolved: imageResolution.unresolved } : {}) };
       const composition = validateCompose(compose, imageResolution.images.length > 0);
       if (!composition.ok) return { success: false, error: composition.error };
 

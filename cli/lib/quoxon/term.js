@@ -1,4 +1,5 @@
 import { graphemes } from './textBuffer.js';
+import { createScreenMirror, MOUSE_ON, MOUSE_OFF, DSR } from './mouse.js';
 /**
  * The terminal as Ink sees it.
  *
@@ -13,9 +14,16 @@ import { graphemes } from './textBuffer.js';
  * repaint checks read stdout.rows). The app reads the real height from termRows() and keeps its live
  * region shorter than the screen itself (app.js), so log-update can always erase it.
  */
-export function inkStdout(out) {
+export function inkStdout(out, { tap = null } = {}) {
   if (!out || out.__quoxInk) return out;
-  const diff = out.isTTY ? createLineDiff({ columns: () => out.columns }) : null;
+  // QUOXON-MOUSE: what Ink has drawn, as plain lines, for click hit-testing (mouse.js). Fed the same writes.
+  const mirror = out.isTTY ? createScreenMirror({ columns: () => out.columns }) : null;
+  // SCREEN-FRAMES: the same feed goes to the screen recorder's tap (screenFrames.js), which only queues it.
+  const feed = mirror && tap ? {
+    write: (c) => { mirror.write(c); try { tap.write(c); } catch { /* never break a frame */ } },
+    reset: () => { mirror.reset(); try { tap.reset(); } catch { /* ignore */ } }
+  } : mirror;
+  const diff = out.isTTY ? createLineDiff({ columns: () => out.columns, mirror: feed }) : null;
   // One frame = one write: Ink brackets each frame in separate synchronized-update writes (?2026h ... ?2026l);
   // they are held and sent together with the (diffed) frame, and a frame that changed nothing sends nothing.
   // A write that sends nothing (or is held for the frame) must still call its callback: Ink's unmount waits
@@ -45,7 +53,9 @@ export function inkStdout(out) {
       if (prop === 'write' && write) return write;
       if (prop === 'rows') return Infinity;
       if (prop === 'termRows') return target.rows;
+      if (prop === 'frameRows') { const n = diff?.rows(); return n == null ? null : Math.min(n, Math.max(0, (target.rows || n + 1) - 1)); }
       if (prop === '__quoxInk') return true;
+      if (prop === 'screen') return mirror;
       const v = Reflect.get(target, prop, target);
       return typeof v === 'function' ? v.bind(target) : v;
     },
@@ -74,12 +84,13 @@ const ANSI_RE = /\x1b\[[0-9;?]*[ -\/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
 const visibleWidth = (line) => graphemes(String(line).replace(ANSI_RE, '')).length;
 const FRAME_RE = /^((?:\x1b\[2K\x1b\[1A)*\x1b\[2K\x1b\[G)([\s\S]*)$/;
 const SYNC_ON = '\x1b[?2026h', SYNC_OFF = '\x1b[?2026l';
-const TRANSPARENT = new Set(['\x1b[?2026h', '\x1b[?2026l', '\x1b[?25l', '\x1b[?25h', '']);
-export function createLineDiff({ columns = () => null } = {}) {
+const TRANSPARENT = new Set(['\x1b[?2026h', '\x1b[?2026l', '\x1b[?25l', '\x1b[?25h', '', MOUSE_ON, MOUSE_OFF, DSR]); // + QUOXON-MOUSE mode switches and the click's cursor query
+export function createLineDiff({ columns = () => null, mirror = null } = {}) {
   let prev = null; // lines of the last frame, trailing '' included
   const bodyLines = (body) => (body && body.endsWith('\n') && !body.includes('\x1b[2J') ? body.split('\n') : null);
   const diff = (chunk) => {
-    if (TRANSPARENT.has(chunk)) return chunk; // synchronized-update brackets and cursor hide/show around a frame
+    if (TRANSPARENT.has(chunk)) return chunk;
+    mirror?.write(chunk); // synchronized-update brackets and cursor hide/show around a frame
     const m = FRAME_RE.exec(chunk);
     // Not an erase+frame: a frame Ink drew after clearing (no erase prefix), static history, or something else.
     // The last such write before the next erase is the frame on screen (Ink writes static output, then the frame).
@@ -110,15 +121,21 @@ export function createLineDiff({ columns = () => null } = {}) {
     prev = next;
     return changed ? out : '';
   };
-  diff.reset = () => { prev = null; };
+  diff.reset = () => { prev = null; mirror?.reset(); };
+  /** Rows the live frame occupies on screen (wrapped at the current width), or null when unknown. SLOT-RUN hand-over. */
+  diff.rows = () => {
+    if (!prev) return null;
+    const cols = columns();
+    return prev.slice(0, -1).reduce((n, l) => n + (cols > 0 ? Math.max(1, Math.ceil(visibleWidth(l) / cols)) : 1), 0);
+  };
   return diff;
 }
 
 /**
  * Ink render options for the interactive client. Standard rendering (Ink's incrementalRendering duplicated lines on
- * the dropped-text replay); the stdout proxy line-diffs same-height frames instead. Never mouse tracking, never the
- * alternate screen: native selection keeps working.
+ * the dropped-text replay); the stdout proxy line-diffs same-height frames instead. Never the alternate screen, and
+ * no mouse tracking unless the user turns it on (/mouse on, QUOXON-MOUSE): native selection keeps working by default.
  */
-export function inkRenderOptions(stdout) {
-  return { exitOnCtrlC: false, stdout: inkStdout(stdout) };
+export function inkRenderOptions(stdout, { tap = null } = {}) {
+  return { exitOnCtrlC: false, stdout: inkStdout(stdout, { tap }) };
 }

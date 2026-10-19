@@ -13,7 +13,7 @@ import { requireOrgMembership, requireOrgRole } from '../middleware/org.js';
 import { createScope, getScopeForEntity, deleteScope, updateScopeNameCache } from '../utils/scopes.js';
 import { Capabilities } from '../utils/policy.js';
 import { resolveCap } from '../utils/resolveCap.js';
-import { createAuditEvent, ulid } from '../utils/helpers.js';
+import { createAuditEvent, ulid, slugify } from '../utils/helpers.js';
 import { generateDepartmentAssistantPersona, generateDepartmentAssistantName } from '../utils/scopeAssistantTemplates.js';
 import { buildAssistantPersistencePayload } from './assistantLlm.js';
 import { provisionRoomForNode, deprovisionRoomForNode, isMatrixRoomsEnabled } from '../lib/matrixProvisioner.js';
@@ -160,7 +160,9 @@ router.post('/orgs/:orgId/divisions/:divisionId/departments',
     async (req, res) => {
         try {
             const { orgId, divisionId } = req.params;
-            const { name, slug, description, profile } = req.body;
+            const { name, description, profile } = req.body;
+            // #991: the CLI and API callers may omit slug; derive it from the name.
+            const slug = req.body.slug || (name ? slugify(String(name)).replace(/_/g, '-') : '');
             const userId = req.user.id;
 
             // Check capability
@@ -417,6 +419,22 @@ router.delete('/orgs/:orgId/divisions/:divisionId/departments/:departmentId',
                 // Delete scope
                 const scope = getScopeForEntity('department', departmentId);
                 if (scope) {
+                    // #994: the department's auto-created team and scope assistant
+                    // (made in the create handler) go with it; they still point at
+                    // the scope and would block the delete on the FOREIGN KEY.
+                    const autoTeams = prepare(
+                        'SELECT id, settings_json FROM teams WHERE org_id = ? AND attach_scope_id = ?'
+                    ).all(orgId, scope.id).filter((t) => {
+                        try { return JSON.parse(t.settings_json || '{}').auto_created === true; } catch { return false; }
+                    });
+                    for (const t of autoTeams) {
+                        prepare('DELETE FROM team_memberships WHERE team_id = ?').run(t.id);
+                        prepare('DELETE FROM teams WHERE id = ?').run(t.id);
+                    }
+                    prepare(`
+                        UPDATE assistants SET status = 'archived', home_scope_id = NULL, updated_at = datetime('now')
+                        WHERE org_id = ? AND home_scope_id = ? AND slug = ?
+                    `).run(orgId, scope.id, `${existing.slug}-assistant`);
                     deleteScope(scope.id);
                 }
             })();
@@ -441,6 +459,9 @@ router.delete('/orgs/:orgId/divisions/:divisionId/departments/:departmentId',
             res.json({ success: true, message: 'Department deleted' });
         } catch (error) {
             console.error('Error deleting department:', error);
+            if (error?.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+                return res.status(409).json({ error: 'This department still has assistants, tools or other items homed in it. Move or delete them first.' });
+            }
             res.status(500).json({ error: 'Failed to delete department' });
         }
     }

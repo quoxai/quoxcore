@@ -35,14 +35,28 @@ export class WorkflowService {
       }
     }
 
-    // Check for registered executors
+    // Check for registered executors, then run each executor's own node validator (#1172: a
+    // schedule node with config.cron and no expression validated clean but could never fire).
     for (const node of workflow.nodes) {
-      if (!this.executors.has(node.type)) {
+      const executor = this.executors.get(node.type);
+      if (!executor) {
         unknownNodeTypes.push(node.type);
         warnings.push({
           path: `nodes.${node.id}`,
           message: `Unknown node type: ${node.type}`,
         });
+        continue;
+      }
+      if (typeof executor.validate !== 'function') continue;
+      let nodeResult: { valid: boolean; errors?: string[] };
+      try {
+        nodeResult = executor.validate(node as any);
+      } catch (err) {
+        nodeResult = { valid: false, errors: [`validator threw: ${err instanceof Error ? err.message : String(err)}`] };
+      }
+      if (!nodeResult.valid) {
+        const msgs = nodeResult.errors && nodeResult.errors.length ? nodeResult.errors : ['node configuration is invalid'];
+        for (const message of msgs) errors.push({ path: `nodes.${node.id}`, message });
       }
     }
 

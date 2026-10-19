@@ -67,4 +67,30 @@ export const triggers = {
     path: () => `/api/triggers/webhooks`,
     tags: ['live-safe'],
   },
+  // SITE-CLI 2026-10-19: pause/resume a schedule without re-applying the workflow JSON. quoxflow's
+  // src/api/routes/schedules.ts (mounted at /api/schedules) is org-scoped (cross-org = 404), persists
+  // node.config.paused and emits SCHEDULE.PAUSED / SCHEDULE.RESUMED envelopes.
+  'triggers.schedule-list': {
+    method: 'GET',
+    service: 'quoxflow',
+    path: () => `/api/schedules`,
+    tags: ['live-safe'],
+  },
+  'triggers.schedule-pause': {
+    method: 'POST',
+    service: 'quoxflow',
+    path: ({ workflowId, nodeId }) => `/api/schedules/${encodeURIComponent(workflowId)}/${encodeURIComponent(nodeId)}/pause`,
+  },
+  'triggers.schedule-resume': {
+    method: 'POST',
+    service: 'quoxflow',
+    path: ({ workflowId, nodeId }) => `/api/schedules/${encodeURIComponent(workflowId)}/${encodeURIComponent(nodeId)}/resume`,
+  },
+  // The public webhook ingress (quoxflow src/api/routes/webhook-triggers.ts, mounted at /webhooks). It copies every
+  // request header into the run's trigger data, so the CLI fires it with NO credentials (noAuth).
+  'triggers.webhook-fire': {
+    method: 'POST',
+    service: 'quoxflow',
+    path: ({ path }) => `/webhooks/${path}`,
+  },
 };

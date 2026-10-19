@@ -69,7 +69,7 @@ async function systemAdmin(callBastion, input) {
     case 'cron':
       cmd = input.user
         ? `crontab -u ${input.user} -l 2>/dev/null || echo 'No crontab for user'`
-        : `for user in $(cut -f1 -d: /etc/passwd); do crontab -u $user -l 2>/dev/null && echo "--- $user ---"; done; cat /etc/crontab 2>/dev/null; ls -la /etc/cron.d/ 2>/dev/null`;
+        : require('../cronReadCommand.js').CRON_ALL_CMD;
       break;
     case 'uptime':
     default:

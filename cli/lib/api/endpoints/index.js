@@ -58,9 +58,13 @@ import { assistants } from './assistants.js';
 import { audit } from './audit.js';
 import { auth } from './auth.js';
 import { awareness } from './awareness.js';
+import { router } from './router.js';
+import { mind } from './mind.js';
 import { lucid } from './lucid.js';
 import { away } from './away.js';
+import { presence } from './presence.js';
 import { invites } from './invites.js';
+import { agentSchedules } from './agent-schedules.js';
 import { backupSchedules } from './backup-schedules.js';
 import { backups } from './backups.js';
 import { brain } from './brain.js';
@@ -101,6 +105,7 @@ import { quoxchat } from './quoxchat.js';
 import { quoxflow } from './quoxflow.js';
 import { quoxplan } from './quoxplan.js';
 import { qlarity } from './qlarity.js';
+import { fetchAllowlist } from './fetchAllowlist.js';
 import { quoxseo } from './quoxseo.js';
 import { telephony } from './telephony.js';
 import { voice } from './voice.js';
@@ -125,6 +130,7 @@ import { v1 } from './v1.js';
 import { vault } from './vault.js';
 import { volt } from './volt.js';
 import { safety } from './safety.js';
+import { stepup } from './stepup.js';
 import { ward } from './ward.js';
 import { webhooks } from './webhooks.js';
 import { workflows } from './workflows.js';
@@ -138,9 +144,13 @@ export const ENDPOINTS = {
   ...audit,
   ...auth,
   ...awareness,
+  ...router,
+  ...mind,
   ...lucid,
   ...away,
+  ...presence,
   ...invites,
+  ...agentSchedules,
   ...backupSchedules,
   ...backups,
   ...brain,
@@ -181,6 +191,7 @@ export const ENDPOINTS = {
   ...quoxflow,
   ...quoxplan,
   ...qlarity,
+  ...fetchAllowlist,
   ...quoxseo,
   ...telephony,
   ...voice,
@@ -205,6 +216,7 @@ export const ENDPOINTS = {
   ...vault,
   ...volt,
   ...safety,
+  ...stepup,
   ...ward,
   ...webhooks,
   ...workflows,

@@ -219,6 +219,18 @@ const CAPABILITIES = [
     group: 'memory',
   },
   {
+    // BRAIN2-FABLE11 quox#1193 (owner 2026-10-17): opt-in. Facts mined from a
+    // member's real chats go ONLY into that member's own personal memory.
+    key: 'REFLECTION_MINING_CHATS_ENABLED',
+    name: 'Learn from members\u2019 chats',
+    description: 'Learn facts from members\u2019 chats into each member\u2019s own personal memory. Off by default.',
+    service: 'collector',
+    classification: 'user',
+    type: 'boolean',
+    default: 'false',
+    group: 'memory',
+  },
+  {
     // BRAIN2-V3 B4: promoted from 'operator' (visibility only). The enforcing
     // read (lib/brainImplant.js isImplantEnabled, wired in server.js chat
     // dispatch) now consults the stored org setting first; env stays the
@@ -901,11 +913,11 @@ const CAPABILITIES = [
     // consuming code actually understands.
     key: 'QUOXCHAT_EMBED_PROVIDER',
     name: 'QuoxChat Widget: LLM Provider',
-    description: 'Which LLM provider embedText() tries FIRST for the RAG embedding pipeline (falls through to the other provider when the preferred one has no key). Defaults to "openai".',
+    description: 'Which provider embedText() uses for the RAG embedding pipeline. "openai" (default) falls through to gemini when it has no key. "ollama" embeds locally via the org\'s Ollama connection (zero third-party egress) and NEVER falls through to a hosted provider.',
     service: 'collector',
     classification: 'user',
     type: 'enum',
-    allowedValues: ['openai', 'gemini'],
+    allowedValues: ['openai', 'gemini', 'ollama'],
     default: 'openai',
     group: 'integrations',
     note: 'VAULT-INTEG P17: settable + audited + effective-resolved via configResolver.getSetting(orgId, ...)/getInstanceSetting() in services/collector/routes/quoxchat.js embedText() and services/collector/lib/internalEmbedHandler.js, org-scoped wherever the caller has resolved a widget/request org. Default corrected from the stale \'gemini\' (P14 slice 1) to \'openai\', matching embedText()\'s actual documented fallback behaviour (BRAIN2-SEMANTIC) — the old default would have silently flipped provider selection the moment this entry\'s default was consulted at read time instead of just displayed read-only.',
@@ -922,6 +934,18 @@ const CAPABILITIES = [
     default: 'text-embedding-3-large',
     group: 'memory',
     note: 'BRAIN2-W11: read per embed call via configResolver.getInstanceSetting in lib/brainEmbedModel.js (no restart). Stamps: 3-small keeps the legacy stamp, 3-large stamps text-embedding-3-large@768. Only applies when the OpenAI provider serves the embed (QUOXCHAT_EMBED_PROVIDER).',
+  },
+  {
+    key: 'BRAIN_OLLAMA_EMBED_MODEL',
+    name: 'Qortex: Ollama Embedding Model',
+    description: 'Ollama model used for Qortex / QuoxChat embeddings when the embedding provider is "ollama" (local, no third-party egress). Must return 768-dimension vectors (nomic-embed-text does natively); any other size fails the embed rather than storing a wrong-size vector. Run "ollama pull <model>" on the connected Ollama host first. Switching provider or model triggers a background re-embed into the new space.',
+    service: 'collector',
+    classification: 'user',
+    type: 'string',
+    maxLength: 120,
+    default: 'nomic-embed-text',
+    group: 'memory',
+    note: 'BRAIN2-FABLE11: read per embed call in lib/ollamaEmbed.js via configResolver.getSetting(orgId, ...). Stamp ollama:<model>@768. Only applies when QUOXCHAT_EMBED_PROVIDER=ollama.',
   },
 
   // ─── Phase 24 env audit (2026-08-08), Section 4 — new candidates ────────
@@ -1301,6 +1325,33 @@ const CAPABILITIES = [
     note: 'VAULT-INTEG P13 slice 2: read call-time via configResolver.getInstanceSetting() inside lib/feedScheduler.js\'s per-tick runCoreTick() (not captured once at scheduler start) — a stored override applies from the very next tick, no restart needed.',
   },
   {
+    key: 'QUOXFEED_CATCHUP_MAX_ITEMS',
+    name: 'The Feed: Catch-up Batch Size',
+    description: 'While a folder or Obsidian source still has a backlog (first sync of a big vault), The Feed runs extra back-to-back batches of this many files instead of waiting a full cadence per small batch. Falls back to the normal cap once the backlog clears.',
+    service: 'collector',
+    classification: 'user',
+    type: 'number',
+    default: '500',
+    min: 1,
+    max: 5000,
+    group: 'feed',
+    note: 'BRAIN2-FABLE11: read call-time via configResolver.getInstanceSetting() inside lib/feedScheduler.js runFeedTickWith(); applies from the next tick.',
+  },
+  {
+    key: 'QUOXFEED_FOLDER_WATCH',
+    name: 'The Feed: Watch Connected Folders',
+    description: 'Watches connected folder and Obsidian sources for saved changes and ingests them within seconds, instead of waiting for the 30 minute poll. The poll stays as the safety net. Turn off to poll only.',
+    service: 'collector',
+    classification: 'user',
+    type: 'boolean',
+    default: 'true',
+    offOnlyWhen: 'false',
+    group: 'feed',
+    note: 'BRAIN2-FABLE11: read when the scheduler starts (lib/feedScheduler.js startFolderWatch()); a stored change applies from the next collector restart.',
+    requiresRestart: true,
+    restartNote: 'Stored and audited immediately, and honoured from the next collector service restart onward.',
+  },
+  {
     key: 'QUOXFEED_QUOXPLAN_MAX_ITEMS',
     name: 'The Feed: Max Items per Tick (QuoxPlan)',
     description: 'The per-tick batch cap for the QuoxPlan source only. Overrides the shared per-source cap, because a roadmap with hundreds of active streams cannot keep up at the shared cap.',
@@ -1453,7 +1504,27 @@ const CAPABILITIES = [
     default: '',
     maxLength: 300,
     group: 'ai-models',
-    note: 'Read per-org in lib/webResearch.js. Admin-set and trusted, so it is not run through the page-read egress guard (it is normally an internal address).',
+    note: 'Read per-org in lib/webResearch.js. Admin-set. It goes through the egress guard on every hop; a private (LAN) address is reachable only through an org fetch-allowlist entry an instance admin marked allow_private (loopback, metadata, own networks and single-label hosts are always refused).',
+  },
+  {
+    // quox#1061: was env-only (ALERTMANAGER_URL). Org-scoped like
+    // RESEARCH_SEARXNG_URL because `quox settings set` (the human admin path)
+    // writes the caller's org; the instance scope is consulted next, then env.
+    key: 'ALERTMANAGER_URL',
+    name: 'Alertmanager Base URL',
+    description: 'Base URL of the Prometheus Alertmanager the alerts tools read and silence, for example http://alertmanager:9093. http or https only. Leave unset to keep the ALERTMANAGER_URL environment value as the fallback; with neither set the alerts tools say plainly that Alertmanager is not configured.',
+    service: 'collector',
+    classification: 'user',
+    type: 'string',
+    format: 'http-url',
+    // quox#1061: org-scoped values go through lib/monitoringEgressPolicy.js
+    // (set time in platformSettingsStore.setOrgSetting, use time in
+    // alertmanagerConfig.resolveAlertmanagerTarget). Instance/env values do not.
+    orgEgressPolicy: 'monitoring-integration',
+    default: '',
+    maxLength: 300,
+    group: 'integrations',
+    note: 'quox#1061: resolved per call by lib/alertmanagerConfig.js resolveAlertmanagerUrl(orgId): org setting > instance setting > env ALERTMANAGER_URL > legacy monitoring-config.json alertmanager.url > unset. Read by toolExecutors/monitoring.js alertsManage and bastionSshExecutor.js alerts.* tools. An ORG value is checked by lib/monitoringEgressPolicy.js at set and use time (refuses loopback, link-local/metadata, unspecified, localhost and internal service names; resolves DNS and checks every address; RFC1918 LAN targets allowed). Instance and env values are operator controlled and skip that policy. All values: http/https only, no embedded credentials.',
   },
   {
     key: 'DISCORD_APPLICATION_ID',
@@ -2075,6 +2146,18 @@ function evaluateCapability(entry, env = process.env) {
  * @param {*} rawValue - the candidate value, always expected to be a string
  * @returns {{ valid: boolean, reason?: string }}
  */
+// quox#1061: true only for an absolute http(s) URL with a host and no
+// user:password part. Used by validateSettingValue for `format: 'http-url'`.
+function isHttpUrl(value) {
+  if (typeof value !== 'string') return false;
+  let u;
+  try { u = new URL(value.trim()); } catch { return false; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+  if (!u.hostname) return false;
+  if (u.username || u.password) return false;
+  return true;
+}
+
 function validateSettingValue(entry, rawValue) {
   if (typeof rawValue !== 'string') {
     return { valid: false, reason: `value for ${entry.key} must be a string` };
@@ -2094,6 +2177,10 @@ function validateSettingValue(entry, rawValue) {
       }
       if (rawValue.length > maxLength) {
         return { valid: false, reason: `invalid value for ${entry.key}: exceeds max length ${maxLength}` };
+      }
+      // quox#1061: opt-in URL shape for integration endpoint settings.
+      if (entry.format === 'http-url' && !isHttpUrl(rawValue)) {
+        return { valid: false, reason: `invalid value for ${entry.key}: must be an http or https URL with no embedded credentials` };
       }
       return { valid: true };
     }
@@ -2241,7 +2328,24 @@ function getCapabilities(opts = {}) {
     });
 }
 
+// quox#1065: which org's stored overrides GET /api/v1/platform/capabilities
+// resolves. Same rule as GET /api/v1/platform/settings/flags (quox#524): a JWT
+// caller's own org wins and cannot be redirected; a service-key caller (no
+// req.user, e.g. REGULA's settings_search/settings_explain via localApiFetch)
+// names its org via X-Org-Id; the instance sentinel scope is never an org.
+// Before this, a service caller always got settings=null, and getCapabilities()
+// labelled the env layer source 'env', which REGULA reported as "no org
+// override" while one existed.
+function capabilitiesCallerOrgId(req) {
+  // Lazy require: platformSettingsStore requires this module.
+  const { INSTANCE_SCOPE_ORG_ID } = require('./platformSettingsStore.js');
+  const orgId = req?.user?.org_id || (req?.service ? req?.headers?.['x-org-id'] : undefined);
+  if (!orgId || orgId === INSTANCE_SCOPE_ORG_ID) return null;
+  return orgId;
+}
+
 module.exports = {
+  capabilitiesCallerOrgId,
   CAPABILITIES,
   SECRET_NAME_PATTERN,
   SETTABLE_TYPES,
@@ -2249,6 +2353,7 @@ module.exports = {
   isSettableEntry,
   evaluateCapability,
   validateSettingValue,
+  isHttpUrl,
   resolveEffectiveCapability,
   getCapabilities,
 };

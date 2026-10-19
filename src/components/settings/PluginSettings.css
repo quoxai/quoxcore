@@ -997,9 +997,15 @@
   font-weight: 700;
   color: #fff;
   letter-spacing: 0.01em;
-  white-space: nowrap;
+  /* owner 2026-10-15: names were hard-truncated to one line with "..." in the narrow title column
+     (card width minus the 52px icon and the 68px reserved for quick actions), so most plugin names
+     read as "Quox…". Wrap to two lines instead; ellipsis only on the rare name past two lines. The
+     card is min-height (not fixed) with overflow:visible, so a two-line title grows it cleanly. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
   line-height: 1.2;
 }
 .pc__sub {

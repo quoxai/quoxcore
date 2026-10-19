@@ -121,10 +121,13 @@ export function registerEngagementCommands(program, ctx) {
       const data = await client.post(ep.path, { service: ep.service, body });
       printSuccess(`Target "${value}" added to engagement ${id}.`);
       if (data.target.verification_token) {
+        // #1007: a url target is challenged on its hostname (dns_txt) or at its own origin (well_known_file)
+        const stored = data.target.value || value;
+        const url = data.target.type === 'url' ? (() => { try { return new URL(stored); } catch { return null; } })() : null;
         if (data.target.verification_method === 'dns_txt') {
-          console.log(`  Add a DNS TXT record on ${value}: quox-verify=${data.target.verification_token}`);
+          console.log(`  Add a DNS TXT record on ${url ? url.hostname : stored}: quox-verify=${data.target.verification_token}`);
         } else if (data.target.verification_method === 'well_known_file') {
-          console.log(`  Serve this content at https://${value}/.well-known/quox-verification: ${data.target.verification_token}`);
+          console.log(`  Serve this content at ${url ? url.origin : `https://${stored}`}/.well-known/quox-verification: ${data.target.verification_token}`);
         }
         console.log(`  Then run: quox engagement verify-target ${id} ${data.target.id}`);
       }
@@ -172,6 +175,7 @@ export function registerEngagementCommands(program, ctx) {
         console.log(JSON.stringify(data.output, null, 2));
       } else {
         console.log(`  Failed (allowed: ${data.allowed}): ${data.error}`);
+        process.exitCode = 1; // #1007: a refusal is not success, for scripts as much as people
       }
     });
 
@@ -185,6 +189,7 @@ export function registerEngagementCommands(program, ctx) {
       const data = await client.post(ep.path, { service: ep.service, body: { target: hostTarget, add: options.add === true } });
       if (!data.success) {
         console.log(`  Failed (allowed: ${data.allowed}): ${data.error}`);
+        process.exitCode = 1; // #1007: a refusal is not success, for scripts as much as people
         return;
       }
       const discovered = data.discovered || [];
@@ -234,6 +239,7 @@ export function registerEngagementCommands(program, ctx) {
         console.log(`  Poll: quox engagement job ${data.job_id}`);
       } else {
         console.log(`  Failed (allowed: ${data.allowed}): ${data.error}`);
+        process.exitCode = 1; // #1007: a refusal is not success, for scripts as much as people
       }
     });
 
@@ -372,11 +378,16 @@ export function registerEngagementCommands(program, ctx) {
       }
       const buf = Buffer.from(await res.arrayBuffer());
       const rootOutput = program.opts().output;
-      const outFile = options.output
-        || (rootOutput && !KNOWN_OUTPUT_FORMATS.has(rootOutput) ? rootOutput : null)
-        || `quox-security-${id}.pdf`;
+      // quox#919: the global --json reaches options.output as 'json' via
+      // mergeShadowedGlobals; an output-format name is never a file path.
+      const asPath = (v) => (v && !KNOWN_OUTPUT_FORMATS.has(v) ? v : null);
+      const outFile = asPath(options.output) || asPath(rootOutput) || `quox-security-${id}.pdf`;
       writeFileSync(outFile, buf);
-      printSuccess(`Report saved to ${outFile} (${buf.length} bytes).`);
+      if (rootOutput === 'json') {
+        console.log(JSON.stringify({ success: true, file: outFile, bytes: buf.length }));
+      } else {
+        printSuccess(`Report saved to ${outFile} (${buf.length} bytes).`);
+      }
     });
 
   async function raiseIssue(findingId) {

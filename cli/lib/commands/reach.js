@@ -103,7 +103,8 @@ export function registerReachCommands(program, ctx) {
       const orgId = resolveOrgId(auth, program);
       const days = parseInt(options.days, 10) || 30;
       const ep = resolveEndpoint('reach.agent.leastPrivilege', { orgId, agentId, days });
-      const result = await client.get(ep.path, { service: ep.service });
+      // #923: the report scans the usage window and outlived the 30 s default under load
+      const result = await client.get(ep.path, { service: ep.service, timeout: 120000 });
 
       if (isJsonOutput(program)) {
         process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

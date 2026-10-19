@@ -54,13 +54,18 @@
  * default only — no dispatch behavior changes.
  */
 
+const { withToolCallReminder } = require('./cliToolCallReminder.js');
 const { applyLenses } = require('./lensComposer.js');
 const configResolver = require('./configResolver.js');
 const { promptSections } = require('./promptSections.js'); // D3: section sizes on model.requested
 // QUOXON-PARITY (#815, #810, #811): the same claim rules every API path gets (lib/turnToolSelection.js).
 const CLAIM_RULES_MD = require('./turnToolSelection.js').CLAIM_RULES.map((r) => `- ${r}`).join('\n');
+const DECISION_RULE_MD = `- ${require('./turnToolSelection.js').DECISION_RULE}`; // DECISION-LABELS: the CLI-tools prompt only; the MCP prompt is pinned byte for byte
 const { applyTurnCredential, pickCliToolsEnv } = require('./turnToken.js'); // QUOXON-IDENTITY
 const { registerTurnBearer, releaseTurnBearer } = require('./turnBearerStore.js'); // QUOXON-ASK J2
+const { cliOAuthEnv } = require('./cliOAuthEnv.js'); // QUOXON-ASK J2: file token stays refreshable
+const { cliFailureReason } = require('./cliFailureReason.js'); // #904: say why the provider refused
+const providerHealth = require('./providerHealth.js'); // #904 part 3: limits visible before the next turn
 
 // VAULT-INTEG P17: was a bare process.env read frozen at module load — now
 // resolved per-call via configResolver.getSetting(orgId, ...)
@@ -85,6 +90,11 @@ const CLAUDE_CLI_VOICE_MAX_TURNS = 3;
 // QUOXON-PARITY (2026-10-13): the model the subscription CLI is told to run, so turn.started can
 // name it truthfully. A claude-* request wins; anything else (or none) is the org's
 // CLAUDE_CLI_DEFAULT_MODEL setting. Callers that pass opts.model get it as --model.
+// The orchestrator's People line, one copy for both dispatch paths. CONTACTS-Q proof contact-context
+// (2026-10-17): it used to send "history, facts" to contactsq although quox holds those reads, and a
+// delegated hop no longer carries the human's direct ask, so the read was carded for approval.
+const PEOPLE_PROMPT_LINE = "- People (ContactsQ): the contacts reads and records you hold, you run YOURSELF (the user's own ask is the request; handing it to another agent is not): contacts_search finds a person by name (if it says ambiguous, ask the user which one; never guess), contacts_resolve maps a number or email to a contact, contacts_context gets the user ready to talk to someone (confirmed facts and recent interactions), contacts_timeline is their history, contacts_brief and contacts_count are counts, contacts_best_channel says which channel is allowed, contacts_record_objection records do-not-call at once, contacts_propose_fact proposes a fact for review and contacts_log_touchpoint records a touchpoint. Only calling or messaging someone do you delegate to contactsq. You never see or need the number. Report the tool result exactly: 'queued' or 'pending approval' is not 'called'.";
+
 function resolveCliModel({ orgId = null, requestedModel = null } = {}) {
   // QUOXON-MODEL: a full id, or a family alias (fable|opus|sonnet|haiku) the CLI resolves to the newest model itself.
   if (typeof requestedModel === 'string' && /^(claude-[a-z0-9.\-]+|fable|opus|sonnet|haiku)$/i.test(requestedModel.trim())) return requestedModel.trim();
@@ -155,7 +165,13 @@ const wantsCaptureOverride = (isVoice, agentTools) => Boolean(isVoice) || (Array
 // Research turns add the CLI's WebSearch and WebFetch built-ins to the allowlist.
 // Nothing else is opened; every existing restriction stays.
 const CLI_TOOLS_TURN_TIMEOUT_MS = 285000;
+// quox#1044: a delegation breach extends the kill by the turn's late-answer wait (capped here).
+const CLI_BREACH_EXTRA_MS = 60000;
 const CLI_TOOLS_BASH_TIMEOUT_MS = 240000;
+// quox#1034: the spawned `quox tool exec` HTTP budget. It must outlast every specialist's delegation.wait_ms
+// (Browser-Q and NotesQ 180 s), so the server's own deadline and detach decide, and stay under the Bash budget, so
+// Bash never kills the call before the client can report. The CLI default (120 s) cut Browser-Q off mid-job.
+const CLI_TOOL_EXEC_TIMEOUT_MS = CLI_TOOLS_BASH_TIMEOUT_MS - 10000;
 
 function nativeAllowedTools(base, nativeWebSearch) {
   return nativeWebSearch ? `${base},WebSearch,WebFetch` : base;
@@ -177,16 +193,28 @@ async function dispatchClaudeCli(opts, deps) {
   const {
     finalSystemPrompt,
     persona,
-    userMessage,
+    userMessage: userMessageIn,
     prompt,
     session_id,
     effectiveSessionId,
+    // 'delegate' = a delegate_to_agent hop: its warm spare is capped separately in the pool.
+    warmKind,
     selected_agent,
     agentTools,
+    // QUOXON-LATENCY: the eligible tools NOT in this turn's D3 offer (lib/cliToolOffer.js),
+    // listed by name + argument names only. Optional; absent = agentTools is the whole list.
+    agentToolIndex = null,
+    // CUSTOM-HATS: { hatKey, agents } when an enforced hat scopes the roster (delegationRoster
+    // hatAgentScope); the prompt then names only the hat's agents. Absent = the full roster.
+    hatAgentScope = null,
+    // CUSTOM-HATS: server-authored one-turn note when the hat changed since the last turn.
+    hatSwitchNote = null,
+    handoffGapNote = '', // QUOXON first-text: a role gap predicted before dispatch (lib/handoffSuggest.js gapPromptNote)
     cliOAuthToken,
     userAccessToken,
     jwtOrgId,
     jwtUserId,
+    systemActor, // RunActor slice 2: a no-user (workflow/scheduled) turn's system actor, set by /chat only
     conversation_history,
     memory_context,
     quox_context,
@@ -195,7 +223,11 @@ async function dispatchClaudeCli(opts, deps) {
     noToolsRequested,
     isVoice,
     maxDurationMs,
+    bearerHoldUntil, // quox#1090 ruling (b): cap for this turn's held bearer (a delegated sub-turn's parent expiry)
+    turnBudgetMs, // quox#1090: the caller's turn budget; sets the process duration and the delegation wait, NEVER the token TTL
+    turnMode = null, // PLAN MODE: 'plan' rides the turn token; /api/v1/tools/execute refuses state-changing calls
     clientDisconnected,
+    deadlineControl = null, // quox#1044: { extend(ms) } is set here; a delegation breach pushes the kill out (capped)
     aoclCtx,
     decisionEvidenceLevel,
     model: requestedModel = null,
@@ -204,12 +236,17 @@ async function dispatchClaudeCli(opts, deps) {
     // forwards each parsed event (lib/cliStreamJson.js) as it arrives. Unset:
     // the one-shot `--output-format json` path, unchanged.
     onStreamEvent = null,
+    // CLI-WARM (2026-10-17): opt-in for a caller with no stream listener (a /chat/stream turn without
+    // turn_id: plain `quox chat`). The turn runs stream-json internally, emitting nothing, so it can
+    // take and refill a warm spare exactly as a streamed turn does. The pool key is unchanged.
+    warmOneShot = false,
     // CLI-QUOX continuity (quox client only, lib/cliSessionContinuity.js):
     // { resumeSessionId, includeHistory, missedTurns, onFallback }. When set, the
     // CLI-tools path resumes that CLI session with --resume instead of sending the
     // Recent Conversation block, and never resumes session_id itself. Unset: unchanged.
     cliContinuity = null,
   } = opts;
+  let userMessage = userMessageIn; // QUOXON 2026-10-19: a resumed session may lead it with the handoff section
 
   const {
     spawnFn,
@@ -246,6 +283,8 @@ async function dispatchClaudeCli(opts, deps) {
     internalServiceKey = '',
     tasksServiceUrl = 'http://tasks:3104',
     mcpEnabled = false,
+    // QUOXON-LATENCY L2: warm `claude` spares (lib/cliWarmPool.js). Absent = cold spawn only.
+    cliWarmPool = null,
   } = deps || {};
 
   if (typeof spawnFn !== 'function') throw new Error('dispatchClaudeCli: spawnFn dep missing');
@@ -267,7 +306,10 @@ async function dispatchClaudeCli(opts, deps) {
   // else→legacy selection.
   //
   // Security posture (do not relax without an explicit owner decision):
-  //   - NO --mcp-config (no MCP server is spawned/exposed on this path).
+  //   - --strict-mcp-config + NO --mcp-config: the account's own MCP servers (claude.ai
+  //     connectors like Figma/Notion) are IGNORED and none are exposed (#950). The absence of
+  //     --mcp-config alone is NOT enough; the CLI would still load the account config without
+  //     --strict-mcp-config.
   //   - NO --dangerously-skip-permissions. --allowedTools is scoped to the
   //     single literal `Bash(quox tool exec:*)` pattern, so the model can
   //     run nothing else in the container (no arbitrary Bash, no native
@@ -354,17 +396,16 @@ async function dispatchClaudeCli(opts, deps) {
     // in prose instead of as callable MCP entries.
     const ctToolList = Array.isArray(agentTools) ? agentTools : [];
     const ctToolCatalogue = ctToolList.length > 0
-      ? ctToolList.map((t) => {
-        // Argument NAMES only, never the full schema: without them the model
-        // guessed (addTags for add) and a half-applied call reported success.
-        // Never in name(...) shape: that made the model hunt for native tools
-        // instead of running quox tool exec (AQ-9D scorecard, 2026-10-07).
-        const schema = t.input_schema || t.inputSchema || t.parameters || {};
-        const req = new Set(schema.required || []);
-        const names = Object.keys(schema.properties || {}).map((k) => (req.has(k) ? `${k} (required)` : k));
-        return `- ${t.name}${names.length ? ` | args: ${names.join(', ')} |` : ':'} ${t.description || '(no description)'}`;
-      }).join('\n')
+      // Argument names (and an enum's allowed values), never the full schema: without
+      // them the model guessed (addTags for add; quoxlens_read action "list").
+      // Never in name(...) shape: that made the model hunt for native tools
+      // instead of running quox tool exec (AQ-9D scorecard, 2026-10-07).
+      ? require('./cliToolOffer.js').renderToolCatalogue(ctToolList)
       : '(no tools resolved for this agent)';
+    const ctToolIndex = Array.isArray(agentToolIndex) ? agentToolIndex.filter((t) => t && t.name) : [];
+    // Prompt sections keyed on a tool's presence (delegation, capture) look at everything
+    // this turn can reach, offered or indexed, exactly as before the index existed.
+    const ctReachTools = [...ctToolList, ...ctToolIndex];
 
     // Build system prompt — same shape/sections as the MCP path's
     // mcpSysPrompt builder, with tool-invocation instructions swapped from
@@ -398,32 +439,39 @@ async function dispatchClaudeCli(opts, deps) {
 - If a tool call fails or times out, that IS diagnostic data — explain what the failure means.
 - DO the work. Do NOT write assessment reports or escalation plans. Execute commands and show results.
 ${CLAIM_RULES_MD}
+${DECISION_RULE_MD}
 
 ## Live tools — use the CLI, never guess
-To read live data or run an action, call this via Bash and parse its JSON result:
+To read live data or run an action, call this via Bash and read its JSON result yourself:
   quox tool exec <name> --args '<json-args>'
+Answer straight from the tool's JSON and never post-process it with a shell (no jq, grep, python, cat, sed, awk or pipes): any shell call other than \`quox tool exec\` is denied. Answer straight from the JSON you got back; if you need a different slice of the data, run the tool again with different args.
+Large output: use --select/--summary, never a shell pipe. \`--select '<path>'\` returns just that part (a.b, list[0], list[status=down] exact, list[name~text] contains any case, list[*].field every item, list[*].{a,b,c} several fields of every item in ONE call (never one column per call), list[status=down].name, count(list)); \`--summary\` returns the total, per-status counts and the first 10 items (\`--limit N\` changes N), always saying "showing N of M". Example: quox tool exec fleet_status --args '{}' --select 'hosts[health=unhealthy].host'
 Each Bash call runs exactly one \`quox tool exec <name> --args '<json>'\`: no &&, ;, pipes, subshells or other commands, and no other \`quox\` verbs (for example \`quox seo ...\`). Anything else is refused by your shell's permission gate and no approval card can be raised for it, so the user sees only a failure. When an action needs human approval, quox tool exec returns it as pending and the user gets an approval card: say it is waiting for their approval.
 Your tool calls run one after another, never at the same time: describe what you are doing, but never say they run in parallel or simultaneously.
 These are NOT native tools: never call one directly and never look one up with ToolSearch (it will not be found). Even where this prompt writes a tool like a function call, e.g. quoxbrain_search({query:'x'}), run it as: quox tool exec quoxbrain_search --args '{"query":"x"}'
 Available tools:
-${ctToolCatalogue}`;
+${ctToolCatalogue}${ctToolIndex.length ? `
+
+Other tools you can call the same way (name and argument names only; the tools above fit this request best):
+${require('./cliToolOffer.js').renderToolIndex(ctToolIndex)}` : ''}${require('./nativeLookalikeTools.js').lookalikeNote([...ctToolList, ...ctToolIndex])}`;
 
     cliToolsSysPrompt += `\n\n## Chat and Room Reply Style
 - In a chat or room conversation, keep replies short and conversational, like a helpful colleague, not a report.
 - Prefer plain sentences over large markdown tables. Only use a table if the user explicitly asks for one or the data genuinely needs columns to compare.
 - Do not surface internal tool identifiers, function names, or system plumbing (for example bastionClient, memory_search, quox tool exec, or any other internal tool name) to the user. Describe what you did in plain language instead of naming the tool you called.
 - Say what you found and what you recommend, then stop. Skip preambles and restating the question.`;
+    cliToolsSysPrompt += require('./hatSwitchNote.js').hatSwitchBlock(hatSwitchNote);
+    if (typeof handoffGapNote === 'string' && handoffGapNote) cliToolsSysPrompt += handoffGapNote;
 
-    if (selected_agent === 'quox' && Array.isArray(agentTools) && agentTools.some((t) => t.name === 'delegate_to_agent')) {
+    if (selected_agent === 'quox' && ctReachTools.some((t) => t.name === 'delegate_to_agent')) {
       cliToolsSysPrompt += isVoice ? `\n\n## Tools first (live voice call)
 You are on a live VOICE call: every extra hop is dead air the caller hears. For live data or a simple action, CALL YOUR OWN TOOL directly (fleet_status, docker_status, email_read, ssh_exec, memory_search, and the rest, via quox tool exec) and answer from the real result, NEVER from memory. Use delegate_to_agent ONLY for genuinely specialist, multi-step work you cannot do yourself; a single status check, read, or lookup is never worth delegating. One or two tool calls, then answer.${VOICE_BRAIN_RECALL_PROMPT}` : `\n\n## Agent Delegation (your primary role)
 You are the ORCHESTRATOR. For any task in a specialist's domain, DELEGATE it with the delegate_to_agent tool (run via quox tool exec) rather than doing it yourself. Prefer delegation by default; self-serve only for orchestration, synthesis, planning, and simple general queries.
 Use delegate_to_agent with the real agent id:
 Who holds which tools (from the agent registry; the first named holds the most of them):
-${require('./delegationRoster.js').renderDelegationRoster()}
-- Anything else: any agent or custom agent by its id (agent_directory lists them).
-- Plugin specialists (only when the org has that plugin; if a delegation is refused as not enabled, tell the user plainly): inboxq = email and inbox, calendar-q = calendar and schedule, contactsq = people, contacts and reaching them, notesq = notes ("jot this down", "write that down", find, read or edit a note). Never claim you saved a note yourself: delegate to notesq and report what it returned.
-- People (ContactsQ): a single quick lookup you do YOURSELF: contacts_search finds a person by name (if it says ambiguous, ask the user which one; never guess) and contacts_resolve maps a number or email to a contact. Anything beyond that (calling or messaging someone, channel choice, objections, history, facts, do-not-call) delegate to contactsq. You never see or need the number. Report the tool result exactly: 'queued' or 'pending approval' is not 'called'.
+${require('./delegationRoster.js').renderDelegationRoster(undefined, { scope: hatAgentScope })}
+${require('./delegationRoster.js').renderOtherAgentLines(hatAgentScope)}
+${PEOPLE_PROMPT_LINE}
 - The query spans multiple domains (e.g., "check security then deploy a fix") — delegate each leg.
 Delegation guidelines:
 - Give the specialist a clear, specific task — not the user's full query
@@ -433,7 +481,7 @@ Delegation guidelines:
     }
 
     if (memorySystemPrompt) cliToolsSysPrompt += memorySystemPrompt;
-    if (wantsCaptureOverride(isVoice, agentTools)) cliToolsSysPrompt += captureOverride(isVoice);
+    if (wantsCaptureOverride(isVoice, ctReachTools)) cliToolsSysPrompt += captureOverride(isVoice);
     if (actionSystemPrompt) cliToolsSysPrompt += actionSystemPrompt;
 
     cliToolsSysPrompt += `\n\n## Response Format
@@ -476,42 +524,37 @@ Agent: ${selected_agent}
         // turns other agents took since (after an /attach switch), never a full replay.
         const missed = Array.isArray(ctContinuity && ctContinuity.missedTurns) ? ctContinuity.missedTurns : [];
         const block = formatRecentConversation(missed);
-        mid = block ? block.replace('## Recent Conversation\n', '## Conversation since your last turn\n(Other agents in this conversation, after your previous reply.)\n') : '';
+        mid = block ? block.replace('## Recent Conversation\n', '## Conversation since your last turn\n(Turns other agents or models took in this conversation after your previous reply, with the tools they used. Treat their tool results as real.)\n') : '';
       } else {
         mid = formatRecentConversation(conversation_history);
       }
-      return applyLenses(ctSysHead + mid + ctSysTail, DEFAULT_LENSES);
+      // QUOXON 2026-10-19: a handed-off CommanderQ answer gets its own labelled section (lib/handoffHistory.js).
+      const hoSection = require('./handoffHistory.js').formatHandoffSection(resumeId ? (ctContinuity && ctContinuity.missedTurns) : conversation_history);
+      // The tool-call reminder is the last line, for cold spawns and warm spares alike.
+      return withToolCallReminder(applyLenses(ctSysHead + mid + hoSection + ctSysTail, DEFAULT_LENSES));
     };
     cliToolsSysPrompt = ctBuildSys(ctResumeId);
+    // QUOXON 2026-10-19: on a resumed session the system prompt did not make the agent use a handed-off CommanderQ answer
+    // (live: it denied the recon). Put the same labelled section in front of the user's message, where it is always read.
+    if (ctResumeId && ctContinuity) {
+      const hoMsg = require('./handoffHistory.js').formatHandoffSection(ctContinuity.missedTurns);
+      if (hoMsg) userMessage = `${hoMsg.trim()}\n\n## The user's message\n${userMessage}`;
+    }
 
     // Legacy resume (dashboard / voice): the caller's session_id when it is a UUID.
     const ctIsUuid = !ctContinuity && ctUuid(session_id);
 
-    const ctStreaming = typeof onStreamEvent === 'function';
+    const ctStreaming = typeof onStreamEvent === 'function' || warmOneShot === true;
     const ctNewParser = () => (ctStreaming
       ? require('./cliStreamJson.js').createStreamJsonParser({ onEvent: onStreamEvent })
       : null);
     let ctStreamParser = ctNewParser();
-    const ctBuildArgs = (sysPrompt, resumeId) => [
-      ...(ctStreaming ? require('./cliStreamJson.js').CLI_STREAM_OUTPUT_ARGS : ['--output-format', 'json']),
-      // VOICE FAST PATH: fast model + bounded tool loop, ONLY for a phone turn (isVoice). This is
-      // what turns a 20-36s governed turn into a few seconds. Default (typed) chat is unchanged.
-      ...(isVoice ? ['--model', CLAUDE_CLI_VOICE_MODEL, '--max-turns', String(CLAUDE_CLI_VOICE_MAX_TURNS)] : []),
-      ...explicitModelArgs(isVoice, requestedModel),
-      '--allowedTools', nativeAllowedTools('Bash(quox tool exec:*)', nativeWebSearch),
-      // QUOXON-PARITY (2026-10-13): restrict the BUILT-IN tool set, not just what is pre-approved.
-      // --allowedTools only auto-approves; tools that need no permission still ran: the parity
-      // eval saw this path call Skill, RemoteTrigger and CronCreate (CronCreate succeeded) with
-      // no Quox envelope, receipt or approval. Allowlist: Bash (for `quox tool exec`) and,
-      // on research turns, the two web tools.
-      '--tools', nativeAllowedTools('Bash', nativeWebSearch),
-      // ToolSearch can never find a catalogue tool here (they are not native);
-      // the model used it to conclude tools were missing (AQ-9D scorecard).
-      '--disallowedTools', 'ToolSearch',
-      '--system-prompt', sysPrompt,
-      ...(resumeId ? ['--resume', resumeId] : (session_id && ctIsUuid ? ['-r', session_id] : [])),
-      '-p', userMessage,
-    ];
+    // The argv is built by lib/cliHopShape.js, the same function the hint-time dry run uses, so a
+    // pre-warmed spare for an agent's hop has the real hop's exact key.
+    const ctBuildArgs = (sysPrompt, resumeId) => require('./cliHopShape.js').buildCliToolsArgs({
+      streaming: ctStreaming, isVoice, requestedModel, nativeWebSearch, sysPrompt, userMessage, resumeId,
+      legacyResumeId: session_id && ctIsUuid ? session_id : null,
+    });
     let cliToolsArgs = ctBuildArgs(cliToolsSysPrompt, ctResumeId);
 
     console.log(`[CLI-TOOLS] CLI call (${selected_agent}, sys_prompt: ${cliToolsSysPrompt.length} chars${ctResumeId ? `, continuity resume=${ctResumeId.slice(0, 8)}...` : (ctIsUuid ? `, resume=${session_id.slice(0, 8)}...` : '')})`);
@@ -533,15 +576,25 @@ Agent: ${selected_agent}
     // token), plus the service-key + org + collector-URL vars the `quox`
     // CLI's tool.js `exec` action + core/client.js resolve auth/routing
     // from (verified against source, see block comment above).
+    // quox#1090: a turn that states a longer budget (maxDurationMs, from the caller's turn_budget_ms)
+    // raises the Bash and `quox tool exec` budgets and exports the turn deadline, so a delegation hop
+    // can run to the end of the turn. No budget: today's fixed values, unchanged.
+    const cliTurnBudget = (typeof turnBudgetMs === 'number' && turnBudgetMs > CLI_TOOLS_TURN_TIMEOUT_MS) ? turnBudgetMs : null;
+    const cliTurnStart = Date.now();
+    const cliHop = require('./turnBudget.js').cliToolsBudgets(cliTurnBudget);
+    // NOTE: lib/cliHopShape.js buildCliToolsEnvBase mirrors this literal for the hint-time dry run of a delegate
+    // hop; test/cliHopShapeExact.test.js pins the two equal. The literal stays inline because other tests
+    // read this block from source (chatSessionIdPropagation, streamAgentContext).
     const cliToolsEnvBase = {
       ...pickCliToolsEnv(process.env),
       HOME: runtimeHomeDir,
       USER: runtimeUser,
-      ...(cliOAuthToken ? { CLAUDE_CODE_OAUTH_TOKEN: cliOAuthToken } : {}),
+      ...cliOAuthEnv(cliOAuthToken, { home: runtimeHomeDir }).env,
       // A `quox tool exec` of a delegating tool (notesq_research) can outlast the
       // CLI's 120s Bash default; the turn timeout above still bounds the whole turn.
-      BASH_DEFAULT_TIMEOUT_MS: String(CLI_TOOLS_BASH_TIMEOUT_MS),
-      BASH_MAX_TIMEOUT_MS: String(CLI_TOOLS_BASH_TIMEOUT_MS),
+      BASH_DEFAULT_TIMEOUT_MS: String(cliHop.bashMs),
+      BASH_MAX_TIMEOUT_MS: String(cliHop.bashMs),
+      QUOX_TOOL_EXEC_TIMEOUT_MS: String(cliHop.toolExecMs),
       // QUOXON-IDENTITY: NO service key on this path (the model drives this
       // subprocess). Identity is the per-turn scoped token minted below.
       QUOX_ORG_ID: orgId || jwtOrgId || '',
@@ -569,12 +622,19 @@ Agent: ${selected_agent}
       turnId: ctTurnId,
       userId: userId || jwtUserId,
       orgId: orgId || jwtOrgId,
+      systemActor: (userId || jwtUserId) ? undefined : systemActor,
       conversationId: ctSessionId,
       agentId: selected_agent,
+      turnIntent: turnMode === 'plan' ? 'read' : require('./turnToolSelection.js').classifyTurnIntent(prompt || userMessage || ''),
+      noShell: require('./turnToolSelection.js').securityReadNoShell(prompt || userMessage || ''),
+      ...(turnMode === 'plan' ? { turnMode: 'plan' } : {}),
+      toolsGated: true, // 2026-10-19 (withheld-exec): tools/execute runs only the tools this prompt lists (registered below)
       ttlMs: (typeof maxDurationMs === 'number' && maxDurationMs > 0) ? maxDurationMs : CLI_TOOLS_TURN_TIMEOUT_MS,
+      // quox#1090: the turn's end as a signed claim; the token TTL above does not change with it.
+      ...(cliTurnBudget ? { turnDeadlineAt: cliTurnStart + cliTurnBudget } : {}),
     });
     if (cliOAuthToken) {
-      console.log('[Claude] Passing OAuth token via CLAUDE_CODE_OAUTH_TOKEN env var');
+      console.log(`[Claude] OAuth token via ${cliOAuthEnv(cliOAuthToken, { home: runtimeHomeDir }).source === 'env' ? 'CLAUDE_CODE_OAUTH_TOKEN env var' : 'the CLI credentials file (refreshable)'}`);
     }
 
     const ctCliHealthy = typeof getClaudeCliHealth === 'function'
@@ -605,13 +665,105 @@ Agent: ${selected_agent}
     // QUOXON-ASK J2: quox_cli runs as the caller. The caller's bearer stays in collector
     // memory for this turn only (keyed by the turn token's turn_id, TTL = turn timeout +
     // margin), never in the subprocess env; released in finally below.
-    registerTurnBearer({ turnId: ctTurnId, bearer: userAccessToken, userId: userId || jwtUserId, orgId: orgId || jwtOrgId, ttlMs: ctTurnTtlMs + 60000 });
+    // 2026-10-19 (withheld-exec): exactly what the prompt lists (catalogue + index) is what this turn may run; a
+    // withheld tool named by the model is refused at /api/v1/tools/execute (lib/turnToolGate.js). Released in finally.
+    require('./turnToolGate.js').registerTurnTools({ turnId: ctTurnId, names: ctReachTools.map((t) => t && t.name), ttlMs: Math.max(ctTurnTtlMs, cliTurnBudget || 0) + 120000 });
+    registerTurnBearer({ turnId: ctTurnId, bearer: userAccessToken, userId: userId || jwtUserId, orgId: orgId || jwtOrgId, ttlMs: ctTurnTtlMs + 60000, holdUntil: bearerHoldUntil });
+    let ctWarm = 'miss';
+    let ctSpareRef = () => null;
     try {
       const ctCliStart = Date.now();
       // Spawn + parse — same shape as the MCP path's block (timeout,
       // client-disconnect kill every 2s), args/env only differ per the
       // security posture documented above.
-      const ctRunOnce = (cliArgs, parser) => new Promise((resolve, reject) => {
+      // QUOXON-LATENCY L2: a warm spare for this exact identity + turn shape, if one is
+      // waiting. One spare, one turn. Only stream-json callers (the spare speaks it).
+      const ctWarmPool = ctStreaming && cliWarmPool && typeof cliWarmPool.take === 'function' ? cliWarmPool : null;
+      const ctWarmLog = (ctWarmPool && ctWarmPool.log) || console;
+      const ctWarmIdent = { orgId: orgId || jwtOrgId, userId: userId || jwtUserId };
+      let ctWarmTried = false;
+      let ctSpare = null;
+      ctSpareRef = () => ctSpare;
+      const ctRunOnSpare = (spare, cliArgs, parser) => new Promise((resolve, reject) => {
+        const proc = spare.proc;
+        let stdout = '';
+        let stderr = '';
+        let lineBuf = '';
+        let initId = null;
+        let userSent = false;
+        let modelOutput = false; // any line other than the initialize control_response
+        let noRetry = false; // a timeout or a client disconnect is never re-run cold
+        let settled = false;
+        const CT_TIMEOUT_MS = Math.max((typeof maxDurationMs === 'number' && maxDurationMs > 0)
+          ? maxDurationMs : CLI_TOOLS_TURN_TIMEOUT_MS, cliTurnBudget || 0);
+        const fail = (msg, extra = {}) => {
+          if (settled) return;
+          settled = true;
+          timer.clear(); clearTimeout(initTimer); clearInterval(disconnectCheck);
+          spare.dispose('used');
+          const err = new Error(msg);
+          err._stderr = stderr; err._stdout = stdout;
+          // Safe to re-run cold only when the model produced nothing: nothing can have run.
+          err._warmNoOutput = !modelOutput && !noRetry;
+          Object.assign(err, extra);
+          reject(err);
+        };
+        const handleLine = (line) => {
+          let o; try { o = JSON.parse(line); } catch { return; }
+          if (o && o.type === 'control_response' && o.response && o.response.request_id === initId) {
+            if (o.response.subtype !== 'success') { fail(`warm initialize rejected: ${String(o.response.error || o.response.subtype).slice(0, 120)}`, { _warmInitRejected: true }); try { proc.kill('SIGKILL'); } catch {} return; }
+            if (!userSent) { userSent = true; clearTimeout(initTimer); spare.sendUser(userMessage); }
+            return;
+          }
+          modelOutput = true;
+          if (o && o.type === 'result') { try { proc.stdin.end(); } catch { /* exits on its own */ } }
+        };
+        spare.onStdout = (d) => {
+          const chunk = String(d);
+          lineBuf += chunk;
+          let i;
+          while ((i = lineBuf.indexOf('\n')) >= 0) { const line = lineBuf.slice(0, i); lineBuf = lineBuf.slice(i + 1); if (line.trim()) handleLine(line); }
+          if (parser) parser.push(chunk);
+          if (stdout.length < 65536) stdout += chunk;
+        };
+        spare.onStderr = (d) => { stderr += d; };
+        spare.onClose = (code) => {
+          if (settled) return;
+          if (code !== 0 || !modelOutput) { fail(cliFailureReason(stdout, stderr) || `warm CLI exited with code ${code}`); return; }
+          settled = true;
+          timer.clear(); clearTimeout(initTimer); clearInterval(disconnectCheck);
+          spare.dispose('used');
+          console.log(`[CLI-TOOLS] CLI (warm) completed in ${Math.round((Date.now() - ctCliStart) / 1000)}s, ${stdout.length} chars`);
+          resolve(stdout);
+        };
+        spare.onError = (err) => fail(`warm CLI error: ${err.message}`);
+        const timer = require('./cliKillTimer.js').createKillTimer({ ms: CT_TIMEOUT_MS, maxExtraMs: CLI_BREACH_EXTRA_MS, onKill: () => {
+          console.error(`[CLI-TOOLS] CLI (warm) timeout after ${(CT_TIMEOUT_MS + timer.extendedMs()) / 1000}s — killing`);
+          noRetry = true;
+          try { proc.kill(); } catch {}
+        } });
+        if (deadlineControl && typeof deadlineControl === 'object') deadlineControl.extend = (ms) => timer.extend(ms);
+        // The initialize response is in-process (no network); 10s without it = a wedged spare.
+        const initTimer = setTimeout(() => { if (!userSent) { fail('warm initialize timed out'); try { proc.kill('SIGKILL'); } catch {} } }, 10000);
+        const disconnectCheck = setInterval(() => {
+          if (typeof clientDisconnected === 'function' && clientDisconnected()) {
+            clearInterval(disconnectCheck);
+            console.log(`[CLI-TOOLS] Client disconnected — killing warm CLI process`);
+            noRetry = true;
+            try { proc.kill(); } catch {}
+          }
+        }, 2000);
+        try {
+          // This turn's credential, readable only for this turn (endTurn in dispose).
+          spare.beginTurn(cliToolsEnv.QUOX_AUTH_TOKEN || '', { sessionId: cliToolsEnv.QUOX_SESSION_ID || '' });
+          initId = spare.sendInit(cliArgs[cliArgs.indexOf('--system-prompt') + 1] || '');
+        } catch (e) {
+          fail(`warm send failed: ${e.message}`);
+          try { proc.kill('SIGKILL'); } catch {}
+        }
+      });
+
+      const ctRunCold = (cliArgs, parser) => new Promise((resolve, reject) => {
         const proc = spawnFn('claude', cliArgs, { env: cliToolsEnv, stdio: ['pipe', 'pipe', 'pipe'] });
         let stdout = '';
         let stderr = '';
@@ -628,12 +780,13 @@ Agent: ${selected_agent}
         if (proc.stdin && typeof proc.stdin.end === 'function') proc.stdin.end();
         // 285s: under the dashboard's 300s fetch abort and nginx's 300s read timeout.
         // 180s killed a research-then-save turn mid-save (AQ-9D, 2026-10-10).
-        const CT_TIMEOUT_MS = (typeof maxDurationMs === 'number' && maxDurationMs > 0)
-          ? maxDurationMs : CLI_TOOLS_TURN_TIMEOUT_MS;
-        const timer = setTimeout(() => {
-          console.error(`[CLI-TOOLS] CLI timeout after ${CT_TIMEOUT_MS / 1000}s — killing (stdout: ${stdout.length} chars)`);
+        const CT_TIMEOUT_MS = Math.max((typeof maxDurationMs === 'number' && maxDurationMs > 0)
+          ? maxDurationMs : CLI_TOOLS_TURN_TIMEOUT_MS, cliTurnBudget || 0);
+        const timer = require('./cliKillTimer.js').createKillTimer({ ms: CT_TIMEOUT_MS, maxExtraMs: CLI_BREACH_EXTRA_MS, onKill: () => {
+          console.error(`[CLI-TOOLS] CLI timeout after ${(CT_TIMEOUT_MS + timer.extendedMs()) / 1000}s — killing (stdout: ${stdout.length} chars)`);
           proc.kill();
-        }, CT_TIMEOUT_MS);
+        } });
+        if (deadlineControl && typeof deadlineControl === 'object') deadlineControl.extend = (ms) => timer.extend(ms);
         const disconnectCheck = setInterval(() => {
           if (typeof clientDisconnected === 'function' && clientDisconnected()) {
             clearInterval(disconnectCheck);
@@ -642,13 +795,13 @@ Agent: ${selected_agent}
           }
         }, 2000);
         proc.on('close', (code) => {
-          clearTimeout(timer);
+          timer.clear();
           clearInterval(disconnectCheck);
           const elapsed = Math.round((Date.now() - ctCliStart) / 1000);
           if (code !== 0) {
             console.error(`[CLI-TOOLS] CLI failed after ${elapsed}s, code: ${code}`);
             if (stderr) console.error(`[CLI-TOOLS] stderr: ${stderr.substring(0, 500)}`);
-            const err = new Error(`CLI exited with code ${code}`);
+            const err = new Error(cliFailureReason(stdout, stderr) || `CLI exited with code ${code}`);
             err._stderr = stderr;
             err._stdout = stdout;
             reject(err);
@@ -658,11 +811,34 @@ Agent: ${selected_agent}
           }
         });
         proc.on('error', (err) => {
-          clearTimeout(timer);
+          timer.clear();
           clearInterval(disconnectCheck);
           reject(err);
         });
       });
+
+      // First attempt of the turn tries a warm spare; any spare failure before the model
+      // produced output re-runs cold (nothing can have run), with the reason logged.
+      const ctRunOnce = async (cliArgs, parser) => {
+        if (ctWarmPool && !ctWarmTried) {
+          ctWarmTried = true;
+          let spare = null;
+          try { spare = ctWarmPool.take({ ...ctWarmIdent, args: cliArgs, env: cliToolsEnv }); } catch { spare = null; }
+          if (spare) {
+            ctSpare = spare;
+            try {
+              const out = await ctRunOnSpare(spare, cliArgs, parser);
+              ctWarm = 'hit';
+              return out;
+            } catch (e) {
+              if (!e || !e._warmNoOutput) { ctWarm = 'hit'; throw e; }
+              ctWarm = `fallback:${String(e.message || 'error').replace(/[^A-Za-z0-9]+/g, '_').slice(0, 48)}`;
+              ctWarmLog.warn(`[CLI-WARM] fallback to cold spawn reason="${String(e.message || 'error').slice(0, 160)}" agent=${selected_agent}`);
+            }
+          }
+        }
+        return ctRunCold(cliArgs, parser);
+      };
 
       // One attempt: spawn, then parse the result (stream-json or one-shot json).
       const ctAttempt = async (cliArgs, parser) => {
@@ -698,6 +874,7 @@ Agent: ${selected_agent}
 
       let ctResumeFallback = null;
       let ctClaudeResponse;
+      const ctTurnStartedAt = Date.now();
       try {
         ctClaudeResponse = await ctAttempt(cliToolsArgs, ctStreamParser);
         const why = ctClaudeResponse && ctClaudeResponse.is_error ? ctResumeFailure(ctClaudeResponse, ctStreamParser) : null;
@@ -715,6 +892,44 @@ Agent: ${selected_agent}
         cliToolsArgs = ctBuildArgs(cliToolsSysPrompt, null);
         ctStreamParser = ctNewParser();
         ctClaudeResponse = await ctAttempt(cliToolsArgs, ctStreamParser);
+      }
+
+      // SITE-CLI 2026-10-17 journey-server-trouble (ev_mvcpwzqm_e8c14c): the user asked for the fix to be proposed AND
+      // held for their approval, and the turn ended on "say the word and I'll raise it" with no card filed. Continue the
+      // same CLI session once so the change is issued and the approval gate holds it. Never approves anything.
+      try {
+        const hc = require('./heldChangeAsk.js');
+        const ctAsk = prompt || userMessage || '';
+        if (!ctClaudeResponse.is_error && hc.isHeldChangeAsk(ctAsk)) {
+          const countSince = typeof deps.countApprovalsSince === 'function'
+            ? deps.countApprovalsSince
+            : (a) => require('./toolApprovalStore.js').countCreatedSince(a);
+          const filed = countSince({ org_id: jwtOrgId, user_id: jwtUserId || userId, since: ctTurnStartedAt });
+          const ctSid = ctClaudeResponse.session_id || (ctStreamParser && typeof ctStreamParser.sessionId === 'function' ? ctStreamParser.sessionId() : null);
+          if (ctSid && hc.needsHeldChangeFollowUp({ ask: ctAsk, answer: ctClaudeResponse.result, approvalsFiled: filed })) {
+            console.log(`[CLI-TOOLS] held-change ask ended on an offer with no card filed; continuing session ${String(ctSid).slice(0, 8)}... once`);
+            // visible, never silent: the label streams before the step and the step is witnessed as its own envelope
+            if (typeof onStreamEvent === 'function') {
+              try { onStreamEvent({ kind: 'message_start' }); onStreamEvent({ kind: 'text', delta: `\n\n${hc.HELD_CHANGE_STEP_LINE}\n\n` }); } catch { /* display only */ }
+            }
+            if (typeof storeAuditEnvelope === 'function') {
+              try {
+                storeAuditEnvelope(hc.heldChangeEnvelope({ agent: selected_agent, path: 'cli-tools', corr: effectiveSessionId || session_id, orgId: jwtOrgId, userId: jwtUserId || userId, ask: ctAsk, firstAnswer: ctClaudeResponse.result, filedBefore: filed }));
+              } catch { /* the step still runs; the envelope is best-effort like the turn's own */ }
+            }
+            const fuArgs = require('./cliHopShape.js').buildCliToolsArgs({
+              streaming: ctStreaming, isVoice, requestedModel, nativeWebSearch, sysPrompt: cliToolsSysPrompt,
+              userMessage: hc.HELD_CHANGE_FOLLOW_UP, resumeId: ctSid, legacyResumeId: null,
+            });
+            const fuParser = ctNewParser();
+            const fu = await ctAttempt(fuArgs, fuParser);
+            if (fu && !fu.is_error && fu.result) {
+              ctClaudeResponse = { ...fu, result: hc.joinFollowUpAnswer(ctClaudeResponse.result, fu.result), heldChangeFollowUp: true };
+            }
+          }
+        }
+      } catch (fuErr) {
+        console.warn(`[CLI-TOOLS] held-change follow-up failed (the first answer stands): ${fuErr && fuErr.message}`);
       }
 
       if (ctClaudeResponse.is_error) {
@@ -875,15 +1090,44 @@ Agent: ${selected_agent}
         }
       }
 
+      // quox#1292: a cited brain handle ("[K2]") gets a Sources line naming its note (read before finalize retires it).
+      let ctShownContent = ctCleanContent;
+      try {
+        const srcLine = require('./brainCitationTrace.js').citationSourcesLine(ctSessionId, ctCleanContent, jwtOrgId ? { orgId: jwtOrgId } : null);
+        if (srcLine) {
+          ctShownContent = ctCleanContent + srcLine;
+          if (typeof onStreamEvent === 'function') { try { onStreamEvent({ kind: 'text', delta: srcLine }); } catch { /* display only */ } }
+        }
+      } catch { /* the answer stands without it */ }
       try {
         const { finalizeAnswer } = require('./brainCitationTrace.js');
         Promise.resolve(finalizeAnswer(ctSessionId, ctCleanContent)).catch(() => {});
       } catch { /* non-fatal — evidence must never affect the chat path */ }
 
+      // QUOXON-LATENCY L2: boot the next turn's process now, while the user reads this
+      // answer. Same identity, env and flags; a continuity turn resumes the session this
+      // turn produced. A different next turn simply misses it and the TTL reaps it.
+      if (ctStreaming && cliWarmPool && typeof cliWarmPool.prespawn === 'function') {
+        const nextResume = ctContinuity ? (ctClaudeResponse.session_id || null) : null;
+        const nextArgs = ctBuildArgs('', ctContinuity && ctUuid(nextResume) ? nextResume : null);
+        // first-text (2026-10-16): a resume spare only serves THIS conversation's next turn.
+        // Most turns open a new conversation (or switch agent), so also keep one fresh spare
+        // per identity + shape; the pool keeps a live one instead of booting it again.
+        const freshArgs = nextArgs.includes('--resume') ? ctBuildArgs('', null) : null;
+        const warmPoolKind = warmKind === 'delegate' ? 'delegate' : 'conversation';
+        setImmediate(() => {
+          try { cliWarmPool.prespawn({ ...ctWarmIdent, args: nextArgs, env: cliToolsEnv, kind: warmPoolKind }); } catch (e) { console.warn(`[CLI-WARM] prespawn error: ${e.message}`); }
+          if (freshArgs) {
+            try { cliWarmPool.prespawn({ ...ctWarmIdent, args: freshArgs, env: cliToolsEnv, kind: warmPoolKind }); } catch (e) { console.warn(`[CLI-WARM] prespawn error: ${e.message}`); }
+          }
+        });
+      }
+
       return {
         outcome: 'success',
         path: 'cli-tools',
-        text: ctCleanContent,
+        cliWarm: ctWarm,
+        text: ctShownContent,
         voiceSummary: ctVoiceSummary,
         tokensUsed: (ctClaudeResponse.usage?.input_tokens || 0) + (ctClaudeResponse.usage?.output_tokens || 0),
         toolsUsed: ctToolsUsed,
@@ -924,16 +1168,23 @@ Agent: ${selected_agent}
       if (voltEmitter && typeof voltEmitter.failRun === 'function' && ctVoltRunId) {
         voltEmitter.failRun(ctVoltRunId, ctErr);
       }
+      if (ctErr && typeof ctErr === 'object') ctErr._cliWarm = ctWarm;
       throw ctErr;
     } finally {
       releaseTurnBearer(ctTurnId);
+      require('./turnToolGate.js').releaseTurnTools(ctTurnId);
+      // A taken spare never outlives its turn (kills it, removes the token file).
+      const sp = ctSpareRef();
+      if (sp) sp.dispose('used');
     }
   }
 
   // ────────────────────────────────────────────────────────────────────────
   // MCP PATH — Claude drives tool selection via MCP
   // ────────────────────────────────────────────────────────────────────────
-  if (mcpEnabled && !noToolsRequested) {
+  // PLAN MODE: only the CLI-tools path above carries the plan claim to the tool door. The MCP path (service
+  // key) and the legacy regex pre-execution cannot be held to it, so a plan turn here runs with NO tools.
+  if (mcpEnabled && !noToolsRequested && turnMode !== 'plan') {
     console.log(`[MCP] PATH enabled — agent=${selected_agent}, session=${session_id}`);
 
     const mcpChatSessionId = effectiveSessionId || session_id
@@ -1074,6 +1325,7 @@ ${CLAIM_RULES_MD}`;
 - Prefer plain sentences over large markdown tables. Only use a table if the user explicitly asks for one or the data genuinely needs columns to compare.
 - Do not surface internal tool identifiers, function names, or system plumbing (for example bastionClient, memory_search, quox-tools, or any other internal tool name) to the user. Describe what you did in plain language instead of naming the tool you called.
 - Say what you found and what you recommend, then stop. Skip preambles and restating the question.`;
+    mcpSysPrompt += require('./hatSwitchNote.js').hatSwitchBlock(hatSwitchNote);
 
     if (selected_agent === 'quox' && Array.isArray(agentTools) && agentTools.some((t) => t.name === 'delegate_to_agent')) {
       mcpSysPrompt += isVoice ? `\n\n## Tools first (live voice call)
@@ -1081,10 +1333,9 @@ You are on a live VOICE call: every extra hop is dead air the caller hears. For 
 You are the ORCHESTRATOR. For any task in a specialist's domain, DELEGATE it with the delegate_to_agent tool rather than doing it yourself. Prefer delegation by default; self-serve only for orchestration, synthesis, planning, and simple general queries.
 Use delegate_to_agent (NOT any native messaging/subagent tool) with the real agent id:
 Who holds which tools (from the agent registry; the first named holds the most of them):
-${require('./delegationRoster.js').renderDelegationRoster()}
-- Anything else: any agent or custom agent by its id (agent_directory lists them).
-- Plugin specialists (only when the org has that plugin; if a delegation is refused as not enabled, tell the user plainly): inboxq = email and inbox, calendar-q = calendar and schedule, contactsq = people, contacts and reaching them, notesq = notes ("jot this down", "write that down", find, read or edit a note). Never claim you saved a note yourself: delegate to notesq and report what it returned.
-- People (ContactsQ): a single quick lookup you do YOURSELF: contacts_search finds a person by name (if it says ambiguous, ask the user which one; never guess) and contacts_resolve maps a number or email to a contact. Anything beyond that (calling or messaging someone, channel choice, objections, history, facts, do-not-call) delegate to contactsq. You never see or need the number. Report the tool result exactly: 'queued' or 'pending approval' is not 'called'.
+${require('./delegationRoster.js').renderDelegationRoster(undefined, { scope: hatAgentScope })}
+${require('./delegationRoster.js').renderOtherAgentLines(hatAgentScope)}
+${PEOPLE_PROMPT_LINE}
 - The query spans multiple domains (e.g., "check security then deploy a fix") — delegate each leg.
 Delegation guidelines:
 - Give the specialist a clear, specific task — not the user's full query
@@ -1189,13 +1440,15 @@ Agent: ${selected_agent}
     }
 
     const cliEnv = {
-      ...process.env,
+      // #trust-c1 HIGH: allowlisted env only — never ...process.env, which leaked
+      // JWT_SECRET / INTERNAL_SERVICE_KEY / provider keys into the model's Bash.
+      ...pickCliToolsEnv(process.env),
       HOME: runtimeHomeDir,
       USER: runtimeUser,
-      ...(cliOAuthToken ? { CLAUDE_CODE_OAUTH_TOKEN: cliOAuthToken } : {}),
+      ...cliOAuthEnv(cliOAuthToken, { home: runtimeHomeDir }).env,
     };
     if (cliOAuthToken) {
-      console.log('[Claude] Passing OAuth token via CLAUDE_CODE_OAUTH_TOKEN env var');
+      console.log(`[Claude] OAuth token via ${cliOAuthEnv(cliOAuthToken, { home: runtimeHomeDir }).source === 'env' ? 'CLAUDE_CODE_OAUTH_TOKEN env var' : 'the CLI credentials file (refreshable)'}`);
     }
 
     const cliHealthy = typeof getClaudeCliHealth === 'function'
@@ -1253,7 +1506,7 @@ Agent: ${selected_agent}
           if (code !== 0) {
             console.error(`[MCP] CLI failed after ${elapsed}s, code: ${code}`);
             if (stderr) console.error(`[MCP] stderr: ${stderr.substring(0, 500)}`);
-            const err = new Error(`CLI exited with code ${code}`);
+            const err = new Error(cliFailureReason(stdout, stderr) || `CLI exited with code ${code}`);
             err._stderr = stderr;
             err._stdout = stdout;
             reject(err);
@@ -1540,7 +1793,7 @@ Agent: ${selected_agent}
     ? resolveFollowUp(rawPrompt, conversation_history)
     : rawPrompt;
 
-  const toolResults = typeof detectAndExecuteTools === 'function'
+  const toolResults = typeof detectAndExecuteTools === 'function' && turnMode !== 'plan' // PLAN MODE: no pre-execution
     ? await detectAndExecuteTools(resolvedPrompt, selected_agent)
     : [];
   const toolsUsed = toolResults.map((r) => r.tool);
@@ -1688,8 +1941,9 @@ Agent: ${selected_agent}
   sysPrompt += `\n\n## System Capabilities (for reference)
 The system pre-executes these tools before each turn: ${(Array.isArray(agentTools) ? agentTools.map((t) => t.name) : []).join(', ')}.
 Specialist agents available for delegation (delegate to these ids via delegate_to_agent), from the agent registry:
-${require('./delegationRoster.js').renderDelegationRoster()}
+${require('./delegationRoster.js').renderDelegationRoster(undefined, { scope: hatAgentScope })}
 All ${allHostIds.length} hosts are reachable via SSH bastion.`;
+  sysPrompt += require('./hatSwitchNote.js').hatSwitchBlock(hatSwitchNote);
 
   // AUDIT-REAL-4b: Decision Evidence injection — mirrors
   // claudeMessagesDispatcher.js so evidence requests survive on the legacy
@@ -1698,7 +1952,11 @@ All ${allHostIds.length} hosts are reachable via SSH bastion.`;
     sysPrompt += buildDecisionEvidenceInstructions(decisionEvidenceLevel);
   }
 
-  const cliArgs = ['--output-format', 'json', '--dangerously-skip-permissions'];
+  // #950: --strict-mcp-config so the account's claude.ai MCP connectors are never loaded on this
+  // legacy (pre-executed tools) path either; with --dangerously-skip-permissions they would auto-run.
+  // #trust-c1 HIGH: --tools '' so NO native tool can run on this pre-executed path (tool results
+  // are already in the prompt); with --strict-mcp-config there are no MCP tools either.
+  const cliArgs = ['--output-format', 'json', '--strict-mcp-config', '--tools', '', '--dangerously-skip-permissions'];
   const hasCachedTools = toolResults.some((r) => r.cached);
   const isUuid = typeof isValidUUID === 'function' ? isValidUUID(session_id) : false;
   if (session_id && isUuid && !hasCachedTools) {
@@ -1710,13 +1968,15 @@ All ${allHostIds.length} hosts are reachable via SSH bastion.`;
   console.log(`[Claude] CLI call (${selected_agent}, ${allToolNames.length} pre-executed tools [${allToolNames.join(', ') || 'none'}], sys_prompt: ${sysPrompt.length} chars, user_msg: ${userMessage.length} chars) (subscription)`);
 
   const cliEnv = {
-    ...process.env,
+    // #trust-c1 HIGH: allowlisted env only (see pickCliToolsEnv) — the legacy path spread
+    // ...process.env, leaking collector secrets into the spawned CLI.
+    ...pickCliToolsEnv(process.env),
     HOME: runtimeHomeDir,
     USER: runtimeUser,
-    ...(cliOAuthToken ? { CLAUDE_CODE_OAUTH_TOKEN: cliOAuthToken } : {}),
+    ...cliOAuthEnv(cliOAuthToken, { home: runtimeHomeDir }).env,
   };
   if (cliOAuthToken) {
-    console.log('[Claude] Passing OAuth token via CLAUDE_CODE_OAUTH_TOKEN env var');
+    console.log(`[Claude] OAuth token via ${cliOAuthEnv(cliOAuthToken, { home: runtimeHomeDir }).source === 'env' ? 'CLAUDE_CODE_OAUTH_TOKEN env var' : 'the CLI credentials file (refreshable)'}`);
   }
 
   const cliHealthy = typeof getClaudeCliHealth === 'function'
@@ -1779,7 +2039,7 @@ All ${allHostIds.length} hosts are reachable via SSH bastion.`;
       const elapsed = Math.round((Date.now() - cliStart) / 1000);
       if (code !== 0) {
         console.error(`[Claude] CLI failed after ${elapsed}s, code: ${code}, stdout: ${stdout.length} chars`);
-        const err = new Error(`CLI exited with code ${code}`);
+        const err = new Error(cliFailureReason(stdout, stderr) || `CLI exited with code ${code}`);
         err._stderr = stderr;
         err._stdout = stdout;
         reject(err);
@@ -1956,4 +2216,19 @@ All ${allHostIds.length} hosts are reachable via SSH bastion.`;
   };
 }
 
-module.exports = { dispatchClaudeCli, resolveCliModel, formatRecentConversation, CLI_TOOLS_TURN_TIMEOUT_MS, CLI_TOOLS_BASH_TIMEOUT_MS, nativeAllowedTools, mergeNativeTools, VOICE_BRAIN_RECALL_PROMPT, captureOverride, wantsCaptureOverride };
+// #904 part 3: every finished Claude CLI turn reports to provider health, so a weekly limit shows in
+// /chat/status, the TUI status line and LUCID before the next person types into it.
+async function dispatchClaudeCliObserved(opts, deps) {
+  const orgId = (opts && opts.orgId) || null;
+  try {
+    const r = await dispatchClaudeCli(opts, deps);
+    if (r && r.outcome === 'success') providerHealth.observeTurn({ orgId, provider: 'anthropic', ok: true });
+    else if (r && r.outcome === 'cli_error') providerHealth.observeTurn({ orgId, provider: 'anthropic', ok: false, message: [r.text, r.hint].filter(Boolean).join(' ') });
+    return r;
+  } catch (err) {
+    providerHealth.observeTurn({ orgId, provider: 'anthropic', ok: false, message: err && err.message, body: err && err._stdout });
+    throw err;
+  }
+}
+
+module.exports = { PEOPLE_PROMPT_LINE, dispatchClaudeCli: dispatchClaudeCliObserved, resolveCliModel, formatRecentConversation, CLI_TOOLS_TURN_TIMEOUT_MS, CLI_TOOLS_BASH_TIMEOUT_MS, CLI_TOOL_EXEC_TIMEOUT_MS, nativeAllowedTools, mergeNativeTools, VOICE_BRAIN_RECALL_PROMPT, captureOverride, wantsCaptureOverride };

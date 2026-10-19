@@ -127,7 +127,7 @@ const EVENT_HANDLERS = {
     kind: 'approval',
     priority: 'medium',
     requires_action: true,
-    payload: { event_type: 'nodeNeedsApproval', node_id: event.data?.nodeID, device_name: name },
+    payload: { event_type: 'nodeNeedsApproval', node_id: event.data?.nodeID, device_name: name, what: { action: 'authorize Tailscale device', target: `device ${name}${event.data?.nodeID ? ` (${event.data.nodeID})` : ''}`, summary: `let device ${name} join the tailnet (approve it in the Tailscale admin console)` } },
   })},
 
   nodeApproved: (event, orgId) => { const name = sanitise(event.data?.deviceName) || 'unknown'; return createTailscaleInboxItem(orgId, {
@@ -184,7 +184,7 @@ const EVENT_HANDLERS = {
     kind: 'approval',
     priority: 'medium',
     requires_action: true,
-    payload: { event_type: 'userNeedsApproval' },
+    payload: { event_type: 'userNeedsApproval', what: { action: 'approve Tailscale user', target: `user ${sanitise(event.data?.managedBy) || 'unknown'}`, summary: `let user ${sanitise(event.data?.managedBy) || 'unknown'} join the tailnet (approve them in the Tailscale admin console)` } },
   }),
 }
 

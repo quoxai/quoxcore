@@ -15,22 +15,18 @@ const MONITORING_CONFIG_PATH = path.join(
 );
 
 function getPrometheusUrl() {
-  if (process.env.PROMETHEUS_URL) return process.env.PROMETHEUS_URL;
-  try {
-    const config = JSON.parse(fs.readFileSync(MONITORING_CONFIG_PATH, 'utf8'));
-    if (config.prometheus?.url) return config.prometheus.url;
-  } catch {}
-  return '';
+  const u = process.env.PROMETHEUS_URL || (() => {
+    try { const c = JSON.parse(fs.readFileSync(MONITORING_CONFIG_PATH, 'utf8')); return c.prometheus?.url || ''; } catch { return ''; }
+  })();
+  // FND_...TX95 defence-in-depth: never fetch a denied SSRF target (loopback/link-local/metadata). A denied stored
+  // URL reads as not-configured so callers refuse cleanly; normal LAN (RFC1918) stays allowed.
+  if (u) { try { if (require('../monitoringEgressPolicy.js').orgMonitoringUrlRefusal(u)) return ''; } catch {} }
+  return u;
 }
 
-function getAlertmanagerUrl() {
-  if (process.env.ALERTMANAGER_URL) return process.env.ALERTMANAGER_URL;
-  try {
-    const config = JSON.parse(fs.readFileSync(MONITORING_CONFIG_PATH, 'utf8'));
-    if (config.alertmanager?.url) return config.alertmanager.url;
-  } catch {}
-  return '';
-}
+// quox#1061: the Alertmanager URL is a platform setting resolved per call
+// (org setting > instance setting > env > legacy monitoring-config.json).
+const { resolveAlertmanagerTarget } = require('../alertmanagerConfig.js');
 
 const METRIC_QUERIES = {
   summary: [
@@ -219,26 +215,35 @@ function parseRangeDuration(range) {
 /**
  * alerts_manage — manage Alertmanager alerts and silences
  */
-async function alertsManage(input) {
+async function alertsManage(input, ctx = {}) {
   const operation = input.operation || 'active';
+  const am = await resolveAlertmanagerTarget(ctx && ctx.orgId);
+  const amUrl = am.url;
+  // quox#1061: an org-set URL refused by the egress policy is reported as is,
+  // never papered over by the Prometheus fallback below.
+  if (am.refused) return { success: false, error: am.error };
 
-  if (!getAlertmanagerUrl()) {
+  if (!amUrl) {
+    // #889-adjacent: Prometheus evaluates the alerting rules and serves firing alerts at /api/v1/alerts,
+    // so "are any alerts firing?" is answerable without Alertmanager. Fall back to it for a read of active
+    // alerts; Alertmanager is only REQUIRED for silence create/delete and its own history.
+    if (operation === 'active' && getPrometheusUrl()) return getActiveAlertsFromPrometheus();
     if (operation === 'history') {
       if (!getPrometheusUrl()) return { success: false, error: 'Prometheus not configured. Set PROMETHEUS_URL environment variable.' };
     } else {
-      return { success: false, error: 'Alertmanager not configured. Set ALERTMANAGER_URL environment variable.' };
+      return { success: false, error: `${am.error} (silences need it; a read of firing alerts also works from PROMETHEUS_URL).` };
     }
   }
 
   switch (operation) {
     case 'active':
-      return getActiveAlerts();
+      return getActiveAlerts(amUrl);
     case 'silences':
-      return getSilences();
+      return getSilences(amUrl);
     case 'silence':
-      return createSilence(input);
+      return createSilence(input, amUrl);
     case 'unsilence':
-      return deleteSilence(input);
+      return deleteSilence(input, amUrl);
     case 'history':
       return getAlertHistory(input);
     default:
@@ -246,9 +251,41 @@ async function alertsManage(input) {
   }
 }
 
-async function getActiveAlerts() {
+async function getActiveAlertsFromPrometheus() {
   try {
-    const resp = await fetch(`${getAlertmanagerUrl()}/api/v2/alerts?active=true`, {
+    const resp = await fetch(`${getPrometheusUrl()}/api/v1/alerts`, { signal: AbortSignal.timeout(10000) });
+    if (!resp.ok) return { success: false, error: `Prometheus returned ${resp.status}` };
+    const body = await resp.json();
+    const all = (body && body.data && Array.isArray(body.data.alerts)) ? body.data.alerts : [];
+    const firing = all.filter((a) => a.state === 'firing');
+    const formatted = firing.map((a) => ({
+      alertname: a.labels?.alertname,
+      severity: a.labels?.severity,
+      instance: a.labels?.instance,
+      summary: a.annotations?.summary || a.annotations?.description,
+      started_at: a.activeAt,
+    }));
+    return {
+      success: true,
+      operation: 'active',
+      source: 'prometheus',
+      note: 'Alertmanager is not configured; these are the firing alerts Prometheus has evaluated (no silence state).',
+      alerts: formatted,
+      summary: {
+        total: formatted.length,
+        critical: formatted.filter((a) => a.severity === 'critical').length,
+        warning: formatted.filter((a) => a.severity === 'warning').length,
+        pending_excluded: all.length - firing.length,
+      },
+    };
+  } catch (err) {
+    return { success: false, error: `Prometheus unreachable: ${err.message}` };
+  }
+}
+
+async function getActiveAlerts(amUrl) {
+  try {
+    const resp = await fetch(`${amUrl}/api/v2/alerts?active=true`, { redirect: 'manual',
       signal: AbortSignal.timeout(10000)
     });
 
@@ -281,9 +318,9 @@ async function getActiveAlerts() {
   }
 }
 
-async function getSilences() {
+async function getSilences(amUrl) {
   try {
-    const resp = await fetch(`${getAlertmanagerUrl()}/api/v2/silences`, {
+    const resp = await fetch(`${amUrl}/api/v2/silences`, { redirect: 'manual',
       signal: AbortSignal.timeout(10000)
     });
 
@@ -314,7 +351,7 @@ async function getSilences() {
   }
 }
 
-async function createSilence(input) {
+async function createSilence(input, amUrl) {
   if (!input.matchers || Object.keys(input.matchers).length === 0) {
     return { success: false, error: 'Missing required field: matchers (object of label name/value pairs)' };
   }
@@ -337,7 +374,7 @@ async function createSilence(input) {
   };
 
   try {
-    const resp = await fetch(`${getAlertmanagerUrl()}/api/v2/silences`, {
+    const resp = await fetch(`${amUrl}/api/v2/silences`, { redirect: 'manual',
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -362,13 +399,13 @@ async function createSilence(input) {
   }
 }
 
-async function deleteSilence(input) {
+async function deleteSilence(input, amUrl) {
   if (!input.silence_id) {
     return { success: false, error: 'Missing required field: silence_id' };
   }
 
   try {
-    const resp = await fetch(`${getAlertmanagerUrl()}/api/v2/silence/${input.silence_id}`, {
+    const resp = await fetch(`${amUrl}/api/v2/silence/${input.silence_id}`, { redirect: 'manual',
       method: 'DELETE',
       signal: AbortSignal.timeout(10000)
     });

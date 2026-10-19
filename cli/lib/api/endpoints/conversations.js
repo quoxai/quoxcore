@@ -5,6 +5,20 @@
  */
 
 export const conversations = {
+  // #1016: chat conversations (the collector's chat_session_turns, what chat writes). The memory-service
+  // routes below are the IMPORTED conversation archive, reached with --archive.
+  'conversations.chat.list': {
+    method: 'GET',
+    service: 'collector',
+    path: () => `/api/v1/conversations`,
+    tags: ['live-safe'],
+  },
+  'conversations.chat.turns': {
+    method: 'GET',
+    service: 'collector',
+    path: ({ id }) => `/api/v1/conversations/${encodeURIComponent(id)}/turns`,
+    tags: ['live-safe'],
+  },
   'conversations.get': {
     method: 'GET',
     service: 'memory',

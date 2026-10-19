@@ -111,6 +111,13 @@ export const ENCRYPTED_STORES = [
         rotate: true,
         note: 'Wave 11 QuoxChat evidence-bundle Ed25519 signing keys (lib/widgetEvidenceSigningKey.js), same utils/encryption.js envelope as CSK.',
     },
+    {
+        table: 'approval_grant_signing_keys',
+        column: 'private_key_encrypted',
+        idColumn: 'id',
+        rotate: true,
+        note: 'Per-org Ed25519 approval-grant signing keys (lib/approvalGrantSigningKey.js), same utils/encryption.js envelope as CSK. Shipped unregistered, so a master-key rotation would have skipped and orphaned them; caught by the completeness backstop 2026-10-15 (WORKER2).',
+    },
 ];
 
 /**

@@ -21,9 +21,19 @@ import { clearCache as clearResolverCache } from '../services/credentialResolver
 import { resolveChannelOrigin } from '../lib/channelOrigin.js';
 import { emitApprovalVoltWitness } from '../jobs/volt-witness-reaper.js';
 import { isDenyAction, isApproveAction } from '../lib/inboxResponseClassifier.js';
+import { findItemByIdOrApprovalId, alreadyResolvedBody, notFoundBody } from '../lib/alreadyResolved.js';
 import { dispatchApprovalCallback } from '../lib/approvalCallback.js';
-import { requireHumanDecider } from '../utils/principal.js';
-import { openApprovals, visibilityClause as sharedVisibility } from '../lib/openApprovals.js';
+import { requireHumanDecider, sandboxApproverLeaseActive, userRowIsNonHuman } from '../utils/principal.js';
+import { forwardCheckpointDecision } from '../lib/checkpointDecision.js';
+import { signWithApprovalKey } from '../lib/approvalEvents.js';
+import { requireStepUpForApprove, stepUpRequiredFor, checkStepUpToken, getPinStatus, stepUpEnforced } from '../lib/stepUp.js';
+import { openApprovals, visibilityClause as sharedVisibility, isDecisionRow, expireDueDecisions } from '../lib/openApprovals.js';
+import { toRepoRelative } from '../lib/repoPath.js';
+import { buildDecision, resolveDecisionResponse, decisionView } from '../lib/decisions.js';
+import { bulkHeldReason } from '../lib/bulkGuard.js';
+import { computeInboxStats } from '../lib/inboxStats.js';
+import { queryInboxQueue, parseQueueFilters, groupInboxByTitle, getInboxItemDetail, closeItem, snoozeItem, assignItem, bulkDismissInfo, HousekeepingError, activeMembership as triageActiveMembership } from '../lib/inboxQueue.js';
+import { describedApprovalPayload } from '../lib/approvalWhat.js';
 import { isDisposableTestInstance, getTestApproverLeaseUntil } from '../lib/quoxperticusInstance.js';
 
 // VAULT-P5.I (F4) — default lease duration granted when a credential lease
@@ -77,7 +87,8 @@ internalRouter.use(requireInternalAuth);
 internalRouter.post('/orgs/:orgId/inbox', async (req, res) => {
     try {
         const { orgId } = req.params;
-        const { kind, priority, title, body_md, payload, assignee_user_id, created_by_user_id, aee_correlation_id, quoxflow_execution_id, tasks_objective_id } = req.body;
+        const { kind, priority, title, body_md, assignee_user_id, created_by_user_id, aee_correlation_id, quoxflow_execution_id, tasks_objective_id } = req.body;
+        let { payload } = req.body;
 
         if (!kind || !ITEM_KINDS.includes(kind)) {
             return res.status(400).json({ error: `Invalid kind. Must be one of: ${ITEM_KINDS.join(', ')}` });
@@ -85,6 +96,14 @@ internalRouter.post('/orgs/:orgId/inbox', async (req, res) => {
         if (!title) {
             return res.status(400).json({ error: 'title is required' });
         }
+        // A priority outside the schema's set hit the CHECK constraint and 500'd, so an agent's queued approval was
+        // silently lost (story-a onboarding journey, 2026-10-17); refuse it with the allowed values, like the org route.
+        if (priority != null && !PRIORITIES.includes(priority)) {
+            return res.status(400).json({ error: `Invalid priority ${JSON.stringify(priority)}. Must be one of: ${PRIORITIES.join(', ')}` });
+        }
+        // APPROVAL-WHAT: an approval must say what will happen and to what, or it is refused (422).
+        payload = describedApprovalPayload(req, res, { kind, payload, quoxflow_execution_id });
+        if (payload === null) return;
 
         // Server-side dedup: skip if identical title+kind was created in last 30 min
         // QC-BRUTALOOP-W13: items that carry a conversation_id dedup per
@@ -92,6 +111,9 @@ internalRouter.post('/orgs/:orgId/inbox', async (req, res) => {
         // same generic title ("Live chat handoff requested") within 30 minutes
         // collapsed into the first one and the second never reached the inbox.
         const dedupConv = (payload && typeof payload.conversation_id === 'string' && payload.conversation_id) ? payload.conversation_id : null;
+        // quox#1033: an approval card binds to ONE quoxflow execution. A gate's title is the same for every run of a
+        // workflow, so title+kind alone folded run 3's card into run 1's: approving it resumed run 1 only.
+        const dedupExec = (typeof quoxflow_execution_id === 'string' && quoxflow_execution_id) ? quoxflow_execution_id : null;
         const dedup = prepare(`
             SELECT id, created_at FROM inbox_items
             WHERE org_id = ? AND title = ? AND kind = ?
@@ -99,8 +121,9 @@ internalRouter.post('/orgs/:orgId/inbox', async (req, res) => {
               AND created_at > datetime('now', '-30 minutes')
               AND deleted_at IS NULL
               AND (? IS NULL OR json_extract(payload_json, '$.conversation_id') = ?)
+              AND (? IS NULL OR quoxflow_execution_id = ?)
             ORDER BY created_at DESC LIMIT 1
-        `).get(orgId, title, kind, dedupConv, dedupConv);
+        `).get(orgId, title, kind, dedupConv, dedupConv, dedupExec, dedupExec);
 
         if (dedup) {
             return res.status(200).json({
@@ -253,6 +276,9 @@ internalRouter.get('/orgs/:orgId/inbox/items', async (req, res) => {
             params.push(status);
         }
 
+        // #864: the total of every match, so a reader never mistakes a page for the count.
+        const total = source ? null : (db.prepare(sql.replace('SELECT *', 'SELECT COUNT(*) AS n')).get(...params)?.n ?? 0);
+
         sql += ' ORDER BY created_at DESC LIMIT ?';
         params.push(parseInt(qLimit) || 50);
 
@@ -268,11 +294,139 @@ internalRouter.get('/orgs/:orgId/inbox/items', async (req, res) => {
             });
         }
 
-        res.json({ items });
+        // With a source filter the match is post-filtered in JS, so only the page is known.
+        res.json({ items, total: total === null ? items.length : total, total_exact: total !== null });
     } catch (error) {
         console.error('[Inbox/Internal] Error listing inbox items:', error);
         res.status(500).json({ error: 'Failed to list inbox items' });
     }
+});
+
+/**
+ * GET /api/internal/orgs/:orgId/inbox/stats?user_id=U  (QUOXON-PROOF #864)
+ * The SAME counts U's own GET /orgs/:orgId/inbox/stats returns (lib/inboxStats.js), for the
+ * collector's inbox_stats agent tool, which acts as the user driving the turn. Service-key
+ * auth (router-wide). U must be an active, unexpired member of the org: a non-member gets
+ * 403, never org-wide counts.
+ */
+internalRouter.get('/orgs/:orgId/inbox/stats', (req, res) => {
+    try {
+        const { orgId } = req.params;
+        const userId = typeof req.query.user_id === 'string' ? req.query.user_id.trim() : '';
+        if (!userId) return res.status(400).json({ error: 'user_id is required' });
+        const membership = prepare('SELECT role, status, expires_at FROM org_memberships WHERE org_id = ? AND user_id = ?').get(orgId, userId);
+        const expired = membership?.expires_at && !Number.isNaN(Date.parse(membership.expires_at)) && Date.parse(membership.expires_at) <= Date.now();
+        if (!membership || membership.status !== 'active' || expired) {
+            return res.status(403).json({ error: 'not_org_member', message: 'That user is not an active member of this organization' });
+        }
+        const isOrgAdmin = ['owner', 'admin'].includes(membership.role);
+        const personalInboxId = ensurePersonalInbox(orgId, userId);
+        res.json(computeInboxStats({ orgId, userId, isOrgAdmin, personalInboxId }));
+    } catch (error) {
+        console.error('[Inbox/Internal] Error getting inbox stats:', error);
+        res.status(500).json({ error: 'Failed to get inbox stats' });
+    }
+});
+
+/**
+ * TRIAGE-TOOLS (2026-10-16): the triage read side + safe housekeeping for the collector's
+ * hitl_queue / hitl_item / hitl_groups / hitl_item_* / hitl_bulk_dismiss tools.
+ * All act as ?user_id= (or body.user_id), who must be an active member; reads use that
+ * user's visibility. Housekeeping refuses approval, override_required and question items
+ * (lib/inboxQueue.js). Bulk dismiss from an agent needs the id of an APPROVED
+ * hitl_bulk_dismiss approval in this org: an agent cannot mass-dismiss on its own say-so.
+ */
+function triageUser(req, res) {
+    const raw = req.method === 'GET' ? req.query.user_id : (req.body?.user_id ?? req.query.user_id);
+    const userId = typeof raw === 'string' ? raw.trim() : '';
+    if (!userId) { res.status(400).json({ error: 'user_id is required' }); return null; }
+    const m = triageActiveMembership(req.params.orgId, userId);
+    if (!m) { res.status(403).json({ error: 'not_org_member', message: 'That user is not an active member of this organization' }); return null; }
+    return { userId, isOrgAdmin: m.isOrgAdmin, personalInboxId: ensurePersonalInbox(req.params.orgId, userId) };
+}
+function triageActor(req) {
+    const type = String(req.headers['x-actor-type'] || '').toLowerCase();
+    return { type: ['human', 'service', 'agent'].includes(type) ? type : 'service', id: String(req.headers['x-actor-id'] || '').slice(0, 80) };
+}
+function sendHousekeepingError(res, err, label) {
+    if (err instanceof HousekeepingError) return res.status(err.status).json({ error: err.code, message: err.message });
+    console.error(`[Inbox/Internal] ${label}:`, err);
+    return res.status(500).json({ error: `Failed: ${label}` });
+}
+
+internalRouter.get('/orgs/:orgId/inbox/queue', (req, res) => {
+    try {
+        const u = triageUser(req, res); if (!u) return;
+        const parsed = parseQueueFilters(req.query);
+        if (parsed.error) return res.status(400).json({ error: parsed.error });
+        res.json(queryInboxQueue({ orgId: req.params.orgId, ...u, filters: parsed.filters }));
+    } catch (error) { sendHousekeepingError(res, error, 'inbox queue read'); }
+});
+
+internalRouter.get('/orgs/:orgId/inbox/queue/groups', (req, res) => {
+    try {
+        const u = triageUser(req, res); if (!u) return;
+        const parsed = parseQueueFilters(req.query);
+        if (parsed.error) return res.status(400).json({ error: parsed.error });
+        res.json(groupInboxByTitle({ orgId: req.params.orgId, ...u, filters: parsed.filters, minCount: req.query.min_count, limit: req.query.limit }));
+    } catch (error) { sendHousekeepingError(res, error, 'inbox groups read'); }
+});
+
+internalRouter.get('/orgs/:orgId/inbox/queue/items/:itemId', (req, res) => {
+    try {
+        const u = triageUser(req, res); if (!u) return;
+        const item = getInboxItemDetail({ orgId: req.params.orgId, ...u, itemId: req.params.itemId });
+        if (!item) return res.status(404).json({ error: 'Inbox item not found' });
+        res.json({ item });
+    } catch (error) { sendHousekeepingError(res, error, 'inbox item detail'); }
+});
+
+internalRouter.post('/orgs/:orgId/inbox/queue/items/:itemId/housekeep', (req, res) => {
+    try {
+        const u = triageUser(req, res); if (!u) return;
+        const { orgId, itemId } = req.params;
+        const { action, reason, until, assignee_user_id: assigneeUserId } = req.body || {};
+        const actor = triageActor(req);
+        let result;
+        if (action === 'dismiss' || action === 'resolve') result = closeItem({ orgId, itemId, ...u, mode: action, reason, actor });
+        else if (action === 'snooze') result = snoozeItem({ orgId, itemId, ...u, until });
+        else if (action === 'assign') result = assignItem({ orgId, itemId, ...u, assigneeUserId });
+        else return res.status(400).json({ error: 'action must be dismiss, resolve, snooze or assign' });
+        if (result.changed) {
+            emitItemUpdated(orgId, itemId, { housekeeping: action, updated_by: u.userId });
+            emitStatsUpdate(orgId);
+            createAuditEvent({ orgId, actorType: actor.type === 'agent' ? 'agent' : 'user', actorId: actor.id || u.userId, action: `hitl.item_${action}`, targetType: 'inbox_item', targetId: itemId, metadata: { on_behalf_of: u.userId, reason: reason || null, until: until || null, assignee_user_id: assigneeUserId || null, housekeeping: true } });
+        }
+        res.json({ item_id: itemId, action, ...result });
+    } catch (error) { sendHousekeepingError(res, error, 'inbox housekeeping'); }
+});
+
+internalRouter.post('/orgs/:orgId/inbox/queue/bulk-dismiss', (req, res) => {
+    try {
+        const u = triageUser(req, res); if (!u) return;
+        const { orgId } = req.params;
+        const actor = triageActor(req);
+        const { item_ids: itemIds, title, reason, approval_id: approvalId } = req.body || {};
+        if (actor.type === 'agent') {
+            const appr = approvalId ? prepare(`SELECT status, response_json, payload_json FROM inbox_items WHERE org_id = ? AND kind = 'approval' AND deleted_at IS NULL
+                AND json_extract(CASE WHEN json_valid(payload_json) THEN payload_json ELSE '{}' END, '$.approval_id') = ?`).get(orgId, String(approvalId)) : null;
+            let ok = false;
+            if (appr && appr.status === 'resolved') {
+                try {
+                    const p = JSON.parse(appr.payload_json || '{}');
+                    const r = JSON.parse(appr.response_json || '{}');
+                    ok = p.toolName === 'hitl_bulk_dismiss' && isApproveAction(r.action);
+                } catch { ok = false; }
+            }
+            if (!ok) return res.status(403).json({ error: 'approval_required', message: 'An agent bulk dismiss needs an approved hitl_bulk_dismiss approval in this organization; file the proposal and let a human confirm it' });
+        }
+        const result = bulkDismissInfo({ orgId, ...u, itemIds, title, reason, actor });
+        if (result.dismissed_count) {
+            emitStatsUpdate(orgId);
+            createAuditEvent({ orgId, actorType: actor.type === 'agent' ? 'agent' : 'user', actorId: actor.id || u.userId, action: 'hitl.items_bulk_dismissed', targetType: 'inbox_item', targetId: result.dismissed[0], metadata: { on_behalf_of: u.userId, count: result.dismissed_count, title: title || null, approval_id: approvalId || null, ids: result.dismissed.slice(0, 50) } });
+        }
+        res.json(result);
+    } catch (error) { sendHousekeepingError(res, error, 'inbox bulk dismiss'); }
 });
 
 /**
@@ -1776,6 +1930,9 @@ async function applyResponseSideEffects(item, { action, comment, data } = {}, re
                     approvalId: item.aee_correlation_id,
                     action,
                     approver: userId,
+                    // The responder's org role, verified by requireOrgMembership. The collector
+                    // uses it only to NARROW what an approved executor lends (never to authorise).
+                    approver_role: req?.orgMembership?.role || null,
                     org_id: orgId,
                     // TRUST-PROOF HITL E2E fix: the collector threads this onto
                     // ctx.hitlApprovedItemId to mint the X-Bastion-Approval-Grant
@@ -2237,155 +2394,13 @@ router.get('/orgs/:orgId/inbox/stats', requireOrgMembership, async (req, res) =>
     try {
         const { orgId } = req.params;
         const userId = req.user.id;
-
         const personalInboxId = ensurePersonalInbox(orgId, userId);
-
         // Org owners/admins see all org items
         const membership = req.orgMembership;
         const isOrgAdmin = membership && ['owner', 'admin'].includes(membership.role);
-
-        // Build visibility filter with proper parameterization
-        const visibilityClause = isOrgAdmin
-            ? { sql: '', params: [] }
-            : {
-                sql: `AND (
-                    ii.inbox_id = ?
-                    OR EXISTS (
-                        SELECT 1 FROM inbox_item_assignees iia
-                        WHERE iia.inbox_item_id = ii.id
-                        AND iia.assignee_type = 'user'
-                        AND iia.assignee_id = ?
-                    )
-                )`,
-                params: [personalInboxId, userId]
-            };
-
-        // Count by status
-        const stats = prepare(`
-            SELECT ii.status, COUNT(*) as count
-            FROM inbox_items ii
-            WHERE ii.org_id = ?
-            AND ii.deleted_at IS NULL
-            ${visibilityClause.sql}
-            GROUP BY ii.status
-        `).all(orgId, ...visibilityClause.params);
-
-        // Count urgent items
-        const urgent = prepare(`
-            SELECT COUNT(*) as count
-            FROM inbox_items ii
-            WHERE ii.org_id = ?
-            AND ii.deleted_at IS NULL
-            AND ii.status IN ('open', 'in_progress')
-            AND ii.priority = 'urgent'
-            ${visibilityClause.sql}
-        `).get(orgId, ...visibilityClause.params);
-
-        // Count overdue items
-        const overdue = prepare(`
-            SELECT COUNT(*) as count
-            FROM inbox_items ii
-            WHERE ii.org_id = ?
-            AND ii.deleted_at IS NULL
-            AND ii.status IN ('open', 'in_progress')
-            AND ii.due_at IS NOT NULL
-            AND ii.due_at < datetime('now')
-            ${visibilityClause.sql}
-        `).get(orgId, ...visibilityClause.params);
-
-        const byStatus = stats.reduce((acc, s) => ({ ...acc, [s.status]: s.count }), {});
-
-        // Count unread items for current user
-        const unread = prepare(`
-            SELECT COUNT(*) as count
-            FROM inbox_items ii
-            JOIN inbox_item_assignees iia ON iia.inbox_item_id = ii.id
-            WHERE ii.org_id = ?
-            AND ii.deleted_at IS NULL
-            AND ii.status IN ('open', 'in_progress', 'waiting')
-            AND iia.assignee_type = 'user'
-            AND iia.assignee_id = ?
-            AND iia.is_read = 0
-        `).get(orgId, userId);
-
-        // Count flagged items for current user
-        const flagged = prepare(`
-            SELECT COUNT(*) as count
-            FROM inbox_items ii
-            JOIN inbox_item_assignees iia ON iia.inbox_item_id = ii.id
-            WHERE ii.org_id = ?
-            AND ii.deleted_at IS NULL
-            AND iia.assignee_type = 'user'
-            AND iia.assignee_id = ?
-            AND iia.is_flagged = 1
-        `).get(orgId, userId);
-
-        // Count snoozed items for current user
-        const snoozed = prepare(`
-            SELECT COUNT(*) as count
-            FROM inbox_items ii
-            JOIN inbox_item_assignees iia ON iia.inbox_item_id = ii.id
-            WHERE ii.org_id = ?
-            AND ii.deleted_at IS NULL
-            AND iia.assignee_type = 'user'
-            AND iia.assignee_id = ?
-            AND iia.snoozed_until IS NOT NULL
-            AND iia.snoozed_until > datetime('now')
-        `).get(orgId, userId);
-
-        // Count ACTIVE approvals awaiting a human — the top-bar surfaces this
-        // distinctly from total unread, because an approval is a call to action
-        // (something is blocked on the human), not just an unread notification.
-        // Same visibility scope as the counts above (admins see the whole org).
-        // quox#827: the SET and COUNT of approvals this user can act on come from the one shared function.
-        const pendingApprovals = { count: openApprovals({ orgId, userId, isOrgAdmin, personalInboxId }).count };
-
-        // Active items grouped by kind — lets the folder sidebar show accurate,
-        // server-sourced counts per type folder regardless of which folder's
-        // list is currently loaded client-side (the list is now fetched
-        // per-folder, so client-side counts alone would understate siblings).
-        const byKindRows = prepare(`
-            SELECT ii.kind, COUNT(*) as count
-            FROM inbox_items ii
-            WHERE ii.org_id = ?
-            AND ii.deleted_at IS NULL
-            AND ii.status IN ('open', 'in_progress', 'waiting')
-            ${visibilityClause.sql}
-            GROUP BY ii.kind
-        `).all(orgId, ...visibilityClause.params);
-        const byKind = byKindRows.reduce((acc, r) => ({ ...acc, [r.kind]: r.count }), {});
-
-        // ORG-WIDE approvals awaiting a human — deliberately NOT scoped by the
-        // personal visibility clause above. This lets a non-admin identity (e.g.
-        // the resident 'builder' agent that operates the CLI on a box) learn
-        // that approvals are waiting for a human without gaining any authority to
-        // act on them, and without being able to read their content. `respond`
-        // is unchanged; this is a count only. Distinct from `pending_approvals`,
-        // which stays personal-scoped (what THIS user can act on).
-        const awaitingHuman = prepare(`
-            SELECT COUNT(*) as count
-            FROM inbox_items ii
-            WHERE ii.org_id = ?
-            AND ii.deleted_at IS NULL
-            AND ii.kind = 'approval'
-            AND ii.status IN ('open', 'in_progress', 'waiting')
-        `).get(orgId);
-
-        res.json({
-            open: byStatus.open || 0,
-            in_progress: byStatus.in_progress || 0,
-            waiting: byStatus.waiting || 0,
-            resolved: byStatus.resolved || 0,
-            urgent: urgent?.count || 0,
-            overdue: overdue?.count || 0,
-            total_active: (byStatus.open || 0) + (byStatus.in_progress || 0) + (byStatus.waiting || 0),
-            unread: unread?.count || 0,
-            flagged: flagged?.count || 0,
-            snoozed: snoozed?.count || 0,
-            pending_approvals: pendingApprovals?.count || 0,
-            awaiting_human: awaitingHuman?.count || 0,
-            by_kind: byKind
-        });
+        // #864: one shared computation (lib/inboxStats.js), also served to the collector's
+        // inbox_stats tool over the internal router, so chat and the CLI cannot drift.
+        res.json(computeInboxStats({ orgId, userId, isOrgAdmin, personalInboxId }));
     } catch (error) {
         console.error('Error getting inbox stats:', error);
         res.status(500).json({ error: 'Failed to get inbox stats' });
@@ -2440,6 +2455,42 @@ router.get('/orgs/:orgId/inbox/stream', requireOrgMembership, async (req, res) =
  *
  * Same response shape as /orgs/:orgId/inbox/:itemId.
  */
+/** LOOSEN-GUARD: is the resolver's users row a person (not an agent / agent_ops account)? null when unresolved. */
+function resolverIsHuman(resolvedBy) {
+    if (!resolvedBy) return null;
+    const u = prepare(`SELECT actor_type, metadata_json FROM users WHERE id = ?`).get(resolvedBy);
+    return u ? !userRowIsNonHuman(u) : false;
+}
+
+/**
+ * LOOSEN-GUARD: a signed statement that a PERSON approved this item (resolved + approved, decided with a
+ * live step-up PIN, by a human users row), listing the repo paths its text names. CI verifies it offline
+ * with the committed public key (scripts/guards/loosening-attestation-key.json). null for anything else.
+ */
+const LOOSEN_APPROVE_OPTIONS = new Set(['y', 'yes', 'approve', 'approved']);
+function looseningAttestation(item) {
+    try {
+        if (!item || item.status !== 'resolved') return null;
+        const r = item.response_json ? JSON.parse(item.response_json) : {};
+        const act = String(r.action || '').toLowerCase();
+        const approved = act === 'approve' || act === 'approved' || (act === 'answer' && LOOSEN_APPROVE_OPTIONS.has(String(r.option || '').toLowerCase()));
+        if (!approved || r.step_up_verified !== true || resolverIsHuman(item.resolved_by) !== true) return null;
+        const text = [item.title, item.body_md, item.payload_json].filter(Boolean).join('\n');
+        const named = [...new Set((text.match(/[A-Za-z0-9_.@-]+(?:\/[A-Za-z0-9_.@[\]-]+)+\.[A-Za-z0-9]+/g) || []).map(toRepoRelative))].slice(0, 50).sort();
+        if (!named.length) return null;
+        const payload = {
+            approved: true, item_id: item.id, named_paths: named, org_id: item.org_id, resolved_at: item.resolved_at || null,
+            resolved_by: item.resolved_by, resolved_by_is_human: true, step_up_verified: true, type: 'quox.loosening-approval', v: 1,
+        };
+        const b64 = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+        const { signature } = signWithApprovalKey(b64);
+        return `${b64}.${signature}`;
+    } catch (e) {
+        console.warn('[Inbox] loosening attestation unavailable:', e.message);
+        return null;
+    }
+}
+
 router.get('/inbox/items/:itemId', async (req, res) => {
     try {
         const { itemId } = req.params;
@@ -2505,7 +2556,9 @@ router.get('/inbox/items/:itemId', async (req, res) => {
                 ...item,
                 payload: item.payload_json ? JSON.parse(item.payload_json) : {},
                 response: item.response_json ? JSON.parse(item.response_json) : null,
-                sla_stages: item.sla_stages_json ? JSON.parse(item.sla_stages_json) : null
+                sla_stages: item.sla_stages_json ? JSON.parse(item.sla_stages_json) : null,
+                resolved_by_is_human: resolverIsHuman(item.resolved_by),
+                loosening_attestation: looseningAttestation(item)
             },
             assignees,
             escalations: escalations.map(e => ({
@@ -2521,7 +2574,9 @@ router.get('/inbox/items/:itemId', async (req, res) => {
 
 router.get('/orgs/:orgId/inbox/:itemId', requireOrgMembership, async (req, res) => {
     try {
-        const { orgId, itemId } = req.params;
+        const { orgId } = req.params;
+        // CLI-ERRORS: a tool approvalId (aee_correlation_id) finds its card too, whatever its status.
+        const itemId = findItemByIdOrApprovalId(getDb(), orgId, req.params.itemId)?.id || req.params.itemId;
         const userId = req.user.id;
 
         const item = prepare(`
@@ -2588,7 +2643,9 @@ router.get('/orgs/:orgId/inbox/:itemId', requireOrgMembership, async (req, res) 
                 ...item,
                 payload: item.payload_json ? JSON.parse(item.payload_json) : {},
                 response: item.response_json ? JSON.parse(item.response_json) : null,
-                sla_stages: item.sla_stages_json ? JSON.parse(item.sla_stages_json) : null
+                sla_stages: item.sla_stages_json ? JSON.parse(item.sla_stages_json) : null,
+                resolved_by_is_human: resolverIsHuman(item.resolved_by),
+                loosening_attestation: looseningAttestation(item)
             },
             assignees,
             escalations: escalations.map(e => ({
@@ -2628,6 +2685,9 @@ router.post('/orgs/:orgId/inbox', requireOrgMembership, async (req, res) => {
         if (!ITEM_KINDS.includes(kind)) {
             return res.status(400).json({ error: 'Invalid item kind' });
         }
+        // APPROVAL-WHAT: an approval must say what will happen and to what, or it is refused (422).
+        const describedPayload = describedApprovalPayload(req, res, { kind, payload });
+        if (describedPayload === null) return;
 
         // Validate priority
         if (priority && !PRIORITIES.includes(priority)) {
@@ -2654,7 +2714,7 @@ router.post('/orgs/:orgId/inbox', requireOrgMembership, async (req, res) => {
         `).run(
             itemId, orgId, targetInboxId, run_id || null,
             kind, priority || 'normal', title, body_md || null,
-            JSON.stringify(payload || {}), due_at || null,
+            JSON.stringify(describedPayload || {}), due_at || null,
             sla_stages ? JSON.stringify(sla_stages) : null, userId,
             aee_correlation_id || null
         );
@@ -2735,27 +2795,88 @@ router.post('/orgs/:orgId/inbox', requireOrgMembership, async (req, res) => {
 });
 
 /**
+ * POST /orgs/:orgId/decisions   (quox ask)
+ * A session or agent files ONE decision request for a human: who (session + profile/agent), what, why, the
+ * options, the recommendation and the expiry. Same inbox, same visibility as approvals; counted with them.
+ * Body: { session, title, why?, options:[{key,label}], default?, recommend?, expires_in_seconds?, high_risk?, slot?, profile?, agent? }
+ */
+router.post('/orgs/:orgId/decisions', requireOrgMembership, async (req, res) => {
+    try {
+        const { orgId } = req.params;
+        const userId = req.user.id;
+        const built = buildDecision(req.body || {});
+        if (!built.ok) return res.status(400).json({ error: 'invalid_decision', message: built.error });
+        const inboxId = ensurePersonalInbox(orgId, userId);
+        const itemId = ulid();
+        prepare(`
+            INSERT INTO inbox_items (id, org_id, inbox_id, kind, priority, title, body_md, payload_json, due_at, created_by)
+            VALUES (?, ?, ?, 'question', ?, ?, ?, ?, ?, ?)
+        `).run(itemId, orgId, inboxId, built.payload.high_risk ? 'high' : 'normal', built.title, built.why || null,
+            JSON.stringify(built.payload), built.dueAt, userId);
+        prepare(`INSERT INTO inbox_item_assignees (id, inbox_item_id, assignee_type, assignee_id, mode) VALUES (?, ?, 'user', ?, 'anyone')`)
+            .run(ulid(), itemId, userId);
+        createAuditEvent({
+            orgId, actorType: 'user', actorId: userId, action: 'hitl.decision_asked',
+            targetType: 'inbox_item', targetId: itemId,
+            metadata: { session: built.payload.session, title: built.title, options: built.payload.options.map((o) => o.key), high_risk: built.payload.high_risk, expires_at: built.dueAt },
+        });
+        const createdItem = { id: itemId, org_id: orgId, inbox_id: inboxId, kind: 'question', status: 'open', priority: built.payload.high_risk ? 'high' : 'normal', title: built.title };
+        emitItemCreated(orgId, createdItem);
+        emitStatsUpdate(orgId);
+        const row = prepare(`SELECT * FROM inbox_items WHERE id = ?`).get(itemId);
+        res.status(201).json({ decision: decisionView(row) });
+    } catch (error) {
+        console.error('Error creating decision:', error);
+        res.status(500).json({ error: 'Failed to create decision' });
+    }
+});
+
+/**
+ * GET /orgs/:orgId/decisions/:id?wait=SECONDS
+ * The asker's view: state pending|answered|denied|expired|cancelled plus the answer (option, note, who, when).
+ * wait (max 25) long-polls while it is still pending, so `quox ask wait` needs no tight loop.
+ */
+router.get('/orgs/:orgId/decisions/:id', requireOrgMembership, async (req, res) => {
+    try {
+        const { orgId, id } = req.params;
+        const load = () => { expireDueDecisions(orgId); return prepare(`SELECT * FROM inbox_items WHERE id = ? AND org_id = ? AND deleted_at IS NULL`).get(id, orgId); };
+        let row = load();
+        if (!row || !isDecisionRow(row)) return res.status(404).json({ error: 'not_found', message: 'No such decision' });
+        if (!userCanAccessItem(row, orgId, req.user.id, req.orgMembership)) return res.status(403).json({ error: 'forbidden', message: 'You do not have access to this decision' });
+        const waitMs = Math.min(Math.max(Number(req.query.wait) || 0, 0), 25) * 1000;
+        const until = Date.now() + waitMs;
+        let aborted = false;
+        req.on('close', () => { aborted = true; });
+        while (decisionView(row).state === 'pending' && Date.now() < until && !aborted) {
+            await new Promise((r) => setTimeout(r, 1000));
+            row = load() || row;
+        }
+        res.json({ decision: decisionView(row) });
+    } catch (error) {
+        console.error('Error reading decision:', error);
+        res.status(500).json({ error: 'Failed to read decision' });
+    }
+});
+
+/**
  * POST /orgs/:orgId/inbox/:itemId/respond
  * Respond to an inbox item (approve, deny, answer, etc.)
  */
 router.post('/orgs/:orgId/inbox/:itemId/respond', requireOrgMembership, async (req, res) => {
     try {
         if (!requireHumanDecider(req, res)) return;
-        const { orgId, itemId } = req.params;
+        const { orgId } = req.params;
         const { action, comment, data } = req.body;
         const userId = req.user.id;
-        console.log(`[Inbox/Respond] itemId=${itemId} action="${action}" userId=${userId}`);
+        console.log(`[Inbox/Respond] itemId=${req.params.itemId} action="${action}" userId=${userId}`);
 
-        const item = prepare(`
-            SELECT ii.*, r.id as run_id
-            FROM inbox_items ii
-            LEFT JOIN runs r ON ii.run_id = r.id
-            WHERE ii.id = ? AND ii.org_id = ?
-        `).get(itemId, orgId);
+        // CLI-ERRORS: the item id, or the tool approvalId an agent handed back (any status, this org only).
+        const item = findItemByIdOrApprovalId(getDb(), orgId, req.params.itemId, { withRun: true });
 
         if (!item) {
-            return res.status(404).json({ error: 'Inbox item not found' });
+            return res.status(404).json(notFoundBody(req.params.itemId));
         }
+        const itemId = item.id;
 
         // Route-authz: membership is not authority over this item. Only
         // owners/admins, the personal-inbox owner, or an assignee may decide it.
@@ -2776,21 +2897,66 @@ router.post('/orgs/:orgId/inbox/:itemId/respond', requireOrgMembership, async (r
         }
 
         if (!['open', 'in_progress', 'waiting', 'in_progress'].includes(item.status)) {
-            return res.status(400).json({ error: 'Item is not open for response' });
+            // CLI-ERRORS: say who closed it, when, and how; `code: already_resolved` + `resolution` are additive.
+            return res.status(400).json(alreadyResolvedBody(getDb(), item, action));
         }
+
+        // quox ask: a decision request takes an option (or a decline), never an approve of an action.
+        let decisionOutcome = null;
+        if (isDecisionRow(item)) {
+            expireDueDecisions(orgId);
+            const fresh = prepare(`SELECT status FROM inbox_items WHERE id = ?`).get(itemId);
+            if (fresh && fresh.status !== item.status) item.status = fresh.status;
+            if (!['open', 'in_progress', 'waiting'].includes(item.status)) return res.status(400).json(alreadyResolvedBody(getDb(), { ...item, ...prepare(`SELECT status, resolved_at, resolved_by, response_json FROM inbox_items WHERE id = ?`).get(itemId) }, action));
+            const dp = JSON.parse(item.payload_json || '{}');
+            decisionOutcome = resolveDecisionResponse(dp, { action, option: req.body.option, data });
+            if (!decisionOutcome.ok) return res.status(400).json({ error: 'invalid_decision_response', message: decisionOutcome.error });
+            // APPROVALS-AUDIT: a client-marked bulk yes never covers a risky ask; it is answered one at a time.
+            if (req.body.bulk === true && decisionOutcome.action === 'answer' && decisionOutcome.option !== 'n') {
+                const why = bulkHeldReason(item.title, dp);
+                if (why) return res.status(400).json({ error: 'bulk_not_allowed', reason: why, message: `This decision (${why}) cannot be answered as part of a bulk yes. Answer it on its own.` });
+            }
+            // Only a high-risk ask needs a person-proof; the asker answering their own plain ask is the normal case.
+            // QUOXON-1191: a YES-class answer (anything but an explicit "n") to a high-risk ask needs the PIN even when
+            // QUOX_STEP_UP_ENFORCE is off (dev ran with it off and three high-risk yeses resolved with no person-proof).
+            if (dp.high_risk === true && decisionOutcome.action === 'answer' && (stepUpEnforced() || decisionOutcome.option !== 'n') && !sandboxApproverLeaseActive(getDb())) {
+                const chk = checkStepUpToken(req, 'approve', orgId);
+                if (!chk.ok) return res.status(403).json({ error: 'step_up_required', reason: chk.reason, scope: 'approve', pin_set: getPinStatus(req.user?.id, getDb()).set, message: 'This decision was marked high risk: confirm with your step-up PIN' });
+            }
+        }
+
+
+        // QUOXON-STEPUP: a human JWT proves a login, not a person. Approving an agent/automation-raised
+        // (or high-risk) approval needs a live step-up token; requester can never approve their own item.
+        if (item.kind === 'approval' && isApproveAction(action) && !requireStepUpForApprove(req, res, item, { orgId })) return;
 
         // Build response
         const response = {
-            action,
+            action: decisionOutcome ? decisionOutcome.action : action,
             comment,
             data,
+            ...(decisionOutcome ? { option: decisionOutcome.option } : {}),
             responded_by: userId,
-            responded_at: new Date().toISOString()
+            responded_by_name: req.user.display_name || req.user.primary_email || prepare(`SELECT COALESCE(display_name, primary_email) AS n FROM users WHERE id = ?`).get(userId)?.n || userId,
+            responded_at: new Date().toISOString(),
+            // LOOSEN-GUARD: person-proof for this decision (a live step-up PIN token), recorded whether or
+            // not step-up is enforced, so a reader (the test-loosening guard) can tell a person from a login.
+            step_up_verified: checkStepUpToken(req, 'approve', orgId).ok === true
         };
 
         // All actions resolve the item. For request_changes, QuoxFlow handles
         // the iteration loop by creating a NEW inbox item for the next review.
         const isRequestChanges = action === 'request_changes';
+
+        // quox#896: a card mirroring an objective checkpoint decides the
+        // checkpoint first; if tasks refuses, the card stays open.
+        const cpDecision = await forwardCheckpointDecision({
+            item, action, comment, userId, orgId, role: req.orgMembership?.role,
+            sessionId: req.user?.sessionId || null, stepUpToken: req.headers['x-step-up-token'] || null,
+        });
+        if (!cpDecision.ok) {
+            return res.status(cpDecision.status || 502).json({ error: cpDecision.error, message: cpDecision.message });
+        }
 
         {
             // Normal resolve
@@ -2806,17 +2972,17 @@ router.post('/orgs/:orgId/inbox/:itemId/respond', requireOrgMembership, async (r
         // lease, QuoxPlan + generic callback_url dispatch, channel reply,
         // SSE emit) is shared with the bulk approve/deny path — see
         // applyResponseSideEffects above.
-        await applyResponseSideEffects(item, { action, comment, data }, req);
+        await applyResponseSideEffects(item, { action: decisionOutcome ? decisionOutcome.action : action, comment, data }, req);
 
         // Audit
         createAuditEvent({
             orgId,
             actorType: 'user',
             actorId: userId,
-            action: 'hitl.item_responded',
+            action: decisionOutcome ? 'hitl.decision_answered' : 'hitl.item_responded',
             targetType: 'inbox_item',
             targetId: itemId,
-            metadata: { action, kind: item.kind }
+            metadata: decisionOutcome ? { action: decisionOutcome.action, option: decisionOutcome.option, kind: item.kind } : { action, kind: item.kind }
         });
 
         emitStatsUpdate(orgId);
@@ -2826,6 +2992,7 @@ router.post('/orgs/:orgId/inbox/:itemId/respond', requireOrgMembership, async (r
         const after = getDb().prepare('SELECT status FROM inbox_items WHERE id = ?').get(itemId);
         const expired = after?.status === 'expired';
         res.json({
+            ...(decisionOutcome ? { decision: decisionView(prepare(`SELECT * FROM inbox_items WHERE id = ?`).get(itemId)) } : {}),
             message: expired ? APPROVAL_EXPIRED_MESSAGE : (isRequestChanges ? 'Changes requested — awaiting revision' : 'Response recorded'),
             item: {
                 id: itemId,
@@ -3157,6 +3324,24 @@ router.post('/orgs/:orgId/inbox/bulk', requireOrgMembership, async (req, res) =>
             // to individual review rather than swept up in a bulk action.
             // Exclude them and report them as requiring individual review, where
             // POST /respond handles them one at a time.
+            if (action === 'approve') {
+                // QUOXON-STEPUP: same rule as single /respond. Own items are dropped; any
+                // agent-raised / high-risk approval needs a live step-up token for the whole batch.
+                const before = idsToProcess.length;
+                const sandbox = sandboxApproverLeaseActive(db);
+                if (!sandbox && stepUpEnforced()) {
+                    idsToProcess = idsToProcess.filter((id) => { const it = byId.get(id); return !(it && it.kind === 'approval' && it.created_by === userId); });
+                    results.failed += before - idsToProcess.length;
+                }
+                const gated = sandbox ? [] : idsToProcess.filter((id) => stepUpRequiredFor(byId.get(id)));
+                if (gated.length > 0) {
+                    const chk = checkStepUpToken(req, 'approve', orgId);
+                    if (!chk.ok && !stepUpEnforced()) console.warn(`[StepUp] would require step-up (not enforced): bulk approve, reason=${chk.reason}`);
+                    else if (!chk.ok) {
+                        return res.status(403).json({ error: 'step_up_required', reason: chk.reason, scope: 'approve', pin_set: getPinStatus(userId).set, item_ids: gated });
+                    }
+                }
+            }
             if (action === 'approve' || action === 'deny') {
                 // TASK-546 (declared-approver enforcement): visibility (above)
                 // is not approval authority. For kind === 'approval' items,
@@ -3182,7 +3367,9 @@ router.post('/orgs/:orgId/inbox/bulk', requireOrgMembership, async (req, res) =>
                     return p.type === 'credential_lease'
                         || p.type === 'native_tool_approval'
                         || typeof p.callback_url === 'string'
-                        || p.source === 'quoxplan';
+                        || p.source === 'quoxplan'
+                        // quox#896: a checkpoint is decided one at a time
+                        || p.source === 'objective_checkpoint';
                 };
                 const safe = [];
                 for (const id of idsToProcess) {

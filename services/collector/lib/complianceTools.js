@@ -12,7 +12,6 @@ const { EXPECTED_LAYERS } = require('./aoclPipeline');
 const { sha256 } = require('./voltEmitter');
 
 const COLLECTOR_BASE = `http://127.0.0.1:${process.env.COLLECTOR_PORT || 9848}`;
-const WARD_BASE = `http://127.0.0.1:${process.env.WARD_PORT || 3104}`;
 // AUDITUS-HONESTY-1: must match the default chain_id the collector's WARD
 // hooks actually witness against (server.js ~:20807 — initWardHooks({
 // chainId: WARD_CHAIN_ID })). Used as the fallback when a caller omits
@@ -60,8 +59,18 @@ async function collectorPost(path, body, orgId) {
     headers: buildInternalServiceHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(orgId ? { ...body, org_id: orgId } : body),
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) throw new Error(`${res.status} ${await errorReason(res)}`);
   return res.json();
+}
+
+// #1013: a refused write says why (the route's own `error`), so the agent can tell the user
+// which run ids certify accepts instead of a bare "404 Not Found".
+async function errorReason(res) {
+  try {
+    const body = await res.json();
+    if (body && typeof body.error === 'string' && body.error) return body.error;
+  } catch { /* not JSON */ }
+  return res.statusText;
 }
 
 async function collectorDelete(path) {
@@ -74,7 +83,11 @@ async function collectorDelete(path) {
 }
 
 async function wardGet(path) {
-  const res = await fetch(`${WARD_BASE}${path}`);
+  // #980: WARD is served by the COLLECTOR (/ward/*, service:'collector', the same route the
+  // `quox governance ward verify` CLI uses) and requires the internal service key. The old
+  // The old direct WARD address (127.0.0.1:3104) is dead (ECONNREFUSED), so an unauthenticated fetch there failed
+  // with "fetch failed" while the CLI returned INTACT. Use the collector base + service headers.
+  const res = await fetch(`${COLLECTOR_BASE}${path}`, { headers: buildInternalServiceHeaders() });
   if (!res.ok) throw new Error(`WARD ${res.status} ${res.statusText}`);
   return res.json();
 }
@@ -103,9 +116,9 @@ async function verifyWardChain(chainId) {
   let verifyResult = null;
   let verifyError = null;
   try {
-    const verifyRes = await fetch(`${WARD_BASE}/ward/verify`, {
+    const verifyRes = await fetch(`${COLLECTOR_BASE}/ward/verify`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: buildInternalServiceHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ chain_id: resolvedChainId }),
     });
     const verifyData = await verifyRes.json().catch(() => null);
@@ -166,8 +179,8 @@ const COMPLIANCE_TOOLS = {
       try {
         const orgId = ctx?.orgId || null;
         const [aeeStats, voltStats, wardVerify, reports, aoclProbe] = await Promise.all([
-          collectorGet('/aee/stats').catch(() => ({})),
-          collectorGet('/volt/stats', orgId).catch(() => ({})),
+          collectorGet('/aee/stats', orgId).catch(() => ({ _unreachable: true })),
+          collectorGet('/volt/stats', orgId).catch(() => ({ _unreachable: true })),
           verifyWardChain(null).catch((err) => ({ ok: false, error: err.message })),
           collectorGet('/compliance/reports?limit=10', orgId).catch(() => ({ reports: [] })),
           // AUDITUS-HONESTY-2: probe real AOCL activity (recent aocl.* envelopes)
@@ -176,8 +189,15 @@ const COMPLIANCE_TOOLS = {
           collectorGet('/aee/query?intent=aocl.&limit=1', orgId).catch(() => null),
         ]);
 
-        const wardData = wardVerify.ok ? (wardVerify.stats || {}) : {};
-        const witnessData = wardVerify.ok ? (wardVerify.witness || {}) : {};
+        // #926: distinguish a FAILED read from a genuine zero. A stats fetch that threw or 4xx/5xx'd
+        // was shown as 'inactive' with 0, so a buyer on an instance holding millions read "AEE/WARD
+        // inactive, 0 entries". A failed read is 'unknown' with null counts, never a fabricated zero
+        // (the honesty rule AOCL already follows above).
+        const aeeOk = !aeeStats._unreachable;
+        const voltOk = !voltStats._unreachable;
+        const wardOk = !!wardVerify.ok;
+        const wardData = wardOk ? (wardVerify.stats || {}) : {};
+        const witnessData = wardOk ? (wardVerify.witness || {}) : {};
         const aoclStatus = aoclProbe === null
           ? 'unknown'
           : ((aoclProbe.envelopes || []).length > 0 ? 'active' : 'inactive');
@@ -200,15 +220,15 @@ const COMPLIANCE_TOOLS = {
           overallScore,
           frameworkScores: latestByFormat,
           protocols: {
-            AEE: { status: (aeeStats.total_envelopes || 0) > 0 ? 'active' : 'inactive', envelopes: aeeStats.total_envelopes || 0 },
+            AEE: { status: !aeeOk ? 'unknown' : ((aeeStats.total_envelopes || 0) > 0 ? 'active' : 'inactive'), envelopes: aeeOk ? (aeeStats.total_envelopes || 0) : null },
             AOCL: { status: aoclStatus, layersActive: EXPECTED_LAYERS.length },
-            VOLT: { status: (voltStats.runs || 0) > 0 ? 'active' : 'inactive', runs: voltStats.runs || 0, events: voltStats.events || 0 },
-            WARD: { status: witnessData.enabled ? 'active' : 'inactive', entries: wardData.entries || 0, tips: wardData.tips || 0 },
+            VOLT: { status: !voltOk ? 'unknown' : ((voltStats.runs || 0) > 0 ? 'active' : 'inactive'), runs: voltOk ? (voltStats.runs || 0) : null, events: voltOk ? (voltStats.events || 0) : null },
+            WARD: { status: !wardOk ? 'unknown' : (witnessData.enabled ? 'active' : 'inactive'), entries: wardOk ? (wardData.entries || 0) : null, tips: wardOk ? (wardData.tips || 0) : null },
           },
           // Real verify result — null (honest unknown) when WARD was unreachable,
           // never a hardcoded true.
           wardChainIntact: wardVerify.ok ? wardVerify.chainIntact : null,
-          evidenceCount: wardData.entries || 0,
+          evidenceCount: wardOk ? (wardData.entries || 0) : null,
         };
       } catch (err) {
         return { success: false, error: err.message };
@@ -283,14 +303,15 @@ const COMPLIANCE_TOOLS = {
       },
       required: ['format', 'interval'],
     },
-    execute: async (input) => {
+    execute: async (input, ctx) => {
       try {
+        // #933: the route wants `schedule.interval` (a nested schedule object) and scopes the job to
+        // the caller org; the flat `schedule_interval` + no org made every call a 400, and a stored
+        // job would carry org_id=null. collectorPost adds org_id to the body for resolveComplianceOrgId.
         const data = await collectorPost('/compliance/jobs', {
           format: input.format,
-          schedule_interval: input.interval,
-          day_of_week: input.day_of_week,
-          day_of_month: input.day_of_month,
-        });
+          schedule: { interval: input.interval, dayOfWeek: input.day_of_week, dayOfMonth: input.day_of_month },
+        }, ctx?.orgId || null);
         return { success: true, job: data.job || data, message: `Scheduled ${input.interval} ${input.format} report` };
       } catch (err) {
         return { success: false, error: err.message };
@@ -307,9 +328,10 @@ const COMPLIANCE_TOOLS = {
         status: { type: 'string', enum: ['active', 'paused', 'error'], description: 'Filter by job status' },
       },
     },
-    execute: async (input) => {
+    execute: async (input, ctx) => {
       try {
-        const data = await collectorGet('/compliance/jobs');
+        // #933: no org -> resolveComplianceOrgId null -> the route returns [] (a false "no jobs").
+        const data = await collectorGet('/compliance/jobs', ctx?.orgId || null);
         let jobs = data.jobs || [];
         if (input.status) jobs = jobs.filter(j => j.status === input.status);
         return { success: true, jobs, total: jobs.length };
@@ -329,9 +351,11 @@ const COMPLIANCE_TOOLS = {
       },
       required: ['job_id'],
     },
-    execute: async (input) => {
+    execute: async (input, ctx) => {
       try {
-        await collectorDelete(`/compliance/jobs/${input.job_id}`);
+        // #933: no org -> orgOwns(job, null) false -> always 404. resolveComplianceOrgId reads the
+        // query org_id for a service caller, so carry it on the path.
+        await collectorDelete(withOrgParam(`/compliance/jobs/${encodeURIComponent(input.job_id)}`, ctx?.orgId || null));
         return { success: true, message: `Job ${input.job_id} cancelled` };
       } catch (err) {
         return { success: false, error: err.message };
@@ -351,12 +375,12 @@ const COMPLIANCE_TOOLS = {
         limit: { type: 'number', description: 'Max results (default 10)' },
       },
     },
-    execute: async (input) => {
+    execute: async (input, ctx) => {
       try {
         const params = new URLSearchParams();
         if (input.status) params.set('status', input.status);
         params.set('limit', String(input.limit || 10));
-        const data = await collectorGet(`/volt/runs?${params}`);
+        const data = await collectorGet(`/volt/runs?${params}`, ctx?.orgId || null);
         return { success: true, runs: data.runs || [], total: data.total || (data.runs || []).length };
       } catch (err) {
         return { success: false, error: err.message };
@@ -374,16 +398,16 @@ const COMPLIANCE_TOOLS = {
       },
       required: ['run_id'],
     },
-    execute: async (input) => {
+    execute: async (input, ctx) => {
       try {
         let runId = input.run_id;
         if (runId === 'latest') {
-          const runs = await collectorGet('/volt/runs?status=completed&limit=1');
+          const runs = await collectorGet('/volt/runs?status=completed&limit=1', ctx?.orgId || null);
           if (!runs.runs?.length) return { success: true, intact: false, message: 'No completed VOLT runs found' };
           runId = runs.runs[0].run_id;
         }
 
-        const eventsData = await collectorGet(`/volt/runs/${runId}/events`);
+        const eventsData = await collectorGet(`/volt/runs/${runId}/events`, ctx?.orgId || null);
         const events = eventsData.events || [];
         if (events.length === 0) return { success: true, run_id: runId, intact: true, events: 0, message: 'Run has no events' };
 
@@ -444,9 +468,11 @@ const COMPLIANCE_TOOLS = {
       },
       required: ['run_id'],
     },
-    execute: async (input) => {
+    execute: async (input, ctx) => {
       try {
-        const data = await collectorPost('/volt/certify', { run_id: input.run_id });
+        // #1013: the VOLT routes scope a service caller by req.query.org_id; with no org every
+        // certify was a 404 "No events found" whatever the run.
+        const data = await collectorPost(withOrgParam('/volt/certify', ctx?.orgId || null), { run_id: input.run_id });
         return { success: true, cert_id: data.cert_id, tier: data.tier, result: data.result };
       } catch (err) {
         return { success: false, error: err.message };
@@ -465,9 +491,9 @@ const COMPLIANCE_TOOLS = {
       },
       required: ['run_id'],
     },
-    execute: async (input) => {
+    execute: async (input, ctx) => {
       try {
-        const data = await collectorPost('/volt/bundles/create', {
+        const data = await collectorPost(withOrgParam('/volt/bundles/create', ctx?.orgId || null), {
           run_id: input.run_id,
           redact: input.redact || false,
         });
@@ -537,7 +563,7 @@ const COMPLIANCE_TOOLS = {
 
   ward_query_entries: {
     name: 'ward_query_entries',
-    description: 'Query WARD witness entries with filters. Returns individual receipt digests from the append-only chain.',
+    description: 'LIST the entries on the WARD witness chain (most recent first, with filters), each with its source kind and receipt digest. Use this for "show me the recent WARD entries / what was witnessed". ward_verify checks ONE envelope id; ward_status gives totals only; query_envelopes searches the AEE audit trail, not the WARD chain.',
     input_schema: {
       type: 'object',
       properties: {
@@ -621,9 +647,9 @@ const COMPLIANCE_TOOLS = {
       type: 'object',
       properties: {},
     },
-    execute: async () => {
+    execute: async (input, ctx) => {
       try {
-        const data = await collectorGet('/aee/stats');
+        const data = await collectorGet('/aee/stats', ctx?.orgId || null);
         return {
           success: true,
           total_envelopes: data.total_envelopes || 0,
@@ -653,16 +679,19 @@ const COMPLIANCE_TOOLS = {
     execute: async (input, ctx) => {
       try {
         const params = new URLSearchParams();
-        params.set('intent', input.layer ? `aocl.layer.${input.layer.toLowerCase()}` : 'aocl.');
+        // quox#1047: real layer intents are aocl.layer.L<n>.<outcome> (uppercase L, prefix-matched
+        // case-sensitively), so 'aocl.layer.l3' never matched; the trailing dot keeps L1 off L10.
+        const layerNum = input.layer ? String(input.layer).trim().replace(/^l/i, '') : '';
+        params.set('intent', layerNum ? `aocl.layer.L${layerNum}.` : 'aocl.');
         if (input.since) params.set('after', input.since);
         params.set('limit', String(input.limit || 20));
         const data = await collectorGet(`/aee/query?${params}`, ctx?.orgId || null);
         const decisions = (data.envelopes || []).map(e => ({
           id: e.id,
-          layer: e.intent?.replace('aocl.layer.complete.', '') || e.intent,
+          layer: (/^aocl\.layer\.(L\d+)\./.exec(e.intent || '') || [])[1] || e.intent,
           timestamp: e.ts,
           from: e.from,
-          outcome: e.payload?.outcome || e.payload?.action || 'unknown',
+          outcome: e.payload?.outcome || e.payload?.action || (/^aocl\.layer\.L\d+\.(\w+)$/.exec(e.intent || '') || [])[1] || 'unknown',
         }));
         return { success: true, decisions, total: decisions.length };
       } catch (err) {

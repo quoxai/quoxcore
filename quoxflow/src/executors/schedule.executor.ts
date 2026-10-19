@@ -46,6 +46,41 @@ interface ScheduleJob {
  * envelope and passes through. The actual cron scheduling is managed
  * separately via registerSchedule/unregisterSchedule for server-mode operation.
  */
+/**
+ * Pure schedule-config validator (no executor state), shared by the executor's validate(), the
+ * workflow validate route and the create/update guard (#1172).
+ */
+export function validateScheduleConfig(rawConfig: unknown): { valid: boolean; errors?: string[] } {
+  const config = (rawConfig || {}) as ScheduleConfig & { cron?: unknown };
+  const errors: string[] = [];
+  // Activation (runtime/trigger-bootstrap.ts) registers `expression || cron`, so a cron-only node
+  // DOES fire; the validator checks the same pattern activation will use.
+  const pattern = (config.expression || config.cron) as string | undefined;
+
+  if (!pattern) {
+    errors.push('expression is required');
+  } else if (typeof pattern !== 'string') {
+    errors.push('expression must be a cron pattern string');
+  } else {
+    try {
+      const job = new Cron(pattern, { timezone: config.timezone ?? 'UTC' });
+      job.stop();
+    } catch (err) {
+      errors.push(`Invalid cron expression: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  if (config.timezone) {
+    try {
+      Intl.DateTimeFormat(undefined, { timeZone: config.timezone });
+    } catch {
+      errors.push(`Invalid timezone: ${config.timezone}`);
+    }
+  }
+
+  return { valid: errors.length === 0, errors: errors.length > 0 ? errors : undefined };
+}
+
 export class ScheduleExecutor implements NodeExecutor {
   readonly nodeTypes = ['trigger:schedule'];
   private jobs: Map<string, ScheduleJob> = new Map();
@@ -112,33 +147,7 @@ export class ScheduleExecutor implements NodeExecutor {
    * Validate schedule node configuration.
    */
   validate(node: Node): { valid: boolean; errors?: string[] } {
-    const config = node.config as ScheduleConfig;
-    const errors: string[] = [];
-
-    if (!config.expression) {
-      errors.push('expression is required');
-    } else {
-      try {
-        // Validate cron expression by attempting to construct
-        const job = new Cron(config.expression, { timezone: config.timezone ?? 'UTC' });
-        job.stop();
-      } catch (err) {
-        errors.push(`Invalid cron expression: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-
-    if (config.timezone) {
-      try {
-        Intl.DateTimeFormat(undefined, { timeZone: config.timezone });
-      } catch {
-        errors.push(`Invalid timezone: ${config.timezone}`);
-      }
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined,
-    };
+    return validateScheduleConfig(node.config);
   }
 
   // =========================================================================

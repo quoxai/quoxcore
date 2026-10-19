@@ -479,6 +479,14 @@ function deletePolicy(db, id, ctx) {
 // Seed Policies
 // ============================================================
 
+// CHAT-SQLI-FP: this policy scans every chat turn (query.text). The original
+// regex matched a bare "truncate" (and "delete from" in prose), blocking plain
+// English such as "why does it truncate the description...". The pattern now
+// needs SQL structure: DROP/TRUNCATE TABLE, or DELETE FROM / TRUNCATE <ident>
+// followed by ";" or WHERE. Seeded DBs holding the old regex are upgraded below.
+const SQLI_SEED_REGEX = '\\b(drop|truncate)\\s+table\\b|\\bdelete\\s+from\\s+[\\w.`"\\[\\]]+\\s*(;|\\bwhere\\b)|\\btruncate\\s+[\\w.`"\\[\\]]+\\s*;';
+const SQLI_SEED_STALE_REGEXES = ['\\b(drop\\s+table|delete\\s+from|truncate)\\b'];
+
 function getSeedPolicies() {
   return [
     {
@@ -490,7 +498,7 @@ function getSeedPolicies() {
       conditions: {
         operator: 'OR',
         conditions: [
-          { field: 'query.text', operator: 'matches', value: '\\b(drop\\s+table|delete\\s+from|truncate)\\b' },
+          { field: 'query.text', operator: 'matches', value: SQLI_SEED_REGEX },
         ]
       },
       effect: 'deny',
@@ -674,6 +682,15 @@ function seedDefaultPolicies(db) {
     if (!existing) {
       createPolicy(db, seed);
       count++;
+    } else if (seed.name === 'Block SQL Injection Patterns') {
+      // Upgrade only an untouched stale seed row; leave any other value alone.
+      const row = db.prepare('SELECT conditions FROM policies WHERE id = ?').get(existing.id);
+      let leaves = [];
+      try { leaves = JSON.parse(row.conditions).conditions || []; } catch { leaves = []; }
+      if (leaves.length === 1 && SQLI_SEED_STALE_REGEXES.includes(leaves[0].value)) {
+        db.prepare("UPDATE policies SET conditions = ?, updated_at = datetime('now') WHERE id = ?")
+          .run(JSON.stringify(seed.conditions), existing.id);
+      }
     }
   }
 

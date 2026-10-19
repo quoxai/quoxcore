@@ -8,6 +8,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useStepUp } from '../../hooks/useStepUp.jsx';
 import { useWorkspace } from '../../contexts/WorkspaceContext';
 import { useInboxWithRealtime, useMultiOrgInboxStream } from '../../hooks/useInboxStream';
 import { PageSection, PageGrid } from '../../components/layout';
@@ -259,6 +260,7 @@ function InboxView() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { authFetch, user } = useAuth();
+    const { stepUpFetch, stepUpModal } = useStepUp(authFetch); // QUOXON-STEPUP
     const { currentOrg, orgs, myScopes } = useWorkspace();
     const initialScopeId = searchParams.get('scope') || null;
     const initialFolder = searchParams.get('folder') || 'inbox';
@@ -698,7 +700,7 @@ function InboxView() {
 
         try {
             const path = `/tasks/api/objectives/${objectiveId}/checkpoints/${checkpointId}/${action === 'approve' ? 'approve' : 'reject'}`;
-            const res = await authFetch(path, {
+            const res = await (action === 'approve' ? stepUpFetch : authFetch)(path, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ notes: reason || '' }),
@@ -719,7 +721,7 @@ function InboxView() {
             clearTimeout(timeoutId);
             clearPending();
         }
-    }, [authFetch, refreshCheckpoints, refresh]);
+    }, [authFetch, stepUpFetch, refreshCheckpoints, refresh]);
 
     // ── Reject-with-reason ────────────────────────────────────────────────
     // A deny/request-changes should capture a reason (the server stores +
@@ -947,11 +949,11 @@ function InboxView() {
 
             const results = await Promise.all(
                 Object.entries(byOrg).map(async ([orgId, ids]) => {
-                    const res = await authFetch(`/api/orgs/${orgId}/inbox/bulk`, {
+                    const res = await (action === 'approve' ? stepUpFetch : authFetch)(`/api/orgs/${orgId}/inbox/bulk`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ item_ids: ids, action })
-                    });
+                    }, { subject: { line1: `approve ${ids.length} item${ids.length === 1 ? '' : 's'}` } });
                     if (!res?.ok) throw new Error(`HTTP ${res?.status}`);
                     return res.json();
                 })
@@ -980,7 +982,7 @@ function InboxView() {
         } finally {
             setBulkLoading(false);
         }
-    }, [selectedIds, authFetch, resolveOrgId, refresh]);
+    }, [selectedIds, authFetch, stepUpFetch, resolveOrgId, refresh]);
 
     const handleUndoBulk = useCallback(async () => {
         if (!undoToast) return;
@@ -1064,12 +1066,12 @@ function InboxView() {
         try {
             const orgId = resolveOrgId(itemId);
             console.log('[InboxView] inline respond →', { itemId, orgId, outcome });
-            const res = await authFetch(`/api/orgs/${orgId}/inbox/${itemId}/respond`, {
+            const res = await (outcome === 'approved' ? stepUpFetch : authFetch)(`/api/orgs/${orgId}/inbox/${itemId}/respond`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: outcome, comment: reason || '' }),
                 signal: controller.signal
-            });
+            }, { subject: { line1: 'approve this item' } });
             if (!res?.ok) {
                 // Idempotent: treat "already resolved" as success silently.
                 if (res?.status === 400) {
@@ -1098,7 +1100,7 @@ function InboxView() {
             clearTimeout(timeoutId);
             clearPending();
         }
-    }, [authFetch, resolveOrgId, refresh]);
+    }, [authFetch, stepUpFetch, resolveOrgId, refresh]);
 
     // Single entry point for approve/deny from any trigger (buttons, keyboard).
     // Approve is one-click; deny/request-changes prompts for a reason first.
@@ -1750,6 +1752,7 @@ function InboxView() {
 
             {/* Reject-with-reason modal — deny/request-changes capture a reason
                 that flows to /respond (stored + VOLT-witnessed as the comment). */}
+            {stepUpModal}
             {rejectModal && (
                 <div
                     className="inbox-reject-overlay"

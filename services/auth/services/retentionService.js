@@ -329,9 +329,49 @@ function logCleanup(db, options) {
 }
 
 /**
+ * Build the DELETE and the matching COUNT for one data type from ONE WHERE
+ * clause, so a dry-run preview (quox#1084) can never drift from what the real
+ * cleanup would delete. Params order: [orgId when scoped], cutoff,
+ * [excludeOnOrAfter when given].
+ *
+ * excludeOnOrAfter is dry-run only: in a full cleanup the org pass runs AFTER
+ * the instance pass has already deleted everything older than the instance
+ * cutoff, so the preview of the org pass skips those rows to avoid counting
+ * them twice.
+ */
+function buildRetentionSql(config, { scoped = false, excludeOnOrAfter = false } = {}) {
+    const scopeCol = config.scopeColumn || config.scopeJoinColumn;
+    let where = scoped ? `${scopeCol} = ? AND ${config.dateColumn} < ?` : `${config.dateColumn} < ?`;
+    if (excludeOnOrAfter) {
+        where += ` AND ${config.dateColumn} >= ?`;
+    }
+    if (config.conditions) {
+        where += ` AND ${config.conditions}`;
+    }
+    if (config.joinClause) {
+        const subquery = `SELECT ${config.table}.rowid FROM ${config.table} ${config.joinClause} WHERE ${where}`;
+        return {
+            deleteSql: `DELETE FROM ${config.table} WHERE rowid IN (${subquery})`,
+            countSql: `SELECT COUNT(*) AS n FROM ${config.table} WHERE rowid IN (${subquery})`
+        };
+    }
+    return {
+        deleteSql: `DELETE FROM ${config.table} WHERE ${where}`,
+        countSql: `SELECT COUNT(*) AS n FROM ${config.table} WHERE ${where}`
+    };
+}
+
+/**
+ * Cutoff ISO timestamp for a retention window in days.
+ */
+function cutoffFor(retentionDays) {
+    return new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/**
  * Clean up a specific data type for instance level
  */
-function cleanupDataType(db, dataType, retentionDays, triggeredBy = 'system') {
+function cleanupDataType(db, dataType, retentionDays, triggeredBy = 'system', { dryRun = false } = {}) {
     const config = CLEANUP_CONFIGS[dataType];
     if (!config) {
         console.warn(`[Retention] Unknown data type: ${dataType}`);
@@ -339,28 +379,22 @@ function cleanupDataType(db, dataType, retentionDays, triggeredBy = 'system') {
     }
 
     const startedAt = new Date().toISOString();
-    const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+    const cutoffDate = cutoffFor(retentionDays);
+    const { deleteSql, countSql } = buildRetentionSql(config);
+
+    if (dryRun) {
+        // quox#1084: a preview COUNTS with the same WHERE and writes nothing,
+        // not even the cleanup log.
+        try {
+            const { n } = db.prepare(countSql).get(cutoffDate);
+            return { deleted: 0, would_delete: n, cutoff: cutoffDate, error: null };
+        } catch (error) {
+            return { deleted: 0, would_delete: 0, cutoff: cutoffDate, error: error.message };
+        }
+    }
 
     try {
-        // Build DELETE query
-        let sql = `DELETE FROM ${config.table}`;
-
-        if (config.joinClause) {
-            // For tables that need joins, we need to use a subquery
-            let subquery = `SELECT ${config.table}.rowid FROM ${config.table} ${config.joinClause}`;
-            subquery += ` WHERE ${config.dateColumn} < ?`;
-            if (config.conditions) {
-                subquery += ` AND ${config.conditions}`;
-            }
-            sql = `DELETE FROM ${config.table} WHERE rowid IN (${subquery})`;
-        } else {
-            sql += ` WHERE ${config.dateColumn} < ?`;
-            if (config.conditions) {
-                sql += ` AND ${config.conditions}`;
-            }
-        }
-
-        const result = db.prepare(sql).run(cutoffDate);
+        const result = db.prepare(deleteSql).run(cutoffDate);
 
         logCleanup(db, {
             scopeType: 'instance',
@@ -418,7 +452,7 @@ function cleanupDataType(db, dataType, retentionDays, triggeredBy = 'system') {
  * Returns { archived, error }. archiveDays overrides the configured window
  * (used by tests); production callers omit it and take instance config.
  */
-export function archiveOldTerminalInboxItems(triggeredBy = 'schedule', archiveDays) {
+export function archiveOldTerminalInboxItems(triggeredBy = 'schedule', archiveDays, { dryRun = false } = {}) {
     const db = getDb();
     const instanceConfig = getInstanceRetentionConfig();
     const days = Number.isFinite(archiveDays)
@@ -427,10 +461,7 @@ export function archiveOldTerminalInboxItems(triggeredBy = 'schedule', archiveDa
     const startedAt = new Date().toISOString();
     const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-    try {
-        const result = db.prepare(`
-            UPDATE inbox_item_assignees
-            SET archived_at = datetime('now')
+    const archiveWhere = `
             WHERE assignee_type = 'user'
               AND archived_at IS NULL
               AND inbox_item_id IN (
@@ -439,7 +470,23 @@ export function archiveOldTerminalInboxItems(triggeredBy = 'schedule', archiveDa
                     AND deleted_at IS NULL
                     AND resolved_at IS NOT NULL
                     AND resolved_at < ?
-              )
+              )`;
+
+    if (dryRun) {
+        // quox#1084: count what would be archived, move nothing, log nothing.
+        try {
+            const { n } = db.prepare(`SELECT COUNT(*) AS n FROM inbox_item_assignees ${archiveWhere}`).get(cutoffDate);
+            return { archived: 0, would_archive: n, error: null };
+        } catch (error) {
+            return { archived: 0, would_archive: 0, error: error.message };
+        }
+    }
+
+    try {
+        const result = db.prepare(`
+            UPDATE inbox_item_assignees
+            SET archived_at = datetime('now')
+            ${archiveWhere}
         `).run(cutoffDate);
 
         logCleanup(db, {
@@ -481,15 +528,17 @@ export function archiveOldTerminalInboxItems(triggeredBy = 'schedule', archiveDa
 /**
  * Clean up data for a specific org
  */
-function cleanupOrgData(db, orgId, triggeredBy = 'system') {
+function cleanupOrgData(db, orgId, triggeredBy = 'system', { dryRun = false, instanceCutoffs = null } = {}) {
     const policy = getOrgRetentionPolicy(orgId);
 
     if (!policy.auto_cleanup_enabled) {
         console.log(`[Retention] Cleanup disabled for org ${orgId}`);
-        return { total: 0, details: {}, skipped: true };
+        return dryRun
+            ? { total: 0, would_delete: 0, details: {}, skipped: true }
+            : { total: 0, details: {}, skipped: true };
     }
 
-    const results = { total: 0, details: {} };
+    const results = dryRun ? { total: 0, would_delete: 0, details: {} } : { total: 0, details: {} };
 
     for (const [dataType, config] of Object.entries(CLEANUP_CONFIGS)) {
         // Skip data types that don't have org scope
@@ -499,27 +548,27 @@ function cleanupOrgData(db, orgId, triggeredBy = 'system') {
 
         const retentionDays = policy[`${dataType}_days`] || DEFAULT_RETENTION[dataType];
         const startedAt = new Date().toISOString();
-        const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+        const cutoffDate = cutoffFor(retentionDays);
+
+        if (dryRun) {
+            // quox#1084: count only. When previewing a full cleanup, rows the
+            // instance pass would already delete are excluded (no double count).
+            const instanceCutoff = instanceCutoffs ? instanceCutoffs[dataType] : null;
+            const { countSql } = buildRetentionSql(config, { scoped: true, excludeOnOrAfter: !!instanceCutoff });
+            try {
+                const params = instanceCutoff ? [orgId, cutoffDate, instanceCutoff] : [orgId, cutoffDate];
+                const { n } = db.prepare(countSql).get(...params);
+                results.details[dataType] = { deleted: 0, would_delete: n };
+                results.would_delete += n;
+            } catch (error) {
+                results.details[dataType] = { deleted: 0, would_delete: 0, error: error.message };
+            }
+            continue;
+        }
 
         try {
-            let sql;
-            const scopeCol = config.scopeColumn || config.scopeJoinColumn;
-
-            if (config.joinClause) {
-                let subquery = `SELECT ${config.table}.rowid FROM ${config.table} ${config.joinClause}`;
-                subquery += ` WHERE ${scopeCol} = ? AND ${config.dateColumn} < ?`;
-                if (config.conditions) {
-                    subquery += ` AND ${config.conditions}`;
-                }
-                sql = `DELETE FROM ${config.table} WHERE rowid IN (${subquery})`;
-            } else {
-                sql = `DELETE FROM ${config.table} WHERE ${scopeCol} = ? AND ${config.dateColumn} < ?`;
-                if (config.conditions) {
-                    sql += ` AND ${config.conditions}`;
-                }
-            }
-
-            const result = db.prepare(sql).run(orgId, cutoffDate);
+            const { deleteSql } = buildRetentionSql(config, { scoped: true });
+            const result = db.prepare(deleteSql).run(orgId, cutoffDate);
 
             results.details[dataType] = { deleted: result.changes };
             results.total += result.changes;
@@ -550,13 +599,28 @@ function cleanupOrgData(db, orgId, triggeredBy = 'system') {
 /**
  * Run full instance-level cleanup
  */
-export function runInstanceCleanup(triggeredBy = 'schedule') {
+export function runInstanceCleanup(triggeredBy = 'schedule', { dryRun = false } = {}) {
     const db = getDb();
     const instanceConfig = getInstanceRetentionConfig();
 
     if (!instanceConfig.cleanup_enabled) {
         console.log('[Retention] Instance cleanup is disabled');
-        return { success: false, reason: 'disabled', results: {} };
+        return dryRun
+            ? { success: false, reason: 'disabled', dry_run: true, results: {} }
+            : { success: false, reason: 'disabled', results: {} };
+    }
+
+    if (dryRun) {
+        // quox#1084: preview only. Counts per table, no DELETE, no cleanup
+        // log, no last_cleanup_at stamp.
+        const results = { total: 0, would_delete: 0, details: {} };
+        for (const dataType of Object.keys(CLEANUP_CONFIGS)) {
+            const retentionDays = instanceConfig[`${dataType}_days`] || DEFAULT_RETENTION[dataType];
+            const r = cleanupDataType(db, dataType, retentionDays, triggeredBy, { dryRun: true });
+            results.details[dataType] = r;
+            results.would_delete += r.would_delete;
+        }
+        return { success: true, dry_run: true, results };
     }
 
     console.log('[Retention] Starting instance-level cleanup...');
@@ -585,14 +649,28 @@ export function runInstanceCleanup(triggeredBy = 'schedule') {
 /**
  * Run cleanup for all orgs
  */
-export function runAllOrgsCleanup(triggeredBy = 'schedule') {
+export function runAllOrgsCleanup(triggeredBy = 'schedule', { dryRun = false, instanceCutoffs = null, orgId = null } = {}) {
     const db = getDb();
 
-    console.log('[Retention] Starting org-level cleanup for all orgs...');
+    // quox#1085: orgId narrows the pass to ONE org (an org admin cleaning its
+    // own org). Without it this walks every org, which only the instance owner,
+    // a service key or the scheduler may do.
+    const orgs = orgId
+        ? db.prepare(`SELECT id FROM orgs WHERE deleted_at IS NULL AND id = ?`).all(orgId)
+        : db.prepare(`SELECT id FROM orgs WHERE deleted_at IS NULL`).all();
 
-    const orgs = db.prepare(`
-        SELECT id FROM orgs WHERE deleted_at IS NULL
-    `).all();
+    if (dryRun) {
+        // quox#1084: preview only, nothing deleted or logged.
+        const results = { total: 0, would_delete: 0, dry_run: true, orgs: {} };
+        for (const org of orgs) {
+            const orgResult = cleanupOrgData(db, org.id, triggeredBy, { dryRun: true, instanceCutoffs });
+            results.orgs[org.id] = orgResult;
+            results.would_delete += orgResult.would_delete;
+        }
+        return results;
+    }
+
+    console.log('[Retention] Starting org-level cleanup for all orgs...');
 
     const results = { total: 0, orgs: {} };
 
@@ -610,7 +688,28 @@ export function runAllOrgsCleanup(triggeredBy = 'schedule') {
 /**
  * Run full cleanup (instance + all orgs)
  */
-export function runFullCleanup(triggeredBy = 'schedule') {
+export function runFullCleanup(triggeredBy = 'schedule', { dryRun = false } = {}) {
+    if (dryRun) {
+        // quox#1084: preview of the same three passes, in the same order,
+        // counting instead of acting. The org pass skips rows the instance pass
+        // would already have deleted, mirroring the real sequential run.
+        const archiveResult = archiveOldTerminalInboxItems(triggeredBy, undefined, { dryRun: true });
+        const instanceResults = runInstanceCleanup(triggeredBy, { dryRun: true });
+        const instanceCutoffs = {};
+        for (const [dataType, d] of Object.entries(instanceResults.results.details || {})) {
+            if (d && !d.error && d.cutoff) instanceCutoffs[dataType] = d.cutoff;
+        }
+        const orgResults = runAllOrgsCleanup(triggeredBy, { dryRun: true, instanceCutoffs });
+        return {
+            dry_run: true,
+            inboxArchive: archiveResult,
+            instance: instanceResults,
+            orgs: orgResults,
+            totalCleaned: 0,
+            totalWouldDelete: (instanceResults.results.would_delete || 0) + orgResults.would_delete
+        };
+    }
+
     console.log('[Retention] Starting full data retention cleanup...');
 
     // Grace tier first: archive aged terminal inbox items BEFORE the hard-delete

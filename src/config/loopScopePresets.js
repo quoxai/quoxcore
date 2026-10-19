@@ -44,6 +44,35 @@ export const LOOP_SCOPE_PRESETS = [
     ],
   },
   {
+    id: 'comms',
+    label: 'Communications',
+    description: 'Send notifications and email through the governed Quox tools. No code or shell access.',
+    tools: ['mcp__quox__send_notification', 'mcp__quox__email_send'],
+  },
+  {
+    id: 'data-ops',
+    label: 'Data operations',
+    description: 'Read-only search and recall over memory, the catalogue and the evidence store. Nothing mutates.',
+    tools: [
+      'mcp__quox__memory_search', 'mcp__quox__search_catalog', 'mcp__quox__query_envelopes',
+    ],
+  },
+  {
+    id: 'workflow-run',
+    label: 'Run workflows and objectives',
+    description: 'Execute a workflow or orchestrate an objective and read back its results.',
+    tools: [
+      'mcp__quox__execute_workflow', 'mcp__quox__orchestrate_objective', 'mcp__quox__get_objective_results',
+    ],
+  },
+  {
+    id: 'call',
+    label: 'Place a call (reserved)',
+    description: 'Reserved for the future place_call tool. Grants nothing today, so a loop on this preset cannot act (deny-by-default).',
+    tools: [],
+    reserved: true,
+  },
+  {
     id: 'custom',
     label: 'Custom',
     description: 'Hand-picked scope. Starts from whatever was selected.',
@@ -58,6 +87,6 @@ export function getPreset(id) {
 /** Which preset exactly matches this tool list, else 'custom'. */
 export function matchPreset(tools) {
   const sorted = [...tools].sort().join('|')
-  const hit = LOOP_SCOPE_PRESETS.find(p => p.tools && [...p.tools].sort().join('|') === sorted)
+  const hit = LOOP_SCOPE_PRESETS.find(p => p.tools && p.tools.length > 0 && [...p.tools].sort().join('|') === sorted)
   return hit ? hit.id : 'custom'
 }

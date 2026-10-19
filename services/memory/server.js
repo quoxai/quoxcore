@@ -295,7 +295,7 @@ app.post('/api/memory', authenticate, (req, res) => {
 
 // Get memory by ID
 // MC4 fix: Skip reserved paths to prevent route collision with /search, /stats, etc.
-const RESERVED_MEMORY_PATHS = new Set(['search', 'stats', 'export', 'core', 'migration', 'batch', 'consolidate', 'quota', 'org-users', 'timeline'])
+const RESERVED_MEMORY_PATHS = new Set(['search', 'stats', 'export', 'core', 'migration', 'batch', 'consolidate', 'quota', 'org-users', 'timeline', 'core-set', 'recall'])
 
 // Codex cycle 4 #10: decision timeline + correction queue. Visibility is the
 // caller's own beliefs plus the org-shared ones Dream writes (same rule as list).
@@ -340,6 +340,60 @@ app.post('/api/memory/:id/reinstate', authenticate, (req, res) => {
     res.status(500).json({ error: error.message })
   }
 })
+
+// QUOXMIND #1111: the core set (pinned + auto-promoted) and cross-agent org
+// recall. agent_user_ids (auth users with actor_type='agent') widen what is
+// org-visible ONLY for a trusted service caller (req.service, never a JWT
+// claim); a user JWT always reads its own rows plus the org-visible writers.
+const agentUserIds = (req) => (req.service === true && typeof req.query.agent_user_ids === 'string'
+  ? req.query.agent_user_ids.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 500)
+  : [])
+const clampLimit = (v, d, max) => Math.min(max, Math.max(1, parseInt(v, 10) || d))
+
+app.get('/api/memory/core-set', authenticate, (req, res) => {
+  try {
+    const memories = store.getCoreSet({ org_id: req.org_id, user_id: req.user_id, agent_user_ids: agentUserIds(req), limit: clampLimit(req.query.limit, 8, 50) })
+    res.json({ memories, count: memories.length })
+  } catch (error) {
+    console.error('[Memory] core-set error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+app.get('/api/memory/recall', authenticate, (req, res) => {
+  try {
+    const q = req.query.q || req.query.query
+    if (!q) return res.status(400).json({ error: 'Query parameter (q) required' })
+    const results = store.recallOrg({ org_id: req.org_id, user_id: req.user_id, query: String(q), agent_user_ids: agentUserIds(req), limit: clampLimit(req.query.limit, 5, 50) })
+    res.json({ results, count: results.length })
+  } catch (error) {
+    console.error('[Memory] recall error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Pin into / exclude from the core set. Own rows: the writer. Any row in the
+// org: an org admin/owner or the internal service. Org is always enforced.
+function pinHandler(pin) {
+  return (req, res) => {
+    try {
+      const m = store.getMemory(req.params.id)
+      if (!m || m.org_id !== req.org_id) return res.status(404).json({ error: 'Memory not found' })
+      const role = req.user?.role
+      if (m.user_id !== req.user_id && !(req.service === true || role === 'admin' || role === 'owner')) {
+        return res.status(403).json({ error: 'Access denied: pin your own memories, or ask an org admin' })
+      }
+      const out = pin ? store.pinMemory({ id: m.id, org_id: req.org_id, by: req.user_id }) : store.unpinMemory({ id: m.id, org_id: req.org_id })
+      storeAuditEnvelope(MEM_INTENTS.MEMORY_UPDATED, { memoryId: m.id, action: pin ? 'pin' : 'unpin', by: req.user_id })
+      res.json(out)
+    } catch (error) {
+      console.error('[Memory] pin error:', error)
+      res.status(500).json({ error: error.message })
+    }
+  }
+}
+app.post('/api/memory/:id/pin', authenticate, pinHandler(true))
+app.delete('/api/memory/:id/pin', authenticate, pinHandler(false))
 
 app.get('/api/memory/:id', authenticate, (req, res, next) => {
   // MC4 fix: Let specific routes handle reserved paths
@@ -456,7 +510,7 @@ app.get('/api/memory', authenticate, (req, res) => {
 app.get('/api/memory/org-users', authenticate, (req, res) => {
   if (req.user?.role !== 'service') return res.status(403).json({ error: 'service callers only' })
   try {
-    res.json({ users: store.listMemoryUserIds({ org_id: req.org_id }) })
+    res.json({ users: store.listMemoryUserIds({ org_id: req.org_id, withEntities: req.query.with === 'entities' }) })
   } catch (error) {
     console.error('[Memory] org-users error:', error)
     res.status(500).json({ error: error.message })
@@ -1008,6 +1062,16 @@ app.get('/api/memory/migration/status', authenticate, (req, res) => {
 // Get memory statistics
 app.get('/api/memory/stats', authenticate, (req, res) => {
   try {
+    // QUOXMIND #1111: ?scope=org gives the org-wide truth (per agent, per
+    // writer). Counts only, never content; org admins/owners and the internal
+    // service only, since the per-writer breakdown names other users.
+    if (req.query.scope === 'org') {
+      const role = req.user?.role
+      if (!(req.service === true || role === 'admin' || role === 'owner')) {
+        return res.status(403).json({ error: 'org-wide memory stats need an org admin or owner' })
+      }
+      return res.json(store.getOrgStats({ org_id: req.org_id }))
+    }
     const stats = store.getStats({
       org_id: req.org_id,
       user_id: req.user_id

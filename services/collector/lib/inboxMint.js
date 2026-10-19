@@ -15,6 +15,8 @@
 
 'use strict';
 
+const { checkWhat } = require('./approvalWhat.js');
+
 const DEFAULT_TIMEOUT_MS = 10000;
 
 function extractItemId(data) {
@@ -36,6 +38,11 @@ async function mintInboxItem(fields, deps = {}) {
   const timeoutMs = deps.timeoutMs || DEFAULT_TIMEOUT_MS;
 
   if (!orgId) return { ok: false, status: 0, itemId: null, deduplicated: false, error: 'orgId is required' };
+  // APPROVAL-WHAT: an approval nobody can identify is refused here, before the network call.
+  if (kind === 'approval') {
+    const w = checkWhat(payload && payload.what);
+    if (!w.ok) return { ok: false, status: 0, itemId: null, deduplicated: false, error: `approval_undescribed: ${w.error}` };
+  }
   if (!serviceKey) {
     return { ok: false, status: 0, itemId: null, deduplicated: false, error: 'INTERNAL_SERVICE_KEY not configured' };
   }

@@ -33,10 +33,26 @@ export function registerBuildCommands(program, ctx) {
   // own parsed opts.
   const groupOpt = (options, key) => options[key] ?? build.opts()[key];
 
+  // An org with exactly one dev server needs no --host: use it and say so. With several, name them;
+  // with none, say so (proof cases code/reach-build-status / -targets exited 1 on a one-server org).
+  async function resolveHost(options) {
+    const given = groupOpt(options, 'host');
+    if (given) return given;
+    const listEp = resolveEndpoint('v1.dev.servers.list');
+    const list = await client.get(listEp.path, { service: listEp.service });
+    const ids = (Array.isArray(list?.servers) ? list.servers : []).map((s) => s.host_id).filter(Boolean);
+    if (ids.length === 1) {
+      printWarning(`No --host given; using the only dev server: ${ids[0]}`);
+      return ids[0];
+    }
+    if (ids.length === 0) throw new Error('No dev server is registered for this org (register one with `quox dev enable <hostId>`).');
+    throw new Error(`--host <hostId> is required: this org has ${ids.length} dev servers (${ids.join(', ')}).`);
+  }
+
   async function dispatch(target, options) {
     auth.requireAuth();
     options = {
-      host: groupOpt(options, 'host'),
+      host: await resolveHost(options),
       stream: groupOpt(options, 'stream'),
       phase: groupOpt(options, 'phase'),
       msg: groupOpt(options, 'msg'),
@@ -76,8 +92,7 @@ export function registerBuildCommands(program, ctx) {
     .option('--host <hostId>', 'dev server host_id')
     .action(async (options) => {
       auth.requireAuth();
-      const host = groupOpt(options, 'host');
-      if (!host) throw new Error('--host <hostId> is required');
+      const host = await resolveHost(options);
       const endpoint = resolveEndpoint('v1.dev.build.status', { hostId: host });
       const data = await client.get(endpoint.path, { service: endpoint.service });
       formatDetail(data, { format: program.opts().output, title: `Build status: ${host}` });
@@ -89,8 +104,7 @@ export function registerBuildCommands(program, ctx) {
     .option('--host <hostId>', 'dev server host_id')
     .action(async (options) => {
       auth.requireAuth();
-      const host = groupOpt(options, 'host');
-      if (!host) throw new Error('--host <hostId> is required');
+      const host = await resolveHost(options);
       const endpoint = resolveEndpoint('v1.dev.build.targets', { hostId: host });
       const data = await client.get(endpoint.path, { service: endpoint.service });
       formatOutput(data.targets || [], {

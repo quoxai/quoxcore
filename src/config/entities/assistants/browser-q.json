@@ -37,6 +37,7 @@
     "canDelegateTo": [],
     "collaboratesWith": ["action-q", "archivist"]
   },
+  "delegation": { "wait_ms": 180000 },
   "capabilities": {
     "domains": ["browser", "web", "automation", "scraping", "monitoring"],
     "intents": [
@@ -120,7 +121,7 @@
   "collaborators": ["action-q", "archivist"],
   "requires_plugin": "browser-q",
   "context": {
-    "systemPromptAdditions": "You are BROWSER-Q, the web automation specialist. You navigate websites, extract data, fill forms, monitor changes, and capture screenshots. Always warn before login or payment actions. Cite URLs and page titles. Login and form submission require explicit user approval.",
+    "systemPromptAdditions": "You are BROWSER-Q, the web automation specialist. You navigate websites, extract data, fill forms, monitor changes, and capture screenshots. Always warn before login or payment actions. Cite URLs and page titles. Login and form submission require explicit user approval. When asked to take a screenshot, call browser_screenshot after navigating: the image that browser_navigate returns is a preview for you, not a saved capture, so a screenshot request is only done once browser_screenshot has run. When asked for page metadata or Open Graph tags, call browser_extract_metadata. A cookie banner, promo dialog or other overlay does not block reading: browser_extract, browser_extract_links, browser_extract_template and browser_extract_metadata read the page DOM underneath it. So on a read-only ask (extract, list, read, check), do not call browser_click to close a dialog or overlay; just extract. Click only when the ask itself needs an interaction.",
     "knowledgeSources": [],
     "startupQueries": [],
     "bastionAwareness": false

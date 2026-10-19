@@ -6,13 +6,14 @@
  * The roadmap-cli binary reads/writes ~/STRATEGIC_ROADMAP.json.
  */
 
+const { hostHome, hostPath } = require('../utils/runtimePaths.js');
 const { execFileSync: _execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const ROADMAP_CLI = '/opt/quoxcore/bin/roadmap-cli';
-const ROADMAP_JSON = '/opt/quoxcore/STRATEGIC_ROADMAP.json';
-const PLAN_DOC_BASE = '/opt/quoxcore';
+const ROADMAP_CLI = hostPath('bin', 'roadmap-cli');
+const ROADMAP_JSON = hostPath('STRATEGIC_ROADMAP.json');
+const PLAN_DOC_BASE = hostPath('quox-dashboard');
 
 // QUOXPLAN-CUTOVER (2026-07-25): the strategic roadmap now lives in
 // QuoxPlan. roadmap_list / roadmap_show / roadmap_stats are retired —
@@ -39,7 +40,7 @@ function runCli(args) {
     const output = _execFn(ROADMAP_CLI, args, {
       encoding: 'utf8',
       timeout: 10000,
-      env: { ...process.env, HOME: '/opt/quoxcore', NO_COLOR: '1' },
+      env: { ...process.env, HOME: hostHome(), NO_COLOR: '1' },
     });
     // Strip ANSI codes
     return output.replace(/\x1b\[[0-9;]*m/g, '').trim();

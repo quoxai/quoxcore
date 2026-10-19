@@ -19,11 +19,11 @@ const SEED_POLICY = Object.freeze({
   },
   system_default: {
     provider: 'anthropic',
-    model: 'claude-sonnet-4-6',
+    model: 'claude-sonnet-5-5',
   },
   capabilities: {
     general_assistant: {
-      primary: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+      primary: { provider: 'anthropic', model: 'claude-sonnet-5-5' },
       // LLM-CHOICE P1: declared (governance-visible) fallback so OpenAI-only
       // deployments keep working — replaces the old hardcoded last-resort.
       fallbacks: [{ provider: 'openai', model: 'gpt-5.4' }],
@@ -32,7 +32,7 @@ const SEED_POLICY = Object.freeze({
       policyLabel: 'General assistant default',
     },
     planning: {
-      primary: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+      primary: { provider: 'anthropic', model: 'claude-sonnet-5-5' },
       // LLM-CHOICE P1: declared (governance-visible) fallback so OpenAI-only
       // deployments keep working — replaces the old hardcoded last-resort.
       fallbacks: [{ provider: 'openai', model: 'gpt-5.4' }],
@@ -41,7 +41,7 @@ const SEED_POLICY = Object.freeze({
       policyLabel: 'Planning default',
     },
     coding: {
-      primary: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+      primary: { provider: 'anthropic', model: 'claude-sonnet-5-5' },
       // LLM-CHOICE P1: declared (governance-visible) fallback so OpenAI-only
       // deployments keep working — replaces the old hardcoded last-resort.
       fallbacks: [{ provider: 'openai', model: 'gpt-5.4' }],
@@ -50,7 +50,7 @@ const SEED_POLICY = Object.freeze({
       policyLabel: 'Coding default',
     },
     analysis: {
-      primary: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+      primary: { provider: 'anthropic', model: 'claude-sonnet-5-5' },
       // LLM-CHOICE P1: declared (governance-visible) fallback so OpenAI-only
       // deployments keep working — replaces the old hardcoded last-resort.
       fallbacks: [{ provider: 'openai', model: 'gpt-5.4' }],
@@ -59,7 +59,7 @@ const SEED_POLICY = Object.freeze({
       policyLabel: 'Analysis default',
     },
     research: {
-      primary: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+      primary: { provider: 'anthropic', model: 'claude-sonnet-5-5' },
       // LLM-CHOICE P1: declared (governance-visible) fallback so OpenAI-only
       // deployments keep working — replaces the old hardcoded last-resort.
       fallbacks: [{ provider: 'openai', model: 'gpt-5.4' }],
@@ -75,7 +75,7 @@ const SEED_POLICY = Object.freeze({
       policyLabel: 'Image generation default',
     },
     executive_advisory: {
-      primary: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+      primary: { provider: 'anthropic', model: 'claude-sonnet-5-5' },
       // LLM-CHOICE P1: declared (governance-visible) fallback so OpenAI-only
       // deployments keep working — replaces the old hardcoded last-resort.
       fallbacks: [{ provider: 'openai', model: 'gpt-5.4' }],

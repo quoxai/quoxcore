@@ -31,9 +31,12 @@
  * @param {object} deps
  * @param {(orgId: string, pluginId: string) => Promise<boolean>} deps.isPluginLicensed
  * @param {(req: object) => string|null} deps.resolveOrgId
+ * @param {(orgId: string, pluginId: string) => Promise<{licensed: boolean, unavailable: boolean}>} [deps.licenseVerdict]
+ *   when given, used instead of isPluginLicensed so "could not check" (auth
+ *   unreachable, no usable cache) is a 503, not a false "not licensed" 403.
  * @returns {(pluginId: string, label: string) => Function} express middleware factory
  */
-function createRequireLicence({ isPluginLicensed, resolveOrgId }) {
+function createRequireLicence({ isPluginLicensed, resolveOrgId, licenseVerdict = null }) {
   if (typeof isPluginLicensed !== 'function') throw new TypeError('isPluginLicensed is required');
   if (typeof resolveOrgId !== 'function') throw new TypeError('resolveOrgId is required');
 
@@ -59,7 +62,14 @@ function createRequireLicence({ isPluginLicensed, resolveOrgId }) {
       // the caller may retry; "you're not entitled" is the only 403.
       let licensed = false;
       try {
-        licensed = await isPluginLicensed(orgId, pluginId);
+        if (licenseVerdict) {
+          // The real lookup never throws: it returns unavailable instead.
+          const v = await licenseVerdict(orgId, pluginId);
+          if (v && v.unavailable) throw new Error('licence check unavailable');
+          licensed = !!(v && v.licensed);
+        } else {
+          licensed = await isPluginLicensed(orgId, pluginId);
+        }
       } catch {
         return res
           .status(503)

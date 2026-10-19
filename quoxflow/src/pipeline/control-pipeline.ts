@@ -7,7 +7,7 @@
 
 import { Envelope, EnvelopeFactory, Intents } from '../core/envelope.js';
 import { Workflow, WorkflowSettings, Node, getOutgoingEdges, getIncomingEdges, getNode } from '../core/workflow.js';
-import { ExecutionContext } from '../core/execution.js';
+import { ExecutionContext, type RunActor } from '../core/execution.js';
 import { EnvelopeStore } from '../store/envelope-store.js';
 import { ExecutorRegistry, ExecutorResult, NodeExecutor, AmbiguousDispatchError } from '../executors/executor.interface.js';
 import { ControlLayer, LayerResult, IngressLayer, IdentityLayer, PolicyLayer, ContextLayer, VerifyLayer, AssembleLayer } from './layers/index.js';
@@ -235,11 +235,15 @@ export class ControlPipeline {
   /**
    * Execute a workflow with the given trigger data
    */
-  async execute(workflow: Workflow, triggerData: unknown, options?: { executionId?: string; orgId?: string; cancellationSignal?: AbortSignal; cancellationActorProvider?: () => string | undefined }): Promise<PipelineResult> {
+  async execute(workflow: Workflow, triggerData: unknown, options?: { executionId?: string; orgId?: string; actor?: RunActor; parentExecutionId?: string; parentCorrelationId?: string; parentNodeId?: string; cancellationSignal?: AbortSignal; cancellationActorProvider?: () => string | undefined }): Promise<PipelineResult> {
     const startTime = Date.now();
     const context = new ExecutionContext(workflow, triggerData, {
       executionId: options?.executionId,
       orgId: options?.orgId,
+      actor: options?.actor,
+      parentExecutionId: options?.parentExecutionId,
+      parentCorrelationId: options?.parentCorrelationId,
+      parentNodeId: options?.parentNodeId,
       // AEE-FULL Gap 4 — propagate external cancellation signal so the
       // ExecutionService.cancel() route can actually abort in-flight fetches.
       cancellationSignal: options?.cancellationSignal,
@@ -965,6 +969,20 @@ export class ControlPipeline {
     return { success: true, output: lastOutput, envelopes };
   }
 
+  /** quoxflow#14: a resumed run that was cancelled ends cancelled, the same shape execute() returns. */
+  private resumeCancelledResult(context: ExecutionContext, envelopes: Envelope[], startTime: number): PipelineResult {
+    return {
+      success: false,
+      output: null,
+      error: { code: 'CANCELLED', message: 'Execution cancelled' },
+      executionId: context.id,
+      correlationId: context.correlationId,
+      envelopes,
+      duration: Date.now() - startTime,
+      cancelled: true,
+    };
+  }
+
   /**
    * Resume a paused workflow execution from the point it was paused.
    *
@@ -985,10 +1003,17 @@ export class ControlPipeline {
     workflow: Workflow,
     pauseState: PauseState,
     decision: { approved: boolean; approver: string; reason?: string; requestChanges?: boolean; data?: Record<string, unknown> },
-    runContext: { executionId?: string; orgId?: string } = {}
+    runContext: { executionId?: string; orgId?: string; actor?: RunActor; cancellationSignal?: AbortSignal; cancellationActorProvider?: () => string | undefined } = {}
   ): Promise<PipelineResult> {
     const startTime = Date.now();
-    const context = new ExecutionContext(workflow, {}, { executionId: runContext.executionId, orgId: runContext.orgId });
+    // quoxflow#14: a resumed run gets the same abort path as a fresh one (ExecutionService.cancel()).
+    const context = new ExecutionContext(workflow, {}, {
+      executionId: runContext.executionId,
+      orgId: runContext.orgId,
+      actor: runContext.actor,
+      cancellationSignal: runContext.cancellationSignal,
+      cancellationActorProvider: runContext.cancellationActorProvider,
+    });
     const allEnvelopes: Envelope[] = [];
 
     // AEE-FULL P0.B (orchestrator follow-up): bind per-envelope flush hook
@@ -1081,6 +1106,7 @@ export class ControlPipeline {
         nodeOutputs: reEntryOutputs,
       });
       allEnvelopes.push(...executeResult.envelopes);
+      if (executeResult.cancelled) return this.resumeCancelledResult(context, allEnvelopes, startTime); // quoxflow#14
 
       // If the re-execution hits the approval gate again, we pause again (new review cycle)
       if (executeResult.paused && executeResult.pauseState) {
@@ -1221,6 +1247,7 @@ export class ControlPipeline {
       nodeOutputs: pauseState.nodeOutputs,
     });
     allEnvelopes.push(...executeResult.envelopes);
+    if (executeResult.cancelled) return this.resumeCancelledResult(context, allEnvelopes, startTime); // quoxflow#14
 
     // Handle nested pause (another gate after the first)
     if (executeResult.paused && executeResult.pauseState) {

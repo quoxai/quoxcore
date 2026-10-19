@@ -12,10 +12,10 @@ import { defineConfig, defaultExclude } from 'vitest/config';
 export default defineConfig({
   test: {
     include: ['test/**/*.test.js', 'lib/**/__tests__/**/*.test.js'],
-    exclude: [...defaultExclude, 'test/quoxchat-*.test.js', 'test/agentToolCatalog.test.js'],
+    exclude: [...defaultExclude, 'test/quoxchat-*.test.js', 'test/agentToolCatalog.test.js', 'test/captcha-verifier.test.js'],
     globals: false,
     // VAULT-INTEG P18: must run first, before any test module, so no real
     // credential exists in process.env when an assertion diff could echo it.
-    setupFiles: ['../shared/testEnvScrub.cjs']
+    setupFiles: ['../shared/testEnvScrub.cjs', './test/setup/harnessEnv.cjs']
   }
 });

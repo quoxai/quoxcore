@@ -643,6 +643,8 @@ export function registerDevSupervisorCommands(dev, ctx) {
           }
         } catch (err) {
           log('error', `poll failed: ${err.message}`);
+          // #1018: a single pass that failed is a failed run, not a quiet success.
+          if (options.once) process.exitCode = 1;
           if (continuous && waitMode) {
             waitFailures += 1;
             if (waitFailures >= DEFAULT_WAIT_FAILURE_THRESHOLD) {

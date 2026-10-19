@@ -313,11 +313,11 @@ const BACKUP_CONFIG_STARTER_YAML = `# QuoxBackup engine config for this dev serv
 # below is COMMENTED OUT and shows the default the agent uses when the line is
 # absent — uncomment only what this host actually differs on.
 #
-# backup_engine: /opt/quoxcore/scripts/backup-quox.sh
-# restore_engine: /opt/quoxcore/scripts/restore-quox.sh
-# backup_root: /opt/quoxcore/backups
+# backup_engine: ~/quox-dashboard/scripts/backup-quox.sh
+# restore_engine: ~/quox-dashboard/scripts/restore-quox.sh
+# backup_root: ~/backups
 # container_prefix: quox
-# workdir: /opt/quoxcore
+# workdir: ~/quox-dashboard
 # timeout_seconds:
 #   backup: 3600
 #   restore: 3600

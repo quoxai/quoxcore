@@ -2,13 +2,13 @@
  * docsBrowser.js — DEVSUITE-DOCS Phase 1+2, documentation browser backend.
  *
  * Reads docs that already exist on disk — no new indexer:
- *   - `<repo>/CODEBASE_MAP.md` for every sibling repo under /opt/quoxcore
+ *   - `<repo>/CODEBASE_MAP.md` for every sibling repo under ~
  *     that has one (produced by `/codebase-mirror`, see CODEBASE_MAP.md's
  *     own header in this repo for the exact format).
  *   - `docs/STATUS_AND_LIMITS_<SURFACE>.md` in this repo.
  *
- * The collector's Docker container has /opt/quoxcore mounted at the SAME
- * path /opt/quoxcore (confirmed via `docker inspect quox-collector`), so
+ * The collector's Docker container has ~ mounted at the SAME
+ * path ~ (confirmed via `docker inspect quox-collector`), so
  * every sibling repo's files are reachable via normal Node `fs` calls —
  * no new mount or permission work needed.
  *
@@ -35,11 +35,12 @@
 
 'use strict';
 
+const { hostHome, hostPath } = require('../utils/runtimePaths.js');
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const DEFAULT_HOME_CONTROL = '/opt/quoxcore';
+const DEFAULT_HOME_CONTROL = hostHome();
 
 // The docs directory, resolved the SAME way the repo maps are.
 //
@@ -78,7 +79,7 @@ const GIT_LOG_TIMEOUT_MS = 5000;
 // Repo discovery + CODEBASE_MAP.md
 // ---------------------------------------------------------------------------
 
-// Globs /opt/quoxcore/*/CODEBASE_MAP.md dynamically — never a hardcoded
+// Globs ~/*/CODEBASE_MAP.md dynamically — never a hardcoded
 // list, so a repo gaining or losing a map is picked up on the next request.
 function discoverRepoMaps({ homeControl = DEFAULT_HOME_CONTROL } = {}) {
   let entries;
@@ -164,7 +165,7 @@ function defaultGitLastCommitEpochSeconds(repoDir) {
   //
   // The collector runs as `quox` while the repos on the host are owned by
   // `control`, and git refuses to operate on a repo owned by another user:
-  //   fatal: detected dubious ownership in repository at '/opt/quoxcore/QuoxBastion'
+  //   fatal: detected dubious ownership in repository at hostPath('QuoxBastion')
   // Every single call failed on that, so all 18 repos reported
   // `stale: null, reason: git_log_unavailable` and the Dev Suite hub showed
   // "DRIFT UNKNOWN" on every row. A status that is unknown for everything,

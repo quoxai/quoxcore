@@ -22,7 +22,7 @@ import { join, basename } from 'node:path';
 export const APPROVAL_GATED_TOOLS = new Set([
   'loop_halt', 'slot_assign', 'bob_dispatch_build', 'email_send', 'send_notification',
   'remote_ssh', 'ssh_exec', 'db_query', 'alerts_manage', 'backup_run',
-  'keeper_backup_create', 'deploy_template', 'gemini_generate', 'perplexity_research',
+  'keeper_backup_create', 'deploy_template',
   'system_admin', 'proxmox_vm_action', 'calendar_event_create',
 ]);
 

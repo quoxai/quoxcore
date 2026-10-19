@@ -45,6 +45,7 @@ function loadRegistry({ force = false } = {}) {
     areas,
     areaByKey: Object.fromEntries(areas.map((a) => [a.key, a])),
     outcomes: areasFile.outcomes || {},
+    hostFeeds: new Set(areasFile.host_feeds || []),
     kinds: byKind,
     prefixes,
     impact: readJson(path.join(REG_DIR, 'impact.json')).edges || {},
@@ -349,8 +350,13 @@ const DERIVE = {
     return { name, label: name, host: st.host || 'this box', log_command: `docker logs --tail 50 ${name}` };
   },
   call(s, st) {
-    const caller = st.name || st.from || st.caller || 'an unknown number';
-    return { caller, label: caller, is_voicemail: s.subject.startsWith('voicemail:') || st.voicemail ? 'true' : 'false' };
+    let caller = st.name || st.from || st.caller || 'an unknown number';
+    // A raw ContactsQ id (ct_...) is never a name: say what it is instead.
+    if (/^ct_[A-Za-z0-9_]+$/.test(String(caller))) caller = 'one of your contacts';
+    caller = require('./journal.js').scrubPii(String(caller));
+    const REASONS = { no_consent: 'no consent on record', dnc: 'on the do-not-call list', quiet_hours: 'quiet hours', rate_limited: 'too many calls' };
+    const reason_words = REASONS[st.reason] || (st.reason ? String(st.reason).replace(/_/g, ' ') : 'blocked');
+    return { caller, label: caller, reason_words, is_voicemail: s.subject.startsWith('voicemail:') || st.voicemail ? 'true' : 'false' };
   },
   mail(s, st) {
     const from = st.from_name || st.from || 'someone';

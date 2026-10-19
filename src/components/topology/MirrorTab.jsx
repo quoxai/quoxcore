@@ -105,6 +105,8 @@ function StatusBadge({ status }) {
   )
 }
 
+const unknownLine = (u) => `unknown: ${u.code} (${u.service}: ${u.message})`
+
 // Identity card
 function IdentityCard({ identity, health }) {
   return (
@@ -118,17 +120,27 @@ function IdentityCard({ identity, health }) {
         <p className="mirror-identity__role">{identity?.role || 'Multi-Agent Executive System'}</p>
         <div className="mirror-identity__version">v{identity?.version || '2.0.0'}</div>
       </div>
+      {health?.unknown || health?.overall == null ? (
+        <div className="mirror-health-overview">
+          <div className="mirror-health-overview__label">
+            <StatusBadge status="unknown" />
+            <span>Core Health</span>
+          </div>
+          <div className="mirror-empty">{health?.unknown ? unknownLine(health.unknown) : 'unknown'}</div>
+        </div>
+      ) : (
       <div className="mirror-health-overview">
         <div className="mirror-health-overview__value">
-          <span className="mirror-health-overview__number">{health?.overall || 0}</span>
+          <span className="mirror-health-overview__number">{health.overall}</span>
           <span className="mirror-health-overview__percent">%</span>
         </div>
         <div className="mirror-health-overview__label">
-          <StatusBadge status={health?.status || 'unknown'} />
+          <StatusBadge status={health.status || 'unknown'} />
           <span>Core Health</span>
         </div>
-        <HealthBar value={health?.overall || 0} size="lg" />
+        <HealthBar value={health.overall} size="lg" />
       </div>
+      )}
     </div>
   )
 }
@@ -145,27 +157,26 @@ function MemoryCard({ memory }) {
         </svg>
         <span>Memory</span>
       </div>
-      <div className="mirror-stats">
-        <div className="mirror-stat">
-          <span className="mirror-stat__value">{memory.totalMemories}</span>
-          <span className="mirror-stat__label">Total</span>
-        </div>
-        <div className="mirror-stat">
-          <span className="mirror-stat__value">{memory.episodic}</span>
-          <span className="mirror-stat__label">Episodic</span>
-        </div>
-        <div className="mirror-stat">
-          <span className="mirror-stat__value">{memory.semantic}</span>
-          <span className="mirror-stat__label">Semantic</span>
-        </div>
-        <div className="mirror-stat">
-          <span className="mirror-stat__value">{memory.entities}</span>
-          <span className="mirror-stat__label">Entities</span>
-        </div>
-      </div>
-      {memory.openLoops > 0 && (
-        <div className="mirror-open-loops">
-          <span>{memory.openLoops} open loops</span>
+      {memory.unknown ? (
+        <div className="mirror-empty">{unknownLine(memory.unknown)}</div>
+      ) : (
+        <div className="mirror-stats">
+          <div className="mirror-stat">
+            <span className="mirror-stat__value">{memory.totalMemories ?? '?'}</span>
+            <span className="mirror-stat__label">Total</span>
+          </div>
+          <div className="mirror-stat">
+            <span className="mirror-stat__value">{memory.entities ?? '?'}</span>
+            <span className="mirror-stat__label">Entities</span>
+          </div>
+          <div className="mirror-stat">
+            <span className="mirror-stat__value">{memory.relations ?? '?'}</span>
+            <span className="mirror-stat__label">Relations</span>
+          </div>
+          <div className="mirror-stat">
+            <span className="mirror-stat__value">{memory.users ?? '?'}</span>
+            <span className="mirror-stat__label">Users</span>
+          </div>
         </div>
       )}
     </div>
@@ -184,18 +195,22 @@ function CapabilitiesCard({ capabilities }) {
         <span>Capabilities</span>
       </div>
       <div className="mirror-stats mirror-stats--row">
-        <div className="mirror-stat">
-          <span className="mirror-stat__value">{capabilities.totalTools}</span>
-          <span className="mirror-stat__label">Tools</span>
-        </div>
-        <div className="mirror-stat">
-          <span className="mirror-stat__value">{capabilities.totalWorkflows}</span>
-          <span className="mirror-stat__label">Workflows</span>
-        </div>
-        <div className="mirror-stat">
-          <span className="mirror-stat__value">{capabilities.totalIntents}</span>
-          <span className="mirror-stat__label">Intents</span>
-        </div>
+        {[
+          ['Tools', capabilities.totalTools, capabilities.toolsUnknown],
+          ['Workflows', capabilities.totalWorkflows, capabilities.workflowsUnknown],
+          ['Agents', capabilities.totalAssistants, capabilities.agentsUnknown],
+        ].map(([label, value, unk]) => (
+          <div className="mirror-stat" key={label}>
+            {unk ? (
+              <span className="mirror-stat__label">{label} {unknownLine(unk)}</span>
+            ) : (
+              <>
+                <span className="mirror-stat__value">{value ?? '?'}</span>
+                <span className="mirror-stat__label">{label}</span>
+              </>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -457,9 +472,13 @@ function ImplantsGrid({ implants }) {
               </div>
             )}
             <div className="mirror-implant__body">
-              <HealthBar value={implant.health} />
+              {implant.health != null && <HealthBar value={implant.health} />}
               <div className="mirror-implant__details">
-                <span className="mirror-implant__health">{implant.health}%</span>
+                {implant.health != null ? (
+                  <span className="mirror-implant__health">{implant.health}%</span>
+                ) : implant.statusReason?.message ? (
+                  <span className="mirror-implant__metric">{implant.statusReason.message}</span>
+                ) : null}
                 {implant.primaryMetric && (
                   <span className="mirror-implant__metric">{implant.primaryMetric}</span>
                 )}
@@ -634,7 +653,7 @@ export default function MirrorTab() {
       setConsciousness(data)
     } catch (err) {
       console.error('[MirrorTab] Failed to fetch reflection:', err)
-      setError('Failed to load reflection map')
+      setError(`${err?.status ? `HTTP ${err.status}: ` : ''}${err?.message || 'Failed to load reflection map'}`)
     } finally {
       setLoading(false)
     }

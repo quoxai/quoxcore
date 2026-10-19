@@ -113,6 +113,11 @@ async function mintPendingAndRespond({
         type: 'qluster_delegation',
         controller_id: controller.id,
         selected_agent: selectedAgent,
+        what: {
+          action: 'delegate to fleet agent',
+          target: `agent ${selectedAgent} on controller ${controller.id}`,
+          summary: `send this prompt to ${selectedAgent} (controller ${controller.id}): ${String(prompt || '').replace(/\s+/g, ' ').slice(0, 140)}`,
+        },
       },
     }, { authBaseUrl, serviceKey, fetchImpl });
     if (r.ok) {

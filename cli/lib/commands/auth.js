@@ -199,7 +199,9 @@ export function registerAuthCommands(program, ctx) {
     .action(async () => {
       auth.requireAuth();
       const data = await client.get(resolveEndpoint('auth.me.list').path, { service: resolveEndpoint('auth.me.list').service });
-      const authData = config.getAuth();
+      // A QUOX_TOKEN_FILE principal (the W4 builder uid) has no stored profile:
+      // render from the server's /me answer rather than crash on null.
+      const authData = config.getAuth() || {};
 
       // quox#463: resident logins carry org_id but no org_name (the
       // bootstrap has only the id), and this rendered a real membership as

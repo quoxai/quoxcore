@@ -1,4 +1,5 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 function pathExists(target) {
@@ -22,11 +23,25 @@ function isContainerRuntime() {
     || Boolean(process.env.KUBERNETES_SERVICE_HOST);
 }
 
+// #1021: the host user's home. QUOX_HOST_HOME wins (dev compose pins it, since the
+// container user's HOME is not the host owner's home); else the running user's home.
+function hostHome() {
+  return process.env.QUOX_HOST_HOME || os.homedir();
+}
+
+function hostPath(...parts) {
+  return path.join(hostHome(), ...parts);
+}
+
+// Claude names a project dir by its path with separators turned into '-'.
+function claudeProjectDir() {
+  return path.join(hostHome(), '.claude', 'projects', hostHome().replace(/[\\/]/g, '-'));
+}
+
 function resolveRuntimeHomeDir() {
   return firstExistingPath(
     process.env.HOME,
     process.env.USERPROFILE,
-    '/opt/quoxcore',
     '/home/quox',
     '/root',
     process.cwd(),
@@ -68,7 +83,10 @@ function resolveBastionSshKeyPath(homeDir = resolveRuntimeHomeDir()) {
 }
 
 module.exports = {
+  claudeProjectDir,
   firstExistingPath,
+  hostHome,
+  hostPath,
   isContainerRuntime,
   resolveBastionSshKeyPath,
   resolveQuoxCliEntryPath,

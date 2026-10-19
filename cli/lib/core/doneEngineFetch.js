@@ -145,6 +145,14 @@ export async function fetchEngine({ dest, needsSudo, force, client, execFn, fsOp
   }
 
   const res = await client.get('/download/quoxgauge-bundle.tar.gz', { service: 'collector', raw: true });
+  // #988: a public install's collector has no DoneEngine bundle (dev servers build it from the private quox-gauge
+  // repo), so a 404 is a fact about this install, not a transient failure worth retrying.
+  if (res && res.status === 404) {
+    const err = new Error('DoneEngine is not part of this Quox install: this collector does not carry the DoneEngine bundle '
+      + '(it is delivered to Quox dev servers by `quox dev enable`). Nothing was changed.');
+    err.code = 'DONEENGINE_NOT_SHIPPED';
+    throw err;
+  }
   if (!res || !res.ok) {
     throw new Error(`Bundle download failed (status ${res ? res.status : 'no response'}) from /download/quoxgauge-bundle.tar.gz`);
   }

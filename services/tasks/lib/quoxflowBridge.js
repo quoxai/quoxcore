@@ -15,6 +15,7 @@
 
 import { convertTasksToWorkflow } from './workflowConverter.js'
 import { appendTaskSummary } from './teamLoader.js'
+import { recordPerformance, computeQualityScore, inferDomainFromTitle } from './agentScorer.js'
 
 // AEE-FULL Gap 3: dual-read both legacy and canonical LLM completion/failure
 // intents. Historical envelopes are WARD-immutable; new envelopes carry
@@ -346,7 +347,7 @@ export async function pollExecutionStatus(executionId, objectiveId, taskIds, opt
         let taskMetaById = new Map()
         if (taskIds.length > 0) {
           const rows = db.prepare(
-            `SELECT id, title, agent_id, prompt, depends_on, sequence_num, retry_count FROM tasks WHERE id IN (${taskIds.map(() => '?').join(',')})`
+            `SELECT id, org_id, title, agent_id, prompt, depends_on, sequence_num, retry_count, metadata FROM tasks WHERE id IN (${taskIds.map(() => '?').join(',')})`
           ).all(...taskIds)
           taskMetaById = new Map(rows.map(r => [r.id, r]))
         }
@@ -408,6 +409,34 @@ export async function pollExecutionStatus(executionId, objectiveId, taskIds, opt
             type: taskStatus === 'completed' ? 'task_completed' : (taskStatus === 'failed' ? 'task_failed' : 'task_skipped'),
             task_id: taskIds[i],
           })
+
+          // QUOXMIND-PROOF (2026-10-15): feed QuoxLearn / QuoxValue and the
+          // decomposer's selectBestAgent. recordPerformance() lost both callers
+          // when the legacy executor was deleted (QE2 Phase 6), freezing
+          // agent_performance at 2026-03-28 while the router kept scoring on it.
+          // A skipped task never ran, so it records nothing. Best-effort: a
+          // failed insert is logged, never breaks the poll. Once per task: the
+          // reconciler can re-poll an objective (same reason the envelopes
+          // below check hasTaskEnvelope), and a re-poll must not double-count.
+          if ((taskStatus === 'completed' || taskStatus === 'failed') &&
+              !db.prepare('SELECT 1 FROM agent_performance WHERE task_id = ? LIMIT 1').get(taskIds[i])) {
+            try {
+              const meta = taskMetaById.get(taskIds[i]) || {}
+              let domain = null
+              try { domain = JSON.parse(meta.metadata || '{}')?.domain || null } catch { domain = null }
+              recordPerformance(meta.org_id || orgId, meta.agent_id || 'unknown', taskIds[i], objectiveId, {
+                success: taskStatus === 'completed',
+                latencyMs: durationMs,
+                tokensUsed,
+                domain: domain || inferDomainFromTitle(meta.title),
+                qualityScore: taskStatus === 'completed'
+                  ? computeQualityScore({ result: taskResult, toolsUsed: (toolsUsed || []).length, wasRetry: (meta.retry_count || 0) > 0 })
+                  : 0,
+              })
+            } catch (err) {
+              console.warn(`[QuoxLearn] agent_performance write failed for task ${taskIds[i]}: ${err.message}`)
+            }
+          }
 
           // AEE-TASK-EVIDENCE (quox#480): write the task lifecycle to the
           // envelopes table alongside the SSE emit above.

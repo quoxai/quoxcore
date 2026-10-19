@@ -19,6 +19,14 @@ export const x = {
     path: () => `/x/media`,
     tags: ['live-write'],
   },
+  // GET /x/activity: recent claims + ledger + live budget (camelCase), org-scoped. `quox x status`
+  // reads the budget from here.
+  'x.activity': {
+    method: 'GET',
+    service: 'collector',
+    path: () => `/x/activity`,
+    tags: ['live-safe'],
+  },
 };
 
 export default x;

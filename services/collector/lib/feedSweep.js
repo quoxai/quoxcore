@@ -252,7 +252,11 @@ async function planRoot(o) {
     return res;
   }
 
-  return { entries, eligible, remaining, multiPage, complete, oversize, finish };
+  // BRAIN2-FABLE11: more work is owed beyond this batch (further walk pages, files
+  // cut by the cap, or catch-up files deferred). The scheduler uses it to run
+  // back-to-back catch-up batches instead of waiting a full cadence per page.
+  const hasMore = (multiPage && !complete) || remaining.length > 0 || deferredCatchUp > 0;
+  return { entries, eligible, remaining, multiPage, complete, oversize, hasMore, finish };
 }
 
 module.exports = { walkFolderPaged, planRoot, defaultStore, MAX_WALK_ENTRIES };

@@ -14,6 +14,16 @@ export function isServerDown(e) {
   return /ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|UND_ERR_SOCKET/.test(String(code)) || /Could not connect to|fetch failed|ECONNREFUSED/i.test(msg);
 }
 
+/** gh #1157: resume during a collector restart. Connection-class failures (refused, fetch failed, hang up, 502/503/504) are worth retrying; 401/404 are answers. */
+export function isResumeRetryable(e) {
+  if (!e) return false;
+  if (e.status) return [502, 503, 504].includes(Number(e.status));
+  return isServerDown(e) || /socket hang up|ECONNRESET|other side closed|terminated/i.test(String(e.message || ''));
+}
+/** 2, 4, 8, 15, 30 s, then 30 s steps: about 2 minutes in all before giving up. */
+export const RESUME_RETRY_DELAYS = [2000, 4000, 8000, 15000, 30000, 30000, 30000];
+export const RESUME_RECONNECTING = 'Quox server restarting, reconnecting to your conversation…';
+
 /** 1s, 2s, 4s, 8s, then 10s (capped). */
 export const backoffMs = (i) => Math.min(10000, 1000 * 2 ** i);
 

@@ -29,4 +29,17 @@ export const executions = {
     path: () => `/api/executions`,
     tags: ['live-safe'],
   },
+  // #997: `run cancel`/`run resume` reach the engine first (these are the runs `run list` shows)
+  'executions.cancel': {
+    method: 'POST',
+    service: 'quoxflow',
+    path: ({ executionId }) => `/api/executions/${executionId}/cancel`,
+    tags: ['live-write'],
+  },
+  'executions.resume': {
+    method: 'POST',
+    service: 'quoxflow',
+    path: ({ executionId }) => `/api/executions/${executionId}/resume`,
+    tags: ['live-write'],
+  },
 };

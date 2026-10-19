@@ -1,7 +1,7 @@
 {
   "name": "quox-core",
   "private": true,
-  "version": "4.2.4",
+  "version": "4.2.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,10 +17,13 @@
     "test:release": "bash scripts/test-release.sh",
     "test:screencap": "node --test services/screencap/test/",
     "test:quoxbrain": "node --test services/quoxbrain/test/",
+    "test:nodetest": "node --test scripts/doneengine/quox-board-snapshot.test.mjs scripts/builder/test/quox-builder-session.test.mjs scripts/builder/test/seed-import.test.mjs scripts/ops/filesBackfill.test.mjs scripts/release/quoxagent/test/quoxagentRelease.test.mjs",
+    "test:matrix": "node --test scripts/matrix/",
     "test:memory": "npm test --prefix services/memory",
     "test:cli": "npm test --prefix cli",
     "test:matrix": "node --test scripts/matrix/test/matrix-drift.mjs",
     "test:matrix:live": "MATRIX_LIVE=1 node --test scripts/matrix/test/matrix-drift.mjs",
+    "check:sdk-css": "node scripts/check-sdk-qx-css.mjs",
     "check:strip": "node scripts/check-strip-registry.mjs",
     "scan:dist": "node scripts/check-dist-clean.mjs",
     "check:boundary": "node scripts/check-strip-boundary.mjs",
@@ -87,7 +90,7 @@
     "jsonwebtoken": "^9.0.3",
     "pixelmatch": "^7.1.0",
     "pngjs": "^7.0.0",
-    "quox-plugin-vite": "^0.2.0",
+    "@quoxai/quox-plugin-vite": "^0.4.0",
     "ulid": "^2.4.0",
     "vite": "^7.2.4",
     "vitest": "^4.0.17"

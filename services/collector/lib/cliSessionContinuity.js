@@ -65,11 +65,11 @@ function planCliContinuity({ orgId, userId, conversationId, agentId, isValidUUID
     return fresh('context_full');
   }
 
-  // Turns stored since this agent last spoke (another agent's turns after an
-  // /attach switch). The resumed session never saw them.
+  // Turns stored since this agent last spoke (another agent's or another provider's turns).
+  // The resumed session never saw them; their tool activity rides along (QUOXON lane S).
   let missedTurns = [];
   if (row.last_msg_id) {
-    const msgs = store.listMessages({ orgId, userId, sessionId: conversationId, after: row.last_msg_id, limit: MISSED_TURNS_MAX }, storeOpts);
+    const msgs = store.listMessages({ orgId, userId, sessionId: conversationId, after: row.last_msg_id, limit: MISSED_TURNS_MAX, includeActivity: true }, storeOpts);
     missedTurns = Array.from(msgs || []).map((m) => ({ role: m.role, content: m.content }));
   }
   return { enabled: true, resumeSessionId: row.cli_session_id, includeHistory: false, reason: 'resume', missedTurns };

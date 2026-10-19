@@ -13,6 +13,7 @@
  * - Logs all operations to backup_audit_log
  */
 
+import { hostHome, hostPath } from '../utils/hostPaths.js';
 import { getDb, prepare } from '../db/index.js';
 import { ulid, createAuditEvent } from '../utils/helpers.js';
 import { emitItemCreated, emitStatsUpdate } from '../utils/inboxEvents.js';
@@ -23,12 +24,14 @@ import * as fs from 'fs/promises';
 import { existsSync } from 'fs';
 import { createHash } from 'crypto';
 import { createReadStream } from 'fs';
+import { reconcileInterruptedVerifies, VERIFY_TIMEOUT_MS } from '../lib/backupVerifyReconcile.js';
+import { tryEnqueueSelfVerify, runSelfVerifyTick, enqueueLatestUnverified } from '../lib/backupSelfVerify.js';
 import { getInstanceSetting } from '../lib/configResolver.js';
 
 // Configuration
 const CHECK_INTERVAL_MS_DEFAULT = parseInt(process.env.BACKUP_SCHEDULER_INTERVAL_MS || '60000', 10); // 1 minute
 const BACKUP_SCRIPT = process.env.BACKUP_SCRIPT || '/app/project/scripts/backup-quox.sh';
-const BACKUP_ROOT = process.env.BACKUP_ROOT || '/opt/quoxcore/backups';
+const BACKUP_ROOT = process.env.BACKUP_ROOT || hostPath('backups');
 
 // VAULT-INTEG P17: BACKUP_SCHEDULER_INTERVAL_MS was a bare process.env read
 // frozen at module load. Resolved via configResolver.getInstanceSetting()
@@ -162,7 +165,7 @@ function formatBytes(bytes) {
  * Send inbox notification after backup completes or fails.
  * Notifies all org owners/admins.
  */
-function notifyBackupResult(orgId, scheduleName, backupId, success, details) {
+export function notifyBackupResult(orgId, scheduleName, backupId, success, details) {
     try {
         // Find all owners and admins in the org
         const admins = prepare(`
@@ -176,10 +179,12 @@ function notifyBackupResult(orgId, scheduleName, backupId, success, details) {
         const priority = success ? 'low' : 'high';
         const title = success
             ? `Backup completed: ${scheduleName}`
-            : (details.degraded ? `Backup DEGRADED (incomplete): ${scheduleName}` : `Backup FAILED: ${scheduleName}`);
+            : (details.selfVerifyUnscheduled ? `Backup self-verify could not be scheduled: ${scheduleName}` : details.integrity ? `Backup FAILED integrity check: ${scheduleName}` : details.degraded ? `Backup DEGRADED (incomplete): ${scheduleName}` : `Backup FAILED: ${scheduleName}`);
         const body = success
             ? `Scheduled backup **${scheduleName}** completed successfully.\n\n- Size: ${formatBytes(details.sizeBytes || 0)}\n- Duration: ${details.durationMs || 0}ms`
-            : (details.degraded
+            : (details.integrity
+                ? `Backup **${scheduleName}** failed its integrity check.\n\n${details.error}\n\nThe archive is corrupt or was altered. It was marked failed and will not be offered as the latest good backup.`
+                : details.degraded
                 ? `Scheduled backup **${scheduleName}** produced an archive but it is **INCOMPLETE**.\n\n${details.error}\n\nThe archive was kept and marked degraded. Do not treat it as a full backup.`
                 : `Scheduled backup **${scheduleName}** failed.\n\nError: ${details.error || 'Unknown error'}`);
 
@@ -287,7 +292,7 @@ export async function runScheduledBackup(schedule) {
             backupScript: BACKUP_SCRIPT, backupRoot: BACKUP_ROOT
         }).then((detached) => {
         const proc = detached || spawn(BACKUP_SCRIPT, [mode], {
-            cwd: '/opt/quoxcore',
+            cwd: hostHome(),
             env: { ...process.env, BACKUP_ID: backupId }
         });
 
@@ -446,6 +451,17 @@ export async function finalizeScheduledRun({ schedule, backupId, backupName, sta
         error: isDegraded ? degradedMessage(skippedRequired) : (status === 'failed' ? (emptyRunMessage || stderr || `Exit code ${code}`) : null)
     });
 
+    // quox#1205: the new backup (completed OR degraded: status is 'completed' for both here) verifies
+    // itself on a later tick, outside the PBS window. An enqueue failure is counted and raised.
+    if (status === 'completed') {
+        tryEnqueueSelfVerify(getDb(), backupId, schedule.org_id, (err) => {
+            notifyBackupResult(schedule.org_id, schedule.name, backupId, false, {
+                selfVerifyUnscheduled: true,
+                error: `Backup self-verify could not be scheduled: ${err.message}`
+            });
+        });
+    }
+
     // Enforce retention after successful backup
     if (status === 'completed') {
         await enforceRetention(schedule);
@@ -538,6 +554,34 @@ export async function checkAndRunDueSchedules() {
     isRunning = true;
 
     try {
+        // quox#1205: a verify stuck past VERIFY_TIMEOUT_MS is reconciled from its stored result.
+        try {
+            for (const id of reconcileInterruptedVerifies(getDb(), { staleAfterMs: VERIFY_TIMEOUT_MS })) {
+                console.log(`[BackupScheduler] Reconciled timed-out backup verify ${id}`);
+            }
+        } catch (err) {
+            console.error(`[BackupScheduler] Verify reconcile failed: ${err.message}`);
+        }
+
+        // The newest backup of each org always gets a self-verify job, even one written before
+        // self-verify shipped or whose enqueue was lost (quox#1205). A failure here is an error, never idle.
+        try {
+            const queued = enqueueLatestUnverified(getDb());
+            for (const id of queued) console.log(`[BackupScheduler] self-verify queued for latest unverified backup ${id}`);
+        } catch (err) {
+            console.error(`[BackupScheduler] self-verify latest-backup enqueue failed (counted as error, not idle): ${err.message}`);
+        }
+
+        try {
+            const { verifyBackupIntegrity } = await import('../routes/backups.js'); // lazy: backups.js imports this file
+            const r = await runSelfVerifyTick(getDb(), { verifier: verifyBackupIntegrity, notify: notifyBackupResult });
+            if (!r.idle) {
+                console.log(`[BackupScheduler] self-verify: ran=${r.ran} errors=${r.errors} deferred=${r.deferred} retired=${r.retired} enqueue_errors=${r.enqueue_errors || 0}`);
+            }
+        } catch (err) {
+            console.error(`[BackupScheduler] self-verify tick failed (counted as error, not idle): ${err.message}`);
+        }
+
         const now = new Date().toISOString();
 
         // Find all enabled schedules where next_run_at has passed

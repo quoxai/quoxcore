@@ -65,14 +65,42 @@ export function newerBuild({ startSha, runningRoot = RUNNING_ROOT, env = process
   return DIFFERENT_NOTICE; // unrelated or unknown history: say so, never claim "newer
 }
 
-/** Poll at most every `everyMs`; calls onNotice once. -> stop(). */
-export function startBuildWatch({ onNotice, everyMs = 60000, check = newerBuild, ...opts } = {}) {
-  let said = false;
+/** The installed build's id (its CLI tree's git HEAD), read locally. null when it cannot be told. */
+export function installedBuildId({ runningRoot = RUNNING_ROOT, env = process.env } = {}) {
+  return headOf(cliRootOf(findOnPath('quox', env)) || runningRoot);
+}
+
+/**
+ * Poll at most every `everyMs`; calls onNotice(text, buildId) once. -> stop().
+ * With `repeat`, keeps watching and calls onNotice again for each LATER installed build (a new id).
+ */
+// settleMs defaults to 0 here (announce at once); the TUI (main.js) passes settleMsFrom() so real sessions settle.
+export const RESTART_SETTLE_MS = 120000; // a newer build must stay the installed one this long before it is announced
+export const RESTART_BOOT_WINDOW_MS = 5 * 60 * 1000; // after a start, the settle window runs from the start
+
+export function settleMsFrom(env = process.env) {
+  const n = Number(env.QUOX_RESTART_SETTLE_MS);
+  return env.QUOX_RESTART_SETTLE_MS != null && env.QUOX_RESTART_SETTLE_MS !== '' && Number.isFinite(n) && n >= 0 ? n : RESTART_SETTLE_MS;
+}
+
+export function startBuildWatch({ onNotice, everyMs = 60000, check = newerBuild, repeat = false, buildId = installedBuildId, settleMs = 0, now = Date.now, ...opts } = {}) {
+  let last; // repeat mode: the last build announced
+  let seen; let seenAt = 0; let seenNotice = null; // repeat mode: the build waiting to settle, and when it last changed
+  const bootAt = now();
   const id = setInterval(() => {
-    if (said) return;
     let t = null;
     try { t = check(opts); } catch { t = null; }
-    if (t) { said = true; onNotice(t); clearInterval(id); }
+    if (!t) return;
+    let b = null;
+    try { b = buildId(opts); } catch { b = null; }
+    if (!repeat) { clearInterval(id); onNotice(t, b); return; }
+    if (b === last && last !== undefined) return;
+    if (b !== seen || seen === undefined) { seen = b; seenAt = now(); } // a new build resets the settle timer
+    seenNotice = t;
+    const t0 = now() - bootAt < RESTART_BOOT_WINDOW_MS ? Math.max(seenAt, bootAt) : seenAt;
+    if (now() - t0 < settleMs) return;
+    last = b;
+    onNotice(seenNotice, b);
   }, everyMs);
   id.unref?.();
   return () => clearInterval(id);
@@ -124,21 +152,25 @@ export function checkRestart({ env = process.env, bin = findOnPath('quox', env),
   });
 }
 
+/** Env var carrying the held slot name from the old client to its restarted successor. */
+export const RESTART_SLOT_ENV = 'QUOX_RESTART_SLOT';
+/** Env var carrying the /attach target (`agent:<id>` or `slot:<name>`) to the restarted successor. */
+export const RESTART_ATTACH_ENV = 'QUOX_RESTART_ATTACH';
+/** Env var carrying one line for the restarted client to say first (a failed /update says why there). */
+export const RESTART_NOTE_ENV = 'QUOX_RESTART_NOTE';
+/** Env var carrying the window's own org (#1034: /org switch is window-scoped) to the restarted successor. */
+export const RESTART_ORG_ENV = 'QUOX_RESTART_ORG';
+/** Env var carrying the window's /mode (PLAN MODE: only 'plan' is carried; ask is the default) to the restarted successor. */
+export const RESTART_MODE_ENV = 'QUOX_RESTART_MODE';
+
 /** Terminal modes the client turns on (bracketed paste, focus reporting, hidden cursor): all off before the hand-over. */
-export const TERMINAL_RESTORE = '\x1b[?2004l\x1b[?1004l\x1b[?25h';
+export const TERMINAL_RESTORE = '\x1b[?2004l\x1b[?1004l\x1b[?25h\x1b[?1006l\x1b[?1002l\x1b[?1000l'; // bracketed paste, focus, cursor; mouse tracking off (QUOXON-MOUSE)
 
 /** Give the terminal back in a plain state: cooked mode, stdin paused, modes off. */
 export function restoreTerminal({ stdin = process.stdin, stdout = process.stdout } = {}) {
   try { if (stdin?.isTTY) stdin.setRawMode?.(false); stdin?.pause?.(); } catch { /* not a tty */ }
   try { if (stdout?.isTTY) stdout.write(TERMINAL_RESTORE); } catch { /* closed */ }
 }
-
-// REL-423 (from main, fe50e4000): restartPlan carries these one-shot hand-over vars when a caller passes them.
-// 4.2.x main.js does not pass slot/attach/org/mode, so they stay unset here; the launcher treats QUOX_RESTART_* as one-shots.
-export const RESTART_SLOT_ENV = 'QUOX_RESTART_SLOT';
-export const RESTART_ATTACH_ENV = 'QUOX_RESTART_ATTACH';
-export const RESTART_ORG_ENV = 'QUOX_RESTART_ORG';
-export const RESTART_MODE_ENV = 'QUOX_RESTART_MODE';
 
 /**
  * What a restart runs: { cmd, args, env }. The installed quox (or this tree), the same arguments with --resume

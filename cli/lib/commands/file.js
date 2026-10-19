@@ -2,7 +2,7 @@
  * File commands: upload, download, list, delete
  */
 
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { formatOutput, formatDetail, printSuccess } from '../core/output.js';
 import { resolveEndpoint } from '../api/endpoints.js';
@@ -124,5 +124,42 @@ export function registerFileCommands(program, ctx) {
       auth.requireAuth();
       const data = await client.get(resolveEndpoint('files.stats').path, { service: resolveEndpoint('files.stats').service });
       formatDetail(data.stats || data, { format: program.opts().output, title: 'File Storage Stats' });
+    });
+
+  // F01 A': legacy files with no proven owner are hidden from every org until a human instance admin assigns them.
+  file
+    .command('quarantine')
+    .description('List files with no proven owner org (instance admin only)')
+    .action(async () => {
+      auth.requireAuth();
+      const ep = resolveEndpoint('files.quarantine.list');
+      const data = await client.get(ep.path, { service: ep.service });
+      formatOutput({ columns: ['id', 'name', 'size'], headers: ['ID', 'Name', 'Size'], rows: data.files || [] }, { format: program.opts().output });
+    });
+
+  file
+    .command('assign')
+    .description('Assign a quarantined file to an org (instance admin only; witnessed): <fileId> --org <orgId>, or --from-report <dry-run.json>')
+    .argument('[fileId]', 'quarantined file id')
+    .option('--org <orgId>', 'org that owns the file')
+    .option('--from-report <path>', 'an owner-approved backfill dry-run report: assigns only rows with a derived owner')
+    .action(async (fileId, options) => {
+      auth.requireAuth();
+      let assignments;
+      if (options.fromReport) {
+        const report = JSON.parse(readFileSync(options.fromReport, 'utf8'));
+        assignments = (report.rows || []).filter((r) => r && r.id && r.orgId).map((r) => ({ file_id: r.id, org_id: r.orgId }));
+        if (!assignments.length) throw new Error('The report has no rows with a derived owner; nothing to assign.');
+      } else if (fileId) {
+        if (!options.org) throw new Error('Give the owning org: quox file assign <fileId> --org <orgId>');
+        assignments = [{ file_id: fileId, org_id: options.org }];
+      } else {
+        throw new Error('Give <fileId> --org <orgId>, or --from-report <dry-run.json>');
+      }
+      const ep = resolveEndpoint('files.quarantine.assign');
+      const data = await client.post(ep.path, { service: ep.service, body: { assignments } });
+      formatOutput({ columns: ['file_id', 'org_id', 'ok', 'error'], headers: ['File', 'Org', 'Assigned', 'Error'], rows: data.results || [] }, { format: program.opts().output });
+      const failed = (data.results || []).filter((r) => !r.ok).length;
+      if (failed) { process.exitCode = 1; } else { printSuccess(`Assigned ${assignments.length} file(s).`); }
     });
 }

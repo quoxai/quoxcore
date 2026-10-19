@@ -24,15 +24,25 @@ const TURN_TOKEN_AUDIENCE = 'quox:tools-execute';
 const TURN_TOKEN_MARGIN_SEC = 60;
 const TURN_TOKEN_MAX_TTL_SEC = 3600;
 
-function mintTurnToken({ userId, orgId, conversationId, agentId, ttlMs, turnId, secret = process.env.JWT_SECRET } = {}) {
+function mintTurnToken({ userId, orgId, conversationId, agentId, turnIntent, turnMode, ttlMs, turnId, turnDeadlineAt, secret = process.env.JWT_SECRET, noShell, systemActor, toolsGated } = {}) {
   if (!secret) throw new Error('turn token: JWT_SECRET not configured');
-  if (!userId || !orgId) throw new Error('turn token: userId and orgId are required');
+  // RunActor slice 2 (quox#1274): a workflow/scheduled turn has no user. It may run as a named
+  // SYSTEM actor (never a human), only with the agent and the org. A real user always wins.
+  let system = null;
+  if (!userId && systemActor !== undefined && systemActor !== null) {
+    const { isValidSystemActor, SYSTEM_PREFIX } = require('./systemActor.js');
+    if (!isValidSystemActor(systemActor)) throw new Error('turn token: malformed system actor');
+    if (!agentId || !orgId) throw new Error('turn token: a system actor needs agentId and orgId');
+    system = `${SYSTEM_PREFIX}${systemActor}`;
+  }
+  if (!system && (!userId || !orgId)) throw new Error('turn token: userId and orgId are required');
   const ttlSec = Math.min(
     TURN_TOKEN_MAX_TTL_SEC,
     Math.max(30, Math.ceil((Number(ttlMs) || 0) / 1000) + TURN_TOKEN_MARGIN_SEC),
   );
   const claims = {
-    sub: String(userId),
+    sub: system || String(userId),
+    ...(system ? { actor_type: 'system' } : {}),
     org_id: String(orgId),
     type: 'access',
     aud: TURN_TOKEN_AUDIENCE,
@@ -43,6 +53,17 @@ function mintTurnToken({ userId, orgId, conversationId, agentId, ttlMs, turnId, 
   };
   if (conversationId) claims.conversation_id = String(conversationId);
   if (agentId) claims.agent_id = String(agentId);
+  // QUOXON-ENGINE class 3 (quox#842): 'read' or 'act', from the user's own message, so
+  // /api/v1/tools/execute applies the same read-turn rule as the API offer.
+  if (turnIntent === 'read' || turnIntent === 'act') claims.turn_intent = turnIntent;
+  // 2026-10-16: a security read with no shell ask; /api/v1/tools/execute drops ssh_exec on it (no shell sweep)
+  if (noShell === true) claims.no_shell = true;
+  // 2026-10-19: the turn registered the tools its prompt lists (lib/turnToolGate.js); tools/execute runs only those
+  if (toolsGated === true) claims.tools_gated = true;
+  if (turnMode === 'plan') claims.turn_mode = 'plan'; // PLAN MODE: /api/v1/tools/execute refuses state-changing calls
+  // quox#1090: the END of the turn (from the caller's turn budget), signed, so a delegation hop may wait
+  // past this short token's own expiry. It never lengthens the token: exp stays ttl + margin.
+  { const at = Number(turnDeadlineAt); const now = Date.now(); if (Number.isFinite(at) && at > now) claims.turn_deadline_at = Math.min(Math.floor(at), now + 900000); }
   return jwt.sign(claims, secret, { algorithm: 'HS256', expiresIn: ttlSec });
 }
 

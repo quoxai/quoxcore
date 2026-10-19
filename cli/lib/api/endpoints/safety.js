@@ -43,4 +43,11 @@ export const safety = {
     path: () => `/api/v1/safety/history`,
     tags: ['live-safe'],
   },
+  // QUOXON-STEPUP: a human with a live step-up token overrides ONE blocked action (collector routes/overrides.js).
+  'safety.override': {
+    method: 'POST',
+    service: 'collector',
+    path: () => `/api/v1/overrides`,
+    tags: ['live-write'],
+  },
 };

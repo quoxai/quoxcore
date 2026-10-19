@@ -3,7 +3,7 @@
  *
  * Gives CONCIERGE (src/config/agentRegistry.js `concierge`) direct, governed
  * access to the Quox Discord Pro daemon (separate repo:
- * /opt/quoxcore/quox-discord-pro), which before this had no agent surface at
+ * ~/quox-discord-pro), which before this had no agent surface at
  * all -- the only way to operate it was the `qdp` CLI on the daemon host, or
  * hand-editing config.json. Owner framing: "he should be the concierge."
  *
@@ -46,7 +46,8 @@ const INTERNAL_SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || '';
 // (3s against the same 12s call) — when a call fans out, every layer above it
 // needs a budget proportional to the work, or the innermost fix is invisible.
 const FETCH_TIMEOUT_MS = 5000;
-const DIAGNOSE_TIMEOUT_MS = 45000;
+// quox#1168: must exceed routes/discord-pro.js DOCTOR_TIMEOUT_MS (120s), or the tool gives up first.
+const DIAGNOSE_TIMEOUT_MS = 130000;
 
 /** Shared GET helper for the two read-only tools. Never throws into the
  * agent loop -- network failures, timeouts, and non-2xx all become a
@@ -97,6 +98,18 @@ async function discordProWrite(method, path, body) {
   return json || {};
 }
 
+// quox#1168: the daemon reports trouble as {ok:false, status, hint} with no `error`, so a failed call
+// reached the agent (and the log) with an EMPTY error. Name the state and carry the daemon's own hint.
+function daemonResult(report) {
+  const r = report || {};
+  if (r.ok !== false) return { success: true, ...r };
+  if (r.error) return { success: false, ...r };
+  const status = r.status ? String(r.status) : 'unavailable';
+  const code = `discord_daemon_${status.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`;
+  const error = `Discord Pro daemon is ${status}${r.hint ? `: ${r.hint}` : ''}`;
+  return { success: false, ...r, error, error_code: code };
+}
+
 const DISCORD_PRO_TOOLS = {
   discord_list_bindings: {
     name: 'discord_list_bindings',
@@ -105,7 +118,7 @@ const DISCORD_PRO_TOOLS = {
     execute: async () => {
       try {
         const status = await discordProGet('/api/discord-pro/status');
-        return { success: status.ok !== false, ...status };
+        return daemonResult(status);
       } catch (err) {
         return { success: false, error: err.message };
       }
@@ -114,12 +127,12 @@ const DISCORD_PRO_TOOLS = {
 
   discord_diagnose: {
     name: 'discord_diagnose',
-    description: 'Diagnose why a Discord Pro binding is not working. Checks whether the bot can actually VIEW each bound channel -- Discord only delivers messages for channels the bot can see, so a channel or category denying View Channel produces total silence with zero errors anywhere (this is what caused 18 of 25 bindings to be silently dead for weeks on 2026-08-11). Reports OK / WARN (webhook-only feed degraded) / FATAL (conversational binding dead) per binding. For every broken binding, names the specific permission bits missing (View Channel, Read Message History) and the plain-language remedy -- the bot cannot repair this itself, a human must grant the permission via a Discord role or a per-channel overwrite. Read-only.',
+    description: 'Diagnose why Discord messages are not arriving: checks that each Discord Pro binding actually works. Checks whether the bot can actually VIEW each bound channel -- Discord only delivers messages for channels the bot can see, so a channel or category denying View Channel produces total silence with zero errors anywhere (this is what caused 18 of 25 bindings to be silently dead for weeks on 2026-08-11). Reports OK / WARN (webhook-only feed degraded) / FATAL (conversational binding dead) per binding. For every broken binding, names the specific permission bits missing (View Channel, Read Message History) and the plain-language remedy -- the bot cannot repair this itself, a human must grant the permission via a Discord role or a per-channel overwrite. Read-only.',
     input_schema: { type: 'object', properties: {}, required: [] },
     execute: async () => {
       try {
         const report = await discordProGet('/api/discord-pro/diagnose', DIAGNOSE_TIMEOUT_MS);
-        return { success: report.ok !== false, ...report };
+        return daemonResult(report);
       } catch (err) {
         return { success: false, error: err.message };
       }

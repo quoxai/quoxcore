@@ -80,6 +80,7 @@ export function soundForEvent(prev, action, ctx = {}) {
   // An approval card appeared (stream event or inbox poll).
   if (next.approvals?.length > (prev.approvals?.length || 0) || next.waiting?.length > (prev.waiting?.length || 0)) return 'hitl'; // a card, or another session's notice
   if (action.type === 'approval.result') return action.outcome === 'failed' ? 'denied' : null;
+  if (action.type === 'stepup.result') return action.ok ? 'success' : 'denied'; // QUOXON-STEPUP: reuse the existing cues
   if (action.type !== 'event' || !action.ev) return null;
   const ev = action.ev;
   switch (ev.type) {

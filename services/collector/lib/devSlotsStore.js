@@ -77,6 +77,7 @@ function rowToRecord(row) {
     discord_channel_id: row.discord_channel_id || null,
     discord_webhook_url: row.discord_webhook_url || null,
     last_read_at: row.last_read_at || null,
+    last_read_rowid: row.last_read_rowid == null ? null : row.last_read_rowid,
     // DEVSUITE-SLOTS P1-TRUST slice 3: sweepStale stamps last_heartbeat_at
     // to the sweep time the moment a held slot ages into 'stale' (see
     // sweepStale below), so that column already carries "went stale at" —
@@ -102,10 +103,15 @@ function rowToRecord(row) {
 // authored by the record's own current holder, because a holder's own
 // posts are not unread mail waiting on them. A free slot has no holder to
 // exclude, so every message since last_read_at counts.
-function countUnreadMessages(db, { orgId, slotId, holderSession, sinceExclusive }) {
+function countUnreadMessages(db, { orgId, slotId, holderSession, sinceExclusive, sinceRowid }) {
   const params = [orgId, slotId];
   let where = 'org_id = ? AND slot_id = ?';
-  if (sinceExclusive) {
+  // The read cursor is a message position (049): rows after the last one the holder received. The timestamp
+  // rule below is only the fallback for a slot read before 049 and not since.
+  if (sinceRowid != null) {
+    where += ' AND rowid > ?';
+    params.push(sinceRowid);
+  } else if (sinceExclusive) {
     where += ' AND created_at > ?';
     params.push(sinceExclusive);
   }
@@ -146,6 +152,7 @@ function createDevSlotsStore({ getDb, now = () => new Date().toISOString() } = {
       slotId: record.id,
       holderSession: record.holder_session,
       sinceExclusive: record.last_read_at,
+      sinceRowid: record.last_read_rowid,
     });
     return { ...record, unread_count, members: listLiveMembers(record.org_id, record.name) };
   }
@@ -255,7 +262,7 @@ function createDevSlotsStore({ getDb, now = () => new Date().toISOString() } = {
   // ever have its INSERT succeed; the constraint violation the other(s) hit
   // is caught and they fall through to the normal CAS path below, which by
   // then sees an already-held row and correctly reports 'conflict'.
-  function checkoutSlot({ orgId, name, holderSession, holderIdentity, holderKind, hostId, force, create, createdBy } = {}) {
+  function checkoutSlot({ orgId, name, holderSession, holderIdentity, holderKind, hostId, force, create, createdBy, take } = {}) {
     if (!orgId || !name || !holderSession) {
       throw new Error('checkoutSlot: orgId, name and holderSession are required');
     }
@@ -299,7 +306,7 @@ function createDevSlotsStore({ getDb, now = () => new Date().toISOString() } = {
     const info = db().prepare(`
       UPDATE dev_slots
       SET state = 'held', holder_session = ?, holder_identity = ?, holder_kind = ?, host_id = ?,
-          checked_out_at = ?, last_heartbeat_at = ?, released_at = NULL, last_read_at = NULL
+          checked_out_at = ?, last_heartbeat_at = ?, released_at = NULL, last_read_at = NULL, last_read_rowid = NULL
       WHERE org_id = ? AND name = ? AND state = 'free'
     `).run(holderSession, holderIdentity || null, holderKind || null, hostId || null, t, t, orgId, name);
 
@@ -312,27 +319,46 @@ function createDevSlotsStore({ getDb, now = () => new Date().toISOString() } = {
     // conflict: same holder_session AND, when a holder identity is bound, the
     // same identity, so a name alone can never hijack another identity's hold.
     // The read watermark is kept: the holder has not changed.
-    if (existing.state === 'held' && existing.holder_session === holderSession
+    // A STALE hold of the same session is the same story (the holder's heartbeat lapsed, it is back): revive it.
+    if (['held', 'stale'].includes(existing.state) && existing.holder_session === holderSession
         && (!existing.holder_identity || existing.holder_identity === (holderIdentity || null))) {
-      db().prepare(`UPDATE dev_slots SET last_heartbeat_at = ?, holder_kind = COALESCE(?, holder_kind),
-          host_id = COALESCE(?, host_id) WHERE org_id = ? AND name = ? AND state = 'held' AND holder_session = ?`)
+      db().prepare(`UPDATE dev_slots SET state = 'held', last_heartbeat_at = ?, holder_kind = COALESCE(?, holder_kind),
+          host_id = COALESCE(?, host_id) WHERE org_id = ? AND name = ? AND state IN ('held', 'stale') AND holder_session = ?`)
         .run(t, holderKind || null, hostId || null, orgId, name, holderSession);
       return { ok: true, slot: rowToRecord(getSlotRow(orgId, name)), refreshed: true };
     }
-    return { ok: false, code: 'conflict', slot: rowToRecord(existing) };
+    // Same AUTHENTICATED identity, different session label: the same person's other (or renamed, or restarted)
+    // session. A stale hold is theirs to reclaim outright; a live one only on an explicit `take`. Another
+    // identity never gets here. The read watermark is kept (same person, same channel).
+    const sameUser = Boolean(existing.holder_identity) && existing.holder_identity === (holderIdentity || null);
+    if (sameUser && ['held', 'stale'].includes(existing.state) && (existing.state === 'stale' || take === true)) {
+      const up = db().prepare(`UPDATE dev_slots SET state = 'held', holder_session = ?, holder_kind = COALESCE(?, holder_kind),
+          host_id = COALESCE(?, host_id), checked_out_at = ?, last_heartbeat_at = ?
+          WHERE org_id = ? AND name = ? AND state IN ('held', 'stale') AND holder_session = ? AND holder_identity = ?`)
+        .run(holderSession, holderKind || null, hostId || null, t, t, orgId, name, existing.holder_session, existing.holder_identity);
+      if (up.changes === 1) {
+        return { ok: true, slot: rowToRecord(getSlotRow(orgId, name)),
+          tookOver: { from: existing.holder_session, state: existing.state, last_seen: existing.last_heartbeat_at } };
+      }
+    }
+    return { ok: false, code: 'conflict', slot: rowToRecord(existing), sameUser };
   }
 
   // Only the current holder releases, unless force is set (owner override —
   // e.g. clearing a wedged slot from the dashboard). A slot that is not
   // currently held is treated as an idempotent no-op success: a retry of a
   // release that already landed must not error.
-  function releaseSlot({ orgId, name, holderSession, memberKey, force } = {}) {
+  function releaseSlot({ orgId, name, holderSession, holderIdentity, memberKey, force } = {}) {
     if (!orgId || !name) throw new Error('releaseSlot: orgId and name are required');
     const existing = getSlotRow(orgId, name);
     if (!existing) return { ok: false, code: 'not_found' };
-    if (existing.state !== 'held') return { ok: true, slot: rowToRecord(existing) };
+    // Only a FREE slot is the idempotent no-op. A STALE slot still has a holder on record: treating it as
+    // "not held" reported success while holder_session stayed put (owner stuck, 2026-10-14).
+    if (existing.state === 'free') return { ok: true, slot: rowToRecord(existing) };
     const t = now();
-    const isHolder = existing.holder_session === holderSession;
+    // The holder is the recorded session, or the same authenticated identity (their other/renamed session).
+    const isHolder = existing.holder_session === holderSession
+      || (Boolean(existing.holder_identity) && existing.holder_identity === (holderIdentity || null));
     // P10: a member releasing removes ONLY its own row; the hold is untouched.
     if (!force && !isHolder && memberKey) {
       const del = db().prepare(
@@ -414,23 +440,43 @@ function createDevSlotsStore({ getDb, now = () => new Date().toISOString() } = {
   // only when the caller identifies itself as the holder. This is the write
   // side of the visible-unread fix: last_read_at is what unread_count (see
   // countUnreadMessages) measures every non-self message against.
-  function touchSlotRead({ orgId, name, holderSession, memberKey } = {}) {
+  // readThrough: the id of the LAST message this read delivered to the caller. The cursor moves to that message
+  // and never past it, so a message landing between the fetch and this stamp (or in the same millisecond) stays
+  // unread. null = the read delivered nothing new (the cursor stays). Omitted = everything stored right now was
+  // read (direct store callers). An id that is not this slot's message never moves the cursor. Never backwards.
+  function readCursorFor(orgId, name, readThrough) {
+    const row = getSlotRow(orgId, name);
+    const current = row && row.last_read_rowid != null ? row.last_read_rowid : 0;
+    if (!row || readThrough === null) return current;
+    let target;
+    if (readThrough === undefined) {
+      const m = db().prepare('SELECT MAX(rowid) AS r FROM dev_slot_messages WHERE org_id = ? AND slot_id = ?').get(orgId, row.id);
+      target = m && m.r != null ? m.r : 0;
+    } else {
+      const m = db().prepare('SELECT rowid AS r FROM dev_slot_messages WHERE id = ? AND org_id = ? AND slot_id = ?').get(String(readThrough), orgId, row.id);
+      target = m ? m.r : current;
+    }
+    return Math.max(current, target);
+  }
+
+  function touchSlotRead({ orgId, name, holderSession, memberKey, readThrough } = {}) {
     if (!orgId || !name || !holderSession) {
       throw new Error('touchSlotRead: orgId, name and holderSession are required');
     }
     const t = now();
+    const cursor = readCursorFor(orgId, name, readThrough);
     // P10: a live member reading is the slot's voice reading (same predicate).
     if (memberKey) {
       const slot = getSlot({ orgId, name });
       if (slot && slot.state === 'held' && isSlotVoice(slot, { session: holderSession, memberKey })) {
-        db().prepare('UPDATE dev_slots SET last_read_at = ? WHERE org_id = ? AND name = ?').run(t, orgId, name);
+        db().prepare('UPDATE dev_slots SET last_read_at = ?, last_read_rowid = ? WHERE org_id = ? AND name = ?').run(t, cursor, orgId, name);
         return { ok: true, slot: getSlot({ orgId, name }) };
       }
     }
     const info = db().prepare(`
-      UPDATE dev_slots SET last_read_at = ?
+      UPDATE dev_slots SET last_read_at = ?, last_read_rowid = ?
       WHERE org_id = ? AND name = ? AND state = 'held' AND holder_session = ?
-    `).run(t, orgId, name, holderSession);
+    `).run(t, cursor, orgId, name, holderSession);
 
     if (info.changes === 1) return { ok: true, slot: rowToRecord(getSlotRow(orgId, name)) };
 
@@ -606,9 +652,16 @@ function createDevSlotsStore({ getDb, now = () => new Date().toISOString() } = {
   };
 }
 
+// The read routes (GET /slots/:name/messages and /wait) mark the holder's read THROUGH the last message they
+// delivered, never "now": readThrough = the last delivered message's id, or null when nothing was delivered.
+function readThroughOf(delivered) {
+  return Array.isArray(delivered) && delivered.length ? delivered[delivered.length - 1].id : null;
+}
+
 module.exports = {
   SLOT_NAME_RE,
   MEMBER_TTL_MS,
   isSlotVoice,
   createDevSlotsStore,
+  readThroughOf,
 };

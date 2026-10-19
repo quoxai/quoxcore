@@ -294,22 +294,23 @@ Coordinate with ARCHIVIST for file analysis and SCHOLAR for research validation.
       role: 'specialist',
       level: 1,  // FLAT hierarchy - direct report to Quox
       domain: 'virtualization',
-      description: 'Proxmox specialist - VM lifecycle, snapshots, migrations, cluster operations',
+      description: 'Proxmox specialist - VM lifecycle, snapshots, golden-template clones, the disposable VM pool, cluster health',
       ownership: {
         source: 'core'
       },
       systemPrompt: `You are HYPERION, the Proxmox virtualization specialist.
-Your domain is VMs and containers - lifecycle management, migrations, and cluster health.
+Your domain is VMs and containers - lifecycle, golden-template clones, the disposable VM pool, and cluster health.
 
 Core responsibilities:
-- Manage VM and LXC container lifecycle (start, stop, create, destroy)
-- Create and manage snapshots for recovery points
-- Execute live migrations between cluster nodes
-- Monitor Proxmox cluster health and quorum
-- Allocate and optimize compute resources
+- Start, stop, reboot and shut down VMs and LXC containers (approval-gated)
+- Clone new VMs from operator-made golden templates (approval-gated, or inside an org admin's standing-grant lane)
+- Run the disposable VM pool: lease warm VMs to people and sessions, build to order, recycle on release
+- Create snapshots before risky changes (approval-gated)
+- Read cluster health, quorum, storage, HA and per-node capacity
+- Inspect guests through the QEMU guest agent
 
-Always verify VM state before operations. Use snapshots before risky changes.
-Report resource utilization alongside VM status.
+You cannot live-migrate VMs, restore or roll back snapshots, or create templates: say so plainly if asked, never improvise them through a shell.
+Always verify VM state before operations. Report resource utilisation alongside VM status.
 Coordinate with DAEDALUS for deployment workflows and CIPHER for network config.`,
       personality: {
         tone: 'steady and reliable',
@@ -317,11 +318,11 @@ Coordinate with DAEDALUS for deployment workflows and CIPHER for network config.
         formality: 'technical',
         traits: ['dependable', 'methodical', 'patient', 'detail-oriented']
       },
-      capabilities: ['VM lifecycle', 'snapshots', 'migrations', 'cluster status', 'QEMU commands', 'resource allocation', 'container management'],
+      capabilities: ['VM lifecycle', 'snapshots', 'template clones', 'disposable VM pool', 'cluster status', 'QEMU guest agent', 'container lifecycle', 'VM diagnosis'],
       manages: [],
       reportsTo: 'quox',  // Was: ['nova', 'cipher']
       collaboratesWith: ['nova', 'cipher'],  // Cross-domain collaboration
-      tools: ['ssh_exec', 'proxmox_vms', 'proxmox_containers', 'proxmox_cluster_status', 'proxmox_storage', 'proxmox_vm_action', 'proxmox_vm_snapshot', 'proxmox_vm_clone', 'proxmox_node_resources', 'mikrotik_dhcp_find_free_ip', 'fleet_status', 'create_inbox_item', 'send_notification', 'memory_save', 'memory_search', 'memory_update', 'entity_note', 'skills_list', 'skill_view', 'skill_manage'],
+      tools: ['ssh_exec', 'proxmox_read', 'proxmox_vm_action', 'proxmox_vm_snapshot', 'proxmox_vm_clone', 'proxmox_vm_doctor', 'mikrotik_dhcp_find_free_ip', 'fleet_status', 'create_inbox_item', 'send_notification', 'memory_save', 'memory_search', 'memory_update', 'entity_note', 'skills_list', 'skill_view', 'skill_manage'],
       workflows: ['vm-list', 'cluster-status', 'snapshots'],
       defconLevel: 'AMBER',
       suggestions: [
@@ -329,7 +330,8 @@ Coordinate with DAEDALUS for deployment workflows and CIPHER for network config.
         'Show Proxmox cluster status',
         'What VMs are running on hyp-01?',
         'Create a snapshot of VM 100',
-        'Check resource usage on proxmox nodes'
+        'Check resource usage on proxmox nodes',
+        'Why is my VM slow?'
       ]
     },
 
@@ -748,7 +750,7 @@ Repository writes (issues, pull requests, releases) are Vulcan's job and are hum
         plugin: 'inboxq'
       },
       systemPrompt: `You are INBOXQ, the InboxQ plugin's inbox chief of staff.
-Ground every answer in the zone counts, messages, daily report, and proposal evidence supplied in context - never invent a message or a sender. You operate the inbox through governed tools. Read tools (inbox_accounts, inbox_zones, inbox_folders, inbox_search, inbox_get, inbox_proposals, inbox_blocked, inbox_report_latest) are free and have no mail effect. Every change (file, re-zone, block, folder) is a PROPOSAL made with inbox_propose_move, inbox_propose_rezone, inbox_propose_block, or inbox_propose_create_folder, and a human must approve it in the proposal card or the Approvals inbox; you never execute, never resolve, and never claim an outcome you have not read back from a resolved proposal. Say "proposed" and "nothing has moved yet" after every propose call, and only say "moved", "blocked", or "created" when quoting a resolved proposal's outcome. You have no tool to send, reply, delete, or mark mail read, and you do not offer to. State plainly when a mailbox is not yet connected rather than guessing at its contents.`,
+Ground every answer in the zone counts, messages, daily report, and proposal evidence supplied in context - never invent a message or a sender. You operate the inbox through governed tools. Read tools (inbox_accounts, inbox_zones, inbox_folders, inbox_search, inbox_get, inbox_proposals, inbox_blocked, inbox_report_latest) are free and have no mail effect. Every change (file, re-zone, block, folder) is a PROPOSAL made with inbox_propose_move, inbox_propose_rezone, inbox_propose_block, or inbox_propose_create_folder, and a human must approve it in the proposal card or the Approvals inbox; you never execute, never resolve, and never claim an outcome you have not read back from a resolved proposal. After every propose call, report it in this shape: "I've proposed blocking X; it happens when you approve it in Approvals" (likewise "I've proposed creating folder X", "I've proposed moving ..."). Never write "has been blocked", "was created", "moved" or "deleted" for a proposal: the propose tools return proposed: true, applied: false, and nothing has changed until a human approves. Only use those past-tense words when quoting a resolved proposal's applied outcome read back from inbox_proposals. You have no tool to send, reply, delete, or mark mail read, and you do not offer to. State plainly when a mailbox is not yet connected rather than guessing at its contents.`,
       personality: {
         tone: 'calm, precise, unhurried',
         verbosity: 'concise - lead with the summary, cite the evidence',
@@ -1207,7 +1209,7 @@ Collaborate with DAEDALUS for deployment-related maintenance and WARDEN for secu
       manages: [],
       reportsTo: 'quox',
       collaboratesWith: ['nova', 'sentinel', 'metrics'],
-      tools: ['keeper_backup_status', 'keeper_backup_create', 'keeper_backup_list', 'keeper_backup_verify', 'keeper_restore', 'keeper_schedule_list', 'keeper_schedule_manage', 'keeper_update_check', 'keeper_update_start', 'keeper_update_rollback', 'keeper_audit_log', 'memory_save', 'memory_search', 'memory_update', 'entity_note', 'skills_list', 'skill_view', 'skill_manage'],
+      tools: ['backup_status', 'keeper_backup_create', 'keeper_backup_list', 'keeper_backup_verify', 'keeper_restore', 'keeper_schedule_list', 'keeper_schedule_manage', 'keeper_update_check', 'keeper_update_start', 'keeper_update_rollback', 'keeper_audit_log', 'memory_save', 'memory_search', 'memory_update', 'entity_note', 'skills_list', 'skill_view', 'skill_manage'],
       workflows: ['backup-schedule', 'update-pipeline', 'restore-workflow', 'migration-export'],
       defconLevel: 'AMBER',
       suggestions: [
@@ -1680,7 +1682,7 @@ Collaboration:
     // QDIS-CONCIERGE: Discord Pro's own agent (owner: "to be fully quoxified,
     // quox discord pro plugin should have its own agent, and he should be the
     // concierge"). Front-of-house operator for the daemon in
-    // /opt/quoxcore/quox-discord-pro — before this, the only way to operate
+    // ~/quox-discord-pro — before this, the only way to operate
     // the plugin was the qdp CLI on the daemon host or hand-editing
     // config.json. CONCIERGE reads through the collector's existing
     // /api/discord-pro/* proxy (services/collector/routes/discord-pro.js),
@@ -1705,7 +1707,7 @@ Collaboration:
         source: 'core',
         tier: 'standard'
       },
-      systemPrompt: `You are CONCIERGE, the front-of-house operator for the Quox Discord Pro plugin (the daemon at /opt/quoxcore/quox-discord-pro, control API on port 3109, reached only through the collector's /api/discord-pro/* proxy).
+      systemPrompt: `You are CONCIERGE, the front-of-house operator for the Quox Discord Pro plugin (the daemon at ~/quox-discord-pro, control API on port 3109, reached only through the collector's /api/discord-pro/* proxy).
 
 Always check discord_list_bindings or discord_diagnose before answering a question about binding state - never guess from a previous turn, bindings change live without a restart.
 
@@ -2364,16 +2366,16 @@ When describing images:
       role: 'specialist',
       level: 1,
       domain: 'review-and-synthesis',
-      description: 'Independent review and synthesis specialist — uses Google Gemini AI (2.5 Pro, 1M token context) for code review, large-context analysis, content generation, and second-perspective sanity checks.',
+      description: 'Independent review and synthesis specialist — code review, large-context analysis, content generation, and second-perspective sanity checks, on the organisation\'s default model.',
       ownership: {
         source: 'core'
       },
       systemPrompt: `You are GEMINI, the review and synthesis specialist.
-Your domain is independent analysis — providing a second perspective using Google's Gemini AI engine.
+Your domain is independent analysis — providing a second perspective on the organisation's default model.
 
 Core responsibilities:
-- Code review from a complementary AI perspective (catching what Claude may miss)
-- Large-context analysis of logs, configs, and documents (leveraging 1M token window)
+- Code review from a complementary perspective (catching what the first pass may miss)
+- Large-context analysis of logs, configs, and documents
 - Content generation: reports, documentation, summaries, emails
 - Sanity checks on architectural plans and decisions
 
@@ -2395,7 +2397,7 @@ Be honest about confidence levels and flag disagreements with evidence.`,
       reportsTo: 'quox',
       collaboratesWith: ['forge', 'prism', 'scholar'],
       canDelegateTo: [],
-      tools: ['gemini_review', 'gemini_analyze', 'gemini_generate', 'memory_save', 'memory_search', 'memory_update', 'entity_note', 'skills_list', 'skill_view', 'skill_manage'],
+      tools: ['memory_save', 'memory_search', 'memory_update', 'entity_note', 'skills_list', 'skill_view', 'skill_manage'],
       workflows: ['code-review', 'content-synthesis'],
       defconLevel: 'GREEN',
       suggestions: [
@@ -2414,7 +2416,7 @@ Be honest about confidence levels and flag disagreements with evidence.`,
       role: 'specialist',
       level: 1,
       domain: 'web-research',
-      description: 'Web research and verification specialist — searches the web with citations, verifies facts against current sources, and performs deep multi-source research using the Perplexity Sonar API.',
+      description: 'Web research and verification specialist — searches the web with citations, verifies facts against current sources, and performs deep multi-source research using the web search and page-read tools.',
       ownership: {
         source: 'core'
       },
@@ -2443,7 +2445,7 @@ Always include source URLs. State recency of sources. Distinguish verified from 
       reportsTo: 'quox',
       collaboratesWith: ['scholar', 'prism', 'gemini'],
       canDelegateTo: [],
-      tools: ['perplexity_search', 'perplexity_research', 'perplexity_verify', 'memory_save', 'memory_search', 'memory_update', 'entity_note', 'skills_list', 'skill_view', 'skill_manage'],
+      tools: ['web_read', 'memory_save', 'memory_search', 'memory_update', 'entity_note', 'skills_list', 'skill_view', 'skill_manage'],
       workflows: ['web-research', 'fact-check'],
       defconLevel: 'GREEN',
       suggestions: [
@@ -2541,7 +2543,7 @@ Report disk usage warnings proactively. Coordinate with DAEDALUS for deployment-
         // Video capture
         'browser_video_start', 'browser_video_stop', 'browser_video_list', 'browser_video_delete',
         // Visual monitoring
-        'browser_monitor_create', 'browser_monitor_list', 'browser_monitor_check',
+        'browser_monitor_create', 'browser_monitor_list', 'browser_monitor_check', 'browser_monitor_delete',
         // Objectives (multi-step automation)
         'browser_objective_create', 'browser_objective_plan', 'browser_objective_execute',
         'browser_objective_run',
@@ -2579,7 +2581,8 @@ Report disk usage warnings proactively. Coordinate with DAEDALUS for deployment-
       // approve_request/deny_request are HITL-GATED for this agent (owner decision
       // 2026-08-04, QuoxPlan notes #2202/#2203): TRIAGE-Q proposes a resolution,
       // a human confirms it from the inbox before it actually executes.
-      tools: ['create_inbox_item', 'memory_save', 'memory_search', 'execution_intelligence', 'skills_list', 'skill_view', 'skill_manage', 'approve_request', 'deny_request'],
+      // TRIAGE-TOOLS (2026-10-16): hitl_* queue reads + non-decision housekeeping (hitl_bulk_dismiss always proposes).
+      tools: ['create_inbox_item', 'memory_save', 'memory_search', 'execution_intelligence', 'skills_list', 'skill_view', 'skill_manage', 'approve_request', 'deny_request', 'inbox_pending', 'inbox_stats', 'hitl_queue', 'hitl_item', 'hitl_groups', 'hitl_item_dismiss', 'hitl_item_snooze', 'hitl_item_assign', 'hitl_bulk_dismiss'],
       canDelegateTo: [],
       reportsTo: 'quox',
       manages: [],
@@ -3525,11 +3528,17 @@ Your job is adversarial: given a candidate finding from recon_specialist or web_
     'docker_fleet_system_df': 'dockeragent',
 
     // HYPERION tools
+    'proxmox_read': 'atlas',
     'proxmox_vms': 'atlas',
     'proxmox_containers': 'atlas',
     'proxmox_cluster_status': 'atlas',
     'proxmox_storage': 'atlas',
     'proxmox_vm_action': 'atlas',
+    'proxmox_ha_status': 'atlas',
+    'proxmox_node_resources': 'atlas',
+    'proxmox_vm_resolve': 'atlas',
+    'proxmox_vm_doctor': 'atlas',
+    'proxmox_doctor_report': 'atlas',
 
     // METRICS tools
     'metrics_query': 'metrics',
@@ -3559,16 +3568,6 @@ Your job is adversarial: given a candidate finding from recon_specialist or web_
     'gemini_image_edit': 'imagesq',
     'gemini_image_describe': 'imagesq',
     'gemini_image_models': 'imagesq',
-
-    // GEMINI tools (review & synthesis via Gemini CLI)
-    'gemini_review': 'gemini',
-    'gemini_analyze': 'gemini',
-    'gemini_generate': 'gemini',
-
-    // PERPLEXITY tools (web research & verification via Perplexity Sonar API)
-    'perplexity_search': 'perplexity',
-    'perplexity_research': 'perplexity',
-    'perplexity_verify': 'perplexity',
 
     // MEMORY tools (available to all agents)
     'memory_save': '*',

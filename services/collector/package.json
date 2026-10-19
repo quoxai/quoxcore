@@ -9,7 +9,7 @@
     "test": "npm run test:node && npm run test:vitest",
     "test:vitest": "vitest run",
     "test:fast": "SKIP_DOCKER=1 vitest run",
-    "test:node": "node --test --import ./test/testEnvScrubSetup.mjs test/quoxchat-*.test.js test/agentToolCatalog.test.js",
+    "test:node": "node --test --import ./test/testEnvScrubSetup.mjs test/quoxchat-*.test.js test/agentToolCatalog.test.js test/captcha-verifier.test.js",
     "test:response-contract": "vitest run lib/responseInvariants lib/responseContract lib/chainGuards test/voltContractEvent.test.js test/stackModeResponseContract.test.js test/stackModeChainGuards.test.js test/aghChainLeaderboardApi.test.js test/aghChainFederatedStatsApi.test.js test/toolExecutions.test.js",
     "test:toolsmith:e2e-real": "TEST_LLM_STUB=true vitest run test/toolsmithE2eReal.test.js"
   },

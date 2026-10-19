@@ -156,6 +156,8 @@ function gatesOf(item) {
   return Array.isArray(item.gates) ? item.gates : ((item.L3 && item.L3.gates) || []);
 }
 const isRun = (ref) => String(ref).startsWith('run:');
+/** The collective mission and the gripe tracker are information, never a reason to ring a phone. */
+const isMissionInfo = (ref) => /^(mission|gripe):/.test(String(ref));
 const kindOf = (ref, item, row) => (item && item.kind) || (row && row.item_kind) || (String(ref).startsWith('security:') ? 'security' : null);
 /** A security finding only counts once a human has verified it; agent-filed candidates are inbox-only. */
 function securityVerified(item) {
@@ -164,6 +166,7 @@ function securityVerified(item) {
 }
 function inboxOnly(ref, item, row) {
   if (isRun(ref)) return true; // cron/workflow run failures never go beyond L1
+  if (isMissionInfo(ref)) return true; // Proof Matrix regressions and gripes never go beyond the inbox
   return kindOf(ref, item, row) === 'security' && !securityVerified(item);
 }
 /** Only a site-down or a human-verified security finding may break quiet hours (and only for the call). */

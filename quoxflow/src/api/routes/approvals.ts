@@ -11,6 +11,7 @@ import { EnvelopeStore } from '../../store/envelope-store.js';
 import { envelopes, Intents } from '../../core/envelope.js';
 import { AppEnv } from '../types.js';
 import { resolveOrgScope, SYSTEM_SCOPE } from '../middleware/org-scope.js';
+import { approverPrincipal } from '../middleware/auth.js';
 
 // Use AppEnv so c.get('user') resolves to AuthUser. SEC-FIX-1 introduced
 // the user lookup but the inline Variables type here didn't carry it,
@@ -331,7 +332,7 @@ app.post('/:id/approve', async (c) => {
     }
 
     // Check authorization
-    if (!engine.isAuthorizedApprover(existing, approver)) {
+    if (!engine.isAuthorizedApprover(existing, approver, approverPrincipal(authUser))) {
       return c.json(
         {
           success: false,
@@ -448,7 +449,7 @@ app.post('/:id/deny', async (c) => {
     }
 
     // Check authorization
-    if (!engine.isAuthorizedApprover(existing, approver)) {
+    if (!engine.isAuthorizedApprover(existing, approver, approverPrincipal(authUser))) {
       return c.json(
         {
           success: false,

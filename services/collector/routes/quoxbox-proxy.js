@@ -9,7 +9,7 @@
  *    reaches the browser.
  * 3. Upstream-unreachable is handled gracefully (502 + JSON), never throws.
  *
- * Gateway contract (see /opt/quoxcore/quoxbox):
+ * Gateway contract (see ~/quoxbox):
  *   GET  /live                     -> live status, pending approvals, tasks, events
  *   GET  /admin/workflows          -> available governed workflows
  *   POST /task/run                 -> start a task { workflow, params }
@@ -21,6 +21,7 @@
 
 const express = require('express');
 const { requireAuth } = require('../utils/httpAuth');
+const { gatewayFetch: gatewayFetchImpl } = require('../lib/quoxboxGateway');
 
 const router = express.Router();
 
@@ -30,35 +31,8 @@ const GATEWAY_TOKEN = process.env.QUOXBOX_GATEWAY_TOKEN || '';
 // Apply auth to all routes — org-scoped, no anonymous access.
 router.use(requireAuth());
 
-/**
- * Fetch a path from the QuoxBox gateway with the bearer token attached.
- * Never throws — callers handle the { ok, status, data } result.
- */
-async function gatewayFetch(path, options = {}) {
-  const url = `${GATEWAY_URL}${path}`;
-  try {
-    const resp = await fetch(url, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${GATEWAY_TOKEN}`,
-        'Content-Type': 'application/json',
-        ...(options.headers || {}),
-      },
-      signal: AbortSignal.timeout(15000),
-    });
-
-    let data = null;
-    try {
-      data = await resp.json();
-    } catch (_) {
-      data = null;
-    }
-
-    return { ok: resp.ok, status: resp.status, data };
-  } catch (err) {
-    return { ok: false, status: 502, data: null, error: err.message };
-  }
-}
+// The gateway fetch (connect probe, remembered outage, named reason) lives in lib/quoxboxGateway.js.
+const gatewayFetch = (path, options = {}) => gatewayFetchImpl(path, options, { url: GATEWAY_URL, token: GATEWAY_TOKEN });
 
 /**
  * Forward a gateway response to the Express response, or a 502 if the
@@ -67,7 +41,8 @@ async function gatewayFetch(path, options = {}) {
 function relay(res, result) {
   if (result.error && !result.data) {
     console.warn('[QuoxBoxProxy] gateway unreachable:', result.error);
-    return res.status(502).json({ error: 'quoxbox_gateway_unreachable', message: result.error });
+    // retryable:false: a refused or black-holed gateway won't answer on a quick client retry (quox#882).
+    return res.status(502).json({ error: 'quoxbox_gateway_unreachable', message: result.error, retryable: false });
   }
   return res.status(result.status || 200).json(result.data ?? {});
 }

@@ -11,6 +11,7 @@
 
 const BASTION_URL = process.env.BASTION_URL || '';
 const BASTION_TOKEN = process.env.BASTION_API_TOKEN || '';
+const { hostPath } = require('../utils/runtimePaths.js');
 const { BASTION_UNAVAILABLE_MESSAGE } = require('./bastionUnavailable');
 
 // TRUST-PROOF slice 4 — QuoxBastion's (config-gated, rolling out) approval
@@ -173,36 +174,59 @@ async function mintEngagementGrant({ orgId, engagementId, command, targets, targ
  * the collector BEFORE signing. Returns the base64 grant, or null on any
  * failure; the caller fails CLOSED on null.
  */
+// DEVFLEET P19c: a standing-grant mint that hits a transient auth blip (network error,
+// timeout, 5xx, 429) is retried; the MINT is retried, never the command. Any other 4xx is a
+// refusal (revoked/expired/scope mismatch) and fails closed at once. Bounded: 3 attempts,
+// 1 s then 3 s backoff. delaysMs/sleep are overridable for tests.
+const standingMintRetry = {
+  delaysMs: [1000, 3000],
+  sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+  retries: 0,
+  exhausted: 0,
+};
+
 async function mintStandingGrant({ orgId, grantId, host, command, targets }) {
   if (!orgId || !grantId || !AUTH_SERVICE_URL) return null;
-  try {
-    const resp = await fetch(`${AUTH_SERVICE_URL}/api/internal/approval-grants/mint-standing`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(INTERNAL_SERVICE_KEY ? { 'X-Service-Key': INTERNAL_SERVICE_KEY } : {}),
-      },
-      body: JSON.stringify({
-        org_id: orgId,
-        standing_grant_id: grantId,
-        action: 'exec',
-        host,
-        command,
-        targets: Array.isArray(targets) ? targets : [targets].filter(Boolean),
-      }),
-      signal: AbortSignal.timeout(12000),
-    });
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => '');
-      console.error(`[BastionSSH] standing-grant mint failed (${resp.status}) for ${grantId}: ${text.slice(0, 300)}`);
-      return null;
+  const maxAttempts = standingMintRetry.delaysMs.length + 1;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let transient = false;
+    try {
+      const resp = await fetch(`${AUTH_SERVICE_URL}/api/internal/approval-grants/mint-standing`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(INTERNAL_SERVICE_KEY ? { 'X-Service-Key': INTERNAL_SERVICE_KEY } : {}),
+        },
+        body: JSON.stringify({
+          org_id: orgId,
+          standing_grant_id: grantId,
+          action: 'exec',
+          host,
+          command,
+          targets: Array.isArray(targets) ? targets : [targets].filter(Boolean),
+        }),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        console.error(`[BastionSSH] standing-grant mint failed (${resp.status}) for ${grantId} (attempt ${attempt}/${maxAttempts}): ${text.slice(0, 300)}`);
+        transient = resp.status >= 500 || resp.status === 429;
+        if (!transient) return null;
+      } else {
+        const data = await resp.json();
+        return data && typeof data.grant_base64 === 'string' && data.grant_base64 ? data.grant_base64 : null;
+      }
+    } catch (err) {
+      console.error(`[BastionSSH] standing-grant mint error for ${grantId} (attempt ${attempt}/${maxAttempts}): ${err.message}`);
+      transient = true;
     }
-    const data = await resp.json();
-    return data && typeof data.grant_base64 === 'string' && data.grant_base64 ? data.grant_base64 : null;
-  } catch (err) {
-    console.error(`[BastionSSH] standing-grant mint error for ${grantId}: ${err.message}`);
-    return null;
+    if (!transient || attempt === maxAttempts) break;
+    standingMintRetry.retries += 1;
+    console.warn(`[BastionSSH] standing-grant mint transient failure for ${grantId}, retrying (attempt ${attempt + 1}/${maxAttempts}, retries_total=${standingMintRetry.retries})`);
+    await standingMintRetry.sleep(standingMintRetry.delaysMs[attempt - 1]);
   }
+  standingMintRetry.exhausted += 1;
+  return null;
 }
 
 // AGENT-OVERHAUL-3 (QuoxPlan notes #2332/#2333) — golden-clone snapshot/clone
@@ -211,10 +235,11 @@ async function mintStandingGrant({ orgId, grantId, host, command, targets }) {
 // clone's template-flag check reuses the exact same egress path. Invoked
 // below ONLY after entityToolLoader's requiresApproval -> withApprovalGate
 // wrapper resolves — see src/config/entities/tools/proxmox-extended.json.
-const { proxmoxVmSnapshot, proxmoxVmClone } = require('./toolExecutors/proxmox');
+const { proxmoxVmSnapshot, proxmoxVmClone, proxmoxExtRest } = require('./toolExecutors/proxmox');
 // QUOXTRUST FND_..SK5C: strict allowlist validator — bastion_ssh is a parallel implementation of
 // the native fleet tools and interpolates the same model-supplied fields into shell commands.
 const { isSafeShellArg } = require('./shellSafe.js');
+const { runSafeRead, dockerRead } = require('./bastionSafeRead.js');
 
 // BASTION-CRED Phase 2 — bootstrap-credential escalation fallback for hosts
 // whose day-2 user has no NOPASSWD sudo yet.
@@ -230,7 +255,25 @@ const { grantNopasswdViaBootstrap, isSudoPasswordFailure } = require('./bootstra
  *   envelope (see mintApprovalGrant above). Optional — omitted entirely when
  *   absent, since the bastion-side gate is a config-gated rollout.
  */
-async function callBastion(hostId, command, grant) {
+const isLocalHostAlias = (h) => !h || ['localhost', '127.0.0.1', '::1'].includes(String(h).trim().toLowerCase());
+/** quox#1106: the answer when a tool named no real host: which host, from the fleet's own ids (best effort). */
+async function hostRequiredResult() {
+  let hosts = [];
+  try {
+    const port = process.env.COLLECTOR_PORT || process.env.PORT || 9848;
+    const r = await fetch(`http://127.0.0.1:${port}/api/v1/agents`, {
+      headers: process.env.INTERNAL_SERVICE_KEY ? { 'X-Service-Key': process.env.INTERNAL_SERVICE_KEY } : {},
+      signal: AbortSignal.timeout(5000),
+    });
+    if (r && r.ok) hosts = ((await r.json()).agents || []).map((a) => a && a.host_id).filter(Boolean).slice(0, 50);
+  } catch { hosts = []; }
+  return {
+    success: false, error: 'host_required', hosts,
+    message: `Which host? This tool needs a fleet host id, and 'localhost' is not one Bastion knows.${hosts.length ? ` Fleet hosts: ${hosts.join(', ')}.` : ''}`,
+  };
+}
+
+async function callBastion(hostId, command, grant, timeoutMs = 30000) {
   if (!BASTION_URL || !BASTION_TOKEN) {
     return { success: false, error: BASTION_UNAVAILABLE_MESSAGE };
   }
@@ -247,11 +290,14 @@ async function callBastion(hostId, command, grant) {
         ...(grant ? { [APPROVAL_GRANT_HEADER]: grant } : {})
       },
       body: JSON.stringify({ targets: [hostId], command }),
-      signal: AbortSignal.timeout(30000)
+      signal: AbortSignal.timeout(timeoutMs)
     });
 
     if (!resp.ok) {
       const text = await resp.text();
+      // quox#1106: tools default their host to 'localhost', which Bastion does not know on most installs. On its
+      // host-not-found answer for localhost (or no host), ask which host and name the fleet's real ids; never guess.
+      if (resp.status === 404 && isLocalHostAlias(hostId) && /host not found/i.test(text)) return await hostRequiredResult();
       return require("./bastionRefusal.js").bastionHttpErrorResult(resp.status, text); // #815: a 403 is a refusal, never an approval card
     }
 
@@ -347,7 +393,11 @@ function buildSystemCommand(toolId, input) {
     case 'system.services': {
       const filter = input.filter || 'all';
       let cmd;
-      if (filter === 'failed') {
+      if (filter === 'failed' && !input.pattern) {
+        // fleet/t1-system_services: the status of every failed unit (Result, exit status, since) in one read, so
+        // nobody needs a shell to learn why. systemctl status exits 3 when a unit is failed: that is the answer.
+        return { host, cmd: `systemctl status --state=failed --type=service --no-pager --lines=0`, okExitCodes: [3] };
+      } else if (filter === 'failed') {
         cmd = `systemctl list-units --type=service --state=failed --no-pager --plain`;
       } else if (filter === 'running') {
         cmd = `systemctl list-units --type=service --state=running --no-pager --plain | head -50`;
@@ -400,7 +450,7 @@ function buildSystemCommand(toolId, input) {
         host,
         cmd: input.user
           ? `crontab -u ${input.user} -l 2>/dev/null || echo 'No crontab for user'`
-          : `for user in $(cut -f1 -d: /etc/passwd); do crontab -u $user -l 2>/dev/null && echo "--- $user ---"; done; cat /etc/crontab 2>/dev/null; ls -la /etc/cron.d/ 2>/dev/null`
+          : require('./cronReadCommand.js').CRON_ALL_CMD
       };
 
     case 'system.memory':
@@ -408,6 +458,24 @@ function buildSystemCommand(toolId, input) {
 
     default:
       return null;
+  }
+}
+
+/**
+ * DEVFLEET-BUILTINS: which docker-extended tools have a docker-read builtin equivalent.
+ * Filtered logs (since/grep) and filtered images keep the raw command: the builtin cannot filter.
+ * Output is converted back to the tab-separated text the raw command printed.
+ */
+function dockerReadBuiltinFor(toolId, input) {
+  const container = input.container || input.container_id || '';
+  switch (toolId) {
+    case 'docker.logs':
+      return (container && !input.since && !input.grep)
+        ? dockerRead.logs(container, Math.min(parseInt(input.tail) || 100, 500)) : null;
+    case 'docker.stats': return dockerRead.stats(container, '\t');
+    case 'docker.inspect': return container ? dockerRead.inspect(container) : null;
+    case 'docker.images': return input.filter ? null : dockerRead.images('\t');
+    default: return null;
   }
 }
 
@@ -475,7 +543,9 @@ function buildDockerCommand(toolId, input) {
  * Network tools (network.json, network-extended.json)
  */
 function buildNetworkCommand(toolId, input) {
-  const host = input.host || input.source || 'gw-01';
+  // SITE-CLI 2026-10-17 (story-a): no borrowed 'gw-01' default (one fleet's edge box). No host -> the localhost path,
+  // which Bastion answers 404 and callBastion turns into host_required with this fleet's own host ids (quox#1106).
+  const host = input.host || input.source || 'localhost';
 
   switch (toolId) {
     case 'network.ping': {
@@ -577,8 +647,13 @@ function buildSecurityCommand(toolId, input) {
       return { host, cmd: `journalctl -u sshd --since "${hours}h ago" --no-pager | grep -i "failed\\|invalid" | tail -200` };
     }
 
-    case 'security.active_sessions':
-      return { host, cmd: `who -u && echo '---' && last -20` };
+    case 'security.active_sessions': {
+      // 4.2.5: user_id was accepted but never applied. It lands in a shell command, so only a plain username passes.
+      const user = input.user_id;
+      if (user === undefined || user === null || user === '') return { host, cmd: `who -u && echo '---' && last -20` };
+      if (typeof user !== 'string' || !/^[a-z_][a-z0-9_.-]{0,31}$/i.test(user)) return { host, error: 'user_id must be a plain username (letters, digits, _ . -; max 32)' };
+      return { host, cmd: `who -u | awk '$1 == "${user}"' && echo '---' && last -20 ${user}` };
+    }
 
     case 'security.session_revoke': {
       const sessionId = input.session_id;
@@ -605,7 +680,7 @@ function buildSecurityCommand(toolId, input) {
     case 'security.user_audit': {
       // This is an auth-service operation — query the database
       const inactiveDays = parseInt(input.check_inactive_days) || 90;
-      const authDbPath = '/opt/quoxcore/services/auth/data/auth.db';
+      const authDbPath = hostPath('quox-dashboard', 'services', 'auth', 'data', 'auth.db');
       const cmd = `sqlite3 -json ${authDbPath} "SELECT id, email, display_name, role, last_login, created_at FROM users ORDER BY last_login ASC" 2>/dev/null || echo '[]'`;
       return { host: 'localhost', cmd };
     }
@@ -620,7 +695,7 @@ function buildSecurityCommand(toolId, input) {
         const types = input.eventTypes.map(t => `'${t.replace(/'/g, "''")}'`).join(',');
         whereClause += ` AND action IN (${types})`;
       }
-      const dbPath = '/opt/quoxcore/services/auth/data/auth.db';
+      const dbPath = hostPath('quox-dashboard', 'services', 'auth', 'data', 'auth.db');
       return { host: 'localhost', cmd: `sqlite3 -json ${dbPath} "SELECT id, action, actor_type, actor_id, target_type, target_id, status, ip_address, created_at FROM audit_events WHERE ${whereClause} ORDER BY created_at DESC LIMIT ${auditLimit}"` };
     }
 
@@ -638,16 +713,18 @@ function buildProxmoxExtCommand(toolId, input) {
 
   switch (toolId) {
     case 'proxmox.storage.usage':
-      return { host: node, cmd: `pvesh get /storage --output-format json 2>/dev/null && echo '---' && df -h | grep -E '/mnt|/var/lib' | head -20` };
+      // #1042: usage per node and storage (used/total), cluster-wide, the same data the REST path reads.
+      // `pvesh get /storage` is the storage CONFIG with no usage, which sent the model back node by node.
+      return { host: node, cmd: `pvesh get /cluster/resources --type storage --output-format json 2>/dev/null` };
 
     case 'proxmox.snapshots.list': {
-      let cmd;
-      if (input.vmid) {
-        cmd = `pvesh get /nodes/$(hostname)/qemu/${input.vmid}/snapshot --output-format json 2>/dev/null`;
-      } else {
-        cmd = `for vmid in $(pvesh get /cluster/resources --type vm --output-format json 2>/dev/null | python3 -c "import sys,json; [print(r['vmid']) for r in json.load(sys.stdin)]" 2>/dev/null); do echo "=== VM $vmid ===" && pvesh get /nodes/$(hostname)/qemu/$vmid/snapshot --output-format json 2>/dev/null; done`;
-      }
-      return { host: node, cmd };
+      // #1042: ask each VM on the node it lives on (pvesh proxies across the cluster), skip
+      // templates and containers. A serial loop on $(hostname) timed out on a real
+      // cluster and returned nothing for VMs on other nodes. vmid is digits (injection guard).
+      // 16 at a time and a 55s budget: 8 at a time still overran the 30s default live (~170 guests).
+      const only = input.vmid ? ` and str(r['vmid'])=='${input.vmid}'` : '';
+      const cmd = `pvesh get /cluster/resources --type vm --output-format json 2>/dev/null | python3 -c "import sys,json; [print(r['node'], r['vmid']) for r in json.load(sys.stdin) if r.get('type')=='qemu' and not r.get('template')${only}]" | xargs -P 16 -n 2 sh -c 'o=$(pvesh get /nodes/$0/qemu/$1/snapshot --output-format json 2>/dev/null); printf "=== VM %s ===\\n%s\\n" "$1" "$o"'`;
+      return { host: node, cmd, timeoutMs: 55000 };
     }
 
     case 'proxmox.snapshots.cleanup': {
@@ -687,7 +764,10 @@ async function executeFleetTool(toolId, input) {
   switch (toolId) {
     case 'fleet.health_matrix': {
       try {
+        // quox#1062: a self-read passes the default-deny gate only with the service key (as fleet_status's
+        // localApiFetch does); without it every call was a 401.
         const resp = await fetch(`${collectorUrl}/api/v1/agents`, {
+          headers: process.env.INTERNAL_SERVICE_KEY ? { 'X-Service-Key': process.env.INTERNAL_SERVICE_KEY } : {},
           signal: AbortSignal.timeout(10000)
         });
         if (!resp.ok) return { success: false, error: `Fleet API ${resp.status}` };
@@ -745,11 +825,16 @@ async function executeFleetTool(toolId, input) {
       if (hosts === 'all' || (Array.isArray(hosts) && hosts[0] === 'all')) {
         try {
           const resp = await fetch(`${collectorUrl}/api/v1/agents`, { signal: AbortSignal.timeout(5000) });
+          // 2026-10-17: a non-OK fleet response is a failure, never an empty fleet
+          if (!resp.ok) return { success: false, error: `Cannot resolve hosts: fleet list returned ${resp.status}` };
           const data = await resp.json();
           targetHosts = (data.agents || []).map(a => a.host_id).filter(Boolean);
         } catch (err) {
           return { success: false, error: `Cannot resolve hosts: ${err.message}` };
         }
+        // 2026-10-17: right after a collector restart the fleet list is EMPTY (still loading). Running on zero hosts and
+        // reporting success:true would say "ran everywhere" when it ran nowhere.
+        if (!targetHosts.length) return { success: false, error: 'fleet_not_loaded', message: 'The fleet host list came back empty (the collector may still be loading it after a restart, or no hosts are registered), so "all" resolved to no hosts and nothing ran. Retry in a minute; if it stays empty, check `quox fleet list`.' };
       }
       if (!Array.isArray(targetHosts)) targetHosts = [targetHosts];
 
@@ -806,15 +891,18 @@ async function executeFleetTool(toolId, input) {
  * Alerts tools (alerts.json)
  * Route to Alertmanager/Prometheus APIs.
  */
-async function executeAlertsTool(toolId, input) {
-  const alertmanagerUrl = process.env.ALERTMANAGER_URL || '';
+async function executeAlertsTool(toolId, input, ctx = {}) {
+  // quox#1061: resolved per call from the ALERTMANAGER_URL platform setting
+  // (org > instance > env > legacy monitoring-config.json), never env-only.
+  const am = await require('./alertmanagerConfig.js').resolveAlertmanagerTarget(ctx && ctx.orgId);
+  const alertmanagerUrl = am.url;
   const prometheusUrl = process.env.PROMETHEUS_URL || '';
 
   switch (toolId) {
     case 'alerts.active': {
-      if (!alertmanagerUrl) return { success: false, error: 'Alertmanager not configured. Set ALERTMANAGER_URL.' };
+      if (!alertmanagerUrl) return { success: false, error: am.error };
       try {
-        const resp = await fetch(`${alertmanagerUrl}/api/v2/alerts?active=true`, {
+        const resp = await fetch(`${alertmanagerUrl}/api/v2/alerts?active=true`, { redirect: 'manual',
           signal: AbortSignal.timeout(10000)
         });
         if (!resp.ok) return { success: false, error: `Alertmanager returned ${resp.status}` };
@@ -845,13 +933,13 @@ async function executeAlertsTool(toolId, input) {
     }
 
     case 'alerts.silence': {
-      if (!alertmanagerUrl) return { success: false, error: 'Alertmanager not configured. Set ALERTMANAGER_URL.' };
+      if (!alertmanagerUrl) return { success: false, error: am.error };
       if (!input.matchers) return { success: false, error: 'Missing required field: matchers' };
       const startsAt = new Date();
       const hours = parseInt(input.duration) || 2;
       const endsAt = new Date(startsAt.getTime() + hours * 60 * 60 * 1000);
       try {
-        const resp = await fetch(`${alertmanagerUrl}/api/v2/silences`, {
+        const resp = await fetch(`${alertmanagerUrl}/api/v2/silences`, { redirect: 'manual',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -872,9 +960,9 @@ async function executeAlertsTool(toolId, input) {
     }
 
     case 'alerts.silences': {
-      if (!alertmanagerUrl) return { success: false, error: 'Alertmanager not configured. Set ALERTMANAGER_URL.' };
+      if (!alertmanagerUrl) return { success: false, error: am.error };
       try {
-        const resp = await fetch(`${alertmanagerUrl}/api/v2/silences`, { signal: AbortSignal.timeout(10000) });
+        const resp = await fetch(`${alertmanagerUrl}/api/v2/silences`, { redirect: 'manual', signal: AbortSignal.timeout(10000) });
         if (!resp.ok) return { success: false, error: `Alertmanager returned ${resp.status}` };
         const all = await resp.json();
         const active = (Array.isArray(all) ? all : []).filter(s => s.status?.state === 'active').map(s => ({
@@ -887,10 +975,10 @@ async function executeAlertsTool(toolId, input) {
     }
 
     case 'alerts.unsilence': {
-      if (!alertmanagerUrl) return { success: false, error: 'Alertmanager not configured. Set ALERTMANAGER_URL.' };
+      if (!alertmanagerUrl) return { success: false, error: am.error };
       if (!input.silence_id) return { success: false, error: 'Missing required field: silence_id' };
       try {
-        const resp = await fetch(`${alertmanagerUrl}/api/v2/silence/${input.silence_id}`, {
+        const resp = await fetch(`${alertmanagerUrl}/api/v2/silence/${input.silence_id}`, { redirect: 'manual',
           method: 'DELETE', signal: AbortSignal.timeout(10000)
         });
         if (!resp.ok) { const t = await resp.text(); return { success: false, error: `Unsilence failed: ${t}` }; }
@@ -1009,6 +1097,135 @@ async function executeUptimeTool(toolId, input) {
 // Main execute() entry point
 // ============================================================================
 
+// quox#1197: the user audit reads ONE org (the caller's verified org) from the auth service. It used to SSH to
+// 'localhost' (never a Bastion host) and read every org's users with a column that does not exist.
+async function executeUserAudit(input = {}, ctx = {}) {
+  const orgId = ctx && ctx.orgId;
+  if (!orgId) return { success: false, error_code: 'org_required', error: 'No authenticated organisation on this call, so no user audit can run.' };
+  const authBase = AUTH_SERVICE_URL;
+  let resp;
+  try {
+    resp = await fetch(`${authBase}/api/internal/orgs/${encodeURIComponent(orgId)}/user-audit`, {
+      headers: { 'X-Service-Key': process.env.INTERNAL_SERVICE_KEY || '' },
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (err) {
+    return { success: false, error_code: 'auth_unreachable', error: `The auth service did not answer the user audit: ${(err && err.message) || 'request failed'}` };
+  }
+  if (!resp.ok) return { success: false, error_code: 'auth_error', error: `The auth service answered the user audit with HTTP ${resp.status}` };
+  const users = ((await resp.json()) || {}).users || [];
+  const now = Number(input._now) || Date.now();
+  const days = parseInt(input.check_inactive_days, 10) || 90;
+  const cutoff = now - days * 86400000;
+  const when = (t) => (t ? Date.parse(String(t).replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(String(t)) ? '' : 'Z')) : NaN);
+  const brief = (u) => ({ id: u.id, email: u.email, display_name: u.display_name, role: u.role, last_active_at: u.last_active_at || null });
+  const inactive = users.filter((u) => { const t = when(u.last_active_at); return !Number.isFinite(t) || t < cutoff; }).map(brief);
+  const locked = users.filter((u) => { const t = when(u.lockout_until); return Number.isFinite(t) && t > now; }).map((u) => ({ ...brief(u), lockout_until: u.lockout_until, failed_login_count: u.failed_login_count }));
+  const out = { success: true, org_id: orgId, total_users: users.length, inactive_days: days, inactive, locked };
+  if (input.check_mfa !== false) out.without_mfa = users.filter((u) => !u.mfa_enabled).map(brief);
+  return out;
+}
+
+
+// ---------------------------------------------------------------------------
+// quox/quoxbastion#27: security.permission_audit across the fleet. A fleet audit used to be one host per
+// call, so one stale id (Bastion 404 "host not found") or one dead host ("no route to host") ended the
+// audit, and the model fell back to a raw ssh_exec sweep that is (rightly) held for approval. The audit is
+// read-only (two `find` listings, nothing written), so it stays ungated; the fleet form skips hosts that
+// cannot be reached, marks each per host, and finishes for the rest.
+const PERMISSION_AUDIT_MAX_HOSTS = 40;
+const PERMISSION_AUDIT_CONCURRENCY = 4;
+/** 'stale' = the id is not in Bastion's fleet (404); 'unreachable' = known but cannot be reached; else 'error'. */
+function classifyHostFailure(errText, httpStatus) {
+  const t = String(errText || '');
+  if (Number(httpStatus) === 404 || /host not found|unknown host|no such host/i.test(t)) return 'stale';
+  if (/no route to host|unreachable|connection (?:refused|timed out|reset)|timed? ?out|i\/o timeout|EHOSTUNREACH|ETIMEDOUT|ECONNREFUSED|offline|dial tcp/i.test(t)) return 'unreachable';
+  return 'error';
+}
+/** The host argument as a list: a fleet id, 'a,b,c', an array, or 'all' / '*' (null = the whole fleet). */
+function parseAuditHosts(hostArg) {
+  const raw = Array.isArray(hostArg) ? hostArg : String(hostArg == null ? '' : hostArg).split(/[\s,]+/);
+  const list = raw.map((h) => String(h).trim()).filter(Boolean);
+  if (list.some((h) => /^(?:all|\*|fleet)$/i.test(h))) return null;
+  return [...new Set(list)];
+}
+async function fleetHostIds() {
+  // Bastion's own host list first (the ids it will accept); the collector's agent list when Bastion cannot say.
+  if (BASTION_URL && BASTION_TOKEN) {
+    try {
+      const b = await fetch(`${BASTION_URL}/api/v1/hosts`, { headers: { Authorization: `Bearer ${BASTION_TOKEN}` }, signal: AbortSignal.timeout(8000) });
+      if (b && b.ok) {
+        const data = await b.json();
+        const ids = [...new Set((data.hosts || data || []).map((h) => h && (h.id || h.host_id || h.hostname)).filter(Boolean))];
+        if (ids.length) return ids;
+      }
+    } catch { /* fall through to the agent list */ }
+  }
+  const port = process.env.COLLECTOR_PORT || process.env.PORT || 9848;
+  const r = await fetch(`http://127.0.0.1:${port}/api/v1/agents`, {
+    headers: process.env.INTERNAL_SERVICE_KEY ? { 'X-Service-Key': process.env.INTERNAL_SERVICE_KEY } : {},
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!r || !r.ok) throw new Error(`fleet list returned ${r && r.status}`);
+  return [...new Set(((await r.json()).agents || []).map((a) => a && a.host_id).filter(Boolean))];
+}
+/**
+ * Run runOne(host) for every host (bounded concurrency); a host that throws or fails never stops the rest.
+ * runOne resolves {success, output?, error?, http_status?}. Returns per-host rows in input order.
+ */
+async function auditHostsSoft(hosts, runOne, concurrency = PERMISSION_AUDIT_CONCURRENCY) {
+  const rows = new Array(hosts.length);
+  let next = 0;
+  async function worker() {
+    while (next < hosts.length) {
+      const i = next++;
+      const host = hosts[i];
+      try {
+        const r = await runOne(host);
+        if (r && r.success !== false) rows[i] = { host, status: 'audited', output: r.output || '' };
+        else rows[i] = { host, status: classifyHostFailure(r && r.error, r && r.http_status), error: String((r && r.error) || 'failed').slice(0, 300) };
+      } catch (e) {
+        rows[i] = { host, status: classifyHostFailure(e && e.message), error: String((e && e.message) || e).slice(0, 300) };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, hosts.length) }, worker));
+  return rows;
+}
+async function executePermissionAudit(input, ctx, deps = {}) {
+  const hosts = parseAuditHosts(input.host);
+  const isFleetForm = hosts === null || (hosts && hosts.length > 1);
+  if (!isFleetForm) return null; // a single named host keeps the one-call path
+  let targets = hosts;
+  if (targets === null) {
+    try { targets = await (deps.fleetHostIds || fleetHostIds)(); }
+    catch (e) { return { success: false, error: 'fleet_list_unavailable', message: `Could not list the fleet to audit it all (${e.message}). Name the hosts to audit.` }; }
+  }
+  const truncated = targets.length > PERMISSION_AUDIT_MAX_HOSTS;
+  targets = targets.slice(0, PERMISSION_AUDIT_MAX_HOSTS);
+  if (!targets.length) return { success: false, error: 'host_required', message: 'No fleet hosts to audit.' };
+  const built = buildSecurityCommand('security.permission_audit', { ...input, host: targets[0] });
+  if (built.error) return { success: false, error: built.error };
+  // One host at a time through the SAME single-host path (grant mint, builder, callBastion): no new call site.
+  const run = deps.runOne || (async (host) => {
+    const r = await module.exports.execute('security.permission_audit', { ...input, host }, ctx);
+    return { success: r.success !== false, output: r.output || '', error: r.error, http_status: /Bastion returned 404/.test(String(r.error || '')) ? 404 : undefined };
+  });
+  const rows = await auditHostsSoft(targets, run);
+  const count = (st) => rows.filter((r) => r.status === st).length;
+  const audited = count('audited'), stale = count('stale'), unreachable = count('unreachable'), errored = count('error');
+  const skipped = rows.filter((r) => r.status !== 'audited').map((r) => `${r.host} (${r.status})`);
+  return {
+    success: audited > 0,
+    tool: 'security.permission_audit',
+    path: input.path,
+    summary: { requested: targets.length, audited, stale, unreachable, error: errored, ...(truncated ? { truncated_at: PERMISSION_AUDIT_MAX_HOSTS } : {}) },
+    hosts: rows,
+    message: `Audited ${audited} of ${targets.length} host(s)${skipped.length ? `; skipped ${skipped.join(', ')}` : ''}. Skipped hosts are reported per host, not fatal: finish the report for the audited hosts and list the skipped ones. Do not fall back to ssh_exec.`,
+    ...(audited === 0 ? { error: 'no_host_audited' } : {}),
+  };
+}
+
 module.exports = {
   async execute(toolId, input, ctx) {
     // Determine the tool category from the ID prefix
@@ -1019,10 +1236,17 @@ module.exports = {
       return executeFleetTool(toolId, input);
     }
     if (prefix === 'alerts') {
-      return executeAlertsTool(toolId, input);
+      return executeAlertsTool(toolId, input, ctx);
     }
     if (prefix === 'uptime') {
       return executeUptimeTool(toolId, input);
+    }
+    if (toolId === 'security.user_audit') {
+      return executeUserAudit(input, ctx);
+    }
+    if (toolId === 'security.permission_audit') {
+      const fleet = await executePermissionAudit(input, ctx);
+      if (fleet) return fleet;
     }
 
     // Proxmox golden-clone tools — multi-step (template-flag lookup + act),
@@ -1112,6 +1336,15 @@ module.exports = {
       }
     }
 
+    // DEVFLEET-A2: Proxmox read tools go over the REST API (vault token) first;
+    // raw Bastion `pvesh` always 403s with approval_required. Falls through to
+    // the unchanged pvesh path only when the REST API is not configured.
+    let restError = null;
+    if (prefix === 'proxmox') {
+      const restResult = await proxmoxExtRest(toolId, input, { orgId: (ctx && ctx.orgId) || input.org_id || null, onFallback: (note) => { restError = note; } });
+      if (restResult) return restResult;
+    }
+
     let built = null;
 
     switch (prefix) {
@@ -1157,11 +1390,25 @@ module.exports = {
       throw err;
     }
 
-    // Execute via bastion
-    const result = await callBastion(built.host, built.cmd, execGrant);
+    // DEVFLEET-BUILTINS: docker READ tools go through the docker-read builtin first; the raw
+    // command runs only if Bastion does not know the tool. Writes (restart, prune) stay raw.
+    const safeRead = prefix === 'docker' ? dockerReadBuiltinFor(toolId, input) : null;
+    const result = safeRead
+      ? await runSafeRead('docker-read', built.host, safeRead.params,
+          () => callBastion(built.host, built.cmd, execGrant, built.timeoutMs), { convert: safeRead.convert, fallbackWhen: safeRead.fallbackWhen })
+      : await callBastion(built.host, built.cmd, execGrant, built.timeoutMs);
 
+    // quoxbastion#27: ONE stale (404) or unreachable host in a permission audit is a per-host skip, not a failed tool:
+    // the model audits the other hosts instead of falling back to a shell sweep. Not audited, and said so.
+    if (toolId === 'security.permission_audit' && result.success === false) {
+      const hs = classifyHostFailure(result.error, /Bastion returned 404/.test(String(result.error || '')) ? 404 : undefined);
+      if (hs === 'stale' || hs === 'unreachable') {
+        return { success: true, audited: false, host: built.host, tool: toolId, host_status: hs, skipped: true, output: '', error_detail: String(result.error).slice(0, 300),
+          message: `Host ${built.host} is ${hs} and was NOT audited. Continue with the other hosts and list this one as ${hs} in the report; do not use ssh_exec.` };
+      }
+    }
     // Return raw result with context
-    return {
+    return okResult(built, {
       success: result.success !== false,
       host: built.host,
       tool: toolId,
@@ -1169,11 +1416,22 @@ module.exports = {
       stderr: result.stderr || '',
       exit_code: result.exit_code,
       duration_ms: result.duration_ms,
-      ...(result.error && result.success === false ? { error: result.error } : {})
-    };
+      ...(restError ? { rest_error: restError } : {}),
+      ...(result.error && result.success === false ? { error: result.error } : {}),
+      ...(toolId === 'security.permission_audit' && result.success === false ? { host_status: classifyHostFailure(result.error, /Bastion returned 404/.test(String(result.error || '')) ? 404 : undefined) } : {})
+    });
   }
 };
 
+/** A builder may name exit codes that are an answer, not a failure (systemctl status exits 3 for a failed unit). */
+function okResult(built, out) {
+  if (out.success === false && built && Array.isArray(built.okExitCodes) && built.okExitCodes.includes(out.exit_code)) {
+    const { error, ...rest } = out;
+    return { ...rest, success: true };
+  }
+  return out;
+}
+
 // Test-only surface (bastionGrantFailClosed.test.js pins the fail-closed
 // mint semantics without driving a full executor call).
-module.exports._internal = { mintGrantForCtx, mintApprovalGrant, mintEngagementGrant, mintStandingGrant };
+module.exports._internal = { okResult, buildNetworkCommand, buildSecurityCommand, hostRequiredResult, executeFleetTool, classifyHostFailure, parseAuditHosts, auditHostsSoft, executePermissionAudit, buildSystemCommand, buildProxmoxExtCommand, callBastion, callBastionToolRun, mintGrantForCtx, mintApprovalGrant, mintEngagementGrant, mintStandingGrant, standingMintRetry };

@@ -7,6 +7,8 @@
 import { clip } from './theme.js';
 
 export const GLYPH = { running: '◐', waiting: '⏸', done: '✔', failed: '✖' };
+/** A row that ended without finishing says HOW: failed is the only error; the rest are neutral (no error colour). */
+export const OUTCOME_GLYPH = { failed: '✖', cancelled: '○', expired: '○', rejected: '⊘' };
 export const FRESH_MS = 10 * 60 * 1000;      // finished rows linger this long
 export const USER_DONE_MS = 20 * 1000;       // a user-started completion vanishes quickly: rows come and go
 export const PENDING_FRESH_MS = 24 * 3600 * 1000; // an older "pending" is stale, not waiting
@@ -36,7 +38,18 @@ export function elapsed(ms) {
 
 const ACTIVE_RE = /^(running|planning|decompos|executing|in_progress|active)/;
 const WAITING_RE = /^(paused|awaiting|blocked|plan_review|pending_approval|waiting)/;
-const FAILED = new Set(['failed', 'error', 'halted', 'cancelled', 'canceled', 'timed_out', 'timeout']);
+const FAILED = new Set(['failed', 'error', 'halted', 'cancelled', 'canceled', 'timed_out', 'timeout', 'expired', 'rejected']);
+/** The word for how an ended row ended (state stays 'failed' for the ended-badly group; this says which). */
+export function outcomeOf(status) {
+  const st = String(status || '').toLowerCase();
+  if (st === 'cancelled' || st === 'canceled') return 'cancelled';
+  if (st === 'expired') return 'expired';
+  if (st === 'rejected') return 'rejected';
+  return 'failed';
+}
+/** Word, glyph and whether it is an error, for a row. Non-failed states return their own state. */
+export function endWord(r) { return r.state === 'failed' ? outcomeOf(r.status) : r.state; }
+export const glyphOf = (r) => (r.state === 'failed' ? OUTCOME_GLYPH[endWord(r)] : GLYPH[r.state]);
 
 /** How long a finished row lingers before it leaves the roster (null while running/waiting). */
 const expiryFor = (state, doneMs) => state === 'done' ? doneMs : state === 'failed' ? FRESH_MS : null;
@@ -59,6 +72,8 @@ function stateOf(status, { startedAt, createdAt, finishedAt, now, doneMs = FRESH
   return null;
 }
 
+const latest = (...ts) => { const v = ts.filter((t) => t != null); return v.length ? Math.max(...v) : null; };
+
 export function fromObjective(o, now = Date.now()) {
   const startedAt = parseTime(o.started_at);
   const createdAt = parseTime(o.created_at);
@@ -78,6 +93,7 @@ export function fromObjective(o, now = Date.now()) {
     name: o.title || o.id, activity, status: o.status,
     startedAt: from, finishedAt, ageMs: from != null ? (state === 'done' || state === 'failed' ? (finishedAt ?? now) - from : now - from) : null,
     expiryMs: expiryFor(state, USER_DONE_MS),
+    progressAt: latest(parseTime(o.updated_at), parseTime(o.last_progress_at), parseTime(o.last_heartbeat_at)),
     detail: { description: o.description, error: o.error_message, tokens: o.tokens_used, toolCalls: o.tool_calls_used }
   };
 }
@@ -95,7 +111,8 @@ const BACKGROUND_BY = /^(schedule|cron|interval|webhook|event|system)\b/i;
 export function isBackgroundExecution(e, userId = null) {
   const by = e?.triggeredBy == null ? '' : String(e.triggeredBy);
   if (BACKGROUND_BY.test(by)) return true;
-  if (userId && by && by === String(userId)) return false;
+  // quoxflow records a person-started run as user:<id> (RunActor); a bare id is an older row
+  if (userId && by && (by === String(userId) || by === `user:${userId}`)) return false;
   return !USER_TRIGGERS.has(String(e?.triggerData?.trigger || '').toLowerCase());
 }
 
@@ -114,6 +131,7 @@ export function fromExecution(e, now = Date.now(), { userId = null } = {}) {
     name: e.workflowName || e.workflowId || e.id, activity, status: e.status,
     startedAt, finishedAt, ageMs: startedAt != null ? (state === 'done' || state === 'failed' ? (finishedAt ?? now) - startedAt : now - startedAt) : null,
     expiryMs: expiryFor(state, background ? FRESH_MS : USER_DONE_MS),
+    progressAt: latest(parseTime(e.updatedAt), parseTime(e.lastHeartbeatAt)),
     detail: { workflowId: e.workflowId, correlationId: e.correlationId, trigger: e.triggerData?.trigger, error: e.error }
   };
 }
@@ -169,22 +187,83 @@ export function toneName(r, pos, now = Date.now()) {
 
 /** Live age text: a clock for running/waiting rows, recency ("done 3s ago") for finished ones. */
 export function ageText(r, now = Date.now()) {
-  if (r.state === 'done' || r.state === 'failed') return r.finishedAt != null ? `${r.state === 'done' ? 'done' : 'failed'} ${elapsed(now - r.finishedAt)} ago` : '';
+  if (r.state === 'done' || r.state === 'failed') return r.finishedAt != null ? `${endWord(r)} ${elapsed(now - r.finishedAt)} ago` : '';
   return r.startedAt != null ? elapsed(now - r.startedAt) : '';
+}
+
+/* ---- pulse: is it moving? ---------------------------------------------------------------- */
+
+export const PULSE_MOVING_MS = 2 * 60 * 1000;   // progress this recently = moving
+export const PULSE_STALL_MS = 15 * 60 * 1000;   // running with no progress this long = stalled
+export const SPIN = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+export const SPIN_MS = 120;
+
+const sigOf = (r) => `${r.state}|${r.status}|${r.activity}`;
+
+/**
+ * Remember what each row looked like at the last poll so "state changed / iteration advanced" is noticed.
+ * Sets r.progressAt (newest of the API's own timestamp and the change we saw; null = nothing seen yet) and
+ * r.watchSince (when we first saw the row). Mutates rows and memo (key -> { sig, watchSince, changedAt }).
+ */
+export function applyProgress(rows, memo, now = Date.now()) {
+  const keep = new Set();
+  for (const r of rows) {
+    keep.add(r.key);
+    const sig = sigOf(r);
+    let m = memo.get(r.key);
+    if (!m) { m = { sig, watchSince: now, changedAt: null }; memo.set(r.key, m); }
+    else if (m.sig !== sig) { m.sig = sig; m.changedAt = now; }
+    r.progressAt = latest(r.progressAt, m.changedAt);
+    r.watchSince = m.watchSince;
+  }
+  for (const k of [...memo.keys()]) if (!keep.has(k)) memo.delete(k);
+  return rows;
+}
+
+/** -> { kind: 'moving' | 'idle' | 'stalled' | 'none', glyph, role }. motion=false gives static glyphs. */
+export function pulseOf(r, now = Date.now(), { motion = false } = {}) {
+  if (r.kind === 'approval' || r.state === 'done' || r.state === 'failed') return { kind: 'none', glyph: ' ', role: 'dim' };
+  if (r.state !== 'running') return { kind: 'idle', glyph: '·', role: 'dim' };
+  const last = latest(r.progressAt, r.startedAt != null && now - r.startedAt < PULSE_MOVING_MS ? r.startedAt : null);
+  if (last != null && now - last < PULSE_MOVING_MS) return { kind: 'moving', glyph: motion ? SPIN[Math.floor(now / SPIN_MS) % SPIN.length] : '●', role: 'sky' };
+  const ref = last ?? r.watchSince;
+  if (ref != null && now - ref > PULSE_STALL_MS) return { kind: 'stalled', glyph: '!', role: 'warn' };
+  return { kind: 'idle', glyph: '·', role: 'dim' };
 }
 
 export function countsLine(rows) {
   const n = (s) => rows.filter(r => r.state === s).length;
-  return [['running', 'running'], ['waiting', 'waiting'], ['failed', 'failed'], ['done', 'finished']]
-    .filter(([s]) => n(s)).map(([s, w]) => `${GLYPH[s]} ${n(s)} ${w}`).join(' · ');
+  const o = (w) => rows.filter(r => r.state === 'failed' && endWord(r) === w).length;
+  return [['running', 'running', n('running'), GLYPH.running], ['waiting', 'waiting', n('waiting'), GLYPH.waiting],
+    ['failed', 'failed', o('failed'), OUTCOME_GLYPH.failed], ['cancelled', 'cancelled', o('cancelled'), OUTCOME_GLYPH.cancelled],
+    ['expired', 'expired', o('expired'), OUTCOME_GLYPH.expired], ['rejected', 'rejected', o('rejected'), OUTCOME_GLYPH.rejected], ['done', 'finished', n('done'), GLYPH.done]]
+    .filter(([, , k]) => k).map(([, w, k, g]) => `${g} ${k} ${w}`).join(' · ');
 }
 
 /**
  * View model. mode: 'hidden' (off or nothing running) | 'summary' (narrow or short terminal) | 'full'.
  * lines: [{ state, text, selected }] where text is already clipped to cols.
  */
-export function rosterView({ rows, cols, termRows = 40, max = MAX_ROWS, on = true, sel = 0, focus = false, now = Date.now() }) {
+/**
+ * Two or more waiting approvals are ONE row ("⏸ 4 approvals waiting · oldest 41m · newest: <title>… · /approvals"), not
+ * one row each plus a summary line (owner, live 05:29): the bottom area must never grow with the inbox. A single approval
+ * keeps its own row. Focus (the user is walking the roster) shows the real rows so selection stays truthful.
+ */
+export function collapseApprovals(rows, now = Date.now()) {
+  const aps = rows.filter(r => r.kind === 'approval' && r.state === 'waiting');
+  if (aps.length < 2) return rows;
+  const started = aps.map(r => r.startedAt).filter(x => x != null);
+  const newest = aps.reduce((a, b) => ((b.startedAt ?? -Infinity) > (a.startedAt ?? -Infinity) ? b : a));
+  const one = { key: 'approval:*', id: '*', source: 'approvals', kind: 'approval', state: 'waiting', background: false, collapsed: true, count: aps.length,
+    name: `${aps.length} approvals waiting`, activity: '/approvals', status: 'pending', startedAt: started.length ? Math.min(...started) : null, finishedAt: null,
+    oldestMs: started.length ? now - Math.min(...started) : null, newestTitle: String(newest.detail?.description || newest.name || ''), detail: {} };
+  let placed = false;
+  return rows.flatMap(r => (aps.includes(r) ? (placed ? [] : (placed = true, [one])) : [r]));
+}
+
+export function rosterView({ rows, cols, termRows = 40, max = MAX_ROWS, on = true, sel = 0, focus = false, now = Date.now(), motion = false }) {
   if (!on || !rows.length) return { mode: 'hidden', lines: [], more: 0 };
+  if (!focus) rows = collapseApprovals(rows, now);
   if (cols < MIN_FULL_COLS || termRows < MIN_FULL_ROWS) {
     return { mode: 'summary', lines: [], more: 0, summary: clip(' ' + countsLine(rows) + ' · /roster', cols - 1) };
   }
@@ -197,12 +276,19 @@ export function rosterView({ rows, cols, termRows = 40, max = MAX_ROWS, on = tru
     const tone = toneName(r, pos, now); if (r.kind !== 'approval') pos++;
     const actW = Math.min(18, Math.max(0, ...shown.map(x => [...(x.activity || '')].length)));
     const act = clip(r.activity || '', actW).padEnd(actW);
-    const fixed = 1 + 1 + 1 + kindW + 1 + 1 + actW + 1 + ageW; // marker glyph kind name act elapsed
+    const fixed = 1 + 1 + 1 + kindW + 1 + 1 + actW + 1 + ageW + 2; // pulse column (space + glyph); marker glyph kind name act elapsed
     const nameW = Math.max(8, cols - 2 - fixed - 1);
     const name = clip(r.name, nameW).padEnd(nameW);
     const marker = focus && i === sel ? '›' : ' ';
+    if (r.collapsed) { // one summary row: count, oldest age, newest title, where to go; clipped to the line
+      const head = `${r.count} approvals waiting · oldest ${elapsed(r.oldestMs)} · newest: `, tail = ' · /approvals';
+      const room = cols - 5 - [...head].length - [...tail].length;
+      const text = room >= 12 ? `${head}${clip(r.newestTitle, room)}${tail}` : clip(`${r.count} approvals waiting · oldest ${elapsed(r.oldestMs)}${tail}`, cols - 4); // too narrow for a title
+      return { key: r.key, kind: 'approval', state: r.state, tone: toneName(r, pos, now), selected: false, marker: ' ', glyph: GLYPH[r.state], rest: ' ' + text, pulse: '', pulseRole: 'dim', pulseKind: 'none', text: ` ${GLYPH[r.state]} ${text}` };
+    }
     const rest = `${r.kind.padEnd(kindW)} ${name} ${act} ${el}`;
-    return { key: r.key, state: r.state, tone, selected: focus && i === sel, marker, glyph: GLYPH[r.state], rest: ' ' + rest, text: `${marker}${GLYPH[r.state]} ${rest}` };
+    const p = pulseOf(r, now, { motion });
+    return { key: r.key, kind: r.kind, state: r.state, tone, selected: focus && i === sel, marker, glyph: glyphOf(r), glyphRole: r.state === 'failed' && endWord(r) !== 'failed' ? 'dim' : null, rest: ' ' + rest, pulse: ' ' + p.glyph, pulseRole: p.role, pulseKind: p.kind, text: `${marker}${glyphOf(r)} ${rest} ${p.glyph}` };
   });
   return { mode: 'full', lines, more: Math.max(0, rows.length - shown.length) };
 }
@@ -210,7 +296,7 @@ export function rosterView({ rows, cols, termRows = 40, max = MAX_ROWS, on = tru
 export function peekLines(row, now = Date.now()) {
   if (!row) return [];
   const age = ageText(row, now);
-  const out = [`${row.kind} ${row.id}`, `status ${row.status} · ${row.state}${age ? ` · ${age}` : ''}`, `name ${row.name}`];
+  const out = [`${row.kind} ${row.id}`, `status ${row.status} · ${endWord(row)}${age ? ` · ${age}` : ''}`, `name ${row.name}`];
   if (row.activity) out.push(`activity ${row.activity}`);
   const d = row.detail || {};
   if (d.description) out.push(`goal ${d.description}`);

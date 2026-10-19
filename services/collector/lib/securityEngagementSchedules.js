@@ -54,6 +54,19 @@ function parseScheduleRow(row) {
  * @param {{engagement_id:string, org_id:string, target_value:string, tool:string, interval_seconds:number, created_by?:string}} input
  * @param {object} deps - { db, now? } - now is a () => ISO-8601 string clock, test override
  */
+// #1007: a schedule is a standing order to scan, so it must name a target that is in the engagement's scope
+// AND verified, the same row the run-time policy gate (checkEngagementPolicy) looks up. Accepting an
+// unverified target created an enabled recurring scan that could never lawfully run.
+function assertScheduleTarget(db, engagementId, orgId, targetValue) {
+  const target = db.prepare(
+    'SELECT verification_status FROM security_targets WHERE engagement_id = ? AND org_id = ? AND value = ?'
+  ).get(engagementId, orgId, targetValue);
+  if (!target) throw new Error(`Target "${targetValue}" is not part of this engagement's scope (add and verify it first)`);
+  if (target.verification_status !== 'verified') {
+    throw new Error(`Target "${targetValue}" is not verified for this engagement (status: ${target.verification_status}); verify it before scheduling`);
+  }
+}
+
 function createSchedule(input, deps) {
   const { db } = deps;
   const now = deps.now || defaultNow;
@@ -72,6 +85,7 @@ function createSchedule(input, deps) {
   if (!engagement) throw new Error(`Engagement "${engagement_id}" not found or not authorized for org "${org_id}"`);
   if (!target_value || !String(target_value).trim()) throw new Error('target_value is required');
   if (!tool || !String(tool).trim()) throw new Error('tool is required');
+  assertScheduleTarget(db, engagement_id, org_id, target_value);
 
   // Cron rows store interval_seconds = 0 (a sentinel never read for cron
   // cadence): the column is NOT NULL and SQLite cannot drop that without a
@@ -240,6 +254,7 @@ function updateSchedule(scheduleId, orgId, patch, deps) {
   }
   if (!target_value || !String(target_value).trim()) throw new Error('target_value is required');
   if (!tool || !String(tool).trim()) throw new Error('tool is required');
+  if (target_value !== existing.target_value) assertScheduleTarget(db, existing.engagement_id, orgId, target_value);
 
   let storedInterval;
   let storedCron;

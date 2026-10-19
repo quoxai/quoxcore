@@ -81,6 +81,13 @@ export const workflows = {
   // quoxflow#7: execute an engine-store workflow directly (the auth-service
   // runs route only knows auth-store workflows). Org comes from the caller's
   // auth context server-side, like the other quoxflow-direct entries.
+  // #997: `workflow delete` reaches engine workflows (the ones `workflow list` labels "engine")
+  'workflows.applyDelete': {
+    method: 'DELETE',
+    service: 'quoxflow',
+    path: ({ workflowId }) => `/api/workflows/${workflowId}`,
+    tags: ['live-write'],
+  },
   'workflows.applyExecute': {
     method: 'POST',
     service: 'quoxflow',

@@ -174,7 +174,7 @@
     {
       "id": "docker.images",
       "name": "List Images",
-      "description": "List Docker images on a host with size information",
+      "description": "List Docker images on a host with each image's size. Image sizes overlap (shared layers), so their sum overstates disk use: for how much disk images use, run docker_fleet_system_df (read-only docker system df)",
       "accessLevel": "specialists+",
       "defconLevel": "GREEN",
       "requiresApproval": false,
@@ -194,7 +194,7 @@
         "summary": "List Docker images and their sizes",
         "when_to_use": [
           "User asks what images are available",
-          "Checking disk usage from images",
+          "Per-image sizes only (they overlap); for total disk usage use docker_fleet_system_df",
           "Finding image versions/tags"
         ]
       }

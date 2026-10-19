@@ -214,7 +214,7 @@ const LOOP_TOOLS = {
 
   loop_sessions: {
     name: 'loop_sessions',
-    description: "List the org's QLoop loop sessions (execution_mode='loop' objectives handed to a model's own native loop on a governed dev server). Read-only. Use this first for any 'what is running', 'which loops are live', or 'what happened on host X' question, then loop_turns for the detail of one session. Returns [] when the org has no loop sessions, which means exactly that and must not be reported as healthy or as an error.",
+    description: "List the org's QLoop loop sessions (execution_mode='loop' objectives handed to a model's own native loop on a governed dev server). Read-only. Use this first for any 'what is running', 'which loops are live', or 'what happened on host X' question, then loop_turns for the detail of one session. Returns [] when the org has no loop sessions, which means exactly that and must not be reported as healthy or as an error. Prefer this over objective_counts when the user wants the loop SESSIONS listed individually (ids, hosts, status, last activity), not a tally.",
     input_schema: {
       type: 'object',
       properties: {
@@ -343,7 +343,7 @@ const LOOP_TOOLS = {
 
   loop_suggest: {
     name: 'loop_suggest',
-    description: "Advise what to run as a QLoop loop (or what to SCHEDULE instead). Reads the real open roadmap (QuoxPlan streams/phases) plus the currently-running loops, matches open work to the loopy-plugin recipe catalog, and returns ranked, mode-tagged proposals: mode:'loop' for open-ended compounding goals, mode:'schedule' for fixed-cadence work that must NOT be looped (looping a schedule pays a model to reason every tick for nothing). Pass an optional `situation` to get a straight loop-vs-schedule verdict on one specific thing. This is honest by design: it will tell you to cron something rather than loop it. Read-only; it never spawns anything, it proposes and you approve.",
+    description: "Advise what to run as a QLoop loop (or what to SCHEDULE instead). Reads the real open roadmap (QuoxPlan streams/phases) plus the currently-running loops, matches open work to the loopy-plugin recipe catalog, and returns ranked, mode-tagged proposals: mode:'loop' for open-ended compounding goals, mode:'schedule' for fixed-cadence work that must NOT be looped (looping a schedule pays a model to reason every tick for nothing). Pass an optional `situation` to get a straight loop-vs-schedule verdict on one specific thing. This is honest by design: it will tell you to cron something rather than loop it. Read-only; it never spawns anything, it proposes and you approve. Prefer this over list_schedules (which only lists schedules already created) when the user asks what they SHOULD run, loop, or schedule next.",
     input_schema: {
       type: 'object',
       properties: {

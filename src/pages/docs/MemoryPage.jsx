@@ -619,7 +619,7 @@ New memory linked with "supersedes: [old-memory-id]"`}</pre>
 
         <div className="docs-code-block">
           <div className="docs-code-header">text</div>
-          <pre>{`/opt/quoxcore/quox-memory/
+          <pre>{`~/quox-memory/
 ├── profile/                 # User profile data
 │   ├── identity.json        # Name, preferences
 │   └── style.json           # Communication style profile

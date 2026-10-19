@@ -15,6 +15,7 @@
 
 import { getDatabase } from '../db/index.js'
 import { ulid } from 'ulid'
+import { NOT_EVENT_LOG_SQL, rankWisdom, keywords, markInjected, decayWisdom } from './wisdomHygiene.js'
 
 // ── Seed Patterns ────────────────────────────────────────────────────
 // Patterns proven at high confidence from overnight runs.
@@ -92,13 +93,17 @@ export function recordWisdom(orgId, { patternName, category, lesson, directive, 
 /**
  * Search wisdom by keyword (FTS-like using LIKE).
  */
-export function searchWisdom(orgId, query, { limit = 10, minConfidence = 0, activeOnly = true } = {}) {
+export function searchWisdom(orgId, query, { limit = 10, minConfidence = 0, activeOnly = true, includeEvents = false } = {}) {
   const db = getDatabase()
   const conditions = ['(org_id = ? OR org_id IS NULL)']
   const params = [orgId]
 
   if (activeOnly) {
     conditions.push('active = 1')
+  }
+  // #1112: plugin event logs are not lessons; recall must not surface them as wisdom.
+  if (!includeEvents) {
+    conditions.push(NOT_EVENT_LOG_SQL)
   }
   if (minConfidence > 0) {
     conditions.push('confidence >= ?')
@@ -120,33 +125,39 @@ export function searchWisdom(orgId, query, { limit = 10, minConfidence = 0, acti
 }
 
 /**
- * Get high-confidence wisdom entries relevant to a given text (title + description).
- * Used by the Advisor for pre-flight intelligence.
+ * Get wisdom relevant to a given text (title + description), ready for prompt
+ * injection by the Advisor. #1112: event logs excluded, one row per pattern
+ * (org-scoped beats global), fresh and confident first, capped at `limit`
+ * items and `charBudget` characters. `markInjected: true` (the advisor only)
+ * records consumption so /mind can tell used wisdom from shelf wisdom.
  */
-export function getRelevantWisdom(orgId, text, { minConfidence = 0.5, limit = 5 } = {}) {
+export function getRelevantWisdom(orgId, text, { minConfidence = 0.5, limit = 5, charBudget = 1500, markInjected: mark = false } = {}) {
   const db = getDatabase()
   if (!text) return []
 
-  // Extract keywords from text for matching
-  const words = text.toLowerCase().split(/\s+/).filter(w => w.length > 3)
+  const words = keywords(text, 8)
   if (words.length === 0) return []
 
-  // Build LIKE conditions for keyword matching against lesson, pattern_name, and tags
-  const likeConditions = words.slice(0, 8).map(() => '(lesson LIKE ? OR pattern_name LIKE ? OR tags LIKE ? OR decomposition_directive LIKE ?)')
-  const likeParams = words.slice(0, 8).flatMap(w => {
+  const likeConditions = words.map(() => '(lesson LIKE ? OR pattern_name LIKE ? OR tags LIKE ? OR decomposition_directive LIKE ?)')
+  const likeParams = words.flatMap(w => {
     const p = `%${w}%`
     return [p, p, p, p]
   })
 
-  // Score by number of keyword matches (rough relevance)
-  return db.prepare(`
-    SELECT *, (${likeConditions.map((_, i) => `CASE WHEN ${likeConditions[i]} THEN 1 ELSE 0 END`).join(' + ')}) as relevance_score
+  // Over-fetch candidates, then de-duplicate, freshness-rank and budget in JS.
+  const candidates = db.prepare(`
+    SELECT *, (${likeConditions.map((c) => `CASE WHEN ${c} THEN 1 ELSE 0 END`).join(' + ')}) as relevance_score
     FROM execution_wisdom
     WHERE (org_id = ? OR org_id IS NULL) AND active = 1 AND confidence >= ?
+      AND ${NOT_EVENT_LOG_SQL}
       AND (${likeConditions.join(' OR ')})
     ORDER BY relevance_score DESC, confidence DESC
     LIMIT ?
-  `).all(orgId, minConfidence, ...likeParams, ...likeParams, limit)
+  `).all(...likeParams, orgId, minConfidence, ...likeParams, Math.max(limit * 4, 20))
+
+  const picked = rankWisdom(candidates, { orgId, limit, charBudget })
+  if (mark && picked.length > 0) markInjected(db, picked.map(w => w.id))
+  return picked
 }
 
 /**
@@ -387,28 +398,12 @@ export function recordNocOutcome(toolName, success, durationMs, opts = {}) {
 // ── Confidence Decay ─────────────────────────────────────────────────
 
 /**
- * Run confidence decay on stale wisdom entries.
- * Called periodically (e.g., daily or on startup).
+ * Run confidence decay on stale wisdom entries. #1112: at most 0.1 per 30
+ * days per row (was 0.1 per call), never on user-confirmed rows, and rows
+ * below 0.2 retire with a reason. Scheduled by mindRetirementScheduler.
  */
 export function decayStaleWisdom(daysThreshold = 90) {
-  const db = getDatabase()
-  const cutoff = new Date(Date.now() - daysThreshold * 86400000).toISOString()
-
-  const stale = db.prepare(`
-    SELECT id, pattern_name, confidence FROM execution_wisdom
-    WHERE active = 1 AND last_seen_at < ? AND confidence > 0.2
-  `).all(cutoff)
-
-  let decayed = 0
-  for (const w of stale) {
-    const newConf = Math.max(0.1, w.confidence - 0.1)
-    db.prepare('UPDATE execution_wisdom SET confidence = ?, updated_at = datetime(\'now\') WHERE id = ?').run(newConf, w.id)
-    if (newConf < 0.2) {
-      db.prepare('UPDATE execution_wisdom SET active = 0, updated_at = datetime(\'now\') WHERE id = ?').run(w.id)
-    }
-    decayed++
-  }
-
+  const decayed = decayWisdom(getDatabase(), { staleDays: daysThreshold })
   if (decayed > 0) {
     console.log(`[QuoxMind] Decayed ${decayed} stale wisdom entries (older than ${daysThreshold} days)`)
   }

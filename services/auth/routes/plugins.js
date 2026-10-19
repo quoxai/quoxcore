@@ -56,6 +56,7 @@ import {
     revocationFor,
     installRevocation,
     REVOCATION_KINDS,
+    pluginInstallsLookupTarget,
 } from '../utils/plugins.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireOrgMembership, requireOrgRole } from '../middleware/org.js';
@@ -209,7 +210,7 @@ function enforceSignaturePolicy(req, res, { pluginId, bundleSha256, cssSha256 = 
                 error: 'signature_invalid',
                 reason: 'manifest_unbound_permissions',
                 excess,
-                message: 'a v1 signature does not bind the manifest, so it may only request sidebar, storage and notifications; re-sign with quox-plugin-vite >= 0.3.0 (signature v2)',
+                message: 'a v1 signature does not bind the manifest, so it may only request sidebar, storage and notifications; re-sign with @quoxai/quox-plugin-vite (or quox-plugin-vite >= 0.3.0) (signature v2)',
             });
             return false;
         }
@@ -880,7 +881,7 @@ router.get('/orgs/:orgId/me/plugins', ...memberChain, (req, res) => {
     const rows = db(req).prepare(`
         SELECT id, plugin_id, version, manifest_json, bundle_sha256, signature_json, is_enabled,
                installed_by, installed_at, upgraded_at
-          FROM plugin_installs
+          FROM ${pluginInstallsLookupTarget(db(req))}
          WHERE org_id = ? AND plugin_id IN (${placeholders})
          ORDER BY installed_at DESC
     `).all(req.org.id, ...visibleIds);

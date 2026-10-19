@@ -12,7 +12,7 @@
  * shareable, deep-linkable URL — same reasoning as QuoxPlan's
  * `streams/:streamId` sub-route.
  *
- * The standalone web/ app at /opt/quoxcore/quox-signal/web stays as-is, as a
+ * The standalone web/ app at ~/quox-signal/web stays as-is, as a
  * dev harness — untouched by this embed, same as QuoxPlan's own standalone
  * app.
  */

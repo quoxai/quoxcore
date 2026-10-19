@@ -5,9 +5,13 @@
  * NotesQ note through the existing NotesQ routes (quoxbrain /notesq/notes/:id),
  * which already enforce revisions and optimistic concurrency (base_hash ->
  * 409 conflict). Identity comes only from the tool context, never model input.
- * update/restore: the caller's own private notes AND org (team) notes of the
- * caller's own org (same rule as NotesQ canWriteVault). delete: private only.
- * Never throws.
+ * Private notes: the caller's own, written directly. Org (team) notes of the
+ * caller's own org (BRAIN2-FABLE12): the AUTHOR (rev 1) updates/restores
+ * directly; anyone else, and every org-note delete, files an Approvals card
+ * through the existing NotesQ propose path (ctx._notesqPropose + the line-diff
+ * card in approvalGate) and runs only when a human approves, with the original
+ * expectedHash (a note that moved on is an honest conflict, never overwritten).
+ * Another user's private note is never proposable (the brain hides it). Never throws.
  */
 
 const { emitNotes } = require('../notesq/evidence');
@@ -75,7 +79,66 @@ async function fetchOwnNote(noteId, ctx, fetchImpl, { allowOrg = false } = {}) {
   return { note };
 }
 
-async function brainUpdate(input, ctx, { fetchImpl = fetch } = {}) {
+// ---- BRAIN2-FABLE12: shared-note corrections go through the approval gate ----
+const { lineDiff, fenced } = require('../notesq/diff.js');
+let defaultGate = (...a) => require('../approvalGate').withApprovalGate(...a);
+const CONTROL = ['_approvalId', '_resumeToken'];
+const mdEsc = (v) => String(v == null ? '' : v).replace(/[\\`*_~#[\]>|]/g, (c) => `\\${c}`).replace(/\r?\n/g, ' ').slice(0, 160);
+
+// Rev-1 author of the note. Unreadable history means unknown, and unknown is
+// treated as non-author (fails closed into a proposal, never into a write).
+async function isAuthorOf(noteId, ctx, fetchImpl) {
+  const r = await call(fetchImpl, `${BRAIN_URL}/notesq/notes/${encodeURIComponent(noteId)}/revisions`, { method: 'GET', headers: headersFor(ctx) });
+  if (r.unavailable || !r.res.ok || !Array.isArray(r.json && r.json.revisions)) return false;
+  const first = r.json.revisions.find((v) => v && v.rev === 1);
+  return Boolean(first && first.author_user_id && String(first.author_user_id) === String(ctx.userId));
+}
+
+// SITE-CLI 2026-10-15: an approved write lends quoxbrain the admin flag ONLY when the human who
+// approved is an org owner/admin, or the note's author. A plain member's (or an unknown) approval
+// lends nothing, so quoxbrain's own author/admin check still refuses it.
+async function approvalLendsAdmin(noteId, ctx, fetchImpl) {
+  if (['owner', 'admin'].includes(String(ctx?.approverRole || '').toLowerCase())) return true;
+  if (!ctx?.approverId) return false;
+  return isAuthorOf(noteId, { ...ctx, userId: ctx.approverId }, fetchImpl);
+}
+
+function proposalCard(toolName, input, note) {
+  const title = String(note.title || input.noteId).slice(0, 80);
+  const head = (verb) => `**CORTEX** wants to ${verb} the shared note "${mdEsc(title)}". [Open the note](/notes?note=${input.noteId})\n\nBase revision: \`${revisionOf(input)}\`. Nothing changes until you approve; if the note changes before then, the approval is refused as a conflict. Every change is a revision you can undo.`;
+  if (toolName === 'brain_update') {
+    const d = lineDiff(note.markdown || '', String(input.text || ''));
+    return { targetId: input.noteId, reason: `edit shared note ${title}`, title: `NotesQ: edit shared note "${title}" (+${d.added} / -${d.removed})`, bodyMd: `${head('edit')}\n\n${d.changed ? fenced(d.text, 'diff') : '_No change to the text._'}` };
+  }
+  if (toolName === 'brain_restore') {
+    return { targetId: input.noteId, reason: `restore shared note ${title} to revision ${input.rev}`, title: `NotesQ: restore shared note "${title}" to revision ${input.rev}`, bodyMd: head(`restore to revision ${Number(input.rev)}`) };
+  }
+  return { targetId: input.noteId, reason: `delete shared note ${title}`, title: `NotesQ: delete shared note "${title}"`, bodyMd: `${head('delete')}\n\nA delete is soft: the note and its history can be restored.` };
+}
+
+// Returns null when the caller may write directly; otherwise the gate result.
+async function proposeIfShared(toolName, input, ctx, fetchImpl, note, gate, run) {
+  if (note.scope !== 'org') return null;
+  if (toolName !== 'brain_delete' && await isAuthorOf(input.noteId.trim(), ctx, fetchImpl)) return null;
+  const gateInput = { noteId: input.noteId.trim(), expectedHash: revisionOf(input) };
+  if (toolName === 'brain_update') gateInput.text = input.text;
+  if (toolName === 'brain_restore') gateInput.rev = input.rev;
+  for (const k of CONTROL) if (input[k]) gateInput[k] = input[k];
+  const resuming = Boolean(input._approvalId);
+  const card = resuming ? null : proposalCard(toolName, gateInput, note);
+  let r;
+  try {
+    r = await (gate || defaultGate)(toolName, gateInput, async () => run({ approved: true, lendAdmin: await approvalLendsAdmin(gateInput.noteId, ctx, fetchImpl) }), { ...ctx, _notesqPropose: true, _notesqProposal: card });
+  } catch (err) {
+    return { success: false, error: 'approval_gate_error', output: `Could not file the proposal (${(err && err.message) || 'gate error'}). Nothing was changed.` };
+  }
+  if (r && r.pending) {
+    return { ...r, output: `Proposed, not applied: this is a shared team note and you are not its author, so a human must approve the change in Approvals (approval ${r.approvalId}). Nothing has been changed yet.` };
+  }
+  return r;
+}
+
+async function brainUpdate(input, ctx, { fetchImpl = fetch, gate } = {}) {
   const bad = preflight(input, ctx);
   if (bad) return bad;
   const text = typeof input?.text === 'string' ? input.text : '';
@@ -83,10 +146,18 @@ async function brainUpdate(input, ctx, { fetchImpl = fetch } = {}) {
   const noteId = input.noteId.trim();
   const got = await fetchOwnNote(noteId, ctx, fetchImpl, { allowOrg: true });
   if (got.fail) return got.fail;
+  const proposed = await proposeIfShared('brain_update', input, ctx, fetchImpl, got.note, gate, (o) => doUpdate(input, ctx, fetchImpl, o));
+  if (proposed) return proposed;
+  return doUpdate(input, ctx, fetchImpl, {});
+}
+
+async function doUpdate(input, ctx, fetchImpl, { approved = false, lendAdmin = false } = {}) {
+  const text = input.text;
+  const noteId = input.noteId.trim();
   const baseHash = revisionOf(input);
   const r = await call(fetchImpl, `${BRAIN_URL}/notesq/notes/${encodeURIComponent(noteId)}`, {
     method: 'PUT',
-    headers: headersFor(ctx),
+    headers: headersFor(ctx, approved && lendAdmin ? { 'X-User-Is-Admin': 'true' } : {}),
     body: JSON.stringify({ markdown: text, base_hash: baseHash, author_kind: 'agent' }),
   });
   if (r.unavailable) return { success: false, error: 'knowledge_brain_unavailable', output: UNCONFIRMED };
@@ -99,16 +170,28 @@ async function brainUpdate(input, ctx, { fetchImpl = fetch } = {}) {
   return { success: true, output: unchanged ? `Note ${noteId.slice(0, 8)} already had that text; nothing changed.` : `Updated note ${noteId.slice(0, 8)} in the knowledge brain (a revision was recorded; it can be restored in NotesQ).` };
 }
 
-async function brainDelete(input, ctx, { fetchImpl = fetch } = {}) {
+async function brainDelete(input, ctx, { fetchImpl = fetch, gate } = {}) {
   const bad = preflight(input, ctx);
   if (bad) return bad;
   const noteId = input.noteId.trim();
-  const got = await fetchOwnNote(noteId, ctx, fetchImpl);
+  const got = await fetchOwnNote(noteId, ctx, fetchImpl, { allowOrg: true });
   if (got.fail) return got.fail;
-  if (got.note.content_hash !== revisionOf(input)) return { success: false, error: 'conflict', output: CONFLICT };
+  const proposed = await proposeIfShared('brain_delete', input, ctx, fetchImpl, got.note, gate, (o) => doDelete(input, ctx, fetchImpl, got.note, o));
+  if (proposed) return proposed;
+  return doDelete(input, ctx, fetchImpl, got.note, {});
+}
+
+async function doDelete(input, ctx, fetchImpl, note, { approved = false, lendAdmin = false } = {}) {
+  const noteId = input.noteId.trim();
+  if (approved) {
+    const live = await fetchOwnNote(noteId, ctx, fetchImpl, { allowOrg: true });
+    if (live.fail) return live.fail;
+    note = live.note;
+  }
+  if (note.content_hash !== revisionOf(input)) return { success: false, error: 'conflict', output: CONFLICT };
   const r = await call(fetchImpl, `${BRAIN_URL}/notesq/notes/${encodeURIComponent(noteId)}`, {
     method: 'DELETE',
-    headers: headersFor(ctx, { 'X-Author-Kind': 'agent', 'If-Match': `"${revisionOf(input)}"` }),
+    headers: headersFor(ctx, { ...(approved && lendAdmin ? { 'X-User-Is-Admin': 'true' } : {}), 'X-Author-Kind': 'agent', 'If-Match': `"${revisionOf(input)}"` }),
   });
   if (r.unavailable) return { success: false, error: 'knowledge_brain_unavailable', output: UNCONFIRMED };
   if (r.res.status === 409) return { success: false, error: 'conflict', output: CONFLICT };
@@ -181,7 +264,7 @@ async function brainHistory(input, ctx, { fetchImpl = fetch } = {}) {
   return { success: true, revisions, output: lines.join('\n') };
 }
 
-async function brainRestore(input, ctx, { fetchImpl = fetch } = {}) {
+async function brainRestore(input, ctx, { fetchImpl = fetch, gate } = {}) {
   const bad = preflight(input, ctx);
   if (bad) return bad;
   const rev = Number(input.rev);
@@ -189,12 +272,25 @@ async function brainRestore(input, ctx, { fetchImpl = fetch } = {}) {
   const noteId = input.noteId.trim();
   const got = await fetchOwnNote(noteId, ctx, fetchImpl, { allowOrg: true });
   if (got.fail) return got.fail;
+  const proposed = await proposeIfShared('brain_restore', input, ctx, fetchImpl, got.note, gate, (o) => doRestore(input, ctx, fetchImpl, got.note, o));
+  if (proposed) return proposed;
+  return doRestore(input, ctx, fetchImpl, got.note, {});
+}
+
+async function doRestore(input, ctx, fetchImpl, note, { approved = false, lendAdmin = false } = {}) {
+  const rev = Number(input.rev);
+  const noteId = input.noteId.trim();
+  if (approved) {
+    const live = await fetchOwnNote(noteId, ctx, fetchImpl, { allowOrg: true });
+    if (live.fail) return live.fail;
+    note = live.note;
+  }
   // Fast-fail pre-check; the authoritative check is the service's own, done
   // atomically with the mutation (expected_hash / If-Match).
-  if (got.note.content_hash !== revisionOf(input)) return { success: false, error: 'conflict', output: CONFLICT };
+  if (note.content_hash !== revisionOf(input)) return { success: false, error: 'conflict', output: CONFLICT };
   const r = await call(fetchImpl, `${BRAIN_URL}/notesq/notes/${encodeURIComponent(noteId)}/restore`, {
     method: 'POST',
-    headers: headersFor(ctx),
+    headers: headersFor(ctx, approved && lendAdmin ? { 'X-User-Is-Admin': 'true' } : {}),
     body: JSON.stringify({ rev, author_kind: 'agent', expected_hash: revisionOf(input) }),
   });
   if (r.unavailable) return { success: false, error: 'knowledge_brain_unavailable', output: UNCONFIRMED };

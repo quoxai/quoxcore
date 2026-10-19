@@ -172,7 +172,8 @@ function createContactsqService({ audit, readEnvelopes, deliverReport, recordOut
 
   const listContacts = wrap((ctx, q) => {
     if (q.status !== undefined && !STATUSES.includes(q.status)) return err(400, 'invalid_status');
-    const rows = store.listContacts(ctx.orgId, { q: typeof q.q === 'string' ? q.q : undefined, status: q.status, limit: q.limit });
+    if (q.relationship !== undefined && !policy.RELATIONSHIPS.includes(q.relationship)) return err(400, 'invalid_relationship');
+    const rows = store.listContacts(ctx.orgId, { q: typeof q.q === 'string' ? q.q : undefined, status: q.status, relationship: q.relationship, limit: q.limit });
     emit('quox.contacts.find', ctx, { outcome: 'ok', count: rows.length });
     return { status: 200, json: { contacts: rows.map((r) => p6mod.revealCard(ctx, toCard(ctx.orgId, r), r)) } };
   });
@@ -634,9 +635,26 @@ function createContactsqService({ audit, readEnvelopes, deliverReport, recordOut
    * human/service via postTouchpoint. ref is an id (call sid, thread id, lease id), never content.
    * Agents cannot back-date or use the reserved 'contactsq' surface (automatic only).
    */
+  // #1035: a natural "log a phone call" sent 'phone' / 'call' and got a bare invalid_surface. Map the plain words
+  // to the canonical surface, and name the valid surfaces when it is still unknown (agents never get 'contactsq').
+  const SURFACE_ALIASES = {
+    phone: 'voice', call: 'voice', 'phone call': 'voice', 'phone_call': 'voice', voice_call: 'voice', telephone: 'voice',
+    email: 'inboxq', 'e-mail': 'inboxq', mail: 'inboxq', inbox: 'inboxq',
+    meeting: 'calendarq', calendar: 'calendarq',
+    note: 'notesq', notes: 'notesq', task: 'actionq', action: 'actionq',
+  };
+  const normSurface = (v) => {
+    if (typeof v !== 'string') return v;
+    const k = v.trim().toLowerCase();
+    return SURFACE_ALIASES[k] || SURFACE_ALIASES[k.replace(/\s+/g, '_')] || k;
+  };
   const logTouchpoint = wrap((ctx, b) => {
     if (typeof b.contact_id !== 'string' || !b.contact_id) return err(400, 'invalid_contact_id');
-    if (!store.TOUCHPOINT_SURFACES.includes(b.surface)) return err(400, 'invalid_surface');
+    b = { ...b, surface: normSurface(b.surface) };
+    if (!store.TOUCHPOINT_SURFACES.includes(b.surface) || (ctx.actor === 'agent' && b.surface === 'contactsq')) {
+      const valid = store.TOUCHPOINT_SURFACES.filter((x) => x !== 'contactsq' || ctx.actor !== 'agent');
+      return { status: 400, json: { error: 'invalid_surface', valid_surfaces: valid, message: `surface must be one of: ${valid.join(', ')} (a phone call is 'voice', an email is 'inboxq')` } };
+    }
     if (!store.TOUCHPOINT_DIRECTIONS.includes(b.direction)) return err(400, 'invalid_direction');
     if (typeof b.outcome !== 'string' || !CODE_RE.test(b.outcome)) return err(400, 'invalid_outcome');
     if (b.ref !== undefined && b.ref !== null && (typeof b.ref !== 'string' || !REF_RE.test(b.ref))) return err(400, 'invalid_ref');
@@ -960,10 +978,41 @@ function createContactsqService({ audit, readEnvelopes, deliverReport, recordOut
     const dnc = store.getDb().prepare("SELECT COUNT(*) AS n FROM contact_suppressions WHERE org_id = ? AND reason = 'dnc' AND created_at >= ?").get(ctx.orgId, since).n;
     const sources = p7._sync.listSources(ctx.orgId).map((s) => ({ source_id: s.id, label: s.label || null, last_status: s.last_status, last_run_at: s.last_run_at, retired: Boolean(s.retired_at) }));
     const out = {
-      candidates_to_review: st.candidates, consents_expiring_30d: bands.consents_expiring_30d.count, notices_overdue: bands.notice_overdue.count,
+      total_contacts: st.total, candidates_to_review: st.candidates, consents_expiring_30d: bands.consents_expiring_30d.count, notices_overdue: bands.notice_overdue.count,
       duplicates: dupes.length, sync: sources, dnc_added_7d: dnc, generated_at: new Date().toISOString(),
     };
     emit('quox.contacts.brief', ctx, { counts: { candidates: out.candidates_to_review, consents_expiring: out.consents_expiring_30d, notices_overdue: out.notices_overdue, duplicates: out.duplicates, sync_sources: sources.length, dnc_added_7d: dnc }, outcome: 'ok' });
+    return { status: 200, json: out };
+  });
+
+  /**
+   * contacts_count: how many contacts the org has, with breakdowns by kind, status and relationship.
+   * Counts only, no personal data, so humans, agents and services may all read it (the brief's sibling:
+   * the brief is "what needs a person", this is "how big is the address book"). Optional kind filter.
+   */
+  const COUNT_KINDS = ['person', 'organisation'];
+  const count = wrap((ctx, b) => {
+    const kind = b.kind === undefined || b.kind === '' ? null : b.kind;
+    if (kind !== null && !COUNT_KINDS.includes(kind)) return err(400, 'invalid_kind');
+    const db = store.getDb();
+    const live = "status NOT IN ('archived','erased','merged')";
+    const kf = kind ? ' AND kind = ?' : '';
+    const args = kind ? [ctx.orgId, kind] : [ctx.orgId];
+    const group = (col, where) => {
+      const o = {};
+      for (const r of db.prepare(`SELECT COALESCE(${col}, 'unknown') AS k, COUNT(*) AS n FROM contacts WHERE org_id = ?${kf}${where ? ' AND ' + where : ''} GROUP BY k ORDER BY k`).all(...args)) o[r.k] = r.n;
+      return o;
+    };
+    const out = {
+      total: db.prepare(`SELECT COUNT(*) AS n FROM contacts WHERE org_id = ?${kf} AND ${live}`).get(...args).n,
+      kind,
+      by_kind: group('kind', live),
+      by_status: group('status', "status != 'erased'"),
+      by_relationship: group('relationship_primary', live),
+      candidates_to_review: db.prepare(`SELECT COUNT(*) AS n FROM contacts WHERE org_id = ?${kf} AND status = 'candidate'`).get(...args).n,
+      generated_at: new Date().toISOString(),
+    };
+    emit('quox.contacts.count', ctx, { count: out.total, outcome: 'ok' });
     return { status: 200, json: out };
   });
 
@@ -971,7 +1020,7 @@ function createContactsqService({ audit, readEnvelopes, deliverReport, recordOut
   const aware = createContactsqAware({ store, compliance, merge, listSources: (orgId) => p7._sync.listSources(orgId), retentionStatus: (orgId) => retention.status(orgId) });
   const awareTick = () => aware.tick();
 
-  return { ...p6, ...p5, ...p7, brief, awareTick, handoff, handoffs, eraseContact, getCertificate, dsar, getCompliance, noticeSent, processingRecord, retentionStatus, retentionRun, retentionTick, reportTick, listReports,
+  return { ...p6, ...p5, ...p7, brief, count, awareTick, handoff, handoffs, eraseContact, getCertificate, dsar, getCompliance, noticeSent, processingRecord, retentionStatus, retentionRun, retentionTick, reportTick, listReports,
     search, mintLease, redeemLease, revokeLease, listLeases, dialQueue, listGrants, createGrant, revokeGrant, queueDial, sendLease, setFocus, getFocus,
     createContact, listContacts, getContact, addIdentifier, archive, resolve, addSuppression, checkSuppression, getSettings, putSettings,
     updateContact, listConsents, addConsent, policyCheck, listPolicyDecisions, stats, bestChannel, recordObjection, rewrap,
@@ -1019,6 +1068,9 @@ function registerContactsqRoutes(app, deps) {
   // Same service fn as the contacts_handoff tool (one boundary): agents and humans may leave a note; the general touchpoint route stays human only.
   app.post(`${B}/contacts/:id/handoffs`, requireAuth, h(async (ctx, i) => { const out = await svc.handoff(ctx, i); return out.status === 200 ? { ...out, status: 201 } : out; }, (r) => ({ contact_id: r.params.id, note: (r.body || {}).note })));
   app.get(`${B}/brief`, requireAuth, h(svc.brief, () => ({})));
+  // Same service fn as the contacts_best_channel tool (one boundary): the CLI ground truth for which channel may be used.
+  app.get(`${B}/contacts/:id/best-channel`, requireAuth, h(svc.bestChannel, (r) => ({ contact_id: r.params.id, purpose: r.query.purpose })));
+  app.get(`${B}/count`, requireAuth, h(svc.count, (r) => ({ kind: r.query.kind })));
   app.get(`${B}/contacts/:id/timeline`, requireAuth, h(svc.timeline, (r) => ({ id: r.params.id, limit: r.query.limit })));
   app.get(`${B}/contacts/:id/edges`, requireAuth, h(svc.listEdges, (r) => ({ id: r.params.id })));
   app.post(`${B}/contacts/:id/edges`, requireAuth, h(svc.addEdge, (r) => ({ id: r.params.id, body: r.body || {} })));

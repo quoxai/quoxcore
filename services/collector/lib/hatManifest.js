@@ -88,7 +88,10 @@ const GOVERNANCE_TOOLS = ['hat_catalogue', 'hat_load_bundle', 'hat_propose_switc
 // applies — authz never fabricates a Tier-0 tool the agent does not hold.
 // Deliberately NOT added to buildFailClosedManifest: a resolve FAILURE denies
 // everything, Tier-0 included — fail-closed stays absolute (context is unknown).
-const TIER0_READ_TOOLS = ['inbox_pending', 'memory_search', 'quoxbrain_search', 'time_now'];
+// QUOXON-ENGINE class 5: quox_command_lookup joins the floor. A static read of the generated
+// TUI / CLI command registries (no org data, no effect), so any agent that cannot do a thing
+// itself can still name the real command instead of answering "I can't".
+const TIER0_READ_TOOLS = ['inbox_pending', 'memory_search', 'quoxbrain_search', 'time_now', 'quox_command_lookup', 'terminal_suggest_command']; // terminal_suggest_command (DECISION-LABELS): only proposes a slash command to the TUI, which vets it and asks y/N
 
 function _cacheKey(orgId, userId, conversationId, agent) {
   return `${orgId}::${userId || ''}::${conversationId || ''}::${agent || ''}`;
@@ -167,6 +170,21 @@ function computeAuthzSet(grantNames, def) {
   return { eligible, mode, authored: !!authz };
 }
 
+// QUOXON-ASK J2: last-known-good resolved hats, per org+agent+user, for a transient resolve
+// failure. Bounded in time (a revocation reaches every turn within LKG_TTL_MS even while auth
+// is slow) and never broader than the durable enforcement row: a cached 'preview' (fail-open)
+// result is not used for an org the durable store says enforces.
+const LKG_TTL_MS = 10 * 60 * 1000;
+const _lkgCache = new Map();
+const _lkgKey = (orgId, agent, userId) => `${orgId}|${agent || ''}|${userId || ''}`;
+function lastKnownGood(orgId, k) {
+  const e = _lkgCache.get(k);
+  if (!e) return null;
+  if (e.expiry <= Date.now()) { _lkgCache.delete(k); return null; }
+  if (lastKnownEnforcement(orgId) === 'enforce' && e.value.enforcement !== 'enforce') return null;
+  return { ...e.value, stale: true };
+}
+
 /**
  * Resolve the effective hat for a turn from the auth service's internal
  * endpoint. Returns { source, hat, enforcement } or null on any failure
@@ -179,6 +197,7 @@ async function resolveHatForTurn({ orgId, userId = null, conversationId = null, 
     authBase = process.env.AUTH_SERVICE_URL || 'http://quox-auth:3101',
     serviceKey = process.env.INTERNAL_SERVICE_KEY || '',
     timeoutMs = 5000,
+    retryTimeoutMs = 12000,
   } = deps;
 
   const key = _cacheKey(orgId, userId, conversationId, agent);
@@ -193,12 +212,37 @@ async function resolveHatForTurn({ orgId, userId = null, conversationId = null, 
   // orgs ignore it entirely, so passing it is always safe.
   if (agent) qs.set('agent', agent);
   const url = `${authBase}/api/internal/orgs/${encodeURIComponent(orgId)}/quoxhat/resolve${qs.size ? `?${qs}` : ''}`;
+  const lkgKey = _lkgKey(orgId, agent, userId);
+
+  // QUOXON-ASK J2 (quox#852): a slow auth service (box load) is not an answer. A timeout,
+  // transport error or 5xx is retried ONCE with a longer timeout; if that also fails, the
+  // last-known-good hat for this org+agent+user stands in (lastKnownGood). A definite
+  // answer (4xx, no hat) is never retried or papered over.
+  const attempt = async (ms) => {
+    try {
+      const resp = await fetchImpl(url, { headers: { 'X-Service-Key': serviceKey }, signal: AbortSignal.timeout(ms) });
+      return { resp, transient: !resp.ok && resp.status >= 500 };
+    } catch (err) {
+      return { err, transient: true };
+    }
+  };
+  let a = await attempt(timeoutMs);
+  if (a.transient) {
+    console.warn(`[QUOXHAT] hat resolve for org=${orgId} agent=${agent || '-'} failed transiently (${a.err ? a.err.message : `HTTP ${a.resp.status}`}); retrying once with ${retryTimeoutMs}ms`);
+    a = await attempt(retryTimeoutMs);
+  }
+  if (a.transient) {
+    const lkg = lastKnownGood(orgId, lkgKey);
+    if (lkg) {
+      console.warn(`[QUOXHAT] hat resolve for org=${orgId} agent=${agent || '-'} still failing (${a.err ? a.err.message : `HTTP ${a.resp.status}`}); using the last-known-good hat '${lkg.hat?.key || '?'}' (${lkg.enforcement})`);
+      return lkg;
+    }
+    console.warn(`[QUOXHAT] hat resolve error for org=${orgId}: ${a.err ? a.err.message : `HTTP ${a.resp.status}`} — no last-known-good hat; turn continues on legacy full grant (fails closed if the org enforces)`);
+    return null;
+  }
 
   try {
-    const resp = await fetchImpl(url, {
-      headers: { 'X-Service-Key': serviceKey },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    const resp = a.resp;
     if (!resp.ok) {
       console.warn(`[QUOXHAT] hat resolve failed for org=${orgId}: HTTP ${resp.status} — turn continues on legacy full grant`);
       return null;
@@ -223,6 +267,7 @@ async function resolveHatForTurn({ orgId, userId = null, conversationId = null, 
     // revocation takes effect in seconds, not up to 15s.
     const ttl = value.enforcement === 'enforce' ? ENFORCE_RESOLVE_TTL_MS : RESOLVE_TTL_MS;
     _resolveCache.set(key, { value, expiry: Date.now() + ttl });
+    _lkgCache.set(lkgKey, { value, expiry: Date.now() + LKG_TTL_MS });
     return value;
   } catch (err) {
     console.warn(`[QUOXHAT] hat resolve error for org=${orgId}: ${err?.message} — turn continues on legacy full grant`);
@@ -304,6 +349,15 @@ function buildTurnManifest({ agentTools, hat, loadedBundles = [], agent = null }
     for (const t of grant) if (eligible.has(t.name)) pick(t.name);
   }
 
+  // quox#908 follow-up: tools reachable ONLY through on_demand_reads (not explicit, not a loaded
+  // bundle). The executeTool gate refuses their write actions. A specialist turn holds its grant
+  // as members, so nothing is on-demand-only there.
+  const onDemandOnly = new Set();
+  if (!isSpecialistTurn && Array.isArray(def.tools?.on_demand_reads)) {
+    const members = new Set([...explicit, ...bundleTools]);
+    for (const n of def.tools.on_demand_reads) if (!members.has(n)) onDemandOnly.add(n);
+  }
+
   const maxManifest = Number.isInteger(def.budgets?.max_manifest) ? def.budgets.max_manifest : 128;
   // Budget truncation caps the non-governance tail only; governance tools are
   // always retained (they were picked first, so this also preserves order).
@@ -313,7 +367,12 @@ function buildTurnManifest({ agentTools, hat, loadedBundles = [], agent = null }
   const govNames = new Set([...GOVERNANCE_TOOLS, ...TIER0_READ_TOOLS]); // D1: Tier-0 reads retained like governance tools — never budget-dropped
   const gov = picked.filter(t => govNames.has(t.name));
   const rest = picked.filter(t => !govNames.has(t.name));
-  const restCap = Math.max(0, maxManifest - gov.length);
+  // quox#1087: the budget is the ORCHESTRATOR's presentation cap. On a specialist turn D1 presents
+  // the whole authorised grant, and cutting it here kept the first max_manifest tools in grant
+  // order, so a large specialist (browser-q, 65) silently lost its own tail (browser_video_list)
+  // and reached for hat_catalogue. The per-turn selection (turnToolSelection) still caps what the
+  // model is offered, by relevance to the ask.
+  const restCap = isSpecialistTurn ? rest.length : Math.max(0, maxManifest - gov.length);
   const truncatedByBudget = rest.length > restCap;
   const tools = truncatedByBudget ? [...gov, ...rest.slice(0, restCap)] : picked;
 
@@ -350,6 +409,7 @@ function buildTurnManifest({ agentTools, hat, loadedBundles = [], agent = null }
   return {
     tools,
     toolNames: new Set(tools.map(t => t.name)),
+    onDemandOnly,
     // P-B: authorization set + the raw grant ceiling, for the gate to decide
     // DENY (not-granted vs mode-forbidden) with a precise, auditable reason.
     authzToolNames,
@@ -359,6 +419,12 @@ function buildTurnManifest({ agentTools, hat, loadedBundles = [], agent = null }
     // P-D: delegation scope — which agents the orchestrator may delegate to.
     authorizedAgents,
     delegationScoped,
+    // CUSTOM-HATS: the hat's own specialists (the roster a turn under this hat carries) and its
+    // orchestrator; offerMembersOnly = tools.offer 'members' (orchestrator turns are offered only
+    // hat members). Presentation only: authzToolNames above is unchanged by either.
+    scopedAgents: specialists.map(a => String(a).toLowerCase()),
+    orchestrator,
+    offerMembersOnly: def.tools?.offer === 'members' && !isSpecialistTurn,
     digest,
     hatId: hat.id,
     hatKey: hat.key,
@@ -382,6 +448,7 @@ function hatAllowsToolName(hat, toolName) {
   if (!def || typeof def !== 'object') return true; // no usable hat = no hat opinion
   const explicit = Array.isArray(def.tools?.explicit) ? def.tools.explicit : [];
   if (explicit.includes(toolName)) return true;
+  if (Array.isArray(def.tools?.on_demand_reads) && def.tools.on_demand_reads.includes(toolName)) return true; // quox#908
   const bundles = Array.isArray(def.tools?.bundles) ? def.tools.bundles : [];
   return bundles.some(b => Array.isArray(b?.tools) && b.tools.includes(toolName));
 }
@@ -439,6 +506,7 @@ function buildFailClosedManifest(orgId) {
 /** Test-only cache reset (also clears the durable enforcement store). */
 function _clearHatResolveCache() {
   _resolveCache.clear();
+  _lkgCache.clear();
   _enforcementCache.clear();
   const db = _getEnforcementDb();
   if (db) { try { db.exec('DELETE FROM org_enforcement'); } catch { /* best-effort */ } }
@@ -524,5 +592,5 @@ module.exports = {
   resolveHatForTurn, buildTurnManifest, hatAllowsToolName,
   lastKnownEnforcement, buildFailClosedManifest,
   startEnforcementPrewarm, _runEnforcementPrewarmOnce, _stopEnforcementPrewarm,
-  _clearHatResolveCache, _evictInMemoryEnforcement, RESOLVE_TTL_MS, GOVERNANCE_TOOLS, TIER0_READ_TOOLS,
+  _clearHatResolveCache, _evictInMemoryEnforcement, RESOLVE_TTL_MS, LKG_TTL_MS, GOVERNANCE_TOOLS, TIER0_READ_TOOLS,
 };

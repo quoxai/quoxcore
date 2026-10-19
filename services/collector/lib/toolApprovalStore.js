@@ -179,6 +179,18 @@ function listStalePending({ olderThan, limit = 200 }) {
   `).all(olderThan, limit);
 }
 
+/**
+ * journey-server-trouble (SITE-CLI 2026-10-17): how many approval rows this org+user raised since a time, any status.
+ * null when the store is not open (unknown is never read as "none were filed").
+ */
+function countCreatedSince({ org_id, user_id, since }) {
+  if (!_db || !org_id || !user_id || !Number.isFinite(Number(since))) return null;
+  try {
+    const row = _db.prepare('SELECT COUNT(*) AS n FROM tool_approvals WHERE org_id = ? AND user_id = ? AND created_at >= ?').get(org_id, user_id, Number(since));
+    return row ? Number(row.n) : null;
+  } catch { return null; }
+}
+
 /** Rows whose expiry landed but whose card close failed; retried each tick. */
 function listCloseRetries({ limit = 200 } = {}) {
   if (!_db) return [];
@@ -339,6 +351,7 @@ function listRecentByOrg(org_id, { toolPrefix = '', limit = 50 } = {}) {
 
 module.exports = {
   CALLER_SESSION_RESUME_TOOLS,
+  countCreatedSince,
   markCallerApproved,
   listCloseRetries,
   setExpiryCloseState,

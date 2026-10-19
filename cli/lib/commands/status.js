@@ -100,7 +100,7 @@ export function registerStatusCommand(program, ctx) {
         // actually reaches the collector instead of being withheld.
         const data = await client.get(resolveEndpoint('v1.health.aggregate.list').path, {
           service: resolveEndpoint('v1.health.aggregate.list').service,
-          timeout: 5000,
+          timeout: 15000, // #930: the aggregate fans out to several services; 5s was too tight under load
         });
 
         if (isJson) {

@@ -38,7 +38,7 @@ export function generateAdvisory(orgId, title, description, opts = {}) {
   const fullText = `${title} ${description || ''}`
 
   // 1. Query relevant wisdom
-  const wisdom = getRelevantWisdom(orgId, fullText, { minConfidence: 0.4, limit: 5 })
+  const wisdom = getRelevantWisdom(orgId, fullText, { minConfidence: 0.4, limit: 5, charBudget: 1500, markInjected: true })
 
   // 2. Find similar past outcomes
   const pastOutcomes = findSimilarOutcomes(orgId, title, { limit: 3 })

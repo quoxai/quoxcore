@@ -45,26 +45,34 @@ export function writeCredentialReleaseAudit({
     authType,
     callerService,
     via,
+    outcome,
+    reason,
 }) {
     try {
         const database = db || getDb();
         const auditId = ulid();
         const createdAt = new Date().toISOString();
         const service = callerService || 'internal';
+        // A refused resolution (cross-org, unknown id) must not read as a release. This writer used to drop the
+        // outcome/reason its callers pass, so every denial was recorded AND WARD-witnessed as secret.access 'success'.
+        const denied = outcome === 'denied';
+        const action = denied ? AuditActions.SECRET_ACCESS_DENIED : AuditActions.SECRET_ACCESS;
+        const status = denied ? 'denied' : 'success';
 
         database.prepare(`
             INSERT INTO audit_events (id, org_id, actor_type, actor_id, action, target_type, target_id, status, metadata_json, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
-            auditId, orgId || null, 'service', service, AuditActions.SECRET_ACCESS,
+            auditId, orgId || null, 'service', service, action,
             'integration_credential', credentialId,
-            'success',
+            status,
             JSON.stringify({
                 integration_type: integrationType || null,
                 label: label || null,
                 auth_type: authType || null,
                 caller_service: service,
                 via,
+                ...(denied ? { outcome: 'denied', reason: reason || null } : {}),
             }),
             createdAt
         );
@@ -74,10 +82,10 @@ export function writeCredentialReleaseAudit({
             org_id: orgId || null,
             actor_type: 'service',
             actor_id: service,
-            action: AuditActions.SECRET_ACCESS,
+            action,
             target_type: 'integration_credential',
             target_id: credentialId,
-            status: 'success',
+            status,
             created_at: createdAt,
         }, orgId || null).catch(() => {
             // witnessAuthAudit already swallows errors internally; final safety net

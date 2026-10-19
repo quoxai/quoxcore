@@ -426,6 +426,9 @@ export function createHostMediator({ pluginId, getAuthContext, collectorBase, do
     };
 
     return {
+        // The RPC method set served to community plugins. Pinned to the published
+        // SDK (@quoxai/quox-plugin-vite dev host) by pluginFrameSdkContract.test.js.
+        methods: Object.freeze(Object.keys(handlers)),
         async handle(method, args) {
             const h = handlers[method];
             if (!h) throw new Error(`unknown_method:${method}`);

@@ -11,11 +11,14 @@
  *   turn     : null | { id, status: running|interrupting, startedAt, stage, activity }
  */
 
+import { dividerStep } from './dividerAocl.js';
+import { approvalFacts } from './approvalFacts.js';
 import { isConsentError, consentErrorText } from './consent.js';
-import { splitSettled } from './markdown.js';
+import { splitSettled } from './markdownSettle.js'; // not markdown.js: that loads React + Ink (QUOXON-LATENCY)
 import { nextActivity, actionActivity } from './activity.js';
 import { normUsage, turnTokens, fmtTokens, fmtCost } from './indicator.js';
 import { isLayerTrace, normaliseSummary, summaryFromTraces, verdictNote } from './aocl.js';
+import { toolResultText } from './toolError.js';
 
 export const TOOL_STATUSES = ['ok', 'failed', 'denied', 'effect_unknown'];
 export const APPROVAL_ARM_MS = 300;
@@ -25,6 +28,7 @@ export const HELD_KEY_MS = 1500;
 export const initialState = (over = {}) => ({
   history: [],
   blocks: [],
+  asks: [],         // ASK-SETTLE: open y/N/c ask cards (live, never scrollback) until answered/expired/closed
   turn: null,
   ctx: { agent: null, model: null, provider: null, endpoint: null, hat: null, conversationId: null },
   pending: [],      // client-side queue (Tab)
@@ -51,20 +55,50 @@ export const initialState = (over = {}) => ({
  * streams keep using `chunk`. Returns { append, st } where st is { v1, lastChunk }.
  */
 export function textGate(st, ev) {
-  const g = st || { v1: false, lastChunk: null };
+  const g = st || { v1: false, lastChunk: null, acc: '' };
+  const acc = g.acc || '';
+  const add = (c) => (acc + c).slice(-200000);
   if (ev.type === 'turn.started') return { append: false, st: { ...g, v1: true } };
   if (ev.type === 'chunk') {
-    if (g.v1) return { append: false, st: g };
-    return { append: Boolean(ev.content), st: { ...g, lastChunk: ev.content ?? null } };
+    const c = ev.content;
+    if (!c) return { append: false, st: g };
+    // RESTORE-TUI: on a v1 stream a chunk is skipped only when it mirrors text already shown (the full text so far,
+    // or the delta it repeats). A chunk carrying NEW text is still answer text (it was dropped since dae720283).
+    if (g.v1 && acc.endsWith(c)) return { append: false, st: g };
+    return { append: true, st: { ...g, lastChunk: c, acc: add(c) } };
   }
   if (ev.type === 'text.delta') {
-    const mirrored = !g.v1 && g.lastChunk != null && g.lastChunk === ev.content;
-    return { append: Boolean(ev.content) && !mirrored, st: { v1: true, lastChunk: null } };
+    const c = ev.content;
+    const mirrored = g.lastChunk != null && g.lastChunk === c;
+    const append = Boolean(c) && !mirrored;
+    return { append, st: { v1: true, lastChunk: null, acc: append ? add(c) : acc } };
   }
   return { append: false, st: g };
 }
 
 const tms = (v) => { const t = typeof v === 'number' ? v : Date.parse(v); return Number.isFinite(t) ? t : null; };
+
+const short = (v, n = 120) => { const t = typeof v === 'string' ? v : (v == null ? '' : JSON.stringify(v)); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+const argText = (a) => a && typeof a === 'object' && !Array.isArray(a) && (a.argv || a.command) ? argText(a.argv ?? a.command) : Array.isArray(a) ? a.join(' ') : (a && typeof a === 'object' ? Object.entries(a).filter(([, v]) => v != null && typeof v !== 'object').slice(0, 4).map(([k, v]) => `${k}=${v}`).join(' ') : (a == null ? '' : String(a)));
+
+/**
+ * Describe ANY inbox approval from what the item carries: the tool or leaf, the command or key args, the target
+ * (explicit target, else the org it acts on), and who asked and when. Never invents; empty fields are null.
+ */
+export function describeInboxItem(it) {
+  const p = it?.payload || {};
+  const c = p.approval_context || {};
+  const m = c.method || {};
+  const ob = c.on_behalf_of || {};
+  const w = p.what && typeof p.what === 'object' ? p.what : {}; // APPROVAL-WHAT: the server's own action/target/summary wins
+  const tool = w.action || m.tool || c.tool || c.leaf || p.tool || p.leaf || null;
+  const argv = m.argv ?? m.args ?? c.argv ?? c.args ?? p.argv ?? p.args ?? m.command ?? c.command ?? p.command ?? null;
+  const cmd = short([m.leaf || c.leaf || p.leaf, argText(argv)].filter(Boolean).join(' ').trim() || null);
+  const target = w.target || m.target || c.target || p.target || cmd || w.target_none || c.target_org || c.org_name || p.org_name || c.org_id || p.org_id || null;
+  const by = ob.agent || ob.agent_id || ob.session_name || ob.session || c.requested_by?.agent_label || c.source_label || p.source || it?.source || null;
+  const what = w.summary ? String(w.summary) : (it?.title ? short(String(it.title), 160) : null);
+  return { tool, target: target ? short(target, 200) : null, title: what, by: by ? String(by) : null, at: it?.created_at ?? it?.createdAt ?? null };
+}
 
 /**
  * A pending inbox approval found by polling -> approval card, or null when it does not qualify.
@@ -73,6 +107,7 @@ const tms = (v) => { const t = typeof v === 'number' ? v : Date.parse(v); return
  */
 export function cardFromInboxItem(it, { since = 0, userId = null, conversationId = null, now = 0 } = {}) {
   if (!it || !it.id) return null;
+  if (it.payload?.type === 'decision') return null; // quox ask: answered with /answer N key from /approvals, never a y/n key card
   const c = it.payload?.approval_context || {};
   const m = c.method || {};
   const created = tms(it.created_at ?? it.createdAt);
@@ -85,14 +120,16 @@ export function cardFromInboxItem(it, { since = 0, userId = null, conversationId
   const approvalId = it.payload?.approval_id || it.approval_id || it.approvalId
     || (toolApproval ? (it.aee_correlation_id || it.aeeCorrelationId || null) : null) || null;
   const ob = c.on_behalf_of || {};
-  const tool = m.tool || String(it.title || it.id);
+  const d = describeInboxItem(it);
+  const tool = d.tool || String(it.title || it.id);
   return {
     callId: `inbox:${it.id}`, inboxItemId: it.id, approvalId,
-    tool, target: m.target || null, scope: null, risk: c.risk || null,
-    url: it.dashboard_url || null, shownAt: now, undescribable: !m.tool || !m.target,
+    tool, target: d.target, what: d.title, askedBy: d.by, askedAt: d.at, scope: null, risk: c.risk || null,
+    url: it.dashboard_url || null, shownAt: now, undescribable: !d.tool && !d.target,
+    facts: approvalFacts(it), // APPROVAL-WWWH: the exact command, hosts, chain, reason, time and read-only class
     // only an item that names THIS conversation is ours; anything else came from another session and must not take the keyboard
     foreign: !here,
-    origin: String(ob.agent || ob.agent_id || ob.session_name || ob.session || (ob.conversation_id ? `conversation ${String(ob.conversation_id).slice(0, 8)}` : 'another session')),
+    origin: String(ob.agent || ob.agent_id || ob.session_name || ob.session || (ob.conversation_id ? `conversation ${String(ob.conversation_id).slice(0, 8)}` : approvalSourceLabel(it))),
     privileged: isPrivileged({ tool, risk: c.risk, flag: c.privileged === true || c.elevated === true || it.payload?.privileged === true, title: it.title })
   };
 }
@@ -109,8 +146,9 @@ export function approvalSourceLabel(it) {
  * 'plugins and workflows' (everything else, labelled by source). Empty groups are dropped.
  */
 export function groupApprovals(items, { conversationId = null, cardIds = [] } = {}) {
-  const g = { 'this conversation': [], 'other sessions': [], 'plugins and workflows': [] };
+  const g = { 'decisions asked of you': [], 'this conversation': [], 'other sessions': [], 'plugins and workflows': [] };
   for (const item of items || []) {
+    if (item?.payload?.type === 'decision') { g['decisions asked of you'].push({ item, label: String(item.payload.session || 'session') }); continue; } // quox ask
     const ob = item?.payload?.approval_context?.on_behalf_of || {};
     const label = approvalSourceLabel(item);
     // A card that names a conversation belongs here only when it is THIS one (a card shown in this window for another
@@ -278,19 +316,47 @@ function endTurn(s, status, now) {
 function reduceInner(s, a) {
   switch (a.type) {
     case 'user': // a submitted prompt
-      return { ...s, history: [...s.history, { id: nid(), kind: 'user', text: a.text, queued: !!a.queued }] };
+      return { ...s, history: [...s.history, { id: nid(), kind: 'user', text: a.text, queued: !!a.queued, ...(a.echo ? { echo: true } : {}) }] };
     case 'turn.begin':
       return { ...s, lastTurnId: a.turnId, turn: { id: a.turnId, status: 'running', startedAt: a.now, stage: null, activity: null, tools: 0, finishedTools: 0, approvals: 0, receipts: [], chars: 0, usage: null }, blocks: [], autoDrain: false };
     case 'note':
       return note(s, a.text, a.tone);
+    // ASK-SETTLE (owner 2026-10-17): an open ask is a live card; settling it removes the card and leaves one line.
+    case 'ask.open': { // the same ask shown again (after a chat about it) replaces its card, never a second one
+      const asks = (s.asks || []).filter(x => x.text !== a.text);
+      return { ...s, asks: [...asks, { id: a.id, text: a.text, at: a.at ?? null }] };
+    }
+    case 'ask.settle': {
+      const asks = s.asks || [];
+      if (!asks.some(x => x.id === a.id)) return s;
+      if (a.silent) return { ...s, asks: asks.filter(x => x.id !== a.id) }; // a walkthrough card that ended normally: no leftover line
+      return note({ ...s, asks: asks.filter(x => x.id !== a.id) }, a.text, a.tone);
+    }
+    case 'slotmsg.settle': { // SLOT-RUN: an answered/expired run request collapses to one line in place
+      let hit = false;
+      const history = s.history.map(it => {
+        if (it.kind !== 'slotmsg' || !it.line?.run || it.line.run.askId !== a.askId || it.line.run.settled) return it;
+        hit = true;
+        return { ...it, line: { ...it.line, run: { ...it.line.run, settled: a.text, settledTone: a.tone } } };
+      });
+      return hit ? { ...s, history } : s;
+    }
     case 'bang.out': // QUOXON-FW8: command output, shown as is (not note-painted); the transcript records only the action name
       return { ...s, history: [...s.history, { id: nid(), kind: 'bang', text: a.text }] };
+    case 'slotmsg': // QUOXON-MESH: a slot chat line (slotChat.js slotLine), incoming or sent
+      return { ...s, history: [...s.history, { id: nid(), kind: 'slotmsg', line: a.line }] };
     case 'tip': // a "did you know" tip (tips.js); text + the command to try
       return { ...s, history: [...s.history, { id: nid(), kind: 'tip', text: a.text, cmd: a.cmd }] };
+    case 'bcard': // QUOXON-BROADCAST: the sender's framed delivery card (slash/broadcast.js broadcastCard), pure data
+      return { ...s, history: [...s.history, { id: nid(), kind: 'bcard', card: a.card }] };
+    case 'whatsnew': // the startup "What's new" box (whatsnew.js): [{ title, cmd }] + how many more
+      return { ...s, history: [...s.history, { id: nid(), kind: 'whatsnew', items: a.items, more: a.more, head: a.head, pad: a.pad }] };
     case 'notify':
       return { ...s, notify: { ...s.notify, ...a.patch } };
     case 'welcome':
       return { ...s, history: [...s.history, { id: nid(), kind: 'welcome', version: a.version }] };
+    case 'introShow': // /welcome: the first screen again (Q art + the greeting text), settled in history
+      return { ...s, history: [...s.history, { id: nid(), kind: 'intro', text: a.text, cols: a.cols }] };
     case 'help':
       return { ...s, history: [...s.history, { id: nid(), kind: 'help', model: a.model }] };
     case 'object': // inline object view (objects/): pure data, rebuilt at render width
@@ -350,6 +416,14 @@ function reduceInner(s, a) {
     }
     case 'approval.found': { // pending approval seen by polling (covers provider paths that emit no approval.requested)
       const card = cardFromInboxItem(a.item, { since: s.turn?.startedAt ?? a.since ?? 0, userId: a.userId, conversationId: s.ctx.conversationId, now: a.now || 0 });
+      if (card && card.approvalId) { // an event card raised without an inbox id learns it from the poll (else y answers a null id: 404)
+        const j = s.approvals.findIndex(x => !x.inboxItemId && x.approvalId === card.approvalId);
+        if (j >= 0) { const approvals = s.approvals.slice(); approvals[j] = { ...approvals[j], inboxItemId: card.inboxItemId, url: approvals[j].url || card.url, facts: approvals[j].facts || card.facts }; return { ...s, approvals, seenInbox: { ...s.seenInbox, [card.inboxItemId]: true } }; }
+      }
+      if (card && card.approvalId) { // an event stub that could not be described learns its description from the inbox item
+        const j = s.approvals.findIndex(x => x.undescribable && (x.inboxItemId === card.inboxItemId || x.approvalId === card.approvalId));
+        if (j >= 0 && !card.undescribable) { const approvals = s.approvals.slice(); approvals[j] = { ...approvals[j], tool: card.tool, target: card.target, what: card.what, askedBy: card.askedBy, askedAt: card.askedAt, facts: card.facts, undescribable: false }; return { ...s, approvals }; }
+      }
       if (!card || s.seenInbox[card.inboxItemId] || s.approvals.some(x => x.inboxItemId === card.inboxItemId || (card.approvalId && x.approvalId === card.approvalId))) return s;
       if (card.foreign) { // another conversation's card: a compact notice, never the focused card
         if (s.waiting.some(x => x.inboxItemId === card.inboxItemId)) return s;
@@ -357,12 +431,20 @@ function reduceInner(s, a) {
       }
       return { ...s, approvals: [...s.approvals, { ...card, turnId: s.turn?.id ?? null }], seenInbox: { ...s.seenInbox, [card.inboxItemId]: true }, turn: s.turn ? { ...s.turn, approvals: s.turn.approvals + 1 } : s.turn };
     }
+    case 'approval.gone': { // the server says it no longer knows this approval (404): someone already handled it
+      const hit = x => x.callId === a.callId || (a.inboxItemId && x.inboxItemId === a.inboxItemId);
+      const had = s.approvals.some(hit) || s.waiting.some(hit);
+      const n = { ...s, inbox: (s.inbox || []).filter(x => x.id !== a.inboxItemId), approvals: s.approvals.filter(x => !hit(x)), waiting: s.waiting.filter(x => !hit(x)), seenInbox: a.inboxItemId ? { ...s.seenInbox, [a.inboxItemId]: true } : s.seenInbox };
+      return had ? note(n, 'approval already handled', 'accent') : n;
+    }
     case 'approval.dismiss':
       return { ...s, approvals: s.approvals.filter(x => x.callId !== a.callId) };
     case 'approval.sent': { // the human answered from this terminal
-      const rest = { ...s, approvals: s.approvals.filter(x => x.callId !== a.callId), waiting: s.waiting.filter(x => x.callId !== a.callId && x.inboxItemId !== a.callId) };
+      const rest = { ...s, inbox: (s.inbox || []).filter(x => x.id !== a.inboxItemId), seenInbox: a.inboxItemId ? { ...s.seenInbox, [a.inboxItemId]: true } : s.seenInbox, approvals: s.approvals.filter(x => x.callId !== a.callId && !(a.inboxItemId && x.inboxItemId === a.inboxItemId)), waiting: s.waiting.filter(x => x.callId !== a.callId && x.inboxItemId !== a.callId) };
+      if (a.batch) return rest; // /approve N prints its own one-line summary
       if (a.quiet && a.action === 'approve') return rest;
       if (a.action !== 'approve') return note(rest, `denied: ${a.tool || 'approval'}${a.target ? ` on ${a.target}` : ''}`, 'warn');
+      if (a.foreign) return note(rest, `✔ Approved ${a.tool || 'approval'}${a.target ? ` on ${a.target}` : ''}; the plugin or agent will act on it (its outcome is not tracked here)`, 'ok');
       if (a.tool === 'hat.switch') { // applied server-side by the inbox approve; nothing to wait for
         const to = String(a.target || '').split('\u2192').pop().replace(/\(privileged\)/, '').trim() || 'the new hat';
         return note(rest, `Hat switched to ${to}. Ask again and I'll carry on.`, 'ok');
@@ -398,6 +480,11 @@ function reduceInner(s, a) {
 /** The first card is armed from the moment it is actually SHOWN, not from when it was received. */
 export function reduce(s, a) {
   let n = reduceInner(s, a);
+  // TUI-DIVIDER: the bottom-rule AOCL strip, moved only by real turn events (dividerAocl.js).
+  if (a.type === 'turn.begin' || a.type === 'event') {
+    const dv = dividerStep(s.divider ?? null, a, a.now || 0);
+    if (dv !== (n.divider ?? null)) n = { ...n, divider: dv };
+  }
   // The honest activity word: only real events move it (see activity.js).
   if (n.turn) {
     const act = a.type === 'event' ? nextActivity(s.turn?.act, a.ev, a.now || 0, { hasText: Boolean(n.turn.chars) })
@@ -414,7 +501,8 @@ export function reduce(s, a) {
 function reduceEvent(s, ev, now) {
   switch (ev.type) {
     case 'connected': return s;
-    // TODO(contract v2): background.status is not in events v1; wire here once the server defines it.
+    // background.status is not in events v1 yet; handled so the line works the moment the server sends it (RESTORE-TUI: 4fbd3178c dropped it).
+    case 'background.status': return { ...s, background: Math.max(0, Number(ev.pending) || 0) };
     case 'turn.started': {
       const ctx = {
         agent: ev.agent ?? s.ctx.agent, model: ev.model ?? s.ctx.model, provider: ev.provider ?? s.ctx.provider,
@@ -468,7 +556,7 @@ function reduceEvent(s, ev, now) {
       const status = TOOL_STATUSES.includes(ev.status) ? ev.status : 'unknown'; // never green for a status we do not know
       const first = !s.doneCalls[ev.call_id] && ['ok', 'failed', 'denied'].includes(status);
       let withTool = upsertTool(s, ev, {
-        status, resultSummary: ev.result_summary, durationMs: ev.duration_ms,
+        status, resultSummary: toolResultText(ev.result_summary, s.verbose), rawSummary: ev.result_summary, durationMs: ev.duration_ms,
         envelopeId: ev.envelope_id, receipt: ev.receipt || null,
         ...(Number.isFinite(ev.tools_used) ? { toolsUsed: ev.tools_used } : {})
       });
@@ -570,4 +658,20 @@ export function approvalKeyAllowed({ now, shownAt, lastKeyAt, heldKey = null, ch
   // the key that was already down when the card appeared stays dead until another key or a long gap
   if (heldKey != null && ch === heldKey && (lastKeyAt == null || now - lastKeyAt < HELD_KEY_MS)) return false;
   return true;
+}
+
+/**
+ * What an approval is for, without repeating who asked: titles often start "<who> wants to: ..." (the source label
+ * already says who), and a generic "Approval required" title falls back to the item's summary or description.
+ */
+export function approvalWhat(it) {
+  const w = it?.payload?.what;
+  if (w && typeof w === 'object' && typeof w.summary === 'string' && w.summary.trim()) { // APPROVAL-WHAT: the server says what will happen
+    const s = w.summary.trim(); const tg = typeof w.target === 'string' ? w.target.trim() : '';
+    return tg && !s.includes(tg) ? `${s} (target: ${tg})` : (!tg && w.target_none ? `${s} (${String(w.target_none).trim()})` : s);
+  }
+  let t = String(it?.title || it?.id || '').replace(/^[^:]{0,80}\bwants to:\s*/i, '').trim();
+  const more = it?.summary || it?.description || it?.detail || '';
+  if ((!t || /^approval (?:required|needed)\b/i.test(t)) && more) t = String(more).trim();
+  return t || String(it?.id || 'approval');
 }

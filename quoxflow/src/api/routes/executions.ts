@@ -5,12 +5,14 @@
  */
 
 import { Hono } from 'hono';
+import type { RunActor } from '../../core/execution.js';
 import { AppEnv } from '../types.js';
 import { z } from 'zod';
 import { validateBody, validateQuery, validateParams, IdParamSchema, PaginationQuerySchema } from '../middleware/validation.js';
 import { NotFoundError, ErrorCodes } from '../middleware/error-handler.js';
 import { WorkflowStore } from '../stores/workflow-store.js';
 import { resolveOrgScope, SYSTEM_SCOPE, OrgScope } from '../middleware/org-scope.js';
+import { approverPrincipal } from '../middleware/auth.js';
 import { ExecutionStore, ExecutionOrgScope } from '../stores/execution-store.js';
 import { ExecutionService } from '../services/execution-service.js';
 import { EnvelopeStore } from '../../store/envelope-store.js';
@@ -57,6 +59,8 @@ const ResumeExecutionSchema = z.object({
   reason: z.string().optional(),
   requestChanges: z.boolean().optional(),
   data: z.record(z.string(), z.unknown()).optional(),
+  // quox#1037: answer once the checks pass and run the post-gate part in the background (202), like execute's async
+  async: z.boolean().optional().default(false),
 });
 
 // Response helpers
@@ -193,7 +197,7 @@ export function createExecutionRoutes(deps: {
   // POST /api/executions/:id/resume - Resume a paused execution
   app.post('/:id/resume', validateParams(IdParamSchema), validateBody(ResumeExecutionSchema), async c => {
     const { id } = c.get('validatedParams') as z.infer<typeof IdParamSchema>;
-    const decision = c.get('validatedBody') as z.infer<typeof ResumeExecutionSchema>;
+    const { async: isAsync, ...decision } = c.get('validatedBody') as z.infer<typeof ResumeExecutionSchema>;
     const storeScope = toStoreScope(resolveOrgScope(c));
 
     // QF-MT WP5: ownership check — cross-org execution id 404s here, before
@@ -238,8 +242,18 @@ export function createExecutionRoutes(deps: {
       throw new NotFoundError(ErrorCodes.WORKFLOW_NOT_FOUND, `Workflow ${execution.workflowId} not found`);
     }
 
-    const result = await deps.executionService.resume(id, workflow.definition, decision);
-    return success(c, result, result.success ? 200 : 500);
+    const result = await deps.executionService.resume(id, workflow.definition, decision, approverPrincipal(authUser), { async: isAsync });
+    // quoxflow#15: a refused approver is an authorization answer, not a server error. It was returned as a 500
+    // wrapping success:true + data.error, so every caller saw a bare 'api_error' and never the reason.
+    if (!result.success && result.error?.code === 'APPROVER_NOT_AUTHORIZED') {
+      return c.json({ success: false, error: { code: result.error.code, message: result.error.message } }, 403);
+    }
+    // quox#1037: accepted; the post-gate part continues in the background
+    if (isAsync) {
+      return success(c, { executionId: id, status: 'running', message: 'Execution resumed' }, 202);
+    }
+    // quoxflow#13: a user cancel is a normal end of the run, not a server error
+    return success(c, result, result.success || result.cancelled ? 200 : 500);
   });
 
   return app;
@@ -263,7 +277,7 @@ export function createWorkflowExecuteRoute(deps: {
     // org fall back to the body value (system scope has no better source).
     const scope = resolveOrgScope(c);
     const storeScope = toStoreScope(scope);
-    const user = c.get('user') as { type?: string } | undefined;
+    const user = c.get('user') as { type?: string; user_id?: string } | undefined;
     if (bodyOrgId && user?.type === 'access' && scope.kind === 'org' && bodyOrgId !== scope.orgId) {
       return c.json({
         success: false,
@@ -285,11 +299,18 @@ export function createWorkflowExecuteRoute(deps: {
     // Get correlation ID from request
     const correlationId = c.get('correlationId') as string;
 
+    // FND_01M55X6TRMDS63SDZK3TDS63SD: the run's initiator is the verified caller, never anything in the
+    // body or the workflow. A JWT access token is that user; a service key / no-auth caller is system:api.
+    const actor: RunActor = user?.type === 'access' && user.user_id && user.user_id !== 'unknown'
+      ? { kind: 'user', userId: user.user_id }
+      : { kind: 'system', id: 'api' };
+
     if (isAsync) {
       // Fire and forget - return immediately with execution ID
       const executionId = await deps.executionService.executeAsync(workflow.definition, triggerData, {
         correlationId,
         orgId: resolvedOrgId,
+        actor,
       });
 
       return success(
@@ -307,9 +328,11 @@ export function createWorkflowExecuteRoute(deps: {
     const result = await deps.executionService.execute(workflow.definition, triggerData, {
       correlationId,
       orgId: resolvedOrgId,
+      actor,
     });
 
-    return success(c, result, result.success ? 200 : 500);
+    // quoxflow#13: a user cancel is a normal end of the run, not a server error
+    return success(c, result, result.success || result.cancelled ? 200 : 500);
   });
 
   return app;

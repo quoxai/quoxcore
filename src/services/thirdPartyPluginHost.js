@@ -80,7 +80,14 @@ import { registerFramePluginAgent } from './pluginAgentRegistration';
 const DB_NAME = 'quox-third-party-plugins';
 const DB_VERSION = 1;
 const STORE_NAME = 'plugins';
-const REGISTER_TIMEOUT_MS = 10000;
+const REGISTER_TIMEOUT_MS = 30000;
+// Cap how many plugin bundles parse/execute at once. Activating every enabled
+// plugin simultaneously starves the single JS main thread (and fires N parallel
+// bundle fetches at the server), so on a slow or cold load a heavy bundle, or
+// most of them on a loaded box, blow REGISTER_TIMEOUT_MS and the whole plugin
+// sidebar comes up empty. A small worker pool gives each bundle a fair share of
+// the main thread and lets the sidebar fill steadily. (2026-10-15)
+const ACTIVATION_CONCURRENCY = 6;
 const PLUGINS_API = '/api/orgs';
 
 // ── State ─────────────────────────────────────────────────────────────────
@@ -806,7 +813,12 @@ export async function activateThirdPartyPlugin(pluginId) {
             });
 
             setTimeout(() => {
-                reject(new Error(`Plugin ${pluginId} did not register within ${REGISTER_TIMEOUT_MS}ms`));
+                // Tag the timeout so the activation loop can tell a transient
+                // "too busy to finish in time" apart from a genuine bad-bytes
+                // failure: the former must NOT evict the cache (see activateOne).
+                const timeoutErr = new Error(`Plugin ${pluginId} did not register within ${REGISTER_TIMEOUT_MS}ms`);
+                timeoutErr.code = 'REGISTER_TIMEOUT';
+                reject(timeoutErr);
             }, REGISTER_TIMEOUT_MS);
         });
 
@@ -841,7 +853,7 @@ export async function activateThirdPartyPlugin(pluginId) {
                 + `routes stay namespaced under /plugins/${pluginId}/`,
             );
         }
-        wirePluginSurfaces(pluginId, manifest, exports, { rootRoutesAllowed: privilege.official });
+        wirePluginSurfaces(pluginId, manifest, exports, { rootRoutesAllowed: privilege.official, official: privilege.official });
 
         // 8. PSDK-3: Register plugin agent into live system
         if (manifest.agentDefinition) {
@@ -1084,7 +1096,13 @@ async function activateViaFrame(pluginId, manifest, bundleCode, cssCode) {
  * @param {{rootRoutesAllowed?: boolean}} [options]
  */
 export function wirePluginSurfaces(pluginId, manifest, exports, options = {}) {
-    const { rootRoutesAllowed = false } = options;
+    const { rootRoutesAllowed = false, official = false } = options;
+    // Nav section routing keys off the VERIFIED official status (passed in by the
+    // caller from the signature check), NOT manifest.official — the signed bundles
+    // do not carry an `official` flag, so trusting manifest.official dumped every
+    // first-party plugin (Bastion, Grafana, comms, …) into Community Plugins and
+    // made Bastion vanish from its Work section. See officialPluginSignature.js.
+    const navSectionId = official === true ? 'official' : undefined;
     const guards = manifest?.routeGuards || {};
 
     if (exports.routes) {
@@ -1110,7 +1128,7 @@ export function wirePluginSurfaces(pluginId, manifest, exports, options = {}) {
     if (manifest.sidebar || exports.sidebar) {
         const sidebarItems = exports.sidebar || manifest.sidebar;
         if (Array.isArray(sidebarItems)) {
-            registerPluginNavItems(pluginId, sidebarItems, manifest.official === true ? 'official' : undefined);
+            registerPluginNavItems(pluginId, sidebarItems, navSectionId);
         }
     } else if (exports.routes && Object.keys(exports.routes).length > 0) {
         // Fallback: a plugin with pages but no declared sidebar item would
@@ -1123,7 +1141,7 @@ export function wirePluginSurfaces(pluginId, manifest, exports, options = {}) {
         registerPluginNavItems(
             pluginId,
             [{ path: firstPath, label: manifest.name || pluginId, icon: 'puzzle' }],
-            manifest.official === true ? 'official' : undefined
+            navSectionId
         );
     }
 }
@@ -1385,7 +1403,8 @@ export async function loadInstalledPlugins() {
     // nav-change events now land in a tight burst instead of spread across the
     // network time (AppShell coalesces that burst into one sidebar rebuild).
     const byId = new Map(serverList.map(s => [s.plugin_id, s]));
-    await Promise.allSettled(enabled.map(async (entry) => {
+
+    const activateOne = async (entry) => {
         try {
             await ensureCachedAndActivate(orgId, entry, byId.get(entry.pluginId));
             pendingActivations.delete(entry.pluginId);
@@ -1395,20 +1414,43 @@ export async function loadInstalledPlugins() {
             pendingActivations.delete(entry.pluginId);
             failedActivations.add(entry.pluginId);
             emitHydrationState();
-            // Self-heal: a load/activation failure often means the cached bytes
-            // are stale or corrupt (e.g. a bundle from a superseded build that
-            // predates a host contract change). Evict the cache entry so the
-            // NEXT boot refetches fresh from the server instead of re-running
-            // the same bad bytes every reload — the trap that made a broken
-            // plugin appear to "come back" after a plain refresh.
+            // A registration TIMEOUT is not corruption: the bundle is almost
+            // always fine and the main thread or server was just busy. Evicting
+            // it (treating it as bad bytes) forces a cold refetch on the next
+            // load, so a transient slowdown becomes a permanently empty sidebar
+            // that reloading cannot fix. Keep the cached bytes on a timeout; a
+            // calmer reload retries them. Only a genuine load, eval or integrity
+            // failure evicts, where stale or corrupt bytes from a superseded
+            // build would otherwise re-run every reload (the trap that made a
+            // broken plugin appear to "come back" after a plain refresh).
+            if (err && err.code === 'REGISTER_TIMEOUT') {
+                console.warn(`[PluginHost] ${entry.pluginId} timed out after ${REGISTER_TIMEOUT_MS}ms; keeping cache, a calmer reload will retry it`);
+                return;
+            }
             try {
                 await dbDelete(entry.pluginId);
-                console.warn(`[PluginHost] Evicted cached bundle for ${entry.pluginId} — next boot will refetch from server`);
+                console.warn(`[PluginHost] Evicted cached bundle for ${entry.pluginId}; next boot will refetch from server`);
             } catch (evictErr) {
                 console.warn(`[PluginHost] Could not evict cache for ${entry.pluginId}:`, evictErr.message);
             }
         }
-    }));
+    };
+
+    // Bounded-concurrency activation (was Promise.allSettled over ALL enabled
+    // at once). A small worker pool drains the queue so at most
+    // ACTIVATION_CONCURRENCY bundles compete for the main thread at a time,
+    // which keeps a heavy bundle, or a slow/cold load, from blowing every
+    // plugin's REGISTER_TIMEOUT_MS and emptying the sidebar. (2026-10-15)
+    const queue = [...enabled];
+    const worker = async () => {
+        while (queue.length) {
+            const entry = queue.shift();
+            if (entry) await activateOne(entry);
+        }
+    };
+    await Promise.all(
+        Array.from({ length: Math.min(ACTIVATION_CONCURRENCY, enabled.length) }, worker),
+    );
 }
 
 /**

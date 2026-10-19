@@ -82,6 +82,7 @@ import fileObjectsRoutes, { fileObjectsInternalRouter } from './routes/file-obje
 // Phase C routes (HITL)
 import runsRoutes from './routes/runs.js';
 import inboxRoutes from './routes/inbox.js';
+import stepUpRoutes from './routes/stepUp.js';
 import routingRoutes from './routes/routing.js';
 import llmRoutingPolicyRoutes from './routes/llm-routing-policies.js';
 import notificationsRoutes from './routes/notifications.js';
@@ -128,6 +129,7 @@ import retentionRoutes from './routes/retention.js';
 import quoxVerifiedConfigRoutes from './routes/quox-verified-config.js';
 import { startScheduledCleanup, stopScheduledCleanup } from './services/retentionService.js';
 // Backup Scheduler (Issue #190)
+import { reconcileInterruptedVerifies } from './lib/backupVerifyReconcile.js';
 import { startBackupScheduler, stopBackupScheduler, finalizeScheduledRun } from './services/backupScheduler.js';
 import { startBackupAdoption } from './services/backupAdoption.js';
 import { finalizeBackupRun } from './routes/backups.js';
@@ -135,8 +137,9 @@ import { finalizeBackupRun } from './routes/backups.js';
 import { startServiceHealthScheduler, stopServiceHealthScheduler } from './services/serviceHealthScheduler.js';
 import { startPeriodicScan, stopPeriodicScan } from './services/credentialHealthScanner.js';
 import { migrateInstanceConfigToVault, migrateInstanceSmtpToVault } from './migrations/instance-config-to-vault.js';
-import { backfillDefaultToolPolicies, backfillEmailTranscriptSchema } from './lib/widgetDefaultTools.js';
+import { backfillDefaultToolPolicies, backfillEmailTranscriptSchema, backfillLeadCaptureSchema } from './lib/widgetDefaultTools.js';
 import { seedCoreAgentsIfEmpty } from './migrations/seed-core-agents-on-boot.js';
+import { seedToolCatalogOnBoot } from './migrations/seed-tool-catalog-on-boot.js';
 // Bastion Approval routes (HITL for command execution)
 import bastionApprovalsRoutes from './routes/bastion-approvals.js';
 // Messages & Conversations routes (Phase 1 - audit trail)
@@ -169,6 +172,8 @@ import { startLeaseExpiryJob, stopLeaseExpiryJob } from './jobs/lease-expiry.js'
 import { startDeprecationTtlJob, stopDeprecationTtlJob } from './jobs/powers-deprecation-ttl.js';
 // LIFECYCLE-P3-D4: Audit event reaper (durable retry queue for B1 secret.access + failed audit events)
 import { startAuditEventReaper, stopAuditEventReaper } from './jobs/audit-event-reaper.js';
+import { startWardWitnessSweep } from './jobs/ward-witness-sweep.js';
+import { getWardWitnessHealth } from './lib/wardAdapter.js';
 import { startVoltWitnessReaper, stopVoltWitnessReaper } from './jobs/volt-witness-reaper.js';
 import { startSlaEscalation, stopSlaEscalation, configureSlaEscalation } from './jobs/sla-escalation.js';
 import { routeAndNotify } from './services/notificationRouter.js';
@@ -244,7 +249,7 @@ export function invalidateSetupCache() {
 const baseCorsOptions = {
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-CSRF-Token']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-CSRF-Token', 'X-Step-Up-Token']
 };
 
 const corsOptionsDelegate = (req, callback) => {
@@ -382,9 +387,12 @@ app.get('/health', (req, res) => {
         // restart-loop this service.
         const renewal = getRenewalHealth(db);
 
+        // #1078: auth audit witnessing (the collector is the WARD writer). A failure degrades the report, stays 200.
+        const wardWitness = getWardWitnessHealth();
         res.json({
-            status: renewal.degraded ? 'degraded' : 'ok',
+            status: renewal.degraded || wardWitness.status !== 'ok' ? 'degraded' : 'ok',
             db: true,
+            ward_witness: wardWitness,
             service: 'quox-auth',
             version: RESOLVED_VERSION,
             licensing: {
@@ -615,6 +623,10 @@ app.get('/api', (req, res) => {
 // Any /api/* mount with router.use(requireAuth) will catch /api/internal/* requests
 // because they share the /api/ prefix. Put ALL internal routers here.
 app.get('/api/internal/orgs/:orgId/github/mappings', (await import('./routes/github-mappings.js')).internalGithubMappingsHandler);
+// QUOXMIND #1111: agent identities of an org (service key), for memory recall scoping.
+app.get('/api/internal/orgs/:orgId/agent-users', (await import('./routes/agent-users-internal.js')).internalOrgAgentUsersHandler);
+// quox#1197: one org's members for security_user_audit (service key; MFA flag, never the secret).
+app.get('/api/internal/orgs/:orgId/user-audit', (await import('./routes/user-audit-internal.js')).internalOrgUserAuditHandler);
 app.use('/api/internal', (await import('./routes/inbox.js')).internalRouter);
 app.use('/api/internal', consentInternalRoutes);
 app.use('/api/internal', widgetsInternalRouter);
@@ -824,6 +836,7 @@ app.use('/api', widgetScenariosRoutes);
 app.use('/api', fileObjectsRoutes);
 // Phase C routes (HITL - inboxes, runs, notifications)
 app.use('/api', runsRoutes);
+app.use('/api/auth', stepUpRoutes); // /api/auth/me/step-up*, nginx routes /api/auth to this service
 app.use('/api', inboxRoutes);
 app.use('/api', routingRoutes);
 // llmRoutingPolicyRoutes mounted earlier (before requireAuth routers) — see LLM-CHOICE P1 note above
@@ -1089,6 +1102,15 @@ try {
 }
 
 // Start backup scheduler daemon (Issue #190)
+// quox#1205: verify runs in-process, so any 'verifying' row at boot is orphaned. Restore its
+// status from the stored verification result before the scheduler starts.
+try {
+    for (const id of reconcileInterruptedVerifies(getDb(), { staleAfterMs: 0 })) {
+        console.log(`[Startup] Reconciled interrupted backup verify ${id}`);
+    }
+} catch (err) {
+    console.error('[Startup] Backup verify reconcile failed (non-fatal):', err.message);
+}
 startBackupScheduler();
 
 // BACKUP #727: re-attach to detached backup containers that outlived the
@@ -1125,6 +1147,8 @@ try {
     if (bf.updated > 0) console.log(`[WidgetPolicies] Allow-listed email_transcript on ${bf.updated} widget(s) with no prior tool_policies`);
     const sf = backfillEmailTranscriptSchema();
     if (sf.updated > 0) console.log(`[WidgetPolicies] email_transcript schema updated on ${sf.updated} widget tool row(s)`);
+    const lf = backfillLeadCaptureSchema();
+    if (lf.updated > 0) console.log(`[WidgetPolicies] lead_capture schema (email or phone) updated on ${lf.updated} widget tool row(s)`);
 } catch (err) {
     console.error('[WidgetPolicies] tool_policies backfill failed (non-fatal):', err.message);
 }
@@ -1136,6 +1160,12 @@ try {
 seedCoreAgentsIfEmpty().catch((err) => {
     console.error('[CoreAgents] Roster seed failed (non-fatal):', err.message);
 });
+
+// quox#1045: seed the global tool catalog from the shipped manifests. Nothing
+// ran scripts/seed-tools.js on a fresh install, so the catalog was empty and no
+// tool could be installed or assigned. Insert-if-missing on every boot (so
+// upgrades get new manifests), never overwrites an edited row. Non-fatal.
+seedToolCatalogOnBoot();
 
 // First-party plugin auto-provisioning is scheduled AFTER app.listen() (see the
 // listen callback below), NOT here. LL-7: running it synchronously before listen
@@ -1155,6 +1185,8 @@ startDeprecationTtlJob();
 
 // Start audit event reaper (LIFECYCLE-P3-D4 — durable retry for B1 secret.access events)
 startAuditEventReaper();
+// #1078: retry auth audit witnesses the collector did not accept yet.
+startWardWitnessSweep();
 
 // HITL-VOLT-WITNESS (QuoxPlan #2202) — durable retry for approval decision
 // VOLT witness events that failed to reach the collector on first attempt.

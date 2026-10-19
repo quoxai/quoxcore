@@ -246,7 +246,9 @@ export function buildScheduleCallback(
       firedAt,
       expression: config.expression,
     }, {
-      triggeredBy: `schedule:${node.id}`,
+      // FND_01M55X6TRMDS63SDZK3TDS63SD: a cron fire runs as a named system actor, never as a user.
+      actor: { kind: 'system', id: `schedule:${node.id}` },
+      triggeredBy: `system:schedule:${node.id}`,
       orgId: workflowOrgId,
       onSettled: () => { inFlight = false; },
     }).catch(async (err) => {
@@ -266,7 +268,7 @@ export function buildScheduleCallback(
           startedAt: firedAt,
           completedAt: new Date().toISOString(),
           error: { code: 'SCHEDULE_FIRE_ERROR', message: msg },
-          triggeredBy: `schedule:${node.id}`,
+          triggeredBy: `system:schedule:${node.id}`,
         }, workflowOrgId); // QF-MT WP5: forced by execution-store signature change; workflowOrgId already resolved above.
       } catch (recordErr) {
         scheduleLog.error(`Could not record failure for ${workflow.id}`, {
@@ -378,7 +380,7 @@ function registerWorkflowTriggers(
                 code: 'EVENT_HOP_LIMIT_EXCEEDED',
                 message: `Event chain exceeded max hops (${cap}); refusing to dispatch workflow ${workflow.id}`,
               },
-              triggeredBy: `event:${node.id}`,
+              triggeredBy: `system:event:${node.id}`,
             }, resolvedOrgId);
           } catch (recordErr) {
             eventLog.error(`Could not record hop-limit rejection for ${workflow.id}`, {
@@ -390,7 +392,9 @@ function registerWorkflowTriggers(
 
         try {
           await executionService.executeAsync(workflow, envelope, {
-            triggeredBy: `event:${node.id}`,
+            // FND_01M55X6TRMDS63SDZK3TDS63SD: an event-triggered run is a named system actor.
+            actor: { kind: 'system', id: `event:${node.id}` },
+            triggeredBy: `system:event:${node.id}`,
             orgId: resolvedOrgId,
             eventHopCount: hopCount,
           });
@@ -407,7 +411,7 @@ function registerWorkflowTriggers(
               startedAt: firedAt,
               completedAt: new Date().toISOString(),
               error: { code: 'EVENT_FIRE_ERROR', message: msg },
-              triggeredBy: `event:${node.id}`,
+              triggeredBy: `system:event:${node.id}`,
             }, resolvedOrgId); // QF-MT WP5: forced by execution-store signature change; resolvedOrgId already resolved above.
           } catch (recordErr) {
             eventLog.error(`Could not record failure for ${workflow.id}`, {

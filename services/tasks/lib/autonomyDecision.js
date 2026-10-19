@@ -385,6 +385,11 @@ export async function escalateToHuman(decision, objective, schedule) {
         title: `Autonomy: ${objective.title}`,
         body_md: `Autonomous task requires human review.\n\nReason: ${decision.reason}\nAgent: ${decision.metadata.agent_id}\nDecision: ${decision.decision}`,
         payload: {
+          what: {
+            action: 'let an autonomous task run',
+            target: `objective ${objective.id}`,
+            summary: `let agent ${decision.metadata.agent_id} carry on with "${String(objective.title || objective.id).slice(0, 100)}"${decision.reason ? ` (${String(decision.reason).slice(0, 100)})` : ''}`,
+          },
           source: 'autonomy_escalation',
           objective_id: objective.id,
           schedule_id: schedule?.id,

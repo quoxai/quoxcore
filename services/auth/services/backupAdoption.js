@@ -6,6 +6,7 @@
  *
  * Also hosts the orphan reaper (containers older than 24h).
  */
+import { hostPath } from '../utils/hostPaths.js';
 import { prepare } from '../db/index.js';
 import {
     detachedBackupsEnabled, listBackupContainers, attachMonitor, containerNameFor,
@@ -14,7 +15,7 @@ import {
 import { EventEmitter } from 'events';
 
 const monitored = new Set();
-const BACKUP_ROOT = process.env.BACKUP_ROOT || '/opt/quoxcore/backups';
+const BACKUP_ROOT = process.env.BACKUP_ROOT || hostPath('backups');
 
 /**
  * @param {object} deps  {docker, log, ...} for backupContainer plus

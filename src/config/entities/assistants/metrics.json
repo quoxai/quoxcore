@@ -64,7 +64,6 @@
     ],
     "toolAccess": "specialists+",
     "toolCapabilities": [
-      "prometheus_query",
       "metrics_retrieval",
       "alert_monitoring"
     ],

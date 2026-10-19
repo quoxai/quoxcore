@@ -12,6 +12,11 @@ import { findSkill } from '../skills.js';
 import { packFrom } from './ladder.js';
 import { slotFor } from './agent.js';
 import { listFailure } from '../session.js';
+import { resolveEndpoint } from '../../api/endpoints.js';
+import { fleetFetchers } from './fleet.js';
+import { healthFetchers } from './health.js';
+import { proveFetchers } from './prove.js';
+import { replayFetchers } from './replay.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ASSISTANTS_DIR = path.resolve(HERE, '../../../../src/config/entities/assistants');
@@ -67,7 +72,11 @@ export function createObjectsApi({ client, orgId = () => null, home = os.homedir
     return out;
   }
 
-  return {
+  const self = {
+    ...fleetFetchers({ get, org, listOf, why, resolveEndpoint }),
+    ...healthFetchers({ get, org, listOf, why, resolveEndpoint }),
+    ...replayFetchers({ get, listOf, why, verifyReceipt: (id, t) => verifyReceipt(id, t), aeeGet: (id) => aeeGet(id) }),
+    ...proveFetchers({ get, listOf, resolveEndpoint, self: { proof: (t) => self.proof(t) } }),
     /** E1 */
     async skill(name) {
       const all = listOf(await get('collector', '/quoxflow/skills', { orgId: org() || undefined }), 'data', 'skills');
@@ -169,4 +178,5 @@ export function createObjectsApi({ client, orgId = () => null, home = os.homedir
       return { data: { items } };
     }
   };
+  return self;
 }

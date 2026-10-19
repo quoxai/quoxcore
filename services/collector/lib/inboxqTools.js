@@ -99,6 +99,26 @@ function toToolResult(res) {
  * TODO(ContactsQ): full ingest tokenisation (replace raw sender emails in agent payloads with
  * refs) is a breaking change for InboxQ agent prompts and is deliberately NOT done here.
  */
+// quox#900: the agent gets a compact row (what a triage answer needs) and a smaller
+// default page, so a "what needs me" answer never spills past the model runtime's
+// tool-result limit and pushes the model to Bash/jq. The HTTP API is unchanged.
+const AGENT_SEARCH_DEFAULT_LIMIT = 20;
+const AGENT_SNIPPET_CHARS = 160;
+function compactForAgent(m) {
+  if (!m) return m;
+  const snippet = typeof m.snippet === 'string' && m.snippet.length > AGENT_SNIPPET_CHARS
+    ? `${m.snippet.slice(0, AGENT_SNIPPET_CHARS)}…` : m.snippet;
+  const out = {
+    id: m.id, accountId: m.accountId, fromName: m.fromName, fromAddr: m.fromAddr, subject: m.subject,
+    dateTs: m.dateTs, snippet, zone: m.zone, flags: m.flags, seen: m.seen, folder: m.folder,
+  };
+  if (m.attachmentCount) out.attachmentCount = m.attachmentCount;
+  if (m.phishingRisk) out.phishingRisk = m.phishingRisk;
+  if (m.sender_contact) out.sender_contact = m.sender_contact;
+  if (m.sender_ref) out.sender_ref = m.sender_ref;
+  return out;
+}
+
 function withSenderRef(m) {
   try {
     if (m && m.sender_contact && m.sender_contact.id) return { ...m, sender_ref: `contact:${m.sender_contact.id}` };
@@ -175,7 +195,10 @@ function proposeResult(res, frozen) {
     success: true,
     proposal,
     executed: false,
-    result: `PROPOSAL CREATED (id ${proposal.id}), NOT EXECUTED. A human must approve it.${countNote}`,
+    proposed: true,
+    applied: false,
+    approval_id: proposal.id,
+    result: `PROPOSAL CREATED (id ${proposal.id}), NOT EXECUTED (proposed: true, applied: false). Nothing has changed yet; it happens only when a human approves it in Approvals.${countNote}`,
   };
 }
 
@@ -221,7 +244,7 @@ const INBOXQ_TOOLS = {
 
   inbox_search: {
     name: 'inbox_search',
-    description: "Search one account's stored mail by sender, sender domain, subject, free text, zone, folder or flag. Read-only, free — and the ONLY way to know what \"move all X\" or \"junk everything from Y\" actually matches BEFORE proposing anything. Always call this first and quote its exact `total` back to the human, never guess. Returns { total, messages, matchSpec }: hand matchSpec UNCHANGED to inbox_propose_move / inbox_propose_rezone so the server re-runs the identical search at propose time and freezes the same set.",
+    description: "Search one account's stored mail by sender, sender domain, subject, free text, zone, folder or flag. Read-only, free — and the ONLY way to know what \"move all X\" or \"junk everything from Y\" actually matches BEFORE proposing anything. Always call this first and quote its exact `total` back to the human, never guess. For \"what needs me\" / \"what needs action\" asks about mail, pass flag:\"needs_action\" (and zone if asked) so the page is the real to-do list; never filter results with shell tools. Rows are compact (default 20, raise limit if needed; total is never capped); use inbox_get for one message's body. Returns { total, messages, matchSpec }: hand matchSpec UNCHANGED to inbox_propose_move / inbox_propose_rezone so the server re-runs the identical search at propose time and freezes the same set.",
     input_schema: {
       type: 'object',
       properties: {
@@ -233,15 +256,17 @@ const INBOXQ_TOOLS = {
         zone: { type: 'string', enum: ZONES, description: 'Filter to one triage zone.' },
         folder: { type: 'string', description: 'Filter to one stored IMAP folder path.' },
         flag: { type: 'string', description: 'Filter to messages carrying this flag (e.g. needs_action).' },
-        limit: { type: 'number', description: `Max messages to return (default 50, hard cap ${MAX_SEARCH_LIMIT}). total is never capped.` },
+        limit: { type: 'number', description: `Max messages to return (default ${AGENT_SEARCH_DEFAULT_LIMIT}, hard cap ${MAX_SEARCH_LIMIT}). total is never capped.` },
       },
       required: ['accountId'],
     },
     execute: async (input, ctx) => {
       const { accountId } = input || {};
       if (!accountId) return { success: false, error: 'accountId is required' };
-      const out = toToolResult(await _handlers.hSearchMessages(baseCtx(ctx, { query: input || {} }), { audit: auditDep(ctx) }));
-      if (out.success && Array.isArray(out.messages)) out.messages = out.messages.map(withSenderRef);
+      const query = { ...(input || {}) };
+      if (query.limit === undefined || query.limit === null) query.limit = AGENT_SEARCH_DEFAULT_LIMIT;
+      const out = toToolResult(await _handlers.hSearchMessages(baseCtx(ctx, { query }), { audit: auditDep(ctx) }));
+      if (out.success && Array.isArray(out.messages)) out.messages = out.messages.map(withSenderRef).map(compactForAgent);
       return out;
     },
   },

@@ -244,7 +244,8 @@ router.post('/orgs/:orgId/assistants', requireOrgMembership, async (req, res) =>
                 voice: null,
                 tools: [],
                 knowledge: [],
-                ...(persona || {})
+                // #996: the CLI sends --persona as a plain string; it is the system prompt.
+                ...(typeof persona === 'string' ? { system_prompt: persona } : (persona || {}))
             },
             llm
         });
@@ -301,6 +302,10 @@ router.patch('/orgs/:orgId/assistants/:assistantId', requireOrgMembership, async
         if (!existing) {
             return res.status(404).json({ error: 'Assistant not found' });
         }
+        // #996: a plain-string persona (the CLI's --persona) updates the system prompt only.
+        const personaInput = typeof persona === 'string'
+            ? { ...parseAssistantPersona(existing), system_prompt: persona }
+            : persona;
 
         // Check ownership or admin
         const isOwner = existing.created_by === userId;
@@ -337,7 +342,7 @@ router.patch('/orgs/:orgId/assistants/:assistantId', requireOrgMembership, async
         if (persona !== undefined || llm !== undefined) {
             const persistence = buildAssistantPersistencePayload({
                 row: existing,
-                persona: persona || parseAssistantPersona(existing),
+                persona: personaInput || parseAssistantPersona(existing),
                 llm
             });
             const existingPersona = JSON.stringify(parseAssistantPersona(existing));
@@ -371,7 +376,7 @@ router.patch('/orgs/:orgId/assistants/:assistantId', requireOrgMembership, async
             const updated = prepare('SELECT version FROM assistants WHERE id = ?').get(assistantId);
             const persistence = buildAssistantPersistencePayload({
                 row: existing,
-                persona: persona || parseAssistantPersona(existing),
+                persona: personaInput || parseAssistantPersona(existing),
                 llm
             });
             prepare(`

@@ -47,7 +47,7 @@ const STATIC_AGENT_TOOLS = {
   sentinel: ['ssh_exec', 'security_audit', 'ssl_certificates', 'fleet_status', 'network_check', 'execution_intelligence', 'codebase_query', 'create_inbox_item', 'send_notification', 'browser_navigate', 'browser_screenshot', 'browser_extract', ...MEMORY_TOOLS, ...SKILL_TOOLS],
   cipher: ['ssh_exec', 'network_check', 'fleet_status', 'system_admin', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS],
   nova: ['ssh_exec', 'docker_status', 'docker_extended', 'system_admin', 'fleet_status', 'execution_intelligence', 'codebase_query', 'create_workflow', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS],
-  atlas: ['ssh_exec', 'proxmox_vms', 'proxmox_containers', 'proxmox_cluster_status', 'proxmox_storage', 'proxmox_vm_action', 'fleet_status', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS],
+  atlas: ['ssh_exec', 'proxmox_read', 'proxmox_vm_action', 'proxmox_vm_snapshot', 'proxmox_vm_clone', 'proxmox_pool_lease', 'proxmox_pool_release', 'proxmox_pool_configure', 'proxmox_rehearse', 'proxmox_vm_doctor', 'fleet_status', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS],
   metrics: ['ssh_exec', 'metrics_query', 'alerts_manage', 'grafana_dashboards', 'fleet_status', 'execution_intelligence', 'create_inbox_item', 'send_notification', ...MEMORY_TOOLS, ...SKILL_TOOLS],
   archivist: [],
   codex: [],

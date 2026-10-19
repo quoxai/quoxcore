@@ -167,6 +167,7 @@ async function ensureApprovedInstallCallBastion(args) {
     kind: 'approval',
     priority: 'normal',
     payload: {
+      what: { action: 'install DevSuite pack', target: `host ${hostId}`, summary: `install pack ${pack.packId} v${pack.version}${fileCount != null ? ` (${fileCount} files)` : ''} on ${hostId}` },
       kind: 'devsuite_pack_install',
       source,
       hostId,

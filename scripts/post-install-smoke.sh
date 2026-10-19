@@ -7,6 +7,16 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 PASS_COUNT=0
 FAIL_COUNT=0
+SKIP_COUNT=0
+
+# Z2H-425 (#1313): routes behind login answer 401/403 on a clean install. Without a token that still proves the
+# proxy reaches the service (reported "reachable, auth required"); with QUOX_TOKEN set the call is made
+# authenticated and must succeed. A broken proxy (502/404/timeout/HTML) still FAILs.
+QUOX_TOKEN="${QUOX_TOKEN:-}"
+AUTH_ARGS=()
+if [[ -n "${QUOX_TOKEN}" ]]; then
+  AUTH_ARGS=(-H "Authorization: Bearer ${QUOX_TOKEN}")
+fi
 
 green() { printf '\033[0;32m%s\033[0m\n' "$1"; }
 yellow() { printf '\033[1;33m%s\033[0m\n' "$1"; }
@@ -15,6 +25,11 @@ red() { printf '\033[0;31m%s\033[0m\n' "$1"; }
 pass() {
   PASS_COUNT=$((PASS_COUNT + 1))
   green "[smoke] PASS: $1"
+}
+
+skip() {
+  SKIP_COUNT=$((SKIP_COUNT + 1))
+  yellow "[smoke] SKIP: $1"
 }
 
 fail() {
@@ -28,6 +43,7 @@ request() {
   local body_file="$3"
   curl -ksS -D "${headers_file}" -o "${body_file}" \
     -H 'Accept: application/json, text/html;q=0.9' \
+    "${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"}" \
     "${BASE_URL}${path}" \
     -w '%{http_code}'
 }
@@ -48,6 +64,17 @@ check_json_health() {
   local body_file="${TMP_DIR}/$(echo "${label}" | tr ' /' '__').body"
   local code
   code="$(request "${path}" "${headers_file}" "${body_file}")"
+
+  if [[ "${code}" == "401" || "${code}" == "403" ]]; then
+    if [[ -n "${QUOX_TOKEN}" ]]; then
+      fail "${label} returned HTTP ${code} with QUOX_TOKEN (token rejected)"
+    elif ensure_not_html_body "${body_file}"; then
+      pass "${label} (reachable, auth required: HTTP ${code}; set QUOX_TOKEN to check it authenticated)"
+    else
+      fail "${label} returned HTML instead of an API response"
+    fi
+    return
+  fi
 
   if [[ "${code}" != "200" ]]; then
     fail "${label} returned HTTP ${code}"
@@ -75,9 +102,14 @@ check_json_post() {
   local headers_file="${TMP_DIR}/$(echo "${label}" | tr ' /' '__').headers"
   local body_file="${TMP_DIR}/$(echo "${label}" | tr ' /' '__').body"
   local code
+  if [[ -z "${QUOX_TOKEN}" ]]; then
+    skip "${label}: needs login (set QUOX_TOKEN to run it)"
+    return
+  fi
   code="$(curl -ksS -D "${headers_file}" -o "${body_file}" \
     -H 'Accept: application/json, text/html;q=0.9' \
     -H 'Content-Type: application/json' \
+    "${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"}" \
     -X POST "${BASE_URL}${path}" \
     --data "${payload}" \
     -w '%{http_code}')"
@@ -107,8 +139,13 @@ check_delete_json() {
   local headers_file="${TMP_DIR}/$(echo "${label}" | tr ' /' '__').headers"
   local body_file="${TMP_DIR}/$(echo "${label}" | tr ' /' '__').body"
   local code
+  if [[ -z "${QUOX_TOKEN}" ]]; then
+    skip "${label}: needs login (set QUOX_TOKEN to run it)"
+    return
+  fi
   code="$(curl -ksS -D "${headers_file}" -o "${body_file}" \
     -H 'Accept: application/json, text/html;q=0.9' \
+    "${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"}" \
     -X DELETE "${BASE_URL}${path}" \
     -w '%{http_code}')"
 
@@ -180,6 +217,7 @@ check_latency() {
 }
 
 echo "[smoke] Base URL: ${BASE_URL}"
+[[ -n "${QUOX_TOKEN}" ]] || yellow "[smoke] No QUOX_TOKEN: login-only checks are skipped, auth-required routes are checked as reachable"
 
 check_json_health "Setup status" "/api/setup/status" '"readiness"'
 check_json_health "Collector chat status" "/collector/chat/status" '"ready"'
@@ -203,6 +241,7 @@ check_proxy_json_or_auth "Policies API proxy" "/quoxflow/api/policies?limit=1"
 
 echo ""
 echo "[smoke] Passed: ${PASS_COUNT}"
+echo "[smoke] Skipped: ${SKIP_COUNT}"
 echo "[smoke] Failed: ${FAIL_COUNT}"
 
 if [[ "${FAIL_COUNT}" -gt 0 ]]; then

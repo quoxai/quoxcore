@@ -807,6 +807,50 @@ function getFinalized(corrKey, scope) {
  * fix: a route can serve retrieved refs before finalizeAnswer runs). Shallow
  * view only — never the raw entry object.
  */
+/**
+ * quox#1292: a cited handle ("[K2]") is meaningless to a reader unless the answer says what it points at. -> a
+ * "\n\nSources: [K2] <title>; ..." line for each handle the answer cites that is registered for this turn (in order of
+ * first use, each once), or '' when there is none. Read-only; call it before finalizeAnswer (which retires the entry).
+ */
+function citationSourcesLine(corrKey, answerText, scope) {
+  try {
+    const key = normalizeKey(corrKey);
+    if (!key) return '';
+    const byHandle = new Map();
+    for (const e of matchScoped(_entries, key, scope || null)) {
+      for (const r of e.refs || []) if (r && r.handle && !byHandle.has(r.handle.toUpperCase())) byHandle.set(r.handle.toUpperCase(), r);
+    }
+    if (!byHandle.size) return '';
+    const seen = [];
+    const re = /\[([A-Za-z]\d{1,3})\]/g;
+    let m;
+    while ((m = re.exec(String(answerText || ''))) !== null) {
+      const h = m[1].toUpperCase();
+      if (byHandle.has(h) && !seen.includes(h)) seen.push(h);
+    }
+    if (!seen.length) return '';
+    const label = (r) => {
+      // a memory note records an EARLIER CONVERSATION (titled by its question); say so, with its date (ULID time)
+      const mem = /^memory\/([0-9A-HJKMNP-TV-Z]{26})\.md$/i.exec(String(r.relPath || ''));
+      if (mem || /^memory\//i.test(String(r.relPath || ''))) {
+        let day = '';
+        if (mem) {
+          const A = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+          let ms = 0;
+          for (const c of mem[1].slice(0, 10).toUpperCase()) ms = ms * 32 + A.indexOf(c);
+          const d = new Date(ms);
+          if (!Number.isNaN(d.getTime()) && ms > 0) day = d.toISOString().slice(0, 10);
+        }
+        return `an earlier conversation (memory${day ? `, ${day}` : ''})`;
+      }
+      return String(r.title || basenameWithoutExtension(r.relPath || '') || 'a brain note').replace(/\s+/g, ' ').trim().slice(0, 120);
+    };
+    return `\n\nSources: ${seen.map((h) => `[${h}] ${label(byHandle.get(h))}`).join('; ')}`;
+  } catch (_) {
+    return '';
+  }
+}
+
 function getLive(corrKey, scope) {
   try {
     const key = normalizeKey(corrKey);
@@ -864,6 +908,7 @@ function _resetForTest() {
 }
 
 module.exports = {
+  citationSourcesLine,
   setEntailFn,
   getEntailFn,
   registerRetrieval,

@@ -32,6 +32,25 @@ export interface PendingApprovalInfo {
   trigger: ApprovalTrigger;
 }
 
+/** The verified caller, as the auth middleware read it from the JWT. Never built from a request body. */
+export interface ApproverPrincipal {
+  userId: string;
+  orgId?: string;
+  role?: string;
+  isAgent: boolean;
+}
+
+/** approval-store's placeholder for an approval created without an org; a tenant can never match it. */
+const UNSCOPED_ORG_ID = 'default';
+
+/** quoxflow#14: approver groups resolved from the caller's org role, using QuoxCORE's ORG roles
+ * (services/auth/utils/policy.js OrgRoles: owner, admin, builder, runner, viewer, auditor). viewer and auditor
+ * are read-only, never approvers. 'member' is a TEAM role, not an org role, so it matches nothing here. */
+const ORG_ROLE_GROUPS: Record<string, readonly string[]> = {
+  'org:admins': ['owner', 'admin'],
+  'org:members': ['owner', 'admin', 'builder', 'runner'],
+};
+
 export class ApprovalEngine {
   private store: ApprovalStore;
   private defaultTimeoutMs: number;
@@ -301,7 +320,7 @@ export class ApprovalEngine {
   /**
    * Check if an approver is authorized to resolve an approval
    */
-  isAuthorizedApprover(approval: ApprovalRequest, approver: string): boolean {
+  isAuthorizedApprover(approval: ApprovalRequest, approver: string, principal?: ApproverPrincipal): boolean {
     // Check if approver is in the list
     if (approval.approvers.includes(approver)) {
       return true;
@@ -321,6 +340,14 @@ export class ApprovalEngine {
         if (approver === groupName || approver.startsWith(`${groupName}:`)) {
           return true;
         }
+      }
+      // quoxflow#14: org role groups. Resolved ONLY from the verified principal (the JWT, built by the auth
+      // middleware), never from the approver string, and only for a human in the approval's own org.
+      // An agent token never qualifies, whatever role it carries. Unknown org:* names match nothing.
+      if (allowedApprover.startsWith('org:') && principal && !principal.isAgent && principal.userId === approver
+        && approval.orgId && approval.orgId !== UNSCOPED_ORG_ID && principal.orgId === approval.orgId && principal.role
+        && ORG_ROLE_GROUPS[allowedApprover]?.includes(principal.role)) {
+        return true;
       }
     }
 

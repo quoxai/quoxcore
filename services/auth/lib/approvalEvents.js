@@ -45,6 +45,7 @@
  */
 
 import { mkdirSync } from 'node:fs';
+import { sign as edSign } from 'node:crypto';
 import { dirname } from 'node:path';
 import { getDb, prepare } from '../db/index.js';
 import { ulid } from '../utils/helpers.js';
@@ -124,6 +125,15 @@ function ensureSigningKeypair() {
   cachedKeypair = ensureKeypair(paths.pub, paths.priv);
   cachedKeyPaths = paths;
   return cachedKeypair;
+}
+
+/**
+ * LOOSEN-GUARD: sign an arbitrary statement (utf8 string) with the same persistent Ed25519 key.
+ * Returns { signature: base64url, keyId }. Verifiers hold only the public key.
+ */
+export function signWithApprovalKey(statement) {
+  const kp = ensureSigningKeypair();
+  return { signature: edSign(null, Buffer.from(String(statement), 'utf8'), kp.privateKey).toString('base64url'), keyId: kp.keyId };
 }
 
 /**

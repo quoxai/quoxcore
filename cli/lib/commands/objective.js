@@ -210,6 +210,17 @@ export function registerObjectiveCommands(program, ctx) {
     });
 
   objective
+    .command('cancel')
+    .description('Cancel an objective (pending ones included, e.g. proof leftovers that never started); its open tasks are cancelled too. For a RUNNING loop prefer `halt`, which also kills the live session.')
+    .argument('<objectiveId>', 'objective ID')
+    .action(async (objectiveId) => {
+      auth.requireAuth();
+      const ep = resolveEndpoint('objectives.cancel', { id: objectiveId });
+      const data = await client.delete(ep.path, { service: ep.service });
+      printSuccess(`Objective ${objectiveId}: ${data?.status || 'cancelled'}`);
+    });
+
+  objective
     .command('halt')
     .description('Halt a running QLoop loop ON DEMAND (unconditional human stop; no pending gate needed). Fires the same signed-kill as a gate deny.')
     .argument('<objectiveId>', 'loop objective ID')

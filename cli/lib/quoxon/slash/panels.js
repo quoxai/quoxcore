@@ -55,6 +55,11 @@ export function contextModel(d = {}) {
   const mem = d.memory;
   out.push(row('Memory', !mem ? '? not checked (/context checks it live)' : mem.ok ? 'connected (persistent memory answers)' : `not reachable: ${mem.error}`));
   out.push(row('Agent', d.agent || 'CommanderQ (quox)'));
+  if (d.screen) {
+    const l = d.screen.last;
+    out.push(row('Terminal', !d.screen.on ? 'off for this session (/context on)' : l ? `${l.bytes} bytes sent last turn: ${l.sections.join(', ') || 'nothing new'}${l.unchanged?.length ? ` (unchanged: ${l.unchanged.join(', ')})` : ''} · /context off stops it` : 'on, sent with your next message · /context off stops it'));
+    if (d.screen.on && l?.text) for (const t of l.text.split('\n')) out.push({ kind: 'dim', key: '', text: '  ' + t });
+  }
   return out;
 }
 

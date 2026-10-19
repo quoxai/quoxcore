@@ -214,7 +214,9 @@ export function createWebhookTriggerRoutes(config: WebhookTriggerRoutesConfig) {
           receivedAt: new Date().toISOString(),
         },
         {
-          triggeredBy: `webhook:${registration.nodeId}`,
+          // FND_01M55X6TRMDS63SDZK3TDS63SD: a webhook fire is a named system actor, never a user.
+          actor: { kind: 'system', id: `webhook:${path}` },
+          triggeredBy: `system:webhook:${path}`,
           // QF-MT WP4: attribute the fired execution to the registration's
           // org so downstream execution/envelope/evidence writes (WP5)
           // carry the correct tenant, even though this route is public.

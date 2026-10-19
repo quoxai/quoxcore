@@ -94,11 +94,14 @@ function backupView(b) {
   return {
     id: b.id,
     name: b.name || null,
+    // how to name this backup to the user, so they can act on one (SITE-CLI 2026-10-19)
+    refer_as: b.name || b.id,
     type: b.backup_type || null,
     status: empty ? 'failed' : b.status,
     ...(empty ? { recorded_status: b.status, note: 'Recorded as completed but the archive is 0 bytes: nothing was backed up. Treat it as failed.' } : {}),
     size_bytes: b.archive_size_bytes ?? null,
     verified: b.status === 'verified',
+    verify_state: b.verify_state || (b.status === 'verified' ? 'verified' : SUCCESS_STATES.has(b.status) ? 'never_verified' : b.status),
     started_at: b.created_at || null,
     completed_at: b.completed_at || null,
     ...(b.error_message ? { error: String(b.error_message).slice(0, 300) } : {}),
@@ -192,6 +195,8 @@ const QUOXON_PROOF_READ_TOOLS = {
         const caps = b.capabilities && typeof b.capabilities === 'object' ? b.capabilities : {};
         return {
           success: true,
+          // 'seed' = the built-in default policy (the org has not set its own); 'org' = the org's saved policy.
+          source: (raw && raw.source) || null,
           policy_id: b.policy_id || null,
           enabled: b.enabled !== false,
           system_default: pick(b.system_default),
@@ -211,7 +216,7 @@ const QUOXON_PROOF_READ_TOOLS = {
 
   backup_overview: {
     name: 'backup_overview',
-    description: 'When this Quox was last backed up, from the live backup record (the same data quox backup list reads), never from memory notes: the last successful and last verified backup, and for each backup job (schedule) its last run with size, status and verified flag, plus the next run. A run recorded as completed with 0 bytes is reported as failed. Read-only; running, verifying or restoring a backup is a CLI or approval action.',
+    description: 'When this Quox was last backed up, from the live backup record (the same data quox backup list reads), never from memory notes: the last successful and last verified backup, and for each backup job (schedule) its last run with size, status and verified flag, plus the next run. A run recorded as completed with 0 bytes is reported as failed. Name each backup by refer_as so the user can act on one. Read-only; running, verifying or restoring a backup is a CLI or approval action.',
     input_schema: { type: 'object', properties: {}, required: [] },
     execute: async (input, ctx) => {
       const refused = needOrgAndUser(ctx, 'backup_overview');

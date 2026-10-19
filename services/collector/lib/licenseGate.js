@@ -95,18 +95,23 @@ async function checkPluginLicense(orgId, pluginId) {
   }
 
   const cached = readCache(orgId, pluginId);
-  if (cached) return { licensed: cached.licensed, tier: cached.tier, cached: true };
+  if (cached) return { licensed: cached.licensed, tier: cached.tier, ...(cached.readOnlyUntil ? { readOnlyUntil: cached.readOnlyUntil } : {}), cached: true };
 
   try {
     const result = await fetchFromAuth(orgId, pluginId);
     const value = { licensed: !!result.licensed, tier: result.tier || null };
+    // PLUGIN-IMG #1012: lapsed-lease read-only grace. Carried only as data;
+    // requirePluginEntitlement decides (and fails closed on a bad date).
+    if (!value.licensed && result.lapsed === true && typeof result.read_only_until === 'string') {
+      value.readOnlyUntil = result.read_only_until;
+    }
     writeCache(orgId, pluginId, value);
     return value;
   } catch (err) {
     const stale = readStaleCache(orgId, pluginId);
     if (stale) {
       console.warn(`[collector licenseGate] auth unreachable, serving STALE cache (grace) for ${orgId}:${pluginId}: ${err.message}`);
-      return { licensed: stale.licensed, tier: stale.tier, error: err.message, stale: true };
+      return { licensed: stale.licensed, tier: stale.tier, ...(stale.readOnlyUntil ? { readOnlyUntil: stale.readOnlyUntil } : {}), error: err.message, stale: true };
     }
     console.warn(`[collector licenseGate] auth unreachable, no stale cache in grace — failing CLOSED for ${orgId}:${pluginId}: ${err.message}`);
     return { licensed: false, tier: null, error: err.message, failClosed: true };
@@ -146,7 +151,11 @@ function clearLicenseCache() {
 async function licenseVerdict(orgId, pluginId) {
   if (_testOverride) return { licensed: !!(await _testOverride(orgId, pluginId)), unavailable: false };
   const r = await checkPluginLicense(orgId, pluginId);
-  return { licensed: !!r.licensed, unavailable: !r.licensed && r.failClosed === true };
+  return {
+    licensed: !!r.licensed,
+    unavailable: !r.licensed && r.failClosed === true,
+    ...(r.readOnlyUntil ? { readOnlyUntil: r.readOnlyUntil } : {}),
+  };
 }
 
 module.exports = {

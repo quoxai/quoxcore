@@ -66,7 +66,8 @@ const BACKGROUND_BY = /^(schedule|cron|interval|webhook|event|system)\b/i;
 function isBackgroundExecution(e, userId = null) {
   const by = e && e.triggeredBy != null ? String(e.triggeredBy) : (e && e.triggered_by != null ? String(e.triggered_by) : '');
   if (BACKGROUND_BY.test(by)) return true;
-  if (userId && by && by === String(userId)) return false;
+  // quoxflow records a person-started run as user:<id> (RunActor); a bare id is an older row
+  if (userId && by && (by === String(userId) || by === `user:${userId}`)) return false;
   let td = e && (e.triggerData || e.trigger_data);
   if (typeof td === 'string') { try { td = JSON.parse(td); } catch { td = null; } }
   return !USER_TRIGGERS.has(String((td && td.trigger) || '').toLowerCase());

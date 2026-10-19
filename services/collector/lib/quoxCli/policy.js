@@ -53,6 +53,7 @@ const NEVER_GROUP_REASONS = {
   watch: 'a live dashboard that never ends',
   onboard: 'an interactive wizard',
   doctor: 'diagnoses the machine it runs on, which here is the server',
+  update: 'updates the quox CLI installed on the machine it runs on, which here is the server',
   integration: 'deprecated alias of vault; use the vault commands',
 };
 const NEVER_GROUPS = new Set(Object.keys(NEVER_GROUP_REASONS));
@@ -69,10 +70,23 @@ const NEVER_PATH_REASONS = {
   'approvals grants create': 'creates a standing grant that pre-approves future actions',
   'contacts grant add': 'creates a standing grant that pre-approves future contact',
   'org delete': 'deletes the organization',
+  // ContactsQ human-only reads (2026-10-15, proof contact-handoffs-masked): quox_cli runs as the
+  // caller, so these would hand the model what ContactsQ shows humans only. Agents use their own
+  // masked tools: contacts_handoffs (age, never the text), contacts_context (an approved lease).
+  'contacts handoffs': 'handoff note text is shown to humans only; contacts_handoffs gives an agent the count and age',
+  'contacts facts': 'a contact\'s facts reach an agent only through an approved context lease (contacts_context)',
+  'contacts dsar': 'a full personal-data export is a human action in the ContactsQ view',
   'vault get': 'returns a credential value',
   'vault cross-org': 'reaches another organization\'s vault',
   'plugin trusted-keys add': 'changes which plugin signing keys this install trusts',
   'plugin trusted-keys remove': 'changes which plugin signing keys this install trusts',
+  // ROWS (2026-10-17): a status row can fetch any URL or run a shell command on the machine it runs on, which here is
+  // the server (an SSRF or a shell escape from a conversation). Rows are set up from your own terminal; an agent can
+  // still read them (rows list) and remove one (an approval card).
+  'rows add': 'status rows are set up from your own terminal (a row can fetch any URL or run a command where it runs, which here is the server)',
+  'rows edit': 'status rows are set up from your own terminal (a row can fetch any URL or run a command where it runs, which here is the server)',
+  'rows test': 'testing a row fetches a URL or runs a command on the machine it runs on, which here is the server',
+  'rows import': 'importing rows is done from your own terminal, where any command row needs your yes',
 };
 
 // Any of these words anywhere in the path makes a leaf never.
@@ -91,6 +105,12 @@ const READ_VERBS = new Set(['list', 'show', 'get', 'status', 'search', 'stats', 
 
 // Owner override (2026-10-14): runs without an approval card, still witnessed.
 const IMMEDIATE_PATHS = new Set(['safety estop']);
+
+// Options that turn a masked read into a raw one: never run for an agent, even on a read leaf.
+const NEVER_OPTION_REASONS = {
+  'contacts show': { full: 'raw phone numbers, emails and notes are shown to humans only' },
+  'rows list': { now: 'fetching each row runs its URL or command on the server; plain rows list reads them' },
+};
 
 // Options that change state even on a leaf whose verb reads (mail watch active --set,
 // vault repos --set/--clear, quoxchat availability --online/--offline).
@@ -118,9 +138,14 @@ function loadPolicy() {
   return _policy;
 }
 
+// #914: leaves inside a never-group that are org-level, not host-level, and ride the normal
+// policy class (write = an approval card). `quox server config app-url` sets the public URL
+// emails and sign-in links use; asking about it must reach a card, not "I have no tool".
+const GROUP_FLOOR_EXEMPT = new Set(['server config app-url']);
+
 function neverFloor(pathKey, leaf) {
   const words = pathKey.split(' ');
-  if (NEVER_GROUPS.has(words[0])) return `quox ${words[0]}: ${NEVER_GROUP_REASONS[words[0]]}`;
+  if (NEVER_GROUPS.has(words[0]) && !GROUP_FLOOR_EXEMPT.has(pathKey)) return `quox ${words[0]}: ${NEVER_GROUP_REASONS[words[0]]}`;
   if (NEVER_PATH_REASONS[pathKey]) return NEVER_PATH_REASONS[pathKey];
   for (const w of words) if (NEVER_WORD_REASONS[w]) return NEVER_WORD_REASONS[w];
   if (leaf && leaf.hidden) return 'an internal command not meant to be run by hand';
@@ -145,12 +170,14 @@ function classifyLeaf(pathKey, { tree = loadTree(), policy = loadPolicy() } = {}
 }
 
 /** Escalate a read leaf to write for one call when an argv option changes state. */
-function classifyCall(leafClass, leafArgv) {
+function classifyCall(leafClass, leafArgv, pathKey) {
   if (!leafClass || leafClass.class !== 'read') return leafClass;
+  const neverOpts = (pathKey && NEVER_OPTION_REASONS[pathKey]) || null;
   for (const a of leafArgv || []) {
     if (a === '--') break;
     const m = /^--(?:no-)?([a-z0-9-]+)/.exec(a);
     if (!m) continue;
+    if (neverOpts && neverOpts[m[1]]) return { class: 'never', reason: neverOpts[m[1]], source: 'floor' };
     if (m[1].split('-').some((w) => MUTATING_OPTION_WORDS.has(w))) {
       return { class: 'write', reason: `--${m[1]} changes state, so this call needs an approval`, source: 'call' };
     }

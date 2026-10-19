@@ -23,7 +23,7 @@ function loadPrincipal() {
   // Fail closed if the shared module is unresolvable: same markers, inline.
   return {
     isNonHumanPrincipal: (req) => !!(req && (req.mcpToken || (req.user && (
-      req.user.agent_id || req.user.actor_type === 'agent' || req.user.actor_type === 'plugin' || req.user.agent_ops || req.user.attach_lease_id)))),
+      req.user.agent_id || req.user.actor_type === 'agent' || req.user.actor_type === 'plugin' || req.user.actor_type === 'system' || req.user.agent_ops || req.user.attach_lease_id)))),
   };
 }
 

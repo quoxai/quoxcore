@@ -114,7 +114,8 @@ const PACK_SUBDIR_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$/;
 
 // Local skills live on this box under ~/.claude/skills — overridable for
 // tests via QUOX_SKILLS_ROOT.
-const SKILLS_ROOT = require('path').resolve(process.env.QUOX_SKILLS_ROOT || '/home/control/.claude/skills');
+// #1019: the default follows the running user's home, never a dev-box path baked into the shipped code.
+const SKILLS_ROOT = require('path').resolve(process.env.QUOX_SKILLS_ROOT || require('path').join(require('os').homedir(), '.claude', 'skills'));
 
 // Local base for 'file'-type entries (the DevSuite runtime layer: metron,
 // precompacticus, the statusline) — one level up from SKILLS_ROOT at
@@ -122,7 +123,7 @@ const SKILLS_ROOT = require('path').resolve(process.env.QUOX_SKILLS_ROOT || '/ho
 // `ref` is a path relative to this root (and the default remote dest is the
 // same relative path under $HOME/.claude), so the source and install
 // locations stay symmetric the way skill refs already are.
-const CLAUDE_ROOT = require('path').resolve(process.env.QUOX_CLAUDE_ROOT || '/home/control/.claude');
+const CLAUDE_ROOT = require('path').resolve(process.env.QUOX_CLAUDE_ROOT || require('path').join(require('os').homedir(), '.claude'));
 
 // Remote install root, relative to the remote user's $HOME (resolved by the
 // remote shell itself via the literal, non-interpolated string `$HOME` —
@@ -538,7 +539,16 @@ function loadPackFileContents(pack) {
     // dest/mode through for the write path; only skills parse a SkillRights
     // licence (files have no frontmatter convention).
     const localPath = entry.type === 'file' ? resolveLocalFilePath(entry.ref) : resolveLocalSkillPath(entry.ref);
-    const content = fs.readFileSync(localPath, 'utf8');
+    let content;
+    try {
+      content = fs.readFileSync(localPath, 'utf8');
+    } catch (err) {
+      if (err && err.code !== 'ENOENT') throw err;
+      // #1019: a server without the pack's source files says so, instead of a 500 naming a raw path.
+      const e = new Error(`The ${pack.packId} source files are not installed on this server (missing: ${entry.ref}). Set QUOX_SKILLS_ROOT to where they live.`);
+      e.code = 'pack_sources_unavailable';
+      throw e;
+    }
     return {
       ref: entry.ref,
       content,

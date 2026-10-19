@@ -99,6 +99,18 @@ function isQuoxDreamMemory(memory) {
 }
 
 /**
+ * True if `memory` is model output fed back as if it were a source: QuoxDream's beliefs, or the agent's
+ * own Q/A answers (tags conversation_qa, written by reflection mining from chats or AEE envelopes). Those
+ * were pushed into the brain as memory/<id>.md notes and served back as K citations, so an answer could cite
+ * itself (proof integrity, 2026-10-19). Neither is ever a brain source.
+ */
+function isModelEchoMemory(memory) {
+  if (isQuoxDreamMemory(memory)) return true;
+  const tags = Array.isArray(memory?.tags) ? memory.tags : [];
+  return tags.includes('conversation_qa');
+}
+
+/**
  * Renders one memory row into a push-ingest document. Light frontmatter
  * (type/importance/confidence) ahead of the raw content — near-zero
  * transform per the plan ("1:1 note per (user,namespace)" applies equally
@@ -264,7 +276,8 @@ async function ingestMemoryTarget(orgId, opts = {}, deps = {}, target = targetFo
   let snapshot = null; // relPaths currently at the source, only when the listing is complete
   try {
     const { memories, complete } = await fetchAllMemories(fetchMemoriesFn, orgId, { userId, memoryUrl, serviceKey, fetchImpl });
-    const live = memories.filter((m) => !isQuoxDreamMemory(m));
+    // Echoes leave the snapshot too, so notes already ingested from them are tombstoned on the next full sync.
+    const live = memories.filter((m) => !isModelEchoMemory(m));
     if (complete) snapshot = live.filter((m) => m?.id != null).map((m) => `memory/${m.id}.md`);
     const allEligible = live
       .map((m) => ({ memory: m, ts: m.updated_at || m.created_at, id: String(m.id ?? '') }))
@@ -409,6 +422,7 @@ module.exports = {
   renderMemoryDoc,
   renderIdentityDoc,
   isQuoxDreamMemory,
+  isModelEchoMemory,
   truncate,
   SOURCE_TYPE,
   VAULT_NAME,

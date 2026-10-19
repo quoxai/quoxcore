@@ -22,15 +22,22 @@ import { SkillLibraryStore } from '../../store/skill-library-store.js';
 import { EvidenceStore } from '../../evidence/index.js';
 import { BudgetEvaluator } from '../../budget/budget-evaluator.js';
 import { PolicyEvaluator } from '../../policy/evaluator.js';
-import { ApprovalEngine } from '../../approval/approval-engine.js';
+import { ApprovalEngine, type ApproverPrincipal } from '../../approval/approval-engine.js';
 import type { SkillFirewall } from '../../security/skill_firewall.js';
 import type { SkillFirewallLogStore } from '../../store/skill-firewall-log-store.js';
 import type { ReplayOnlyResolveParams } from '../../store/replay-only-flags-store.js';
+import { actorToString, actorFromString, type RunActor } from '../../core/execution.js';
 import type { LineageAnalyzerLlmClient } from '../../pipeline/lineage-analyzer.js';
 
 export interface ExecutionOptions {
   correlationId?: string;
   triggeredBy?: string;
+  /**
+   * FND_01M55X6TRMDS63SDZK3TDS63SD: the run's real initiator, decided by the entry point (never by
+   * workflow content). When given it is persisted as triggered_by (actorToString) and carried into the
+   * pipeline; it overrides any `triggeredBy` passed alongside.
+   */
+  actor?: RunActor;
   metadata?: Record<string, unknown>;
   /** P8.F HITL-ORGID-PLUMB: first-class org identity for this execution */
   orgId?: string;
@@ -256,7 +263,7 @@ export class ExecutionService {
       status: 'running',
       triggerData,
       startedAt: new Date().toISOString(),
-      triggeredBy: options.triggeredBy,
+      triggeredBy: options.actor ? actorToString(options.actor) : options.triggeredBy,
       metadata: executionMeta,
     }, options.orgId ?? SYSTEM_SCOPE); // QF-MT WP5: the run's org — see ExecutionOptions.orgId.
 
@@ -271,6 +278,7 @@ export class ExecutionService {
       const result = await this.pipeline.execute(workflow, triggerData, {
         executionId: execution.id,
         orgId: options.orgId,
+        actor: options.actor,
         cancellationSignal: ac.signal,
         cancellationActorProvider: () => this.cancellationMap.get(execId)?.actorId,
       });
@@ -290,8 +298,11 @@ export class ExecutionService {
         return { ...result, stored };
       }
 
-      // AEE-FULL Gap 4: handle cancellation result from pipeline
-      if (result.cancelled) {
+      // AEE-FULL Gap 4: handle cancellation result from pipeline.
+      // quoxflow#13: a cancel that aborted a node mid-flight (util:wait throws WAIT_ABORTED) comes back as a
+      // plain failure, not result.cancelled; the abort signal is the truth, so it still ends 'cancelled'.
+      if (result.cancelled || ac.signal.aborted) {
+        result.cancelled = true;
         // Row may already be updated by cancel() — only update if not already cancelled
         const current = await this.config.executionStore.get(execution.id, SYSTEM_SCOPE);
         let stored: StoredExecution;
@@ -344,7 +355,12 @@ export class ExecutionService {
   async resume(
     executionId: string,
     workflow: Workflow,
-    decision: { approved: boolean; approver: string; reason?: string; requestChanges?: boolean; data?: Record<string, unknown> }
+    decision: { approved: boolean; approver: string; reason?: string; requestChanges?: boolean; data?: Record<string, unknown> },
+    /** quoxflow#14: the verified caller, for org role groups; undefined for service and no-auth callers. */
+    principal?: ApproverPrincipal,
+    /** quox#1037: async answers once every check has passed and the run is marked running; the post-gate part
+     * continues in the background (same cancel registration and terminal writes as a synchronous resume). */
+    options: { async?: boolean } = {}
   ): Promise<ExecutionResult> {
     const execution = await this.config.executionStore.get(executionId, SYSTEM_SCOPE);
     if (!execution) {
@@ -357,6 +373,17 @@ export class ExecutionService {
     const pauseState = (execution.metadata as Record<string, unknown>)?.pauseState as PauseState | undefined;
     if (!pauseState) {
       throw new Error(`Execution ${executionId} has no pause state`);
+    }
+
+    // FND_01M55X6TRMDS63SDZK3TDS63SD: a resumed run keeps its REAL initiator, rebuilt from the persisted
+    // triggered_by. A row that does not parse (pre-change rows: null or a legacy string) is refused,
+    // never given a made-up actor; such a run needs a fresh run / re-approval.
+    const actor = actorFromString(execution.triggeredBy);
+    if (!actor) {
+      throw new Error(
+        `Execution ${executionId} cannot resume: it has no recorded initiator (triggered_by=${JSON.stringify(execution.triggeredBy ?? null)}). ` +
+        `Runs started before initiator tracking must be re-run and re-approved.`
+      );
     }
 
     // Blocker 5 (stale-grants): a paused execution must not resume once its
@@ -380,7 +407,7 @@ export class ExecutionService {
       // resolve THIS approval. Reuse the one authority function so a JWT
       // holder who names themselves as approver still can't resume a gate
       // they were never listed on.
-      if (approval && !this.config.approvalEngine.isAuthorizedApprover(approval, decision.approver)) {
+      if (approval && !this.config.approvalEngine.isAuthorizedApprover(approval, decision.approver, principal)) {
         return {
           success: false,
           output: execution.output,
@@ -398,8 +425,38 @@ export class ExecutionService {
     }
 
     // Mark as running again
-    await this.config.executionStore.update(executionId, SYSTEM_SCOPE, { status: 'running' });
+    const running = await this.config.executionStore.update(executionId, SYSTEM_SCOPE, { status: 'running' });
 
+    // quoxflow#14: a resumed run registers in the cancellation map like a fresh one, so
+    // POST /api/executions/:id/cancel can actually stop it (it used to only write the row).
+    const ac = new AbortController();
+    this.cancellationMap.set(executionId, { ac, status: 'running', cancelled: false });
+
+    const remainder = this.continueResume(executionId, execution, workflow, pauseState, decision, ac, actor);
+    if (!options.async) return remainder;
+    // quox#1037: the remainder's own catch already records a failure on the row; this only stops an unhandled rejection.
+    remainder.catch(err => console.error(`[resume] background remainder of ${executionId} failed:`, err instanceof Error ? err.message : err));
+    return {
+      success: true,
+      output: execution.output,
+      executionId,
+      correlationId: execution.correlationId,
+      envelopes: [],
+      duration: execution.duration ?? 0,
+      stored: running ?? execution,
+    } as ExecutionResult;
+  }
+
+  /** quox#1037: the post-gate part of a resume, after every check passed (see resume()). */
+  private async continueResume(
+    executionId: string,
+    execution: StoredExecution,
+    workflow: Workflow,
+    pauseState: PauseState,
+    decision: { approved: boolean; approver: string; reason?: string; requestChanges?: boolean; data?: Record<string, unknown> },
+    ac: AbortController,
+    actor: RunActor,
+  ): Promise<ExecutionResult> {
     try {
       // quox#513: thread the ORIGINAL execution's id/orgId through so resume's
       // envelopes (decision + terminal) land under the same corr/org as the
@@ -407,7 +464,21 @@ export class ExecutionService {
       const result = await this.pipeline.resume(workflow, pauseState, decision, {
         executionId,
         orgId: execution.orgId,
+        actor,
+        cancellationSignal: ac.signal,
+        cancellationActorProvider: () => this.cancellationMap.get(executionId)?.actorId,
       });
+
+      // quoxflow#14: cancelled during the resumed part (also when a node failed BECAUSE it was aborted):
+      // keep the 'cancelled' row cancel() wrote, never overwrite it with completed/failed.
+      if (result.cancelled || ac.signal.aborted) {
+        this.cancellationMap.delete(executionId);
+        const current = await this.config.executionStore.get(executionId, SYSTEM_SCOPE);
+        const stored = current?.status === 'cancelled' ? current : await this.config.executionStore.update(executionId, SYSTEM_SCOPE, {
+          status: 'cancelled', completedAt: new Date().toISOString(),
+        });
+        return { ...result, cancelled: true, stored };
+      }
 
       // Handle nested pause
       if (result.paused && result.pauseState) {
@@ -420,9 +491,11 @@ export class ExecutionService {
             pauseState: result.pauseState,
           },
         });
+        this.cancellationMap.delete(executionId);
         return { ...result, stored };
       }
 
+      this.cancellationMap.delete(executionId);
       const stored = await this.config.executionStore.update(executionId, SYSTEM_SCOPE, {
         status: result.success ? 'completed' : 'failed',
         output: result.output,
@@ -434,6 +507,8 @@ export class ExecutionService {
 
       return { ...result, stored };
     } catch (error) {
+      this.cancellationMap.delete(executionId);
+      if (ac.signal.aborted) throw error; // quoxflow#14: cancel() already wrote 'cancelled'; do not stamp failed over it
       await this.config.executionStore.update(executionId, SYSTEM_SCOPE, {
         status: 'failed',
         error: {
@@ -483,7 +558,7 @@ export class ExecutionService {
       status: 'running',
       triggerData,
       startedAt: new Date().toISOString(),
-      triggeredBy: options.triggeredBy,
+      triggeredBy: options.actor ? actorToString(options.actor) : options.triggeredBy,
       metadata: executionMeta,
     }, options.orgId ?? SYSTEM_SCOPE); // QF-MT WP5: the run's org — see ExecutionOptions.orgId.
 
@@ -509,6 +584,7 @@ export class ExecutionService {
           const result = await this.pipeline.execute(workflow, triggerData, {
             executionId: execution.id,
             orgId: options.orgId,
+            actor: options.actor,
             cancellationSignal: ac.signal,
             cancellationActorProvider: () => this.cancellationMap.get(execId)?.actorId,
           });

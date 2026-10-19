@@ -29,14 +29,23 @@ const AGENT_EMAIL_DOMAIN = 'agents.quox.local';
 // unaffected.
 const ULID_RE = /^[0-9A-Z]{26}$/i;
 
+// quox#1025: ONE agent-id rule for agent create, attach and the kit. Create used to allow only
+// underscores and attach only hyphens, so a custom agent with any separator (and the core registry's
+// underscore ids, e.g. recon_specialist) could never attach. Both separators are valid; the first
+// character is a letter or digit; at most 64 characters.
+export const AGENT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+export function isValidAgentId(agentId) {
+  return typeof agentId === 'string' && AGENT_ID_RE.test(agentId);
+}
+
 export function normalizeAgentId(agentId) {
   const raw = String(agentId ?? '').trim();
   if (ULID_RE.test(raw)) {
     return raw.toUpperCase();
   }
   const norm = raw.toLowerCase();
-  if (!/^[a-z0-9][a-z0-9-]{1,63}$/.test(norm)) {
-    throw new Error(`invalid agent_id '${agentId}': lowercase letters, digits and hyphens only`);
+  if (!isValidAgentId(norm)) {
+    throw new Error(`invalid agent_id '${agentId}': lowercase letters, digits, hyphens and underscores only (starting with a letter or digit, at most 64)`);
   }
   return norm;
 }
@@ -136,4 +145,22 @@ export function mintAgentIdentity(db, { agentId, orgId, rotate = false } = {}) {
   `).run(tokenId, user.id, orgId, createHash('sha256').update(rawToken).digest('hex'), `agent:${agent}`, agent);
 
   return { user_id: user.id, token_id: tokenId, raw_token: rawToken, agent_id: agent, rotated };
+}
+
+/**
+ * QUOXMIND #1111: the agent identities that are active members of one org.
+ * Returns [{ id, agent_id }] where agent_id is the registry id taken from the
+ * agent email local part. Never returns human users.
+ */
+export function listOrgAgentUsers(db, orgId) {
+  if (!orgId || typeof orgId !== 'string') return [];
+  return db.prepare(`
+    SELECT u.id, u.primary_email FROM users u
+    JOIN org_memberships m ON m.user_id = u.id
+    WHERE m.org_id = ? AND m.status = 'active' AND u.actor_type = 'agent'
+    ORDER BY u.id
+  `).all(orgId).map((r) => ({
+    id: r.id,
+    agent_id: String(r.primary_email || '').endsWith(`@${AGENT_EMAIL_DOMAIN}`) ? r.primary_email.slice(0, -(AGENT_EMAIL_DOMAIN.length + 1)) : null,
+  }));
 }

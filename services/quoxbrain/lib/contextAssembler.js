@@ -50,7 +50,7 @@ import { embedQueryCached, embedTextsDetailed } from './embeddingClient.js'
 import { getSetting } from './configResolver.js'
 import { computeRelevance, rerankVetoHolds } from './relevance.js'
 import { maybeRerank } from './rerank.js'
-import { groundingForTop, modeEntities, normalizeGroundingMode } from './entityGrounding.js'
+import { groundingForTop, modeEntities, normalizeGroundingMode, rankByEntityMention, aliasExpandQuery, questionEntities } from './entityGrounding.js'
 import { resolveRelevanceThresholds, resolveQueryEmbedTimeout, resolveEmbedExclusions, excludedVaultIds } from './brainConfig.js'
 
 // -----------------------------------------------------------------------------
@@ -102,7 +102,17 @@ export const DEFAULT_DENSE_WEIGHT = 4
 // note) and crowded curated notes out of the top results on held-out
 // questions. Fused scores are multiplied by a per-kind prior; kinds not
 // listed keep 1. Chosen on held-out set 1 only; set 2 stays untuned.
-export const DEFAULT_KIND_PRIORS = Object.freeze({}) // neutral until measured on a quiet service (2026-10-06: embed timeouts contaminated the sweep)
+// Measured 2026-10-16 on the live dev brain, FTS only (kindPriors override on
+// /brain/context): 0.7 took transcripts from 36% of passages to 0 on 15
+// decision questions, left the 20 served-golden questions unchanged (hit@3
+// 18/20, MRR 0.887), and session-history questions still surface transcripts
+// (after the matching handover note). Not yet re-measured on a hybrid install.
+// git_commit 0.7 (quox#1148, measured HYBRID on dev 2026-10-16): a commit that
+// quotes a decision outranked the decision note itself. 0.7 took commits from
+// 5% of passages to 0 on the same 15 questions, put the pricing-ruling note
+// first for its question, golden unchanged (hit@3 18/20, MRR 0.900); 0.5 and
+// 0.3 measured identical, so the mildest value ships.
+export const DEFAULT_KIND_PRIORS = Object.freeze({ transcript_session: 0.7, git_commit: 0.7 })
 export function resolveKindPrior(kind, override) {
   const table = override && typeof override === 'object' ? override : DEFAULT_KIND_PRIORS
   const v = table[kind]
@@ -113,6 +123,22 @@ export function resolveKindPrior(kind, override) {
   // query instead of a second, curated-only search.
   const d = table['*']
   return Number.isFinite(d) && d > 0 && d <= 2 ? d : 1
+}
+// The same source prior for the FTS-only path (no dense leg: embeddings off,
+// or dense not yet serving). bm25 is negative and lower is better, so the
+// score is multiplied by the prior and re-sorted ascending (stable). A table
+// that changes no row returns the input unchanged.
+export function applySparseKindPriors(rows, override) {
+  if (!Array.isArray(rows) || rows.length === 0) return rows
+  let changed = false
+  const weighted = rows.map((r, i) => {
+    const p = resolveKindPrior(r?.kind, override)
+    if (p !== 1) changed = true
+    return { r, i, s: Number(r?.score) * p, p }
+  })
+  if (!changed) return rows
+  weighted.sort((a, b) => (a.s - b.s) || (a.i - b.i))
+  return weighted.map(({ r, s, p }) => (p === 1 ? r : { ...r, score: s }))
 }
 // BRAIN2-V2 V2-7: opt-in recency weighting, a multiplier beside the kind
 // prior: 1 + weight * 2^(-ageDays / halfLifeDays), age from occurredAt (else
@@ -333,6 +359,18 @@ export function majorityEmbedModel(org_id, deps = {}) {
 }
 
 /**
+ * The `model` to request from the embed seam so a query lands in the `majority` space:
+ * text-embedding-3-* by bare name, an `ollama:<model>@768` stamp verbatim (BRAIN2-FABLE11),
+ * anything else undefined (provider default). Never compare vectors across spaces.
+ */
+export function requestableEmbedModel(majority) {
+  if (typeof majority !== 'string') return undefined
+  if (majority.startsWith('text-embedding-3-')) return majority.split('@')[0]
+  if (majority.startsWith('ollama:')) return majority
+  return undefined
+}
+
+/**
  * CORTEX-BENCH (latency): start the query embed BEFORE the synchronous sparse
  * search. embedQueryCached shares one in-flight request per (org, model,
  * query), so tryHybridFusion later joins this pending embed instead of
@@ -343,7 +381,7 @@ export function prefetchQueryEmbedding(org_id, query, deps = {}) {
   try {
     if (deps.embedTextsDetailed || deps.embedTexts) return
     const majority = majorityEmbedModel(org_id, deps)
-    const reqModel = majority && majority.startsWith('text-embedding-3-') ? majority.split('@')[0] : undefined
+    const reqModel = requestableEmbedModel(majority)
     embedQueryCached(query, reqModel ? { orgId: org_id, model: reqModel } : { orgId: org_id }).catch(() => {})
   } catch { /* prefetch is an optimisation only */ }
 }
@@ -370,10 +408,10 @@ export async function tryHybridFusion(org_id, user_id, query, sparsePool, limit,
 
   try {
     // Majority-space policy (BRAIN2-W11 C): ONE query embed, in the space that
-    // holds most of the org's chunks. Only text-embedding-3-* spaces are
+    // holds most of the org's chunks. text-embedding-3-* and ollama:* spaces are
     // requestable by name; any other majority uses the provider default.
     const majority = majorityEmbedModel(org_id, deps)
-    const reqModel = majority && majority.startsWith('text-embedding-3-') ? majority.split('@')[0] : undefined
+    const reqModel = requestableEmbedModel(majority)
     // BRAIN2-W13 C: start the expansion call now so it runs alongside the original embed.
     const expandPromise = typeof deps.expand === 'function' ? Promise.resolve().then(() => deps.expand()).catch(() => ({ ok: false })) : null
     const embedRes = await embedDetailedFn([query], reqModel ? { orgId: org_id, model: reqModel } : { orgId: org_id })
@@ -576,14 +614,42 @@ function uCurveOrder(sortedDesc) {
  *   real store.js/embeddingClient.js implementations.
  * @returns {Promise<{passages:Array, tokensUsed:number, assembly:{candidates:number, afterThreshold:number, afterDedup:number}}>}
  */
+// quox#1108: the collector's knowledge implant gives up at 2.5s, so on the
+// context path the LLM rerank gets a short deadline instead of its 6s default
+// (seen live: 6009ms and 2301ms in the rerank phase). A late rerank keeps the
+// fused order. /brain/search keeps the long default.
+export function contextRerankTimeoutMs() {
+  const n = Number(process.env.QUOXBRAIN_CONTEXT_RERANK_TIMEOUT_MS)
+  return Number.isFinite(n) && n > 0 ? n : 1200
+}
+
+/**
+ * quox#1108: one log line for a /brain/context call that ran past
+ * `thresholdMs`, naming each phase, so a missed knowledge implant (collector
+ * budget 2.5s) can be traced to the slow step. Returns null when not slow.
+ */
+export function formatSlowContext(timings, { thresholdMs = 2000, org } = {}) {
+  if (!timings || !(timings.total > thresholdMs)) return null
+  const phases = ['sparse', 'config', 'hybrid', 'details', 'rerank', 'grounding', 'post']
+    .filter((k) => Number.isFinite(timings[k])).map((k) => `${k}=${timings[k]}`).join(' ')
+  return `[Brain] slow context ${timings.total}ms${org ? ` org=${org}` : ''}: ${phases}`
+}
+
 export async function assembleContext(org_id, user_id, { query, tokenBudget = 800, vaultIds, kinds, minScore = 0, sources, scopes, languages, since, until, queryEmbedTimeoutMs, ordering = 'score', maxPerNote = 3, rerank: rerankOverride, groundingMode } = {}, deps = {}) {
+  // quox#1108: per-phase milliseconds into deps.timingsSink (when given).
+  const tm = deps.timingsSink && typeof deps.timingsSink === 'object' ? deps.timingsSink : null
+  const t0 = Date.now()
+  let tMark = t0
+  const lap = (k) => { if (!tm) return; const now = Date.now(); tm[k] = (tm[k] || 0) + (now - tMark); tm.total = now - t0; tMark = now }
+  if (tm) for (const k of ['sparse', 'config', 'hybrid', 'details', 'rerank', 'grounding']) tm[k] = 0
   const searchChunksFn = deps.searchChunks || store.searchChunks
   const getChunkDetailsFn = deps.getChunkDetails || store.getChunkDetails
 
   // Generous candidate pool so threshold/dedup/packing have something real
   // to work with even for a tight budget.
   const candidateLimit = Math.max(50, Math.ceil(tokenBudget / 50))
-  const rawCandidates = searchChunksWithQuota(searchChunksFn, org_id, user_id, { query, vaultIds, kinds, sources, scopes, languages, ...(since ? { since } : {}), ...(until ? { until } : {}) }, candidateLimit)
+  const rawCandidates = searchChunksWithQuota(searchChunksFn, org_id, user_id, { query: aliasExpandQuery(query), vaultIds, kinds, sources, scopes, languages, ...(since ? { since } : {}), ...(until ? { until } : {}) }, candidateLimit)
+  lap('sparse')
 
   // P4-WP2 hybrid fusion (feature-flagged, best-effort) — swaps the FTS-only
   // pool for a dense+sparse RRF-fused one when usable; on ANY failure (flag
@@ -599,12 +665,17 @@ export async function assembleContext(org_id, user_id, { query, tokenBudget = 80
   let retrievalMode = 'fts'
   const degradedSink = {}
   const orgCfg = deps.orgConfig || await resolveOrgRetrievalConfig(org_id, { ...deps, user_id })
-  if (await isHybridEnabled(org_id, deps) && typeof query === 'string' && query.trim()) {
+  const hybridOn = await isHybridEnabled(org_id, deps)
+  lap('config')
+  if (hybridOn && typeof query === 'string' && query.trim()) {
     const fused = await tryHybridFusion(org_id, user_id, query, rawCandidates, candidateLimit,
       { ...deps, degradedSink, orgQueryEmbedTimeoutMs: orgCfg.orgQueryEmbedTimeoutMs, excludedVaultIdSet: orgCfg.excludedVaultIdSet, queryEmbedTimeoutMs, filters: { vaultIds, kinds, sources, scopes, languages, since, until } })
     if (fused) { pool = fused; denseTop = fused.denseTop ?? null; embedSpace = fused.embedSpace ?? null; denseCoverage = fused.denseCoverage ?? null; retrievalMode = 'hybrid' }
   }
+  lap('hybrid')
 
+  // Hybrid fusion already applied the kind prior; FTS-only pools get it here.
+  if (retrievalMode === 'fts') pool = applySparseKindPriors(pool, deps.kindPriors)
   let citableCandidates = filterCitable(pool, { context: 'brain/context candidates' })
   // Date window final post-filter (both legs already narrow; this guarantees an
   // out-of-window note never survives, whichever leg or stub produced it).
@@ -629,6 +700,7 @@ export async function assembleContext(org_id, user_id, { query, tokenBudget = 80
       return { ...c, charStart: detail.charStart, charEnd: detail.charEnd, tokenCount: detail.tokenCount, text: detail.text }
     })
     .filter(Boolean)
+  lap('details')
 
   // searchChunks already orders best-first (ASC bm25 = MOST negative
   // first); normalizeScores is a monotonic transform, so this stays
@@ -650,7 +722,8 @@ export async function assembleContext(org_id, user_id, { query, tokenBudget = 80
     orgId: org_id, query, ranked: candidates, insufficient: false,
     override: typeof rerankOverride === 'boolean' ? rerankOverride : undefined,
     idOf: (c) => c.chunkId, textOf: (c) => c.text, dated: 'auto',
-  }, deps)
+  }, Number.isFinite(deps.rerankTimeoutMs) ? deps : { ...deps, rerankTimeoutMs: contextRerankTimeoutMs() })
+  lap('rerank')
   if (rr.rerankVerdict === 'none' && rerankVetoHolds(relevance, { thresholds: orgCfg.thresholds, embedModel: embedSpace })) {
     return {
       passages: [], tokensUsed: 0, insufficient: true, rerank: 'llm', rerankVerdict: 'none',
@@ -665,11 +738,20 @@ export async function assembleContext(org_id, user_id, { query, tokenBudget = 80
   const gMode = normalizeGroundingMode(groundingMode)
   const sampleFn = deps.sampleTermChunks || (deps.searchChunks ? null : (t, v, l) => store.sampleTermChunks(org_id, user_id, v, l))
   const modeEnts = gMode !== 'legacy' ? modeEntities(query, gMode, sampleFn, `${org_id}\u0000${user_id || ''}`) : null
+  // quox#853: passages naming the question's subject lead; misses are labelled.
+  const headOfCtx = (c) => { const n = c.noteId ? (deps.getNote || store.getNote)(org_id, user_id, c.noteId) : null; return typeof n?.body === 'string' ? n.body.slice(0, 1200) : '' }
+  {
+    const ents = modeEnts || (gMode === 'legacy' ? questionEntities(query) : [])
+    if (ents.length && Array.isArray(rr.ranked)) {
+      rr.ranked = rankByEntityMention(rr.ranked, ents, (c) => { let h = ''; try { h = headOfCtx(c) } catch { /* passage only */ } return `${c.title || ''} ${c.relPath || ''} ${c.text || ''} ${h}` })
+    }
+  }
   const grounding = groundingForTop(query, rr.ranked, {
     ...(modeEnts ? { entities: modeEnts } : {}),
     passageOf: (c) => c.text,
     headOf: (c) => { const n = c.noteId ? (deps.getNote || store.getNote)(org_id, user_id, c.noteId) : null; return typeof n?.body === 'string' ? n.body.slice(0, 1200) : '' },
   })
+  lap('grounding')
   if (grounding.ungrounded) {
     return {
       passages: [], tokensUsed: 0, insufficient: true,
@@ -737,7 +819,8 @@ export async function assembleContext(org_id, user_id, { query, tokenBudget = 80
       title: c.title,
       relPath: c.relPath
     },
-    score: c.score
+    score: c.score,
+    ...(c.missingEntities ? { missingEntities: c.missingEntities } : {})
   }))
 
   return {

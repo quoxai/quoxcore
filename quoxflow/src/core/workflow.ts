@@ -95,7 +95,7 @@ export interface WebhookTriggerNode extends NodeBase {
 export interface ScheduleTriggerNode extends NodeBase {
   type: 'trigger:schedule';
   config: {
-    cron: string;
+    expression: string;
     timezone?: string;
   };
 }

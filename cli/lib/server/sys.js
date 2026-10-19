@@ -13,17 +13,18 @@ import { createWriteStream, createReadStream } from 'node:fs';
 export function createSys({ spawnImpl = defaultSpawn } = {}) {
   return {
     kind: 'real',
-    run(cmd, args = [], { cwd, env, stdoutFile, stdinFile, timeoutMs = 0 } = {}) {
+    run(cmd, args = [], { cwd, env, stdoutFile, stdinFile, stdinText, timeoutMs = 0 } = {}) {
       return new Promise((resolve) => {
         let child;
         try {
-          child = spawnImpl(cmd, args, { cwd, env: env ? { ...process.env, ...env } : process.env, stdio: [stdinFile ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
+          child = spawnImpl(cmd, args, { cwd, env: env ? { ...process.env, ...env } : process.env, stdio: [stdinFile || typeof stdinText === 'string' ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
         } catch (e) { resolve({ code: 127, stdout: '', stderr: e.message }); return; }
         let stdout = ''; let stderr = '';
         const sink = stdoutFile ? createWriteStream(stdoutFile, { mode: 0o600 }) : null;
         if (sink) child.stdout.pipe(sink); else child.stdout.on('data', (d) => { if (stdout.length < 4e6) stdout += d; });
         child.stderr.on('data', (d) => { if (stderr.length < 1e6) stderr += d; });
         if (stdinFile) createReadStream(stdinFile).pipe(child.stdin);
+        else if (typeof stdinText === 'string') child.stdin.end(stdinText); // secrets via stdin, never argv
         const timer = timeoutMs ? setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* gone */ } }, timeoutMs) : null;
         child.on('error', (e) => { clearTimeout(timer); resolve({ code: 127, stdout, stderr: stderr || e.message }); });
         child.on('close', (code, sig) => {

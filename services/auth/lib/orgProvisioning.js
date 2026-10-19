@@ -39,13 +39,24 @@ export function generateOrgSlug(name) {
 
 /**
  * Pick a slug that is not already taken, appending a short suffix on collision.
- * Mirrors the original inline behaviour in POST /orgs.
+ *
+ * "Taken" means ANY orgs row, soft-deleted ones included: orgs.slug is UNIQUE
+ * across every row. Checking only live orgs (queries.getOrgBySlug filters
+ * deleted_at IS NULL) called a deleted org's slug free, the INSERT then failed
+ * with "UNIQUE constraint failed: orgs.slug", and signup's non-fatal catch left
+ * the new user with no org (2026-10-16, proving VM). Retries the suffix a
+ * bounded number of times.
  */
+function slugInUse(slug) {
+    return Boolean(prepare('SELECT 1 FROM orgs WHERE slug = ? LIMIT 1').get(slug));
+}
+
 export function resolveAvailableSlug(preferredSlug) {
-    let slug = preferredSlug;
-    const existingOrg = queries.getOrgBySlug(slug);
-    if (existingOrg) {
-        slug = `${slug}-${generateId().slice(-6).toLowerCase()}`;
+    if (!slugInUse(preferredSlug)) return preferredSlug;
+    let slug;
+    for (let attempt = 0; attempt < 5; attempt++) {
+        slug = `${preferredSlug}-${generateId().slice(-6).toLowerCase()}`;
+        if (!slugInUse(slug)) return slug;
     }
     return slug;
 }

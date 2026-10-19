@@ -59,14 +59,18 @@ export function registerBackupCommands(program, ctx) {
   backup
     .command('create')
     .description('Create a backup')
-    .option('--label <label>', 'backup label')
-    .option('--type <type>', 'backup type: full, incremental', 'full')
+    .option('--label <label>', 'backup label (stored as the backup name)')
+    .option('--type <type>', 'backup type: full, quick, selective', 'full')
     .option('--components <list>', 'comma-separated components to include')
     .action(async (options) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
-      const body = { type: options.type };
-      if (options.label) body.label = options.label;
+      // #1017: the server reads backup_type and name (services/auth/routes/backups.js); type/label were dropped,
+      // and a type outside the backups.backup_type CHECK would only fail later inside the server.
+      const TYPES = ['full', 'quick', 'selective'];
+      if (!TYPES.includes(options.type)) throw new Error(`--type must be one of: ${TYPES.join(', ')}`);
+      const body = { backup_type: options.type };
+      if (options.label) body.name = options.label;
       if (options.components) body.components = options.components.split(',').map(c => c.trim());
 
       const ora = (await import('ora')).default;

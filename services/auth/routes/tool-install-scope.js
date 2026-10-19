@@ -18,6 +18,7 @@ import { Router } from 'express';
 import { getDb } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { ulid } from '../utils/helpers.js';
+import { toolNotInCatalogMessage } from '../lib/toolNotInCatalogHint.js';
 
 const router = Router();
 
@@ -35,6 +36,16 @@ function requireUserAuth(req, res, next) {
     return requireAuth(req, res, next);
 }
 
+/**
+ * quox#989: the caller's org is the one authenticate.js VERIFIED (req.org / req.orgMembership, set
+ * from the token's org_id after a membership check). It never puts org_id on req.user, so reading
+ * req.user.org_id made every human install fail. req.user.org_id stays as a fallback for injected
+ * callers that set it.
+ */
+function verifiedOrgId(req) {
+    return (req.org && req.org.id) || (req.orgMembership && req.orgMembership.org_id) || req.user?.org_id || null;
+}
+
 // ── GET /tools/installed ─────────────────────────────────────────────────────
 
 /**
@@ -47,7 +58,16 @@ function requireUserAuth(req, res, next) {
  *              enabled, installed_at, ... }] }
  */
 router.get('/tools/installed', requireUserAuth, (req, res) => {
-    const orgId = req.user.org_id || req.query.scope_id;
+    // quox#989: ?scope_id is honoured only for an org the caller belongs to; it used to be read unchecked.
+    const verified = verifiedOrgId(req);
+    const scope = req.query.scope_id ? String(req.query.scope_id) : null;
+    let orgId = verified;
+    if (scope && scope !== verified) {
+        if (verified) return res.status(403).json({ error: 'forbidden_scope', message: 'scope_id must be your own organisation' });
+        const m = dbFor(req).prepare("SELECT status FROM org_memberships WHERE org_id = ? AND user_id = ?").get(scope, req.user.id);
+        if (!m || m.status !== 'active') return res.status(403).json({ error: 'forbidden_scope', message: 'not a member of that organisation' });
+        orgId = scope;
+    }
     if (!orgId) {
         return res.status(400).json({
             error: 'scope_id_required',
@@ -98,7 +118,7 @@ router.get('/tools/installed', requireUserAuth, (req, res) => {
  * org_id derived from JWT.
  */
 router.post('/tools/install-to-scope', requireUserAuth, (req, res) => {
-    const orgId = req.user.org_id;
+    const orgId = verifiedOrgId(req);
     if (!orgId) {
         return res.status(400).json({
             error: 'org_id_required',
@@ -122,7 +142,7 @@ router.post('/tools/install-to-scope', requireUserAuth, (req, res) => {
         if (!toolDef) {
             return res.status(404).json({
                 error: 'tool_not_found',
-                message: `tool_id '${tool_id}' not found in catalog`,
+                message: toolNotInCatalogMessage(db, orgId, tool_id),
             });
         }
 
@@ -201,7 +221,7 @@ router.post('/tools/install-to-scope', requireUserAuth, (req, res) => {
  * Response: { ok: true, removed: boolean }
  */
 router.delete('/tools/install-to-scope/:tool_id', requireUserAuth, (req, res) => {
-    const orgId = req.user.org_id;
+    const orgId = verifiedOrgId(req);
     if (!orgId) {
         return res.status(400).json({
             error: 'org_id_required',

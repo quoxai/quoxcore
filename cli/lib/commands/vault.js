@@ -943,6 +943,8 @@ export function registerVaultCommands(program, ctx) {
       const credentials = data.credentials || data;
 
       if (credentials.length === 0) {
+        // quox#920: --json always prints valid JSON, an honest empty included.
+        if (program.opts().output === 'json') { console.log('[]'); return; }
         printInfo(`No credentials expiring within ${days} days.`);
         return;
       }
@@ -1373,15 +1375,36 @@ export function registerVaultCommands(program, ctx) {
 
   vault
     .command('health')
-    .description('Lightweight vault health summary (requires QUOX_SERVICE_KEY, not a user session)')
-    .option('--org-id <orgId>', 'org ID to scope the summary to (server default: "default")')
+    .description('Vault health summary: total, healthy, failed, stale, expiring credentials')
+    .option('--org-id <orgId>', 'with QUOX_SERVICE_KEY only: org ID to scope the summary to (server default: "default")')
     .action(async (options) => {
-      const ep = resolveEndpoint('vault.health', {});
-      const data = await client.get(ep.path, {
-        service: ep.service,
-        query: options.orgId ? { org_id: options.orgId } : undefined,
-      });
-      formatDetail(data, { format: program.opts().output, title: 'QuoxVault Health' });
+      // #914: the internal route accepts only the service key, so an owner's `vault health` was a 401
+      // "invalid service key". Automation (QUOX_SERVICE_KEY) keeps that route; a signed-in person reads
+      // the same numbers from their org's vault stats.
+      if (process.env.QUOX_SERVICE_KEY) {
+        const ep = resolveEndpoint('vault.health', {});
+        const data = await client.get(ep.path, {
+          service: ep.service,
+          query: options.orgId ? { org_id: options.orgId } : undefined,
+        });
+        formatDetail(data, { format: program.opts().output, title: 'QuoxVault Health' });
+        return;
+      }
+      auth.requireAuth();
+      const orgId = resolveOrgId(auth, program);
+      const ep = resolveEndpoint('vault.vault-stats.list', { orgId });
+      const st = await client.get(ep.path, { service: ep.service });
+      const summary = {
+        total: st.total ?? 0,
+        healthy: st.healthy ?? 0,
+        failed: st.failed ?? 0,
+        untested: st.untested ?? 0,
+        stale: st.stale ?? 0,
+        expiring_soon: st.expiring ?? 0,
+        rotation_overdue: st.rotationOverdue ?? 0,
+        source: 'org vault stats',
+      };
+      formatDetail(summary, { format: program.opts().output, title: 'QuoxVault Health' });
     });
 
   // ── vault export (removed — WP0.2) ──────────────────────────────────────────

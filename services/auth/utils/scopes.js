@@ -363,6 +363,19 @@ export function deleteScope(scopeId) {
     const scope = getScopeById(scopeId);
     if (!scope) return { changes: 0 };
 
+    // #994: the Matrix room ledger keeps its row (keyed by node_type/node_id,
+    // so deprovision still finds it) but must stop pointing at a scope that
+    // is going away, or the delete fails on the FOREIGN KEY.
+    const hasMatrixRooms = db.prepare(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'matrix_rooms'"
+    ).get();
+    if (hasMatrixRooms) {
+        db.prepare(`
+            UPDATE matrix_rooms SET scope_id = NULL
+            WHERE scope_id IN (SELECT id FROM scopes WHERE id = ? OR path LIKE ?)
+        `).run(scopeId, `${scope.path}/%`);
+    }
+
     // Delete all descendants first (path prefix match)
     const descendantDelete = db.prepare(`
         DELETE FROM scopes WHERE path LIKE ?

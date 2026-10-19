@@ -71,6 +71,38 @@ export function registerSkillsCommands(program, ctx) {
       const data = await client.get(resolveEndpoint('quoxflow.skills.list').path, { service: resolveEndpoint('quoxflow.skills.list').service, query });
       let rows = data.data || data.records || data;
       if (!Array.isArray(rows)) rows = [];
+      rows = rows.map((r) => ({ ...r, store: 'library' }));
+
+      // 4.2.4 skills/t3-skill-view: a library skill with an active quox#748 review row (pending or rejected) cannot
+      // run, and skill_view refuses it. Say so per skill. A queue read failure leaves runnable unknown, never true.
+      try {
+        const rq = resolveEndpoint('skills.reviewQueue.list');
+        const active = new Map();
+        for (const status of ['pending', 'rejected']) {
+          const r = await client.get(rq.path, { service: rq.service, query: { status, orgId: query.orgId } });
+          const items = r && (r.data || r.records);
+          for (const it of Array.isArray(items) ? items : []) if (it && it.skill_id) active.set(it.skill_id, it.status || status);
+        }
+        rows = rows.map((r) => ({ ...r, review_status: active.get(r.id) || null, runnable: !active.has(r.id) }));
+      } catch (err) {
+        printWarning(`Skill review queue could not be read, so which skills can run is unknown: ${err.message}`);
+      }
+
+      // #1006: crystals (`skills from-execution`) live in quoxflow's crystal store, not this library. Merge them
+      // unless a library-only filter is set (crystals have no edition/category/agent fit). A failure there warns,
+      // it never sinks the library listing.
+      if (!options.edition && !options.category && !options.agent) {
+        try {
+          const ep = resolveEndpoint('skills.crystals.list');
+          const c = await client.get(ep.path, { service: ep.service, query: { orgId: query.orgId } });
+          let crystals = c.data || c.skills || c;
+          if (!Array.isArray(crystals)) crystals = [];
+          if (options.tag) crystals = crystals.filter((r) => Array.isArray(r.tags) && r.tags.includes(options.tag));
+          rows = rows.concat(crystals.map((r) => ({ ...r, store: 'crystal' })));
+        } catch (err) {
+          printWarning(`Crystal store (skills from-execution) could not be read, showing the library only: ${err.message}`);
+        }
+      }
 
       if (options.search) {
         const needle = options.search.toLowerCase();
@@ -84,8 +116,8 @@ export function registerSkillsCommands(program, ctx) {
       // shown as undeclared, never defaulted to a licence.
       rows = rows.map((r) => ({ ...r, licence: shortLicenceLabel(r.license) }));
       formatOutput({
-        columns: ['id', 'name', 'category', 'edition', 'version', 'licence', 'decayState', 'createdAt'],
-        headers: ['ID', 'Name', 'Category', 'Edition', 'Version', 'Licence', 'Decay', 'Created'],
+        columns: ['id', 'store', 'name', 'category', 'edition', 'version', 'licence', 'decayState', 'createdAt'],
+        headers: ['ID', 'Store', 'Name', 'Category', 'Edition', 'Version', 'Licence', 'Decay', 'Created'],
         rows,
       }, { format: program.opts().output, emptyMessage: 'No skills found.' });
     });
@@ -101,8 +133,17 @@ export function registerSkillsCommands(program, ctx) {
     .action(async (id, options) => {
       auth.requireAuth();
       const query = { orgId: options.org || resolveOrgId(auth, program) };
-      const data = await client.get(resolveEndpoint('quoxflow.skills.get', { id }).path, { service: resolveEndpoint('quoxflow.skills.get', { id }).service, query });
-      formatDetail(data.data || data, { format: program.opts().output, title: `Skill: ${id}` });
+      let data, store = 'library';
+      try {
+        data = await client.get(resolveEndpoint('quoxflow.skills.get', { id }).path, { service: resolveEndpoint('quoxflow.skills.get', { id }).service, query });
+      } catch (err) {
+        if (err.status !== 404) throw err;
+        // #1006: not in the library; a crystal from `skills from-execution` lives in the crystal store
+        const ep = resolveEndpoint('skills.crystals.get', { id });
+        try { data = await client.get(ep.path, { service: ep.service, query }); } catch (err2) { if (err2.status === 404) throw err; throw err2; }
+        store = 'crystal';
+      }
+      formatDetail({ ...(data.data || data), store }, { format: program.opts().output, title: `Skill: ${id}` });
     });
 
   // ── skills run ───────────────────────────────────────────────────────────
@@ -354,7 +395,9 @@ export function registerSkillsCommands(program, ctx) {
       const ep = resolveEndpoint('skills.rollbackToVersion');
       const data = await client.post(ep.path, { service: ep.service, body, query: { orgId } });
       const record = data.data || data;
-      printSuccess(`Skill rolled back to version ${targetVersion}.`);
+      // #1006: rolling back to the version that is already current is a server-side no-op (it returns that row)
+      if (record && Number(record.version) === targetVersion) printInfo(`Already at version ${targetVersion}: nothing was written.`);
+      else printSuccess(`Skill rolled back to version ${targetVersion} (written as version ${record?.version ?? '?'}).`);
       formatDetail(record, { format: program.opts().output });
     });
 

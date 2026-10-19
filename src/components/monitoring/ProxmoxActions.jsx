@@ -28,7 +28,7 @@ function ActionButton({ action, onClick, disabled, executing }) {
   )
 }
 
-export function ProxmoxActions({ selectedVM, cluster }) {
+export function ProxmoxActions({ selectedVM, cluster, onDiagnose }) {
   const {
     currentAction,
     actionHistory,
@@ -39,6 +39,12 @@ export function ProxmoxActions({ selectedVM, cluster }) {
   } = useActionExecution({ source: 'proxmox', assistant: 'atlas' })
 
   const [alertsCollapsed, setAlertsCollapsed] = useState(true)
+
+  // Diagnose opens the VM Doctor panel; every other action runs through the chat action flow.
+  const runAction = (action) => {
+    if (action.id === 'vm-diagnose' && onDiagnose && selectedVM) { onDiagnose(selectedVM); return }
+    executeAction(action)
+  }
 
   // VM actions — contextual to selected VM (using shared builder)
   const vmActions = useMemo(() => {
@@ -53,6 +59,7 @@ export function ProxmoxActions({ selectedVM, cluster }) {
         : a.id === 'vm-restart' ? `Restart ${displayName}`
         : a.id === 'vm-snapshot' ? 'Create Snapshot'
         : a.id === 'vm-status' ? 'Detailed Status'
+        : a.id === 'vm-diagnose' ? 'Diagnose (why is it slow?)'
         : a.label,
     }))
   }, [selectedVM])
@@ -118,7 +125,7 @@ export function ProxmoxActions({ selectedVM, cluster }) {
             <ActionButton
               key={action.id}
               action={action}
-              onClick={executeAction}
+              onClick={runAction}
               disabled={isExecuting}
               executing={executingActionId}
             />

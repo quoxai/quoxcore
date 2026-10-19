@@ -8,6 +8,7 @@
  */
 import { mkdirSync, openSync, writeSync, closeSync, existsSync, chmodSync } from 'node:fs';
 import { stripMarks } from './palette.js';
+import { textGate } from './events.js';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -74,16 +75,21 @@ export function pickSse(ev) {
 export function recordFor(a) {
   switch (a?.type) {
     case 'event': return { t: 'sse', ...pickSse(a.ev) };
-    case 'user': return { t: 'user', mode: a.queued ? 'queue-drain' : 'send', text: clean(a.text) };
+    case 'user': return { t: 'user', mode: a.echo ? 'command' : a.queued ? 'queue-drain' : 'send', text: clean(a.full ?? a.text) };
     case 'steer.add': return { t: 'user', mode: 'steer', id: clean(a.id), text: clean(a.text) };
     case 'queue.add': return { t: 'user', mode: 'queue', text: clean(a.text) };
+    case 'walk.reply': return { t: 'user', mode: 'walk', id: clean(a.id), text: clean(a.text) }; // WALK-FIXES: what was typed at each walkthrough card
     case 'steer.failed': case 'steer.converted': return { t: 'notice', kind: a.type, id: clean(a.id), text: clean(a.reason) };
     case 'note': return { t: 'notice', kind: 'note', tone: clean(a.tone), text: clean(a.text) };
+    case 'ask.open': return { t: 'notice', kind: 'note', tone: 'ask', text: clean(a.text) }; // ASK-SETTLE: same record as before
+    case 'ask.settle': case 'slotmsg.settle': return { t: 'notice', kind: 'ask.settled', tone: clean(a.tone), text: clean(a.text) };
+    case 'restart.countdown': return { t: 'restart.countdown', phase: clean(a.phase), seconds: Number.isFinite(a.seconds) ? a.seconds : null, build: clean(a.build ?? null) }; // started | cancelled | restart-now | timed-out | held: lets a reviewer verify the owner was shown the countdown
     case 'error': return { t: 'error', text: clean(a.text) };
     case 'notify': return { t: 'notify', approvals: a.patch?.approvals ?? null, error: clean(a.patch?.error ?? null) };
     case 'turn.begin': return { t: 'turn.begin', turnId: clean(a.turnId) };
     case 'approval.sent': return { t: 'approval.sent', action: clean(a.action), callId: clean(a.callId), tool: clean(a.tool), target: clean(a.target) };
     case 'approval.result': return { t: 'approval.result', callId: clean(a.callId), outcome: clean(a.outcome), text: clean(a.text ?? null) };
+    case 'screen.sent': return { t: 'screen.sent', summary: clean(a.text) }; // SCREEN-CONTEXT: size and sections only, never the block itself
     case 'verbose': return { t: 'verbose', mode: clean(a.mode) };
     case 'ctx': return { t: 'ctx', conversationId: clean(a.ctx?.conversationId ?? null) };
     // /connect: provider and last 4 only, by construction (the key is never in an action).
@@ -123,7 +129,7 @@ export function createTranscript({ env = process.env, home = homedir(), now = Da
   const action = (a) => {
     const t = now();
     const rec = recordFor(a);
-    if (a?.type === 'turn.begin') Object.assign(turn, { id: a.turnId, t0: t, firstText: false, lastSse: t, text: '', provider: null, model: null, offered: null, tokens: null, answered: false });
+    if (a?.type === 'turn.begin') Object.assign(turn, { id: a.turnId, t0: t, firstText: false, lastSse: t, text: '', gate: null, provider: null, model: null, offered: null, tokens: null, answered: false });
     if (a?.type === 'event' && turn.id) {
       if (t - turn.lastSse > SILENT_GAP_MS) write({ t: 'gap', turnId: turn.id, ms: t - turn.lastSse, before: clean(a.ev?.type) });
       turn.lastSse = t;
@@ -137,8 +143,14 @@ export function createTranscript({ env = process.env, home = homedir(), now = Da
         const n = [ev.tools_offered, ev.tool_count, ev.tools_available].find(num);
         if (n !== undefined) turn.offered = n;
       }
-      if ((ty === 'chunk' || ty === 'text.delta') && typeof ev.content === 'string' && turn.text.length <= MAX_ANSWER) turn.text += ev.content;
-      if (ty === 'done' && !turn.text && typeof ev.full_response === 'string') turn.text = ev.full_response;
+      // QUOXON-FW19: the server mirrors every delta as a full-text chunk; the same gate the screen uses decides what is answer text.
+      if (ty === 'turn.started' || ty === 'chunk' || ty === 'text.delta') {
+        const g = textGate(turn.gate, ev);
+        turn.gate = g.st;
+        if (g.append && typeof ev.content === 'string' && turn.text.length <= MAX_ANSWER) turn.text += ev.content;
+      }
+      // a final full text is authoritative: it replaces what accumulated, never adds to it
+      if (ty === 'done' && typeof ev.full_response === 'string' && ev.full_response) turn.text = ev.full_response;
       if (ty === 'tool.finished') {
         const failed = ev.status === 'failed' || ev.status === 'denied';
         write({ t: 'tool', turnId: turn.id, name: clean(ev.tool ?? null), ok: ev.status === 'ok', ...(failed || ev.error ? { error: clean(ev.error ?? ev.result_summary ?? ev.status) } : {}), ms: num(ev.duration_ms) ? ev.duration_ms : null });
@@ -169,6 +181,8 @@ export function createTranscript({ env = process.env, home = homedir(), now = Da
     // ! commands (QUOXON-FW8): the command line and exit code only, never the output.
     bang: (cmd, code) => write({ t: 'bang', cmd: clean(String(cmd).slice(0, 2000)), exit: clean(code) }),
     resize: (cols, rows) => write({ t: 'resize', cols: cols ?? null, rows: rows ?? null }),
+    // SCREEN-FRAMES: the visible screen as plain text (screenFrames.js caps it at 16 KB), scrubbed, local file only.
+    screen: ({ cols = null, rows = null, text = '', colors = {}, truncated } = {}) => write({ t: 'screen', cols, rows, text: scrub(String(text)), colors: colors && typeof colors === 'object' ? colors : {}, ...(truncated ? { truncated } : {}) }),
     end: (reason = 'exit') => { write({ t: 'end', reason: clean(reason), duration_ms: now() - start }); if (fd != null) { try { closeSync(fd); } catch { /* ignore */ } fd = null; } }
   };
 }

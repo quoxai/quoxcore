@@ -43,8 +43,8 @@ export const teams = {
   },
   'teams.provisionRoom': {
     method: 'POST',
-    service: 'tasks',
-    path: ({ teamId }) => `/api/teams/${teamId}/provision-room`,
+    service: 'auth',
+    path: ({ orgId, teamId }) => `/api/orgs/${orgId}/teams/${teamId}/provision-room`,
     tags: ['live-write'],
   },
   'teams.update': {

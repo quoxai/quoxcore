@@ -296,6 +296,15 @@ export const v1 = {
     path: () => `/api/v1/tools/execute`,
     tags: ['live-write'],
   },
+  // DEVFLEET: HYPERION VM pool, human REST surface (a human acting directly is the
+  // authorization; agents use the proxmox_pool_* tools, which are approval-governed).
+  'v1.proxmox.pool': { method: 'GET', service: 'collector', path: () => `/api/v1/proxmox/pool`, tags: ['live-safe'] },
+  'v1.proxmox.pool.config.put': { method: 'PUT', service: 'collector', path: () => `/api/v1/proxmox/pool/config`, tags: ['live-write'] },
+  'v1.proxmox.pool.lease': { method: 'POST', service: 'collector', path: () => `/api/v1/proxmox/pool/lease`, tags: ['live-write'] },
+  'v1.proxmox.pool.release': { method: 'POST', service: 'collector', path: ({ vmid }) => `/api/v1/proxmox/pool/${encodeURIComponent(vmid)}/release`, tags: ['live-write'] },
+  // DEVFLEET-P15: HYPERION activity (VMs, who holds each, node load, recent ops), read only.
+  'v1.proxmox.activity': { method: 'GET', service: 'collector', path: () => `/api/v1/proxmox/activity`, tags: ['live-safe'] },
+  'v1.proxmox.rehearsal': { method: 'GET', service: 'collector', path: ({ id }) => `/api/v1/proxmox/rehearsals/${encodeURIComponent(id)}`, tags: ['live-safe'] },
   // quox#791: stored outcome of an approved gated tool call.
   'v1.approvals.result': {
     method: 'GET',
@@ -457,6 +466,25 @@ export const v1 = {
     path: ({ name }) => `/api/v1/slots/${encodeURIComponent(name)}/say`,
     tags: ['live-write'],
   },
+  // QUOXON-BROADCAST: fan one message out to the org's held slots; status and per-slot acks.
+  'v1.slots.broadcast': {
+    method: 'POST',
+    service: 'collector',
+    path: () => `/api/v1/slots/broadcast`,
+    tags: ['live-write'],
+  },
+  'v1.slots.broadcast.get': {
+    method: 'GET',
+    service: 'collector',
+    path: ({ id }) => `/api/v1/slots/broadcast/${encodeURIComponent(id)}`,
+    tags: ['live-safe'],
+  },
+  'v1.slots.broadcast.ack': {
+    method: 'POST',
+    service: 'collector',
+    path: ({ id }) => `/api/v1/slots/broadcast/${encodeURIComponent(id)}/ack`,
+    tags: ['live-write'],
+  },
   'v1.slots.messages': {
     method: 'GET',
     service: 'collector',
@@ -469,6 +497,38 @@ export const v1 = {
     method: 'GET',
     service: 'collector',
     path: ({ name }) => `/api/v1/slots/${encodeURIComponent(name)}/wait`,
+    tags: ['live-safe'],
+  },
+  // QUOXON-MESH: SSE push of a slot's messages (the quox TUI's live inbound).
+  'v1.slots.stream': {
+    method: 'GET',
+    service: 'collector',
+    path: ({ name }) => `/api/v1/slots/${encodeURIComponent(name)}/stream`,
+    tags: ['live-safe'],
+  },
+  // QUOXON-ROOMS: a slot as a group room. Join = subscribe + post without holding.
+  'v1.slots.join': {
+    method: 'POST',
+    service: 'collector',
+    path: ({ name }) => `/api/v1/slots/${encodeURIComponent(name)}/join`,
+    tags: ['live-write'],
+  },
+  'v1.slots.leave': {
+    method: 'POST',
+    service: 'collector',
+    path: ({ name }) => `/api/v1/slots/${encodeURIComponent(name)}/leave`,
+    tags: ['live-write'],
+  },
+  'v1.slots.members': {
+    method: 'GET',
+    service: 'collector',
+    path: ({ name }) => `/api/v1/slots/${encodeURIComponent(name)}/members`,
+    tags: ['live-safe'],
+  },
+  'v1.slots.rooms': {
+    method: 'GET',
+    service: 'collector',
+    path: () => '/api/v1/slot-rooms',
     tags: ['live-safe'],
   },
   // "Option B" assign model (plan v2 note #2831): assign an expected holder

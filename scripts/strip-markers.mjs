@@ -163,7 +163,7 @@ export const STRIP_MARKERS = {
         sentinel: 'QX_P1_codebase-mirror',
         markers: [
             'Enter a project path above or click "Scan Dashboard" to get started.',
-            'Enter project path to scan (e.g., /opt/quoxcore/quoxflow)',
+            'Enter project path to scan (e.g., ~/quoxflow)',
             'No Projects Scanned',
         ],
     },
@@ -484,13 +484,13 @@ export const STRIP_MARKERS = {
     // 'Ping Monitoring', 'Alert Rules', 'Quick Links') were rejected.
     proxmox: {
         sentinel: 'QX_P1_proxmox',
-        // ProxmoxView's connection-check and 401 states, plus two ProxmoxActions
+        // ProxmoxView's connection-check and reconnect states, plus two ProxmoxActions
         // strings. Deliberately NOT the HYPERION persona/suggestion lines from
         // ProxmoxChatSidebar — those are duplicated in core NOCChatSidebar and
         // agentRegistry.js, and would fire on the free build.
         markers: [
             'Checking Proxmox connection...',
-            'API token rejected (401)',
+            'Connect or reconnect Proxmox',
             'Click a row in the table to see actions',
         ],
     },

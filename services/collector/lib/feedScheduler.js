@@ -59,6 +59,7 @@ const { DB_ADAPTER_SPECS } = require('./feedDbAdapters.js');
 const { ingestNotion } = require('./feedNotionSource.js');
 const { ingestGdrive } = require('./feedGdriveSource.js'); // BRAIN2-OAUTH-GDRIVE
 const configResolver = require('./configResolver.js');
+const { createFolderWatchManager, WATCHED_SOURCE_TYPES } = require('./feedFolderWatcher.js');
 
 // Warmup: first tick fires ~60s after boot (lets the collector finish
 // booting/health-checking before The Feed starts doing network/DB work).
@@ -92,6 +93,9 @@ const SOURCE_FAILURE_COOLDOWN_CAP_TICKS = 4;
 // SOURCE_FAILURE_COOLDOWN_CAP_TICKS above, applied at the tick level instead
 // of per-source: real progress resets it immediately.
 const ZERO_PROGRESS_BACKOFF_CAP_TICKS = 4;
+// BRAIN2-FABLE11: catch-up chain bounds (see runFeedTick).
+const DEFAULT_CATCHUP_MAX_ITEMS = 500;
+const DEFAULT_CATCHUP_MAX_BATCHES = 20;
 
 // Dispatch registry: source_type -> ingester(orgId, opts, deps). F2 plugs
 // in additional host-file sources by adding entries here (one line each),
@@ -303,6 +307,8 @@ async function runFeedTick(orgIds, sourceIngesters, {
   ingestTimeoutMs = DEFAULT_INGEST_TIMEOUT_MS,
   isSourceAllowedFn = null,
   maxItemsBySource = {},
+  catchUpMaxItems = 0,
+  catchUpMaxBatches = DEFAULT_CATCHUP_MAX_BATCHES,
 } = {}) {
   let sourcesRun = 0;
   let sourcesSkipped = 0;
@@ -394,7 +400,34 @@ async function runFeedTick(orgIds, sourceIngesters, {
           .then(() => {
             const cap = maxItemsBySource[sourceType] ?? maxItems;
             // R02/R03: collect documents the brain client gave up on (poison) for last_status.
-            return brainFeedClient.collectSkips(poisonSkips, () => ingester(orgId, { maxConversations: cap, maxItems: cap, config: sourceConfig, scope: sourceScope, signal: controller.signal }, sourceDeps));
+            return brainFeedClient.collectSkips(poisonSkips, async () => {
+              const callIngester = (n) => ingester(orgId, { maxConversations: n, maxItems: n, config: sourceConfig, scope: sourceScope, signal: controller.signal }, sourceDeps);
+              let res = await callIngester(cap);
+              // BRAIN2-FABLE11: while a source reports a backlog (first sync, long
+              // walk), run catch-up batches back to back at a larger bounded size
+              // instead of one small batch per 30 min. A failure, a skip, an abort
+              // or the time budget ends the chain at once (no growth on failure:
+              // the next tick starts from the normal cap), and the whole chain
+              // stays inside this one in-flight/timeout envelope.
+              if (catchUpMaxItems > cap && res && res.moreWork) {
+                const started = Date.now();
+                const budgetMs = ingestTimeoutMs * 0.6;
+                let batches = 0;
+                while (res && res.moreWork && !res.error && !res.skipped && batches < catchUpMaxBatches
+                  && !controller.signal.aborted && Date.now() - started < budgetMs) {
+                  batches += 1;
+                  const next = await callIngester(catchUpMaxItems);
+                  if (next && typeof next === 'object') {
+                    next.docsPushed = (next.docsPushed || 0) + (res.docsPushed || 0);
+                    if (res.truncated || next.truncated) next.truncated = (res.truncated || 0) + (next.truncated || 0);
+                    next.catchUpBatches = batches;
+                  }
+                  res = next;
+                }
+                if (batches > 0) console.log(`[Feed] org=${orgId} source=${sourceType}: catch-up ran ${batches} extra batch(es)${res?.moreWork ? ', backlog remains (next tick continues)' : ', backlog cleared'}`);
+              }
+              return res;
+            });
           });
       ingesterPromise.catch(() => {}).finally(() => cooldownState.inFlight.delete(cooldownKey));
       cooldownState.inFlight.add(cooldownKey);
@@ -640,7 +673,7 @@ async function startFeedScheduler(deps = {}) {
     }
     return out;
   };
-  const runCoreTick = async () => runFeedTick(await resolveTickOrgs(), sourceIngesters, {
+  const runFeedTickWith = (tickOrgs, tickIngesters) => runFeedTick(tickOrgs, tickIngesters, {
     maxItems: Number.isFinite(deps.maxItems) ? deps.maxItems : resolveInstanceNumber('QUOXFEED_MAX_ITEMS', DEFAULT_MAX_ITEMS),
     dbPath: deps.dbPath,
     getSourceFn: deps.getSourceFn,
@@ -649,6 +682,7 @@ async function startFeedScheduler(deps = {}) {
     cooldownState,
     isSourceAllowedFn,
     ingestTimeoutMs: Number.isFinite(deps.ingestTimeoutMs) ? deps.ingestTimeoutMs : resolveInstanceNumber('QUOXFEED_INGEST_TIMEOUT_MS', DEFAULT_INGEST_TIMEOUT_MS),
+    catchUpMaxItems: Number.isFinite(deps.catchUpMaxItems) ? deps.catchUpMaxItems : resolveInstanceNumber('QUOXFEED_CATCHUP_MAX_ITEMS', DEFAULT_CATCHUP_MAX_ITEMS),
     // ONE-BRAIN CX1 (2026-10-09): QuoxPlan carries hundreds of streams whose
     // notes change daily; at the shared per-source cap it lagged at 142 of
     // 410 streams for days. It gets its own cap (an injected deps.maxItems
@@ -657,6 +691,23 @@ async function startFeedScheduler(deps = {}) {
       quoxplan: resolveInstanceNumber('QUOXFEED_QUOXPLAN_MAX_ITEMS', DEFAULT_QUOXPLAN_MAX_ITEMS),
     },
   });
+
+  const runCoreTick = async () => runFeedTickWith(await resolveTickOrgs(), sourceIngesters);
+
+  // BRAIN2-FABLE11: "sync now" for one org+source, through the SAME runFeedTick
+  // (same enable check, in-flight guard, timeout, catch-up chain, accounting).
+  // An explicit trigger clears that source's failure cooldown.
+  activeSyncNow = async (orgId, sourceType) => {
+    const ingester = sourceIngesters[sourceType];
+    if (!ingester) return { ok: false, status: 404, error: `unknown source type: ${sourceType}` };
+    if (typeof isSourceAllowedFn === 'function' && !isSourceAllowedFn(orgId, sourceType)) return { ok: false, status: 403, error: 'source not allowed for this org' };
+    if (!isSourceEnabled(orgId, sourceType, { dbPath: deps.dbPath, getSourceFn: deps.getSourceFn })) return { ok: false, status: 409, error: 'source is not connected or is disabled' };
+    const key = `${orgId}::${sourceType}`;
+    if (cooldownState.inFlight.has(key)) return { ok: false, status: 409, busy: true, error: 'a sync is already running for this source' };
+    cooldownState.cooldownTicks.delete(key);
+    runFeedTickWith([orgId], { [sourceType]: ingester }).catch((err) => console.error(`[Feed] org=${orgId} source=${sourceType}: sync-now failed, ${err.message}`));
+    return { ok: true, status: 202, started: true };
+  };
 
   // Whole-tick zero-progress backoff: a tick that pushed zero docs across
   // every org/source this cycle achieved nothing real — back off the next
@@ -694,16 +745,92 @@ async function startFeedScheduler(deps = {}) {
     return;
   }
 
+  // BRAIN2-FABLE11: near-real-time folder/obsidian ingestion. The watch only
+  // schedules a debounced run of the SAME runFeedTick the poll uses (one org,
+  // one source), so cooldown, in-flight guard, timeout and failure accounting
+  // are shared. The 30 minute poll stays the safety net.
+  const watchManager = startFolderWatch({
+    deps, sourceIngesters, cooldownState, resolveTickOrgs, runFeedTickWith, isSourceAllowedFn,
+  });
+
   const warmupTimer = setTimeoutFn(() => {
+    if (watchManager) watchManager.start();
     runTick();
     const intervalTimer = setIntervalFn(runTick, intervalMs);
     if (intervalTimer && typeof intervalTimer.unref === 'function') intervalTimer.unref();
   }, warmupMs);
   if (warmupTimer && typeof warmupTimer.unref === 'function') warmupTimer.unref();
+  return watchManager ? { stop: () => watchManager.stop() } : undefined;
+}
+
+// Set by the running scheduler; the /api/feed/sources/:type/sync route calls it.
+let activeSyncNow = null;
+async function syncNow(orgId, sourceType) {
+  if (!activeSyncNow) return { ok: false, status: 503, error: 'feed scheduler is not running' };
+  return activeSyncNow(orgId, sourceType);
+}
+
+const FOLDER_WATCH_RECONCILE_MS = 60 * 1000;
+
+/**
+ * BRAIN2-FABLE11: builds the watch manager + its reconcile timer. Gated by
+ * QUOXFEED_FOLDER_WATCH (default on; 'false'/'0'/'off' disables). Returns null
+ * when disabled. Never throws.
+ */
+function startFolderWatch({ deps, sourceIngesters, cooldownState, resolveTickOrgs, runFeedTickWith, isSourceAllowedFn }) {
+  let flag = 'true';
+  try { flag = String(configResolver.getInstanceSetting('QUOXFEED_FOLDER_WATCH').value ?? 'true').trim().toLowerCase(); } catch { /* default on */ }
+  if (['false', '0', 'off', 'no'].includes(flag)) {
+    console.log('[FeedWatch] disabled (QUOXFEED_FOLDER_WATCH off): folder/obsidian sources poll only');
+    return null;
+  }
+  // An injected dispatch map (tests) with no injected source lister has no
+  // business touching the real registry/filesystem.
+  if (deps.sourceIngesters && !deps.listWatchSourcesFn) return null;
+  const listSourcesFn = deps.listWatchSourcesFn || (async () => {
+    const enabledOrgs = new Set(await resolveTickOrgs());
+    const rows = feedWatermark.listEnabledSources(WATCHED_SOURCE_TYPES, { dbPath: deps.dbPath });
+    const out = [];
+    for (const r of rows) {
+      if (!enabledOrgs.has(r.orgId) || !sourceIngesters[r.sourceType]) continue;
+      if (typeof isSourceAllowedFn === 'function' && !isSourceAllowedFn(r.orgId, r.sourceType)) continue;
+      const cfg = safeParseConfig(r.config);
+      if (cfg && typeof cfg.path === 'string' && cfg.path) out.push({ orgId: r.orgId, sourceType: r.sourceType, path: cfg.path });
+    }
+    return out;
+  });
+  const triggerFn = async (orgId, sourceType) => {
+    const key = `${orgId}::${sourceType}`;
+    if (cooldownState.inFlight.has(key)) return { busy: true };
+    // A cooling-down source is left to the poll (a watch run must not burn its cooldown ticks).
+    if ((cooldownState.cooldownTicks.get(key) || 0) > 0) return { skipped: 'cooling down' };
+    return runFeedTickWith([orgId], { [sourceType]: sourceIngesters[sourceType] });
+  };
+  const manager = createFolderWatchManager({
+    listSourcesFn,
+    triggerFn,
+    debounceMs: deps.folderWatchDebounceMs,
+    maxWatchers: deps.folderWatchMax,
+    watchFn: deps.watchFn,
+  });
+  let timer = null;
+  return {
+    start() {
+      manager.reconcile();
+      timer = setInterval(() => manager.reconcile(), FOLDER_WATCH_RECONCILE_MS);
+      if (timer && typeof timer.unref === 'function') timer.unref();
+      process.once('exit', () => manager.close());
+    },
+    stop() {
+      if (timer) clearInterval(timer);
+      manager.close();
+    },
+  };
 }
 
 module.exports = {
   startFeedScheduler,
+  syncNow,
   runFeedTick,
   isSourceEnabled,
   parseOrgIds,

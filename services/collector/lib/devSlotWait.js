@@ -18,6 +18,8 @@
  */
 
 // Route ceiling: stay under typical proxy idle timeouts (nginx 60s).
+const { cursorOf } = require('./devSlotMessagesStore.js');
+
 const MAX_WAIT_MS = 55 * 1000;
 const DEFAULT_WAIT_MS = 50 * 1000;
 // Heartbeat the hold at most this often while waiting (the slot TTL is
@@ -78,7 +80,10 @@ function createDevSlotWait({
     if (!cursor) {
       const floor = new Date(startedAt - BACKLOG_MAX_MS).toISOString();
       const lastRead = slot.last_read_at || null;
-      cursor = lastRead && lastRead > floor ? lastRead : floor;
+      // A read recorded its position (049): resume right after the last message it delivered, so one that
+      // landed after the fetch still wakes this wait. Otherwise the old time rule.
+      if (lastRead && lastRead > floor && slot.last_read_rowid != null) cursor = `|${slot.last_read_rowid}`;
+      else cursor = lastRead && lastRead > floor ? lastRead : floor;
       backlogUntil = new Date(startedAt).toISOString();
     }
     let held = null;
@@ -107,7 +112,7 @@ function createDevSlotWait({
     let dirty = false;
     let wake = null;
     const unsubscribe = typeof devSlotMessages.subscribe === 'function'
-      ? devSlotMessages.subscribe({ orgId, slotId: slot.id }, () => { dirty = true; if (wake) wake(); })
+      ? devSlotMessages.subscribe({ orgId, slotId: slot.id, session: holderSession || null }, () => { dirty = true; if (wake) wake(); })
       : null;
 
     const park = (ms) => new Promise((resolve) => {
@@ -132,8 +137,8 @@ function createDevSlotWait({
         if (batch.length) {
           // Advance past everything seen, INCLUDING filtered self-says, so the
           // next read (or the next call resuming from `cursor`) never re-reads.
-          cursor = batch[batch.length - 1].created_at;
-          const inbound = batch.filter((m) => (!excludeFrom || m.from !== excludeFrom)
+          cursor = cursorOf(batch[batch.length - 1]);
+          const inbound = batch.filter((m) => (!excludeFrom || !(m.from === excludeFrom || String(m.from || '').startsWith(`${excludeFrom} (`)))
             && !(backlogUntil && m.created_at <= backlogUntil && m.source === 'say'));
           if (inbound.length) {
             return { ok: true, slot, messages: inbound, timedOut: false, cursor, held };

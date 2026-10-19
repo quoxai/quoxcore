@@ -21,6 +21,7 @@
  */
 
 const killSwitchStore = require('./killSwitchStore.js');
+const policyOverrides = require('./policyOverrides.js');
 
 /**
  * @param {object} deps
@@ -29,7 +30,7 @@ const killSwitchStore = require('./killSwitchStore.js');
  * @param {{orgId?: string, agentId: string, corr?: string, from?: string}} ctx
  * @returns {null | {error: string, message: string, safety: object}} null when dispatch may proceed
  */
-function checkAgentInvokeSafetyGate(deps, { orgId, agentId, corr, from } = {}) {
+function checkAgentInvokeSafetyGate(deps, { orgId, agentId, corr, from, overrideId } = {}) {
   const { db, storeAuditEnvelope } = deps;
   let gate;
   try {
@@ -43,6 +44,27 @@ function checkAgentInvokeSafetyGate(deps, { orgId, agentId, corr, from } = {}) {
     gate = { blocked: true, escalate: false, defcon: 'UNKNOWN', agentHalted: false, reason: `safety state unreadable (${err.message}) — failing closed`, gateError: true };
   }
   if (!gate.blocked) return null;
+  const blockId = `safety:${orgId || '__default__'}:${agentId}:${gate.defcon || 'ESTOP'}`;
+
+  // QUOXON-STEPUP: a human-granted, single-use override lets ONE dispatch through a block. It never
+  // overrides an unreadable safety state (gateError): that stays fail-closed.
+  if (overrideId && !gate.gateError) {
+    let used = null;
+    try { used = policyOverrides.consume(db, { overrideId, orgId: orgId || '__default__', blockType: 'safety', agentId }); }
+    catch (err) { console.warn('[Safety] override consume failed (block stands):', err.message); }
+    if (used) {
+      if (typeof storeAuditEnvelope === 'function') {
+        try {
+          storeAuditEnvelope({
+            type: 'event', from: from || 'system.safety', to: 'system.aee', intent: 'quox.policy.override.consumed',
+            corr: corr || `SAFETY_${Date.now()}`,
+            payload: { override_id: used.id, granted_by: used.user_id, agent: agentId, orgId: orgId || '__default__', block_id: used.block_id, reason: used.reason, defcon: gate.defcon },
+          });
+        } catch (envErr) { console.warn('[Safety] override-consumed envelope failed:', envErr.message); }
+      }
+      return null;
+    }
+  }
 
   if (typeof storeAuditEnvelope === 'function') {
     try {
@@ -52,7 +74,7 @@ function checkAgentInvokeSafetyGate(deps, { orgId, agentId, corr, from } = {}) {
         to: 'system.aee',
         intent: 'safety.dispatch.blocked',
         corr: corr || `SAFETY_${Date.now()}`,
-        payload: { agent: agentId, orgId: orgId || '__default__', reason: gate.reason, defcon: gate.defcon },
+        payload: { agent: agentId, orgId: orgId || '__default__', reason: gate.reason, defcon: gate.defcon, block_id: blockId },
       });
     } catch (envErr) {
       console.warn('[Safety] dispatch-blocked denial envelope failed:', envErr.message);
@@ -62,6 +84,7 @@ function checkAgentInvokeSafetyGate(deps, { orgId, agentId, corr, from } = {}) {
   return {
     error: gate.gateError ? 'SAFETY_GATE_UNAVAILABLE' : 'AGENT_HALTED',
     message: gate.reason,
+    block_id: blockId,
     safety: gate,
   };
 }

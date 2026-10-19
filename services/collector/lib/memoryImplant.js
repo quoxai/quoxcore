@@ -25,11 +25,13 @@
 
 const MEMORY_URL_DEFAULT = `http://${process.env.MEMORY_HOST || 'memory'}:${process.env.MEMORY_PORT || '3103'}`;
 const SERVICE_KEY_DEFAULT = process.env.INTERNAL_SERVICE_KEY || '';
+const AUTH_URL_DEFAULT = process.env.AUTH_SERVICE_URL || 'http://auth:3101';
 
 const TIMEOUT_MS = 2000;
 const MAX_CORE = 5;
 const MAX_HITS = 5;
-const MAX_TOKENS = 600;
+const MAX_TOKENS = 900; // QUOXMIND #1111: room for the org core set + cited recall
+const MAX_ITEM_CHARS = 320; // one memory never eats the whole budget
 const CHARS_PER_TOKEN = 4; // rough approximation, same convention used elsewhere for token budgets
 const MAX_CHARS = MAX_TOKENS * CHARS_PER_TOKEN;
 
@@ -189,6 +191,74 @@ async function fetchSearchHits({
   }
 }
 
+// QUOXMIND #1111: the org's agent identities (auth users.actor_type='agent').
+// Memories they wrote are org-visible; a HUMAN's rows stay private to that
+// human. Cached per org for 10 minutes. On any failure we return [] so recall
+// fails CLOSED (no widening), and say so in the log.
+const AGENT_USERS_TTL_MS = 10 * 60 * 1000;
+const agentUsersCache = new Map();
+function _resetAgentUsersCache() { agentUsersCache.clear(); }
+
+async function fetchOrgAgentUserIds({ orgId, userId, authServiceUrl = AUTH_URL_DEFAULT, serviceKey = SERVICE_KEY_DEFAULT, fetchFn, timeoutMs = TIMEOUT_MS }) {
+  if (!orgId) return [];
+  const hit = agentUsersCache.get(orgId);
+  if (hit && Date.now() - hit.at < AGENT_USERS_TTL_MS) return hit.ids;
+  const doFetch = fetchFn || globalThis.fetch;
+  try {
+    const resp = await doFetch(`${authServiceUrl}/api/internal/orgs/${encodeURIComponent(orgId)}/agent-users`, {
+      headers: scopingHeaders({ serviceKey, orgId, userId }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    const ids = (data.users || []).map(u => u && u.id).filter(Boolean);
+    agentUsersCache.set(orgId, { at: Date.now(), ids });
+    return ids;
+  } catch (err) {
+    console.error(`[MemoryImplant] agent identity list failed (org=${orgId}), recall limited to own + org-shared rows: ${err.message}`);
+    return [];
+  }
+}
+
+/** The org core set (pinned + auto-promoted) for this caller. Never throws. */
+async function fetchCoreSet({ orgId, userId, agentUserIds = [], memoryServiceUrl, serviceKey = SERVICE_KEY_DEFAULT, fetchFn, timeoutMs = TIMEOUT_MS, limit = MAX_CORE }) {
+  const doFetch = fetchFn || globalThis.fetch;
+  try {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (agentUserIds.length) params.set('agent_user_ids', agentUserIds.join(','));
+    const resp = await doFetch(`${memoryServiceUrl}/api/memory/core-set?${params}`, {
+      headers: scopingHeaders({ serviceKey, orgId, userId }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    return (data.memories || []).slice(0, limit);
+  } catch (err) {
+    console.error(`[MemoryImplant] core-set fetch failed (org=${orgId || 'default'}): ${err.message}`);
+    return [];
+  }
+}
+
+/** Cross-agent org recall for the current prompt, ranked. Never throws. */
+async function fetchOrgRecall({ orgId, userId, prompt, agentUserIds = [], memoryServiceUrl, serviceKey = SERVICE_KEY_DEFAULT, fetchFn, timeoutMs = TIMEOUT_MS, limit = MAX_HITS }) {
+  if (!prompt || !String(prompt).trim()) return [];
+  const doFetch = fetchFn || globalThis.fetch;
+  try {
+    const params = new URLSearchParams({ q: String(prompt).slice(0, 500), limit: String(limit) });
+    if (agentUserIds.length) params.set('agent_user_ids', agentUserIds.join(','));
+    const resp = await doFetch(`${memoryServiceUrl}/api/memory/recall?${params}`, {
+      headers: scopingHeaders({ serviceKey, orgId, userId }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    return (data.results || []).slice(0, limit);
+  } catch (err) {
+    console.error(`[MemoryImplant] org recall failed (org=${orgId || 'default'}): ${err.message}`);
+    return [];
+  }
+}
+
 /**
  * Truncate text to a char budget, cutting at the last full line boundary
  * within budget rather than mid-word/mid-line, with a visible marker.
@@ -206,20 +276,49 @@ function truncateToCharBudget(text, maxChars) {
  * delimited block, hard-capped to ~600 tokens. Returns '' when there is
  * nothing to inject.
  */
+function citeLine(m) {
+  const content = String(m.content || '').replace(/\s+/g, ' ').trim();
+  const body = content.length > MAX_ITEM_CHARS ? `${content.slice(0, MAX_ITEM_CHARS - 1)}…` : content;
+  if (!m.id) return `- ${m.label ? `${m.label}: ` : ''}${body}`;
+  const date = m.created_at ? String(m.created_at).slice(0, 10) : '';
+  const src = [`memory ${m.id}`, m.agent_id || 'unknown agent', m.memory_type, date].filter(Boolean).join(' · ');
+  return `- [${src}] ${body}`;
+}
+
+/**
+ * Format the core set + recall hits into a single, clearly delimited block,
+ * hard-capped to MAX_TOKENS. Memories with an id are cited
+ * ([memory <id> · <agent> · <type> · <date>]) and deduped across sections.
+ * Returns '' when there is nothing to inject.
+ */
 function formatMemoryContextBlock({ core = [], hits = [], maxChars = MAX_CHARS } = {}) {
-  const cappedCore = core.slice(0, MAX_CORE);
-  const cappedHits = hits.slice(0, MAX_HITS);
+  const seen = new Set();
+  const keep = (m) => {
+    if (!m || !m.content) return false;
+    // The agent's own earlier answers (tags conversation_qa, from chat or AEE mining) are never grounding:
+    // re-feeding them let an answer cite itself (proof integrity, 2026-10-19).
+    if (Array.isArray(m.tags) && m.tags.includes('conversation_qa')) return false;
+    const key = m.id || `c:${m.content}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  };
+  const cappedCore = core.filter(keep).slice(0, MAX_CORE);
+  const cappedHits = hits.filter(keep).slice(0, MAX_HITS);
 
   if (cappedCore.length === 0 && cappedHits.length === 0) return '';
 
   const lines = ['[MEMORY CONTEXT]'];
   if (cappedCore.length > 0) {
     lines.push('Core memories:');
-    cappedCore.forEach(m => lines.push(`- ${m.label ? `${m.label}: ` : ''}${m.content}`));
+    cappedCore.forEach(m => lines.push(citeLine(m)));
   }
   if (cappedHits.length > 0) {
     lines.push('Relevant memories:');
-    cappedHits.forEach(m => lines.push(`- ${m.content}`));
+    cappedHits.forEach(m => lines.push(citeLine(m)));
+  }
+  if ([...cappedCore, ...cappedHits].some(m => m.id)) {
+    lines.push('These are this org\'s stored memories, written by the agent named in each bracket. When an answer uses one, cite it as (memory <id>, <agent>).');
   }
   lines.push('[/MEMORY CONTEXT]');
 
@@ -239,18 +338,41 @@ async function buildMemoryImplant({
   // (named/attached agents read their org+agent namespace; the default
   // personal assistant stays per-user). Pass an explicit boolean to override.
   agentScope,
+  // QUOXMIND #1111: the org core set + cross-agent recall. Default on for
+  // every agent; false for an agent restricted to its own namespace.
+  orgRecall = true,
   memoryServiceUrl = MEMORY_URL_DEFAULT,
+  authServiceUrl = AUTH_URL_DEFAULT,
   serviceKey = SERVICE_KEY_DEFAULT,
   fetchFn,
   timeoutMs = TIMEOUT_MS,
 }) {
   try {
     const scopeToAgent = agentScope === undefined ? isAgentScopedIdentity(agentId) : !!agentScope;
-    const [core, hits] = await Promise.all([
+    const orgPart = orgRecall
+      ? fetchOrgAgentUserIds({ orgId, userId, authServiceUrl, serviceKey, fetchFn, timeoutMs }).then(agentUserIds => Promise.all([
+        fetchCoreSet({ orgId, userId, agentUserIds, memoryServiceUrl, serviceKey, fetchFn, timeoutMs }),
+        fetchOrgRecall({ orgId, userId, prompt, agentUserIds, memoryServiceUrl, serviceKey, fetchFn, timeoutMs }),
+      ]))
+      : Promise.resolve([[], []]);
+    const [core, hits, [coreSet, recall]] = await Promise.all([
       fetchCoreMemories({ orgId, userId, agentId, agentScope: scopeToAgent, memoryServiceUrl, serviceKey, fetchFn, timeoutMs }),
       fetchSearchHits({ orgId, userId, agentId, agentScope: scopeToAgent, prompt, memoryServiceUrl, serviceKey, fetchFn, timeoutMs }),
+      orgPart,
     ]);
-    return formatMemoryContextBlock({ core, hits });
+    // Core: pinned/auto org core set first, then the agent's own core rows.
+    // Recall: cross-agent org hits first (cited), then the agent's own hits.
+    const allCore = [...coreSet, ...core];
+    const allHits = [...recall, ...hits];
+    const block = formatMemoryContextBlock({ core: allCore, hits: allHits });
+    if (block) {
+      const ids = new Set();
+      const count = (list) => list.filter(m => m && m.content && !ids.has(m.id || m.content) && ids.add(m.id || m.content)).length;
+      const nCore = Math.min(MAX_CORE, count(allCore));
+      const nRecall = Math.min(MAX_HITS, count(allHits));
+      console.log(`[MemoryImplant] injected ${block.length} chars (core=${nCore}, recall=${nRecall}) org=${orgId || 'default'} agent=${agentId || 'quox'}`);
+    }
+    return block;
   } catch (err) {
     // Belt-and-braces: fetchCoreMemories/fetchSearchHits already catch their
     // own errors, but this must never propagate and fail the chat turn.
@@ -280,6 +402,10 @@ module.exports = {
   buildMemoryImplant,
   applyMemoryImplant,
   isAgentScopedIdentity,
+  fetchOrgAgentUserIds,
+  fetchCoreSet,
+  fetchOrgRecall,
+  _resetAgentUsersCache,
   MAX_TOKENS,
   MAX_CORE,
   MAX_HITS,

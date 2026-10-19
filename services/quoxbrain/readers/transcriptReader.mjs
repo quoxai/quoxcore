@@ -1,7 +1,7 @@
 // transcriptReader.mjs — P2b-3 (T3) filesystem corpus reader: Claude Code
 // session transcripts (`*.jsonl`, one line per event) — the biggest
 // untapped corpus (1.4GB+ across dozens of files at
-// /opt/quoxcore/.claude/projects/-opt-quoxcore/*.jsonl).
+// ~/.claude/projects/<home-path-dashed>/*.jsonl).
 //
 // Ingests the SIGNAL — user intent + assistant reasoning/decisions/tool
 // calls — and TRIMS the noise: megabyte tool-result dumps, system
@@ -21,8 +21,15 @@ import { createInterface } from 'node:readline'
 import { join, basename } from 'path'
 import { fileURLToPath } from 'node:url'
 import { cleanUserText } from './transcriptNoise.mjs'
+import { homedir } from 'node:os'
+import { join as pathJoin } from 'node:path'
 
-export const DEFAULT_TRANSCRIPT_DIR = '/opt/quoxcore/.claude/projects/-opt-quoxcore'
+// #1021: Claude project dir for the host user. Claude names a project dir by its
+// path with separators turned into '-'. QUOX_HOST_HOME wins, else the running user.
+const hostHome = process.env.QUOX_HOST_HOME || homedir()
+const claudeProjectDir = pathJoin(hostHome, '.claude', 'projects', hostHome.replace(/[\\/]/g, '-'))
+
+export const DEFAULT_TRANSCRIPT_DIR = claudeProjectDir
 export const VAULT_NAME = 'Dev Sessions'
 
 // Per-turn cap — a single giant turn (e.g. a wall-of-text assistant reply)

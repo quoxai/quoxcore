@@ -10,12 +10,7 @@
  * - System prompt injection for lightweight self-awareness pointer
  */
 
-import { fetchAllImplantData, getLockedImplants } from './cognitiveTopologyService'
-import { getAssistants } from './entityRegistry'
-import { getIndexStats } from './capabilityIndex'
-import { getRegisteredPlugins } from './layers/pluginRegistry'
-import { COGNITIVE_IMPLANTS } from '../config/cognitiveImplants'
-import { deriveImplantStatus, requiredPluginForTier } from './mirrorIndex'
+import { fetchServerMirror, reflectionFromServer } from './serverMirror'
 
 // Cache for reflection data
 let _reflectionCache = null
@@ -23,231 +18,16 @@ let _lastGenerated = null
 const CACHE_TTL = 30000 // 30 seconds
 
 /**
- * Count memories directly from localStorage
- * More accurate than relying on service calls
- */
-function countLocalStorageMemories() {
-  if (typeof localStorage === 'undefined') {
-    return { episodic: 0, semantic: 0, entities: 0, learned: 0, total: 0 }
-  }
-
-  try {
-    // Count episodic memories (chat history)
-    const episodicRecent = localStorage.getItem('episodic_recent') || ''
-    const episodicCount = episodicRecent.split('\n').filter(line => line.trim()).length
-
-    // Count learned items by type
-    const learnedTypes = ['fact', 'preference', 'constraint', 'decision', 'error', 'reflection', 'intent']
-    let learnedCount = 0
-    for (const type of learnedTypes) {
-      const data = localStorage.getItem(`quox_learned_${type}`)
-      if (data) {
-        try {
-          const items = JSON.parse(data)
-          learnedCount += Array.isArray(items) ? items.length : 0
-        } catch (e) { /* ignore parse errors */ }
-      }
-    }
-
-    // Count entities
-    const entitiesData = localStorage.getItem('quox_entities')
-    let entityCount = 0
-    if (entitiesData) {
-      try {
-        const entities = JSON.parse(entitiesData)
-        entityCount = Array.isArray(entities) ? entities.length : Object.keys(entities).length
-      } catch (e) { /* ignore */ }
-    }
-
-    // Count semantic knowledge
-    const semanticKeys = ['quox_semantic', 'quox_syntheses', 'quox_narratives']
-    let semanticCount = 0
-    for (const key of semanticKeys) {
-      const data = localStorage.getItem(key)
-      if (data) {
-        try {
-          const items = JSON.parse(data)
-          semanticCount += Array.isArray(items) ? items.length : Object.keys(items).length
-        } catch (e) { /* ignore */ }
-      }
-    }
-
-    // Count all quox_ keys for total storage audit
-    let totalKeys = 0
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key && key.startsWith('quox_')) {
-        totalKeys++
-      }
-    }
-
-    return {
-      episodic: episodicCount,
-      semantic: semanticCount,
-      entities: entityCount,
-      learned: learnedCount,
-      total: episodicCount + semanticCount + entityCount + learnedCount,
-      storageKeys: totalKeys
-    }
-  } catch (error) {
-    console.error('[ReflectionService] Failed to count localStorage memories:', error)
-    return { episodic: 0, semantic: 0, entities: 0, learned: 0, total: 0, storageKeys: 0 }
-  }
-}
-
-/**
- * Generate the full reflection map
- * @param {string} trigger - What triggered generation ('manual', 'auto', 'plugin-event')
+ * Generate the full reflection map from the org-scoped SERVER Mirror.
+ * Throws on failure (no invented minimal map): callers surface the error.
+ * @param {string} trigger - kept for call-site compatibility ('manual', 'auto', 'plugin-event')
  * @returns {Promise<Object>} Reflection data
  */
-export async function generateReflectionMap(trigger = 'manual') {
-  const timestamp = new Date().toISOString()
-
-  try {
-    // Fetch all data in parallel
-    const [implantData, capabilities, plugins] = await Promise.all([
-      fetchAllImplantData(),
-      Promise.resolve(getIndexStats()),
-      Promise.resolve(getRegisteredPlugins())
-    ])
-
-    // Get assistants synchronously
-    const assistants = getAssistants()
-    const lockedImplants = getLockedImplants()
-
-    // Get accurate memory counts from localStorage
-    const memoryCount = countLocalStorageMemories()
-
-    // Transform implant data — QuoxMind 12-implant architecture.
-    // QMH-5/1: status comes from the shared deriveImplantStatus helper so
-    // both the system-prompt injection (mirrorIndex) and the topology UI
-    // (MirrorTab via this service) use the same multi-axis state machine.
-    const cognitiveImplants = Object.entries(COGNITIVE_IMPLANTS)
-      .filter(([id]) => id !== 'quox-sense') // QuoxSense is the core, shown separately
-      .map(([id, implant]) => {
-        const data = implantData[id]
-        // QuoxMemory has its own localStorage-derived health; everything
-        // else trusts the fetcher's healthScore (or the failureReason).
-        const memoryHealth = id === 'quox-memory' ? calculateMemoryHealth(memoryCount) : null
-        const isLocked = lockedImplants.includes(id)
-        const requiredPlugin = requiredPluginForTier(implant.tier)
-
-        const derived = deriveImplantStatus(
-          id === 'quox-memory'
-            ? { ...(data || {}), healthScore: memoryHealth, failureReason: data?.failureReason || null }
-            : data,
-          { isLocked, requiredPlugin },
-        )
-
-        const numericHealth = derived.healthScore ?? (id === 'quox-memory' ? memoryHealth : 0)
-
-        return {
-          id,
-          name: implant.name,
-          health: numericHealth ?? 0,
-          status: derived.status,
-          statusReason: derived.statusReason,
-          primaryMetric: id === 'quox-memory'
-            ? `${memoryCount.total} memories`
-            : getPrimaryMetric(id, data, implant),
-          requiresPlugin: requiredPlugin,
-          tier: implant.tier,
-          inspiredBy: implant.inspiredBy,
-          color: implant.color
-        }
-      })
-
-    // Transform agents
-    const agentList = Object.entries(assistants).map(([id, a]) => ({
-      id,
-      name: a.identity?.name || a.name || id.toUpperCase(),
-      level: a.hierarchy?.level ?? a.level ?? 1,
-      role: a.hierarchy?.role || a.role || 'specialist',
-      color: a.identity?.color?.primary || a.color || '#888',
-      active: a.active !== false
-    }))
-
-    // Core health from implant data (QuoxSense is the perceptual core).
-    // QMH-2: senseStats now exposes healthScore (null when no signals yet).
-    // Fall back to legacy overallHealth field for backward compatibility while
-    // older fetchers may still be cached.
-    const coreData = implantData['quox-sense'] || {}
-    const coreHealth = coreData.healthScore ?? coreData.overallHealth ?? 0
-    const memoryHealth = calculateMemoryHealth(memoryCount)
-    const adjustedHealth = memoryCount.total > 0
-      ? Math.round((coreHealth + memoryHealth) / 2)
-      : coreHealth
-
-    // Build reflection map
-    const reflection = {
-      version: '1.0.0',
-      generatedAt: timestamp,
-      generatedBy: trigger,
-
-      identity: {
-        name: 'CommanderQ',
-        role: 'Multi-Agent Executive System',
-        version: '2.0.0',
-        description: 'AI-powered infrastructure command center'
-      },
-
-      cognitiveImplants,
-
-      capabilities: {
-        totalTools: capabilities?.tools || 0,
-        totalWorkflows: capabilities?.workflows || 0,
-        totalIntents: capabilities?.uniqueIntents || 0,
-        totalAssistants: capabilities?.assistants || agentList.length,
-        enabledIntegrations: capabilities?.uniqueIntegrations || []
-      },
-
-      agents: agentList.sort((a, b) => a.level - b.level),
-
-      plugins: (plugins || []).map(p => ({
-        id: p.id,
-        name: p.name,
-        version: p.version || '1.0.0',
-        enabled: p.enabled !== false,
-        tier: p.tier || 'custom'
-      })),
-
-      health: {
-        overall: adjustedHealth || coreHealth,
-        status: getHealthStatus(adjustedHealth || coreHealth),
-        activeServices: coreData.activeServices || 0,
-        totalServices: coreData.totalServices || 0,
-        lastHealthCheck: timestamp
-      },
-
-      memory: {
-        totalMemories: memoryCount.total,
-        episodic: memoryCount.episodic,
-        semantic: memoryCount.semantic,
-        entities: memoryCount.entities,
-        learned: memoryCount.learned,
-        storageKeys: memoryCount.storageKeys,
-        openLoops: implantData['quox-focus']?.openLoops || 0,
-        healthScore: memoryHealth
-      },
-      codebaseFabric: implantData['quox-predict'] ? {
-        projectCount: implantData['quox-predict'].projectCount || 0,
-        totalRoutes: implantData['quox-predict'].routeCount || 0,
-        totalServices: implantData['quox-predict'].serviceCount || 0,
-        invariantStatus: (implantData['quox-predict'].driftAlerts || 0) > 0 ? 'fail' : 'pass',
-        lastScan: implantData['quox-predict'].lastScan || null,
-      } : null,
-    }
-
-    // Cache the result
-    _reflectionCache = reflection
-    _lastGenerated = Date.now()
-
-    return reflection
-  } catch (error) {
-    console.error('[ReflectionService] Failed to generate reflection map:', error)
-    // Return cached data if available, or minimal fallback
-    return _reflectionCache || getMinimalReflection(timestamp, trigger)
-  }
+export async function generateReflectionMap(trigger = 'manual') { // eslint-disable-line no-unused-vars
+  const reflection = reflectionFromServer(await fetchServerMirror())
+  _reflectionCache = reflection
+  _lastGenerated = Date.now()
+  return reflection
 }
 
 /**
@@ -270,6 +50,7 @@ export async function getReflectionMap() {
  */
 export async function generateReflectionSummary(reflection = null) {
   const data = reflection || await getReflectionMap()
+  if (data && typeof data.summary === 'string' && data.summary) return data.summary
 
   const { cognitiveImplants, agents, health, capabilities, memory, plugins } = data
 
@@ -333,33 +114,6 @@ export const generateConsciousnessMap = generateReflectionMap
 export const getConsciousnessMap = getReflectionMap
 export const generateConsciousnessSummary = generateReflectionSummary
 export const invalidateConsciousnessCache = invalidateReflectionCache
-
-/**
- * Calculate memory health based on counts
- */
-function calculateMemoryHealth(memoryCount) {
-  if (memoryCount.total === 0) return 0
-
-  // Score based on variety and quantity
-  let score = 0
-
-  // Episodic memories (chat history)
-  if (memoryCount.episodic > 0) score += 25
-  if (memoryCount.episodic > 10) score += 10
-  if (memoryCount.episodic > 50) score += 10
-
-  // Learned facts
-  if (memoryCount.learned > 0) score += 25
-  if (memoryCount.learned > 5) score += 10
-
-  // Entities
-  if (memoryCount.entities > 0) score += 10
-
-  // Semantic knowledge
-  if (memoryCount.semantic > 0) score += 10
-
-  return Math.min(100, score)
-}
 
 /**
  * Calculate health score for an implant
@@ -542,51 +296,6 @@ export function getPrimaryMetric(id, data, implant) {
       return `${data.observationCount} observations across ${data.agentsTracked || 0} agents`
     default:
       return null
-  }
-}
-
-/**
- * Get required plugin for an implant
- */
-function getRequiredPlugin(id) {
-  const pluginMap = {
-    'quox-memory': 'advanced-memory',
-    'quox-focus': 'advanced-memory',
-    'quox-reflect': 'governance',
-    'quox-learn': 'files'
-  }
-  return pluginMap[id] || null
-}
-
-/**
- * Get health status string from percentage
- */
-function getHealthStatus(health) {
-  if (health >= 80) return 'operational'
-  if (health >= 50) return 'degraded'
-  if (health > 0) return 'critical'
-  return 'unknown'
-}
-
-/**
- * Get minimal reflection map for error fallback
- */
-function getMinimalReflection(timestamp, trigger) {
-  return {
-    version: '1.0.0',
-    generatedAt: timestamp,
-    generatedBy: trigger,
-    identity: {
-      name: 'CommanderQ',
-      role: 'Multi-Agent Executive System',
-      version: '2.0.0'
-    },
-    cognitiveImplants: [],
-    capabilities: { totalTools: 0, totalWorkflows: 0, totalIntents: 0, enabledIntegrations: [] },
-    agents: [],
-    plugins: [],
-    health: { overall: 0, status: 'unknown', activeServices: 0, totalServices: 0, lastHealthCheck: timestamp },
-    memory: { totalMemories: 0, episodic: 0, semantic: 0, entities: 0, learned: 0, openLoops: 0, healthScore: 0 }
   }
 }
 

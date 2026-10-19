@@ -85,6 +85,12 @@ export const mon = {
     path: ({ id }) => `/docker/containers/${id}`,
     tags: ['live-safe'],
   },
+  'mon.docker.containers.inspect': {
+    method: 'GET',
+    service: 'collector',
+    path: ({ id }) => `/docker/containers/${id}/inspect`,
+    tags: ['live-safe'],
+  },
   'mon.docker.containers.list': {
     method: 'GET',
     service: 'collector',

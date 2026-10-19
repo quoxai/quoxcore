@@ -17,6 +17,13 @@ export const ward = {
     path: () => `/ward/entries`,
     tags: ['live-safe'],
   },
+  // PEEK: one WARD entry (a receipt) by its ward_entry_id; org-scoped for a user login.
+  'ward.entries.get': {
+    method: 'GET',
+    service: 'collector',
+    path: ({ id }) => `/ward/entries/${id}`,
+    tags: ['live-safe'],
+  },
   'ward.stats.list': {
     method: 'GET',
     service: 'collector',

@@ -131,7 +131,7 @@ function fuse(dense, lexical, { limit = 8 } = {}) {
       const norm = topBm > 0 ? h.bm25 / topBm : 0;
       byKey.set(k, {
         text: d.text, source: d.source || '', section: d.section || '', pinned: d.pinned === true,
-        answer: d.answer || null, source_url: d.source_url || null, score: FLOOR_LEX + (CAP_LEX - FLOOR_LEX) * norm,
+        answer: d.answer || null, source_url: d.source_url || null, ...(d.suggest_superseded === true ? { suggest_superseded: true } : {}), score: FLOOR_LEX + (CAP_LEX - FLOOR_LEX) * norm,
         _rrf: rrf, lexical_only: true, lexical_rank: i + 1, _exact: exact,
       });
     }
@@ -219,6 +219,7 @@ async function scrollPayloads({ collection, qdrantKey, fetchImpl = fetch, baseUr
         text: pl.text, source: pl.source || '', section: pl.section || '',
         pinned: pl.pinned === true, answer: pl.answer || null, question: pl.question || null,
         source_url: typeof pl.source_url === 'string' ? pl.source_url : null,
+        ...(pl.suggest_superseded === true ? { suggest_superseded: true } : {}),
       });
     }
     next = d?.result?.next_page_offset;

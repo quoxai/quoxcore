@@ -348,6 +348,7 @@ const ERROR_STATUS = {
   acceptance_mismatch: 409,
   terms_changed: 409,
   terms_unavailable: 500,
+  pack_sources_unavailable: 503,
   db_unavailable: 500,
 };
 

@@ -297,30 +297,43 @@ async function memorySearch(params, context) {
 async function memoryUpdate(params, context) {
   const { memory_id, new_content, reason } = params;
   const { token, agentId, orgId, userId } = context;
+  const url = `${MEMORY_SERVICE_URL}/api/memory/${memory_id}`;
+  const headers = { 'Content-Type': 'application/json', ...memoryAuthHeaders({ token, orgId, userId }) };
 
-  const response = await fetch(`${MEMORY_SERVICE_URL}/api/memory/${memory_id}`, {
+  // The memory store writes `tags` WHOLESALE. Sending only the audit tags destroyed every user tag on every
+  // agent update (reproduced live 2026-10-15), so read first and merge: user tags kept, the previous
+  // updated_by:/reason: audit pair replaced by this update's.
+  const cur = await fetch(url, { headers });
+  if (!cur.ok) {
+    const error = await cur.json().catch(() => ({}));
+    throw new Error(error.error || `Could not read memory ${memory_id} before updating (${cur.status})`);
+  }
+  const existing = await cur.json();
+  const userTags = (Array.isArray(existing.tags) ? existing.tags : []).filter((t) => !/^(updated_by|reason):/.test(String(t)));
+  const tags = [...userTags, `updated_by:${agentId}`, `reason:${String(reason || '').slice(0, 50)}`];
+
+  const response = await fetch(url, {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      ...memoryAuthHeaders({ token, orgId, userId })
-    },
-    body: JSON.stringify({
-      content: new_content,
-      // Store reason in a way that preserves audit trail
-      tags: [`updated_by:${agentId}`, `reason:${reason.slice(0, 50)}`]
-    })
+    headers,
+    body: JSON.stringify({ content: new_content, tags })
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json().catch(() => ({}));
     throw new Error(error.error || 'Failed to update memory');
   }
 
+  // Report the STORED record, and refuse to call it updated if the store does not show the new content.
   const memory = await response.json();
+  if (memory.content !== new_content) {
+    return { success: false, memory_id: memory.id || memory_id, error: 'The memory service answered ok but the stored memory does not show the new content' };
+  }
   return {
     success: true,
     memory_id: memory.id,
-    message: `Updated memory: "${new_content.slice(0, 50)}..."`
+    content: memory.content,
+    tags: memory.tags,
+    message: `Updated memory: "${String(memory.content).slice(0, 50)}..."`
   };
 }
 

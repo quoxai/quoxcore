@@ -11,6 +11,12 @@ export const objectives = {
     path: ({ id }) => `/api/objectives/${id}/approve-plan`,
     tags: ['live-write'],
   },
+  'objectives.cancel': {
+    method: 'DELETE',
+    service: 'tasks',
+    path: ({ id }) => `/api/objectives/${id}`,
+    tags: ['live-write'],
+  },
   'objectives.checkpoint-approve': {
     method: 'POST',
     service: 'tasks',

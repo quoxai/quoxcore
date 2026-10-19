@@ -64,12 +64,14 @@ import { emitProgress } from './progress.js'
 import { trackPoll } from './objectiveReconciler.js'
 import { createFleetLoopSpawner } from './fleetLoopSpawner.js'
 import { createStuckDetector, argsKeyFor } from './loopStuckDetector.js'
+import { assertLoopBackendDispatchable, getLoopProvider, DEFAULT_LOOP_BACKEND } from './loopProviders.js'
 import { canonicalToolName, scopeToBackendArgs, enabledToolsFromScope, assertCodexScopeHonorable, HARNESS_INTERNAL_TOOLS } from './backendVocabulary.js'
 import { createGateLatch, evaluateLoopGates, riskGateFinding, haltLoopForExpiredLease, haltLoopForSafetyGate } from './loopCheckpoints.js'
 import { hasActiveSandboxApprovalGrant } from './disposableTestInstance.js'
 import { checkSafetyGate } from './safetyGate.js'
 import { createTaskEnvelope, TASK_INTENTS } from './envelopes.js'
 import { canExecuteResource, recordResourceFailure, recordResourceSuccess, CircuitBreakerOpenError } from './resourceBreaker.js'
+import { getExitPredicate, getEffectiveExitPredicate, implicitGoalExitEnabled, isCheapPredicate, evaluateExitPredicate } from './exitPredicate.js'
 
 // P7 CONTINUITY: resident-agent loops BECOME their prior self before acting
 // and never end without a self-delta on the chain. Resident = the wake
@@ -155,6 +157,9 @@ async function postContinuityCommit({ orgId, objectiveId, deltaMd }) {
 
 import { recordOutcome as recordObjectiveOutcome } from './wisdomStore.js'
 import { reflectOnOutcome } from './dreamCycle.js'
+import { observeCompletedRun } from './learningObserver.js'
+import { recordPerformance, inferDomainFromTitle } from './agentScorer.js'
+import { buildLearningRun, emitLearningCandidate } from './learningSink.js'
 
 // DEVSUITE-DEVMODE fleet spawn seam: the default seam is now the REAL
 // fleet spawner (tasks → collector → Bastion → quoxagent dev.sessions).
@@ -245,11 +250,9 @@ function buildClaudePayload(objective) {
  * @returns {{ payload?: string, args?: string[] }}
  */
 function buildLoopInput(objective, backend, capabilityScope) {
-  if (backend !== 'claude' && backend !== 'codex') {
-    throw new Error(`unknown loop backend '${backend}' (expected 'claude' or 'codex')`)
-  }
+  const provider = assertLoopBackendDispatchable(backend)
   const { args, systemPromptText } = scopeToBackendArgs(backend, capabilityScope, objective.system_prompt)
-  const payload = backend === 'claude'
+  const payload = provider.payloadFormat === 'stream-json'
     ? buildClaudePayload(objective)
     : buildLoopPayloadText(objective, systemPromptText)
   return { payload, args }
@@ -543,6 +546,36 @@ function recordLoopUsage(db, objectiveId, tokenDelta, toolCallDelta) {
  * @param {object} objective - the objective row (carries id, org_id, etc.)
  * @param {string} status - the terminal status just written ('completed' | 'failed')
  */
+/**
+ * QUOXMIND-PROOF (2026-10-15): one agent_performance row per finished loop,
+ * attributed to 'loop:<backend>' so QuoxLearn/QuoxValue compare providers on
+ * real runs. Loops were the only live objective path on dev and never wrote
+ * here, so both implants froze at 2026-03-28. The id never matches a DAG team
+ * member, so the decomposer's selectBestAgent is unaffected. Once per
+ * objective (task_id = objective id); own try so a failed insert is logged
+ * and never blocks the outcome/analyser path.
+ */
+function recordLoopPerformance(db, objective, status) {
+  try {
+    if (db.prepare('SELECT 1 FROM agent_performance WHERE task_id = ? LIMIT 1').get(objective.id)) return
+    const row = db.prepare('SELECT title, tokens_used, started_at, completed_at FROM objectives WHERE id = ?').get(objective.id) || {}
+    const ms = row.started_at && row.completed_at
+      ? Math.max(0, Date.parse(`${row.completed_at.replace(' ', 'T')}Z`) - Date.parse(`${row.started_at.replace(' ', 'T')}Z`)) || 0
+      : 0
+    recordPerformance(objective.org_id, `loop:${objective.loop_backend || DEFAULT_LOOP_BACKEND}`, objective.id, objective.id, {
+      success: status === 'completed',
+      latencyMs: ms,
+      tokensUsed: row.tokens_used || 0,
+      domain: inferDomainFromTitle(row.title || objective.title),
+      // No per-loop quality grader exists yet: success records the scorer's
+      // neutral 50, failure 0. Success rate and latency carry the signal.
+      qualityScore: status === 'completed' ? undefined : 0,
+    })
+  } catch (err) {
+    console.warn(`[QuoxLearn] loop agent_performance write failed for ${objective.id}: ${err.message}`)
+  }
+}
+
 function recordLoopOutcome(db, objective, status) {
   try {
     const tasks = db.prepare('SELECT * FROM tasks WHERE objective_id = ?').all(objective.id)
@@ -553,6 +586,14 @@ function recordLoopOutcome(db, objective, status) {
         void reflectOnOutcome(objective.org_id, objective.id, outcomeRecord)
       }
     }
+    recordLoopPerformance(db, objective, status)
+    // QLOOP-ENGINE P3 (step a): read-only learning observer. Flag-gated OFF by
+    // default; fires only on a clean 'completed' loop that is witnessed
+    // (volt_bundle_id). Best-effort, never affects loop finalisation.
+    observeCompletedRun(
+      buildLearningRun({ kind: 'loop', objective, tasks, status }),
+      { emit: emitLearningCandidate },
+    )
   } catch (err) {
     console.warn('[QuoxMind] Loop outcome/analysis failed (non-fatal):', err.message)
   }
@@ -590,9 +631,35 @@ async function consumeLoopEvents(db, objective, events, startSequenceNum, option
   // its max_duration. A NULL interruptFn (tests, or pre-wired deploys) just
   // records the finding.
   const capabilityScope = parseCapabilityScope(objective)
-  const backend = objective.loop_backend || 'claude'
+  const backend = objective.loop_backend || DEFAULT_LOOP_BACKEND
   const stuck = createStuckDetector({ threshold: options.stuckThreshold || 3 })
   let interrupted = false
+
+  // QLOOP-ENGINE P1: server-evaluated exit predicate bound to an EXTERNAL
+  // observable (metadata.exit_predicate). Absent => behaviour unchanged.
+  // QLOOP-ENGINE (default-path guard): when QLOOP_GOAL_CONDITION_EXIT is on, a
+  // loop with only a plain goal_condition gets an implicit llm predicate so the
+  // model's "done" is still server-checked. Flag OFF (default) => exactly as
+  // before. The effective predicate is threaded into evalExit so the same
+  // implicit predicate is used both to gate termination and to evaluate it.
+  const exitPredicate = getEffectiveExitPredicate(objective, {
+    implicitGoalExit: implicitGoalExitEnabled(options.env || process.env),
+  })
+  const exitDeps = options.exitPredicateDeps || {}
+  const evalExit = async (completedTasks = []) => {
+    const r = await evaluateExitPredicate(objective, completedTasks, { ...exitDeps, predicate: exitPredicate })
+    try {
+      const row = db.prepare('SELECT goal_evaluation_log AS l FROM objectives WHERE id = ?').get(objective.id)
+      let log = []
+      try { log = JSON.parse((row && row.l) || '[]') } catch { log = [] }
+      if (!Array.isArray(log)) log = []
+      log.push({ iteration: log.length + 1, met: r.met, reason: r.reason, kind: r.kind, source: 'exit_predicate', ts: new Date().toISOString() })
+      db.prepare('UPDATE objectives SET goal_evaluation_log = ? WHERE id = ?').run(JSON.stringify(log.slice(-50)), objective.id)
+    } catch (err) {
+      console.warn(`[LoopDispatch] exit predicate log write failed for ${objective.id}: ${err.message}`)
+    }
+    return r
+  }
   const onStuck = async (verdict) => {
     const message = `QLoop Observer: ${verdict.pattern} — ${verdict.detail}`
     const obsId = ulid()
@@ -766,8 +833,46 @@ async function consumeLoopEvents(db, objective, events, startSequenceNum, option
           await haltLoopForSafetyGate(db, objective, safetyGate.reason, { interruptFn: options.interruptFn })
           break
         }
+
+        // QLOOP-ENGINE P1: cheap exit predicates are checked every turn against
+        // the external observable; satisfied => the loop ends here, as a
+        // completion, and the live session is interrupted (not left to burn
+        // to its own stop or cap). llm-kind waits for the result event.
+        if (exitPredicate && isCheapPredicate(exitPredicate)) {
+          const verdict = await evalExit()
+          if (verdict.met) {
+            terminal = true
+            db.prepare(`
+              UPDATE objectives SET status = 'completed', completed_at = datetime('now'), task_count = ?
+              WHERE id = ? AND status NOT IN ('failed', 'completed', 'cancelled', 'aborted')
+            `).run(sequenceNum, objective.id)
+            emitProgress(objective.id, {
+              type: 'objective_completed',
+              message: `Exit predicate satisfied (${verdict.kind}): ${verdict.reason}`,
+              loopSessionId: objective.loop_session_id,
+            })
+            recordLoopOutcome(db, objective, 'completed')
+            if (typeof options.interruptFn === 'function') {
+              try { await options.interruptFn(objective, { pattern: 'exit_predicate_met', detail: verdict.reason }) } catch (err) {
+                console.error(`[LoopDispatch] Exit-predicate interrupt failed for ${objective.id}:`, err.message)
+              }
+            }
+            break
+          }
+        }
       } else if (norm.kind === 'result') {
         terminal = true
+        // QLOOP-ENGINE P1: the model saying "done" is not evidence. With an
+        // exit predicate the external observable has the last word.
+        if (exitPredicate) {
+          const done = db.prepare("SELECT * FROM tasks WHERE objective_id = ? AND status = 'completed'").all(objective.id)
+          const verdict = await evalExit(done)
+          if (!verdict.met) {
+            recordLoopUsage(db, objective.id, Math.max(0, usageTokens(norm.usage) - persistedTokens), toolCallCount - persistedToolCalls)
+            markFailed(`Loop session ended but the exit predicate (${verdict.kind}) was not satisfied: ${verdict.reason}`)
+            continue
+          }
+        }
         recordLoopUsage(db, objective.id, Math.max(0, usageTokens(norm.usage) - persistedTokens), toolCallCount - persistedToolCalls)
         db.prepare(`
           UPDATE objectives SET status = 'completed', completed_at = datetime('now'), task_count = ?
@@ -899,7 +1004,7 @@ export async function dispatchLoopObjective(objective, tasks, options = {}) {
 
   const maxDurationMs = objective.max_duration_ms
   const maxTurns = objective.max_iterations
-  const backend = objective.loop_backend || 'claude'
+  const backend = objective.loop_backend || DEFAULT_LOOP_BACKEND
   const spawner = options.loopSpawner || defaultLoopSpawner
 
   let sessionId, events
@@ -909,7 +1014,7 @@ export async function dispatchLoopObjective(objective, tasks, options = {}) {
     // Codex cannot enforce argument patterns, so a patterned scope on a codex
     // loop would be silently widened: reject it here, loudly, before any spawn.
     // claude honors --allowedTools patterns and is unaffected.
-    if (backend === 'codex') assertCodexScopeHonorable(capabilityScope)
+    getLoopProvider(backend)?.assertScopeHonorable(capabilityScope)
     // P7 CONTINUITY: mandatory recall stage for resident loops. Fail-closed
     // like DEC-6: a resident that cannot become its prior self does not run.
     let inputObjective = objective
@@ -923,8 +1028,17 @@ export async function dispatchLoopObjective(objective, tasks, options = {}) {
       inputObjective = { ...objective, description: `${renderRecallPreamble(recall)}\n\n${objective.description || ''}` }
     }
     const { payload, args } = buildLoopInput(inputObjective, backend, capabilityScope)
+    // WHY: the human-approved before_start checkpoint's inbox item anchors the
+    // Bastion approval grant the collector mints for this spawn. None found
+    // (scheduler / skip-checkpoint) means null: grantless, unchanged.
+    const approvalRow = db.prepare(`
+      SELECT inbox_item_id FROM checkpoints
+      WHERE objective_id = ? AND checkpoint_type = 'before_start' AND status = 'approved' AND inbox_item_id IS NOT NULL
+      ORDER BY created_at DESC LIMIT 1
+    `).get(objective.id)
     const spawned = await spawner({
       objective,
+      approvalItemId: approvalRow?.inbox_item_id || null,
       backend,
       payload,
       args,
@@ -983,6 +1097,8 @@ export async function dispatchLoopObjective(objective, tasks, options = {}) {
   const consumerPromise = trackPoll(
     objective.id,
     consumeLoopEvents(db, { ...objective, loop_session_id: sessionId, sandbox_leased: sandboxLeased }, events, tasks.length, {
+      exitPredicateDeps: options.exitPredicateDeps,
+      env: options.env,
       stuckThreshold: options.stuckThreshold,
       sandboxGrantFn: options.sandboxGrantFn,
       // Observer/Knot interrupt: default wiring kills the live session via the

@@ -19,7 +19,7 @@ import type { EvidenceStore } from '../evidence/types.js';
 // SSRF protection: block requests to private/internal networks unless
 // the operator explicitly allowlists a CIDR range via
 // QUOXFLOW_ALLOWED_PRIVATE (comma-separated, e.g.
-// "192.0.2.0/24,10.0.0.0/8"). Loopback (127/8 + ::1) is always blocked
+// "192.168.1.0/24,10.0.0.0/8"). Loopback (127/8 + ::1) is always blocked
 // — there's no legitimate workflow reason to call back into the QuoxFlow
 // container. The allowlist is the same pattern screencap uses
 // (SCREENCAP_ALLOWED_PRIVATE).

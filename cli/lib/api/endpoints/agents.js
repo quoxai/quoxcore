@@ -23,6 +23,13 @@ export const agents = {
     path: ({ orgId, agentId }) => `/api/orgs/${orgId}/agents/${agentId}`,
     tags: ['live-safe'],
   },
+  // ASIDE: a no-tools, no-conversation model call (quox aside, the TUI /aside). Spends tokens, changes nothing.
+  'agents.invoke.notools': {
+    method: 'POST',
+    service: 'collector',
+    path: () => `/api/internal/agents/invoke`,
+    tags: ['skip-live'],
+  },
   'agents.list': {
     method: 'GET',
     service: 'auth',

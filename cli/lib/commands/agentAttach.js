@@ -700,6 +700,36 @@ export async function heartbeatAttachLease(client, agentId, { getOrgId } = {}) {
 }
 
 /**
+ * #893: re-lease an attach that LAPSED (expired while heartbeats could not get
+ * through, e.g. an auth stall longer than the TTL). Never takes over: a 409
+ * here means another session holds the agent, and the keeper then exits as
+ * before. Rewrites only the token, lease id and expiry; the installed kit
+ * (prompt, tools, memory) is unchanged.
+ */
+const leaseMetaPath = (agentId) => join(dirname(tokenPath(agentId)), 'lease-meta.json');
+
+export async function reacquireAttachLease(client, agentId) {
+  const stored = readStoredKit(agentId);
+  if (!stored?.lease?.id) throw new QuoxApiError(404, 'no_local_lease', `No local attach state for "${agentId}"`);
+  let meta = {};
+  try { meta = JSON.parse(readFileSync(leaseMetaPath(agentId), 'utf-8')); } catch { /* defaults */ }
+  const ep = resolveEndpoint('agent-attach.lease.create', { agentId });
+  const data = await client.post(ep.path, {
+    service: ep.service,
+    body: {
+      session_label: meta.session_label || agentId,
+      ttl_seconds: meta.ttl_seconds || 900,
+      takeover: false,
+    },
+  });
+  if (!data?.token || !data?.lease?.id) throw new Error('re-lease returned no token or lease id');
+  writeFile0600(tokenPath(agentId), `${data.token}\n`);
+  stored.lease = { ...stored.lease, id: data.lease.id, expires_at: data.lease.expires_at || data.expires_at || null };
+  writeFile0600(kitPath(agentId), `${JSON.stringify(stored, null, 2)}\n`);
+  return { leaseId: data.lease.id };
+}
+
+/**
  * P10: keep the bound slot (or this session's membership of it) alive with the
  * ATTACH token. Failures are logged, never fatal to the lease heartbeat.
  */
@@ -897,15 +927,36 @@ export function registerAgentAttachCommands(agent, ctx, program) {
         });
       } catch (err) {
         const status = err instanceof QuoxApiError ? err.status : 'network error';
+        // quox#1026 (b): the kit cannot resolve this agent at all, so no retry can succeed. Release the lease
+        // just granted (never leave it held) and say plainly which agents are attachable.
+        if (err instanceof QuoxApiError && err.status === 404 && err.code === 'unknown_agent' && lease.id) {
+          let released = false;
+          try {
+            const relEp = resolveEndpoint('agent-attach.lease.release', { leaseId: lease.id });
+            await client.post(relEp.path, { service: relEp.service, body: {} });
+            released = true;
+          } catch { /* reported below */ }
+          throw new Error(
+            `"${agentId}" is not attachable: only core registry agents and custom assistants can be attached `
+            + '(an agent made with `quox agent create` has no attach kit yet, quox#1026). '
+            + (released ? `The lease ${lease.id} was released.` : `Releasing lease ${lease.id} failed: run \`quox agent detach ${agentId} --lease ${lease.id}\`.`)
+          );
+        }
         throw new Error(
           `GET ${kitEp.path} failed (${status}) after the lease was granted (lease ${lease.id || 'unknown'}). `
-          + `The lease is still active: retry the kit fetch, or run \`quox agent detach ${agentId}\` to release it. `
+          + `The lease is still active: retry the kit fetch, or run \`quox agent detach ${agentId}${lease.id ? ` --lease ${lease.id}` : ''}\` to release it. `
           + `Original error: ${err.message}`
         );
       }
 
       const splinter = splinterInfoFrom(leaseData?.splinter);
       const paths = installAttachKit(agentId, { kit, token, splinter });
+      // #893: remember the label and TTL (beside the token, not in kit.json,
+      // which stays exactly what the server sent) so the keeper can re-lease a
+      // lapsed attach under the same identity.
+      try {
+        writeFile0600(leaseMetaPath(agentId), `${JSON.stringify({ session_label: attachLabel, ttl_seconds: options.ttl })}\n`);
+      } catch { /* the attach stands; a re-lease falls back to defaults */ }
       // ONE-BRAIN CX4: agents whose resolved tool list carries brain_context get
       // a primer from the brain. Best effort, bounded, never fails the attach.
       let primer = '';
@@ -1074,6 +1125,7 @@ export function registerAgentAttachCommands(agent, ctx, program) {
     .option('--handoff <file>', 'path to a file with a handoff note (state, open threads, next moves) to store before detaching')
     .option('--handoff-text <text>', 'handoff note text, provided inline instead of a file')
     .option('--force-detach', 'release the lease even if storing the handoff note fails')
+    .option('--lease <leaseId>', 'release this lease when there is no local attach kit (an attach that failed after its lease was granted); the server allows only its holder or an org admin')
     .option('--no-brain-note', 'do not also save the handoff to the knowledge brain as a private note')
     .action(async (agentId, options) => {
       auth.requireAuth();
@@ -1081,7 +1133,20 @@ export function registerAgentAttachCommands(agent, ctx, program) {
       agentId = await resolveAgentId(client, agentId);
       const stored = readStoredKit(agentId);
       const leaseId = stored?.lease?.id;
-      if (!leaseId) throw noLocalLeaseError(agentId, 'attach-status');
+      // #1003: no local kit (attach failed after the lease was granted). Release exactly the lease the caller
+      // names, never a guessed one: a lease held by another session must not be released by inference.
+      if (!leaseId && options.lease) {
+        const relEp = resolveEndpoint('agent-attach.lease.release', { leaseId: options.lease });
+        await client.post(relEp.path, { service: relEp.service, body: {} });
+        removeAttachDir(agentId);
+        printEvent(events.released('quox', `attach ${agentId}`, `lease ${String(options.lease).slice(0, 8)} (no local kit)`));
+        return;
+      }
+      if (!leaseId) {
+        throw new Error(`${noLocalLeaseError(agentId, 'attach-status').message} `
+          + `If an attach failed after its lease was granted, release that lease with \`quox agent detach ${agentId} --lease <leaseId>\` `
+          + `(the lease id is in the attach error and in \`quox agent attach-status ${agentId}\`).`);
+      }
 
       if (options.handoff && options.handoffText) {
         throw new QuoxError('Pass only one of --handoff or --handoff-text.', 2);
@@ -1173,6 +1238,7 @@ export function registerAgentAttachCommands(agent, ctx, program) {
         sleep: ctx.sleep,
         dir: ctx.keeperDir,
         heartbeat: () => heartbeatAttachLease(client, agentId, { getOrgId: () => resolveOrgId(auth, program) }),
+        reacquire: () => reacquireAttachLease(client, agentId),
         release: async () => {
           const leaseId = readStoredKit(agentId)?.lease?.id;
           if (!leaseId) return;
@@ -1213,10 +1279,10 @@ export function registerAgentAttachCommands(agent, ctx, program) {
       // the route deployed) degrades to silence, not an error.
       try {
         const bindingEp = resolveEndpoint('agent-attach.slot-binding.get', { agentId });
-        const binding = await client.get(bindingEp.path, { service: bindingEp.service });
-        if (binding?.name) {
-          printInfo(`  slot: ${binding.name}${binding.holder_session ? ` (held by ${binding.holder_session})` : ' (free)'}`);
-        }
+        // quox#1308: the route answers { binding: { slot_name, ... } }; this read .name off the body and never printed.
+        const res = await client.get(bindingEp.path, { service: bindingEp.service });
+        const slotName = res?.binding?.slot_name;
+        if (slotName) printInfo(`  slot: ${slotName}`);
       } catch {
         // No binding, or the route isn't deployed yet: not a status-command failure.
       }
@@ -1326,6 +1392,28 @@ export function registerAgentAttachCommands(agent, ctx, program) {
       }
       printEvent(events.created('quox', `bind-slot ${agentId}`, slotName));
       if (program.opts().output === 'json') formatDetail(data, { format: 'json' });
+    });
+
+  // quox#1308: bind-slot was write-only. Reading an address is open to any org member (the GET route has no
+  // admin gate). No binding is an answer, not a failure: exit 0, and --json prints { binding: null }.
+  agent
+    .command('slot')
+    .description("Show which slot an agent is bound to (the only slot a user-made agent may post to)")
+    .argument('<agentId>', 'registry agent id')
+    .action(async (agentId) => {
+      auth.requireAuth();
+      const ep = resolveEndpoint('agent-attach.slot-binding.get', { agentId });
+      let binding = null;
+      try {
+        const res = await client.get(ep.path, { service: ep.service });
+        binding = res?.binding || null;
+      } catch (err) {
+        const status = err instanceof QuoxApiError ? err.status : 'network error';
+        if (!(status === 404 && err.code === 'no_binding')) throw new Error(`GET ${ep.path} failed (${status}): ${err.message}`);
+      }
+      if (program.opts().output === 'json') { formatDetail({ binding }, { format: 'json' }); return; }
+      if (!binding) { printInfo(`${agentId} has no slot binding. An org admin can bind one: quox agent bind-slot ${agentId} <slot>`); return; }
+      printInfo(`${agentId} is bound to slot ${binding.slot_name}${binding.created_at ? ` (since ${binding.created_at})` : ''}`);
     });
 
   agent

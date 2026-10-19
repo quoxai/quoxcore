@@ -51,6 +51,7 @@
       "metrics"
     ]
   },
+  "delegation": { "wait_ms": 180000 },
   "capabilities": {
     "domains": [
       "security",

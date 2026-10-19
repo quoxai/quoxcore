@@ -49,9 +49,12 @@ function annotate(err) {
   throw err;
 }
 
-async function call(client, id, params = {}, body) {
+// quox#907: a browser login is slower than a read; well above the client's 30s default.
+const LOGIN_TIMEOUT_MS = 120000;
+
+async function call(client, id, params = {}, body, extra = {}) {
   const ep = resolveEndpoint(id, params);
-  const opts = { service: ep.service };
+  const opts = { service: ep.service, ...extra };
   if (body) opts.body = body;
   switch (ep.method) {
     case 'POST': return client.post(ep.path, opts);
@@ -634,15 +637,28 @@ export function registerQlarityCommands(program, ctx) {
           (await call(client, 'qlarity.sessions.list')).sessions || [],
           normalizedOrigin,
         );
+        let fresh = false;
         if (!sessionId) {
           const s = await call(client, 'qlarity.session.create', {}, {});
           sessionId = s.id;
+          fresh = true;
         }
 
         const body = { origin: normalizedOrigin, credential_id: credentialId };
         if (options.loginPath) body.login_path = options.loginPath;
 
-        const r = await call(client, 'qlarity.session.login', { sessionId }, body);
+        // quox#907: a real login (page load, form fill, cookie wait) can outlast the CLI's 30s default on a loaded
+        // box, and the server kept finishing it, so every timed-out retry left a headless browser behind. Give login
+        // its own budget, and close a session THIS call created when the login call fails (as openSession does, #680).
+        let r;
+        try {
+          r = await call(client, 'qlarity.session.login', { sessionId }, body, { timeout: LOGIN_TIMEOUT_MS });
+        } catch (loginErr) {
+          if (fresh) {
+            try { await call(client, 'qlarity.session.close', { sessionId }); } catch { /* the server reaper will get it */ }
+          }
+          throw loginErr;
+        }
 
         if (r.logged_in) {
           loggedIn[normalizedOrigin] = { sessionId, logged_in_at: new Date().toISOString() };

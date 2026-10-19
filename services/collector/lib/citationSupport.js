@@ -56,6 +56,23 @@ function isNegated(text) {
   return ((t.match(NEG_RE) || []).length % 2) === 1;
 }
 
+// A clause boundary for negation scope: punctuation, brackets and the
+// conjunctions that start a new proposition ("... is free, but X was not
+// returned"). The negator belongs to the clause it sits in.
+const CLAUSE_RE = /[,;:()–—]+|\s(?:but|and|while|whereas|although|though|because|so|yet)\s/i;
+
+/**
+ * Polarity of `text` as it bears on `words` (content-word stems shared with the
+ * other side): only clauses that contain one of those words count. A clause
+ * with none of them is about something else, so its "not" says nothing about
+ * the claim. With no such clause, fall back to the whole text.
+ */
+function negatedAbout(text, words) {
+  const clean = String(text || '').replace(/\[[^[\]]{1,200}\]/g, ' ');
+  const rel = clean.split(CLAUSE_RE).filter((c) => [...contentWords(c)].some((w) => words.has(w)));
+  return rel.length ? rel.some((c) => isNegated(c)) : isNegated(clean);
+}
+
 function numbersOf(text) {
   const t = String(text || '').replace(/\[[^[\]]{1,200}\]/g, ' ');
   return new Set((t.match(/\d+(?:[.,]\d+)*/g) || []).map((n) => n.replace(/,/g, '')));
@@ -255,7 +272,8 @@ function lexicalSupport(claim, passage) {
     const claimNums = numbersOf(claim);
     const sentNums = numbersOf(best.sent);
     const numClash = (claimNums.size > 0 || sentNums.size > 0) && [...claimNums].some((n) => !sentNums.has(n));
-    if (isNegated(claim) !== isNegated(best.sent) || numClash || rolesReversed(claim, best.sent) || oppositeWords(claim, best.sent)) {
+    const shared = new Set([...contentWords(claim)].filter((w) => contentWords(best.sent).has(w)))
+    if (negatedAbout(claim, shared) !== negatedAbout(best.sent, shared) || numClash || rolesReversed(claim, best.sent) || oppositeWords(claim, best.sent)) {
       return { ...base, supported: false, contradicted: true };
     }
     if (temporalOrderFlipped(claim, best.sent)) {

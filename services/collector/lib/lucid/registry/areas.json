@@ -1,4 +1,6 @@
 {
+  "host_feeds_note": "Feeds that come from a dev-suite box (host gatherer, live tail, Claude Code hooks), not from the collector. They count toward coverage only when the install declares them expected or they have reported.",
+  "host_feeds": ["sessions", "session-hooks", "build", "vital", "units", "sentry", "sites", "containers", "quoxplan", "metron", "mission", "gripes", "qluster", "repos", "plandocs", "lucid-gatherer", "lucid-tail"],
   "outcomes": {
     "approved": "approved",
     "denied": "denied",
@@ -19,7 +21,6 @@
       "label": "Approvals",
       "order": 1,
       "feeds": [
-        "approvals",
         "hitl"
       ],
       "unwired": "anything your agents are waiting for you to approve",
@@ -292,6 +293,36 @@
       "stats": {
         "open": {
           "count": "open"
+        }
+      }
+    },
+    {
+      "key": "mission",
+      "label": "Mission",
+      "order": 11,
+      "feeds": [
+        "mission",
+        "gripes"
+      ],
+      "brief_unwired": false,
+      "unwired": "whether the Proof Matrix is passing and which gripes are open",
+      "L0": {
+        "composer": "phrases",
+        "empty": "The mission is on track and no new gripes need you"
+      },
+      "stats": {
+        "open": {
+          "count": "open"
+        },
+        "failing": {
+          "count": {
+            "status": [
+              "failing"
+            ]
+          }
+        },
+        "which": {
+          "names": "attention"
         }
       }
     }

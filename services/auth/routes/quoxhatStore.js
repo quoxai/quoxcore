@@ -237,11 +237,22 @@ export function createHat({ orgId, userId, key, name, definition, visibility = '
  * Update a hat's definition — appends an immutable revision; never rewrites
  * history. Template provenance is preserved but the hat becomes org-authored.
  */
-export function updateHatDefinition({ orgId, userId, hatId, definition, changeReason = null, ipAddress = null, userAgent = null }) {
+export function updateHatDefinition({ orgId, userId, hatId, definition, name = undefined, changeReason = null, ipAddress = null, userAgent = null }) {
     const row = prepare('SELECT * FROM quoxhat_hats WHERE org_id = ? AND id = ?').get(orgId, hatId);
     if (!row) return { ok: false, errors: ['hat not found'], status: 404 };
     if (row.visibility === 'private' && row.owner_user_id !== userId) {
         return { ok: false, errors: ['hat not found'], status: 404 };
+    }
+    // CUSTOM-HATS: an optional rename rides the same audited, revisioned write. A built-in's
+    // name tracks its template (ensureBuiltinHats/reset rewrite it), so only a custom hat renames.
+    let nextName = row.name;
+    if (name !== undefined && name !== null) {
+        if (typeof name !== 'string' || !name.trim()) return { ok: false, errors: ['name must be a non-empty string'], status: 400 };
+        if (name.trim().length > 80) return { ok: false, errors: ['name must be at most 80 characters'], status: 400 };
+        if (name.trim() !== row.name && row.template_key) {
+            return { ok: false, errors: ['a built-in hat cannot be renamed (its name follows the template); create a custom hat with --from instead'], status: 400 };
+        }
+        nextName = name.trim();
     }
     const validation = validateHatDefinition(definition);
     if (!validation.valid) return { ok: false, errors: validation.errors, status: 400 };
@@ -255,20 +266,72 @@ export function updateHatDefinition({ orgId, userId, hatId, definition, changeRe
                 INSERT INTO quoxhat_revisions (hat_id, revision, definition_json, digest, change_reason, created_by, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             `).run(hatId, nextRev, JSON.stringify(definition), digest, changeReason, userId, now);
-            prepare('UPDATE quoxhat_hats SET current_revision = ?, purpose = ?, updated_at = ? WHERE id = ?')
-                .run(nextRev, definition.purpose, now, hatId);
+            prepare('UPDATE quoxhat_hats SET current_revision = ?, purpose = ?, name = ?, updated_at = ? WHERE id = ?')
+                .run(nextRev, definition.purpose, nextName, now, hatId);
         });
     } catch (err) {
         if (isRevisionConflict(err)) return { ok: false, errors: ['revision conflict, retry'], status: 409 };
         throw err;
     }
+    const prevDef = safeParse(prepare('SELECT definition_json FROM quoxhat_revisions WHERE hat_id = ? AND revision = ?').get(hatId, row.current_revision)?.definition_json, {});
+    const toolsBefore = new Set(hatToolNames(prevDef));
+    const toolsAfter = new Set(hatToolNames(definition));
+    const agentsOf = (d) => new Set(Array.isArray(d?.agents?.specialists) ? d.agents.specialists : []);
+    const agentsBefore = agentsOf(prevDef);
+    const agentsAfter = agentsOf(definition);
     createAuditEvent({
         orgId, actorType: 'user', actorId: userId,
         action: 'quoxhat.hat.updated', targetType: 'quoxhat_hat', targetId: hatId,
         ipAddress, userAgent,
-        metadata: { revision: nextRev, digest, change_reason: changeReason },
+        metadata: {
+            revision: nextRev, digest, change_reason: changeReason,
+            ...(nextName !== row.name ? { name_from: row.name, name_to: nextName } : {}),
+            tools_added: [...toolsAfter].filter(t => !toolsBefore.has(t)).sort(),
+            tools_removed: [...toolsBefore].filter(t => !toolsAfter.has(t)).sort(),
+            agents_added: [...agentsAfter].filter(a => !agentsBefore.has(a)).sort(),
+            agents_removed: [...agentsBefore].filter(a => !agentsAfter.has(a)).sort(),
+        },
     });
     return { ok: true, hat: getHat(orgId, hatId, userId), warnings: validation.warnings };
+}
+
+/**
+ * CUSTOM-HATS (owner 2026-10-17) — delete a CUSTOM hat. Built-ins are never
+ * deleted (they can be reset to their template instead). The org default
+ * cannot be deleted while it is the default (409): move the default first.
+ * Conversation bindings and user preferences that named the hat are cleared
+ * in the same transaction, so a deleted hat can never resolve again; those
+ * conversations fall back through the normal precedence. The audit event
+ * keeps the final revision + digest (the hat's last witnessed state).
+ */
+export function deleteHat({ orgId, userId, hatId, ipAddress = null, userAgent = null }) {
+    const row = prepare('SELECT * FROM quoxhat_hats WHERE org_id = ? AND id = ?').get(orgId, hatId);
+    if (!row) return { ok: false, error: 'hat_not_found', status: 404 };
+    if (row.visibility === 'private' && row.owner_user_id !== userId) return { ok: false, error: 'hat_not_found', status: 404 };
+    if (row.template_key) return { ok: false, error: 'builtin_hat_cannot_be_deleted', status: 400 };
+    const settings = getOrgSettings(orgId);
+    if (settings.default_hat_id === hatId) return { ok: false, error: 'hat_is_org_default', status: 409 };
+    const last = prepare('SELECT digest FROM quoxhat_revisions WHERE hat_id = ? AND revision = ?').get(hatId, row.current_revision);
+    let bindingsCleared = 0;
+    let prefsCleared = 0;
+    transaction(() => {
+        bindingsCleared = prepare('DELETE FROM quoxhat_bindings WHERE org_id = ? AND hat_id = ?').run(orgId, hatId).changes;
+        prefsCleared = prepare('UPDATE quoxhat_user_prefs SET default_hat_id = NULL, updated_at = ? WHERE org_id = ? AND default_hat_id = ?').run(nowIso(), orgId, hatId).changes;
+        prepare('DELETE FROM quoxhat_revisions WHERE hat_id = ?').run(hatId);
+        prepare('DELETE FROM quoxhat_hats WHERE org_id = ? AND id = ?').run(orgId, hatId);
+    });
+    const deleted = {
+        id: hatId, key: row.key, name: row.name, visibility: row.visibility,
+        revision: row.current_revision, digest: last?.digest || null,
+        bindings_cleared: bindingsCleared, user_prefs_cleared: prefsCleared,
+    };
+    createAuditEvent({
+        orgId, actorType: 'user', actorId: userId,
+        action: 'quoxhat.hat.deleted', targetType: 'quoxhat_hat', targetId: hatId,
+        ipAddress, userAgent,
+        metadata: { key: deleted.key, name: deleted.name, visibility: deleted.visibility, revision: deleted.revision, digest: deleted.digest, bindings_cleared: bindingsCleared, user_prefs_cleared: prefsCleared },
+    });
+    return { ok: true, deleted };
 }
 
 /**

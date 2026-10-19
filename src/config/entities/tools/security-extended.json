@@ -80,6 +80,11 @@
       "defconLevel": "GREEN",
       "requiresApproval": false,
       "parameters": {
+        "host": {
+          "type": "string",
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
+        },
         "hours": {
           "type": "number",
           "required": false,
@@ -116,15 +121,20 @@
     {
       "id": "security.active_sessions",
       "name": "Active Sessions",
-      "description": "List all active user sessions with location and device info",
+      "description": "Active user sessions on ONE fleet host: who is logged in right now (who -u), plus that host's last 20 logins (last). Needs a fleet host id: get one from fleet_status first, then call this per host.",
       "accessLevel": "specialists+",
       "defconLevel": "GREEN",
       "requiresApproval": false,
       "parameters": {
+        "host": {
+          "type": "string",
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host"
+        },
         "user_id": {
           "type": "string",
           "required": false,
-          "description": "Filter by specific user (omit for all)"
+          "description": "Only this login name on that host (a plain username; omit for everyone)"
         }
       },
       "instructions": {
@@ -179,8 +189,8 @@
         },
         "host": {
           "type": "string",
-          "required": false,
-          "default": "localhost"
+          "required": true,
+          "description": "Fleet host id to run on (as listed by quox fleet hosts / fleet_status); 'localhost' is not a Bastion host. For several hosts pass a comma-separated list, or 'all' for the whole fleet: stale or unreachable hosts are skipped and marked per host, the rest are audited (read-only, never needs ssh_exec)"
         },
         "check_world_writable": {
           "type": "boolean",

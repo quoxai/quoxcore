@@ -571,7 +571,7 @@ export function registerGovernanceCommands(program, ctx) {
   governance
     .command('certify')
     .description('Run VOLT certification against a run (WRITE — creates a certification record)')
-    .argument('<runId>', 'VOLT run ID')
+    .argument('<runId>', 'VOLT run ID (VR_...) or the workflow run (execution) id `quox workflow run` printed')
     .option('--retention-days <n>', 'retention period in days')
     .option('--audit-info <json>', 'audit info as JSON')
     .option('--compliance-info <json>', 'compliance info as JSON')

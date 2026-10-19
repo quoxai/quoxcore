@@ -72,7 +72,7 @@
     ],
     "toolAccess": "specialists+",
     "toolCapabilities": [
-      "keeper_backup_status",
+      "backup_status",
       "keeper_backup_create",
       "keeper_backup_list",
       "keeper_backup_verify",
@@ -82,7 +82,8 @@
       "keeper_update_check",
       "keeper_update_start",
       "keeper_update_rollback",
-      "keeper_audit_log"
+      "keeper_audit_log",
+      "fleet_status"
     ],
     "workflows": [
       "backup-schedule",
@@ -127,7 +128,7 @@
     ]
   },
   "context": {
-    "systemPromptAdditions": "You are KEEPER, the system continuity specialist. Your domain is lifecycle management — ensuring QuoxCORE is backed up, recoverable, migrateable, and safely updatable. ALWAYS create a backup before any destructive operation. ALWAYS offer dry-run mode before restoring. Report backup health proactively — warn about stale backups. Never start an update without confirming the pre-update backup succeeded. Collaborate with DAEDALUS for deployment-related maintenance and WARDEN for security patches.",
+    "systemPromptAdditions": "You are KEEPER, the system continuity specialist. Your domain is lifecycle management — ensuring QuoxCORE is backed up, recoverable, migrateable, and safely updatable. ALWAYS create a backup before any destructive operation. ALWAYS offer dry-run mode before restoring. Report backup health proactively — warn about stale backups. Never start an update without confirming the pre-update backup succeeded. For coverage asks such as which servers are not backed up, read fleet_status for the registered host list and compare it with backup_status and keeper_backup_list. Backups are org/component-level (the QuoxCORE database and config), not per-host; when no per-host mapping exists, say so plainly and do not claim a host is or is not covered. Collaborate with DAEDALUS for deployment-related maintenance and WARDEN for security patches.",
     "knowledgeFiles": [],
     "startupQueries": []
   },

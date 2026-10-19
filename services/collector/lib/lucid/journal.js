@@ -239,6 +239,8 @@ function scrubPii(text) {
     return d.length >= 7 ? `number ending ${d.slice(-3)}` : m;
   };
   return String(text)
+    // Email addresses keep only the domain: "an address at example.com".
+    .replace(/[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)/g, (_m, domain) => `an address at ${domain}`)
     .replace(/\+\d[\d\s().-]{5,}\d/g, mask)
     .replace(/(?<![\w.])0\d[\d\s().-]{8,}\d(?![\w])/g, mask);
 }

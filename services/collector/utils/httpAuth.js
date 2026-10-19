@@ -52,7 +52,8 @@ async function _validateMcpToken(token) {
 
     if (!resp.ok) {
       console.warn('[MCPB-HARDEN] MCP token validate returned HTTP', resp.status);
-      return { valid: false, reason: `http_${resp.status}` };
+      // 5xx/429/408: auth could not judge the token. That is "unavailable", not "invalid".
+      return { valid: false, reason: `http_${resp.status}`, ...(resp.status >= 500 || resp.status === 429 || resp.status === 408 ? { networkError: true } : {}) };
     }
 
     const data = await resp.json();
@@ -266,7 +267,7 @@ async function _validatePluginCredential(token) {
       body: JSON.stringify({ token }),
       signal: AbortSignal.timeout(3000),
     });
-    if (!resp.ok) return { valid: false, reason: `http_${resp.status}` };
+    if (!resp.ok) return { valid: false, reason: `http_${resp.status}`, ...(resp.status >= 500 || resp.status === 429 || resp.status === 408 ? { unavailable: true } : {}) };
     const data = await resp.json();
     if (data.valid && typeof data.plugin_id === 'string' && data.plugin_id) {
       const entry = { valid: true, plugin_id: data.plugin_id, expires: Date.now() + _PLUGIN_CRED_TTL_MS };
@@ -275,7 +276,7 @@ async function _validatePluginCredential(token) {
     }
     return { valid: false, reason: data.reason || 'unknown' };
   } catch (e) {
-    return { valid: false, reason: 'validation_unavailable' };
+    return { valid: false, reason: 'validation_unavailable', unavailable: true };
   }
 }
 
@@ -288,7 +289,10 @@ function __clearPluginCredentialCache() { _pluginCredCache.clear(); }
  */
 async function _authenticatePluginCaller(req, token, { allowTicketless = false } = {}) {
   const cred = await _validatePluginCredential(token);
-  if (!cred.valid) return { ok: false, status: 401, error: 'invalid_plugin_credential' };
+  if (!cred.valid) {
+    if (cred.unavailable) return { ok: false, status: 503, error: 'auth_unavailable' };
+    return { ok: false, status: 401, error: 'invalid_plugin_credential' };
+  }
   // Background evidence (a plugin's own schedulers, no user request, so no
   // ticket): only where the route allows it (AEE store/sync), and only when NO
   // ticket header is presented at all. It is instance-scoped: no tenant org,
@@ -336,6 +340,17 @@ async function _authenticatePluginCaller(req, token, { allowTicketless = false }
 }
 
 /**
+ * Auth could not be reached (restart, deploy, timeout): answer 503, never 401.
+ * A 401 tells every client "your credential is dead" and a TUI/CLI acts on that
+ * by signing the user out; 2026-10-14 an auth rebuild did exactly that to three
+ * open sessions whose tokens were fine. 503 + Retry-After says "try again".
+ */
+function sendAuthUnavailable(res, message = 'Auth service unavailable') {
+  if (typeof res.set === 'function') res.set('Retry-After', '5');
+  return res.status(503).json({ error: 'auth_unavailable', message, retryable: true });
+}
+
+/**
  * Dual auth middleware — accepts either user JWT or service key.
  * Used for endpoints called by both QuoxMCP (service key) and browser (JWT).
  *
@@ -358,7 +373,10 @@ function requireServiceOrUserAuth(options = {}) {
         return res.status(401).json({ error: 'plugin_credential_not_accepted' });
       }
       const r = await _authenticatePluginCaller(req, serviceKey, { allowTicketless: allowTicketlessPlugin });
-      if (!r.ok) return res.status(r.status).json({ error: r.error });
+      if (!r.ok) {
+        if (r.status === 503) return sendAuthUnavailable(res, 'Plugin credential validation unavailable');
+        return res.status(r.status).json({ error: r.error });
+      }
       return next();
     }
 
@@ -369,10 +387,10 @@ function requireServiceOrUserAuth(options = {}) {
         result = await _validateMcpToken(serviceKey);
       } catch (e) {
         console.error('[MCPB-HARDEN] Unexpected error validating MCP token:', e.message);
-        return res.status(401).json({ error: 'mcp_validation_unavailable', message: 'MCP token validation service error' });
+        return sendAuthUnavailable(res, 'MCP token validation service error');
       }
       if (result.networkError) {
-        return res.status(401).json({ error: 'mcp_validation_unavailable', message: 'MCP token validation unavailable' });
+        return sendAuthUnavailable(res, 'MCP token validation unavailable');
       }
       if (result.valid) {
         req.user = {
@@ -418,6 +436,7 @@ function requireServiceOrUserAuth(options = {}) {
         // (which would change unrelated role-gated routes).
         req.user = {
           id: result.payload.sub,
+          session_id: result.payload.session_id || null, // QUOXON-STEPUP: step-up tokens bind to the session
           email: result.payload.email,
           org_id: result.payload.org_id,
           orgId: result.payload.org_id,
@@ -450,7 +469,7 @@ function requireServiceOrUserAuth(options = {}) {
           holder_user_id: result.payload.holder_user_id || null,
           exp: result.payload.exp || null,
           // QUOXON-IDENTITY: per-turn tools/execute credential claims.
-          ...(result.payload.aud ? { aud: result.payload.aud, turn_id: result.payload.turn_id || null, conversation_id: result.payload.conversation_id || null } : {}),
+          ...(result.payload.aud ? { aud: result.payload.aud, turn_id: result.payload.turn_id || null, conversation_id: result.payload.conversation_id || null, turn_intent: result.payload.turn_intent || null, turn_deadline_at: result.payload.turn_deadline_at || null, turn_mode: result.payload.turn_mode === 'plan' ? 'plan' : null, no_shell: result.payload.no_shell === true, tools_gated: result.payload.tools_gated === true } : {}),
           // QUOXIDENTITY P9: see requireAuth() above.
           ...(result.payload.splinter ? { splinter: result.payload.splinter } : {})
         };

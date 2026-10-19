@@ -40,13 +40,14 @@
  * Honest gap (checked, not assumed): the build daemon's RAW stdout/stderr
  * log (/tmp/quox-build-log on the host, alongside /tmp/quox-build-history)
  * is real, substantial content — but it lives outside the one host path this
- * container has mounted (/opt/quoxcore:ro; docker-compose.yml has no /tmp
+ * container has mounted (~:ro; docker-compose.yml has no /tmp
  * bind for the collector service). bob_log_tail therefore surfaces the
  * build_receipts row's own short `message` field, the only build-outcome
  * text actually reachable from this process today, and says so in its own
  * description and output rather than fabricating a full log tail.
  */
 
+const { hostPath } = require('../utils/runtimePaths.js');
 const fsp = require('fs/promises');
 const path = require('path');
 // dockerode (and its transitive docker-modem -> ssh2 chain, which runs an
@@ -63,8 +64,8 @@ const FETCH_TIMEOUT_MS = 8000;
 const PROBE_TIMEOUT_MS = 4000;
 
 // Repo root as mounted read-only into this container (docker-compose.yml:
-// "- /opt/quoxcore:/opt/quoxcore:ro"). bob_preflight greps under here.
-const HOST_REPO_ROOT = process.env.BOB_PREFLIGHT_REPO_ROOT || '/opt/quoxcore';
+// "- $HOME:$HOME:ro"). bob_preflight greps under here.
+const HOST_REPO_ROOT = process.env.BOB_PREFLIGHT_REPO_ROOT || hostPath('quox-dashboard');
 
 let _docker = null;
 let _dockerOverride = null; // test-only injection, see __setDockerForTesting below
@@ -238,7 +239,7 @@ async function grepImporters(fileName) {
     //     "maxBuffer length exceeded" on common filenames (e.g. 'index.js'),
     //     turning a legitimate blast-radius check into a hard failure.
     const { stdout } = await execFileAsync('grep', [
-      '-rnE',
+      '-rnsE',
       '--exclude-dir=node_modules',
       '--exclude-dir=dist',
       '--exclude-dir=.git',
@@ -250,6 +251,10 @@ async function grepImporters(fileName) {
   } catch (err) {
     // grep exits 1 with empty stdout when there are zero matches — not an error.
     if (err && err.code === 1 && !err.stdout) return [];
+    // grep exits 2 when ANY file under the tree was unreadable or vanished mid-walk (the mounted repo is a
+    // live working tree other sessions rewrite), even though it found matches. The matches are still the
+    // answer; failing the whole blast-radius check over one unreadable file hid every real importer.
+    if (err && err.code === 2 && err.stdout) return String(err.stdout).split('\n').filter(Boolean).map((line) => line.replace(HOST_REPO_ROOT + '/', ''));
     throw new Error(`grep failed: ${err.message}`);
   }
 }
@@ -556,17 +561,55 @@ const BOB_TOOLS = {
   // would be a remote root shell with a queue in front of it.
   bob_build_targets: {
     name: 'bob_build_targets',
-    description: 'List the build targets registered on a dev server. Targets are pre-registered host-side; a build can only ever name one of these, never supply its own command. Use this before dispatching so you name a target that exists, and to answer "what can I build here?". Read-only.',
+    description: 'List the build targets registered on a dev server. Targets are pre-registered host-side; a build can only ever name one of these, never supply its own command. Use this before dispatching so you name a target that exists, and to answer "what can I build here?" or "what can I build on my dev server?". host_id is optional: leave it out and the org\'s registered dev server with builds enabled is used; with several, the targets of each are listed. Read-only.',
     input_schema: {
       type: 'object',
       properties: {
-        host_id: { type: 'string', description: 'The registered dev server host id.' },
+        host_id: { type: 'string', description: 'The registered dev server host id. Optional: omit it to use the org\'s registered dev server.' },
       },
-      required: ['host_id'],
     },
-    execute: async ({ host_id }, ctx) => {
-      if (!host_id) return { success: false, error: 'host_id is required' };
+    execute: async (input, ctx) => {
+      let host_id = input && input.host_id;
       try {
+        // 4.2.4 t3-build-targets: "my registered dev server" names no host. Resolve it from the org's dev servers
+        // with dev.build enabled; never guess between several.
+        if (!host_id) {
+          const list = await collectorGet('/api/v1/dev-servers', { orgId: ctx && ctx.orgId });
+          const builders = (Array.isArray(list && list.servers) ? list.servers : [])
+            .filter((s) => Array.isArray(s.enabled_capabilities) && s.enabled_capabilities.includes('dev.build'))
+            .map((s) => ({ host_id: s.host_id, hostname: s.hostname || null }));
+          if (builders.length === 0) {
+            return { success: false, error: 'There is no registered dev server with builds (dev.build) enabled in this org, so there are no build targets to list.' };
+          }
+          // Live 2026-10-19 (ev_mvfky00t_52df33): three servers, and the turn stopped to ask which. Listing is a read,
+          // so it needs no pick: read each server's targets (bounded). If none can be read, name them and ask.
+          if (builders.length > 1 && builders.length <= 5) {
+            const servers = await Promise.all(builders.map(async (b) => {
+              try {
+                const d = await collectorGet(`/api/v1/dev-build/${encodeURIComponent(b.host_id)}/targets`, { orgId: ctx && ctx.orgId });
+                const targets = Array.isArray(d && d.targets) ? d.targets : [];
+                return { ...b, count: targets.length, targets };
+              } catch (err) {
+                return { ...b, error: err.message };
+              }
+            }));
+            if (servers.some((s) => !s.error)) {
+              return {
+                success: true,
+                servers,
+                note: `This org has ${builders.length} dev servers with builds enabled; the targets of each are listed. A build names one server and one of its targets.`,
+              };
+            }
+          }
+          if (builders.length > 1) {
+            return {
+              success: false,
+              dev_servers: builders,
+              error: `This org has ${builders.length} registered dev servers with builds enabled (${builders.map((b) => b.host_id).join(', ')}). Ask the user which one, then call again with its host_id.`,
+            };
+          }
+          host_id = builders[0].host_id;
+        }
         const data = await collectorGet(`/api/v1/dev-build/${encodeURIComponent(host_id)}/targets`, { orgId: ctx && ctx.orgId });
         const targets = Array.isArray(data && data.targets) ? data.targets : [];
         return {

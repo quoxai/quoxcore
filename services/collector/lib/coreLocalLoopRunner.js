@@ -49,10 +49,17 @@ const BATCH_MAX_MS = 1000;
 // hard-refuses untrusted non-repo cwds before reading stdin (hit live
 // 2026-08-20). Fleet loops run in the host checkout (a repo), so the
 // fleet argv needs no flag.
+// The collector is CJS and a separate container from services/tasks, so it
+// cannot import tasks/lib/loopProviders.js; this table is its CLI-kind mirror.
+// API-kind providers (openai) are deliberately absent: they get their own
+// runner alongside this one, never a child process.
+const CLI_BACKENDS = {
+  claude: ['-p', '--output-format', 'stream-json', '--input-format', 'stream-json', '--verbose'],
+  codex: ['exec', '--json', '--skip-git-repo-check', '-'],
+};
+
 function argsForBackend(backend) {
-  if (backend === 'claude') return ['-p', '--output-format', 'stream-json', '--input-format', 'stream-json', '--verbose'];
-  if (backend === 'codex') return ['exec', '--json', '--skip-git-repo-check', '-'];
-  return null;
+  return Object.prototype.hasOwnProperty.call(CLI_BACKENDS, backend) ? CLI_BACKENDS[backend].slice() : null;
 }
 
 // The CLIs authenticate via files under $HOME (.claude/.credentials.json,
@@ -81,7 +88,7 @@ function minimalChildEnv(base = process.env, io = { existsSync: fs.existsSync, h
 const registry = new Map();
 
 function isAvailable(backend) {
-  return backend === 'claude' || backend === 'codex';
+  return Object.prototype.hasOwnProperty.call(CLI_BACKENDS, backend);
 }
 
 /**
@@ -102,7 +109,7 @@ function startCoreLocalLoop({
   log = console,
 }) {
   const baseArgs = argsForBackend(backend);
-  if (!baseArgs) throw new Error(`core-local loops support claude|codex, not "${backend}"`);
+  if (!baseArgs) throw new Error(`core-local loops support ${Object.keys(CLI_BACKENDS).join('|')}, not "${backend}"`);
   if (!sessionRef || !ingestToken || !collectorUrl) {
     throw new Error('coreLocalLoopRunner: sessionRef, ingestToken and collectorUrl are required');
   }
@@ -252,4 +259,5 @@ module.exports = {
   hasCoreLocalLoop,
   minimalChildEnv,
   argsForBackend,
+  CLI_BACKENDS,
 };

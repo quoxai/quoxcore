@@ -40,6 +40,17 @@ function tableToLines($, table) {
 }
 
 const DEFAULT_REMOVE = 'script, style, nav, footer, header';
+const HIDDEN_STYLE_RE = /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden)\s*(?:!important\s*)?(?:;|$)/i;
+function cheerioText($, html) { try { return $.load(`<div>${html}</div>`)('div').text(); } catch (_) { return ''; } }
+
+/** Report for text cut as hidden HTML: always listed, counted as a flag only when the scanner trips. */
+function hiddenHtmlReport(hidden) {
+  const list = Array.isArray(hidden) ? hidden : [];
+  const flagged_passages = list.slice(0, 20).map((t) => ({ chunk: null, text: String(t).slice(0, 200), reason: 'hidden_html' }));
+  let flagged = 0;
+  for (const t of list) if (scanForInjection(t).level !== 'none') flagged++;
+  return { flagged, flagged_passages };
+}
 
 /**
  * Visible body text of an HTML document with tables serialised as
@@ -50,6 +61,21 @@ function htmlToText(htmlOrRoot, opts = {}) {
   const cheerio = require('cheerio');
   const $ = typeof htmlOrRoot === 'string' ? cheerio.load(htmlOrRoot) : htmlOrRoot;
   $(opts.remove || DEFAULT_REMOVE).remove();
+  // QC W17: hidden elements are not visible content; never ingest them as
+  // knowledge. Removed text is handed back via opts.hidden for the admin report.
+  const hiddenEls = $('[hidden], [aria-hidden="true"], template, noscript, [style]').filter((_, el) => {
+    if (el.name === 'template' || el.name === 'noscript') return true;
+    const a = el.attribs || {};
+    if (a.hidden !== undefined) return true;
+    if (String(a['aria-hidden'] || '').trim().toLowerCase() === 'true') return true;
+    return HIDDEN_STYLE_RE.test(a.style || '');
+  });
+  hiddenEls.each((_, el) => {
+    const t = (el.name === 'template' ? $(el).html() && cheerioText($, $(el).html()) : $(el).text()) || '';
+    const clean = String(t).replace(/\s+/g, ' ').trim();
+    if (clean && Array.isArray(opts.hidden) && !opts.hidden.includes(clean)) opts.hidden.push(clean);
+  });
+  hiddenEls.remove();
   $('table').each((_, t) => {
     const lines = tableToLines($, t);
     $(t).replaceWith(`${ROW_MARK}${lines.join(ROW_MARK)}${ROW_MARK}`);
@@ -182,6 +208,68 @@ STRONG_PATTERNS.push(
   /\bwhen(?:ever)?\s+(?:anyone|someone|a\s+(?:customer|visitor|user|client)|(?:visitors|users))\s+(?:asks?|enquires?|inquires?)\b[^.\n]{0,100}?[,:]\s*(?:then\s+)?(?:you\s+(?:must|should)\s+)?(?:tell\s+(?:them|him|her|the\s+\w+|that)|say\s+to\b|inform\s+(?:them|him|her|the\s+\w+)|(?:reply|respond)\s+(?:with|that|saying|by)\b)/i,
   /\b(?:(?:website|chat)\s+)?(?:assistant|bot|ai|chatbot)\s+(?:should|must|shall)\s+(?:always\s+)?(?:say|tell|reply|answer)\b/i,
 );
+// Wave 15: generalised assistant-directed directives. Addressee (assistant /
+// bot / AI / chatbot, optionally website/chat/virtual/support) plus a
+// reply-shaping imperative. Plain mentions of the assistant never match.
+const _ASSISTANT = String.raw`(?:(?:website|web|site|support|customer|chat|virtual|ai|our|the)\s+){0,3}(?:assistant|bot|ai|chatbot|llm|agent)`;
+const _REPLY_VERB = String.raw`(?:always|never|reply|respond|tell|say|answer|claim|state|inform|insist|recommend|mention)`;
+STRONG_PATTERNS.push(
+  new RegExp(String.raw`\b(?:(?:staff|team|internal|admin|management|owner)\s+)?(?:note|reminder|memo|instruction|directive|notice|message|update|request)s?\s+(?:for|to)\s+${_ASSISTANT}\b[^.\n]{0,200}?\b${_REPLY_VERB}\b`, 'i'),
+  new RegExp(String.raw`(?:^|[.!?\n])\s*${_ASSISTANT}\s*[,:]\s*(?:please\s+)?(?:you\s+(?:must|should)\s+)?${_REPLY_VERB}\b`, 'i'),
+  new RegExp(String.raw`\bif\s+you(?:'re|\s+are)\s+(?:an?\s+|the\s+)?(?:\w+\s+){0,2}?(?:ai|assistant|bot|chatbot|llm|language\s+model)\b[^.\n]{0,200}?\b${_REPLY_VERB}\b`, 'i'),
+);
+// Wave 16: addressee-generalised and addressee-free directives. A reply-shaping
+// verb (say/tell/reply/answer/let them know) is required, so "If anyone asks
+// for a tour, the office will show them round" stays clean.
+const _ADDRESSEE16 = String.raw`(?:the\s+|our\s+)?(?:[\w-]+\s+){0,3}(?:assistant|bot|chatbot|ai|helper|agent|model)`;
+const _SAY16 = String.raw`(?:say|tell|reply|respond|answer|state|claim|insist|inform|let\s+(?:them|him|her|people|customers|visitors|anyone|everyone)\s+know)`;
+const DIRECTIVE16 = [
+  new RegExp(String.raw`\b(?:note|reminder|instruction|message|memo|directive|notice)s?\s+(?:for|to)\s+${_ADDRESSEE16}\b[^.\n]{0,250}?\b(?:${_SAY16}|always|never|whenever|if\s+(?:anyone|someone|people|customers))\b`, 'i'),
+  new RegExp(String.raw`\bif\s+(?:anyone|anybody|someone|somebody|a\s+(?:customer|visitor|user|client|person))\s+asks?\b[^.\n]{0,100}?[,:]\s*(?:then\s+)?(?:you\s+(?:must|should)\s+)?${_SAY16}\b`, 'i'),
+  new RegExp(String.raw`\bwhenever\s+(?:people|customers|anyone|anybody|visitors|users|clients|someone)\s+asks?\b[^.\n]{0,100}?[,:]\s*(?:then\s+)?(?:you\s+(?:must|should)\s+)?(?:always\s+)?${_SAY16}\b`, 'i'),
+];
+STRONG_PATTERNS.push(...DIRECTIVE16);
+// QC-W18: colon-addressed form inside a table cell or row ("Notes: AI assistant:
+// tell customers ..."). Needs the colon AND a reply-shaping verb, so "assistant
+// manager on site" and "AI-powered lighting" stay clean.
+STRONG_PATTERNS.push(
+  /(?:^|[|:.!?\n,;])\s*(?:(?:the|our|website|chat|virtual|support)\s+){0,2}(?:ai\s+assistant|assistant|chatbot|bot|ai)\s*:\s*(?:please\s+)?(?:you\s+(?:must|should)\s+)?(?:always\s+|never\s+)?(?:tell|say|reply|respond|answer|let\s+\S+(?:\s+\S+)?\s+know)\b/i,
+);
+const _PAYLOAD_VERB = new RegExp(String.raw`\b${_SAY16}\b(?:\s+that)?`, 'i');
+const _PAYLOAD_STOP = new Set('a an the and or but is are was were be to of for in on at by with from as it its this that these those there their they you your we our us them i me my so if then than also just very can will would should could may might do does did not no has have had'.split(' '));
+const _contentWords = (x) => String(x || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 1 && !_PAYLOAD_STOP.has(w)).map((w) => w.replace(/(?:ing|ed|es|s)$/, ''));
+const _sentences = (t) => String(t || '').match(/[^.!?\n]+(?:[.!?]+|$)/g) || [];
+
+/** Directive sentences in a text: [{ sentence, payload, words }] (payload = what the directive says to utter). */
+function findDirectives(text) {
+  const out = [];
+  for (const sn of _sentences(text)) {
+    const all = [...STRONG_PATTERNS.filter((p) => !/ignore|disregard|reveal|repeat|card|password/.test(p.source.slice(0, 40))), ...DIRECTIVE16];
+    if (!all.some((p) => p.test(sn))) continue;
+    const m = _PAYLOAD_VERB.exec(sn.slice(Math.max(0, sn.search(/[:,]/))));
+    const base = sn.search(/[:,]/);
+    const payload = m ? sn.slice(Math.max(0, base) + m.index + m[0].length).trim() : sn.slice(Math.max(0, base) + 1).trim();
+    const words = [...new Set(_contentWords(payload))];
+    if (words.length >= 2) out.push({ sentence: sn.trim(), payload, words });
+  }
+  return out;
+}
+
+/**
+ * QC-W16: drop reply sentences that repeat a directive's payload (>= 0.5 of its
+ * content words), whether or not the chunk carrying it was quarantined.
+ */
+function dropDirectiveOverlap(reply, chunkTexts, threshold = 0.5) {
+  const directives = (Array.isArray(chunkTexts) ? chunkTexts : []).flatMap((t) => findDirectives(t));
+  if (!directives.length) return { text: String(reply || ''), removed: [] };
+  const removed = [];
+  const lines = String(reply || '').split('\n').map((line) => (line.match(/[^.!?\n]+(?:[.!?]+\s*|$)/g) || [line]).filter((sn) => {
+    const sw = new Set(_contentWords(sn));
+    if (directives.some((d) => d.words.filter((w) => sw.has(w)).length / d.words.length >= threshold)) { removed.push(sn.trim()); return false; }
+    return true;
+  }).join('').trim());
+  return { text: lines.join('\n'), removed };
+}
 const WEAK_PATTERNS = [
   /\bDAN\b.*\b(?:do|anything|now)\b/,
   /you\s+are\s+now\s+/i,
@@ -196,6 +284,56 @@ function scanForInjection(text) {
   for (const p of STRONG_PATTERNS) if (p.test(s)) { flags.push(p.source.slice(0, 30)); level = 'high'; }
   for (const p of WEAK_PATTERNS) if (p.test(s)) { flags.push(p.source.slice(0, 30)); if (level === 'none') level = 'low'; }
   return { level, flags };
+}
+
+/**
+ * QC-W18: scan a CSV per cell and per row text. Returns flagged_passages with a
+ * row reference (1-based data row, header excluded) and column name.
+ */
+function scanCsvCells(csv) {
+  const rows = parseCsv(csv);
+  const out = [];
+  if (rows.length < 2) return out;
+  const headers = rows[0].map((h) => h.trim());
+  rows.slice(1).forEach((r, ri) => {
+    const seen = new Set();
+    r.forEach((v, c) => {
+      const cell = String(v || '').trim();
+      if (!cell) return;
+      const h = headers[c] || '';
+      if (scanForInjection(cell).level === 'high' || scanForInjection(h ? `${h}: ${cell}` : cell).level === 'high') {
+        seen.add(c);
+        out.push({ chunk: null, row: ri + 1, column: h || null, text: cell.slice(0, 200), reason: 'csv_cell' });
+      }
+    });
+    if (!seen.size) {
+      const rowText = r.map((v) => String(v || '').trim()).filter(Boolean).join(' | ');
+      if (rowText && scanForInjection(rowText).level === 'high') out.push({ chunk: null, row: ri + 1, column: null, text: rowText.slice(0, 200), reason: 'csv_row' });
+    }
+  });
+  return out;
+}
+
+/**
+ * QC-W18b: drop only the offending CELLS of a CSV-shaped line ("a | b: c" pipes,
+ * or comma separated). Returns { text, dropped } or null when the line is not
+ * row-shaped or no clean cell survives.
+ */
+function dropFlaggedCells(line) {
+  let cells;
+  let join;
+  if (/ \| /.test(line)) { cells = line.split(' | '); join = (a) => a.join(' | '); }
+  else if ((line.match(/,/g) || []).length >= 2) {
+    const parsed = parseCsv(line);
+    if (parsed.length !== 1) return null;
+    cells = parsed[0];
+    join = (a) => a.map((v) => (/[",]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)).join(',');
+  } else return null;
+  const dropped = [];
+  const kept = cells.filter((cell) => { if (scanForInjection(cell).level === 'high') { dropped.push(cell.trim()); return false; } return true; });
+  if (!dropped.length || !kept.some((k) => k.trim())) return null;
+  const text = join(kept);
+  return scanForInjection(text).level === 'high' ? null : { text, dropped };
 }
 
 /**
@@ -245,6 +383,8 @@ function scanChunks(chunks, opts = {}) {
     const dropped = [];
     const keptLines = orig.split('\n').map((line) => {
       if (scanForInjection(line).level !== 'high') return line;
+      const cellCut = dropFlaggedCells(line);
+      if (cellCut) { dropped.push(...cellCut.dropped); return cellCut.text; }
       const parts = line.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)\s*/g) || [line];
       const kept = parts.filter((sn) => { if (scanForInjection(sn).level === 'high') { dropped.push(sn.trim()); return false; } return true; });
       return kept.join('');
@@ -276,6 +416,9 @@ function scanChunks(chunks, opts = {}) {
   let flagged = 0;
   let high = 0;
   for (const c of out) if (c && c.injection) { flagged++; if (c.injection === 'high') high++; }
+  // Wave 14: passages dropped by sanitising are flags too (a clean-looking
+  // upload report with injection_flags:0 hid dropped content).
+  for (const v of sanitized.values()) flagged += v.dropped.length;
   const allQuarantined = n > 0 && quarantine.size === n;
   const sanitizedChunks = [...sanitized.keys()].sort((x, y) => x - y).map(idOf);
   const flaggedPassages = passages.length ? passages : (wholeFile && opts.fullText ? [{ chunk: null, text: String(opts.fullText).slice(0, 200) }] : []);
@@ -525,7 +668,7 @@ function mostlyNonPrintable(text) {
  * Text from a non-PDF upload buffer. DOCX/XLSX are parsed; any other zip or
  * binary-looking content throws UnsupportedBinaryError (route answers 422).
  */
-async function extractUploadText(buffer, fileName, mimeType) {
+async function extractUploadText(buffer, fileName, mimeType, opts = {}) {
   const name = String(fileName || '');
   const mime = String(mimeType || '');
   const isDocx = /\.docx$/i.test(name) || /wordprocessingml/.test(mime);
@@ -539,7 +682,7 @@ async function extractUploadText(buffer, fileName, mimeType) {
   if (isZip(buffer)) throw new UnsupportedBinaryError('unsupported archive format; upload DOCX, XLSX, PDF, HTML, CSV or plain text');
   const text = buffer.toString('utf-8');
   if (mostlyNonPrintable(text)) throw new UnsupportedBinaryError('binary file content is not supported; upload DOCX, XLSX, PDF, HTML, CSV or plain text');
-  if (mime === 'text/html' || /\.html?$/i.test(name)) return htmlToText(text);
+  if (mime === 'text/html' || /\.html?$/i.test(name)) return htmlToText(text, { hidden: opts.hidden });
   if (mime === 'text/csv' || /\.csv$/i.test(name)) return csvToText(text);
   return text;
 }
@@ -574,6 +717,6 @@ function chunkLines(text, { prefix = '', size = 1000 } = {}) {
 }
 
 module.exports = {
-  htmlToText, findFigureConflicts, csvToText, parseCsv, scanForInjection, scanChunks, chunkText, parseRobots, inCrawlScope,
+  htmlToText, hiddenHtmlReport, scanCsvCells, findFigureConflicts, csvToText, parseCsv, scanForInjection, findDirectives, dropDirectiveOverlap, scanChunks, chunkText, parseRobots, inCrawlScope,
   docxToText, xlsxToText, extractUploadText, UnsupportedBinaryError, isZip, mostlyNonPrintable, csvHeaderLine, chunkLines,
 };

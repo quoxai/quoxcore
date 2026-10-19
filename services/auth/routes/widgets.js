@@ -31,6 +31,7 @@ import { evaluateComplianceReadiness } from '../lib/widgetComplianceReadiness.js
 // save path. lib/widgetEntitlementGate.js already exported it correctly.
 import { checkPatchEntitlements } from '../lib/widgetEntitlementGate.js';
 import { detectSupersededSignal, isStrongSupersededSignal } from '../lib/knowledgeSupersededSignal.js';
+import { extractPriceInfo, sourcesChangedByNotice } from '../lib/priceChangeNotice.js';
 import { hasRoleLevel } from '../utils/policy.js';
 import { checkPrivateEndpointChange } from '../lib/widgetPrivateEndpointGate.js';
 import { seedDefaultWidgetTools, DEFAULT_TOOL_POLICIES } from '../lib/widgetDefaultTools.js';
@@ -132,7 +133,7 @@ async function purgeWidgetKnowledge(widgetId) {
 // key AFTER requireOrgMembership + widget-ownership have already verified
 // the caller. Returns {status, data} so the route handler can relay the
 // collector's response (including its error shape) unchanged.
-async function forwardToCollectorJson(path, body) {
+async function forwardToCollectorJson(path, body, opts = {}) {
   const serviceKey = process.env.INTERNAL_SERVICE_KEY;
   if (!serviceKey) return { status: 503, data: { error: 'service_key_not_configured' } };
   const collectorUrl = process.env.COLLECTOR_URL || process.env.QUOX_COLLECTOR_URL || 'http://collector:9848';
@@ -141,6 +142,7 @@ async function forwardToCollectorJson(path, body) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-service-key': serviceKey },
       body: JSON.stringify(body),
+      ...(opts.timeoutMs ? { signal: AbortSignal.timeout(opts.timeoutMs) } : {}),
     });
     const data = await resp.json().catch(() => ({}));
     return { status: resp.status, data };
@@ -215,6 +217,21 @@ function parseGuardrails(raw) {
 
 export const widgetsInternalRouter = Router();
 widgetsInternalRouter.use(requireInternalAuth);
+
+// QC-W18b: turns in the last hour whose grounding recorded retrieval_degraded
+// (dense/embedding retrieval failed, keyword search only). Computed from the
+// persisted per-turn grounding, so it survives restarts and works across replicas.
+const _DEGRADED_WHERE = `dm.widget_id = w.id AND dm.role = 'assistant'
+  AND dm.created_at > strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 hour')
+  AND json_extract(dm.context_json, '$.grounding.retrieval_degraded') = 'lexical_only'`;
+const DEGRADED_COUNT_SQL = `(SELECT COUNT(*) FROM widget_messages dm WHERE ${_DEGRADED_WHERE})`;
+const DEGRADED_LAST_SQL = `(SELECT json_object('provider', json_extract(dm.context_json, '$.grounding.retrieval_degraded_provider'), 'status', json_extract(dm.context_json, '$.grounding.retrieval_degraded_status')) FROM widget_messages dm WHERE ${_DEGRADED_WHERE} ORDER BY dm.created_at DESC LIMIT 1)`;
+function withDegraded(row) {
+  const { retrieval_degraded_last_json: lastJson, ...rest } = row;
+  let last = null;
+  try { last = lastJson ? JSON.parse(lastJson) : null; } catch { last = null; }
+  return { ...rest, retrieval_degraded_count: Number(row.retrieval_degraded_count) || 0, retrieval_degraded_last: last };
+}
 
 /**
  * POST /internal/widgets/:widgetId/persist-message
@@ -961,17 +978,80 @@ widgetsInternalRouter.post('/widgets/:widgetId/visitors/:visitorId/action-usage/
 widgetsInternalRouter.get('/orgs/:orgId/widgets', (req, res) => {
   try {
     const { orgId } = req.params;
+    // QC-PROOF: conversation/message totals (test/sim visitors excluded, same as
+    // analytics) so "how many conversations has widget X had" is one call.
+    const notTest = NOT_TEST_CONV_SQL.replace(/visitor_id/g, 'c.visitor_id');
     const rows = prepare(`
-      SELECT id, public_key, name, status, first_seen_at, created_at, updated_at
-      FROM website_widgets
-      WHERE org_id = ?
-      ORDER BY created_at DESC
+      SELECT w.id, w.public_key, w.name, w.status, w.deployment_type, w.operator_online,
+             w.first_seen_at, w.created_at, w.updated_at,
+             (SELECT COUNT(*) FROM widget_conversations c
+                WHERE c.widget_id = w.id AND ${notTest}) AS total_conversations,
+             (SELECT COUNT(*) FROM widget_messages m JOIN widget_conversations c ON c.id = m.conversation_id
+                WHERE m.widget_id = w.id AND ${notTest}) AS total_messages,
+             (SELECT MAX(c.last_message_at) FROM widget_conversations c
+                WHERE c.widget_id = w.id AND ${notTest}) AS last_conversation_at
+      FROM website_widgets w
+      WHERE w.org_id = ?
+      ORDER BY w.created_at DESC
       LIMIT 200
     `).all(orgId);
     res.json({ org_id: orgId, widgets: rows, count: rows.length });
   } catch (err) {
     console.error('internal list widgets:', err);
     res.status(500).json({ error: 'Failed to list widgets' });
+  }
+});
+
+/**
+ * QC-PROOF: GET /internal/orgs/:orgId/widgets/:widgetId/conversations
+ * Org-scoped read for the quoxchat_list_conversations agent tool. The widget
+ * must belong to :orgId (404 otherwise). Query: status?, limit? (1-50, def 20).
+ */
+widgetsInternalRouter.get('/orgs/:orgId/widgets/:widgetId/conversations', (req, res) => {
+  try {
+    const { orgId, widgetId } = req.params;
+    const widget = prepare('SELECT id FROM website_widgets WHERE (id = ? OR public_key = ?) AND org_id = ?').get(widgetId, widgetId, orgId);
+    if (!widget) return res.status(404).json({ error: 'Widget not found' });
+    const status = ['active', 'handed_off', 'closed'].includes(req.query.status) ? req.query.status : null;
+    const parsed = parseInt(req.query.limit, 10);
+    const limit = Math.min(50, Math.max(1, Number.isFinite(parsed) ? parsed : 20));
+    const where = 'widget_id = ? AND ' + NOT_TEST_CONV_SQL + (status ? ' AND status = ?' : '');
+    const params = status ? [widget.id, status] : [widget.id];
+    const total = prepare(`SELECT COUNT(*) AS n FROM widget_conversations WHERE ${where}`).get(...params).n;
+    const rows = prepare(`
+      SELECT id, status, started_at, last_message_at, message_count, visitor_id, visitor_name
+      FROM widget_conversations WHERE ${where}
+      ORDER BY last_message_at DESC, rowid DESC LIMIT ?
+    `).all(...params, limit);
+    const conversations = rows.map((c) => ({ ...c, handed_off: c.status === 'handed_off' }));
+    res.json({ widget_id: widget.id, total, conversations });
+  } catch (err) {
+    console.error('internal list conversations:', err);
+    res.status(500).json({ error: 'Failed to list conversations' });
+  }
+});
+
+/**
+ * QC-PROOF: GET /internal/orgs/:orgId/widgets/:widgetId/conversations/:conversationId/messages
+ * Ordered transcript (max 200 messages) for the quoxchat_get_transcript tool.
+ * Org + widget scoped: the conversation must belong to that widget in that org.
+ */
+widgetsInternalRouter.get('/orgs/:orgId/widgets/:widgetId/conversations/:conversationId/messages', (req, res) => {
+  try {
+    const { orgId, widgetId, conversationId } = req.params;
+    const widget = prepare('SELECT id FROM website_widgets WHERE (id = ? OR public_key = ?) AND org_id = ?').get(widgetId, widgetId, orgId);
+    if (!widget) return res.status(404).json({ error: 'Widget not found' });
+    const conv = prepare('SELECT id, status, started_at, last_message_at, message_count FROM widget_conversations WHERE id = ? AND widget_id = ?').get(conversationId, widget.id);
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+    const messages = prepare(`
+      SELECT role, content, created_at FROM widget_messages
+      WHERE conversation_id = ? AND widget_id = ?
+      ORDER BY created_at ASC, rowid ASC LIMIT 200
+    `).all(conv.id, widget.id);
+    res.json({ conversation: conv, messages, truncated: messages.length === 200 && (conv.message_count || 0) > 200 });
+  } catch (err) {
+    console.error('internal conversation messages:', err);
+    res.status(500).json({ error: 'Failed to load transcript' });
   }
 });
 
@@ -1444,7 +1524,9 @@ router.get('/orgs/:orgId/widgets', requireOrgMembership, async (req, res) => {
         (SELECT COUNT(*) FROM widget_conversations wc
           WHERE wc.widget_id = w.id AND NOT ${TEST_VISITOR_SQL('wc.')}) AS conversation_count,
         (SELECT COUNT(*) FROM widget_leads wl WHERE wl.widget_id = w.id AND wl.notification_failed = 1)
-          + (SELECT COUNT(*) FROM widget_conversations wf WHERE wf.widget_id = w.id AND wf.notification_failed = 1) AS notification_failed_count
+          + (SELECT COUNT(*) FROM widget_conversations wf WHERE wf.widget_id = w.id AND wf.notification_failed = 1) AS notification_failed_count,
+        ${DEGRADED_COUNT_SQL} AS retrieval_degraded_count,
+        ${DEGRADED_LAST_SQL} AS retrieval_degraded_last_json
       FROM website_widgets w
       LEFT JOIN assistants a ON w.assistant_id = a.id
       ${where}
@@ -1453,7 +1535,7 @@ router.get('/orgs/:orgId/widgets', requireOrgMembership, async (req, res) => {
     `).all(...params);
 
     res.json(formatPaginatedResponse(widgets.map(w => redactWidgetSecrets({
-      ...w,
+      ...withDegraded(w),
       allowed_domains: JSON.parse(w.allowed_domains_json || '[]'),
       embed_config: JSON.parse(w.embed_config_json || '{}'),
       persona: JSON.parse(w.persona_json || '{}'),
@@ -1476,7 +1558,9 @@ router.get('/orgs/:orgId/widgets/:widgetId', requireOrgMembership, async (req, r
     const widget = prepare(`
       SELECT w.*, a.name as assistant_name, a.persona_json,
         (SELECT COUNT(*) FROM widget_leads wl WHERE wl.widget_id = w.id AND wl.notification_failed = 1)
-          + (SELECT COUNT(*) FROM widget_conversations wf WHERE wf.widget_id = w.id AND wf.notification_failed = 1) AS notification_failed_count
+          + (SELECT COUNT(*) FROM widget_conversations wf WHERE wf.widget_id = w.id AND wf.notification_failed = 1) AS notification_failed_count,
+        ${DEGRADED_COUNT_SQL} AS retrieval_degraded_count,
+        ${DEGRADED_LAST_SQL} AS retrieval_degraded_last_json
       FROM website_widgets w
       LEFT JOIN assistants a ON w.assistant_id = a.id
       WHERE w.id = ? AND w.org_id = ?
@@ -1486,7 +1570,7 @@ router.get('/orgs/:orgId/widgets/:widgetId', requireOrgMembership, async (req, r
 
     res.json({
       widget: redactWidgetSecrets({
-        ...widget,
+        ...withDegraded(widget),
         allowed_domains: JSON.parse(widget.allowed_domains_json || '[]'),
         embed_config: JSON.parse(widget.embed_config_json || '{}'),
         persona: JSON.parse(widget.persona_json || '{}'),
@@ -1626,12 +1710,17 @@ router.post('/orgs/:orgId/widgets', requireOrgMembership, requireQuoxchatEntitle
 
     const widget = prepare('SELECT * FROM website_widgets WHERE id = ?').get(widgetId);
 
+    // W16: localhost is added silently for preview; say so in the response.
+    const notes = createDomains.includes('localhost')
+      ? ['localhost is allowed for testing; remove it before launch']
+      : [];
     res.status(201).json({
       widget: redactWidgetSecrets({
         ...widget,
         allowed_domains: JSON.parse(widget.allowed_domains_json || '[]'),
         embed_config: JSON.parse(widget.embed_config_json || '{}'),
-      })
+      }),
+      notes,
     });
   } catch (err) {
     console.error('Error creating widget:', err);
@@ -2047,12 +2136,83 @@ router.delete('/orgs/:orgId/widgets/:widgetId/knowledge/sources/:sourceId', requ
 
     // The collector normally removed the row already; this is the idempotent backstop.
     prepare('DELETE FROM widget_knowledge_sources WHERE id = ? AND widget_id = ?').run(sourceId, widgetId);
+    await reevaluateSuperseded(widgetId);
+    reevaluatePriceChange(widgetId);
     res.json({ success: true });
   } catch (err) {
     console.error('Error deleting knowledge source:', err);
     res.status(500).json({ error: 'Failed to delete knowledge source' });
   }
 });
+
+/**
+ * QC-BRUTALOOP-W18: a price-change notice makes sibling price lists stale
+ * without saying so. After any upload or delete, flag (changed_by_notice,
+ * suggest_superseded with reason price_change_notice) every active priced source
+ * whose category a notice changes, and clear flags whose notice is gone. Never
+ * touches a source the admin decided on manually. Returns the flagged names.
+ */
+function reevaluatePriceChange(widgetId) {
+  const flagged = [];
+  try {
+    const rows = prepare(`SELECT id, name, config_json FROM widget_knowledge_sources WHERE widget_id = ? AND source_type = 'file'`).all(widgetId);
+    const hit = new Map(sourcesChangedByNotice(rows).map((h) => [String(h.id), h]));
+    for (const r of rows) {
+      const cfg = safeJsonParse(r.config_json, {}) || {};
+      const h = hit.get(String(r.id));
+      if (h && cfg.manual_superseded === undefined && cfg.superseded !== true) {
+        const reasons = Array.isArray(cfg.superseded_reasons) ? cfg.superseded_reasons : [];
+        if (!cfg.changed_by_notice || cfg.suggest_superseded !== true || !reasons.includes('price_change_notice')) {
+          prepare('UPDATE widget_knowledge_sources SET config_json = ? WHERE id = ? AND widget_id = ?').run(JSON.stringify({ ...cfg, suggest_superseded: true, changed_by_notice: { notice: h.notice }, superseded_reasons: [...new Set([...reasons, 'price_change_notice'])] }), r.id, widgetId);
+        }
+        flagged.push(r.name);
+      } else if (!h && cfg.changed_by_notice) {
+        const reasons = (Array.isArray(cfg.superseded_reasons) ? cfg.superseded_reasons : []).filter((x) => x !== 'price_change_notice');
+        const next = { ...cfg, superseded_reasons: reasons };
+        delete next.changed_by_notice;
+        if (reasons.length === 0 && cfg.superseded !== true) next.suggest_superseded = false;
+        prepare('UPDATE widget_knowledge_sources SET config_json = ? WHERE id = ? AND widget_id = ?').run(JSON.stringify(next), r.id, widgetId);
+      }
+    }
+  } catch (e) { console.warn('[widgets] price-change re-evaluation failed (non-fatal):', e?.message); }
+  return flagged;
+}
+
+/**
+ * QC-BRUTALOOP-W14: superseded detection must not depend on upload order. After
+ * any upload or delete, re-run the signals for every other file source of the
+ * widget. A source is promoted to auto reference-only only when ALL strong
+ * signals now fire. Never touches a source the admin decided on manually
+ * (manual_superseded) or one that is already reference-only: we only promote.
+ * Returns the ids newly auto-superseded.
+ */
+async function reevaluateSuperseded(widgetId, exceptId = null) {
+  const promoted = [];
+  try {
+    const rows = prepare(`SELECT id, name, config_json FROM widget_knowledge_sources WHERE widget_id = ? AND source_type = 'file'`).all(widgetId);
+    for (const r of rows) {
+      if (exceptId && r.id === exceptId) continue;
+      const cfg = safeJsonParse(r.config_json, {}) || {};
+      if (cfg.superseded || cfg.manual_superseded !== undefined) continue;
+      const priorFirstLine = Array.isArray(cfg.superseded_reasons) && cfg.superseded_reasons.includes('first_line');
+      const firstLine = typeof cfg.first_line === 'string' ? cfg.first_line : '';
+      const others = rows.filter(o => o.id !== r.id).map(o => o.name);
+      const othersFirst = rows.filter(o => o.id !== r.id).map(o => (safeJsonParse(o.config_json, {}) || {}).first_line).filter(l => typeof l === 'string');
+      const lastLines = Array.isArray(cfg.last_lines) ? cfg.last_lines : [];
+      const sig = detectSupersededSignal({ filename: r.name, firstLine, lastLines, existingNames: others, existingFirstLines: othersFirst });
+      if (priorFirstLine && !sig.reasons.includes('first_line')) sig.reasons.push('first_line');
+      if (!isStrongSupersededSignal(sig)) continue;
+      const pr = await forwardToCollectorPatch(`/quoxchat/knowledge/sources/${encodeURIComponent(r.id)}`, { widget_id: widgetId, superseded: true });
+      if (pr.status >= 200 && pr.status < 300) {
+        prepare('UPDATE widget_knowledge_sources SET config_json = ? WHERE id = ? AND widget_id = ?').run(JSON.stringify({ ...cfg, superseded: true, suggest_superseded: false, auto_superseded: true, superseded_reasons: sig.reasons }), r.id, widgetId);
+        promoted.push(r.id);
+      } else {
+        console.warn(`[widgets] re-evaluate auto reference-only failed widget=${widgetId} source=${r.id} status=${pr.status}`);
+      }
+    }
+  } catch (e) { console.warn('[widgets] superseded re-evaluation failed (non-fatal):', e?.message); }
+  return promoted;
+}
 
 /**
  * PATCH /orgs/:orgId/widgets/:widgetId/knowledge/sources/:sourceId
@@ -2075,12 +2235,11 @@ router.patch('/orgs/:orgId/widgets/:widgetId/knowledge/sources/:sourceId', requi
       return res.status(502).json({ error: 'knowledge_supersede_failed', message: 'Could not update the search index. Nothing changed; try again.', status: r.status });
     }
     // w9: the admin has decided; the stored suggestion no longer applies.
+    // W14: record the manual decision so re-evaluation never overrides it.
     try {
       const cur = prepare('SELECT config_json FROM widget_knowledge_sources WHERE id = ? AND widget_id = ?').get(sourceId, widgetId);
       const cfg = safeJsonParse(cur?.config_json, {}) || {};
-      if (cfg.suggest_superseded || cfg.auto_superseded) {
-        prepare('UPDATE widget_knowledge_sources SET config_json = ? WHERE id = ? AND widget_id = ?').run(JSON.stringify({ ...cfg, suggest_superseded: false, auto_superseded: false }), sourceId, widgetId);
-      }
+      prepare('UPDATE widget_knowledge_sources SET config_json = ? WHERE id = ? AND widget_id = ?').run(JSON.stringify({ ...cfg, superseded, suggest_superseded: false, auto_superseded: false, manual_superseded: superseded }), sourceId, widgetId);
     } catch (e) { console.warn('[widgets] clear superseded suggestion failed (non-fatal):', e?.message); }
     res.json({ success: true, source_id: sourceId, superseded });
   } catch (err) {
@@ -2178,7 +2337,10 @@ router.post('/orgs/:orgId/widgets/:widgetId/knowledge/qa', requireOrgMembership,
       // session, NEVER the client body — the audit flagged attribution
       // spoofing as an explicit risk (a caller claiming to be someone
       // else's admin in the correction provenance trail).
-      corrected_by: req.user?.email || null,
+      // QC-W14: only attribute when this is a real correction (provenance
+      // supplied). A plain Q&A pair has none, else the collector would file
+      // every manual pair under the 'correction' category.
+      corrected_by: (source_conversation_id || source_message_id) ? (req.user?.email || null) : null,
     });
     res.status(status).json(data);
   } catch (err) {
@@ -2215,22 +2377,92 @@ router.post('/orgs/:orgId/widgets/:widgetId/knowledge/search', requireOrgMembers
   }
 });
 
+// QC-BRUTALOOP-W17b: the crawl is a background job. It used to run synchronously
+// behind nginx, so a slow site timed out the request and the crawled content was
+// lost silently. POST returns 202 + job_id at once; GET .../crawl/jobs/:jobId
+// reports it (mirrors the simulate job). A failure writes/updates the source row
+// with status 'error' + error_message so the Knowledge tab shows it after a
+// reload. `?wait=1` keeps the old synchronous response. Jobs live in memory; the
+// durable record is the widget_knowledge_sources row.
+const CRAWL_JOB_TIMEOUT_MS = 15 * 60 * 1000;
+const CRAWL_JOB_TTL_MS = 60 * 60 * 1000;
+const crawlJobs = new Map();
+function pruneCrawlJobs() {
+  const cutoff = Date.now() - CRAWL_JOB_TTL_MS;
+  for (const [id, j] of crawlJobs) if (j.finished_ms && j.finished_ms < cutoff) crawlJobs.delete(id);
+}
+function publicCrawlJob(j) {
+  const { org_id, widget_id, finished_ms, ...rest } = j; // eslint-disable-line no-unused-vars
+  return rest;
+}
+function recordCrawlError(widgetId, orgId, url, depth, jobId, message) {
+  const msg = String(message || 'Crawl failed').slice(0, 500);
+  try {
+    const existing = prepare(`SELECT id FROM widget_knowledge_sources WHERE widget_id = ? AND source_type = 'url' AND name = ?`).get(widgetId, String(url).slice(0, 500));
+    if (existing) {
+      prepare(`UPDATE widget_knowledge_sources SET status = 'error', error_message = ?, last_sync_at = datetime('now') WHERE id = ?`).run(msg, existing.id);
+      return existing.id;
+    }
+    const id = ulid();
+    prepare(`
+      INSERT INTO widget_knowledge_sources (id, widget_id, org_id, source_type, name, config_json, status, chunk_count, error_message, last_sync_at)
+      VALUES (?, ?, ?, 'url', ?, ?, 'error', 0, ?, datetime('now'))
+    `).run(id, widgetId, orgId, String(url).slice(0, 500), JSON.stringify({ url, depth, crawl_job_id: jobId }), msg);
+    return id;
+  } catch (err) {
+    console.error('Error recording crawl failure:', err);
+    return null;
+  }
+}
+
 router.post('/orgs/:orgId/widgets/:widgetId/knowledge/crawl', requireOrgMembership, requireQuoxchatEntitlement, async (req, res) => {
   try {
     const { orgId, widgetId } = req.params;
     if (!loadOwnedWidget(widgetId, orgId)) return res.status(404).json({ error: 'Widget not found' });
 
     const { url, depth } = req.body || {};
-    const { status, data } = await forwardToCollectorJson('/quoxchat/knowledge/crawl', {
-      widget_id: widgetId,
-      url,
-      depth,
-    });
-    res.status(status).json(data);
+    const payload = { widget_id: widgetId, url, depth };
+    if (req.query.wait === '1' || req.query.wait === 'true') {
+      const { status, data } = await forwardToCollectorJson('/quoxchat/knowledge/crawl', payload);
+      return res.status(status).json(data);
+    }
+    if (!url || typeof url !== 'string') return res.status(400).json({ error: 'URL is required' });
+
+    pruneCrawlJobs();
+    for (const j of crawlJobs.values()) {
+      if (j.widget_id === widgetId && j.url === url && j.status === 'running') {
+        return res.status(409).json({ error: 'crawl_already_running', job_id: j.job_id, status: 'running' });
+      }
+    }
+    const job = { job_id: ulid(), org_id: orgId, widget_id: widgetId, url, depth: depth ?? null, status: 'running', started_at: new Date().toISOString() };
+    crawlJobs.set(job.job_id, job);
+    forwardToCollectorJson('/quoxchat/knowledge/crawl', payload, { timeoutMs: CRAWL_JOB_TIMEOUT_MS })
+      .then(({ status, data }) => {
+        if (status >= 200 && status < 300 && data?.success !== false) {
+          job.status = 'done'; job.http_status = status; job.result = data;
+        } else {
+          job.status = 'error'; job.http_status = status;
+          job.error = data?.message || data?.error || `collector_${status}`;
+          recordCrawlError(widgetId, orgId, url, depth ?? null, job.job_id, job.error);
+        }
+      })
+      .catch((err) => {
+        job.status = 'error'; job.error = err?.message || 'collector_unreachable';
+        recordCrawlError(widgetId, orgId, url, depth ?? null, job.job_id, job.error);
+      })
+      .finally(() => { job.finished_ms = Date.now(); job.finished_at = new Date().toISOString(); });
+    res.status(202).json(publicCrawlJob(job));
   } catch (err) {
     console.error('Error proxying knowledge/crawl:', err);
     res.status(502).json({ error: 'Failed to reach knowledge service' });
   }
+});
+
+router.get('/orgs/:orgId/widgets/:widgetId/knowledge/crawl/jobs/:jobId', requireOrgMembership, requireQuoxchatEntitlement, (req, res) => {
+  const { orgId, widgetId, jobId } = req.params;
+  const job = crawlJobs.get(jobId);
+  if (!job || job.org_id !== orgId || job.widget_id !== widgetId) return res.status(404).json({ error: 'Job not found' });
+  res.json(publicCrawlJob(job));
 });
 
 router.post('/orgs/:orgId/widgets/:widgetId/teach/propose', requireOrgMembership, requireQuoxchatEntitlement, async (req, res) => {
@@ -2295,10 +2527,26 @@ router.post('/orgs/:orgId/widgets/:widgetId/knowledge/upload', requireOrgMembers
       try {
         const textish = /^text\//i.test(req.file.mimetype || '') || /\.(txt|md|csv|json)$/i.test(req.file.originalname || '');
         const firstLine = textish ? req.file.buffer.toString('utf8', 0, 600).split(/\r?\n/).find(l => l.trim()) || '' : '';
-        const existingNames = prepare(`SELECT name FROM widget_knowledge_sources WHERE widget_id = ? AND source_type = 'file'`).all(widgetId).map(r => r.name);
-        const sig = detectSupersededSignal({ filename: req.file.originalname, firstLine, existingNames });
+        const lastLines = textish ? req.file.buffer.toString('utf8').split(/\r?\n/).filter(l => l.trim()).slice(-3).map(l => l.slice(0, 300)) : [];
+        const existingRows = prepare(`SELECT id, name, config_json FROM widget_knowledge_sources WHERE widget_id = ? AND source_type = 'file'`).all(widgetId);
+        const existingNames = existingRows.map(r => r.name);
+        const existingFirstLines = existingRows.filter(r => String(r.id) !== String(data.source_id)).map(r => (safeJsonParse(r.config_json, {}) || {}).first_line).filter(l => typeof l === 'string');
+        const sig = detectSupersededSignal({ filename: req.file.originalname, firstLine, existingNames, existingFirstLines, lastLines });
         data.suggest_superseded = sig.suggest_superseded;
         if (sig.suggest_superseded) data.superseded_reasons = sig.reasons;
+        // W14: keep the first line so later uploads can re-run the signals.
+        if (firstLine && data.source_id) {
+          const fr = prepare('SELECT config_json FROM widget_knowledge_sources WHERE id = ? AND widget_id = ?').get(String(data.source_id), widgetId);
+          if (fr) prepare('UPDATE widget_knowledge_sources SET config_json = ? WHERE id = ? AND widget_id = ?').run(JSON.stringify({ ...(safeJsonParse(fr.config_json, {}) || {}), first_line: String(firstLine).slice(0, 300), last_lines: lastLines }), String(data.source_id), widgetId);
+        }
+        // W18: keep the price digest / price-change notice so the check is order independent.
+        if (textish && data.source_id) {
+          const pi = extractPriceInfo({ filename: req.file.originalname, text: req.file.buffer.toString('utf8') });
+          if (pi.price_notice || pi.price_digest) {
+            const pr0 = prepare('SELECT config_json FROM widget_knowledge_sources WHERE id = ? AND widget_id = ?').get(String(data.source_id), widgetId);
+            if (pr0) prepare('UPDATE widget_knowledge_sources SET config_json = ? WHERE id = ? AND widget_id = ?').run(JSON.stringify({ ...(safeJsonParse(pr0.config_json, {}) || {}), ...(pi.price_notice ? { price_notice: pi.price_notice } : {}), ...(pi.price_digest ? { price_digest: pi.price_digest } : {}) }), String(data.source_id), widgetId);
+          }
+        }
         // w9: persist the suggestion on the source row so it survives a reload
         // until the admin decides (the PATCH below clears it).
         if (sig.suggest_superseded && data.source_id) {
@@ -2323,6 +2571,17 @@ router.post('/orgs/:orgId/widgets/:widgetId/knowledge/upload', requireOrgMembers
           }
         }
       } catch (e) { console.warn('[widgets] superseded signal failed (non-fatal):', e?.message); }
+      // W14: a newer file can make OLDER sources strong-signal; order must not matter.
+      const priceFlagged = reevaluatePriceChange(widgetId);
+      if (priceFlagged.length) {
+        data.price_change_flagged = priceFlagged;
+        if (data.source_id && priceFlagged.includes(req.file.originalname)) {
+          data.suggest_superseded = true;
+          data.superseded_reasons = [...new Set([...(data.superseded_reasons || []), 'price_change_notice'])];
+        }
+      }
+      const promoted = await reevaluateSuperseded(widgetId, data.source_id ? String(data.source_id) : null);
+      if (promoted.length) data.auto_superseded_others = promoted;
     }
     if (replacedIds.length > 0 && data && typeof data === 'object') {
       data.replaced = replacedIds;
@@ -3187,6 +3446,7 @@ function analyticsRange(query, col) {
  * Classify one assistant turn from the grounding verdict the collector
  * persists in context_json.grounding. Returns null when the turn cannot be
  * assessed (pre-grounding rows, blocked turns, tool-only replies).
+ *   error           the turn failed (llm_error, timeout, no_api_key); error_outcome set
  *   withheld        verifier outage, the reply was replaced by an apology
  *   stripped        the grounding gate removed the reply's content
  *   no_knowledge    nothing in the knowledge base matched the question
@@ -3202,6 +3462,8 @@ function isKnowledgeGapText(text) {
 
 function classifyGrounding(ctx, answerText) {
   if (!ctx || ctx.blocked === true) return null;
+  // Wave 14: a failed turn (llm_error, timeout, no_api_key) is its own verdict.
+  if (typeof ctx.error_outcome === 'string' && ctx.error_outcome) return 'error';
   const g = ctx.grounding;
   if (!g || typeof g !== 'object') return null;
   if (g.withheld === true) return 'withheld';
@@ -3211,6 +3473,23 @@ function classifyGrounding(ctx, answerText) {
   if (g.confidence === 'weak') return 'low_confidence';
   if (g.confidence === 'strong') return 'answered';
   return null;
+}
+
+// QC-BRUTALOOP-W15: overlay flags (not exclusive with the verdict buckets), so
+// a confidently wrong answer that still counts as "answered" can be found.
+// corrected: the gate or verifier acted on the reply (stripped, regenerated,
+// figures removed, or unsupported claims found).
+function wasCorrected(ctx) {
+  const g = ctx && ctx.grounding;
+  if (!g || typeof g !== 'object') return false;
+  return g.stripped === true || g.corrected === true
+    || (Array.isArray(g.unsupported_figures) && g.unsupported_figures.length > 0)
+    || Boolean(g.claims && Array.isArray(g.claims.unsupported) && g.claims.unsupported.length > 0);
+}
+// used_outdated_source: the collector flagged that a chunk behind the reply came
+// from a superseded / suggested-superseded source.
+function usedOutdatedSource(ctx) {
+  return Boolean(ctx && ctx.grounding && ctx.grounding.used_outdated_source === true);
 }
 
 function scanAssistantTurns(widgetId, query, limit = 5000) {
@@ -3308,12 +3587,15 @@ router.get('/orgs/:orgId/widgets/:widgetId/analytics/summary', requireOrgMembers
     const deltas = responseTimeDeltas(widgetId, req.query);
     const avg_response_ms = deltas.length ? Math.round(deltas.reduce((a, b) => a + b, 0) / deltas.length) : null;
 
-    const quality = { assessed: 0, answered: 0, low_confidence: 0, no_knowledge: 0, stripped: 0, withheld: 0, unassessed: 0, answered_rate: null };
+    const quality = { assessed: 0, answered: 0, low_confidence: 0, no_knowledge: 0, stripped: 0, withheld: 0, error: 0, unassessed: 0, corrected: 0, used_outdated_source: 0, answered_rate: null };
     for (const row of scanAssistantTurns(widgetId, req.query)) {
-      const verdict = classifyGrounding(safeJsonParse(row.context_json, null), row.content);
+      const sctx = safeJsonParse(row.context_json, null);
+      const verdict = classifyGrounding(sctx, row.content);
       if (!verdict) { quality.unassessed += 1; continue; }
       quality.assessed += 1;
       quality[verdict] += 1;
+      if (wasCorrected(sctx)) quality.corrected += 1;
+      if (usedOutdatedSource(sctx)) quality.used_outdated_source += 1;
     }
     // Assistant turns with no context_json at all are also unassessed.
     const noCtx = prepare(
@@ -3378,7 +3660,9 @@ router.get('/orgs/:orgId/widgets/:widgetId/analytics/unanswered', requireOrgMemb
       const gr = (ctx && ctx.grounding) || {};
       const removedFigures = Array.isArray(gr.unsupported_figures) ? gr.unsupported_figures : [];
       let extraReason = null;
-      if (verdict !== 'stripped' && verdict !== 'withheld' && gr.corrected === true && removedFigures.length > 0) {
+      if (verdict !== 'stripped' && verdict !== 'withheld' && verdict !== 'error' && usedOutdatedSource(ctx)) {
+        extraReason = 'used_outdated_source';
+      } else if (verdict !== 'stripped' && verdict !== 'withheld' && verdict !== 'error' && gr.corrected === true && removedFigures.length > 0) {
         extraReason = 'figure_gate';
       } else if (verdict === 'answered' && isAbstainText(row.content)
         || (verdict === 'low_confidence' && Number(gr.top_score) >= 0.6 && isAbstainText(row.content))) {
@@ -3400,7 +3684,7 @@ router.get('/orgs/:orgId/widgets/:widgetId/analytics/unanswered', requireOrgMemb
         }
         continue;
       }
-      if (verdict !== 'no_knowledge' && verdict !== 'withheld' && verdict !== 'stripped') continue;
+      if (verdict !== 'no_knowledge' && verdict !== 'withheld' && verdict !== 'stripped' && verdict !== 'error') continue;
       if (verdict === 'stripped') {
         const g = ctx.grounding || {};
         const claims = g.claims;
@@ -3416,6 +3700,7 @@ router.get('/orgs/:orgId/widgets/:widgetId/analytics/unanswered', requireOrgMemb
         question: q ? q.content : null,
         answer: typeof row.content === 'string' ? row.content.slice(0, 300) : '',
         reason: verdict === 'stripped' ? 'answer_corrected' : verdict,
+        ...(verdict === 'stripped' && typeof gr.served_unsupported === 'boolean' ? { served_unsupported: gr.served_unsupported } : {}),
         created_at: row.created_at,
       });
       if (items.length >= limit && corrected.length >= limit) break;

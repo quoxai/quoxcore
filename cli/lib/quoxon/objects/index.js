@@ -13,12 +13,18 @@ import { rulesLadder } from './ladder.js';
 import { proofChain, reconcileView } from './proof.js';
 import { awayCard } from './away.js';
 import { sitrepCard } from './sitrep.js';
+import { fleetView } from './fleet.js';
+import { healthCard } from './health.js';
+import { proveView, lastTurnCalls } from './prove.js';
+import { replayView, parseReplayArg } from './replay.js';
+import { mirrorCard } from './mirror.js';
+import { peekCard } from './peek.js';
 
 export { skillCard, stepFlow, crystalCard, agentCard, memoryFacts, rulesLadder, proofChain, reconcileView, awayCard, sitrepCard };
 export { createObjectsApi } from './fetch.js';
 export { decodeRow, arrivalSeconds } from './model.js';
 
-export const BUILDERS = { skill: skillCard, workflow: stepFlow, crystal: crystalCard, agent: agentCard, memory: memoryFacts, rules: rulesLadder, proof: proofChain, reconcile: reconcileView, away: awayCard, sitrep: sitrepCard };
+export const BUILDERS = { skill: skillCard, workflow: stepFlow, crystal: crystalCard, agent: agentCard, memory: memoryFacts, rules: rulesLadder, proof: proofChain, reconcile: reconcileView, away: awayCard, sitrep: sitrepCard, fleet: fleetView, health: healthCard, prove: proveView, replay: replayView, mirror: mirrorCard, peek: peekCard };
 
 /** -> view { box?, rows } for an object item at this width (now injected for tests). */
 export function buildObject(obj, cols, now = Date.now()) {
@@ -48,7 +54,8 @@ export async function runObjectCommand(cmd, arg, ctx) {
   const o = ctx.objects;
   const a = String(arg || '').trim();
   // A bare /skills or /agents is a list, not an object: leave it to its own handler.
-  if (!['/workflow', '/crystal', '/memory', '/rules', '/proof', '/reconcile'].includes(cmd) && !((cmd === '/skills' || cmd === '/agents') && a)) return null;
+  if (!['/workflow', '/crystal', '/memory', '/rules', '/proof', '/reconcile', '/fleet', '/prove', '/replay', '/health', '/core'].includes(cmd) && !((cmd === '/skills' || cmd === '/agents') && a)) return null;
+  if (!o?.health && (cmd === '/health' || cmd === '/core')) return null; // no objects api (demo, local): app.js shows /status instead
   if (!o) return cmd === '/rules' || cmd === '/skills' ? null : { note: 'Object views are not available in this mode.', tone: 'warn' };
   const wrap = async (type, fn) => {
     try {
@@ -65,6 +72,18 @@ export async function runObjectCommand(cmd, arg, ctx) {
     case '/workflow': return a ? wrap('workflow', () => o.workflowRun(a)) : { note: USAGE['/workflow'], tone: 'warn' };
     case '/crystal': return a ? wrap('crystal', () => o.crystal(a)) : { note: USAGE['/crystal'], tone: 'warn' };
     case '/memory': return a ? wrap('memory', () => o.memory(a)) : { note: USAGE['/memory'], tone: 'warn' };
+    case '/replay': {
+      const { ref, page } = parseReplayArg(a);
+      if (!ref && !ctx.conversationId && !toolCalls(ctx.items).length) return { note: 'Nothing to replay yet: no turn in this conversation. /replay <run or conversation id> replays an earlier one.' };
+      return wrap('replay', () => o.replay({ ref, page, conversationId: ctx.conversationId || null, calls: lastTurnCalls(ctx.items) }));
+    }
+    case '/prove': {
+      const calls = lastTurnCalls(ctx.items);
+      if (!calls.length) return { note: 'No tool calls in the last turn: nothing to prove.' };
+      return wrap('prove', () => o.prove(calls));
+    }
+    case '/fleet': return wrap('fleet', () => o.fleet(a));
+    case '/health': case '/core': return wrap('health', () => o.health()); // the Core dashboard summary (objects/health.js)
     case '/rules': {
       return wrap('rules', async () => {
         const r = await o.rules();

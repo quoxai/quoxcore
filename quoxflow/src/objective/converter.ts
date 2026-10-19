@@ -59,7 +59,8 @@ export function convertObjectiveTemplate(
       type: 'trigger:schedule',
       name: 'Schedule',
       config: {
-        cron: options.schedule.cron,
+        // #1172: the schedule executor reads expression; the template's schedule.cron is the input name.
+        expression: options.schedule.cron,
         timezone: options.schedule.timezone,
       },
     } as Node);

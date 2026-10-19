@@ -31,9 +31,14 @@ export function registerRunCommands(program, ctx) {
 
       let rows, source;
       try {
+        // Journey #3 (2026-10-19): the engine path sent no query, so --workflow/--status/--limit were ignored and a
+        // filter for one workflow listed every workflow's runs. quoxflow's /api/executions takes all three.
         const ep = resolveEndpoint('executions.list');
-        const data = await client.get(ep.path, { service: ep.service });
-        const items = data.data || data.items || (Array.isArray(data) ? data : []);
+        const engineQuery = { ...(options.workflow ? { workflowId: options.workflow } : {}), ...(options.status ? { status: options.status } : {}), limit: options.limit };
+        const data = await client.get(ep.path, { service: ep.service, query: engineQuery });
+        let items = data.data || data.items || (Array.isArray(data) ? data : []);
+        // an older engine that ignores the filter must still never show another workflow's runs
+        if (options.workflow) items = items.filter((it) => (it.workflowId ?? it.workflow_id) === options.workflow);
         rows = items.map((item) => ({ ...item, source: 'engine' }));
         source = 'engine';
       } catch (err) {
@@ -93,12 +98,35 @@ export function registerRunCommands(program, ctx) {
     .description('Start a new workflow run')
     .requiredOption('--workflow <id>', 'workflow ID')
     .option('--input <json>', 'input data as JSON')
+    .option('--wait', 'engine workflows: wait for the run to finish (up to 10 minutes) instead of returning its id at once')
     .action(async (options) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
       const body = { workflow_id: options.workflow };
       if (options.input) body.context = parseJSON(options.input, '--input');
-      const data = await client.post(resolveEndpoint('runs.create', { orgId }).path, { service: resolveEndpoint('runs.create', { orgId }).service, body });
+      let data;
+      try {
+        data = await client.post(resolveEndpoint('runs.create', { orgId }).path, { service: resolveEndpoint('runs.create', { orgId }).service, body });
+      } catch (err) {
+        if (err.status !== 404) throw err;
+        // #997: the auth runs model only knows auth-store workflows; an engine workflow runs on the engine
+        // (same fallback as `workflow run`, quoxflow#7).
+        const getEp = resolveEndpoint('workflows.applyGet', { workflowId: options.workflow });
+        try { await client.get(getEp.path, { service: getEp.service }); } catch (engineErr) { if (engineErr.status === 404) throw err; throw engineErr; }
+        const exEp = resolveEndpoint('workflows.applyExecute', { workflowId: options.workflow });
+        // #1029: start async by default and return the id at once; the engine ran synchronously before, so any
+        // run past the 30 s client timeout printed 'timed out' while it kept going. --wait keeps the old shape.
+        const ran = await client.post(exEp.path, {
+          service: exEp.service,
+          body: { triggerData: body.context || {}, async: !options.wait },
+          ...(options.wait ? { timeout: 600000 } : {}),
+        });
+        const runId = ran.executionId || ran.execution_id || ran.id || ran.execution?.id || ran.data?.executionId || 'ok';
+        const st = ran.status || ran.execution?.status || ran.data?.status;
+        printSuccess(`Run started (engine): ${runId}${st ? ` [${st}]` : ''}`);
+        if (!options.wait && runId !== 'ok') console.log(`  Follow it: quox run get ${runId}`);
+        return;
+      }
       printSuccess(`Run started: ${data.run?.id || data.id || 'ok'}`);
     });
 
@@ -112,8 +140,12 @@ export function registerRunCommands(program, ctx) {
       const orgId = resolveOrgId(auth, program);
       const body = {};
       if (options.reason) body.reason = options.reason;
-      await client.post(resolveEndpoint('runs.cancel', { orgId, runId }).path, { service: resolveEndpoint('runs.cancel', { orgId, runId }).service, body });
-      printSuccess('Run cancelled.');
+      // #997: engine first (the runs `run list` shows), auth-store fallback on a 404 only
+      const source = await engineFirst(
+        () => { const ep = resolveEndpoint('executions.cancel', { executionId: runId }); return client.post(ep.path, { service: ep.service, body }); },
+        () => client.post(resolveEndpoint('runs.cancel', { orgId, runId }).path, { service: resolveEndpoint('runs.cancel', { orgId, runId }).service, body }),
+      );
+      printSuccess(`Run cancelled (${source}).`);
     });
 
   run
@@ -121,12 +153,35 @@ export function registerRunCommands(program, ctx) {
     .description('Resume a paused run')
     .argument('<runId>', 'run ID')
     .option('--response <json>', 'human response payload as JSON')
+    .option('--wait', 'engine runs: wait for the resumed run to finish (up to 10 minutes) instead of answering at once')
     .action(async (runId, options) => {
       auth.requireAuth();
       const orgId = resolveOrgId(auth, program);
-      const body = {};
-      if (options.response) body.response = parseJSON(options.response, '--response');
-      await client.post(resolveEndpoint('runs.resume', { orgId, runId }).path, { service: resolveEndpoint('runs.resume', { orgId, runId }).service, body });
-      printSuccess('Run resumed.');
+      const response = options.response ? parseJSON(options.response, '--response') : undefined;
+      const body = response === undefined ? {} : { response };
+      // #997: the engine's resume body IS the decision ({approved, approver, reason?}; approver must be you);
+      // the auth model wraps it as { response }.
+      const source = await engineFirst(
+        // #1037: async by default; the engine checks the approver synchronously, then runs the rest in the background
+        () => {
+          const ep = resolveEndpoint('executions.resume', { executionId: runId });
+          return client.post(ep.path, {
+            service: ep.service,
+            body: { ...(response || {}), async: !options.wait },
+            ...(options.wait ? { timeout: 600000 } : {}),
+          });
+        },
+        () => client.post(resolveEndpoint('runs.resume', { orgId, runId }).path, { service: resolveEndpoint('runs.resume', { orgId, runId }).service, body }),
+      );
+      printSuccess(`Run resumed (${source}).`);
+      if (source === 'engine' && !options.wait) console.log(`  Follow it: quox run get ${runId}`);
     });
+}
+
+// #997: try the engine (quoxflow) store, fall back to the auth-service store only when the engine says 404.
+// Any other engine answer (409 already terminal, 400 not paused) is the real outcome and is thrown.
+async function engineFirst(engineCall, authCall) {
+  try { await engineCall(); return 'engine'; } catch (err) { if (err.status !== 404) throw err; }
+  await authCall();
+  return 'auth';
 }

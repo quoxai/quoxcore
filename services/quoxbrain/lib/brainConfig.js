@@ -254,7 +254,11 @@ export function describeEgress({ providerInfo = null, dreamAllowed = true, exclu
       provider: providerInfo ? (providerInfo.provider || null) : null,
       model: providerInfo ? (providerInfo.model || null) : null,
       known: providerInfo !== null && providerInfo !== undefined,
-      sendsChunkText: !!(providerInfo && providerInfo.provider),
+      // BRAIN2-FABLE11: 'ollama' embeds on the org's own Ollama host: text goes there, never to a
+      // third party. sendsChunkText means "to a third-party provider", so it is false for local.
+      local: !!(providerInfo && providerInfo.provider === 'ollama'),
+      thirdPartyEgress: !!(providerInfo && providerInfo.provider && providerInfo.provider !== 'ollama'),
+      sendsChunkText: !!(providerInfo && providerInfo.provider && providerInfo.provider !== 'ollama'),
       excludedVaults,
     },
     dream: {

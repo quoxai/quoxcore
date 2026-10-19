@@ -428,7 +428,8 @@ router.patch('/prompts/:id', (req, res) => {
  */
 router.delete('/prompts/:id', (req, res) => {
     const { id } = req.params;
-    const { org_id } = req.body || req.query;
+    // auth org sweep: a parsed empty body ({}) is truthy, so `req.body || req.query` never read ?org_id
+    const org_id = (req.body && req.body.org_id) || req.query.org_id;
     const userId = req.user.id;
 
     if (!org_id) {

@@ -25,7 +25,7 @@ export default function TrainingTab({ widget, authFetch, orgId, correctedBy, onW
   let savedGuardrails = null
   try { savedGuardrails = widget?.guardrails_json ? JSON.parse(widget.guardrails_json) : null } catch { savedGuardrails = null }
   const gr = savedGuardrails && !Array.isArray(savedGuardrails) ? savedGuardrails : persona.widget_config?.guardrails
-  const [systemPrompt, setSystemPrompt] = useState(widget?.system_prompt_override || persona.system_prompt || '')
+  const [systemPrompt, setSystemPrompt] = useState(widget?.system_prompt_override || '')
   const [alwaysRules, setAlwaysRules] = useState((gr?.always || []).join('\n'))
   const [neverRules, setNeverRules] = useState((gr?.never || []).join('\n'))
   const [testQuery, setTestQuery] = useState('')
@@ -228,7 +228,10 @@ export default function TrainingTab({ widget, authFetch, orgId, correctedBy, onW
             style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: '#fff', fontSize: 13, fontFamily: "'JetBrains Mono', monospace", resize: 'vertical', boxSizing: 'border-box' }}
           />
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>
-            ~{Math.ceil((systemPrompt.length || 0) / 4)} tokens
+            ~{Math.ceil((systemPrompt.length || 0) / 4)} tokens.{' '}
+            {systemPrompt.trim()
+              ? 'This is the prompt the live widget runs (saved to the widget, with your guardrails appended).'
+              : 'Empty: the widget runs the neutral default customer prompt. Anything you write here replaces it.'}
           </div>
         </div>
 

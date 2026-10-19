@@ -15,16 +15,29 @@ export const KEY_PROVIDERS = new Set(['openai', 'anthropic']);
 export const CHATGPT_ENABLED = false;
 
 /**
- * Options in display order. Ollama is always offered (B3): "on this machine" when localhost:11434
- * answered, else "on another machine" (listed last), which asks for its LAN URL.
+ * Options in display order. #1288: the choices that work come first. Sign in with ChatGPT is not built
+ * yet (waiting on OpenAI), so while it is off it is listed LAST as "coming soon", never first; once it
+ * is on it leads (OpenAI-first). Ollama is always offered (B3): "on this machine" first when
+ * localhost:11434 answered, else "on another machine" (asks for its LAN URL) before Skip.
  */
 export function credentialOptions({ ollama = false, chatgpt = CHATGPT_ENABLED } = {}) {
-  // Not detected: "on another machine" goes last, so the familiar numbering (4 = Skip) holds.
-  const order = ollama ? PROVIDERS : [...PROVIDERS.filter(p => p !== 'ollama'), 'ollama'];
+  const working = ollama ? ['ollama', 'openai', 'anthropic', 'skip'] : ['openai', 'anthropic', 'ollama', 'skip'];
+  const order = chatgpt ? ['chatgpt', ...working] : [...working, 'chatgpt'];
   return order.map(id => {
     if (id === 'ollama') return { id, ...(ollama ? CRED_OPTIONS.ollama : CRED_OPTIONS.ollamaLan), detected: Boolean(ollama), disabled: false };
     return { id, ...CRED_OPTIONS[id], disabled: id === 'chatgpt' && !chatgpt };
   });
+}
+
+/** The next selectable row from `sel` in direction dir (1 down, -1 up), wrapping; disabled rows are skipped. */
+export function nextSelectable(options, sel, dir) {
+  const n = options.length;
+  if (!n) return 0;
+  for (let k = 1; k <= n; k++) {
+    const i = (((sel + dir * k) % n) + n) % n;
+    if (!options[i].disabled) return i;
+  }
+  return sel;
 }
 
 /** A typed Ollama URL -> normalised http(s) URL (bare host gets http:// and :11434) | null. */

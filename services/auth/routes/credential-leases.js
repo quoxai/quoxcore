@@ -9,6 +9,7 @@
  * POST   /orgs/:orgId/integrations/leases/:id/revoke  — Revoke active lease
  */
 
+import { requireStepUpAlways } from '../lib/stepUp.js';
 import { Router } from 'express';
 import { authenticate, requireOrg } from '../middleware/authenticate.js';
 import { requireOrgScope, requireCapability } from '../middleware/authorize.js';
@@ -83,7 +84,15 @@ function createLeaseInboxItem({ orgId, userId, lease, credential, agentId, justi
             ) VALUES (?, ?, ?, 'approval', 'high', ?, ?, ?, ?)
         `).run(
             inboxItemId, orgId, targetInboxId, title, body,
-            JSON.stringify({ type: 'credential_lease', lease_id: lease.id, credential_id: credential.id, agent_id: agentId }),
+            JSON.stringify({
+                type: 'credential_lease', lease_id: lease.id, credential_id: credential.id, agent_id: agentId,
+                // APPROVAL-WHAT: action, target and one human line.
+                what: {
+                    action: 'lease a credential',
+                    target: `credential ${credential.label || credential.integration_type} (${credential.id})`,
+                    summary: `let agent ${agentId} use credential ${credential.label || credential.integration_type} for a time-limited lease`,
+                },
+            }),
             userId
         );
 
@@ -272,6 +281,9 @@ router.post('/orgs/:orgId/integrations/leases/:leaseId/approve', authenticate(),
                 message: `Cannot approve a lease with status '${lease.status}'`
             });
         }
+
+        // QUOXON-STEPUP: leases are agent-requested; a human JWT alone is not a person.
+        if (!requireStepUpAlways(req, res, { orgId: req.params.orgId })) return;
 
         // Check against max duration
         const cred = getCredentialById(lease.credential_id);

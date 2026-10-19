@@ -100,6 +100,33 @@ function formatBrainContextBlock(passages = [], maxChars = DEFAULT_BUDGET * CHAR
  * Never throws — returns [] on any failure (timeout, non-2xx, network
  * error) and logs the failure loudly.
  */
+// quox#1108: outcome counters, so "the implant works" is provable from the
+// collector rather than inferred from an absence of failure lines.
+const implantStats = { injected: 0, empty: 0, failed: 0, timeouts: 0, lastOkAt: null, lastError: null, lastErrorAt: null };
+function getImplantStats() { return { ...implantStats }; }
+function _resetImplantStats() {
+  Object.assign(implantStats, { injected: 0, empty: 0, failed: 0, timeouts: 0, lastOkAt: null, lastError: null, lastErrorAt: null });
+}
+
+// Proof qortex/implant-knowledge-cited: retrieval gets the information need, not the answer-format
+// instructions around it ("answer from what you already know, in two sentences", "keep it short"). Those
+// words matched a design doc's "open decisions" section and pushed the pricing ruling out of the context
+// entirely. Only the search query changes; the model still sees the whole message. Never returns empty.
+const DIRECTIVE_SENTENCE = /^(?:please\s+)?(?:answer|reply|respond|keep\s+(?:it|this|your\s+answer)|be\s+(?:brief|concise|short)|cite|use\s+(?:only\s+)?(?:what|your)|do\s*n[o']?t\s+(?:use|look|search)|no\s+tools?|in\s+(?:one|two|three|four|five|a\s+few|\d+)\s+(?:short\s+)?(?:sentences?|lines?|words?|bullets?|paragraphs?))\b[^?]*$/i;
+const DIRECTIVE_PHRASES = [
+  /\s*,?\s*\b(?:in|using)\s+(?:one|two|three|four|five|a\s+few|\d+)\s+(?:short\s+)?(?:sentences?|lines?|words?|bullet(?:\s+points?)?|paragraphs?)\b/gi,
+  /\s*,?\s*\bfrom\s+what\s+you\s+(?:already\s+)?know\b/gi,
+];
+function retrievalQuery(message) {
+  const raw = String(message || '');
+  const sentences = raw.split(/(?<=[.?!])\s+/).map((x) => x.trim()).filter(Boolean);
+  const kept = sentences.filter((x) => !DIRECTIVE_SENTENCE.test(x));
+  let q = kept.join(' ');
+  for (const re of DIRECTIVE_PHRASES) q = q.replace(re, '');
+  q = q.replace(/\s+([.?!,])/g, '$1').replace(/,([.?!])/g, '$1').trim();
+  return q && /[a-z0-9]/i.test(q) ? q : raw;
+}
+
 async function fetchBrainContextDetailed({
   orgId,
   userId,
@@ -122,11 +149,14 @@ async function fetchBrainContextDetailed({
         // user-scoped vaults instead of defaulting to user_id='service'
         ...(userId ? { 'X-User-Id': userId } : {}),
       },
-      body: JSON.stringify({ query: query || '', tokenBudget: budget }),
+      body: JSON.stringify({ query: retrievalQuery(query), tokenBudget: budget }),
       signal: AbortSignal.timeout(timeoutMs),
     });
     // BRAIN2-W7 E 120: keep failure distinct from empty.
-    if (!resp.ok) return { ok: false, reason: `http_${resp.status}`, passages: [] };
+    if (!resp.ok) {
+      console.error(`[BrainImplant] context fetch failed (org=${orgId || 'default'}): quoxbrain answered ${resp.status}`);
+      return { ok: false, reason: `http_${resp.status}`, passages: [] };
+    }
     const data = await resp.json();
     return { ok: true, passages: data.passages || [] };
   } catch (err) {
@@ -182,6 +212,7 @@ async function buildBrainImplant({
 }) {
   try {
     if (!isImplantEnabled(orgId, process.env, resolveSetting)) return '';
+    const started = Date.now();
     const fetched = await fetchBrainContextDetailed({ orgId, userId, query, budget, brainServiceUrl, serviceKey, fetchFn, timeoutMs });
     let passages = fetched.passages;
     // BRAIN2-AUDIT: register what the implant injected so finalizeAnswer
@@ -219,7 +250,21 @@ async function buildBrainImplant({
       registerRetrieval(corrKey, { orgId, userId, status: 'hits', handlePrefix: 'K', refs });
       handles = lookupHandles(corrKey, refs, { orgId, userId });
     }
-    return formatBrainContextBlock(passages, budget * CHARS_PER_TOKEN, handles);
+    const block = formatBrainContextBlock(passages, budget * CHARS_PER_TOKEN, handles);
+    if (!fetched.ok) {
+      implantStats.failed++;
+      if (fetched.reason === 'timeout') implantStats.timeouts++;
+      implantStats.lastError = fetched.reason;
+      implantStats.lastErrorAt = new Date().toISOString();
+    } else if (block) {
+      implantStats.injected++;
+      implantStats.lastOkAt = new Date().toISOString();
+      const n = passages.filter(p => p && (p.text || '').trim()).length;
+      console.log(`[BrainImplant] injected ${n} passages, ${block.length} chars in ${Date.now() - started}ms org=${orgId || 'default'}`);
+    } else {
+      implantStats.empty++;
+    }
+    return block;
   } catch (err) {
     // Belt-and-braces: fetchBrainContext already catches its own errors,
     // but this must never propagate and fail the chat turn.
@@ -243,11 +288,14 @@ function applyBrainImplant(sanitizedContext, implantBlock) {
 
 module.exports = {
   isImplantEnabled,
+  retrievalQuery,
   fetchBrainContext,
   fetchBrainContextDetailed,
   truncateToCharBudget,
   formatBrainContextBlock,
   buildBrainImplant,
   applyBrainImplant,
+  getImplantStats,
+  _resetImplantStats,
   DEFAULT_BUDGET,
 };

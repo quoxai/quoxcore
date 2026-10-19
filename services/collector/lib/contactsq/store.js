@@ -653,12 +653,13 @@ function getContactRow(orgId, id) {
   return getDb().prepare('SELECT * FROM contacts WHERE id = ? AND org_id = ?').get(String(id), orgId) || null;
 }
 
-function listContacts(orgId, { q, status, limit } = {}) {
+function listContacts(orgId, { q, status, relationship, limit } = {}) {
   if (!orgId) throw new Error('listContacts requires orgId');
   const lim = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
   const where = ['org_id = ?'];
   const args = [orgId];
   if (status) { where.push('status = ?'); args.push(status); } else { where.push("status NOT IN ('archived','erased','merged')"); }
+  if (relationship) { where.push('relationship_primary = ?'); args.push(relationship); }
   if (q) {
     // case-insensitive substring match; escape LIKE wildcards in the term
     const esc = String(q).toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`);

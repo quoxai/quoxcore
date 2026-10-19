@@ -10,12 +10,14 @@
  * - Audit logging with DEFCON levels
  */
 
+import { hostHome, hostPath } from '../utils/hostPaths.js';
 import { Router } from 'express';
 import { getDb, prepare } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireOrgMembership, requireOrgRole } from '../middleware/org.js';
 import { Capabilities } from '../utils/policy.js';
 import { resolveCap } from '../utils/resolveCap.js';
+import { parseDryRunFlag, INVALID_DRY_RUN_BODY } from '../utils/dryRunFlag.js';
 import { createAuditEvent, ulid, getPagination, formatPaginatedResponse, safeJsonParse } from '../utils/helpers.js';
 import { emitItemCreated, emitStatsUpdate } from '../utils/inboxEvents.js';
 import { spawn } from 'child_process';
@@ -44,8 +46,11 @@ function emitRestoreProgress(restoreId, event) {
 router.use(requireAuth);
 
 // Configuration
-const BACKUP_ROOT = process.env.BACKUP_ROOT || '/opt/quoxcore/backups';
+const BACKUP_ROOT = process.env.BACKUP_ROOT || hostPath('backups');
 import { tryLaunchDetachedBackup, isBackupContainerRunning } from '../lib/backupDetach.js';
+import { verifyState } from '../lib/backupVerifyState.js';
+import { verifiedStatus, integrityFailedMessage } from '../lib/backupVerifyStatus.js';
+import { notifyBackupResult } from '../services/backupScheduler.js';
 import { classifyBackupExit, parseSkippedRequired, degradedMessage, isBackupComplete, emptyArchiveMessage, hasArchive } from '../lib/backupStatus.js';
 const BACKUP_SCRIPT = process.env.BACKUP_SCRIPT || '/app/project/scripts/backup-quox.sh';
 
@@ -259,7 +264,8 @@ router.get('/orgs/:orgId/backups', requireOrgMembership, async (req, res) => {
             ...b,
             manifest: safeJsonParse(b.manifest_json, null),
             components: safeJsonParse(b.components_json, []),
-            verification: safeJsonParse(b.verification_json, null)
+            verification: safeJsonParse(b.verification_json, null),
+            verify_state: verifyState(b)
         }));
 
         res.json(formatPaginatedResponse(parsed, total, pagination));
@@ -395,12 +401,14 @@ router.delete('/orgs/:orgId/backups/:backupId', requireOrgMembership, async (req
             return res.status(404).json({ error: 'Backup not found' });
         }
 
-        // Delete archive file if it exists
-        if (backup.archive_path && existsSync(backup.archive_path)) {
+        // Delete archive file if it exists, and its .sha256 sidecar (quox#1024: the sidecar was left orphaned,
+        // even when the archive itself was already gone)
+        for (const file of backup.archive_path ? [backup.archive_path, `${backup.archive_path}.sha256`] : []) {
+            if (!existsSync(file)) continue;
             try {
-                await fs.unlink(backup.archive_path);
+                await fs.unlink(file);
             } catch (e) {
-                console.warn('Failed to delete archive file:', e.message);
+                console.warn('Failed to delete backup file:', file, e.message);
             }
         }
 
@@ -456,6 +464,10 @@ router.post('/orgs/:orgId/backups/:backupId/verify', requireOrgMembership, async
             return res.status(404).json({ error: 'Backup not found' });
         }
 
+        if (backup.status === 'verifying') {
+            // #1062: same wording as the internal route for a retry while the verifier still runs.
+            return res.status(400).json({ error: 'This backup is still being verified. Try again shortly.' });
+        }
         if (backup.status !== 'completed' && backup.status !== 'verified' && backup.status !== 'degraded') {
             return res.status(400).json({ error: 'Can only verify completed backups' });
         }
@@ -501,13 +513,19 @@ router.post('/orgs/:orgId/backups/:backupId/verify', requireOrgMembership, async
 router.post('/orgs/:orgId/backups/:backupId/restore', requireOrgMembership, async (req, res) => {
     try {
         const { orgId, backupId } = req.params;
-        const { dry_run = true, components } = req.body;
+        const { dry_run, components } = req.body || {};
         const userId = req.user.id;
         const userEmail = req.user.primary_email;
 
         // Check permission
         if (!resolveCap(req, Capabilities.ORG_MANAGE_SETTINGS)) {
             return res.status(403).json({ error: 'Insufficient permissions' });
+        }
+
+        // A malformed flag (null, 1, "yes") must never become a live restore.
+        const dryFlag = parseDryRunFlag(dry_run, { defaultValue: true });
+        if (!dryFlag.ok) {
+            return res.status(400).json(INVALID_DRY_RUN_BODY);
         }
 
         const backup = prepare(`SELECT * FROM backups WHERE id = ? AND org_id = ?`).get(backupId, orgId);
@@ -525,7 +543,7 @@ router.post('/orgs/:orgId/backups/:backupId/restore', requireOrgMembership, asyn
         }
 
         const restoreId = ulid();
-        const isDryRun = dry_run === true || dry_run === 'true';
+        const isDryRun = dryFlag.value;
 
         // Determine DEFCON level
         let defconLevel = DEFCON_LEVELS.RESTORE_FULL;
@@ -1145,7 +1163,7 @@ async function runBackupProcess(backupId, orgId, backupType, components, operato
             timeoutMs: backupTimeoutMs, backupScript: BACKUP_SCRIPT, backupRoot: BACKUP_ROOT
         });
         const proc = detached || spawn(BACKUP_SCRIPT, [mode], {
-            cwd: '/opt/quoxcore',
+            cwd: hostHome(),
             env: { ...process.env, BACKUP_ID: backupId }
         });
 
@@ -1443,16 +1461,25 @@ async function verifyBackupIntegrity(backupId, orgId, archivePath, manifest, ope
         const currentHash = await hashFile(archivePath);
         const expectedHash = manifest?.archiveHash?.replace('sha256:', '') || null;
 
-        const isValid = expectedHash ? currentHash === expectedHash : false;
+        const hasManifestHash = Boolean(expectedHash);
+        const isValid = hasManifestHash ? currentHash === expectedHash : false;
+        const hashMismatch = hasManifestHash && !isValid;
 
         // A degraded backup can have a perfectly intact archive and still be
         // missing required components. "valid" speaks for the archive hash only;
         // "complete" is the honest answer to "is everything in it".
         const complete = isBackupComplete(manifest);
+        const row = prepare(`SELECT name, status, error_message FROM backups WHERE id = ?`).get(backupId);
+        // The route stamps 'verifying' before calling us, so the prior status is what the manifest supports.
+        const priorStatus = row?.status === 'verifying' ? (complete ? 'completed' : 'degraded') : row?.status;
+        const nextStatus = verifiedStatus({ hashValid: isValid, hasManifestHash, complete, priorStatus });
         const verification = {
-            valid: isValid,
+            // null = could not verify (no manifest hash), never a pass
+            valid: hasManifestHash ? isValid : null,
             complete,
+            ...(hashMismatch ? { integrityFailed: true } : {}),
             ...(complete ? {} : { skippedRequired: manifest.skipped_required || [], note: 'archive hash valid but backup is INCOMPLETE (required components skipped)' }),
+            ...(hasManifestHash ? {} : { note: 'cannot verify: no manifest hash' }),
             verifiedAt: new Date().toISOString(),
             archiveHash: `sha256:${currentHash}`,
             expectedHash: manifest?.archiveHash || 'none',
@@ -1463,11 +1490,22 @@ async function verifyBackupIntegrity(backupId, orgId, archivePath, manifest, ope
         };
 
         // Update backup
-        prepare(`
-            UPDATE backups
-            SET status = ?, verification_json = ?, updated_at = datetime('now')
-            WHERE id = ?
-        `).run(complete ? (isValid ? 'verified' : 'completed') : 'degraded', JSON.stringify(verification), backupId);
+        if (hashMismatch) {
+            const message = integrityFailedMessage(expectedHash, currentHash);
+            prepare(`
+                UPDATE backups
+                SET status = ?, error_message = ?, verification_json = ?, updated_at = datetime('now')
+                WHERE id = ?
+            `).run(nextStatus, message, JSON.stringify(verification), backupId);
+            // Same HIGH incident a degraded scheduled backup raises, to every org owner/admin.
+            notifyBackupResult(orgId, row?.name || backupId, backupId, false, { integrity: true, error: message });
+        } else {
+            prepare(`
+                UPDATE backups
+                SET status = ?, verification_json = ?, updated_at = datetime('now')
+                WHERE id = ?
+            `).run(nextStatus, JSON.stringify(verification), backupId);
+        }
 
         const duration = Date.now() - startTime;
 
@@ -1503,7 +1541,7 @@ async function verifyBackupIntegrity(backupId, orgId, archivePath, manifest, ope
 
 // Project root for resolving relative source paths
 // /app/project is the Docker bind mount of the compose working directory
-const PROJECT_ROOT = process.env.PROJECT_ROOT || (existsSync('/app/project/docker-compose.yml') ? '/app/project' : '/opt/quoxcore');
+const PROJECT_ROOT = process.env.PROJECT_ROOT || (existsSync('/app/project/docker-compose.yml') ? '/app/project' : hostPath('quox-dashboard'));
 
 // Maps component_key → directory names used by backup-quox.sh inside the archive
 const ARCHIVE_DIR_MAP = {
@@ -2460,7 +2498,7 @@ router.get('/orgs/:orgId/backup-status', requireOrgMembership, async (req, res) 
 
         // Last successful backup
         const lastSuccess = prepare(`
-            SELECT id, name, backup_type, archive_size_bytes, completed_at, duration_ms
+            SELECT id, name, backup_type, archive_size_bytes, completed_at, created_at, archive_path, duration_ms, status, verification_json
             FROM backups
             WHERE org_id = ? AND status IN ('completed', 'verified') AND COALESCE(archive_size_bytes, 0) > 0
             ORDER BY completed_at DESC LIMIT 1
@@ -2560,6 +2598,7 @@ router.get('/orgs/:orgId/backup-status', requireOrgMembership, async (req, res) 
                 type: lastSuccess.backup_type,
                 sizeBytes: lastSuccess.archive_size_bytes,
                 completedAt: lastSuccess.completed_at,
+                verify_state: verifyState(lastSuccess),
                 durationMs: lastSuccess.duration_ms
             } : null,
             lastFailed: lastFailed ? {

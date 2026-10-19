@@ -47,8 +47,13 @@ function envelopeRowVisibleToOrg(row, orgId) {
  * @param {{orgId?: string, corr: string}} args
  * @returns {Array<object>}
  */
-function getConversationEnvelopesForOrg(stmts, { orgId, corr }) {
+function getConversationEnvelopesForOrg(stmts, { orgId, corr, limit }) {
   if (!orgId || !corr || !stmts || !stmts.getByCorrForOrg) return [];
+  // 2026-10-16: a bounded read (newest `limit`, returned oldest-first) for callers that must not load a
+  // 40k-envelope slot log synchronously (ReflectionMining).
+  if (Number.isFinite(limit) && limit > 0 && stmts.getRecentByCorrForOrg) {
+    return stmts.getRecentByCorrForOrg.all(corr, orgId, Math.floor(limit)).reverse();
+  }
   return stmts.getByCorrForOrg.all(corr, orgId);
 }
 

@@ -110,31 +110,75 @@ async function verifyClaims({ knowledge, answer, actions, links, premises, brand
   }
 }
 
+// QC-W16: a flagged claim is matched to a reply sentence by substring OR by
+// normalised token overlap, because the verifier quotes with its own trailing
+// context ("... during that time.") that the reply sentence does not carry.
+const FUZZ_STOP = new Set('a an the and or but is are was were be been to of for in on at by with from as it its this that these those there their they you your we our us i me my so if then than also just very can will would should could may might do does did not no has have had'.split(' '));
+const normText = (x) => String(x || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+const contentTokens = (x) => normText(x).split(' ').filter((w) => w.length > 1 && !FUZZ_STOP.has(w)).map((w) => w.replace(/(?:ing|ed|es|s)$/, ''));
+function claimMatchesSentence(sentence, claim) {
+  const n = normText(sentence); const q = normText(claim);
+  if (q.length < 6) return false;
+  if (n.includes(q) || (q.includes(n) && n.length > 12)) return true;
+  const ct = [...new Set(contentTokens(claim))];
+  if (ct.length < 3) return false;
+  const st = new Set(contentTokens(sentence));
+  return ct.filter((w) => st.has(w)).length / ct.length >= 0.6;
+}
+// A STRONG decline ("I cannot confirm ...") is an honest refusal and never
+// removed. "there is no ..." is NOT: it is exactly the shape of an invented
+// negative ("there is no need for insurance"), the W16 strip miss.
+const HARD_DECLINE_RE = /\b(cannot|can't|can not|unable to|not able to)\s+(confirm|verify|find|apply|promise)\b|\b(do not|don't|does not|doesn't)\s+(have|offer|support|hold|publish)\b|\bnot\s+(available|offered|supported|aware)\b|\bno\s+(public|published)\b/i;
+
+/** Remove every reply sentence matching any flagged claim. Returns { text, removed }. */
+function removeFlaggedSentences(text, claims, opts = {}) {
+  const list = (Array.isArray(claims) ? claims : []).filter((c) => typeof c === 'string' && normText(c).length >= 6);
+  const removed = [];
+  if (list.length === 0) return { text: String(text || ''), removed };
+  const lines = String(text || '').split('\n');
+  const proven = opts.arith ? arithmeticProof(text, opts.arith.support, opts.arith.visitor).sentences : null;
+  const kept = lines.map((line) => splitSentences(line).filter((sn) => {
+    if (proven && proven.has(sn.trim())) return true;
+    if (HARD_DECLINE_RE.test(sn)) return true;
+    if (isProtectedSentence(sn, opts.protectedTexts)) return true;
+    if (list.some((c) => claimMatchesSentence(sn, c))) { removed.push(sn.trim()); return false; }
+    return true;
+  }).join('').trim());
+  return { text: kept.join('\n'), removed };
+}
+
 /** Sentences of the answer that contain any of the flagged claim quotes. */
 function stripClaimSentences(text, claims, opts = {}) {
-  const quotes = (Array.isArray(claims) ? claims : []).map((c) => c.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()).filter((q) => q.length >= 6);
-  if (quotes.length === 0) return String(text || '');
-  const norm = (x) => x.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
-  const lines = String(text || '').split('\n');
-  // Wave 13: a sentence proven by exact arithmetic over supported figures is
-  // never stripped on the verifier's say-so.
-  const proven = opts.arith ? arithmeticProof(text, opts.arith.support, opts.arith.visitor).sentences : null;
-  const kept = lines.map((line) => {
-    const sentences = splitSentences(line);
-    return sentences.filter((sn) => {
-      if (proven && proven.has(sn.trim())) return true;
-      // An honest denial or refusal is never removed, even if the verifier
-      // quoted it (round 6: 'I cannot confirm a $49 plan' was stripped).
-      if (DECLINE_RE.test(sn)) return true;
-      // Text an executor produced (a booking confirmation) is never removed.
-      if (isProtectedSentence(sn, opts.protectedTexts)) return true;
-      const n = norm(sn);
-      return !quotes.some((q) => n.includes(q) || (q.includes(n) && n.length > 12));
-    }).join('').trim();
-  });
+  const r = removeFlaggedSentences(text, claims, opts);
+  if ((Array.isArray(claims) ? claims : []).every((c) => normText(c).length < 6)) return String(text || '');
   // No apology note: the visitor never saw the removed text. A hollow
   // remainder becomes a clean decline with a concrete next step.
-  return finishStrip(kept.join('\n'), opts);
+  return finishStrip(r.text, opts);
+}
+
+// QC-W15b: a flagged claim that pairs a money figure with a date qualifier
+// ("costs £74 from 1 September 2025"). A regeneration that drops only the date
+// leaves a bare, stale figure; remove every sentence still carrying that figure
+// unless a CURRENT (non-history) chunk independently supports it.
+const MONEY_G = /[£$€]\s?\d[\d,]*(?:\.\d+)?/g;
+const DATE_QUAL_RE = /\b(?:from|since|valid|effective|until|w\.?e\.?f\.?)\b[^.]{0,20}\b(?:\d{1,2}(?:st|nd|rd|th)?\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s+\d{4}\b|\b20\d{2}\s*[-\u2013/]\s*(?:20)?\d{2}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+20\d{2}\b/i;
+const moneyKey = (m) => m.replace(/[^\d.]/g, '').replace(/\.0+$/, '');
+function dropDatedMoneyClaims(text, claims, { isCurrent } = {}) {
+  const figs = new Set();
+  for (const c of Array.isArray(claims) ? claims : []) {
+    if (!DATE_QUAL_RE.test(c)) continue;
+    for (const m of String(c).match(MONEY_G) || []) figs.add(moneyKey(m));
+  }
+  if (!figs.size) return { text: String(text || ''), changed: false };
+  let changed = false;
+  const lines = String(text || '').split('\n').map((line) => splitSentences(line).filter((sn) => {
+    const has = (sn.match(MONEY_G) || []).some((m) => figs.has(moneyKey(m)));
+    if (!has || DECLINE_RE.test(sn)) return true;
+    if (typeof isCurrent === 'function' && isCurrent(sn)) return true;
+    changed = true;
+    return false;
+  }).join('').trim());
+  return { text: lines.join('\n').trim(), changed };
 }
 
 // What to do with a turn whose claim check could not run. A verifier outage
@@ -145,4 +189,4 @@ function verifierOutageAction(v, confidence) {
   return confidence === 'strong' ? 'serve_unverified' : 'withhold';
 }
 
-module.exports = { verifierOutageAction, extractCaveats, verifyClaims, buildVerifierPrompt, parseVerifierReply, stripClaimSentences, pickVerifierModel };
+module.exports = { dropDatedMoneyClaims, verifierOutageAction, extractCaveats, verifyClaims, buildVerifierPrompt, parseVerifierReply, stripClaimSentences, removeFlaggedSentences, claimMatchesSentence, pickVerifierModel };

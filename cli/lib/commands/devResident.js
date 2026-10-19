@@ -164,10 +164,13 @@ export function registerDevResidentCommands(dev, ctx) {
     const slotName = resolveSlotName(options, hostId);
     const sessionName = options.sessionName || defaultSessionName(slotName);
 
+    let released = true;
+    let killed = true;
     try {
       const releaseEp = resolveEndpoint('v1.slots.release', { name: slotName });
       await client.post(releaseEp.path, { service: releaseEp.service, body: { org_id: orgId, force: true } });
     } catch (err) {
+      released = false;
       printWarning(`Releasing ${slotName} failed (continuing): ${err.message}`);
     }
 
@@ -175,10 +178,11 @@ export function registerDevResidentCommands(dev, ctx) {
       const killEp = resolveEndpoint('v1.dev.sessions.kill', { hostId, sessionId: sessionName, byName: true });
       await client.delete(killEp.path, { service: killEp.service });
     } catch (err) {
+      killed = false;
       printWarning(`Killing tmux session ${sessionName} on ${hostId} failed (continuing): ${err.message}`);
     }
 
-    return { host_id: hostId, slot_name: slotName, session_name: sessionName };
+    return { host_id: hostId, slot_name: slotName, session_name: sessionName, released, killed };
   }
 
   resident
@@ -290,8 +294,16 @@ export function registerDevResidentCommands(dev, ctx) {
     .action(async (options) => {
       auth.requireAuth();
       const report = await releaseAndKill(options);
-      formatDetail(report, { format: program.opts().output, title: `Resident retired on ${report.host_id}` });
-      printSuccess(`Resident retired on ${report.host_id}: slot ${report.slot_name} released, session ${report.session_name} killed.`);
+      // #1018: only claim what happened, in the card title too; a retire that left the slot held or the session running failed.
+      const outcome = report.released && report.killed ? 'Resident retired'
+        : report.released || report.killed ? 'Resident retire incomplete' : 'Resident retire failed';
+      formatDetail(report, { format: program.opts().output, title: `${outcome} on ${report.host_id}` });
+      if (report.released && report.killed) {
+        printSuccess(`Resident retired on ${report.host_id}: slot ${report.slot_name} released, session ${report.session_name} killed.`);
+      } else {
+        printWarning(`Resident NOT fully retired on ${report.host_id}: slot ${report.slot_name} ${report.released ? 'released' : 'NOT released'}, session ${report.session_name} ${report.killed ? 'killed' : 'NOT killed'}.`);
+        process.exitCode = 1;
+      }
     });
 
   resident

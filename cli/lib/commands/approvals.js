@@ -7,12 +7,15 @@
 
 import { resolveEndpoint } from '../api/endpoints.js';
 
+import { attachWalkthrough } from './walkthrough.js';
+
 export function registerApprovalsCommands(program, ctx) {
   const { client, auth } = ctx;
 
   const approvals = program
     .command('approvals')
     .description('Tool approvals (held actions awaiting or past a human decision)');
+  attachWalkthrough(approvals, ctx, program);
 
   approvals
     .command('result <approvalId>')

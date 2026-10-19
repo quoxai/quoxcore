@@ -8,6 +8,25 @@ import { ulid } from 'ulid';
 import { Envelope, EnvelopeFactory, Intents } from './envelope.js';
 import { Workflow, Node } from './workflow.js';
 
+/**
+ * FND_01M55X6TRMDS63SDZK3TDS63SD: the REAL initiator of a run. Decided by the entry point (a verified
+ * JWT user, or a named system actor for api/schedule/webhook/event), never by workflow metadata or
+ * trigger input. Persisted in executions.triggered_by as `user:<id>` / `system:<id>`.
+ */
+export type RunActor = { kind: 'user'; userId: string } | { kind: 'system'; id: string };
+
+export function actorToString(a: RunActor): string {
+  return a.kind === 'user' ? `user:${a.userId}` : `system:${a.id}`;
+}
+
+/** Inverse of actorToString. undefined for null, unknown or malformed values (never guesses). */
+export function actorFromString(s: string | null | undefined): RunActor | undefined {
+  if (typeof s !== 'string') return undefined;
+  if (s.startsWith('user:') && s.length > 5) return { kind: 'user', userId: s.slice(5) };
+  if (s.startsWith('system:') && s.length > 7) return { kind: 'system', id: s.slice(7) };
+  return undefined;
+}
+
 export type ExecutionStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
 
 export interface NodeExecution {
@@ -48,6 +67,13 @@ export class ExecutionContext {
   executors?: { get(type: string): any };
   /** P8.F HITL-ORGID-PLUMB: first-class org identity for this execution */
   readonly orgId?: string;
+  /** The run's real initiator (see RunActor). Undefined only for direct pipeline callers that set none. */
+  readonly actor?: RunActor;
+  /** The execution that spawned this one (util:subworkflow), if any. */
+  readonly parentExecutionId?: string;
+  /** The parent run's correlation id and the util:subworkflow node that spawned this run (audit chain). */
+  readonly parentCorrelationId?: string;
+  readonly parentNodeId?: string;
   /**
    * REPLAY-ONLY .A-1a: resolved ONCE at run start (control-pipeline.ts
    * execute()) via resolveEffectiveReplayOnly(). Foundation field only —
@@ -99,10 +125,14 @@ export class ExecutionContext {
     }
   }
 
-  constructor(workflow: Workflow, triggerData: unknown = {}, options?: { executionId?: string; orgId?: string; cancellationSignal?: AbortSignal; cancellationActorProvider?: () => string | undefined }) {
+  constructor(workflow: Workflow, triggerData: unknown = {}, options?: { executionId?: string; orgId?: string; actor?: RunActor; parentExecutionId?: string; parentCorrelationId?: string; parentNodeId?: string; cancellationSignal?: AbortSignal; cancellationActorProvider?: () => string | undefined }) {
     this.id = options?.executionId || ulid();
     this.correlationId = `wf-${workflow.id}-${this.id.slice(-8)}`;
     this.orgId = options?.orgId;
+    this.actor = options?.actor;
+    this.parentExecutionId = options?.parentExecutionId;
+    this.parentCorrelationId = options?.parentCorrelationId;
+    this.parentNodeId = options?.parentNodeId;
     this.workflow = workflow;
     this.envelopes = new EnvelopeFactory('agent.quoxflow');
 
@@ -218,6 +248,12 @@ export class ExecutionContext {
         node_count: this.workflow.nodes.length,
         node_types: nodeTypes,
         variable_count: Object.keys(this.state.variables).length || undefined,
+        // a sub-workflow's trail names its parent run, so the two audit trails can be walked together
+        ...(this.parentExecutionId ? {
+          parent_execution_id: this.parentExecutionId,
+          parent_correlation_id: this.parentCorrelationId,
+          parent_node_id: this.parentNodeId,
+        } : {}),
       }
     );
     this.pushEnvelope(env);

@@ -13,7 +13,7 @@
  * reach the view, exactly as LL-7 increment 3d did for linkedin.
  *
  * Contract (src/services/thirdPartyPluginHost.js):
- *   - React/JSX runtime come from window.__quoxSharedDeps (quox-plugin-vite
+ *   - React/JSX runtime come from window.__quoxSharedDeps (@quoxai/quox-plugin-vite
  *     externalisation), so this bundle never ships a second React.
  *   - The bundle registers itself through window.__quoxPluginRegister(id, exports).
  *   - The route keeps its ROOT path (/x) only because the host verifies the

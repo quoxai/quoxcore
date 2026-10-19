@@ -61,6 +61,10 @@ const crypto = require('crypto');
 const feedWatermark = require('./feedWatermark.js');
 const brainFeedClient = require('./brainFeedClient.js');
 
+// BRAIN2-FABLE11 (deliberately no deletion propagation): each doc is a
+// point-in-time journal digest (`fleet/<host>/<ts>.md`) cut from a rolling log
+// window. Digests age out of the host journal by design and a deregistered
+// host's past activity is still true history, so absence is not deletion.
 const SOURCE_TYPE = 'fleet';
 const VAULT_NAME = 'Fleet';
 

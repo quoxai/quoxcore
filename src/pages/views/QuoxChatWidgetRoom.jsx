@@ -22,6 +22,7 @@ import ComplianceTab from '../../components/assistant-editor/tabs/chatbot/Compli
 import AvailabilityTab from '../../components/assistant-editor/tabs/chatbot/AvailabilityTab'
 import GoLiveControl from '../../components/assistant-editor/tabs/chatbot/GoLiveControl'
 import NotificationFailedBanner from '../../components/assistant-editor/tabs/chatbot/NotificationFailedBanner'
+import RetrievalDegradedBanner from '../../components/assistant-editor/tabs/chatbot/RetrievalDegradedBanner'
 import OnboardingWizard from '../../components/assistant-editor/tabs/chatbot/OnboardingWizard'
 import ModeToggle from '../../components/assistant-editor/tabs/chatbot/ModeToggle'
 import { computeCompletion, resolveDefaultMode, wizardStepToTab } from '../../widget/completionUtils'
@@ -338,6 +339,7 @@ export default function QuoxChatWidgetRoom() {
       </div>
 
       <NotificationFailedBanner widget={widget} />
+      <RetrievalDegradedBanner widget={widget} />
 
       {mode === 'wizard' ? (
         <div className="wr-content">

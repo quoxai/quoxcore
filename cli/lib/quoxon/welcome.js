@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-export const DOCS_URL = 'https://github.com/quoxai/quoxcore'; // will become https://cli.quox.ai
+export const DOCS_URL = 'https://cli.quox.ai/docs/start/'; // #1100: CLI docs "Start here" (cli.quox.ai/docs/ itself has no index page)
 export const TERMS_URL = 'https://quox.ai/terms';
 export const PRIVACY_URL = 'https://quox.ai/privacy';
 export const LICENCE = 'Quox Community Source Licence 1.0 (source-available)';

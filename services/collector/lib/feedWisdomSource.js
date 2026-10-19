@@ -43,6 +43,7 @@
 
 const feedWatermark = require('./feedWatermark.js');
 const brainFeedClient = require('./brainFeedClient.js');
+const feedBatchSupport = require('./feedBatchSupport.js');
 
 const SOURCE_TYPE = 'tasks_execution_wisdom';
 const VAULT_NAME = 'Execution Wisdom';
@@ -160,6 +161,7 @@ async function ingestWisdom(orgId, opts = {}, deps = {}) {
     setWatermarkFn = (org, ts) => feedWatermark.setWatermark(org, SOURCE_TYPE, ts, { dbPath: deps.dbPath }),
     ensurePushVaultFn = brainFeedClient.ensurePushVault,
     pushDocumentsFn = brainFeedClient.pushDocuments,
+    pushDeletionsFn = brainFeedClient.pushDeletions,
     fetchImpl,
     tasksUrl = DEFAULT_TASKS_URL,
     serviceKey = DEFAULT_SERVICE_KEY,
@@ -179,12 +181,17 @@ async function ingestWisdom(orgId, opts = {}, deps = {}) {
 
   const docs = [];
   let newWatermark = storedWatermark || null;
+  // BRAIN2-FABLE11: relPaths of every active row, set ONLY when the fetch
+  // succeeded and returned the whole table (fewer rows than the limit). A
+  // failed or possibly-truncated fetch leaves it null so nothing is tombstoned.
+  let snapshot = null;
 
   try {
     // BRAIN2-W5 028: GET /api/wisdom has no offset and ranks by confidence, so
     // a page of maxItems never reaches the tail. Ask for the whole (curated,
     // bounded) table; maxItems still bounds the work done per tick below.
     const rows = (await fetchWisdomFn(orgId, { limit: WISDOM_FETCH_LIMIT, tasksUrl, serviceKey, fetchImpl })) || [];
+    if (rows.length < WISDOM_FETCH_LIMIT) snapshot = rows.filter((r) => r?.id).map((r) => `tasks_execution_wisdom/${r.id}.md`);
     // Compound (ts, id) cursor (BRAIN2-V3 A4).
     const allEligible = rows
       .map((row) => ({ row, ts: row?.updated_at || row?.last_seen_at || row?.created_at, id: row?.id }))
@@ -210,33 +217,49 @@ async function ingestWisdom(orgId, opts = {}, deps = {}) {
     return result;
   }
 
-  if (docs.length === 0) return result;
-
   if (dryRun) return result; // tallies rowsRead, pushes/advances nothing
 
+  if (docs.length === 0 && !snapshot) return result;
+
+  const ensureVault = async () => ensurePushVaultFn(orgId, VAULT_NAME, { scope: 'org', userId, fetchImpl });
+
   try {
-    const vaultId = await ensurePushVaultFn(orgId, VAULT_NAME, { scope: 'org', userId, fetchImpl });
-    if (!vaultId) {
-      result.error = 'ensurePushVault returned no vaultId';
-      console.error(`[FeedWisdomSource] org=${orgId}: ${result.error}, not advancing watermark`);
-      return result;
-    }
-
-    const pushResult = await pushDocumentsFn(orgId, vaultId, docs, { userId, fetchImpl });
-    if (pushResult?.error) {
-      result.error = pushResult.error;
-      console.error(`[FeedWisdomSource] org=${orgId}: push failed: ${pushResult.error}, not advancing watermark`);
-      return result;
-    }
-
-    result.docsPushed = docs.length;
-
-    if (newWatermark && newWatermark !== storedWatermark) {
-      try {
-        await setWatermarkFn(orgId, newWatermark);
-      } catch (err) {
-        console.error(`[FeedWisdomSource] org=${orgId}: watermark write failed: ${err.message}`);
+    if (docs.length > 0) {
+      const vaultId = await ensureVault();
+      if (!vaultId) {
+        result.error = 'ensurePushVault returned no vaultId';
+        console.error(`[FeedWisdomSource] org=${orgId}: ${result.error}, not advancing watermark`);
+        return result;
       }
+
+      const pushResult = await pushDocumentsFn(orgId, vaultId, docs, { userId, fetchImpl });
+      if (pushResult?.error) {
+        result.error = pushResult.error;
+        console.error(`[FeedWisdomSource] org=${orgId}: push failed: ${pushResult.error}, not advancing watermark`);
+        return result;
+      }
+
+      result.docsPushed = docs.length;
+
+      if (newWatermark && newWatermark !== storedWatermark) {
+        try {
+          await setWatermarkFn(orgId, newWatermark);
+        } catch (err) {
+          console.error(`[FeedWisdomSource] org=${orgId}: watermark write failed: ${err.message}`);
+        }
+      }
+    }
+
+    // BRAIN2-FABLE11: the list returns active rows only, so a complete listing
+    // is a full snapshot; rows that vanished (deleted / deactivated) are tombstoned.
+    if (snapshot) {
+      const store = feedBatchSupport.resolveStateStore(deps, !!deps.getWatermarkFn);
+      const r = await feedBatchSupport.reconcileDeletions({
+        store, orgId, key: SOURCE_TYPE, seen: snapshot, complete: true, ensureVault,
+        pushDeletionsFn, pushOpts: { userId, fetchImpl },
+      });
+      if (r.deleted > 0) result.deleted = r.deleted;
+      if (r.error) { result.error = r.error; console.error(`[FeedWisdomSource] org=${orgId}: ${r.error}`); }
     }
   } catch (err) {
     result.error = `push failed: ${err.message}`;

@@ -33,7 +33,7 @@ async function callCollector(path, ctx, { method = 'GET', body } = {}) {
 const COMMANDERQ_CALL_TOOLS = {
   call_raise_intent: {
     name: 'call_raise_intent',
-    description: 'Raise an intent to CALL the owner/recipient (e.g. you detected something urgent like a security incident and want to reach them by voice). This is DENY-BY-DEFAULT: it only becomes a real intent if the recipient has consented and quiet-hours/frequency allow — otherwise it is recorded as blocked and no call happens. It does NOT place audio yet (the Discord voice bridge is not wired); it governs and evidences the decision to call. Pass recipient, channel (e.g. discord, voice), a short purpose, and the trigger that prompted it.',
+    description: 'Raise an intent to CALL the owner/recipient (e.g. you detected something urgent like a security incident and want to reach them by voice). This is DENY-BY-DEFAULT: it only becomes a real intent if the recipient has consented and quiet-hours/frequency allow — otherwise it is recorded as blocked and no call happens. It does NOT place audio yet (the Discord voice bridge is not wired); it governs and evidences the decision to call. Pass recipient, channel (e.g. discord, voice), a short purpose, and the trigger that prompted it. When the user asks you to CALL or PHONE them, even about an incident, THIS is the action to take: raise the governed call intent here, rather than launching an investigation or running other tools in place of it.',
     input_schema: {
       type: 'object',
       properties: {

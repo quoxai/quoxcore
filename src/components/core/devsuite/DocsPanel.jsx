@@ -2,7 +2,7 @@
  * DocsPanel — Quox DevSuite documentation browser
  *
  * DEVSUITE-DOCS Phase 1+2: reads existing, already-generated docs — no new
- * indexer. Repo picker lists every sibling repo under /opt/quoxcore that has
+ * indexer. Repo picker lists every sibling repo under the host home (~) that has
  * a CODEBASE_MAP.md (GET /collector/api/v1/docs/repos, collector's
  * lib/docsBrowser.js), plus this repo's own STATUS_AND_LIMITS_*.md docs
  * (GET /collector/api/v1/docs/status-and-limits). Selecting an entry renders

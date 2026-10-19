@@ -7,6 +7,12 @@
  *   2. Cross-host cascade detection (3+ hosts spike within 60s)
  *
  * Powers: QuoxSense (fleet signals), QuoxInsight (correlations), QuoxValue (concerns)
+ *
+ * QUOXMIND #1110: concerns carry the org of the heartbeat that raised them, but
+ * only when the caller attributes one (server.js does so only for heartbeats
+ * presented with the agent or internal service key). getConcernsForOrg(orgId)
+ * is the ONLY read that may reach a chat turn; an unattributed concern reaches
+ * no org. Host ids are sanitised because they are host-supplied text.
  */
 
 // ── Configuration ─────────────────────────────────────────────────
@@ -31,8 +37,14 @@ const recentWarnings = []      // Recent threshold breaches for cascade detectio
  * @param {string} hostId
  * @param {Object} resources — from heartbeat: { cpu, memory, disk }
  */
-function recordHeartbeat(hostId, resources) {
-  if (!hostId || !resources) return
+function safeHostId(hostId) {
+  return String(hostId).replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 64)
+}
+
+function recordHeartbeat(rawHostId, resources, { orgId = null } = {}) {
+  if (!rawHostId || !resources) return
+  const hostId = safeHostId(rawHostId)
+  const org = typeof orgId === 'string' && orgId && orgId !== 'default' ? orgId : null
 
   const cpu = resources.cpu?.usage_percent
   const mem = resources.memory?.usage_percent
@@ -73,16 +85,18 @@ function recordHeartbeat(hostId, resources) {
   for (const w of warnings) {
     recentWarnings.push({
       hostId,
+      orgId: org,
       ...w,
       timestamp: Date.now(),
     })
 
     // Raise per-host concern
     raiseConcern(
-      `${hostId}_${w.type}`,
+      org ? `${org}:${hostId}_${w.type}` : `${hostId}_${w.type}`,
       `${hostId}: ${w.type} at ${w.value}% (threshold: ${w.threshold}%)`,
       w.type === 'disk' ? 70 : 60,
-      { hostId, metric: w.type, value: w.value }
+      { hostId, metric: w.type, value: w.value },
+      org
     )
   }
 
@@ -102,22 +116,25 @@ function detectCascades() {
   const now = Date.now()
   const windowStart = now - CASCADE_WINDOW_MS
 
-  // Group recent warnings by type within the cascade window
-  const byType = {}
+  // Group recent warnings by org + type within the cascade window (hosts of
+  // different orgs never combine into one cascade).
+  const groups = new Map()
   for (const w of recentWarnings) {
     if (w.timestamp < windowStart) continue
-    if (!byType[w.type]) byType[w.type] = new Set()
-    byType[w.type].add(w.hostId)
+    const k = `${w.orgId || ''}|${w.type}`
+    if (!groups.has(k)) groups.set(k, { orgId: w.orgId || null, type: w.type, hosts: new Set() })
+    groups.get(k).hosts.add(w.hostId)
   }
 
   // If 3+ unique hosts breached the same metric in 60s, cascade alert
-  for (const [type, hosts] of Object.entries(byType)) {
+  for (const { orgId, type, hosts } of groups.values()) {
     if (hosts.size >= CASCADE_MIN_HOSTS) {
       raiseConcern(
-        `cascade_${type}`,
+        orgId ? `${orgId}:cascade_${type}` : `cascade_${type}`,
         `CASCADE: ${hosts.size} hosts with high ${type} in last 60s (${[...hosts].join(', ')})`,
         90,
-        { type: 'cascade', metric: type, hosts: [...hosts], count: hosts.size }
+        { type: 'cascade', metric: type, hosts: [...hosts], count: hosts.size },
+        orgId
       )
     }
   }
@@ -125,7 +142,7 @@ function detectCascades() {
 
 // ── Concern Management ────────────────────────────────────────────
 
-function raiseConcern(id, description, priority, data = null) {
+function raiseConcern(id, description, priority, data = null, orgId = null) {
   // Update if exists, create if not
   const existing = activeConcerns.findIndex(c => c.id === id)
   const concern = {
@@ -133,6 +150,7 @@ function raiseConcern(id, description, priority, data = null) {
     description,
     priority: Math.max(0, Math.min(100, priority)),
     data,
+    orgId: orgId || null,
     raisedAt: Date.now(),
     updatedAt: Date.now(),
   }
@@ -166,6 +184,25 @@ function getConcerns() {
   }
 
   return activeConcerns.slice(0, 20)
+}
+
+/**
+ * QUOXMIND #1110: the concerns of ONE org, for QuoxSense's "notable now" in a
+ * chat turn. Ids are returned without the org prefix. Unattributed concerns
+ * are never returned.
+ */
+function getConcernsForOrg(orgId) {
+  if (!orgId) return []
+  const prefix = `${orgId}:`
+  return getConcerns()
+    .filter((c) => c.orgId === orgId)
+    .map((c) => ({ id: c.id.startsWith(prefix) ? c.id.slice(prefix.length) : c.id, description: c.description, priority: c.priority }))
+}
+
+function _resetForTests() {
+  hostBuffers.clear()
+  activeConcerns.length = 0
+  recentWarnings.length = 0
 }
 
 /**
@@ -215,6 +252,8 @@ function getFleetSnapshot() {
 module.exports = {
   recordHeartbeat,
   getConcerns,
+  getConcernsForOrg,
   getSignalStats,
+  _resetForTests,
   getFleetSnapshot,
 }

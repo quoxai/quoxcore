@@ -66,7 +66,7 @@ async function resolveAgentToolList({ agentId, orgId, serviceAuthenticated }, de
     }
   }
 
-  return getToolsForAgentAsync(id);
+  return getToolsForAgentAsync(id, orgId || null);
 }
 
 module.exports = { resolveAgentToolList, hasInternalServiceKey };

@@ -1,6 +1,5 @@
 # Quoxflow
 
-[![CI](https://github.com/quoxai/quoxflow/actions/workflows/ci.yml/badge.svg)](https://github.com/quoxai/quoxflow/actions/workflows/ci.yml)
 [![License: Quox Community Source](https://img.shields.io/badge/licence-Quox%20Community%20Source%201.0-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](package.json)
 
@@ -12,7 +11,7 @@ Quoxflow combines minimal workflow primitives with enterprise-grade auditability
 
 ## Features
 
-- **18 Node Archetypes** - Replace 400+ n8n node types
+- **32 Node Archetypes** - Replace 400+ n8n node types
 - **n8n Import** - Convert existing n8n workflows
 - **Envelope Audit Trail** - Every action emits traceable AEE envelopes
 - **7-Layer Control Pipeline** - Ingress → Identity → Policy → Context → Execute → Verify → Assemble
@@ -108,7 +107,7 @@ Every action emits an AEE envelope:
 
 ## Architecture
 
-Based on [AEE](https://github.com/AEE-nexus/AEE-Agent-Envelope-Exchange) and [AOCL](https://github.com/AEE-nexus/AOCL-Agent-Orchestration-Control-Layers-Protocol).
+Based on [AEE](https://github.com/quoxai/aee) and [AOCL](https://github.com/quoxai/aocl).
 
 See [docs/DESIGN.md](docs/DESIGN.md) for the full technical specification.
 
@@ -118,4 +117,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 
-[Quox Community Source Licence 1.0](LICENSE) — free self-hosted operation and independent extensions; protected core cannot be modified or redistributed without separate written permission.
+[Quox Community Source Licence 1.0](LICENSE): free self-hosted operation and independent extensions; protected core cannot be modified or redistributed without separate written permission.

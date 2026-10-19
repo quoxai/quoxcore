@@ -15,6 +15,7 @@
  */
 
 import { ulid } from './helpers.js';
+import { hostPath } from './hostPaths.js';
 import { createHash, createPublicKey, verify as cryptoVerify } from 'crypto';
 import { encrypt, decrypt } from './encryption.js';
 import { FORMAT_V2, canonicalJson, filesMap, v2Payload, v2Message } from './pluginSignatureV2.js';
@@ -136,7 +137,7 @@ export function ensurePluginsSchema(db) {
             'plugin_installs',
             'Plugin Installs',
             'Org-scoped third-party plugin install records and bundles. Stored inside auth.db; physically backed up by the Auth Database component. This entry is informational and disabled by default to avoid double-archive.',
-            '["/opt/quoxcore/services/auth/data/auth.db"]',
+            JSON.stringify([hostPath('quox-dashboard', 'services', 'auth', 'data', 'auth.db')]),
             'database',
             'sqlite_backup',
             25,
@@ -205,7 +206,7 @@ export function listInstalls(db, orgId) {
     return db.prepare(`
         SELECT id, org_id, plugin_id, version, manifest_json, bundle_sha256, signature_json, is_enabled,
                installed_by, installed_at, upgraded_at
-          FROM plugin_installs
+          FROM ${pluginInstallsLookupTarget(db)}
          WHERE org_id = ?
          ORDER BY installed_at DESC
     `).all(orgId);
@@ -215,9 +216,48 @@ export function getInstall(db, orgId, pluginId) {
     return db.prepare(`
         SELECT id, org_id, plugin_id, version, manifest_json, bundle_sha256, signature_json, is_enabled,
                installed_by, installed_at, upgraded_at
-          FROM plugin_installs
+          FROM ${pluginInstallsLookupTarget(db)}
          WHERE org_id = ? AND plugin_id = ?
     `).get(orgId, pluginId);
+}
+
+/**
+ * AUTH-BOOT: covering index for every blob-free lookup on plugin_installs.
+ *
+ * bundle_sha256, signature_json and installed_by sit AFTER bundle_blob (~1.5 MB)
+ * in the row, so reading them off the table walks the blob's overflow chain on
+ * every lookup. With the boot sweep doing orgs x bundles lookups on a cold
+ * cache that was ~3.7 GB of synchronous reads (2026-10-16 outage). This index
+ * carries every column getInstall/listInstalls/the /me/plugins list read, so
+ * SQLite answers them from the index alone.
+ *
+ * NOT created by ensurePluginsSchema: on the live DB the build reads the whole
+ * table once, which must never sit in front of listen(). server.js calls this
+ * AFTER listen (setImmediate), before the provisioning sweep.
+ */
+export const PLUGIN_INSTALLS_COVERING_INDEX = 'idx_plugin_installs_lookup_cover';
+const _coverReady = new WeakSet();
+/**
+ * FROM-clause target for blob-free reads. SQLite's planner prefers the UNIQUE
+ * autoindex on (org_id, plugin_id) over the covering index (it cannot know the
+ * table rows are huge), so once the covering index exists we pin it with
+ * INDEXED BY. Before it exists (pre-migration, tests) plain table is used.
+ */
+export function pluginInstallsLookupTarget(db) {
+    if (!_coverReady.has(db)) {
+        const row = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?").get(PLUGIN_INSTALLS_COVERING_INDEX);
+        if (!row) return 'plugin_installs';
+        _coverReady.add(db);
+    }
+    return `plugin_installs INDEXED BY ${PLUGIN_INSTALLS_COVERING_INDEX}`;
+}
+export function ensurePluginInstallsCoveringIndex(db) {
+    db.exec(`
+        CREATE INDEX IF NOT EXISTS ${PLUGIN_INSTALLS_COVERING_INDEX}
+            ON plugin_installs(org_id, plugin_id, id, version, manifest_json, bundle_sha256,
+                               signature_json, is_enabled, installed_by, installed_at, upgraded_at)
+    `);
+    _coverReady.add(db);
 }
 
 /**
@@ -537,7 +577,7 @@ const HEX128 = /^[0-9a-f]{128}$/;
  * Verify a plugin signature against the org's trusted keys.
  *
  * Two formats (SDK-TEAM W5, 2026-10-13):
- *   v2 (quox-plugin-vite >= 0.3.0): `signature_v2` over canonicalJson of
+ *   v2 (quox-plugin-vite >= 0.3.0, now @quoxai/quox-plugin-vite): `signature_v2` over canonicalJson of
  *      { files, format, manifest_sha256, plugin_id, plugin_version }; binds the
  *      manifest, the bundle and the css (see pluginSignatureV2.js). The host
  *      RECOMPUTES every bound value from what was posted and verifies against

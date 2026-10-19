@@ -33,6 +33,8 @@ import { communityBackendEligibility } from '../utils/communityBackend.js';
 import { getDb } from '../db/index.js';
 import { safeCompare } from '../utils/crypto.js';
 import { applyAvailableToolsDrift } from '../lib/powersAvailableToolsDrift.js';
+import { hasPlugin } from '../lib/entitlements.js';
+import { listInstalls } from '../utils/plugins.js';
 
 const router = Router();
 
@@ -176,6 +178,34 @@ router.get('/tool-definitions/snapshot', (req, res) => {
 
   console.log(`[snapshot] Returning ${tools.length} mcp tools for collector reseed`);
   return res.json({ ok: true, count: tools.length, tools });
+});
+
+// ─── One org's installed plugins (the Mirror) ────────────────────────────────
+
+/**
+ * GET /api/internal/orgs/:orgId/plugins
+ *
+ * Service-key only. The collector's Mirror builder (lib/mirrorBuilder.js) reads the org's
+ * installed plugins here, so CommanderQ's injection needs no user cookie. Same rows and the same
+ * entitlement filter as the member route GET /api/orgs/:orgId/plugins, minus bundle hashes and
+ * signatures: { plugins: [{ plugin_id, name, version, enabled, tier }] }. Scoped to :orgId only.
+ */
+router.get('/orgs/:orgId/plugins', (req, res) => {
+  const db = req.db || getDb();
+  const orgId = String(req.params.orgId || '').trim();
+  if (!orgId) return res.status(400).json({ error: 'orgId required' });
+  let rows;
+  try { rows = listInstalls(db, orgId); } catch (err) { return res.status(500).json({ error: `plugin installs unreadable: ${err.message}` }); }
+  const plugins = [];
+  for (const row of rows) {
+    let entitled = true;
+    try { entitled = hasPlugin(db, row.plugin_id, orgId); } catch { entitled = true; }
+    if (!entitled) continue;
+    let m = {};
+    try { m = JSON.parse(row.manifest_json || '{}') || {}; } catch { m = {}; }
+    plugins.push({ plugin_id: row.plugin_id, name: m.displayName || m.name || row.plugin_id, version: row.version || m.version || null, enabled: !!row.is_enabled, tier: m.tier || 'custom' });
+  }
+  res.json({ plugins });
 });
 
 // ─── Plugin backend gateway reseed ────────────────────────────────────────────

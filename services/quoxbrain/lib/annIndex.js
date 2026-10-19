@@ -70,6 +70,7 @@ function getClient() {
 export function _setAnnClient(c) {
   client = c
   knownCollections.clear()
+  occurredIndexEnsured.clear()
   collectionsListedAt = 0
   Object.assign(state, { lastError: null, lastErrorAt: null, lastOkAt: null, fallbacks: 0, cooldownUntil: 0 })
 }
@@ -95,7 +96,10 @@ export function noteFailure(err, where = 'search') {
     state.fallbacks += 1
     state.cooldownUntil = Date.now() + COOLDOWN_MS
   }
-  console.error(`[Brain][ANN] qdrant ${where} FAILED, dense leg falling back to packed scan (cooldown ${COOLDOWN_MS / 1000}s): ${err.message}`)
+  // Only a failed search moves the dense leg to the packed scan; a failed write
+  // is retried by the sync and leaves searches on Qdrant (quox#1108 follow-up).
+  if (where === 'search') console.error(`[Brain][ANN] qdrant ${where} FAILED, dense leg falling back to packed scan (cooldown ${COOLDOWN_MS / 1000}s): ${err.message}`)
+  else console.error(`[Brain][ANN] qdrant ${where} FAILED, will retry on the next sync; searches stay on qdrant: ${err.message}`)
 }
 
 function noteOk() {
@@ -128,9 +132,20 @@ async function listCollections(force = false) {
   return knownCollections
 }
 
+// HNSW indexing threads per collection. Qdrant's 0 (auto) rebuilt the 217k-point
+// dev index on ~9 of 24 cores each time a re-embed batch deleted points, taking
+// the shared box to load 65 (2026-10-16). 2 keeps a rebuild in the background;
+// QUOXBRAIN_QDRANT_INDEXING_THREADS=0 hands it back to Qdrant.
+function indexingThreads() {
+  const n = Number(process.env.QUOXBRAIN_QDRANT_INDEXING_THREADS)
+  return process.env.QUOXBRAIN_QDRANT_INDEXING_THREADS !== undefined && process.env.QUOXBRAIN_QDRANT_INDEXING_THREADS !== '' && Number.isInteger(n) && n >= 0 ? n : 2
+}
+
 // Collections created before occurred_ts existed get its index once per process
-// (Qdrant index PUT is idempotent). Best effort: a failure only means the date
-// range runs unindexed, never a failed write.
+// (Qdrant index PUT is idempotent), and existing collections get the indexing
+// thread cap (changing it needs no rebuild). Best effort: a failure only means
+// the date range runs unindexed or the cap waits for the next process, never a
+// failed write.
 const occurredIndexEnsured = new Set()
 async function ensureOccurredIndex(name) {
   if (occurredIndexEnsured.has(name)) return
@@ -140,6 +155,14 @@ async function ensureOccurredIndex(name) {
   } catch (err) {
     console.warn(`[ann] occurred_ts index on ${name} not created: ${err.message}`)
   }
+  const threads = indexingThreads()
+  if (threads > 0) {
+    try {
+      await getClient().request('PATCH', `/collections/${name}`, { hnsw_config: { max_indexing_threads: threads } })
+    } catch (err) {
+      console.warn(`[ann] indexing thread cap on ${name} not applied: ${err.message}`)
+    }
+  }
 }
 
 async function ensureCollection(model, dim) {
@@ -148,7 +171,8 @@ async function ensureCollection(model, dim) {
   await listCollections(true)
   if (knownCollections.has(name)) await ensureOccurredIndex(name)
   if (!knownCollections.has(name)) {
-    await getClient().request('PUT', `/collections/${name}`, { vectors: { size: dim, distance: 'Cosine' } })
+    const threads = indexingThreads()
+    await getClient().request('PUT', `/collections/${name}`, { vectors: { size: dim, distance: 'Cosine' }, ...(threads > 0 ? { hnsw_config: { max_indexing_threads: threads } } : {}) })
     for (const key of ['chunk_id', ...PAYLOAD_KEYS]) {
       await getClient().request('PUT', `/collections/${name}/index`, { field_name: key, field_schema: 'keyword' })
     }
@@ -446,8 +470,26 @@ export function backfillProgress(db) {
  * BRAIN2-W7 C 088: how many SQLite embeddings the ANN backfill cursor has not
  * yet pushed to the vector index. 0 when ANN is off (nothing to be incomplete).
  */
-export function annSyncPending(db) {
+// Rows past the sync cursor, for /brain/status. Counted through the small
+// covering (org_id, model) index: through the table it read every ~3KB vector
+// row, 1.2-1.6s of synchronous SQLite per status call with 123k pending on the
+// dev brain (2026-10-16), stalling every /brain/context call behind it. A row
+// with no vector is counted until the cursor passes it (6 of 287k on dev).
+// Cached 30s; status polls every ~40s and the figure moves per backfill tick.
+const PENDING_TTL_MS = 30_000
+let pendingCache = { db: null, at: 0, value: 0 }
+export function _resetAnnSyncPendingCache() { pendingCache = { db: null, at: 0, value: 0 } }
+export function annSyncPending(db, { now = Date.now() } = {}) {
   if (!annEnabled()) return 0
+  if (pendingCache.db === db && now - pendingCache.at < PENDING_TTL_MS) return pendingCache.value
   const s = db.prepare('SELECT last_rowid FROM ann_sync_state WHERE id = 1').get()
-  return db.prepare('SELECT COUNT(*) AS c FROM chunk_embeddings WHERE vector IS NOT NULL AND rowid > ?').get(s?.last_rowid ?? 0).c
+  const cursor = s?.last_rowid ?? 0
+  let value
+  try {
+    value = db.prepare('SELECT COUNT(*) AS c FROM chunk_embeddings INDEXED BY idx_chunk_embeddings_org_model WHERE rowid > ?').get(cursor).c
+  } catch {
+    value = db.prepare('SELECT COUNT(*) AS c FROM chunk_embeddings WHERE vector IS NOT NULL AND rowid > ?').get(cursor).c
+  }
+  pendingCache = { db, at: now, value }
+  return value
 }

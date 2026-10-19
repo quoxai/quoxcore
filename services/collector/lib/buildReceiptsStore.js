@@ -2,7 +2,7 @@
  * buildReceiptsStore.js — durable persistence for quox-build-daemon (Terminal 9)
  * build outcomes.
  *
- * DEVSUITE-BUILD Phase 1 ("receipts wedge"). /opt/quoxcore/bin/quox-build-daemon's
+ * DEVSUITE-BUILD Phase 1 ("receipts wedge"). ~/bin/quox-build-daemon's
  * record_action() function currently appends every build outcome (result,
  * target, terminal, stream, phase, msg, duration) to /tmp/quox-build-history
  * only — lost on reboot, no durable history, no WARD witnessing. This module
@@ -24,7 +24,7 @@
 'use strict';
 
 // SEC-AUDIT (2026-08-11) S5 + REGRESSION-FIX (2026-08-11): build receipts
-// written by /opt/quoxcore/bin/quox-build-daemon are SYSTEM/operator
+// written by ~/bin/quox-build-daemon are SYSTEM/operator
 // infrastructure data, not tenant data — the daemon builds shared images
 // (dashboard, collector, website) for the whole box and POSTs with the
 // INTERNAL_SERVICE_KEY and no org_id, so those rows land under this bucket.

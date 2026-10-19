@@ -223,7 +223,7 @@ async function executeAnthropicToolLoop(req, opts, deps) {
     if (msg.steerInterrupted && roundAbort) roundAbort.abort();
     addUsage(usage, msg.usage);
 
-    const content = msg.content.filter((b) => b.type === 'text').map((b) => b.text || '').join('');
+    let content = msg.content.filter((b) => b.type === 'text').map((b) => b.text || '').join('');
     const toolUses = msg.content.filter((b) => b.type === 'tool_use' && b.name);
     // Only a finished tool_use round is acted on: a call cut off by max_tokens is never run.
     const dispatchable = msg.stop_reason === 'tool_use' && round < MAX_TOOL_ROUNDS
@@ -269,6 +269,11 @@ async function executeAnthropicToolLoop(req, opts, deps) {
         return { content, toolsUsed, toolOutcomes, data: msg, stopped: lateStop, fullText, usage };
       }
       // BRAIN2-V2-1 parity with the OpenAI loop: retrieval -> answer, not awaited.
+      // quox#1292: a cited brain handle gets a Sources line naming its note (read before finalize retires it).
+      try {
+        const srcLine = require('./brainCitationTrace.js').citationSourcesLine(effectiveSessionId || session_id, content, opts.orgId ? { orgId: opts.orgId } : null);
+        if (srcLine) { appendText(srcLine); content = `${content || ''}${srcLine}`; }
+      } catch { /* the answer stands without it */ }
       try {
         const { finalizeAnswer } = require('./brainCitationTrace.js');
         Promise.resolve(finalizeAnswer(effectiveSessionId || session_id, content)).catch(() => {});

@@ -12,6 +12,7 @@ const { isSafeShellArg } = require('../shellSafe.js');
 /**
  * security_audit — query audit_events from auth service
  */
+const AUDIT_READ_TIMEOUT_MS = 45000;
 async function securityAudit(callBastion, input, ctx = {}, deps = {}) { // eslint-disable-line no-unused-vars
   const hours = Math.min(parseInt(input.hours) || 24, 168); // max 7 days
   const limit = Math.min(parseInt(input.limit) || 100, 500);
@@ -44,13 +45,20 @@ async function securityAudit(callBastion, input, ctx = {}, deps = {}) { // eslin
   if (eventTypes && eventTypes.length === 1) q.set('action', String(eventTypes[0]));
   const authUrl = deps.authUrl || process.env.AUTH_SERVICE_URL || 'http://auth:3101';
   const doFetch = deps.fetch || globalThis.fetch;
+  // REL-423b (proof security/t3-user-audit): auth answered this read 200 in 15352ms on a cold audit table, a hair over
+  // the old 15s abort, so the first call failed "Failed to query audit database" and only a retry by the model worked.
+  // A slow read is not a failed one: wait up to 45s, and retry once on a timeout (not on a refusal or a dead auth).
+  const auditUrl = `${authUrl}/api/orgs/${encodeURIComponent(orgId)}/audit?${q}`;
+  const isTimeout = (err) => !!err && (err.name === 'TimeoutError' || err.name === 'AbortError' || /timed? ?out|aborted/i.test(String(err.message)));
   let resp;
-  try {
-    resp = await doFetch(`${authUrl}/api/orgs/${encodeURIComponent(orgId)}/audit?${q}`, {
-      headers: { Authorization: `Bearer ${ctx.token}` }, signal: AbortSignal.timeout(15000),
-    });
-  } catch (err) {
-    return { success: false, error: 'Failed to query audit database', details: err.message };
+  for (let attempt = 1; ; attempt++) {
+    try {
+      resp = await doFetch(auditUrl, { headers: { Authorization: `Bearer ${ctx.token}` }, signal: AbortSignal.timeout(deps.timeoutMs || AUDIT_READ_TIMEOUT_MS) });
+      break;
+    } catch (err) {
+      if (attempt < 2 && isTimeout(err)) continue;
+      return { success: false, error: 'Failed to query audit database', details: err.message, ...(isTimeout(err) ? { timed_out: true, attempts: attempt } : {}) };
+    }
   }
   // An error body is not data: check the status before reading events.
   if (resp.status === 401 || resp.status === 403) {
