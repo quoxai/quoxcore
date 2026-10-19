@@ -49,7 +49,8 @@ export default function PlatformPulse({ data, error }) {
 
       {/* Services */}
       <div className="pulse-section pulse-services">
-        {Object.entries(data.services || {}).map(([name, svc]) => (
+        {/* Z2H run-6: a service this install does not ship (not_installed) is not a dot */}
+        {Object.entries(data.services || {}).filter(([, svc]) => svc?.status !== 'not_installed').map(([name, svc]) => (
           <span
             key={name}
             className={`pulse-service ${STATUS_DOT[svc.status] || 'pulse-service--unknown'}`}

@@ -11,7 +11,7 @@ Written commercial permission from Quox LTD is required to:
 
 Paid installation or support of a customer's **own**, directly licensed official instance is not automatically a forbidden Quox-as-a-service offering; consult the [licence](LICENSE) for boundaries.
 
-Commercial arrangements are negotiated separately and must expressly identify the permitted products, version scope, users, branding changes and distribution channel. Contact contact@example.com.
+Commercial arrangements are negotiated separately and must expressly identify the permitted products, version scope, users, branding changes and distribution channel. Contact hello@quox.ai.
 
 All four public protocols (AEE, AOCL, VOLT, WARD) and their independent open-source implementations remain under Apache License 2.0. Independently published Quox Plugin SDK components remain under MIT. Third-party software retains its own licence.
 

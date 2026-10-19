@@ -7,6 +7,8 @@ FROM alpine:3.19
 ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install minimal runtime dependencies
+# REL-424: package sources over https before the first update (some networks drop TCP 80 to the distro CDNs).
+RUN sed -i 's#http://#https://#g' /etc/apk/repositories && ! grep -q 'http://' /etc/apk/repositories
 RUN apk add --no-cache \
     python3 \
     py3-pip \

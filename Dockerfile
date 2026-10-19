@@ -9,6 +9,8 @@ FROM node:20-alpine@sha256:afdf98210b07b586eb71fa22ba2e432e058e4cd1304d31ed60888
 ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install build tools (may be needed for optional native modules)
+# REL-424: package sources over https before the first update (some networks drop TCP 80 to the distro CDNs).
+RUN sed -i 's#http://#https://#g' /etc/apk/repositories && ! grep -q 'http://' /etc/apk/repositories
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
@@ -44,6 +46,8 @@ FROM nginx:alpine@sha256:62ff2089abf5a9ed33bd232895bef5e22f7bb4b200675cec49a5ebc
 ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install curl for healthcheck and openssl for self-signed cert fallback
+# REL-424: package sources over https before the first update (some networks drop TCP 80 to the distro CDNs).
+RUN sed -i 's#http://#https://#g' /etc/apk/repositories && ! grep -q 'http://' /etc/apk/repositories
 RUN apk add --no-cache curl openssl
 
 # Create directories

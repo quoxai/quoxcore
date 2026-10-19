@@ -12,4 +12,4 @@ A formal white-label/OEM agreement may explicitly waive designated branding rest
 
 Open-source repositories may use the Quox name descriptively, and their Apache/MIT copyright licences apply to their code even when trade-mark rights remain with Quox LTD.
 
-Request permission: contact@example.com.
+Request permission: hello@quox.ai.

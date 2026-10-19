@@ -32,8 +32,17 @@ async function checkServiceHealth(baseUrl, path, timeoutMs, fetchFn) {
     }
     return { status: 'degraded', latency_ms: latency };
   } catch (err) {
-    return { status: 'down', latency_ms: null, error: err.message };
+    const code = err?.cause?.code || err?.code;
+    return { status: 'down', latency_ms: null, error: err.message, ...(code ? { code } : {}) };
   }
+}
+
+// Z2H run-6: an optional component (RepoBrain) the public install does not ship. The install marks it with an
+// explicit empty URL (setup.sh: REPOBRAIN_URL= when ../quox-repobrain is absent). Only that means "not installed";
+// anything configured is probed, and a failure (including a stopped container that no longer resolves) is down.
+async function checkOptionalServiceHealth(baseUrl, path, timeoutMs, { fetchFn } = {}) {
+  if (!baseUrl) return { status: 'not_installed', optional: true, latency_ms: null };
+  return checkServiceHealth(baseUrl, path, timeoutMs, fetchFn);
 }
 
 /**
@@ -47,13 +56,15 @@ function computeHealthScore(services) {
   if (entries.length === 0) return 0;
 
   let total = 0;
-  for (const svc of entries) {
+  const counted = entries.filter((svc) => svc.status !== 'not_installed'); // not shipped here: neither up nor down
+  if (counted.length === 0) return 0;
+  for (const svc of counted) {
     if (svc.status === 'ok') total += 1;
     else if (svc.status === 'degraded') total += 0.5;
     // 'down' contributes 0
   }
 
-  return Math.round((total / entries.length) * 100);
+  return Math.round((total / counted.length) * 100);
 }
 
 const DEFAULTS = {
@@ -94,6 +105,7 @@ async function buildAggregateHealth({
 
 module.exports = {
   checkServiceHealth,
+  checkOptionalServiceHealth,
   computeHealthScore,
   buildAggregateHealth,
 };

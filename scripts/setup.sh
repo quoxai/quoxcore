@@ -203,6 +203,15 @@ if ! grep -q "^COMPOSE_FILE=" .env 2>/dev/null; then
 fi
 echo ""
 
+# ─── RepoBrain is optional (Z2H run-6) ─────────────────────
+# compose builds repobrain from a sibling ../quox-repobrain checkout, which a public install never has. Say so in
+# .env (an explicit empty REPOBRAIN_URL) so the health card reports it "not installed" instead of "down" on a new,
+# healthy box. A machine with the checkout, or an operator who set the key, is left exactly as it was.
+if ! grep -q "^REPOBRAIN_URL=" .env 2>/dev/null && [ ! -d ../quox-repobrain ]; then
+    echo "REPOBRAIN_URL=" >> .env
+fi
+echo ""
+
 # ─── Step 3: SSL certificates ──────────────────────────────
 log "Step 3/7: SSL certificates"
 

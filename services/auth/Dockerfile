@@ -12,6 +12,11 @@ FROM node:20-slim@sha256:3d0f05455dea2c82e2f76e7e2543964c30f6b7d673fc1a83286736d
 ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install build tools for native modules (argon2, better-sqlite3)
+# REL-424: package sources over https before the first update (some networks drop TCP 80 to the distro CDNs).
+# This base ships no CA bundle, so apt's https needs one first: taken from a digest-pinned alpine image.
+COPY --from=alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+RUN find /etc/apt -maxdepth 2 \( -name sources.list -o -name '*.sources' -o -name '*.list' \) -exec sed -i 's#http://#https://#g' {} + \
+    && ! grep -rqs 'http://' /etc/apt/sources.list /etc/apt/sources.list.d
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     make \
@@ -47,6 +52,11 @@ ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_confi
 # Install runtime dependencies
 # python3 needed for Claude OAuth token exchange (bypasses Cloudflare TLS fingerprinting)
 # git, rsync, openssh-client needed for backup-quox.sh (backup/restore operations)
+# REL-424: package sources over https before the first update (some networks drop TCP 80 to the distro CDNs).
+# This base ships no CA bundle, so apt's https needs one first: taken from a digest-pinned alpine image.
+COPY --from=alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+RUN find /etc/apt -maxdepth 2 \( -name sources.list -o -name '*.sources' -o -name '*.list' \) -exec sed -i 's#http://#https://#g' {} + \
+    && ! grep -rqs 'http://' /etc/apt/sources.list /etc/apt/sources.list.d
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     python3 \

@@ -152,7 +152,7 @@ function flush(s, force = false) {
 
 /** Fold the turn's VOLT tool count and list into its AOCL summary (footer count, /aocl list). */
 function withTools(sum, turn) {
-  const t = turn?.tools;
+  const t = turn?.toolsOffer;
   return t && t.offered != null ? { ...sum, toolsOffered: t.offered, toolsTotal: t.total, toolsList: t.list } : sum;
 }
 function note(s, text, tone = 'dim') {
@@ -513,7 +513,7 @@ function reduceEvent(s, ev, now) {
         const m = String(ev.label).match(/(\d+)\s+of\s+(\d+)/);
         const list = String(ev.detail || '');
         const toolsOffered = m ? Number(m[1]) : (list ? list.split(/,\s*/).filter(Boolean).length : null);
-        if (s.turn) s = { ...s, turn: { ...s.turn, tools: { offered: toolsOffered, total: m ? Number(m[2]) : null, list } } };
+        if (s.turn) s = { ...s, turn: { ...s.turn, toolsOffer: { offered: toolsOffered, total: m ? Number(m[2]) : null, list } } };
       }
       if (isLayerTrace(ev)) return s.turn ? { ...s, turn: { ...s.turn, aoclTraces: [...(s.turn.aoclTraces || []), { label: ev.label, detail: ev.detail }] } } : s;
       if (s.verbose === 'off') return s;

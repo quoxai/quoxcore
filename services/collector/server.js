@@ -281,7 +281,7 @@ const { canAccessImage } = require('./lib/imageAuthz.js');
 const { scopeSignalTargetToOrg, scopeSignalBodyToOrg } = require('./lib/signalOrgScope.js');
 
 // Aggregate health — platform-wide health in one response (CLI-2a)
-const { checkServiceHealth, buildAggregateHealth } = require('./lib/aggregateHealth.js');
+const { checkServiceHealth, checkOptionalServiceHealth, buildAggregateHealth } = require('./lib/aggregateHealth.js');
 
 // Unified event stream — WebSocket broadcaster for AEE envelopes (CLI-2d)
 const { EventStreamHub } = require('./lib/eventStream.js');
@@ -5793,7 +5793,8 @@ app.get('/api/v1/health/aggregate', requireReadToken, async (req, res) => {
     const MEMORY_URL = process.env.MEMORY_SERVICE_URL || 'http://memory:3103';
     const FILES_URL = process.env.FILES_SERVICE_URL || 'http://files:3102';
     const QUOXFLOW_URL = process.env.QUOXFLOW_URL || 'http://quoxflow:3200';
-    const REPOBRAIN_HEALTH_URL = process.env.REPOBRAIN_URL || 'http://repobrain:3105';
+    // Z2H run-6: an explicit empty REPOBRAIN_URL (public install, setup.sh) means not installed; unset = the default.
+    const REPOBRAIN_HEALTH_URL = process.env.REPOBRAIN_URL === '' ? '' : (process.env.REPOBRAIN_URL || 'http://repobrain:3105');
     const TIMEOUT = 3000;
 
     // Parallel fan-out to all services
@@ -5807,7 +5808,7 @@ app.get('/api/v1/health/aggregate', requireReadToken, async (req, res) => {
       checkServiceHealth(MEMORY_URL, '/health', TIMEOUT),
       checkServiceHealth(FILES_URL, '/health', TIMEOUT),
       checkServiceHealth(QUOXFLOW_URL, '/health', TIMEOUT),
-      checkServiceHealth(REPOBRAIN_HEALTH_URL, '/healthz', TIMEOUT),
+      checkOptionalServiceHealth(REPOBRAIN_HEALTH_URL, '/healthz', TIMEOUT),
     ]);
 
     const serviceChecks = {

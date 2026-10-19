@@ -40,6 +40,11 @@ FROM node:20-slim@sha256:3d0f05455dea2c82e2f76e7e2543964c30f6b7d673fc1a83286736d
 ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=20000 npm_config_fetch_retry_maxtimeout=120000
 
 # Install build tools for native modules (better-sqlite3 requires glibc + build chain)
+# REL-424: package sources over https before the first update (some networks drop TCP 80 to the distro CDNs).
+# This base ships no CA bundle, so apt's https needs one first: taken from a digest-pinned alpine image.
+COPY --from=alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+RUN find /etc/apt -maxdepth 2 \( -name sources.list -o -name '*.sources' -o -name '*.list' \) -exec sed -i 's#http://#https://#g' {} + \
+    && ! grep -rqs 'http://' /etc/apt/sources.list /etc/apt/sources.list.d
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     make \
@@ -71,7 +76,7 @@ RUN npm ci --only=production
 # images are built with INCLUDE_CLAUDE_CLI=false and never contain it. Default true: dev box unchanged.
 # Without it the collector reports claude_cli_missing and the subscription provider as unavailable.
 ARG INCLUDE_CLAUDE_CLI=true
-RUN if [ "$INCLUDE_CLAUDE_CLI" = "true" ]; then npm install -g @anthropic-ai/claude-code@2.1.197; else echo "INCLUDE_CLAUDE_CLI=false: claude CLI not installed"; fi
+RUN if [ "$INCLUDE_CLAUDE_CLI" = "true" ]; then npm install -g @anthropic-ai/claude-code@2.1.303; else echo "INCLUDE_CLAUDE_CLI=false: claude CLI not installed"; fi
 
 # Install Gemini CLI globally for the GEMINI agent's gemini_review/analyze/generate tools
 # (services/collector/lib/toolExecutors/geminiCli.js shells out to `gemini`).

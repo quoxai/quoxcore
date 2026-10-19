@@ -20,4 +20,4 @@
 
 **Does installing free Quox phone home?** The licence does not require an account or mandatory telemetry for the free self-hosted platform. Optional paid services can have separate terms.
 
-For exceptions: contact@example.com.
+For exceptions: hello@quox.ai.

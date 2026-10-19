@@ -4,6 +4,9 @@
 FROM python:3.11-slim
 
 # Install dependencies
+# REL-424: package sources over https before the first update (some networks drop TCP 80 to the distro CDNs).
+RUN find /etc/apt -maxdepth 2 \( -name sources.list -o -name '*.sources' -o -name '*.list' \) -exec sed -i 's#http://#https://#g' {} + \
+    && ! grep -rqs 'http://' /etc/apt/sources.list /etc/apt/sources.list.d
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \

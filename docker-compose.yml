@@ -376,7 +376,8 @@ services:
       - WAZUH_INDEXER_USER=${WAZUH_INDEXER_USER:-admin}
       - WAZUH_INDEXER_PASSWORD=${WAZUH_INDEXER_PASSWORD:-}
       # RepoBrain codebase intelligence
-      - REPOBRAIN_URL=${REPOBRAIN_URL:-http://repobrain:3105}
+      # Z2H run-6: single dash keeps an explicit empty value (public install, setup.sh) = RepoBrain not installed
+      - REPOBRAIN_URL=${REPOBRAIN_URL-http://repobrain:3105}
       # QuoxPlan (QUOXPLAN-P7) — containerised, same compose network; override
       # to host.docker.internal if ever running the host dev process instead.
       - QUOXPLAN_URL=${QUOXPLAN_URL:-http://quoxplan:3107}

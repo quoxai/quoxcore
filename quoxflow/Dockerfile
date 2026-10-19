@@ -11,6 +11,11 @@
 FROM node:18-slim@sha256:f9ab18e354e6855ae56ef2b290dd225c1e51a564f87584b9bd21dd651838830e AS builder
 
 # Build tools for native modules (isolated-vm)
+# REL-424: package sources over https before the first update (some networks drop TCP 80 to the distro CDNs).
+# This base ships no CA bundle, so apt's https needs one first: taken from a digest-pinned alpine image.
+COPY --from=alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+RUN find /etc/apt -maxdepth 2 \( -name sources.list -o -name '*.sources' -o -name '*.list' \) -exec sed -i 's#http://#https://#g' {} + \
+    && ! grep -rqs 'http://' /etc/apt/sources.list /etc/apt/sources.list.d
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     make \
@@ -39,6 +44,11 @@ RUN npm run build
 FROM node:18-slim@sha256:f9ab18e354e6855ae56ef2b290dd225c1e51a564f87584b9bd21dd651838830e AS production
 
 # Runtime deps: ca-certificates + build tools for isolated-vm native rebuild
+# REL-424: package sources over https before the first update (some networks drop TCP 80 to the distro CDNs).
+# This base ships no CA bundle, so apt's https needs one first: taken from a digest-pinned alpine image.
+COPY --from=alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+RUN find /etc/apt -maxdepth 2 \( -name sources.list -o -name '*.sources' -o -name '*.list' \) -exec sed -i 's#http://#https://#g' {} + \
+    && ! grep -rqs 'http://' /etc/apt/sources.list /etc/apt/sources.list.d
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     python3 \
